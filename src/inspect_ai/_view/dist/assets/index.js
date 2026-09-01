@@ -166,6 +166,7 @@ var require_scheduler_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 					} finally {
 						currentTask = null, currentPriorityLevel = previousPriorityLevel, isPerformingWork = !1;
 					}
+					hasMoreWork = void 0;
 				}
 			} finally {
 				hasMoreWork ? schedulePerformWorkUntilDeadline() : isMessageLoopRunning = !1;
@@ -9885,7 +9886,7 @@ function isRegExp(value) {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/util/is-object.js
-function isObject$1(value) {
+function isObject$2(value) {
 	return value === Object(value);
 }
 //#endregion
@@ -9899,7 +9900,7 @@ function isObject$1(value) {
 * @return {boolean} True if equal, false if not.
 */
 function equal(a, b) {
-	return a == null || b == null || a !== a || b !== b ? false : a === b ? true : isDate(a) || isDate(b) ? +a === +b : isRegExp(a) && isRegExp(b) ? a + "" === b + "" : isObject$1(a) && isObject$1(b) ? deepEqual(a, b) : false;
+	return a == null || b == null || a !== a || b !== b ? false : a === b ? true : isDate(a) || isDate(b) ? +a === +b : isRegExp(a) && isRegExp(b) ? a + "" === b + "" : isObject$2(a) && isObject$2(b) ? deepEqual(a, b) : false;
 }
 function deepEqual(a, b) {
 	if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) return false;
@@ -17385,7 +17386,7 @@ var NO = (msg) => (node, ctx) => ctx.error(node, msg + " not allowed");
 var ERROR_AGGREGATE = NO("Aggregate function");
 var ERROR_WINDOW = NO("Window function");
 var ERROR_COLUMN = "Invalid column reference";
-var ERROR_AGGRONLY = "Invalid column reference (must be input to an aggregate function)";
+var ERROR_AGGRONLY = ERROR_COLUMN + " (must be input to an aggregate function)";
 var ERROR_FUNCTION = "Invalid function call";
 var ERROR_MEMBER = "Invalid member expression";
 var ERROR_OP_PARAMETER = "Invalid operator parameter";
@@ -18124,7 +18125,7 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 	if (!active) return false;
 	const tag = active.tagName;
 	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-	if (active.isContentEditable) return true;
+	if (active instanceof HTMLElement && active.isContentEditable) return true;
 	return false;
 }
 //#endregion
@@ -18267,6 +18268,20 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 	})} s`;
 }
 /**
+* Formats a dollar amount: 2 significant digits below a dollar (per-call and
+* per-sample costs are often sub-cent, where 2 decimals would render "$0.00"),
+* 2 fraction digits with grouping at or above.
+*/ function formatCurrency(dollars) {
+	if (dollars > 0 && dollars < .995) return `$${dollars.toLocaleString(navigator.language, {
+		minimumSignificantDigits: 2,
+		maximumSignificantDigits: 2
+	})}`;
+	return `$${dollars.toLocaleString(navigator.language, {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2
+	})}`;
+}
+/**
 * Formats a byte count as a human-readable string (B, KB, MB, GB, TB).
 */ function formatBytes(bytes) {
 	const units = [
@@ -18329,11 +18344,12 @@ var isJson = (text) => {
 	}
 	return false;
 };
+var isObject$1 = (value) => typeof value === "object" && value !== null;
 var asJsonObjArray = (text) => {
 	text = text.trim();
 	if (text.startsWith("[") && text.endsWith("]")) try {
 		const arr = JSON.parse(text);
-		if (Array.isArray(arr) && arr.every((item) => typeof item === "object")) return arr;
+		if (Array.isArray(arr) && arr.every(isObject$1)) return arr;
 		else return;
 	} catch {
 		return;
@@ -19573,7 +19589,7 @@ var JsonWorkerPool = class {
 		return this.submit({ text }, [], text);
 	}
 	async parseBytes(data) {
-		const owned = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data : data.slice();
+		const owned = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength && data.buffer instanceof ArrayBuffer ? new Uint8Array(data.buffer) : data.slice();
 		return this.submit({ bytes: owned }, [owned.buffer]);
 	}
 	pickWorker() {
@@ -19702,15 +19718,21 @@ var repairNonFiniteJson = (source, nanToken, infToken, negInfToken) => {
 	return parts.join("");
 };
 var applyNonFinitePaths = (root, paths, sentinels) => {
+	const isRecord = (v) => typeof v === "object" && v !== null;
 	for (const path of paths) {
 		let target = root;
-		for (let i = 0; i < path.length - 1; i++) target = target[path[i]];
+		for (let i = 0; i < path.length - 1; i++) {
+			if (!isRecord(target)) break;
+			target = target[path[i]];
+		}
+		if (!isRecord(target)) continue;
 		const leaf = path[path.length - 1];
 		const value = target[leaf];
 		target[leaf] = value === sentinels.nan ? NaN : value === sentinels.inf ? Infinity : value === sentinels.ninf ? -Infinity : value;
 	}
 };
 var findSentinelPaths = (root, sentinels, maxPaths) => {
+	const isRecord = (v) => typeof v === "object" && v !== null;
 	const paths = [];
 	const stack = [{
 		node: root,
@@ -19736,7 +19758,7 @@ var findSentinelPaths = (root, sentinels, maxPaths) => {
 				prev: frame
 			});
 		}
-		else if (node && typeof node === "object") for (const key of Object.keys(node)) {
+		else if (isRecord(node)) for (const key of Object.keys(node)) {
 			const v = node[key];
 			if (typeof v === "string" || v && typeof v === "object") stack.push({
 				node: v,
@@ -19748,6 +19770,7 @@ var findSentinelPaths = (root, sentinels, maxPaths) => {
 	return paths;
 };
 var replaceSentinelsInPlace = (root, sentinels) => {
+	const isRecord = (v) => typeof v === "object" && v !== null;
 	const restore = (v) => v === sentinels.nan ? NaN : v === sentinels.inf ? Infinity : v === sentinels.ninf ? -Infinity : v;
 	const stack = [root];
 	while (stack.length > 0) {
@@ -19757,13 +19780,10 @@ var replaceSentinelsInPlace = (root, sentinels) => {
 			if (typeof v === "string") node[i] = restore(v);
 			else if (v && typeof v === "object") stack.push(v);
 		}
-		else if (node && typeof node === "object") {
-			const record = node;
-			for (const key of Object.keys(record)) {
-				const v = record[key];
-				if (typeof v === "string") record[key] = restore(v);
-				else if (v && typeof v === "object") stack.push(v);
-			}
+		else if (isRecord(node)) for (const key of Object.keys(node)) {
+			const v = node[key];
+			if (typeof v === "string") node[key] = restore(v);
+			else if (v && typeof v === "object") stack.push(v);
 		}
 	}
 };
@@ -19819,9 +19839,15 @@ var parseFallback = (text) => {
 };
 var workerPool = new JsonWorkerPool();
 var kWorkerMinSize = 5e4;
+/**
+* The one unchecked step in this module. Every entry point here names a `T`
+* the parser cannot verify — the same contract `JSON.parse(text) as T` has,
+* where the shape is the caller's claim about their own data. Funnelled
+* through here so no other line in the module has to assert.
+*/ var asParsed = (value) => value;
 var asyncJsonParse = async (text) => {
 	if (text.length < kWorkerMinSize) return jsonParse$1(text);
-	else return workerPool.parse(text);
+	else return asParsed(await workerPool.parse(text));
 };
 /**
 * Parse JSON from raw UTF-8 bytes, avoiding redundant main-thread
@@ -19838,13 +19864,13 @@ var asyncJsonParse = async (text) => {
 * bytes; passing an already-detached view rejects with a DataCloneError.
 */ var asyncJsonParseBytes = async (data) => {
 	if (data.length < kWorkerMinSize) return jsonParse$1(new TextDecoder("utf-8").decode(data));
-	else return workerPool.parseBytes(data);
+	else return asParsed(await workerPool.parseBytes(data));
 };
 var jsonParse$1 = (text) => {
 	try {
-		return JSON.parse(text);
+		return asParsed(JSON.parse(text));
 	} catch {
-		return parseFallback(text);
+		return asParsed(parseFallback(text));
 	}
 };
 var kWorkerCode = `
@@ -20355,7 +20381,7 @@ var isRetryableHttpStatus = (status) => status === 408 || status === 429 || stat
 	const later = () => {
 		previous = options.leading === false ? 0 : Date.now();
 		timeout = null;
-		result = func(...args === null ? [] : args);
+		if (args !== null) result = func(...args);
 		if (!timeout) args = null;
 	};
 	const throttled = (...callArgs) => {
@@ -20413,7 +20439,7 @@ var isRetryableHttpStatus = (status) => status === 408 || status === 429 || stat
 /**
 * Checks if a given value is numeric.
 */ var isNumeric = (n) => {
-	return !isNaN(parseFloat(n)) && isFinite(n);
+	return !isNaN(parseFloat(String(n))) && isFinite(Number(n));
 };
 /**
 * Ensures the value is an array
@@ -20424,6 +20450,11 @@ var isRetryableHttpStatus = (status) => status === 408 || status === 429 || stat
 	if (Array.isArray(val)) return val;
 	else return [val];
 };
+/**
+* Narrows a `T | ReadonlyArray<T>` union, which `Array.isArray` cannot do on
+* its own — its signature only knows about mutable arrays. Unsound if `T` is
+* itself an array type.
+*/ var isReadonlyArray = (value) => Array.isArray(value);
 /**
 * Checks if a given value is a Record.
 */ var isRecord = (value) => {
@@ -20583,6 +20614,7 @@ var GENERATE_CONFIG_KEYS = {
 	response_schema: true,
 	seed: true,
 	stop_seqs: true,
+	stream_idle_timeout: true,
 	system_message: true,
 	temperature: true,
 	timeout: true,
@@ -20592,9 +20624,8 @@ var GENERATE_CONFIG_KEYS = {
 	verbosity: true
 };
 var isChangeRecord = (change) => typeof change === "object" && change !== null;
-var foldConfig = (launch, updates, family, knownKeys) => {
-	if (!updates || updates.length === 0) return launch;
-	const launchRecord = launch;
+var foldConfigRecord = (launch, updates, family, knownKeys) => {
+	const launchRecord = Object.fromEntries(Object.entries(launch));
 	const result = { ...launchRecord };
 	for (const update of updates) {
 		if (!Array.isArray(update.changes)) continue;
@@ -20608,6 +20639,10 @@ var foldConfig = (launch, updates, family, knownKeys) => {
 		}
 	}
 	return result;
+};
+var foldConfig = (launch, updates, family, knownKeys) => {
+	if (!updates || updates.length === 0) return launch;
+	return foldConfigRecord(launch, updates, family, knownKeys);
 };
 /**
 * The eval config the run actually ran under: launch config with
@@ -20816,7 +20851,11 @@ var firstMetric = (score) => {
 	} : void 0;
 };
 var headlineMetric = (results, declared) => resolveHeadlineMetric(results, declared)?.metric;
-/** Move `index` to the front, leaving the relative order of the rest intact. */ var leadWith = (items, index) => index <= 0 ? items : [items[index], ...items.filter((_, i) => i !== index)];
+/** Move `index` to the front, leaving the relative order of the rest intact. */ var leadWith = (items, index) => {
+	const lead = index <= 0 ? void 0 : items[index];
+	if (lead === void 0) return items;
+	return [lead, ...items.filter((_, i) => i !== index)];
+};
 //#endregion
 //#region src/client/utils/derive.ts
 var deriveLogFields = (header) => {
@@ -21159,9 +21198,15 @@ var FetchEngine = class {
 	};
 	_statusListeners = /* @__PURE__ */ new Set();
 	constructor(options = {}) {
-		this._throttledUpdateDbStats = throttle(() => void this.updateDbStats(), options.statsDelayMs ?? 1e3);
-		this._throttledFlushPreviewWrites = throttle(() => void this.flushPreviewWrites(), options.flushDelayMs ?? 250);
-		this._throttledFlushDetailWrites = throttle(() => void this.flushDetailWrites(), options.flushDelayMs ?? 250);
+		this._throttledUpdateDbStats = throttle(() => {
+			this.updateDbStats();
+		}, options.statsDelayMs ?? 1e3);
+		this._throttledFlushPreviewWrites = throttle(() => {
+			this.flushPreviewWrites();
+		}, options.flushDelayMs ?? 250);
+		this._throttledFlushDetailWrites = throttle(() => {
+			this.flushDetailWrites();
+		}, options.flushDelayMs ?? 250);
 		this._queue = new WorkQueue({
 			name: "Log-Fetch-Queue",
 			concurrency: options.concurrency ?? 6,
@@ -21657,35 +21702,31 @@ var FetchEngine = class {
 		}
 		if (retry.length > 0) this._queue.enqueue(retry.map(previewWork), WorkPriority.Low);
 	}
-	async flushPreviewWrites() {
+	flushPreviewWrites() {
 		if (this._flushingPreviews) return;
+		const updates = this._pendingPreviewWrites;
+		this._pendingPreviewWrites = {};
+		const deps = this._deps;
+		if (!deps || Object.keys(updates).length === 0) return;
 		this._flushingPreviews = true;
-		try {
-			const updates = this._pendingPreviewWrites;
-			this._pendingPreviewWrites = {};
-			const deps = this._deps;
-			if (!deps || Object.keys(updates).length === 0) return;
-			await deps.sink.writePreviews(updates).catch(() => {});
+		deps.sink.writePreviews(updates).catch(() => {}).finally(() => {
 			this._throttledUpdateDbStats();
-		} finally {
 			this._flushingPreviews = false;
 			if (Object.keys(this._pendingPreviewWrites).length > 0) this.flushPreviewWrites();
-		}
+		});
 	}
-	async flushDetailWrites() {
+	flushDetailWrites() {
 		if (this._flushingDetails) return;
+		const updates = this._pendingDetailWrites;
+		this._pendingDetailWrites = {};
+		const deps = this._deps;
+		if (!deps || Object.keys(updates).length === 0) return;
 		this._flushingDetails = true;
-		try {
-			const updates = this._pendingDetailWrites;
-			this._pendingDetailWrites = {};
-			const deps = this._deps;
-			if (!deps || Object.keys(updates).length === 0) return;
-			await deps.sink.writeDetails(updates).catch(() => {});
+		deps.sink.writeDetails(updates).catch(() => {}).finally(() => {
 			this._throttledUpdateDbStats();
-		} finally {
 			this._flushingDetails = false;
 			if (Object.keys(this._pendingDetailWrites).length > 0) this.flushDetailWrites();
-		}
+		});
 	}
 	async updateDbStats() {
 		const deps = this._deps;
@@ -26458,7 +26499,278 @@ function debounce$2(func, wait, options) {
 	return debouncedFn;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/subscribable.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+var QueryClientContext = import_react.createContext(void 0);
+var useQueryClient = (queryClient) => {
+	const client = import_react.useContext(QueryClientContext);
+	if (queryClient) return queryClient;
+	if (!client) throw new Error("No QueryClient set, use QueryClientProvider to set one");
+	return client;
+};
+var QueryClientProvider = ({ client, children }) => {
+	import_react.useEffect(() => {
+		client.mount();
+		return () => {
+			client.unmount();
+		};
+	}, [client]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(QueryClientContext.Provider, {
+		value: client,
+		children
+	});
+};
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+var defaultTimeoutProvider = {
+	setTimeout: (callback, delay) => setTimeout(callback, delay),
+	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
+	setInterval: (callback, delay) => setInterval(callback, delay),
+	clearInterval: (intervalId) => clearInterval(intervalId)
+};
+/**
+* Allows customization of how timeouts are created.
+*
+* @tanstack/query-core makes liberal use of timeouts to implement `staleTime`
+* and `gcTime`. The default TimeoutManager provider uses the platform's global
+* `setTimeout` implementation, which is known to have scalability issues with
+* thousands of timeouts on the event loop.
+*
+* If you hit this limitation, consider providing a custom TimeoutProvider that
+* coalesces timeouts.
+*/
+var TimeoutManager = class {
+	#provider = defaultTimeoutProvider;
+	#providerCalled = false;
+	setTimeoutProvider(provider) {
+		this.#provider = provider;
+	}
+	setTimeout(callback, delay) {
+		return this.#provider.setTimeout(callback, delay);
+	}
+	clearTimeout(timeoutId) {
+		this.#provider.clearTimeout(timeoutId);
+	}
+	setInterval(callback, delay) {
+		return this.#provider.setInterval(callback, delay);
+	}
+	clearInterval(intervalId) {
+		this.#provider.clearInterval(intervalId);
+	}
+};
+var timeoutManager = new TimeoutManager();
+/**
+* In many cases code wants to delay to the next event loop tick; this is not
+* mediated by {@link timeoutManager}.
+*
+* This function is provided to make auditing the `tanstack/query-core` for
+* incorrect use of system `setTimeout` easier.
+*/
+function systemSetTimeoutZero(callback) {
+	setTimeout(callback, 0);
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/utils.js
+/** @deprecated
+* use `environmentManager.isServer()` instead.
+*/
+var isServer = typeof window === "undefined" || "Deno" in globalThis;
+function noop() {}
+function functionalUpdate$1(updater, input) {
+	return typeof updater === "function" ? updater(input) : updater;
+}
+function isValidTimeout(value) {
+	return typeof value === "number" && value >= 0 && value !== Infinity;
+}
+function timeUntilStale(updatedAt, staleTime) {
+	return Math.max(updatedAt + (staleTime || 0) - Date.now(), 0);
+}
+function resolveStaleTime(staleTime, query) {
+	return typeof staleTime === "function" ? staleTime(query) : staleTime;
+}
+function resolveQueryBoolean(option, query) {
+	return typeof option === "function" ? option(query) : option;
+}
+function matchQuery(filters, query) {
+	const { type = "all", exact, fetchStatus, predicate, queryKey, stale } = filters;
+	if (queryKey) {
+		if (exact) {
+			if (query.queryHash !== hashQueryKeyByOptions(queryKey, query.options)) return false;
+		} else if (!partialMatchKey(query.queryKey, queryKey)) return false;
+	}
+	if (type !== "all") {
+		const isActive = query.isActive();
+		if (type === "active" && !isActive) return false;
+		if (type === "inactive" && isActive) return false;
+	}
+	if (typeof stale === "boolean" && query.isStale() !== stale) return false;
+	if (fetchStatus && fetchStatus !== query.state.fetchStatus) return false;
+	if (predicate && !predicate(query)) return false;
+	return true;
+}
+function matchMutation(filters, mutation) {
+	const { exact, status, predicate, mutationKey } = filters;
+	if (mutationKey) {
+		if (!mutation.options.mutationKey) return false;
+		if (exact) {
+			if (hashKey(mutation.options.mutationKey) !== hashKey(mutationKey)) return false;
+		} else if (!partialMatchKey(mutation.options.mutationKey, mutationKey)) return false;
+	}
+	if (status && mutation.state.status !== status) return false;
+	if (predicate && !predicate(mutation)) return false;
+	return true;
+}
+function hashQueryKeyByOptions(queryKey, options) {
+	return (options?.queryKeyHashFn || hashKey)(queryKey);
+}
+/**
+* Default query & mutation keys hash function.
+* Hashes the value into a stable hash.
+*/
+function hashKey(queryKey) {
+	return JSON.stringify(queryKey, (_, val) => isPlainObject$2(val) ? Object.keys(val).sort().reduce((result, key) => {
+		result[key] = val[key];
+		return result;
+	}, {}) : val);
+}
+function partialMatchKey(a, b) {
+	if (a === b) return true;
+	if (typeof a !== typeof b) return false;
+	if (a && b && typeof a === "object" && typeof b === "object") {
+		if (Array.isArray(a) && Array.isArray(b)) {
+			for (let i = 0; i < b.length; i++) if (!partialMatchKey(a[i], b[i])) return false;
+			return true;
+		}
+		const bKeys = Object.keys(b);
+		for (const key of bKeys) if (!partialMatchKey(a[key], b[key])) return false;
+		return true;
+	}
+	return false;
+}
+var hasOwn$1 = Object.prototype.hasOwnProperty;
+function replaceEqualDeep(a, b, depth = 0) {
+	if (a === b) return a;
+	if (depth > 500) return b;
+	const array = isPlainArray(a) && isPlainArray(b);
+	if (!array && !(isPlainObject$2(a) && isPlainObject$2(b))) return b;
+	const aSize = (array ? a : Object.keys(a)).length;
+	const bItems = array ? b : Object.keys(b);
+	const bSize = bItems.length;
+	const copy = array ? new Array(bSize) : {};
+	let equalItems = 0;
+	for (let i = 0; i < bSize; i++) {
+		const key = array ? i : bItems[i];
+		const aItem = a[key];
+		const bItem = b[key];
+		if (aItem === bItem) {
+			copy[key] = aItem;
+			if (array ? i < aSize : hasOwn$1.call(a, key)) equalItems++;
+			continue;
+		}
+		if (aItem === null || bItem === null || typeof aItem !== "object" || typeof bItem !== "object") {
+			copy[key] = bItem;
+			continue;
+		}
+		const v = replaceEqualDeep(aItem, bItem, depth + 1);
+		copy[key] = v;
+		if (v === aItem) equalItems++;
+	}
+	return aSize === bSize && equalItems === aSize ? a : copy;
+}
+/**
+* Shallow compare objects.
+*/
+function shallowEqualObjects(a, b) {
+	if (!b || Object.keys(a).length !== Object.keys(b).length) return false;
+	for (const key in a) if (a[key] !== b[key]) return false;
+	return true;
+}
+function isPlainArray(value) {
+	return Array.isArray(value) && value.length === Object.keys(value).length;
+}
+function isPlainObject$2(o) {
+	if (!hasObjectPrototype(o)) return false;
+	const ctor = o.constructor;
+	if (ctor === void 0) return true;
+	const prot = ctor.prototype;
+	if (!hasObjectPrototype(prot)) return false;
+	if (!prot.hasOwnProperty("isPrototypeOf")) return false;
+	if (Object.getPrototypeOf(o) !== Object.prototype) return false;
+	return true;
+}
+function hasObjectPrototype(o) {
+	return Object.prototype.toString.call(o) === "[object Object]";
+}
+function sleep(timeout) {
+	return new Promise((resolve) => {
+		timeoutManager.setTimeout(resolve, timeout);
+	});
+}
+function replaceData(prevData, data, options) {
+	if (typeof options.structuralSharing === "function") return options.structuralSharing(prevData, data);
+	else if (options.structuralSharing !== false) return replaceEqualDeep(prevData, data);
+	return data;
+}
+function keepPreviousData(previousData) {
+	return previousData;
+}
+function addToEnd(items, item, max = 0) {
+	const newItems = [...items, item];
+	return max && newItems.length > max ? newItems.slice(1) : newItems;
+}
+function addToStart(items, item, max = 0) {
+	const newItems = [item, ...items];
+	return max && newItems.length > max ? newItems.slice(0, -1) : newItems;
+}
+var skipToken = Symbol();
+function ensureQueryFn(options, fetchOptions) {
+	if (!options.queryFn && fetchOptions?.initialPromise) return () => fetchOptions.initialPromise;
+	if (!options.queryFn || options.queryFn === skipToken) return () => Promise.reject(/* @__PURE__ */ new Error(`Missing queryFn: '${options.queryHash}'`));
+	return options.queryFn;
+}
+function shouldThrowError(throwOnError, params) {
+	if (typeof throwOnError === "function") return throwOnError(...params);
+	return !!throwOnError;
+}
+function addConsumeAwareSignal(object, getSignal, onCancelled) {
+	let consumed = false;
+	let signal;
+	Object.defineProperty(object, "signal", {
+		enumerable: true,
+		get: () => {
+			signal ??= getSignal();
+			if (consumed) return signal;
+			consumed = true;
+			if (signal.aborted) onCancelled();
+			else signal.addEventListener("abort", onCancelled, { once: true });
+			return signal;
+		}
+	});
+	return object;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+/**
+* Manages environment detection used by TanStack Query internals.
+*/
+var environmentManager = (() => {
+	let isServerFn = () => isServer;
+	return {
+		/**
+		* Returns whether the current runtime should be treated as a server environment.
+		*/
+		isServer() {
+			return isServerFn();
+		},
+		/**
+		* Overrides the server check globally.
+		*/
+		setIsServer(isServerValue) {
+			isServerFn = isServerValue;
+		}
+	};
+})();
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/subscribable.js
 var Subscribable = class {
 	constructor() {
 		this.listeners = /* @__PURE__ */ new Set();
@@ -26479,7 +26791,7 @@ var Subscribable = class {
 	onUnsubscribe() {}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/focusManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/focusManager.js
 var FocusManager = class extends Subscribable {
 	#focused;
 	#cleanup;
@@ -26532,258 +26844,7 @@ var FocusManager = class extends Subscribable {
 };
 var focusManager = new FocusManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
-var defaultTimeoutProvider = {
-	setTimeout: (callback, delay) => setTimeout(callback, delay),
-	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
-	setInterval: (callback, delay) => setInterval(callback, delay),
-	clearInterval: (intervalId) => clearInterval(intervalId)
-};
-var TimeoutManager = class {
-	#provider = defaultTimeoutProvider;
-	#providerCalled = false;
-	setTimeoutProvider(provider) {
-		this.#provider = provider;
-	}
-	setTimeout(callback, delay) {
-		return this.#provider.setTimeout(callback, delay);
-	}
-	clearTimeout(timeoutId) {
-		this.#provider.clearTimeout(timeoutId);
-	}
-	setInterval(callback, delay) {
-		return this.#provider.setInterval(callback, delay);
-	}
-	clearInterval(intervalId) {
-		this.#provider.clearInterval(intervalId);
-	}
-};
-var timeoutManager = new TimeoutManager();
-function systemSetTimeoutZero(callback) {
-	setTimeout(callback, 0);
-}
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/utils.js
-var isServer = typeof window === "undefined" || "Deno" in globalThis;
-function noop() {}
-function functionalUpdate$1(updater, input) {
-	return typeof updater === "function" ? updater(input) : updater;
-}
-function isValidTimeout(value) {
-	return typeof value === "number" && value >= 0 && value !== Infinity;
-}
-function timeUntilStale(updatedAt, staleTime) {
-	return Math.max(updatedAt + (staleTime || 0) - Date.now(), 0);
-}
-function resolveStaleTime(staleTime, query) {
-	return typeof staleTime === "function" ? staleTime(query) : staleTime;
-}
-function resolveQueryBoolean(option, query) {
-	return typeof option === "function" ? option(query) : option;
-}
-function matchQuery(filters, query) {
-	const { type = "all", exact, fetchStatus, predicate, queryKey, stale } = filters;
-	if (queryKey) {
-		if (exact) {
-			if (query.queryHash !== hashQueryKeyByOptions(queryKey, query.options)) return false;
-		} else if (!partialMatchKey(query.queryKey, queryKey)) return false;
-	}
-	if (type !== "all") {
-		const isActive = query.isActive();
-		if (type === "active" && !isActive) return false;
-		if (type === "inactive" && isActive) return false;
-	}
-	if (typeof stale === "boolean" && query.isStale() !== stale) return false;
-	if (fetchStatus && fetchStatus !== query.state.fetchStatus) return false;
-	if (predicate && !predicate(query)) return false;
-	return true;
-}
-function matchMutation(filters, mutation) {
-	const { exact, status, predicate, mutationKey } = filters;
-	if (mutationKey) {
-		if (!mutation.options.mutationKey) return false;
-		if (exact) {
-			if (hashKey(mutation.options.mutationKey) !== hashKey(mutationKey)) return false;
-		} else if (!partialMatchKey(mutation.options.mutationKey, mutationKey)) return false;
-	}
-	if (status && mutation.state.status !== status) return false;
-	if (predicate && !predicate(mutation)) return false;
-	return true;
-}
-function hashQueryKeyByOptions(queryKey, options) {
-	return (options?.queryKeyHashFn || hashKey)(queryKey);
-}
-function hashKey(queryKey) {
-	return JSON.stringify(queryKey, (_, val) => isPlainObject$2(val) ? Object.keys(val).sort().reduce((result, key) => {
-		result[key] = val[key];
-		return result;
-	}, {}) : val);
-}
-function partialMatchKey(a, b) {
-	if (a === b) return true;
-	if (typeof a !== typeof b) return false;
-	if (a && b && typeof a === "object" && typeof b === "object") {
-		if (Array.isArray(a) && Array.isArray(b)) {
-			for (let i = 0; i < b.length; i++) if (!partialMatchKey(a[i], b[i])) return false;
-			return true;
-		}
-		const bKeys = Object.keys(b);
-		for (const key of bKeys) if (!partialMatchKey(a[key], b[key])) return false;
-		return true;
-	}
-	return false;
-}
-var hasOwn$1 = Object.prototype.hasOwnProperty;
-function replaceEqualDeep(a, b, depth = 0) {
-	if (a === b) return a;
-	if (depth > 500) return b;
-	const array = isPlainArray(a) && isPlainArray(b);
-	if (!array && !(isPlainObject$2(a) && isPlainObject$2(b))) return b;
-	const aSize = (array ? a : Object.keys(a)).length;
-	const bItems = array ? b : Object.keys(b);
-	const bSize = bItems.length;
-	const copy = array ? new Array(bSize) : {};
-	let equalItems = 0;
-	for (let i = 0; i < bSize; i++) {
-		const key = array ? i : bItems[i];
-		const aItem = a[key];
-		const bItem = b[key];
-		if (aItem === bItem) {
-			copy[key] = aItem;
-			if (array ? i < aSize : hasOwn$1.call(a, key)) equalItems++;
-			continue;
-		}
-		if (aItem === null || bItem === null || typeof aItem !== "object" || typeof bItem !== "object") {
-			copy[key] = bItem;
-			continue;
-		}
-		const v = replaceEqualDeep(aItem, bItem, depth + 1);
-		copy[key] = v;
-		if (v === aItem) equalItems++;
-	}
-	return aSize === bSize && equalItems === aSize ? a : copy;
-}
-function shallowEqualObjects(a, b) {
-	if (!b || Object.keys(a).length !== Object.keys(b).length) return false;
-	for (const key in a) if (a[key] !== b[key]) return false;
-	return true;
-}
-function isPlainArray(value) {
-	return Array.isArray(value) && value.length === Object.keys(value).length;
-}
-function isPlainObject$2(o) {
-	if (!hasObjectPrototype(o)) return false;
-	const ctor = o.constructor;
-	if (ctor === void 0) return true;
-	const prot = ctor.prototype;
-	if (!hasObjectPrototype(prot)) return false;
-	if (!prot.hasOwnProperty("isPrototypeOf")) return false;
-	if (Object.getPrototypeOf(o) !== Object.prototype) return false;
-	return true;
-}
-function hasObjectPrototype(o) {
-	return Object.prototype.toString.call(o) === "[object Object]";
-}
-function sleep(timeout) {
-	return new Promise((resolve) => {
-		timeoutManager.setTimeout(resolve, timeout);
-	});
-}
-function replaceData(prevData, data, options) {
-	if (typeof options.structuralSharing === "function") return options.structuralSharing(prevData, data);
-	else if (options.structuralSharing !== false) return replaceEqualDeep(prevData, data);
-	return data;
-}
-function keepPreviousData(previousData) {
-	return previousData;
-}
-function addToEnd(items, item, max = 0) {
-	const newItems = [...items, item];
-	return max && newItems.length > max ? newItems.slice(1) : newItems;
-}
-function addToStart(items, item, max = 0) {
-	const newItems = [item, ...items];
-	return max && newItems.length > max ? newItems.slice(0, -1) : newItems;
-}
-var skipToken = /* @__PURE__ */ Symbol();
-function ensureQueryFn(options, fetchOptions) {
-	if (!options.queryFn && fetchOptions?.initialPromise) return () => fetchOptions.initialPromise;
-	if (!options.queryFn || options.queryFn === skipToken) return () => Promise.reject(/* @__PURE__ */ new Error(`Missing queryFn: '${options.queryHash}'`));
-	return options.queryFn;
-}
-function shouldThrowError(throwOnError, params) {
-	if (typeof throwOnError === "function") return throwOnError(...params);
-	return !!throwOnError;
-}
-function addConsumeAwareSignal(object, getSignal, onCancelled) {
-	let consumed = false;
-	let signal;
-	Object.defineProperty(object, "signal", {
-		enumerable: true,
-		get: () => {
-			signal ??= getSignal();
-			if (consumed) return signal;
-			consumed = true;
-			if (signal.aborted) onCancelled();
-			else signal.addEventListener("abort", onCancelled, { once: true });
-			return signal;
-		}
-	});
-	return object;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/environmentManager.js
-var environmentManager = /* @__PURE__ */ (() => {
-	let isServerFn = () => isServer;
-	return {
-		/**
-		* Returns whether the current runtime should be treated as a server environment.
-		*/
-		isServer() {
-			return isServerFn();
-		},
-		/**
-		* Overrides the server check globally.
-		*/
-		setIsServer(isServerValue) {
-			isServerFn = isServerValue;
-		}
-	};
-})();
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/thenable.js
-function pendingThenable() {
-	let resolve;
-	let reject;
-	const thenable = new Promise((_resolve, _reject) => {
-		resolve = _resolve;
-		reject = _reject;
-	});
-	thenable.status = "pending";
-	thenable.catch(() => {});
-	function finalize(data) {
-		Object.assign(thenable, data);
-		delete thenable.resolve;
-		delete thenable.reject;
-	}
-	thenable.resolve = (value) => {
-		finalize({
-			status: "fulfilled",
-			value
-		});
-		resolve(value);
-	};
-	thenable.reject = (reason) => {
-		finalize({
-			status: "rejected",
-			reason
-		});
-		reject(reason);
-	};
-	return thenable;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/notifyManager.js
 var defaultScheduler = systemSetTimeoutZero;
 function createNotifyManager() {
 	let queue = [];
@@ -26856,7 +26917,7 @@ function createNotifyManager() {
 }
 var notifyManager = createNotifyManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/onlineManager.js
 var OnlineManager = class extends Subscribable {
 	#online = true;
 	#cleanup;
@@ -26904,7 +26965,7 @@ var OnlineManager = class extends Subscribable {
 };
 var onlineManager = new OnlineManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/retryer.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/retryer.js
 function defaultRetryDelay(failureCount) {
 	return Math.min(1e3 * 2 ** failureCount, 3e4);
 }
@@ -26922,8 +26983,15 @@ function createRetryer(config) {
 	let isRetryCancelled = false;
 	let failureCount = 0;
 	let continueFn;
-	const thenable = pendingThenable();
-	const isResolved = () => thenable.status !== "pending";
+	let status = "pending";
+	let promiseResolve;
+	let promiseReject;
+	const promise = new Promise((resolve, reject) => {
+		promiseResolve = resolve;
+		promiseReject = reject;
+	});
+	promise.catch(noop);
+	const isResolved = () => status !== "pending";
 	const cancel = (cancelOptions) => {
 		if (!isResolved()) {
 			const error = new CancelledError(cancelOptions);
@@ -26942,13 +27010,15 @@ function createRetryer(config) {
 	const resolve = (value) => {
 		if (!isResolved()) {
 			continueFn?.();
-			thenable.resolve(value);
+			status = "resolved";
+			promiseResolve(value);
 		}
 	};
 	const reject = (value) => {
 		if (!isResolved()) {
 			continueFn?.();
-			thenable.reject(value);
+			status = "rejected";
+			promiseReject(value);
 		}
 	};
 	const pause = () => {
@@ -26992,12 +27062,12 @@ function createRetryer(config) {
 		});
 	};
 	return {
-		promise: thenable,
-		status: () => thenable.status,
+		promise,
+		status: () => status,
 		cancel,
 		continue: () => {
 			continueFn?.();
-			return thenable;
+			return promise;
 		},
 		cancelRetry,
 		continueRetry,
@@ -27005,12 +27075,12 @@ function createRetryer(config) {
 		start: () => {
 			if (canStart()) run();
 			else pause().then(run);
-			return thenable;
+			return promise;
 		}
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/removable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/removable.js
 var Removable = class {
 	#gcTimeout;
 	destroy() {
@@ -27033,7 +27103,7 @@ var Removable = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
 function infiniteQueryBehavior(pages) {
 	return { onFetch: (context, query) => {
 		const options = context.options;
@@ -27055,15 +27125,15 @@ function infiniteQueryBehavior(pages) {
 				if (cancelled) return Promise.reject(context.signal.reason);
 				if (param == null && data.pages.length) return Promise.resolve(data);
 				const createQueryFnContext = () => {
-					const queryFnContext2 = {
+					const queryFnContext = {
 						client: context.client,
 						queryKey: context.queryKey,
 						pageParam: param,
 						direction: previous ? "backward" : "forward",
 						meta: context.options.meta
 					};
-					addSignalProperty(queryFnContext2);
-					return queryFnContext2;
+					addSignalProperty(queryFnContext);
+					return queryFnContext;
 				};
 				const queryFnContext = createQueryFnContext();
 				const page = await queryFn(queryFnContext);
@@ -27111,16 +27181,22 @@ function getNextPageParam(options, { pages, pageParams }) {
 function getPreviousPageParam(options, { pages, pageParams }) {
 	return pages.length > 0 ? options.getPreviousPageParam?.(pages[0], pages, pageParams[0], pageParams) : void 0;
 }
+/**
+* Checks if there is a next page.
+*/
 function hasNextPage(options, data) {
 	if (!data) return false;
 	return getNextPageParam(options, data) != null;
 }
+/**
+* Checks if there is a previous page.
+*/
 function hasPreviousPage(options, data) {
 	if (!data || !options.getPreviousPageParam) return false;
 	return getPreviousPageParam(options, data) != null;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/query.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/query.js
 var Query = class extends Removable {
 	#queryType;
 	#initialState;
@@ -27247,8 +27323,9 @@ var Query = class extends Removable {
 		}
 	}
 	removeObserver(observer) {
-		if (this.observers.includes(observer)) {
-			this.observers = this.observers.filter((x) => x !== observer);
+		const index = this.observers.indexOf(observer);
+		if (index !== -1) {
+			this.observers.splice(index, 1);
 			if (!this.observers.length) {
 				if (this.#retryer) {
 					if (this.#abortSignalConsumed || this.#isInitialPausedFetch()) this.#retryer.cancel({ revert: true });
@@ -27298,13 +27375,13 @@ var Query = class extends Removable {
 		const fetchFn = () => {
 			const queryFn = ensureQueryFn(this.options, fetchOptions);
 			const createQueryFnContext = () => {
-				const queryFnContext2 = {
+				const queryFnContext = {
 					client: this.#client,
 					queryKey: this.queryKey,
 					meta: this.meta
 				};
-				addSignalProperty(queryFnContext2);
-				return queryFnContext2;
+				addSignalProperty(queryFnContext);
+				return queryFnContext;
 			};
 			const queryFnContext = createQueryFnContext();
 			this.#abortSignalConsumed = false;
@@ -27312,7 +27389,7 @@ var Query = class extends Removable {
 			return queryFn(queryFnContext);
 		};
 		const createFetchContext = () => {
-			const context2 = {
+			const context = {
 				fetchOptions,
 				options: this.options,
 				queryKey: this.queryKey,
@@ -27320,8 +27397,8 @@ var Query = class extends Removable {
 				state: this.state,
 				fetchFn
 			};
-			addSignalProperty(context2);
-			return context2;
+			addSignalProperty(context);
+			return context;
 		};
 		const context = createFetchContext();
 		(this.#queryType === "infinite" ? infiniteQueryBehavior(this.options.pages) : this.options.behavior)?.onFetch(context, this);
@@ -27330,7 +27407,7 @@ var Query = class extends Removable {
 			type: "fetch",
 			meta: context.fetchOptions?.meta
 		});
-		this.#retryer = createRetryer({
+		const retryer = this.#retryer = createRetryer({
 			initialPromise: fetchOptions?.initialPromise,
 			fn: context.fetchFn,
 			onCancel: (error) => {
@@ -27359,7 +27436,7 @@ var Query = class extends Removable {
 			canRun: () => true
 		});
 		try {
-			const data = await this.#retryer.start();
+			const data = await retryer.start();
 			if (data === void 0) throw new Error(`${this.queryHash} data is undefined`);
 			this.setData(data);
 			this.#cache.config.onSuccess?.(data, this);
@@ -27381,6 +27458,7 @@ var Query = class extends Removable {
 			this.#cache.config.onSettled?.(this.state.data, error, this);
 			throw error;
 		} finally {
+			if (this.#retryer === retryer) this.#retryer = void 0;
 			this.scheduleGc();
 		}
 	}
@@ -27443,7 +27521,7 @@ var Query = class extends Removable {
 		};
 		this.state = reducer(this.state);
 		notifyManager.batch(() => {
-			this.observers.forEach((observer) => {
+			this.observers.slice().forEach((observer) => {
 				observer.onQueryUpdate();
 			});
 			this.#cache.notify({
@@ -27494,24 +27572,14 @@ function getDefaultState$1(options) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/queryObserver.js
 var QueryObserver = class extends Subscribable {
-	constructor(client, options) {
-		super();
-		this.options = options;
-		this.#client = client;
-		this.#selectError = null;
-		this.#currentThenable = pendingThenable();
-		this.bindMethods();
-		this.setOptions(options);
-	}
 	#client;
 	#currentQuery = void 0;
 	#currentQueryInitialState = void 0;
 	#currentResult = void 0;
 	#currentResultState;
 	#currentResultOptions;
-	#currentThenable;
 	#selectError;
 	#selectFn;
 	#selectResult;
@@ -27520,6 +27588,14 @@ var QueryObserver = class extends Subscribable {
 	#refetchIntervalId;
 	#currentRefetchInterval;
 	#trackedProps = /* @__PURE__ */ new Set();
+	constructor(client, options) {
+		super();
+		this.options = options;
+		this.#client = client;
+		this.#selectError = null;
+		this.bindMethods();
+		this.setOptions(options);
+	}
 	bindMethods() {
 		this.refetch = this.refetch.bind(this);
 	}
@@ -27582,10 +27658,6 @@ var QueryObserver = class extends Subscribable {
 		return new Proxy(result, { get: (target, key) => {
 			this.trackProp(key);
 			onPropTracked?.(key);
-			if (key === "promise") {
-				this.trackProp("data");
-				if (!this.options.experimental_prefetchInRender && this.#currentThenable.status === "pending") this.#currentThenable.reject(/* @__PURE__ */ new Error("experimental_prefetchInRender feature flag is not enabled"));
-			}
 			return Reflect.get(target, key);
 		} });
 	}
@@ -27601,7 +27673,24 @@ var QueryObserver = class extends Subscribable {
 	fetchOptimistic(options) {
 		const defaultedOptions = this.#client.defaultQueryOptions(options);
 		const query = this.#client.getQueryCache().build(this.#client, defaultedOptions);
-		return query.fetch().then(() => this.createResult(query, defaultedOptions));
+		let unsubscribe = () => {};
+		let resolveEarly;
+		const cachePromise = new Promise((resolve) => {
+			resolveEarly = resolve;
+			unsubscribe = this.#client.getQueryCache().subscribe((event) => {
+				if (event.type === "updated" && event.query.queryHash === query.queryHash && query.state.data !== void 0) {
+					unsubscribe();
+					resolve(this.createResult(query, defaultedOptions));
+				}
+			});
+		});
+		return Promise.race([query.fetch().then(() => {
+			const result = this.createResult(query, defaultedOptions);
+			resolveEarly?.(result);
+			return result;
+		}).finally(() => {
+			unsubscribe();
+		}), cachePromise]);
 	}
 	fetch(fetchOptions) {
 		return this.#executeFetch({
@@ -27701,19 +27790,20 @@ var QueryObserver = class extends Subscribable {
 			} catch (selectError) {
 				this.#selectError = selectError;
 			}
-		}
+		} else if (data === void 0) this.#selectError = null;
 		if (this.#selectError) {
 			error = this.#selectError;
 			data = this.#selectResult;
 			errorUpdatedAt = Date.now();
 			status = "error";
+			isPlaceholderData = false;
 		}
 		const isFetching = newState.fetchStatus === "fetching";
 		const isPending = status === "pending";
 		const isError = status === "error";
 		const isLoading = isPending && isFetching;
 		const hasData = data !== void 0;
-		const nextResult = {
+		return {
 			status,
 			fetchStatus: newState.fetchStatus,
 			isPending,
@@ -27738,32 +27828,8 @@ var QueryObserver = class extends Subscribable {
 			isRefetchError: isError && hasData,
 			isStale: isStale(query, options),
 			refetch: this.refetch,
-			promise: this.#currentThenable,
 			isEnabled: resolveQueryBoolean(options.enabled, query) !== false
 		};
-		if (this.options.experimental_prefetchInRender) {
-			const hasResultData = nextResult.data !== void 0;
-			const isErrorWithoutData = nextResult.status === "error" && !hasResultData;
-			const finalizeThenableIfPossible = (thenable) => {
-				if (isErrorWithoutData) thenable.reject(nextResult.error);
-				else if (hasResultData) thenable.resolve(nextResult.data);
-			};
-			const recreateThenable = () => {
-				const pending = this.#currentThenable = nextResult.promise = pendingThenable();
-				finalizeThenableIfPossible(pending);
-			};
-			const prevThenable = this.#currentThenable;
-			switch (prevThenable.status) {
-				case "pending":
-					if (query.queryHash === prevQuery.queryHash) finalizeThenableIfPossible(prevThenable);
-					break;
-				case "fulfilled":
-					if (isErrorWithoutData || nextResult.data !== prevThenable.value) recreateThenable();
-					break;
-				case "rejected": if (!isErrorWithoutData || nextResult.error !== prevThenable.reason) recreateThenable();
-			}
-		}
-		return nextResult;
 	}
 	updateResult() {
 		const prevResult = this.#currentResult;
@@ -27838,7 +27904,7 @@ function shouldAssignObserverCurrentProperties(observer, optimisticResult) {
 	return false;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
 var InfiniteQueryObserver = class extends QueryObserver {
 	constructor(client, options) {
 		super(client, options);
@@ -27893,7 +27959,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/mutation.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/mutation.js
 var Mutation = class extends Removable {
 	#client;
 	#observers;
@@ -27943,7 +28009,7 @@ var Mutation = class extends Removable {
 		}
 	}
 	continue() {
-		return this.#retryer?.continue() ?? this.execute(this.state.variables);
+		return this.#retryer?.continue() ?? (this.state.status === "pending" ? this.execute(this.state.variables) : Promise.resolve());
 	}
 	async execute(variables) {
 		const onContinue = () => {
@@ -27954,7 +28020,7 @@ var Mutation = class extends Removable {
 			meta: this.options.meta,
 			mutationKey: this.options.mutationKey
 		};
-		this.#retryer = createRetryer({
+		const retryer = this.#retryer = createRetryer({
 			fn: () => {
 				if (!this.options.mutationFn) return Promise.reject(/* @__PURE__ */ new Error("No mutationFn found"));
 				return this.options.mutationFn(variables, mutationFnContext);
@@ -27976,7 +28042,7 @@ var Mutation = class extends Removable {
 			canRun: () => this.#mutationCache.canRun(this)
 		});
 		const restored = this.state.status === "pending";
-		const isPaused = !this.#retryer.canStart();
+		const isPaused = !retryer.canStart();
 		try {
 			if (restored) onContinue();
 			else {
@@ -27994,7 +28060,7 @@ var Mutation = class extends Removable {
 					isPaused
 				});
 			}
-			const data = await this.#retryer.start();
+			const data = await retryer.start();
 			await this.#mutationCache.config.onSuccess?.(data, variables, this.state.context, this, mutationFnContext);
 			await this.options.onSuccess?.(data, variables, this.state.context, mutationFnContext);
 			await this.#mutationCache.config.onSettled?.(data, null, this.state.variables, this.state.context, this, mutationFnContext);
@@ -28031,6 +28097,7 @@ var Mutation = class extends Removable {
 			});
 			throw error;
 		} finally {
+			if (this.#retryer === retryer) this.#retryer = void 0;
 			this.#mutationCache.runNext(this);
 		}
 	}
@@ -28109,8 +28176,11 @@ function getDefaultState() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/mutationCache.js
 var MutationCache = class extends Subscribable {
+	#mutations;
+	#scopes;
+	#mutationId;
 	constructor(config = {}) {
 		super();
 		this.config = config;
@@ -28118,9 +28188,6 @@ var MutationCache = class extends Subscribable {
 		this.#scopes = /* @__PURE__ */ new Map();
 		this.#mutationId = 0;
 	}
-	#mutations;
-	#scopes;
-	#mutationId;
 	build(client, options, state) {
 		const mutation = new Mutation({
 			client,
@@ -28216,7 +28283,7 @@ function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
 var MutationObserver$1 = class extends Subscribable {
 	#client;
 	#currentResult = void 0;
@@ -28243,6 +28310,12 @@ var MutationObserver$1 = class extends Subscribable {
 		});
 		if (prevOptions?.mutationKey && this.options.mutationKey && hashKey(prevOptions.mutationKey) !== hashKey(this.options.mutationKey)) this.reset();
 		else if (this.#currentMutation?.state.status === "pending") this.#currentMutation.setOptions(this.options);
+	}
+	onSubscribe() {
+		if (this.listeners.size === 1 && this.#currentMutation) {
+			this.#currentMutation.addObserver(this);
+			this.#updateResult();
+		}
 	}
 	onUnsubscribe() {
 		if (!this.hasListeners()) this.#currentMutation?.removeObserver(this);
@@ -28320,14 +28393,14 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/queryCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/queryCache.js
 var QueryCache = class extends Subscribable {
+	#queries;
 	constructor(config = {}) {
 		super();
 		this.config = config;
 		this.#queries = /* @__PURE__ */ new Map();
 	}
-	#queries;
 	build(client, options, state) {
 		const queryKey = options.queryKey;
 		const queryHash = options.queryHash ?? hashQueryKeyByOptions(queryKey, options);
@@ -28412,7 +28485,7 @@ var QueryCache = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/queryClient.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/queryClient.js
 var QueryClient = class {
 	#queryCache;
 	#mutationCache;
@@ -28477,6 +28550,9 @@ var QueryClient = class {
 		const options = this.defaultQueryOptions({ queryKey });
 		return this.#queryCache.get(options.queryHash)?.state.data;
 	}
+	/**
+	* @deprecated Use queryClient.query({ ...options, staleTime: 'static' }) instead. This method will be removed in the next major version.
+	*/
 	ensureQueryData(options) {
 		const defaultedOptions = this.defaultQueryOptions(options);
 		const query = this.#queryCache.build(this, defaultedOptions);
@@ -28518,12 +28594,14 @@ var QueryClient = class {
 	resetQueries(filters, options) {
 		const queryCache = this.#queryCache;
 		return notifyManager.batch(() => {
-			queryCache.findAll(filters).forEach((query) => {
+			const matched = queryCache.findAll(filters);
+			const queriesToRefetch = new Set(matched);
+			matched.forEach((query) => {
 				query.reset();
 			});
 			return this.refetchQueries({
 				type: "active",
-				...filters
+				predicate: (query) => queriesToRefetch.has(query)
 			}, options);
 		});
 	}
@@ -28559,22 +28637,50 @@ var QueryClient = class {
 		}));
 		return Promise.all(promises).then(noop);
 	}
+	async query(options) {
+		const defaultedOptions = this.defaultQueryOptions(options);
+		if (defaultedOptions.retry === void 0) defaultedOptions.retry = false;
+		const query = this.#queryCache.build(this, defaultedOptions);
+		const queryData = query.isStaleByTime(resolveStaleTime(defaultedOptions.staleTime, query)) ? await query.fetch(defaultedOptions) : query.state.data;
+		const select = defaultedOptions.select;
+		if (select) return select(queryData);
+		return queryData;
+	}
+	/**
+	* @deprecated Use queryClient.query(options) instead. This method will be removed in the next major version.
+	*/
 	fetchQuery(options) {
 		const defaultedOptions = this.defaultQueryOptions(options);
 		if (defaultedOptions.retry === void 0) defaultedOptions.retry = false;
 		const query = this.#queryCache.build(this, defaultedOptions);
 		return query.isStaleByTime(resolveStaleTime(defaultedOptions.staleTime, query)) ? query.fetch(defaultedOptions) : Promise.resolve(query.state.data);
 	}
+	/**
+	* @deprecated Use queryClient.query(options) instead. You can swallow errors with `.catch(noop)`. This method will be removed in the next major version.
+	*/
 	prefetchQuery(options) {
 		return this.fetchQuery(options).then(noop).catch(noop);
 	}
+	infiniteQuery(options) {
+		options._type = "infinite";
+		return this.query(options);
+	}
+	/**
+	* @deprecated Use queryClient.infiniteQuery(options) instead. This method will be removed in the next major version.
+	*/
 	fetchInfiniteQuery(options) {
 		options._type = "infinite";
 		return this.fetchQuery(options);
 	}
+	/**
+	* @deprecated Use queryClient.infiniteQuery(options) instead. You can swallow errors with `.catch(noop)`. This method will be removed in the next major version.
+	*/
 	prefetchInfiniteQuery(options) {
 		return this.fetchInfiniteQuery(options).then(noop).catch(noop);
 	}
+	/**
+	* @deprecated Use queryClient.infiniteQuery({ ...options, staleTime: 'static' }) instead. This method will be removed in the next major version.
+	*/
 	ensureInfiniteQueryData(options) {
 		options._type = "infinite";
 		return this.ensureQueryData(options);
@@ -28653,33 +28759,12 @@ var QueryClient = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
-var QueryClientContext = import_react.createContext(void 0);
-var useQueryClient = (queryClient) => {
-	const client = import_react.useContext(QueryClientContext);
-	if (queryClient) return queryClient;
-	if (!client) throw new Error("No QueryClient set, use QueryClientProvider to set one");
-	return client;
-};
-var QueryClientProvider = ({ client, children }) => {
-	import_react.useEffect(() => {
-		client.mount();
-		return () => {
-			client.unmount();
-		};
-	}, [client]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(QueryClientContext.Provider, {
-		value: client,
-		children
-	});
-};
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
 function createValue() {
 	let isReset = false;
 	return {
@@ -28697,10 +28782,10 @@ function createValue() {
 var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
 var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
 	const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
-	if (options.suspense || options.experimental_prefetchInRender || throwOnError) {
+	if (options.suspense || throwOnError) {
 		if (!errorResetBoundary.isReset()) options.retryOnMount = false;
 	}
 };
@@ -28713,7 +28798,7 @@ var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/suspense.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/suspense.js
 var ensureSuspenseTimers = (defaultedOptions) => {
 	if (defaultedOptions.suspense) {
 		const MIN_SUSPENSE_TIME_MS = 1e3;
@@ -28723,26 +28808,23 @@ var ensureSuspenseTimers = (defaultedOptions) => {
 		if (typeof defaultedOptions.gcTime === "number") defaultedOptions.gcTime = Math.max(defaultedOptions.gcTime, MIN_SUSPENSE_TIME_MS);
 	}
 };
-var willFetch = (result, isRestoring) => result.isLoading && result.isFetching && !isRestoring;
 var shouldSuspend = (defaultedOptions, result) => defaultedOptions?.suspense && result.isPending;
 var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observer.fetchOptimistic(defaultedOptions).catch(() => {
 	errorResetBoundary.clearReset();
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
 function useBaseQuery(options, Observer, queryClient) {
 	const isRestoring = useIsRestoring();
 	const errorResetBoundary = useQueryErrorResetBoundary();
 	const client = useQueryClient(queryClient);
 	const defaultedOptions = client.defaultQueryOptions(options);
-	client.getDefaultOptions().queries?._experimental_beforeQuery?.(defaultedOptions);
 	const query = client.getQueryCache().get(defaultedOptions.queryHash);
 	const subscribed = options.subscribed !== false;
 	defaultedOptions._optimisticResults = isRestoring ? "isRestoring" : subscribed ? "optimistic" : void 0;
 	ensureSuspenseTimers(defaultedOptions);
 	ensurePreventErrorBoundaryRetry(defaultedOptions, errorResetBoundary, query);
 	useClearResetErrorBoundary(errorResetBoundary);
-	const isNewCacheEntry = !client.getQueryCache().get(defaultedOptions.queryHash);
 	const [observer] = import_react.useState(() => new Observer(client, defaultedOptions));
 	const result = observer.getOptimisticResult(defaultedOptions);
 	const shouldSubscribe = !isRestoring && subscribed;
@@ -28762,19 +28844,15 @@ function useBaseQuery(options, Observer, queryClient) {
 		query,
 		suspense: defaultedOptions.suspense
 	})) throw result.error;
-	client.getDefaultOptions().queries?._experimental_afterQuery?.(defaultedOptions, result);
-	if (defaultedOptions.experimental_prefetchInRender && !environmentManager.isServer() && willFetch(result, isRestoring)) (isNewCacheEntry ? fetchOptimistic(defaultedOptions, observer, errorResetBoundary) : query?.promise)?.catch(noop).finally(() => {
-		observer.updateResult();
-	});
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useMutation.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useMutation.js
 function useMutation(options, queryClient) {
 	const client = useQueryClient(queryClient);
 	const [observer] = import_react.useState(() => new MutationObserver$1(client, options));
@@ -28782,8 +28860,8 @@ function useMutation(options, queryClient) {
 		observer.setOptions(options);
 	}, [observer, options]);
 	const result = import_react.useSyncExternalStore(import_react.useCallback((onStoreChange) => observer.subscribe(notifyManager.batchCalls(onStoreChange)), [observer]), () => observer.getCurrentResult(), () => observer.getCurrentResult());
-	const mutate = import_react.useCallback((variables, mutateOptions) => {
-		observer.mutate(variables, mutateOptions).catch(noop);
+	const mutate = import_react.useCallback((...args) => {
+		observer.mutate(args[0], args[1]).catch(noop);
 	}, [observer]);
 	if (result.error && shouldThrowError(observer.options.throwOnError, [result.error])) throw result.error;
 	return {
@@ -28793,7 +28871,7 @@ function useMutation(options, queryClient) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
 function useInfiniteQuery(options, queryClient) {
 	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
@@ -28845,7 +28923,7 @@ function useInfiniteQuery(options, queryClient) {
 }
 //#endregion
 //#region ../../packages/react/src/hooks/useScrollDirection.ts
-var asArray$1 = (v) => Array.isArray(v) ? v : [v];
+var asArray$2 = (v) => isReadonlyArray(v) ? v : [v];
 /**
 * Tracks scroll direction on one or more container elements with hysteresis
 * to prevent jitter. Returns a `hidden` boolean suitable for driving
@@ -28874,7 +28952,7 @@ var asArray$1 = (v) => Array.isArray(v) ? v : [v];
 	const programmaticLockRef = (0, import_react.useRef)(false);
 	const lockTimerRef = (0, import_react.useRef)(null);
 	const [hidden, setHidden] = (0, import_react.useState)(options?.initialHidden ?? false);
-	const refArray = (0, import_react.useMemo)(() => asArray$1(scrollRef), Array.isArray(scrollRef) ? scrollRef : [scrollRef]);
+	const refArray = (0, import_react.useMemo)(() => asArray$2(scrollRef), Array.isArray(scrollRef) ? scrollRef : [scrollRef]);
 	const primaryRef = refArray[0];
 	const [scrollEls, setScrollEls] = (0, import_react.useState)([]);
 	(0, import_react.useEffect)(() => {
@@ -36920,7 +36998,7 @@ var usePrismHighlight = (containerRef, contentLength) => {
 				highlightCodeBlocks(container);
 			});
 			const observer = new MutationObserver((mutations) => {
-				if (mutations.some(_temp2$60)) highlightCodeBlocks(container);
+				if (mutations.some(_temp2$61)) highlightCodeBlocks(container);
 			});
 			observer.observe(container, {
 				childList: true,
@@ -36941,15 +37019,12 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useEffect)(t0, t1);
 };
-function _temp$106(node) {
-	if (node.nodeType === Node.ELEMENT_NODE) {
-		const el = node;
-		return el.querySelector("pre code") || el.matches("pre code");
-	}
+function _temp$105(node) {
+	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$60(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$106);
+function _temp2$61(mutation) {
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$105);
 	return false;
 }
 //#endregion
@@ -37006,7 +37081,8 @@ function useProperty(id, propertyName, options) {
 var useCollapsedState = (id, defaultValue, scope) => {
 	const { useValue, useSetValue } = useComponentStateHooks();
 	const resolvedScope = scope || "collapse-state-scope";
-	const collapsed = useValue(resolvedScope, id);
+	const stored = useValue(resolvedScope, id);
+	const collapsed = typeof stored === "boolean" ? stored : void 0;
 	const setPropertyValueFn = useSetValue();
 	return (0, import_react.useMemo)(() => {
 		const set = (value) => {
@@ -37036,7 +37112,7 @@ var useCollapsibleIds = (key) => {
 	}, [removeAllFn, key]);
 	return (0, import_react.useMemo)(() => {
 		return [
-			entries,
+			entries && Object.fromEntries(Object.entries(entries).filter((entry) => typeof entry[1] === "boolean")),
 			collapseId,
 			clearIds
 		];
@@ -37073,6 +37149,7 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 	let t4;
 	if ($[3] !== elementKey || $[4] !== setScrollPosition) {
 		t4 = (e) => {
+			if (!(e.target instanceof Element)) return;
 			const position = e.target.scrollTop;
 			log$5.debug("Storing scroll position", elementKey, position);
 			setScrollPosition(position);
@@ -37487,7 +37564,7 @@ function useRevokableUrls() {
 	let t3;
 	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = () => () => {
-			urlsRef.current.forEach(_temp$105);
+			urlsRef.current.forEach(_temp$104);
 			urlsRef.current = [];
 		};
 		t3 = [];
@@ -37500,7 +37577,7 @@ function useRevokableUrls() {
 	(0, import_react.useEffect)(t2, t3);
 	return createRevokableUrl;
 }
-function _temp$105(url_0) {
+function _temp$104(url_0) {
 	return URL.revokeObjectURL(url_0);
 }
 //#endregion
@@ -37610,7 +37687,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$104));
+				replaceMeasurementItems(testElement, segments.map(_temp$103));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -37636,7 +37713,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$59),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$60),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -37674,10 +37751,10 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$104(segment) {
+function _temp$103(segment) {
 	return segment.text;
 }
-function _temp2$59(segment_0) {
+function _temp2$60(segment_0) {
 	return segment_0.text;
 }
 //#endregion
@@ -37815,7 +37892,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 		suppressRef,
 		initialHidden: initialOwned
 	});
-	const primaryRef = Array.isArray(scrollRef) ? scrollRef[0] : scrollRef;
+	const primaryRef = isReadonlyArray(scrollRef) ? scrollRef[0] : scrollRef;
 	useChromeNavOwnershipRelease(navOwnsRef, primaryRef);
 	const extraTargetsRef = (0, import_react.useRef)(extraTargets);
 	(0, import_react.useEffect)(() => {
@@ -37971,6 +38048,69 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 		$[3] = t0;
 	} else t0 = $[3];
 	return t0;
+}
+//#endregion
+//#region ../../packages/react/src/hooks/useLatestRef.ts
+/**
+* Returns a ref that always holds the latest `value`.
+*
+* The named replacement for the hand-rolled "mirror a value into a ref"
+* effect: lets stable callbacks (subscriptions, timers, imperative handles)
+* read current state/props without listing them as dependencies.
+*/ function useLatestRef(value) {
+	const $ = (0, import_compiler_runtime.c)(2);
+	const ref = (0, import_react.useRef)(value);
+	let t0;
+	if ($[0] !== value) {
+		t0 = () => {
+			ref.current = value;
+		};
+		$[0] = value;
+		$[1] = t0;
+	} else t0 = $[1];
+	(0, import_react.useLayoutEffect)(t0);
+	return ref;
+}
+//#endregion
+//#region ../../packages/react/src/hooks/useMountEffect.ts
+/**
+* Runs `effect` once when the component mounts; its returned cleanup runs on
+* unmount. For one-time setup/teardown of something external — a library
+* instance, an app-level registration, a timer that outlives renders.
+*
+* The effect captures the first render's closure and never re-runs, so it
+* must not depend on values that change across renders — read those through
+* `useLatestRef` instead.
+*/ function useMountEffect(effect) {
+	const $ = (0, import_compiler_runtime.c)(1);
+	let t0;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t0 = [];
+		$[0] = t0;
+	} else t0 = $[0];
+	(0, import_react.useEffect)(effect, t0);
+}
+//#endregion
+//#region ../../packages/react/src/hooks/useUnmount.ts
+/**
+* Runs `fn` once when the component unmounts. Always calls the latest `fn`,
+* so it can close over current state/props without dependency plumbing.
+*/ function useUnmount(fn) {
+	const $ = (0, import_compiler_runtime.c)(3);
+	const fnRef = useLatestRef(fn);
+	let t0;
+	let t1;
+	if ($[0] !== fnRef) {
+		t0 = () => () => fnRef.current();
+		t1 = [fnRef];
+		$[0] = fnRef;
+		$[1] = t0;
+		$[2] = t1;
+	} else {
+		t0 = $[1];
+		t1 = $[2];
+	}
+	(0, import_react.useEffect)(t0, t1);
 }
 var AsyncGate_module_default = { gate: "_gate_111wv_1" };
 //#endregion
@@ -38169,7 +38309,7 @@ var AutocompleteInput = (t0) => {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$103);
+				t8 = suggestions.filter(_temp$102);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -38271,7 +38411,8 @@ var AutocompleteInput = (t0) => {
 	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
 		t15 = () => {
 			const handleClickOutside = (e) => {
-				if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
+				const target = e.target instanceof Node ? e.target : null;
+				if (containerRef.current && !containerRef.current.contains(target)) setIsOpen(false);
 			};
 			document.addEventListener("mousedown", handleClickOutside);
 			return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -38338,7 +38479,7 @@ var AutocompleteInput = (t0) => {
 					e_1.stopPropagation();
 					onCommit?.();
 				} else if (e_1.key === "ArrowDown" || e_1.key === "ArrowUp") {
-					const hasOptions = suggestions.some(_temp2$58);
+					const hasOptions = suggestions.some(_temp2$59);
 					if (filteredSuggestions.length > 0 || hasOptions) {
 						e_1.preventDefault();
 						e_1.stopPropagation();
@@ -38348,29 +38489,29 @@ var AutocompleteInput = (t0) => {
 				}
 				return;
 			}
-			bb142: switch (e_1.key) {
+			bb146: switch (e_1.key) {
 				case "ArrowDown":
 					e_1.preventDefault();
 					e_1.stopPropagation();
 					setHighlightedIndex((prev_0) => Math.min(prev_0 + 1, filteredSuggestions.length - 1));
-					break bb142;
+					break bb146;
 				case "ArrowUp":
 					e_1.preventDefault();
 					e_1.stopPropagation();
-					setHighlightedIndex(_temp3$44);
-					break bb142;
+					setHighlightedIndex(_temp3$45);
+					break bb146;
 				case "Tab":
 					if (highlightedIndex >= 0 && filteredSuggestions[highlightedIndex] !== void 0) {
 						e_1.preventDefault();
 						selectSuggestion(filteredSuggestions[highlightedIndex]);
 					}
-					break bb142;
+					break bb146;
 				case "Enter":
 					e_1.preventDefault();
 					e_1.stopPropagation();
 					if (highlightedIndex >= 0 && filteredSuggestions[highlightedIndex] !== void 0) selectSuggestion(filteredSuggestions[highlightedIndex]);
 					onCommit?.();
-					break bb142;
+					break bb146;
 				case "Escape":
 					e_1.preventDefault();
 					e_1.stopPropagation();
@@ -38532,13 +38673,13 @@ var AutocompleteInput = (t0) => {
 	} else t30 = $[78];
 	return t30;
 };
-function _temp$103(s) {
+function _temp$102(s) {
 	return s !== null;
 }
-function _temp2$58(s_1) {
+function _temp2$59(s_1) {
 	return s_1 !== null;
 }
-function _temp3$44(prev) {
+function _temp3$45(prev) {
 	return Math.max(prev - 1, -1);
 }
 //#endregion
@@ -51854,7 +51995,7 @@ var Modal = (t0) => {
 	if ($[5] !== show) {
 		t5 = () => {
 			if (!show || !modalRef.current) return;
-			const previouslyFocused = document.activeElement;
+			const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 			const modal = modalRef.current;
 			const timer = window.setTimeout(() => {
 				const autofocusEl = modal.querySelector("[autofocus], [data-autofocus]");
@@ -52223,7 +52364,7 @@ var JSONPanel = (t0) => {
 var resolveBase64 = (value) => {
 	const prefix = "data:image";
 	if (Array.isArray(value)) return value.map((v) => resolveBase64(v));
-	if (value && typeof value === "object") {
+	if (isRecord(value)) {
 		const resolvedObject = {};
 		for (const key of Object.keys(value)) resolvedObject[key] = resolveBase64(value[key]);
 		return resolvedObject;
@@ -57924,8 +58065,8 @@ var markdownRenderers = {
 };
 var renderMarkdown = (markdown, renderer = defaultMarkdownRenderer) => markdownRenderers[renderer](markdown);
 //#endregion
-//#region ../../node_modules/.pnpm/dompurify@3.4.13/node_modules/dompurify/dist/purify.es.mjs
-/*! @license DOMPurify 3.4.13 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.13/LICENSE */
+//#region ../../node_modules/.pnpm/dompurify@3.4.14/node_modules/dompurify/dist/purify.es.mjs
+/*! @license DOMPurify 3.4.14 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.14/LICENSE */
 function _arrayLikeToArray(r, a) {
 	(null == a || a > r.length) && (a = r.length);
 	for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
@@ -58656,6 +58797,7 @@ var svg$3 = freeze$1([
 	"patterncontentunits",
 	"patterntransform",
 	"patternunits",
+	"pointer-events",
 	"points",
 	"preservealpha",
 	"preserveaspectratio",
@@ -58710,6 +58852,7 @@ var svg$3 = freeze$1([
 	"u2",
 	"unicode",
 	"values",
+	"vector-effect",
 	"viewbox",
 	"visibility",
 	"version",
@@ -58823,6 +58966,24 @@ var NODE_TYPE = {
 	documentFragment: 11,
 	notation: 12
 };
+var LITERAL_TEXT_ELEMENT_NAMES = [
+	"style",
+	"script",
+	"xmp",
+	"iframe",
+	"noembed",
+	"noframes",
+	"plaintext",
+	"noscript"
+];
+var LITERAL_TEXT_ELEMENTS = freeze$1(addToSet({}, LITERAL_TEXT_ELEMENT_NAMES));
+var LITERAL_TEXT_CLOSE = function() {
+	const map = {};
+	arrayForEach(LITERAL_TEXT_ELEMENT_NAMES, (name) => {
+		map[name] = seal(new RegExp("</" + name + "(?=[\\t\\n\\f\\r />])", "i"));
+	});
+	return freeze$1(map);
+}();
 var getGlobal = function getGlobal() {
 	return typeof window === "undefined" ? null : window;
 };
@@ -58882,10 +59043,25 @@ var _createHooksMap = function _createHooksMap() {
 var _resolveSetOption = function _resolveSetOption(cfg, key, fallback, options) {
 	return objectHasOwnProperty(cfg, key) && arrayIsArray(cfg[key]) ? addToSet(options.base ? clone$1(options.base) : {}, cfg[key], options.transform) : fallback;
 };
+/**
+* Resolve an object-valued configuration option: a prototype-free clone
+* of cfg[key] when it is an own, truthy object property, else a fresh
+* fallback built by makeFallback (fresh on every parse, so a previous
+* parse can never leak state into the next one).
+*
+* @param cfg the cloned, prototype-free configuration object
+* @param key the configuration property to read
+* @param makeFallback builds the fallback value when the option is absent
+* @returns the resolved object
+*/
+var _resolveObjectOption = function _resolveObjectOption(cfg, key, makeFallback) {
+	const value = objectHasOwnProperty(cfg, key) ? cfg[key] : void 0;
+	return value && typeof value === "object" ? clone$1(value) : makeFallback();
+};
 function createDOMPurify() {
 	let window = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
 	const DOMPurify = (root) => createDOMPurify(root);
-	DOMPurify.version = "3.4.13";
+	DOMPurify.version = "3.4.14";
 	DOMPurify.removed = [];
 	if (!window || !window.document || window.document.nodeType !== NODE_TYPE.document || !window.Element) {
 		DOMPurify.isSupported = false;
@@ -58910,6 +59086,12 @@ function createDOMPurify() {
 	const getNodeType = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeType") : null;
 	const getNodeName = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeName") : null;
 	const getOwnerDocument = Node && Node.prototype ? lookupGetter(Node.prototype, "ownerDocument") : null;
+	const _readNodeType = function _readNodeType(node) {
+		return getNodeType ? getNodeType(node) : node.nodeType;
+	};
+	const _readNodeName = function _readNodeName(node) {
+		return getNodeName ? getNodeName(node) : node.nodeName;
+	};
 	if (typeof HTMLTemplateElement === "function") {
 		const template = document.createElement("template");
 		if (template.content && template.content.ownerDocument) document = template.content.ownerDocument;
@@ -59167,9 +59349,9 @@ function createDOMPurify() {
 		IN_PLACE = cfg.IN_PLACE || false;
 		IS_ALLOWED_URI$1 = isRegex(cfg.ALLOWED_URI_REGEXP) ? cfg.ALLOWED_URI_REGEXP : IS_ALLOWED_URI;
 		NAMESPACE = typeof cfg.NAMESPACE === "string" ? cfg.NAMESPACE : HTML_NAMESPACE;
-		MATHML_TEXT_INTEGRATION_POINTS = objectHasOwnProperty(cfg, "MATHML_TEXT_INTEGRATION_POINTS") && cfg.MATHML_TEXT_INTEGRATION_POINTS && typeof cfg.MATHML_TEXT_INTEGRATION_POINTS === "object" ? clone$1(cfg.MATHML_TEXT_INTEGRATION_POINTS) : addToSet({}, DEFAULT_MATHML_TEXT_INTEGRATION_POINTS);
-		HTML_INTEGRATION_POINTS = objectHasOwnProperty(cfg, "HTML_INTEGRATION_POINTS") && cfg.HTML_INTEGRATION_POINTS && typeof cfg.HTML_INTEGRATION_POINTS === "object" ? clone$1(cfg.HTML_INTEGRATION_POINTS) : addToSet({}, DEFAULT_HTML_INTEGRATION_POINTS);
-		const customElementHandling = objectHasOwnProperty(cfg, "CUSTOM_ELEMENT_HANDLING") && cfg.CUSTOM_ELEMENT_HANDLING && typeof cfg.CUSTOM_ELEMENT_HANDLING === "object" ? clone$1(cfg.CUSTOM_ELEMENT_HANDLING) : create$1(null);
+		MATHML_TEXT_INTEGRATION_POINTS = _resolveObjectOption(cfg, "MATHML_TEXT_INTEGRATION_POINTS", () => addToSet({}, DEFAULT_MATHML_TEXT_INTEGRATION_POINTS));
+		HTML_INTEGRATION_POINTS = _resolveObjectOption(cfg, "HTML_INTEGRATION_POINTS", () => addToSet({}, DEFAULT_HTML_INTEGRATION_POINTS));
+		const customElementHandling = _resolveObjectOption(cfg, "CUSTOM_ELEMENT_HANDLING", () => create$1(null));
 		CUSTOM_ELEMENT_HANDLING = create$1(null);
 		if (objectHasOwnProperty(customElementHandling, "tagNameCheck") && isRegexOrFunction(customElementHandling.tagNameCheck)) CUSTOM_ELEMENT_HANDLING.tagNameCheck = customElementHandling.tagNameCheck;
 		if (objectHasOwnProperty(customElementHandling, "attributeNameCheck") && isRegexOrFunction(customElementHandling.attributeNameCheck)) CUSTOM_ELEMENT_HANDLING.attributeNameCheck = customElementHandling.attributeNameCheck;
@@ -59215,11 +59397,6 @@ function createDOMPurify() {
 				if (ALLOWED_ATTR === DEFAULT_ALLOWED_ATTR) ALLOWED_ATTR = clone$1(ALLOWED_ATTR);
 				addToSet(ALLOWED_ATTR, cfg.ADD_ATTR, transformCaseFunc);
 			}
-		}
-		if (objectHasOwnProperty(cfg, "ADD_URI_SAFE_ATTR") && arrayIsArray(cfg.ADD_URI_SAFE_ATTR)) addToSet(URI_SAFE_ATTRIBUTES, cfg.ADD_URI_SAFE_ATTR, transformCaseFunc);
-		if (objectHasOwnProperty(cfg, "FORBID_CONTENTS") && arrayIsArray(cfg.FORBID_CONTENTS)) {
-			if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) FORBID_CONTENTS = clone$1(FORBID_CONTENTS);
-			addToSet(FORBID_CONTENTS, cfg.FORBID_CONTENTS, transformCaseFunc);
 		}
 		if (objectHasOwnProperty(cfg, "ADD_FORBID_CONTENTS") && arrayIsArray(cfg.ADD_FORBID_CONTENTS)) {
 			if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) FORBID_CONTENTS = clone$1(FORBID_CONTENTS);
@@ -59337,6 +59514,32 @@ function createDOMPurify() {
 		}
 	};
 	/**
+	* _stripAttributeNode
+	*
+	* Remove a single Attr node case/namespace-exactly on an attribute-teardown
+	* path. Name-based removeAttribute() ASCII-lowercases its lookup key for an
+	* HTML element in an HTML document and so silently misses a case-preserved
+	* handler (e.g. `ONERROR` off an XML/XHTML import) - the same defect
+	* _removeAttribute() was fixed for, which a name-based call would reintroduce
+	* on these IN_PLACE teardown paths. Unlike _removeAttribute this does not
+	* record into DOMPurify.removed: the neutralize passes intentionally do not
+	* book-keep. A clobbered/detached node falls back to best-effort name-based
+	* removal.
+	*
+	* @param element the element to strip the attribute from
+	* @param attribute the Attr node to remove
+	* @param name the attribute's name, for the fallback path
+	*/
+	const _stripAttributeNode = function _stripAttributeNode(element, attribute, name) {
+		try {
+			element.removeAttributeNode(attribute);
+		} catch (_) {
+			try {
+				element.removeAttribute(name);
+			} catch (_) {}
+		}
+	};
+	/**
 	* _neutralizeRoot
 	*
 	* Fail-closed teardown of an in-place root after the sanitize walk aborts
@@ -59370,30 +59573,45 @@ function createDOMPurify() {
 		if (attributes) for (let i = attributes.length - 1; i >= 0; --i) {
 			const attribute = attributes[i];
 			const name = attribute && attribute.name;
-			if (typeof name === "string") try {
-				root.removeAttribute(name);
-			} catch (_) {}
+			if (typeof name === "string") _stripAttributeNode(root, attribute, name);
 		}
 	};
 	/**
 	* _removeAttribute
 	*
+	* Name-based getAttributeNode()/removeAttribute() ASCII-lowercase their
+	* lookup key for HTML elements in an HTML document, so they silently miss an
+	* attribute whose stored qualified name still contains uppercase ASCII
+	* letters. That happens when the node came from a case-preserving source
+	* (an XML/XHTML document imported via importNode(), or createAttributeNS()),
+	* where e.g. `ONERROR` survives the walk: the policy check lowercases to
+	* `onerror` and rejects it, but `removeAttribute('ONERROR')` looks up
+	* `onerror` and finds nothing. Remove the exact Attr node instead, which is
+	* case- and namespace-exact, and fall back to name-based removal only when
+	* the caller could not supply the node.
+	*
 	* @param name an Attribute name
 	* @param element a DOM node
+	* @param attr the exact Attr node to remove, when the caller has it
 	*/
-	const _removeAttribute = function _removeAttribute(name, element) {
-		try {
-			arrayPush(DOMPurify.removed, {
-				attribute: element.getAttributeNode(name),
-				from: element
-			});
+	const _removeAttribute = function _removeAttribute(name, element, attr) {
+		if (!attr) try {
+			attr = element.getAttributeNode(name);
 		} catch (_) {
-			arrayPush(DOMPurify.removed, {
-				attribute: null,
-				from: element
-			});
+			attr = null;
 		}
-		element.removeAttribute(name);
+		arrayPush(DOMPurify.removed, {
+			attribute: attr || null,
+			from: element
+		});
+		try {
+			if (attr) element.removeAttributeNode(attr);
+			else element.removeAttribute(name);
+		} catch (_) {
+			try {
+				element.removeAttribute(name);
+			} catch (_) {}
+		}
 		if (name === "is") {
 			if (RETURN_DOM || RETURN_DOM_FRAGMENT) try {
 				_forceRemove(element);
@@ -59420,9 +59638,7 @@ function createDOMPurify() {
 			const attribute = attributes[i];
 			const name = attribute && attribute.name;
 			if (typeof name !== "string" || ALLOWED_ATTR[transformCaseFunc(name)]) continue;
-			try {
-				element.removeAttribute(name);
-			} catch (_) {}
+			_stripAttributeNode(element, attribute, name);
 		}
 	};
 	/**
@@ -59451,7 +59667,7 @@ function createDOMPurify() {
 		const stack = [root];
 		while (stack.length > 0) {
 			const node = stack.pop();
-			if ((getNodeType ? getNodeType(node) : node.nodeType) === NODE_TYPE.element) _stripDisallowedAttributes(node);
+			if (_readNodeType(node) === NODE_TYPE.element) _stripDisallowedAttributes(node);
 			const childNodes = getChildNodes(node);
 			if (childNodes) for (let i = childNodes.length - 1; i >= 0; --i) stack.push(childNodes[i]);
 		}
@@ -59491,12 +59707,28 @@ function createDOMPurify() {
 	*
 	* @param root the in-place root to sweep
 	*/
+	/**
+	* Central policy for declarative-partial-updates patch-linkage attributes,
+	* shared by the _neutralizePatchLinkage pre-pass and _isValidAttribute so
+	* the two sites cannot drift: `patchsrc` always links, `for` links
+	* everywhere except on <label>/<output>, and the whole policy is gated on
+	* SAFE_FOR_XML (see the rationale block in _isValidAttribute).
+	*
+	* @param lcName the transformCaseFunc'd attribute name
+	* @param lcTag the transformCaseFunc'd tag name of the carrying element
+	* @return true if the attribute is patch linkage and must be dropped
+	*/
+	const _isPatchLinkageAttribute = function _isPatchLinkageAttribute(lcName, lcTag) {
+		if (!SAFE_FOR_XML) return false;
+		if (lcName === "patchsrc") return true;
+		return lcName === "for" && lcTag !== "label" && lcTag !== "output";
+	};
 	const _neutralizePatchLinkage = function _neutralizePatchLinkage(root) {
 		if (!SAFE_FOR_XML) return;
 		const stack = [root];
 		while (stack.length > 0) {
 			const node = stack.pop();
-			const nodeType = getNodeType ? getNodeType(node) : node.nodeType;
+			const nodeType = _readNodeType(node);
 			if (nodeType === NODE_TYPE.processingInstruction || nodeType === NODE_TYPE.comment && regExpTest(COMMENT_MARKUP_PROBE, node.data)) {
 				try {
 					remove(node);
@@ -59505,10 +59737,10 @@ function createDOMPurify() {
 			}
 			if (nodeType === NODE_TYPE.element) {
 				const element = node;
-				const lcTag = transformCaseFunc(getNodeName ? getNodeName(node) : node.nodeName);
+				const lcTag = transformCaseFunc(_readNodeName(node));
 				try {
 					if (element.hasAttribute && element.hasAttribute("patchsrc")) element.removeAttribute("patchsrc");
-					if (element.hasAttribute && element.hasAttribute("for") && lcTag !== "label" && lcTag !== "output") element.removeAttribute("for");
+					if (element.hasAttribute && element.hasAttribute("for") && _isPatchLinkageAttribute("for", lcTag)) element.removeAttribute("for");
 				} catch (_) {}
 			}
 			const childNodes = getChildNodes(node);
@@ -59677,9 +59909,29 @@ function createDOMPurify() {
 	*/
 	const _isUnsafeNode = function _isUnsafeNode(currentNode, tagName) {
 		if (SAFE_FOR_XML && currentNode.hasChildNodes() && !_isNode(currentNode.firstElementChild) && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.textContent) && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.innerHTML)) return true;
-		if (SAFE_FOR_XML && currentNode.namespaceURI === HTML_NAMESPACE && tagName === "style" && _isNode(currentNode.firstElementChild)) return true;
+		if (SAFE_FOR_XML && currentNode.namespaceURI === HTML_NAMESPACE && LITERAL_TEXT_ELEMENTS[tagName] && (_isNode(currentNode.firstElementChild) || typeof currentNode.textContent === "string" && regExpTest(LITERAL_TEXT_CLOSE[tagName], currentNode.textContent))) return true;
 		if (currentNode.nodeType === NODE_TYPE.processingInstruction) return true;
 		if (SAFE_FOR_XML && currentNode.nodeType === NODE_TYPE.comment && regExpTest(COMMENT_MARKUP_PROBE, currentNode.data)) return true;
+		return false;
+	};
+	/**
+	* Evaluate a CUSTOM_ELEMENT_HANDLING check (a RegExp or a predicate
+	* function, per the validation in _parseConfig) against a name.
+	* Additional arguments are forwarded to predicate functions - the
+	* attributeNameCheck predicate receives the tag name as its second
+	* argument. A null/absent check never matches.
+	*
+	* @param check the configured tagNameCheck / attributeNameCheck value
+	* @param name the name to test
+	* @param args extra arguments forwarded to a predicate function
+	* @return true if the check matches the name
+	*/
+	const _matchesNameCheck = function _matchesNameCheck(check, name) {
+		if (check instanceof RegExp) return regExpTest(check, name);
+		if (check instanceof Function) {
+			for (var _len = arguments.length, args = new Array(_len > 2 ? _len - 2 : 0), _key = 2; _key < _len; _key++) args[_key - 2] = arguments[_key];
+			return Boolean(check(name, ...args));
+		}
 		return false;
 	};
 	/**
@@ -59700,10 +59952,7 @@ function createDOMPurify() {
 	* @return true if the node was removed, false if kept
 	*/
 	const _sanitizeDisallowedNode = function _sanitizeDisallowedNode(currentNode, tagName, root) {
-		if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName)) {
-			if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) return false;
-			if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(tagName)) return false;
-		}
+		if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName) && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) return false;
 		if (KEEP_CONTENT && !FORBID_CONTENTS[tagName]) {
 			const parentNode = getParentNode(currentNode);
 			const childNodes = getChildNodes(currentNode);
@@ -59737,6 +59986,42 @@ function createDOMPurify() {
 		return set === defaultSet || set === setConfigSet ? clone$1(set) : set;
 	};
 	/**
+	* Shared guard for a node that a hook has detached from the walk tree,
+	* used after each element-hook site in _sanitizeElements. Detaching is a
+	* long-standing user pattern (issue #469; draw.io-style foreignObject
+	* filtering). Per the cached, unclobberable parentNode getter the node is
+	* genuinely out of the tree, so it can reach neither the serialized
+	* output nor an IN_PLACE live tree; treat it as removed and stop
+	* processing it. Without this guard, the unsafe-node / namespace checks
+	* would call _forceRemove on a parentless node and hit the REPORT-3
+	* fail-closed throw — which exists for nodes DOMPurify wants gone but
+	* *cannot* detach (clobbered / parentless roots), the opposite of a node
+	* that is already safely gone. The walk root is exempt: a detached
+	* IN_PLACE root is legitimate input and must still be fully sanitized,
+	* and a kill-decision on it must keep hitting the REPORT-3 throw.
+	*
+	* Nodes detached by hooks stay the hook's responsibility for placement:
+	* they are not recorded in DOMPurify.removed, so the post-walk IN_PLACE
+	* pass (which iterates DOMPurify.removed) does not reach them. But a
+	* hook-detached subtree can still hold a queued resource-event handler -
+	* e.g. an <img onload> that began loading when the caller built the live
+	* tree - which fires in page scope after sanitize returns even though the
+	* handler never reached the returned tree. That is the audit-5 F1 hazard,
+	* and the documented node.remove() hook pattern walks straight into it.
+	* So on the IN_PLACE path we neutralize the detached subtree inline,
+	* stripping its non-allow-listed attributes before returning, exactly as
+	* the post-walk pass does for _forceRemove'd subtrees.
+	*
+	* @param currentNode the node a hook may have detached
+	* @param root the current walk root
+	* @return true if the node is detached and now handled, false otherwise
+	*/
+	const _handleHookDetachedNode = function _handleHookDetachedNode(currentNode, root) {
+		if (currentNode === root || getParentNode(currentNode) !== null) return false;
+		if (IN_PLACE) _neutralizeSubtree(currentNode);
+		return true;
+	};
+	/**
 	* _sanitizeElements
 	*
 	* @protect nodeName
@@ -59747,24 +60032,18 @@ function createDOMPurify() {
 	*/
 	const _sanitizeElements = function _sanitizeElements(currentNode, root) {
 		_executeHooks(hooks.beforeSanitizeElements, currentNode, null);
-		if (currentNode !== root && getParentNode(currentNode) === null) {
-			if (IN_PLACE) _neutralizeSubtree(currentNode);
-			return true;
-		}
+		if (_handleHookDetachedNode(currentNode, root)) return true;
 		if (_isClobbered(currentNode)) {
 			_forceRemove(currentNode);
 			return true;
 		}
-		const tagName = transformCaseFunc(getNodeName ? getNodeName(currentNode) : currentNode.nodeName);
+		const tagName = transformCaseFunc(_readNodeName(currentNode));
 		ALLOWED_TAGS = _forkSharedAllowlist(hooks.uponSanitizeElement, ALLOWED_TAGS, DEFAULT_ALLOWED_TAGS, SET_CONFIG_ALLOWED_TAGS);
 		_executeHooks(hooks.uponSanitizeElement, currentNode, {
 			tagName,
 			allowedTags: ALLOWED_TAGS
 		});
-		if (currentNode !== root && getParentNode(currentNode) === null) {
-			if (IN_PLACE) _neutralizeSubtree(currentNode);
-			return true;
-		}
+		if (_handleHookDetachedNode(currentNode, root)) return true;
 		if (_isUnsafeNode(currentNode, tagName)) {
 			_forceRemove(currentNode);
 			return true;
@@ -59774,7 +60053,7 @@ function createDOMPurify() {
 			if (removed === false) _executeHooks(hooks.afterSanitizeElements, currentNode, null);
 			return removed;
 		}
-		if ((getNodeType ? getNodeType(currentNode) : currentNode.nodeType) === NODE_TYPE.element && !_checkValidNamespace(currentNode)) {
+		if (_readNodeType(currentNode) === NODE_TYPE.element && !_checkValidNamespace(currentNode)) {
 			_forceRemove(currentNode);
 			return true;
 		}
@@ -59802,21 +60081,17 @@ function createDOMPurify() {
 	*/
 	const _isValidAttribute = function _isValidAttribute(lcTag, lcName, value) {
 		if (FORBID_ATTR[lcName]) return false;
-		if (SAFE_FOR_XML && lcName === "patchsrc") return false;
-		if (SAFE_FOR_XML && lcName === "for" && lcTag !== "label" && lcTag !== "output") return false;
+		if (_isPatchLinkageAttribute(lcName, lcTag)) return false;
 		if (SANITIZE_DOM && (lcName === "id" || lcName === "name") && (value in document || value in formElement)) return false;
 		const nameIsPermitted = ALLOWED_ATTR[lcName] || EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag);
-		if (ALLOW_DATA_ATTR && regExpTest(DATA_ATTR$1, lcName));
-		else if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR$1, lcName));
-		else if (!nameIsPermitted) {
-			if (_isBasicCustomElement(lcTag) && (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, lcTag) || CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(lcTag)) && (CUSTOM_ELEMENT_HANDLING.attributeNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.attributeNameCheck, lcName) || CUSTOM_ELEMENT_HANDLING.attributeNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.attributeNameCheck(lcName, lcTag)) || lcName === "is" && CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements && (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, value) || CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(value)));
-			else return false;
-		} else if (URI_SAFE_ATTRIBUTES[lcName]);
-		else if (regExpTest(IS_ALLOWED_URI$1, stringReplace(value, ATTR_WHITESPACE$1, "")));
-		else if ((lcName === "src" || lcName === "xlink:href" || lcName === "href") && lcTag !== "script" && stringIndexOf(value, "data:") === 0 && DATA_URI_TAGS[lcTag]);
-		else if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA$1, stringReplace(value, ATTR_WHITESPACE$1, "")));
-		else if (value) return false;
-		return true;
+		if (ALLOW_DATA_ATTR && regExpTest(DATA_ATTR$1, lcName)) return true;
+		if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR$1, lcName)) return true;
+		if (!nameIsPermitted) return _isBasicCustomElement(lcTag) && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.tagNameCheck, lcTag) && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.attributeNameCheck, lcName, lcTag) || lcName === "is" && CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.tagNameCheck, value);
+		if (URI_SAFE_ATTRIBUTES[lcName]) return true;
+		if (regExpTest(IS_ALLOWED_URI$1, stringReplace(value, ATTR_WHITESPACE$1, ""))) return true;
+		if ((lcName === "src" || lcName === "xlink:href" || lcName === "href") && lcTag !== "script" && stringIndexOf(value, "data:") === 0 && DATA_URI_TAGS[lcTag]) return true;
+		if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA$1, stringReplace(value, ATTR_WHITESPACE$1, ""))) return true;
+		return !value;
 	};
 	const RESERVED_CUSTOM_ELEMENT_NAMES = addToSet({}, [
 		"annotation-xml",
@@ -59918,29 +60193,29 @@ function createDOMPurify() {
 			_executeHooks(hooks.uponSanitizeAttribute, currentNode, hookEvent);
 			value = hookEvent.attrValue;
 			if (SANITIZE_NAMED_PROPS && (lcName === "id" || lcName === "name") && stringIndexOf(value, SANITIZE_NAMED_PROPS_PREFIX) !== 0) {
-				_removeAttribute(name, currentNode);
+				_removeAttribute(name, currentNode, attr);
 				value = SANITIZE_NAMED_PROPS_PREFIX + value;
 			}
 			if (SAFE_FOR_XML && regExpTest(/((--!?|])>)|<\/(style|script|title|xmp|textarea|noscript|iframe|noembed|noframes)/i, value)) {
-				_removeAttribute(name, currentNode);
+				_removeAttribute(name, currentNode, attr);
 				continue;
 			}
 			if (lcName === "attributename" && stringMatch(value, "href")) {
-				_removeAttribute(name, currentNode);
+				_removeAttribute(name, currentNode, attr);
 				continue;
 			}
 			if (hookEvent.forceKeepAttr) continue;
 			if (!hookEvent.keepAttr) {
-				_removeAttribute(name, currentNode);
+				_removeAttribute(name, currentNode, attr);
 				continue;
 			}
 			if (!ALLOW_SELF_CLOSE_IN_ATTR && regExpTest(SELF_CLOSING_TAG, value)) {
-				_removeAttribute(name, currentNode);
+				_removeAttribute(name, currentNode, attr);
 				continue;
 			}
 			if (SAFE_FOR_TEMPLATES) value = _stripTemplateExpressions(value);
 			if (!_isValidAttribute(lcTag, lcName, value)) {
-				_removeAttribute(name, currentNode);
+				_removeAttribute(name, currentNode, attr);
 				continue;
 			}
 			value = _applyTrustedTypesToAttribute(lcTag, lcName, namespaceURI, value);
@@ -59962,7 +60237,7 @@ function createDOMPurify() {
 			_sanitizeElements(shadowNode, fragment);
 			_sanitizeAttributes(shadowNode);
 			if (_isDocumentFragment(shadowNode.content)) _sanitizeShadowDOM2(shadowNode.content);
-			if ((getNodeType ? getNodeType(shadowNode) : shadowNode.nodeType) === NODE_TYPE.element) {
+			if (_readNodeType(shadowNode) === NODE_TYPE.element) {
 				const innerSr = getShadowRoot(shadowNode);
 				if (_isDocumentFragment(innerSr)) {
 					_sanitizeAttachedShadowRoots(innerSr);
@@ -60003,7 +60278,7 @@ function createDOMPurify() {
 				continue;
 			}
 			const node = item.node;
-			const isElement = (getNodeType ? getNodeType(node) : node.nodeType) === NODE_TYPE.element;
+			const isElement = _readNodeType(node) === NODE_TYPE.element;
 			const childNodes = getChildNodes(node);
 			if (childNodes) for (let i = childNodes.length - 1; i >= 0; --i) stack.push({
 				node: childNodes[i],
@@ -60054,7 +60329,7 @@ function createDOMPurify() {
 		const inPlace = IN_PLACE && typeof dirty !== "string" && _isNode(dirty);
 		if (inPlace) {
 			_neutralizePatchLinkage(dirty);
-			const nn = getNodeName ? getNodeName(dirty) : dirty.nodeName;
+			const nn = _readNodeName(dirty);
 			if (typeof nn === "string") {
 				const tagName = transformCaseFunc(nn);
 				if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
@@ -60444,7 +60719,7 @@ var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) 
 				(0, import_react.startTransition)(() => {
 					setRenderedHtml(applyPostProcess(sanitizedResult));
 				});
-			}).catch(_temp$102);
+			}).catch(_temp$101);
 			return () => {
 				cancel();
 			};
@@ -60559,7 +60834,7 @@ var MarkdownRenderQueue = class {
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$102(error) {
+function _temp$101(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -62129,7 +62404,8 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 			}, 300);
 		};
 		const handleMouseDown = (event) => {
-			if (popperRef.current && !popperRef.current.contains(event.target)) {
+			const target = event.target instanceof Node ? event.target : null;
+			if (popperRef.current && !popperRef.current.contains(target)) {
 				if (hoverTimerRef.current !== null) window.clearTimeout(hoverTimerRef.current);
 				setShouldShowPopover(false);
 				setIsOpenRef.current(false);
@@ -62140,7 +62416,7 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 			let mouseDownInsidePopover = false;
 			let mouseDownOnTrigger = false;
 			const captureListener = (event) => {
-				const target = event.target;
+				const target = event.target instanceof Node ? event.target : null;
 				mouseDownInsidePopover = popperRef.current?.contains(target) ?? false;
 				mouseDownOnTrigger = positionEl?.contains(target) ?? false;
 			};
@@ -62235,12 +62511,12 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 		phase: "beforeWrite",
 		requires: ["maxSize"],
 		fn({ state }) {
-			const data = state.modifiersData.maxSize;
-			if (!data) return;
+			const data = state.modifiersData["maxSize"];
+			if (!isRecord(data) || typeof data["width"] !== "number" || typeof data["height"] !== "number") return;
 			state.styles.popper = {
 				...state.styles.popper,
-				maxWidth: `${data.width}px`,
-				maxHeight: `${data.height}px`
+				maxWidth: `${data["width"]}px`,
+				maxHeight: `${data["height"]}px`
 			};
 		}
 	}), []);
@@ -62335,7 +62611,7 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 			setShouldShowPopover(true);
 		};
 		const handlePopoverMouseLeave = (e) => {
-			if (e.relatedTarget && popperEl.contains(e.relatedTarget)) return;
+			if (e.relatedTarget instanceof Node && popperEl.contains(e.relatedTarget)) return;
 			if (!closeOnMouseLeave) return;
 			isOverPopoverRef.current = false;
 			setShouldShowPopover(false);
@@ -64018,7 +64294,7 @@ var TabPanels = (t0) => {
 	const t2 = `${id}-content`;
 	let t3;
 	if ($[2] !== tabs) {
-		t3 = tabs.map(_temp$101);
+		t3 = tabs.map(_temp$100);
 		$[2] = tabs;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -64110,7 +64386,7 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$101(tab, index) {
+function _temp$100(tab, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 		...tab.props,
 		index
@@ -64141,7 +64417,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
 	if ($[0] !== ctx?.setTarget) {
-		t0 = ctx?.setTarget ?? _temp$100;
+		t0 = ctx?.setTarget ?? _temp$99;
 		$[0] = ctx?.setTarget;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -64174,7 +64450,7 @@ var FindTargetProvider = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$100() {}
+function _temp$99() {}
 //#endregion
 //#region ../../packages/react/src/components/ExpandablePanel.tsx
 var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
@@ -64189,6 +64465,7 @@ var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	if ($[0] !== lines) {
 		t3 = (entry) => {
 			const element = entry.target;
+			if (!(element instanceof HTMLElement)) return;
 			if (rootFontSizeRef.current === 0) {
 				const rootStyle = window.getComputedStyle(document.documentElement);
 				rootFontSizeRef.current = parseFloat(rootStyle.fontSize);
@@ -65134,7 +65411,7 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 			};
 		}
 		setMatchCount(total > 0 ? total : null);
-		const focusedElement = document.activeElement;
+		const focusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		const selection = window.getSelection();
 		let savedRange = null;
 		if (selection && selection.rangeCount > 0) savedRange = selection.getRangeAt(0).cloneRange();
@@ -65159,7 +65436,7 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 			const selection = window.getSelection();
 			if (selection && selection.rangeCount > 0) {
 				const range = selection.getRangeAt(0);
-				const parentElement = range.startContainer.parentElement || range.commonAncestorContainer;
+				const parentElement = rangeParentElement(range);
 				const isNewMatch = !isLastFoundItem(range, lastFoundItem.current);
 				lastFoundItem.current = {
 					text: range.toString(),
@@ -65374,11 +65651,18 @@ async function findExtendedInDOM(searchTerm, back, lastFoundItem, extendedFindTe
 	}
 	return result;
 }
+/**
+* The nearest element to a range's start. Null only for a detached range —
+* commonAncestorContainer is often a text node, hence the walk up.
+*/ function rangeParentElement(range) {
+	const ancestor = range.commonAncestorContainer;
+	return range.startContainer.parentElement ?? (ancestor instanceof Element ? ancestor : ancestor.parentElement);
+}
 function isLastFoundItem(range, lastFoundItem) {
 	if (!lastFoundItem) return false;
 	const currentText = range.toString();
 	const currentOffset = range.startOffset;
-	const currentParentElement = range.startContainer.parentElement || range.commonAncestorContainer;
+	const currentParentElement = rangeParentElement(range);
 	return currentText === lastFoundItem.text && currentOffset === lastFoundItem.offset && currentParentElement === lastFoundItem.parentElement;
 }
 function inUnsearchableElement(range) {
@@ -65395,9 +65679,9 @@ function inUnsearchableElement(range) {
 }
 function selectionParentElement(range) {
 	let element;
-	if (range.startContainer.nodeType === Node.ELEMENT_NODE) element = range.startContainer;
+	if (range.startContainer instanceof Element) element = range.startContainer;
 	else element = range.startContainer.parentElement;
-	if (!element && range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE) element = range.commonAncestorContainer;
+	if (!element && range.commonAncestorContainer instanceof Element) element = range.commonAncestorContainer;
 	else if (!element && range.commonAncestorContainer.parentElement) element = range.commonAncestorContainer.parentElement;
 	return element;
 }
@@ -65501,7 +65785,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((t0, 
 	const [visibleKey, setVisibleKey, clearVisibleKey] = useProperty("popover", "visibleKey");
 	let t1;
 	if ($[0] !== references) {
-		t1 = new Map(references?.map(_temp$99));
+		t1 = new Map(references?.map(_temp$98));
 		$[0] = references;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -65511,7 +65795,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((t0, 
 	let t2;
 	if ($[2] !== navigate) {
 		t2 = (e) => {
-			const anchor = e.target.closest("a");
+			const anchor = e.target instanceof Element ? e.target.closest("a") : null;
 			if (anchor) {
 				const href = anchor.getAttribute("href");
 				if (href?.startsWith("#/")) {
@@ -65703,7 +65987,7 @@ var popoverKey = (ref) => `markdown-ref-popover-${ref.id}`;
 		});
 	});
 }
-function _temp$99(r) {
+function _temp$98(r) {
 	return [r.id, r];
 }
 /**
@@ -65880,7 +66164,7 @@ var NextPreviousNav_module_default = {
 		$[4] = t1;
 	} else t1 = $[4];
 	useArrowStepper(t1);
-	const handleKeyDown = _temp$98;
+	const handleKeyDown = _temp$97;
 	const t2 = hasPrevious ? onPrevious : void 0;
 	let t3;
 	if ($[5] !== hasPrevious || $[6] !== onPrevious) {
@@ -65999,7 +66283,7 @@ var NextPreviousNav_module_default = {
 	} else t23 = $[38];
 	return t23;
 };
-function _temp$98(e, action, enabled) {
+function _temp$97(e, action, enabled) {
 	if ((e.key === "Enter" || e.key === " ") && enabled && action) {
 		e.preventDefault();
 		action();
@@ -67034,7 +67318,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$97);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$96);
 		};
 		t2 = [
 			logDir,
@@ -67123,7 +67407,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$97() {}
+function _temp$96() {}
 //#endregion
 //#region src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
@@ -67228,7 +67512,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$96,
+			refetchInterval: _temp$95,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -67241,7 +67525,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const result = useAsyncDataFromQuery(t4);
 	let t5;
 	if ($[14] !== enabled || $[15] !== result) {
-		t5 = enabled ? map$1(result, _temp2$57) : data(void 0);
+		t5 = enabled ? map$1(result, _temp2$58) : data(void 0);
 		$[14] = enabled;
 		$[15] = result;
 		$[16] = t5;
@@ -67257,7 +67541,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const pending = usePendingSamples(logDir, logFile);
 	let t0;
 	if ($[0] !== pending) {
-		t0 = map$1(pending, _temp3$43);
+		t0 = map$1(pending, _temp3$44);
 		$[0] = pending;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -67268,13 +67552,13 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$96(query) {
+function _temp$95(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
-function _temp2$57(data) {
+function _temp2$58(data) {
 	return data ?? void 0;
 }
-function _temp3$43(data) {
+function _temp3$44(data) {
 	return data?.metrics;
 }
 //#endregion
@@ -68764,49 +69048,49 @@ var RowSpace = class {
 };
 //#endregion
 //#region src/utils/attachments.ts
-var resolveAttachments = (value, attachments, onFailedResolve) => {
-	const CONTENT_PROTOCOL = "tc://";
-	const ATTACHMENT_PROTOCOL = "attachment://";
-	if (value === null || value === void 0) return value;
+var CONTENT_PROTOCOL$1 = "tc://";
+var ATTACHMENT_PROTOCOL$1 = "attachment://";
+var resolveString = (value, attachments, onFailedResolve) => {
+	const ref = value.startsWith(CONTENT_PROTOCOL$1) ? value.replace(CONTENT_PROTOCOL$1, ATTACHMENT_PROTOCOL$1) : value;
+	if (!ref.startsWith(ATTACHMENT_PROTOCOL$1)) return value;
+	const attachmentId = ref.slice(13);
+	const attachment = attachments[attachmentId];
+	if (attachment === void 0) {
+		onFailedResolve?.(attachmentId);
+		return value;
+	}
+	return attachment;
+};
+var resolveValue = (value, attachments, onFailedResolve) => {
+	if (typeof value === "string") return resolveString(value, attachments, onFailedResolve);
 	if (Array.isArray(value)) {
 		let hasChanged = false;
-		const resolvedArray = value.map((v) => {
-			const resolved = resolveAttachments(v, attachments);
-			if (resolved !== v) hasChanged = true;
-			return resolved;
-		});
-		return hasChanged ? resolvedArray : value;
+		const resolved = [];
+		for (const v of value) {
+			const r = resolveValue(v, attachments, onFailedResolve);
+			if (r !== v) hasChanged = true;
+			resolved.push(r);
+		}
+		return hasChanged ? resolved : value;
 	}
-	if (typeof value === "object" && !(value instanceof Date) && !(value instanceof RegExp)) {
+	if (typeof value === "object" && value !== null && !(value instanceof Date) && !(value instanceof RegExp)) {
 		let hasChanged = false;
-		const resolvedObject = {};
-		for (const [key, val] of Object.entries(value)) {
-			const resolved = resolveAttachments(val, attachments);
-			resolvedObject[key] = resolved;
-			if (resolved !== val) hasChanged = true;
+		const resolved = {};
+		for (const [key, v] of Object.entries(value)) {
+			const r = resolveValue(v, attachments, onFailedResolve);
+			resolved[key] = r;
+			if (r !== v) hasChanged = true;
 		}
-		return hasChanged ? resolvedObject : value;
-	}
-	if (typeof value === "string") {
-		if (value.startsWith(CONTENT_PROTOCOL)) {
-			const updatedValue = value.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL);
-			if (updatedValue.startsWith(ATTACHMENT_PROTOCOL)) {
-				const attachmentId = updatedValue.slice(13);
-				const attachment = attachments[attachmentId];
-				if (attachment === void 0 && onFailedResolve) onFailedResolve(attachmentId);
-				return attachment !== void 0 ? attachment : value;
-			}
-			return updatedValue;
-		}
-		if (value.startsWith(ATTACHMENT_PROTOCOL)) {
-			const attachmentId = value.slice(13);
-			const attachment = attachments[attachmentId];
-			if (attachment === void 0 && onFailedResolve) onFailedResolve(attachmentId);
-			return attachment !== void 0 ? attachment : value;
-		}
+		return hasChanged ? resolved : value;
 	}
 	return value;
 };
+/**
+* Walks a value replacing attachment:// (and legacy tc://) references with
+* their content, leaving the value's shape untouched. TypeScript can't
+* express "same type, strings substituted", so the walk works in `unknown`
+* and this is where the shape is handed back.
+*/ var resolveAttachments = (value, attachments, onFailedResolve) => resolveValue(value, attachments, onFailedResolve);
 //#endregion
 //#region src/log_data/sampleFetch.ts
 /**
@@ -69134,7 +69418,8 @@ var initialStreamState = () => ({
 	messagePoolEntryIds: /* @__PURE__ */ new Set(),
 	callPoolEntryIds: /* @__PURE__ */ new Set(),
 	eventMapping: {},
-	events: []
+	events: [],
+	reportedAttachmentMisses: /* @__PURE__ */ new Set()
 });
 var createSampleStreamSession = (api, logFile, id, epoch) => {
 	let state = initialStreamState();
@@ -69230,15 +69515,19 @@ function processEvents(sampleData, state, api, logFile) {
 	if (sampleData.events.length === 0) return false;
 	for (const eventData of sampleData.events) {
 		const existingIndex = state.eventMapping[eventData.event_id];
-		const resolvedEvent = resolveAttachments(resolvePoolRefs(resolveAttachments(normalizeEvent(eventData.event) ?? eventData.event, state.attachments, (attachmentId) => {
+		const event = normalizeEvent(eventData.event) ?? eventData.event;
+		const reportAttachmentMiss = (attachmentId) => {
+			if (state.reportedAttachmentMisses.has(attachmentId)) return;
+			state.reportedAttachmentMisses.add(attachmentId);
 			const snapshot = {
 				eventId: eventData.event_id,
 				attachmentId,
-				available_attachments: Object.keys(state.attachments)
+				available_attachment_count: Object.keys(state.attachments).length
 			};
 			if (api.log_message) api.log_message(logFile, `Unable to resolve attachment ${attachmentId}\n` + JSON.stringify(snapshot));
 			console.warn(`Unable to resolve attachment ${attachmentId}`, snapshot);
-		}), state), state.attachments);
+		};
+		const resolvedEvent = resolveAttachments(resolvePoolRefs(resolveAttachments(event, state.attachments, reportAttachmentMiss), state), state.attachments, reportAttachmentMiss);
 		if (existingIndex !== void 0) state.events[existingIndex] = resolvedEvent;
 		else {
 			state.eventMapping[eventData.event_id] = state.events.length;
@@ -69323,7 +69612,7 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 		t3 = map$1(compose({
 			rows,
 			pending
-		}), _temp2$56);
+		}), _temp2$57);
 		$[8] = pending;
 		$[9] = rows;
 		$[10] = t3;
@@ -69334,11 +69623,11 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$95(row) {
+function _temp$94(row) {
 	return row.summary;
 }
-function _temp2$56(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$95), settled.pending?.samples ?? []);
+function _temp2$57(settled) {
+	return mergeSampleSummaries(settled.rows.map(_temp$94), settled.pending?.samples ?? []);
 }
 //#endregion
 //#region src/log_data/runningSampleQuery.ts
@@ -69479,7 +69768,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$94,
+			refetchInterval: _temp$93,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -69491,7 +69780,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$94(query) {
+function _temp$93(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
 //#endregion
@@ -70292,7 +70581,7 @@ var formatSpawnAgentResult = (text) => {
 	} catch {
 		return;
 	}
-	if (!data || typeof data !== "object") return;
+	if (!isRecord(data)) return;
 	const record = data;
 	const nickname = typeof record.nickname === "string" ? record.nickname : void 0;
 	const agentId = typeof record.agent_id === "string" ? record.agent_id : void 0;
@@ -70310,7 +70599,7 @@ var toolOutputText = (output) => {
 	}
 };
 var collectContentText = (item, parts) => {
-	if (!item || typeof item !== "object") return;
+	if (!isRecord(item)) return;
 	const record = item;
 	if (record.type === "text" && typeof record.text === "string") parts.push(record.text);
 	else if (record.type === "tool" && Array.isArray(record.content)) for (const child of record.content) collectContentText(child, parts);
@@ -70334,7 +70623,7 @@ var formatSubagentNotification = (payload) => {
 	} catch {
 		return;
 	}
-	if (!data || typeof data !== "object") return;
+	if (!isRecord(data)) return;
 	const record = data;
 	const agentPath = typeof record.agent_path === "string" ? record.agent_path : void 0;
 	const status = record.status && typeof record.status === "object" ? Object.keys(record.status)[0] : void 0;
@@ -70355,7 +70644,7 @@ var parseToolSearchCatalog = (output) => {
 	const namespaces = [];
 	const looseTools = [];
 	for (const entry of data) {
-		if (!entry || typeof entry !== "object") continue;
+		if (!isRecord(entry)) continue;
 		const record = entry;
 		const rawTools = Array.isArray(record.tools) ? record.tools : void 0;
 		if (record.type === "function" || rawTools === void 0 && "parameters" in record) {
@@ -70369,7 +70658,7 @@ var parseToolSearchCatalog = (output) => {
 		if (name === void 0 && toolList.length === 0) continue;
 		const tools = [];
 		for (const tool of toolList) {
-			if (!tool || typeof tool !== "object") continue;
+			if (!isRecord(tool)) continue;
 			const parsed = parseToolEntry(tool);
 			if (parsed) tools.push(parsed);
 		}
@@ -70396,9 +70685,9 @@ var parseToolEntry = (tool) => {
 };
 var toolParamNames = (tool) => {
 	const parameters = tool.parameters;
-	if (parameters && typeof parameters === "object") {
+	if (isRecord(parameters)) {
 		const properties = parameters.properties;
-		if (properties && typeof properties === "object") return Object.keys(properties);
+		if (isRecord(properties)) return Object.keys(properties);
 	}
 	return [];
 };
@@ -70661,7 +70950,7 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	return isRasterImageMimeType(normalizedSource) && normalizedSource === normalizedDeclared;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.8/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
 function createLazyMeasurementsView(count, flat, getItemKey) {
 	const cache = new Array(count);
 	return new Proxy(cache, { get(target, prop, receiver) {
@@ -70691,7 +70980,7 @@ function createLazyMeasurementsView(count, flat, getItemKey) {
 	} });
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.8/node_modules/@tanstack/virtual-core/dist/esm/utils.js
 function memo$10(getDeps, fn, opts) {
 	let deps = opts.initialDeps ?? [];
 	let result;
@@ -70717,13 +71006,15 @@ function notUndefined(value, msg) {
 var approxEqual = (a, b) => Math.abs(a - b) < 1.01;
 var debounce = (targetWindow, fn, ms) => {
 	let timeoutId;
-	return function(...args) {
+	return Object.assign(function(...args) {
 		targetWindow.clearTimeout(timeoutId);
 		timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
-	};
+	}, { cancel: () => {
+		targetWindow.clearTimeout(timeoutId);
+	} });
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.8/node_modules/@tanstack/virtual-core/dist/esm/index.js
 var _isIOSResult;
 var isIOSWebKit = () => {
 	if (_isIOSResult !== void 0) return _isIOSResult;
@@ -70805,6 +71096,7 @@ var observeOffset = (instance, cb, readOffset) => {
 	return () => {
 		element.removeEventListener("scroll", handler);
 		if (registerScrollendEvent) element.removeEventListener("scrollend", endHandler);
+		fallback?.cancel();
 	};
 };
 var observeElementOffset = (instance, cb) => observeOffset(instance, cb, (el) => {
@@ -70886,6 +71178,7 @@ var Virtualizer = class {
 								}
 								return;
 							}
+							if (!this.isIndexInRange(index)) return;
 							if (this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, entry, this));
 						};
 						this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
@@ -71029,6 +71322,8 @@ var Virtualizer = class {
 				this.rafId = null;
 			}
 			this.scrollState = null;
+			this.isScrolling = false;
+			this.scrollDirection = null;
 			this._iosDeferredAdjustment = 0;
 			this._iosTouching = false;
 			this._iosJustTouchEnded = false;
@@ -71183,6 +71478,7 @@ var Virtualizer = class {
 				gap
 			};
 		}, { key: false });
+		this.isIndexInRange = (index) => index >= 0 && index < this.options.count;
 		this.getMeasurements = memo$10(() => [this.getMeasurementOptions(), this.itemSizeCacheVersion], ({ count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap }, _itemSizeCacheVersion) => {
 			const itemSizeCache = this.itemSizeCache;
 			if (!enabled) {
@@ -71381,6 +71677,7 @@ var Virtualizer = class {
 				return;
 			}
 			const index = this.indexFromElement(node);
+			if (!this.isIndexInRange(index)) return;
 			const key = this.options.getItemKey(index);
 			const prevNode = this.elementsCache.get(key);
 			if (prevNode !== node) {
@@ -71392,7 +71689,7 @@ var Virtualizer = class {
 		};
 		this.resizeItem = (index, size) => {
 			var _a, _b;
-			if (index < 0 || index >= this.options.count) return;
+			if (!this.isIndexInRange(index)) return;
 			let cachedSize;
 			let itemStart;
 			let key;
@@ -71741,7 +72038,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.9_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.10_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -72252,10 +72549,10 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		};
 		settleFrameRef.current = requestAnimationFrame(settle);
 	}, [virtualizer, getScrollElement]);
-	(0, import_react.useEffect)(() => () => {
+	useUnmount(() => {
 		cancelAnimationFrame(settleFrameRef.current);
 		cancelAnimationFrame(releaseFrameRef.current);
-	}, []);
+	});
 	const lastInitialKeyRef = (0, import_react.useRef)(null);
 	const settleRestoreScroll = (0, import_react.useCallback)((getTargetSpacerTop) => {
 		isAutoScrollingRef.current = true;
@@ -72397,12 +72694,12 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		}
 		pendingSnapshotRef.current = null;
 	}, [recordSnapshot]);
-	(0, import_react.useEffect)(() => () => {
+	useUnmount(() => {
 		if (interactTimerRef.current) {
 			clearTimeout(interactTimerRef.current);
 			interactTimerRef.current = null;
 		}
-	}, []);
+	});
 	const items = virtualizer.getVirtualItems();
 	const startIndex = items[0]?.index ?? 0;
 	const endIndex = items[items.length - 1]?.index ?? 0;
@@ -72694,7 +72991,7 @@ var resolveStoreKeys = (record) => {
 		}
 	}
 	for (const [instanceKey, children] of Object.entries(storeInstances)) result[instanceKey] = resolveStoreKeys(children);
-	for (const [key, value] of Object.entries(result)) if (typeof value === "object" && value !== null && !Array.isArray(value)) result[key] = resolveStoreKeys(value);
+	for (const [key, value] of Object.entries(result)) if (isRecord(value)) result[key] = resolveStoreKeys(value);
 	return result;
 };
 var parseStoreInstanceKey = (key, value) => {
@@ -72774,8 +73071,8 @@ var hasHtmlEscape = (v) => isPlainObject$1(v) && "_html" in v && v._html != null
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$93);
-	const groups = allEntries.filter(_temp2$55);
+	const scalars = allEntries.filter(_temp$92);
+	const groups = allEntries.filter(_temp2$56);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
 	const visibleScalars = isCollapsible && !expanded ? scalars.slice(0, maxRows) : scalars;
@@ -72838,7 +73135,7 @@ var hasHtmlEscape = (v) => isPlainObject$1(v) && "_html" in v && v._html != null
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			type: "button",
 			className: clsx(MetaDataGrid_module_default.toggleButton, "text-size-smallest"),
-			onClick: () => setExpanded(_temp3$42),
+			onClick: () => setExpanded(_temp3$43),
 			children: [expanded ? "less" : `${scalars.length - visibleScalars.length} more`, "..."]
 		})
 	});
@@ -72856,7 +73153,7 @@ var hasHtmlEscape = (v) => isPlainObject$1(v) && "_html" in v && v._html != null
 					}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: MetaDataGrid_module_default.groupRule })]
 				}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
 					id: groupId,
-					entries: entry_0.value,
+					entries: isRecord(entry_0.value) ? entry_0.value : {},
 					options,
 					references,
 					depth: depth + 1
@@ -72902,13 +73199,13 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$93(e) {
+function _temp$92(e) {
 	return !isNonEmptyObject(e.value) || hasHtmlEscape(e.value);
 }
-function _temp2$55(e_0) {
+function _temp2$56(e_0) {
 	return isNonEmptyObject(e_0.value) && !hasHtmlEscape(e_0.value);
 }
-function _temp3$42(prev) {
+function _temp3$43(prev) {
 	return !prev;
 }
 var RenderedContent_module_default = {
@@ -72949,7 +73246,7 @@ var Buckets = {
 		$[1] = entry;
 		$[2] = t2;
 	} else t2 = $[2];
-	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$92).find(t2);
+	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$91).find(t2);
 	if (renderer_0) {
 		const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 		if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) return rendered;
@@ -73008,7 +73305,7 @@ var Buckets = {
 			},
 			render: (_id, entry, _options) => {
 				const obj = import_dist.default.parse(entry.value);
-				return { rendered: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JSONPanel, { data: obj }) };
+				return { rendered: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JSONPanel, { data: isRecord(obj) ? obj : {} }) };
 			}
 		},
 		Model: {
@@ -73157,7 +73454,7 @@ var Buckets = {
 				else return { rendered: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
 					id,
 					className: "font-size-small",
-					entries: entry.value,
+					entries: isRecord(entry.value) ? entry.value : {},
 					options: { plain: true }
 				}) };
 			}
@@ -73165,7 +73462,7 @@ var Buckets = {
 	};
 	return contentRenderers;
 };
-function _temp$92(a, b) {
+function _temp$91(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
@@ -73237,7 +73534,7 @@ var kRecordTreeKey = "record-tree-key";
 					event.stopPropagation();
 					if (index === items.length - 1) return;
 					const nextEl = document.getElementById(id)?.querySelector(`.${kRecordTreeKey}[data-index="${index + 1}"]`);
-					if (nextEl) nextEl.focus();
+					if (nextEl instanceof HTMLElement) nextEl.focus();
 					break bb48;
 				}
 				case "ArrowUp": {
@@ -73245,7 +73542,7 @@ var kRecordTreeKey = "record-tree-key";
 					event.stopPropagation();
 					if (index === 0) return;
 					const prevEl = document.getElementById(id)?.querySelector(`.${kRecordTreeKey}[data-index="${index - 1}"]`);
-					if (prevEl) prevEl.focus();
+					if (prevEl instanceof HTMLElement) prevEl.focus();
 					break bb48;
 				}
 				case "ArrowRight":
@@ -73460,7 +73757,7 @@ var processNodeRecursive = (key, value, depth, parentPath, thisPath, isCollapsed
 				const elementIdentifier = `[${index}]`;
 				items.push(...processNodeRecursive(elementKey, element, childDepth, currentItemPath, elementIdentifier, isCollapsed));
 			});
-		} else if (typeof value === "object" && value !== null) Object.entries(value).forEach(([childKey, childValue], index) => {
+		} else if (isRecord(value)) Object.entries(value).forEach(([childKey, childValue], index) => {
 			const childIdentifier = index.toString();
 			items.push(...processNodeRecursive(childKey, childValue, childDepth, currentItemPath, childIdentifier, isCollapsed));
 		});
@@ -73479,12 +73776,19 @@ var CompactionData_module_default = {
 //#region ../../packages/inspect-components/src/chat/content-data/CompactionData.tsx
 var kCompactionMetadata = "compaction_metadata";
 var CompactionData = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(7);
+	const $ = (0, import_compiler_runtime.c)(9);
 	const { id, data } = t0;
-	const compactionMetadata = data[kCompactionMetadata];
+	const raw = data[kCompactionMetadata];
 	let t1;
-	if ($[0] !== compactionMetadata || $[1] !== id) {
-		t1 = compactionMetadata.type === "anthropic_compact" ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+	if ($[0] !== raw) {
+		t1 = isRecord(raw) ? raw : {};
+		$[0] = raw;
+		$[1] = t1;
+	} else t1 = $[1];
+	const compactionMetadata = t1;
+	let t2;
+	if ($[2] !== compactionMetadata || $[3] !== id) {
+		t2 = compactionMetadata.type === "anthropic_compact" ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: `${id}-compacted-content`,
 			collapse: true,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedText, { markdown: String(compactionMetadata.content) })
@@ -73494,74 +73798,93 @@ var CompactionData = (t0) => {
 			entries: compactionMetadata,
 			options: { copyButton: true }
 		});
-		$[0] = compactionMetadata;
-		$[1] = id;
-		$[2] = t1;
-	} else t1 = $[2];
-	const compactionContent = t1;
-	let t2;
+		$[2] = compactionMetadata;
+		$[3] = id;
+		$[4] = t2;
+	} else t2 = $[4];
+	const compactionContent = t2;
 	let t3;
-	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = clsx(CompactionData_module_default.content, "text-size-small");
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	let t4;
+	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = clsx(CompactionData_module_default.content, "text-size-small");
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-style-label", "text-style-secondary", CompactionData_module_default.title),
 			children: "Compacted Content"
 		});
-		$[3] = t2;
-		$[4] = t3;
-	} else {
-		t2 = $[3];
-		t3 = $[4];
-	}
-	let t4;
-	if ($[5] !== compactionContent) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t2,
-			children: [t3, compactionContent]
-		});
-		$[5] = compactionContent;
+		$[5] = t3;
 		$[6] = t4;
-	} else t4 = $[6];
-	return t4;
+	} else {
+		t3 = $[5];
+		t4 = $[6];
+	}
+	let t5;
+	if ($[7] !== compactionContent) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t3,
+			children: [t4, compactionContent]
+		});
+		$[7] = compactionContent;
+		$[8] = t5;
+	} else t5 = $[8];
+	return t5;
 };
 var ContentDataView_module_default = { contentData: "_contentData_1lrx1_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/content-data/FallbackData.tsx
 var kFallbackMetadata = "fallback_metadata";
+var modelName$2 = (side) => {
+	if (!isRecord(side)) return "unknown";
+	const model = side["model"];
+	return typeof model === "string" ? model : "unknown";
+};
 /**
 * Marks a server-side model fallback handoff: the requested model's
 * safety classifiers refused and a fallback model served the request.
 */ var FallbackData = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(4);
+	const $ = (0, import_compiler_runtime.c)(8);
 	const { data } = t0;
 	const fallback = data[kFallbackMetadata];
-	const from = fallback.from?.model ?? "unknown";
-	const to = fallback.to?.model ?? "unknown";
-	let t1;
+	const t1 = isRecord(fallback) ? fallback.from : void 0;
 	let t2;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = clsx("text-size-small");
-		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx("text-style-label", "text-style-secondary"),
-			children: "Model Fallback"
-		});
+	if ($[0] !== t1) {
+		t2 = modelName$2(t1);
 		$[0] = t1;
 		$[1] = t2;
-	} else {
-		t1 = $[0];
-		t2 = $[1];
-	}
-	const t3 = `${from} → ${to}`;
+	} else t2 = $[1];
+	const from = t2;
+	const t3 = isRecord(fallback) ? fallback.to : void 0;
 	let t4;
 	if ($[2] !== t3) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t1,
-			children: [t2, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: t3 })]
-		});
+		t4 = modelName$2(t3);
 		$[2] = t3;
 		$[3] = t4;
 	} else t4 = $[3];
-	return t4;
+	const to = t4;
+	let t5;
+	let t6;
+	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = clsx("text-size-small");
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx("text-style-label", "text-style-secondary"),
+			children: "Model Fallback"
+		});
+		$[4] = t5;
+		$[5] = t6;
+	} else {
+		t5 = $[4];
+		t6 = $[5];
+	}
+	const t7 = `${from} → ${to}`;
+	let t8;
+	if ($[6] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t5,
+			children: [t6, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: t7 })]
+		});
+		$[6] = t7;
+		$[7] = t8;
+	} else t8 = $[7];
+	return t8;
 };
 var WebSearch_module_default = {
 	webSearch: "_webSearch_1376z_1",
@@ -73607,6 +73930,7 @@ var WebSearch = (t0) => {
 var WebSearchResults_module_default = { result: "_result_svtwi_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/content-data/WebSearchResults.tsx
+/** Shallow: results come from a tool payload; title and url are what render. */ var isWebSearchContentData = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 var WebSearchResults$1 = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(6);
 	const { results } = t0;
@@ -73626,7 +73950,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$91);
+		t3 = results.map(_temp$90);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -73641,7 +73965,7 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$91(result, index) {
+function _temp$90(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
@@ -73761,7 +74085,8 @@ var contentDataRenderers = [
 		},
 		render: (_id, data) => {
 			const input = data.input;
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(WebSearch, { query: input?.query ?? "" });
+			const query = isRecord(input) ? input["query"] : void 0;
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(WebSearch, { query: typeof query === "string" ? query : "" });
 		}
 	},
 	{
@@ -73770,7 +74095,7 @@ var contentDataRenderers = [
 			return data.type === "web_search_tool_result" && Array.isArray(data.content);
 		},
 		render: (_id, data) => {
-			const results = data.content;
+			const results = Array.isArray(data.content) ? data.content.filter(isWebSearchContentData) : [];
 			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(WebSearchResults$1, { results });
 		}
 	},
@@ -73960,7 +74285,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$90);
+		t2 = citations.map(_temp$89);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -74036,7 +74361,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$90(citation, index) {
+function _temp$89(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -74230,14 +74555,22 @@ var TodoWriteInput_module_default = {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/tool-input/TodoWriteInput.tsx
-var isRawTodo = (item) => typeof item === "object" && item !== null && ("content" in item || "step" in item) && "status" in item;
-var toToolTodos = (obj) => {
-	if (Array.isArray(obj) && obj.every(isRawTodo)) return obj.map((o) => ({
-		content: o.content ?? o.step ?? "",
-		status: o.status
-	}));
-	return [];
+var kTodoStatuses = [
+	"pending",
+	"in_progress",
+	"completed"
+];
+var isTodoStatus = (value) => kTodoStatuses.some((status) => status === value);
+var toToolTodo = (item) => {
+	if (!isRecord(item)) return void 0;
+	const text = [item["content"], item["step"]].find((value) => typeof value === "string");
+	if (text === void 0) return void 0;
+	return {
+		content: text,
+		status: isTodoStatus(item["status"]) ? item["status"] : "pending"
+	};
 };
+var toToolTodos = (obj) => Array.isArray(obj) ? obj.map(toToolTodo).filter((todo) => todo !== void 0) : [];
 var TodoWriteInput = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(13);
 	const { contents, parentRef } = t0;
@@ -74336,7 +74669,7 @@ var ToolInput = (props) => {
 		} else t4 = $[10];
 		return t4;
 	} else {
-		const t2 = contents;
+		const t2 = typeof contents === "string" || typeof contents === "object" && contents !== null ? contents : "";
 		const t3 = contentType || "";
 		let t4;
 		if ($[11] !== className || $[12] !== t2 || $[13] !== t3) {
@@ -74620,7 +74953,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$89);
+		t2 = results.map(_temp$88);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -74759,8 +75092,8 @@ var CodeExecutionResult = (t0) => {
 	if (content.tool_type !== "code_execution" || !isJson(content.result)) return;
 	try {
 		const parsed = JSON.parse(content.result);
-		if (typeof parsed !== "object" || parsed === null) return;
-		const payload = typeof parsed.content === "object" && parsed.content !== null && !Array.isArray(parsed.content) ? parsed.content : parsed;
+		if (!isRecord(parsed)) return;
+		const payload = isRecord(parsed.content) ? parsed.content : parsed;
 		const str = (value) => typeof value === "string" && value.length > 0 ? value : void 0;
 		return {
 			stdout: str(payload.stdout),
@@ -74775,7 +75108,8 @@ var CodeExecutionResult = (t0) => {
 var resolveArgs = (content) => {
 	if (typeof content.arguments === "string") {
 		if (isJson(content.arguments)) try {
-			return JSON.parse(content.arguments);
+			const parsed = JSON.parse(content.arguments);
+			if (isRecord(parsed)) return parsed;
 		} catch (e) {
 			console.warn("Failed to parse arguments as JSON", e);
 		}
@@ -74799,15 +75133,17 @@ var hasResultContent = (result) => {
 };
 var maybeWebSearchResult = (content) => {
 	if (content.name !== "web_search") return;
-	const objArray = asJsonObjArray(content.result);
-	if (objArray !== void 0) return { result: objArray };
+	const results = asJsonObjArray(content.result)?.filter(isWebResult);
+	if (results !== void 0 && results.length > 0) return { result: results };
 };
 var maybeListTools = (content) => {
 	if (content.name !== "mcp_list_tools") return;
-	const objArray = asJsonObjArray(content.result);
-	if (objArray !== void 0) return { result: objArray };
+	const results = asJsonObjArray(content.result)?.filter(isToolInfo);
+	if (results !== void 0 && results.length > 0) return { result: results };
 };
-function _temp$89(result, index) {
+/** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
+/** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
+function _temp$88(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
 		href: result.url,
 		target: "_blank",
@@ -74886,101 +75222,108 @@ var ToolOutput_module_default = {
 /**
 * Renders the ToolTextOutput component.
 */ var ToolTextOutput = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(24);
+	const $ = (0, import_compiler_runtime.c)(25);
 	const { text } = t0;
 	const displayMode = useDisplayMode();
 	if (displayMode === "rendered" && isJson(text)) {
+		let obj;
 		let t1;
 		if ($[0] !== text) {
-			t1 = JSON.parse(text);
+			obj = JSON.parse(text);
+			t1 = isRecord(obj);
 			$[0] = text;
-			$[1] = t1;
-		} else t1 = $[1];
-		const obj = t1;
-		let t2;
-		if ($[2] !== obj) {
-			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JsonMessageContent, {
-				id: "1-json",
-				json: obj
-			});
-			$[2] = obj;
-			$[3] = t2;
-		} else t2 = $[3];
-		return t2;
+			$[1] = obj;
+			$[2] = t1;
+		} else {
+			obj = $[1];
+			t1 = $[2];
+		}
+		if (t1) {
+			let t2;
+			if ($[3] !== obj) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JsonMessageContent, {
+					id: "1-json",
+					json: obj
+				});
+				$[3] = obj;
+				$[4] = t2;
+			} else t2 = $[4];
+			return t2;
+		}
 	}
 	if (displayMode === "rendered" && isAnsiOutput(text)) {
 		let t1;
-		if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+		if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
 			t1 = { fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)" };
-			$[4] = t1;
-		} else t1 = $[4];
+			$[5] = t1;
+		} else t1 = $[5];
 		let t2;
-		if ($[5] !== text) {
+		if ($[6] !== text) {
 			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
 				output: text,
 				style: t1
 			});
-			$[5] = text;
-			$[6] = t2;
-		} else t2 = $[6];
+			$[6] = text;
+			$[7] = t2;
+		} else t2 = $[7];
 		return t2;
 	}
 	let notice;
 	let t1;
 	let t2;
 	let t3;
-	if ($[7] !== displayMode || $[8] !== text) {
+	if ($[8] !== displayMode || $[9] !== text) {
 		const { text: capped, notice: t4 } = cappedText(text);
 		notice = t4;
-		if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
+		if ($[14] === Symbol.for("react.memo_cache_sentinel")) {
 			t3 = clsx(ToolOutput_module_default.textOutput, "tool-output");
 			t1 = clsx("sourceCode", ToolOutput_module_default.textCode);
-			$[13] = t1;
-			$[14] = t3;
+			$[14] = t1;
+			$[15] = t3;
 		} else {
-			t1 = $[13];
-			t3 = $[14];
+			t1 = $[14];
+			t3 = $[15];
 		}
 		t2 = displayMode === "raw" ? capped : capped.trim();
-		$[7] = displayMode;
-		$[8] = text;
-		$[9] = notice;
-		$[10] = t1;
-		$[11] = t2;
-		$[12] = t3;
+		$[8] = displayMode;
+		$[9] = text;
+		$[10] = notice;
+		$[11] = t1;
+		$[12] = t2;
+		$[13] = t3;
 	} else {
-		notice = $[9];
-		t1 = $[10];
-		t2 = $[11];
-		t3 = $[12];
+		notice = $[10];
+		t1 = $[11];
+		t2 = $[12];
+		t3 = $[13];
 	}
 	let t4;
-	if ($[15] !== t1 || $[16] !== t2) {
+	if ($[16] !== t1 || $[17] !== t2) {
 		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", {
 			className: t1,
 			children: t2
 		});
-		$[15] = t1;
-		$[16] = t2;
-		$[17] = t4;
-	} else t4 = $[17];
+		$[16] = t1;
+		$[17] = t2;
+		$[18] = t4;
+	} else t4 = $[18];
 	let t5;
-	if ($[18] !== t3 || $[19] !== t4) {
+	if ($[19] !== t3 || $[20] !== t4) {
 		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 			className: t3,
 			children: t4
 		});
-		$[18] = t3;
-		$[19] = t4;
-		$[20] = t5;
-	} else t5 = $[20];
+		$[19] = t3;
+		$[20] = t4;
+		$[21] = t5;
+	} else t5 = $[21];
 	let t6;
-	if ($[21] !== notice || $[22] !== t5) {
+	if ($[22] !== notice || $[23] !== t5) {
 		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t5, notice] });
-		$[21] = notice;
-		$[22] = t5;
-		$[23] = t6;
-	} else t6 = $[23];
+		$[22] = notice;
+		$[23] = t5;
+		$[24] = t6;
+	} else t6 = $[24];
 	return t6;
 };
 //#endregion
@@ -74989,151 +75332,143 @@ var ToolOutput_module_default = {
 * Renders message content based on its type.
 * Supports rendering strings, images, and tools using specific renderers.
 */ var MessageContent = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(5);
-	const { contents, context, references } = t0;
+	const $ = (0, import_compiler_runtime.c)(4);
+	const { contents, references } = t0;
 	const displayMode = useDisplayMode();
 	let t1;
-	if ($[0] !== contents || $[1] !== context || $[2] !== displayMode || $[3] !== references) {
+	if ($[0] !== contents || $[1] !== displayMode || $[2] !== references) {
 		t1 = Symbol.for("react.early_return_sentinel");
 		bb0: {
 			const normalized = normalizeContent$1(contents, displayMode);
 			if (Array.isArray(normalized)) {
 				t1 = normalized.map((content, index) => {
-					if (typeof content === "string") return messageRenderers.text?.render(`text-content-${index}`, {
+					if (typeof content === "string") return renderContent(`text-content-${index}`, {
 						type: "text",
 						text: content,
 						refusal: null,
 						internal: null,
 						citations: null
-					}, index === contents.length - 1, context, displayMode, references);
-					else if (content) {
-						const renderer = messageRenderers[content.type];
-						if (renderer) return renderer.render(`text-${content.type}-${index}`, content, index === contents.length - 1, context, displayMode, references);
-						else console.error(`Unknown message content type '${content.type}'`);
-					}
+					}, index === normalized.length - 1, displayMode, references);
+					else if (content) return renderContent(`text-${content.type}-${index}`, content, index === normalized.length - 1, displayMode, references);
 				});
 				break bb0;
 			} else {
-				const contentText = {
+				t1 = renderContent("text-message-content", {
 					type: "text",
 					text: normalized,
 					refusal: null,
 					internal: null,
 					citations: null
-				};
-				t1 = messageRenderers.text?.render("text-message-content", contentText, true, context, displayMode, references);
+				}, true, displayMode, references);
 				break bb0;
 			}
 		}
 		$[0] = contents;
-		$[1] = context;
-		$[2] = displayMode;
-		$[3] = references;
-		$[4] = t1;
-	} else t1 = $[4];
+		$[1] = displayMode;
+		$[2] = references;
+		$[3] = t1;
+	} else t1 = $[3];
 	if (t1 !== Symbol.for("react.early_return_sentinel")) return t1;
 };
-var messageRenderers = {
-	text: { render: (key, content, isLast, _context, displayMode, references) => {
-		const c = content;
-		const cites = c.citations ?? [];
-		if (!c.text && !cites.length) return;
-		if (displayMode === "rendered" && isJson(c.text)) {
-			const obj = JSON.parse(c.text);
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JsonMessageContent, {
-				id: `${key}-json`,
-				json: obj
-			});
-		} else return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedText, {
-			markdown: c.text,
-			className: clsx(isLast ? "no-last-para-padding" : "", MessageContent_module_default.breakable),
-			references
-		}), c.citations && c.citations.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitations, { citations: c.citations }) : void 0] }, key);
-	} },
-	reasoning: { render: (key, content, isLast) => {
-		const r = content;
-		let title = "Reasoning";
-		let text = r.reasoning;
-		if (r.redacted) {
-			text = r.summary || "Reasoning encrypted by model provider.";
-			if (r.summary) title = "Reasoning (Summary)";
-		} else if (!text) {
-			text = r.summary || "Reasoning text not provided.";
-			if (r.summary) title = "Reasoning (Summary)";
+var renderContent = (key, content, isLast, displayMode, references) => {
+	switch (content.type) {
+		case "text": {
+			const c = content;
+			const cites = c.citations ?? [];
+			if (!c.text && !cites.length) return;
+			if (displayMode === "rendered" && isJson(c.text)) {
+				const parsed = JSON.parse(c.text);
+				if (isRecord(parsed)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JsonMessageContent, {
+					id: `${key}-json`,
+					json: parsed
+				});
+			}
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedText, {
+				markdown: c.text,
+				className: clsx(isLast ? "no-last-para-padding" : "", MessageContent_module_default.breakable),
+				references
+			}), c.citations && c.citations.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitations, { citations: c.citations }) : void 0] }, key);
 		}
-		const renderReasoningCode = isOpenRouterReasoning(text);
-		const codeFormatted = renderReasoningCode ? JSON.stringify(jsonParse(text), null, 2) : text;
-		return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			"data-content-kind": "reasoning",
-			className: clsx(MessageContent_module_default.reasoning, "text-size-small"),
-			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-				className: clsx("text-style-label", "text-style-secondary", isLast ? "no-last-para-padding" : ""),
-				children: title
-			}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ExpandablePanel, {
-				id: `${key}-reasoning`,
-				collapse: true,
-				children: [!renderReasoningCode && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedText, { markdown: codeFormatted }), renderReasoningCode && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CodePanel, {
-					language: "json",
-					code: codeFormatted
+		case "reasoning": {
+			const r = content;
+			let title = "Reasoning";
+			let text = r.reasoning;
+			if (r.redacted) {
+				text = r.summary || "Reasoning encrypted by model provider.";
+				if (r.summary) title = "Reasoning (Summary)";
+			} else if (!text) {
+				text = r.summary || "Reasoning text not provided.";
+				if (r.summary) title = "Reasoning (Summary)";
+			}
+			const renderReasoningCode = isOpenRouterReasoning(text);
+			const codeFormatted = renderReasoningCode ? JSON.stringify(jsonParse(text), null, 2) : text;
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+				"data-content-kind": "reasoning",
+				className: clsx(MessageContent_module_default.reasoning, "text-size-small"),
+				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: clsx("text-style-label", "text-style-secondary", isLast ? "no-last-para-padding" : ""),
+					children: title
+				}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ExpandablePanel, {
+					id: `${key}-reasoning`,
+					collapse: true,
+					children: [!renderReasoningCode && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedText, { markdown: codeFormatted }), renderReasoningCode && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CodePanel, {
+						language: "json",
+						code: codeFormatted
+					})]
 				})]
-			})]
-		}, key);
-	} },
-	image: { render: (key, content) => {
-		const c = content;
-		if (isRenderableImageSource(c.image)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("img", {
-			src: c.image,
-			alt: "Message attachment",
-			className: MessageContent_module_default.contentImage
-		}, key);
-		else return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MediaReference, { source: c.image }, key);
-	} },
-	audio: { render: (key, content) => {
-		const c = content;
-		if (!isRenderableAudioSource(c.audio, c.format)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MediaReference, { source: c.audio }, key);
-		return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("audio", {
-			controls: true,
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("source", {
-				src: c.audio,
-				type: audioMimeTypeForFormat(c.format)
-			})
-		}, key);
-	} },
-	video: { render: (key, content) => {
-		const c = content;
-		if (!isRenderableVideoSource(c.video, c.format)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MediaReference, { source: c.video }, key);
-		return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("video", {
-			width: "500",
-			height: "375",
-			controls: true,
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("source", {
-				src: c.video,
-				type: videoMimeTypeForFormat(c.format)
-			})
-		}, key);
-	} },
-	tool: { render: (key, content) => {
-		return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: content.content }, key);
-	} },
-	tool_use: { render: (key, content) => {
-		return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ServerToolCall, {
+			}, key);
+		}
+		case "image": {
+			const c = content;
+			if (isRenderableImageSource(c.image)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("img", {
+				src: c.image,
+				alt: "Message attachment",
+				className: MessageContent_module_default.contentImage
+			}, key);
+			else return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MediaReference, { source: c.image }, key);
+		}
+		case "audio": {
+			const c = content;
+			if (!isRenderableAudioSource(c.audio, c.format)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MediaReference, { source: c.audio }, key);
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("audio", {
+				controls: true,
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("source", {
+					src: c.audio,
+					type: audioMimeTypeForFormat(c.format)
+				})
+			}, key);
+		}
+		case "video": {
+			const c = content;
+			if (!isRenderableVideoSource(c.video, c.format)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MediaReference, { source: c.video }, key);
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("video", {
+				width: "500",
+				height: "375",
+				controls: true,
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("source", {
+					src: c.video,
+					type: videoMimeTypeForFormat(c.format)
+				})
+			}, key);
+		}
+		case "tool": return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: content.content }, key);
+		case "tool_use": return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ServerToolCall, {
 			id: key,
 			content,
 			flush: false
 		});
-	} },
-	data: { render: (key, content) => {
-		return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentDataView, {
+		case "data": return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentDataView, {
 			id: key,
 			contentData: content
 		});
-	} },
-	document: { render: (key, content) => {
-		return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentDocumentView, {
+		case "document": return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentDocumentView, {
 			id: key,
 			document: content
 		});
-	} }
+		default:
+			console.error(`Unknown message content type '${content.type}'`);
+			return;
+	}
 };
 /**
 * Renders message content based on its type.
@@ -75250,39 +75585,6 @@ var jsonParse = (text) => {
 	} else t6 = $[6];
 	return t6;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/MessageContents.tsx
-var defaultContext = () => {
-	return { citations: [] };
-};
-var MessageContents = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(6);
-	const { message, references } = t0;
-	let t1;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = defaultContext();
-		$[0] = t1;
-	} else t1 = $[0];
-	const context = t1;
-	let t2;
-	if ($[1] !== message.content || $[2] !== references) {
-		t2 = message.content && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, {
-			contents: message.content,
-			context,
-			references
-		});
-		$[1] = message.content;
-		$[2] = references;
-		$[3] = t2;
-	} else t2 = $[3];
-	let t3;
-	if ($[4] !== t2) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t2 });
-		$[4] = t2;
-		$[5] = t3;
-	} else t3 = $[5];
-	return t3;
-};
 var AnnotatedScreenshot_module_default = {
 	container: "_container_nfqzf_1",
 	screenshot: "_screenshot_nfqzf_10",
@@ -75343,44 +75645,39 @@ function asCoordinate(value) {
 * text alongside the screenshot, and the last image reflects the page state
 * the action targeted.
 */ var AnnotatedScreenshotOutput = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(13);
-	const { contents, annotation, context } = t0;
+	const $ = (0, import_compiler_runtime.c)(11);
+	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$88);
+		t1 = contents.findLastIndex(_temp$87);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
 	const annotatedIndex = t1;
 	let t2;
-	if ($[2] !== annotatedIndex || $[3] !== annotation || $[4] !== contents || $[5] !== context) {
+	if ($[2] !== annotatedIndex || $[3] !== annotation || $[4] !== contents) {
 		let t3;
-		if ($[7] !== annotatedIndex || $[8] !== annotation || $[9] !== context) {
+		if ($[6] !== annotatedIndex || $[7] !== annotation) {
 			t3 = (c_0, i) => i === annotatedIndex && c_0.type === "image" ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnnotatedScreenshot, {
 				src: c_0.image,
 				annotation
-			}, i) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, {
-				contents: [c_0],
-				context
-			}, i);
-			$[7] = annotatedIndex;
-			$[8] = annotation;
-			$[9] = context;
-			$[10] = t3;
-		} else t3 = $[10];
+			}, i) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, { contents: [c_0] }, i);
+			$[6] = annotatedIndex;
+			$[7] = annotation;
+			$[8] = t3;
+		} else t3 = $[8];
 		t2 = contents.map(t3);
 		$[2] = annotatedIndex;
 		$[3] = annotation;
 		$[4] = contents;
-		$[5] = context;
-		$[6] = t2;
-	} else t2 = $[6];
+		$[5] = t2;
+	} else t2 = $[5];
 	let t3;
-	if ($[11] !== t2) {
+	if ($[9] !== t2) {
 		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t2 });
-		$[11] = t2;
-		$[12] = t3;
-	} else t3 = $[12];
+		$[9] = t2;
+		$[10] = t3;
+	} else t3 = $[10];
 	return t3;
 };
 /**
@@ -75523,7 +75820,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$88(c) {
+function _temp$87(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -75548,7 +75845,7 @@ var ToolSearchView_module_default = {
 	const { namespaces } = t0;
 	let t1;
 	if ($[0] !== namespaces) {
-		t1 = namespaces.map(_temp2$54);
+		t1 = namespaces.map(_temp2$55);
 		$[0] = namespaces;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -75563,7 +75860,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$87(tool, toolIdx) {
+function _temp$86(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -75578,7 +75875,7 @@ function _temp$87(tool, toolIdx) {
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", { children: tool.signature })
 	}, `tool-${toolIdx}`);
 }
-function _temp2$54(namespace, nsIdx) {
+function _temp2$55(namespace, nsIdx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: ToolSearchView_module_default.namespace,
 		children: [namespace.name ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -75587,7 +75884,7 @@ function _temp2$54(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$87)]
+		}) : null] }) : null, namespace.tools.map(_temp$86)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -75727,7 +76024,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 /**
 * Renders the ToolCallView component.
 */ var ToolCallView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(60);
+	const $ = (0, import_compiler_runtime.c)(59);
 	const { id, tool, functionCall, input, selfAnnotation, inputScreenshot, description, contentType, view, output, mode, collapsible: t1, section: t2, getCustomToolView } = t0;
 	const collapsible = t1 === void 0 ? true : t1;
 	const section = t2 === void 0 ? "all" : t2;
@@ -75767,7 +76064,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$86);
+		t7 = normalizedContent.find(_temp$85);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -75805,116 +76102,100 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	if (customView) return section === "output" ? null : customView;
 	const contents = mode !== "compact" ? input : input || functionCall;
 	let t9;
-	if ($[23] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = defaultContext();
-		$[23] = t9;
-	} else t9 = $[23];
-	const context = t9;
-	let t10;
-	if ($[24] !== description || $[25] !== functionCall || $[26] !== mode || $[27] !== view) {
-		t10 = mode !== "compact" && (!view || view.title) ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolTitle, {
+	if ($[23] !== description || $[24] !== functionCall || $[25] !== mode || $[26] !== view) {
+		t9 = mode !== "compact" && (!view || view.title) ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolTitle, {
 			title: view?.title || functionCall,
 			description
 		}) : "";
-		$[24] = description;
-		$[25] = functionCall;
-		$[26] = mode;
-		$[27] = view;
-		$[28] = t10;
-	} else t10 = $[28];
-	const t11 = `${id}-tool-input`;
+		$[23] = description;
+		$[24] = functionCall;
+		$[25] = mode;
+		$[26] = view;
+		$[27] = t9;
+	} else t9 = $[27];
+	const t10 = `${id}-tool-input`;
+	let t11;
+	if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
+		t11 = clsx("text-size-small");
+		$[28] = t11;
+	} else t11 = $[28];
 	let t12;
-	if ($[29] === Symbol.for("react.memo_cache_sentinel")) {
-		t12 = clsx("text-size-small");
-		$[29] = t12;
-	} else t12 = $[29];
-	let t13;
-	if ($[30] !== contentType || $[31] !== contents || $[32] !== view) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolInput, {
+	if ($[29] !== contentType || $[30] !== contents || $[31] !== view) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolInput, {
 			contentType,
 			contents,
 			toolCallView: view
 		});
-		$[30] = contentType;
-		$[31] = contents;
-		$[32] = view;
-		$[33] = t13;
-	} else t13 = $[33];
-	let t14;
-	if ($[34] !== t11 || $[35] !== t13) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
-			id: t11,
+		$[29] = contentType;
+		$[30] = contents;
+		$[31] = view;
+		$[32] = t12;
+	} else t12 = $[32];
+	let t13;
+	if ($[33] !== t10 || $[34] !== t12) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+			id: t10,
 			collapse: true,
 			border: false,
 			lines: 20,
-			className: t12,
-			children: t13
+			className: t11,
+			children: t12
 		});
-		$[34] = t11;
+		$[33] = t10;
+		$[34] = t12;
 		$[35] = t13;
-		$[36] = t14;
-	} else t14 = $[36];
-	let t15;
-	if ($[37] !== t10 || $[38] !== t14) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [t10, t14] });
-		$[37] = t10;
+	} else t13 = $[35];
+	let t14;
+	if ($[36] !== t13 || $[37] !== t9) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [t9, t13] });
+		$[36] = t13;
+		$[37] = t9;
 		$[38] = t14;
-		$[39] = t15;
-	} else t15 = $[39];
-	const callSection = t15;
-	let t16;
-	if ($[40] !== collapse || $[41] !== collapsible || $[42] !== contentType || $[43] !== displayMode || $[44] !== hasContent || $[45] !== id || $[46] !== normalizedContent) {
-		t16 = displayMode === "rendered" && contentType === "markdown" && hasContent ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+	} else t14 = $[38];
+	const callSection = t14;
+	let t15;
+	if ($[39] !== collapse || $[40] !== collapsible || $[41] !== contentType || $[42] !== displayMode || $[43] !== hasContent || $[44] !== id || $[45] !== normalizedContent) {
+		t15 = displayMode === "rendered" && contentType === "markdown" && hasContent ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: `${id}-tool-content`,
 			collapse,
 			border: false,
 			lines: 15,
 			className: clsx("text-size-small"),
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownToolOutput, {
-				contents: normalizedContent,
-				context
-			})
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownToolOutput, { contents: normalizedContent })
 		}) : hasContent && collapsible ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: `${id}-tool-content`,
 			collapse,
 			border: false,
 			lines: 15,
 			className: clsx("text-size-small"),
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, {
-				contents: normalizedContent,
-				context
-			})
-		}) : hasContent ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, {
-			contents: normalizedContent,
-			context
-		}) : null;
-		$[40] = collapse;
-		$[41] = collapsible;
-		$[42] = contentType;
-		$[43] = displayMode;
-		$[44] = hasContent;
-		$[45] = id;
-		$[46] = normalizedContent;
-		$[47] = t16;
-	} else t16 = $[47];
-	const outputSection = t16;
-	let t17;
-	if ($[48] !== inputScreenshot || $[49] !== selfAnnotation) {
-		t17 = selfAnnotation && inputScreenshot ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, { contents: normalizedContent })
+		}) : hasContent ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, { contents: normalizedContent }) : null;
+		$[39] = collapse;
+		$[40] = collapsible;
+		$[41] = contentType;
+		$[42] = displayMode;
+		$[43] = hasContent;
+		$[44] = id;
+		$[45] = normalizedContent;
+		$[46] = t15;
+	} else t15 = $[46];
+	const outputSection = t15;
+	let t16;
+	if ($[47] !== inputScreenshot || $[48] !== selfAnnotation) {
+		t16 = selfAnnotation && inputScreenshot ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
 			contents: inputScreenshot,
-			annotation: selfAnnotation,
-			context
+			annotation: selfAnnotation
 		}) : null;
-		$[48] = inputScreenshot;
-		$[49] = selfAnnotation;
-		$[50] = t17;
-	} else t17 = $[50];
-	const actionElement = t17;
+		$[47] = inputScreenshot;
+		$[48] = selfAnnotation;
+		$[49] = t16;
+	} else t16 = $[49];
+	const actionElement = t16;
 	let outputContent = outputSection;
 	if (actionElement) {
-		let t18;
-		if ($[51] !== actionElement || $[52] !== hasContent || $[53] !== id || $[54] !== outputSection) {
-			t18 = hasContent ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(NavPills, {
+		let t17;
+		if ($[50] !== actionElement || $[51] !== hasContent || $[52] !== id || $[53] !== outputSection) {
+			t17 = hasContent ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(NavPills, {
 				id: `${id}-browser-action`,
 				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					title: "Action",
@@ -75924,65 +76205,51 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 					children: outputSection
 				})]
 			}) : actionElement;
-			$[51] = actionElement;
-			$[52] = hasContent;
-			$[53] = id;
-			$[54] = outputSection;
-			$[55] = t18;
-		} else t18 = $[55];
-		outputContent = t18;
+			$[50] = actionElement;
+			$[51] = hasContent;
+			$[52] = id;
+			$[53] = outputSection;
+			$[54] = t17;
+		} else t17 = $[54];
+		outputContent = t17;
 	}
-	let t18;
-	if ($[56] === Symbol.for("react.memo_cache_sentinel")) {
-		t18 = clsx(ToolCallView_module_default.toolCallView);
-		$[56] = t18;
-	} else t18 = $[56];
-	const t19 = section !== "output" ? callSection : null;
-	const t20 = section !== "call" ? outputContent : null;
-	let t21;
-	if ($[57] !== t19 || $[58] !== t20) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t18,
-			children: [t19, t20]
+	let t17;
+	if ($[55] === Symbol.for("react.memo_cache_sentinel")) {
+		t17 = clsx(ToolCallView_module_default.toolCallView);
+		$[55] = t17;
+	} else t17 = $[55];
+	const t18 = section !== "output" ? callSection : null;
+	const t19 = section !== "call" ? outputContent : null;
+	let t20;
+	if ($[56] !== t18 || $[57] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t17,
+			children: [t18, t19]
 		});
+		$[56] = t18;
 		$[57] = t19;
 		$[58] = t20;
-		$[59] = t21;
-	} else t21 = $[59];
-	return t21;
+	} else t20 = $[58];
+	return t20;
 };
 /**
 * Renders tool output with text as markdown, passing non-text content
 * (e.g. images) through MessageContent for normal rendering.
 */ var MarkdownToolOutput = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(7);
-	const { contents, context } = t0;
+	const $ = (0, import_compiler_runtime.c)(4);
+	const { contents } = t0;
 	let t1;
-	if ($[0] !== contents || $[1] !== context) {
-		const items = contents.flatMap(_temp2$53);
-		let t2;
-		if ($[3] !== context) {
-			t2 = (item, i) => {
-				if (item.type === "text" && item.text) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: item.text }, `md-${i}`);
-				return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, {
-					contents: [item],
-					context
-				}, `content-${i}`);
-			};
-			$[3] = context;
-			$[4] = t2;
-		} else t2 = $[4];
-		t1 = items.map(t2);
+	if ($[0] !== contents) {
+		t1 = contents.flatMap(_temp2$54).map(_temp3$42);
 		$[0] = contents;
-		$[1] = context;
-		$[2] = t1;
-	} else t1 = $[2];
+		$[1] = t1;
+	} else t1 = $[1];
 	let t2;
-	if ($[5] !== t1) {
+	if ($[2] !== t1) {
 		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t1 });
-		$[5] = t1;
-		$[6] = t2;
-	} else t2 = $[6];
+		$[2] = t1;
+		$[3] = t2;
+	} else t2 = $[3];
 	return t2;
 };
 var normalizeContent = (output) => {
@@ -75998,7 +76265,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$86(c) {
+function _temp$85(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -76006,8 +76273,12 @@ function _temp$86(c) {
 		return false;
 	} else return true;
 }
-function _temp2$53(c) {
+function _temp2$54(c) {
 	return c.type === "tool" ? c.content : [c];
+}
+function _temp3$42(item, i) {
+	if (item.type === "text" && item.text) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: item.text }, `md-${i}`);
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, { contents: [item] }, `content-${i}`);
 }
 var ClientToolCall_module_default = { custom: "_custom_v2cay_4" };
 //#endregion
@@ -76138,8 +76409,7 @@ var ClientToolCall_module_default = { custom: "_custom_v2cay_4" };
 	if ($[39] !== error || $[40] !== inputScreenshot || $[41] !== selfAnnotation || $[42] !== showError || $[43] !== showOutput || $[44] !== viewProps) {
 		t8 = showError ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockOutput, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolCallErrorView, { error }), selfAnnotation && inputScreenshot ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
 			contents: inputScreenshot,
-			annotation: selfAnnotation,
-			context: defaultContext()
+			annotation: selfAnnotation
 		}) : null] }) : showOutput ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockOutput, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolCallView, {
 			...viewProps,
 			section: "output"
@@ -76193,6 +76463,29 @@ var ClientToolCall_module_default = { custom: "_custom_v2cay_4" };
 		return true;
 	});
 };
+//#endregion
+//#region ../../packages/inspect-components/src/chat/MessageContents.tsx
+var MessageContents = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(5);
+	const { message, references } = t0;
+	let t1;
+	if ($[0] !== message.content || $[1] !== references) {
+		t1 = message.content && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, {
+			contents: message.content,
+			references
+		});
+		$[0] = message.content;
+		$[1] = references;
+		$[2] = t1;
+	} else t1 = $[2];
+	let t2;
+	if ($[3] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t1 });
+		$[3] = t1;
+		$[4] = t2;
+	} else t2 = $[4];
+	return t2;
+};
 var ChatMessage_module_default = {
 	message: "_message_o8d3m_1",
 	systemRole: "_systemRole_o8d3m_9",
@@ -76211,7 +76504,7 @@ var ChatMessage_module_default = {
 //#endregion
 //#region ../../packages/inspect-components/src/chat/ChatMessage.tsx
 var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) {
-	const $ = (0, import_compiler_runtime.c)(83);
+	const $ = (0, import_compiler_runtime.c)(82);
 	const { id, message, display, linking, references, label } = t0;
 	const indented = display?.indented ?? false;
 	const unlabeledRoles = display?.unlabeledRoles;
@@ -76332,34 +76625,28 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 		bb0: {
 			const segments = segmentTurnContent(message);
 			if (segments) {
-				let t7;
-				if ($[37] === Symbol.for("react.memo_cache_sentinel")) {
-					t7 = defaultContext();
-					$[37] = t7;
-				} else t7 = $[37];
-				const context = t7;
-				const t8 = mouseOver ? ChatMessage_module_default.hover : void 0;
-				let t9;
-				if ($[38] !== message.role || $[39] !== t8) {
-					t9 = clsx(message.role, "text-size-base", ChatMessage_module_default.message, ChatMessage_module_default.turnSegments, t8);
-					$[38] = message.role;
+				const t7 = mouseOver ? ChatMessage_module_default.hover : void 0;
+				let t8;
+				if ($[37] !== message.role || $[38] !== t7) {
+					t8 = clsx(message.role, "text-size-base", ChatMessage_module_default.message, ChatMessage_module_default.turnSegments, t7);
+					$[37] = message.role;
+					$[38] = t7;
 					$[39] = t8;
-					$[40] = t9;
-				} else t9 = $[40];
+				} else t8 = $[39];
 				let t10;
-				let t11;
-				if ($[41] === Symbol.for("react.memo_cache_sentinel")) {
-					t10 = () => setMouseOver(true);
-					t11 = () => setMouseOver(false);
-					$[41] = t10;
-					$[42] = t11;
+				let t9;
+				if ($[40] === Symbol.for("react.memo_cache_sentinel")) {
+					t9 = () => setMouseOver(true);
+					t10 = () => setMouseOver(false);
+					$[40] = t10;
+					$[41] = t9;
 				} else {
-					t10 = $[41];
-					t11 = $[42];
+					t10 = $[40];
+					t9 = $[41];
 				}
-				let t12;
-				if ($[43] !== collapse || $[44] !== hideRole || $[45] !== id || $[46] !== message.role || $[47] !== references || $[48] !== roleHeader) {
-					t12 = (segment, index) => {
+				let t11;
+				if ($[42] !== collapse || $[43] !== hideRole || $[44] !== id || $[45] !== message.role || $[46] !== references || $[47] !== roleHeader) {
+					t11 = (segment, index) => {
 						if (segment.kind === "tool") return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ServerToolCall, {
 							id: `${id}-server-tool-${index}`,
 							content: segment.content
@@ -76374,37 +76661,36 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 								lines: 25,
 								children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, {
 									contents: segment.contents,
-									context,
 									references
 								})
 							}) : null]
 						}, `${id}-segment-${index}`);
 					};
-					$[43] = collapse;
-					$[44] = hideRole;
-					$[45] = id;
-					$[46] = message.role;
-					$[47] = references;
-					$[48] = roleHeader;
-					$[49] = t12;
-				} else t12 = $[49];
-				let t13;
-				if ($[50] !== message.role || $[51] !== metadataBlock) {
-					t13 = metadataBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					$[42] = collapse;
+					$[43] = hideRole;
+					$[44] = id;
+					$[45] = message.role;
+					$[46] = references;
+					$[47] = roleHeader;
+					$[48] = t11;
+				} else t11 = $[48];
+				let t12;
+				if ($[49] !== message.role || $[50] !== metadataBlock) {
+					t12 = metadataBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 						"data-message-role": message.role,
 						className: ChatMessage_module_default.proseSegment,
 						children: metadataBlock
 					}) : null;
-					$[50] = message.role;
-					$[51] = metadataBlock;
-					$[52] = t13;
-				} else t13 = $[52];
+					$[49] = message.role;
+					$[50] = metadataBlock;
+					$[51] = t12;
+				} else t12 = $[51];
 				t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 					"data-message-id": message.id || void 0,
-					className: t9,
-					onMouseEnter: t10,
-					onMouseLeave: t11,
-					children: [segments.map(t12), t13]
+					className: t8,
+					onMouseEnter: t9,
+					onMouseLeave: t10,
+					children: [segments.map(t11), t12]
 				});
 				break bb0;
 			}
@@ -76424,75 +76710,75 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t8 = message.role === "system" ? ChatMessage_module_default.systemRole : void 0;
 	const t9 = mouseOver ? ChatMessage_module_default.hover : void 0;
 	let t10;
-	if ($[53] !== message.role || $[54] !== t8 || $[55] !== t9) {
+	if ($[52] !== message.role || $[53] !== t8 || $[54] !== t9) {
 		t10 = clsx(message.role, "text-size-base", ChatMessage_module_default.message, t8, t9);
-		$[53] = message.role;
-		$[54] = t8;
-		$[55] = t9;
-		$[56] = t10;
-	} else t10 = $[56];
+		$[52] = message.role;
+		$[53] = t8;
+		$[54] = t9;
+		$[55] = t10;
+	} else t10 = $[55];
 	let t11;
 	let t12;
-	if ($[57] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[56] === Symbol.for("react.memo_cache_sentinel")) {
 		t11 = () => setMouseOver(true);
 		t12 = () => setMouseOver(false);
-		$[57] = t11;
-		$[58] = t12;
+		$[56] = t11;
+		$[57] = t12;
 	} else {
-		t11 = $[57];
-		t12 = $[58];
+		t11 = $[56];
+		t12 = $[57];
 	}
 	const t13 = indented ? ChatMessage_module_default.indented : void 0;
 	let t14;
-	if ($[59] !== t13) {
+	if ($[58] !== t13) {
 		t14 = clsx(ChatMessage_module_default.messageContents, t13);
-		$[59] = t13;
-		$[60] = t14;
-	} else t14 = $[60];
+		$[58] = t13;
+		$[59] = t14;
+	} else t14 = $[59];
 	const t15 = `${id}-message`;
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : collapse ? 15 : 25;
 	let t17;
-	if ($[61] !== id || $[62] !== isNonSubagentTool || $[63] !== message || $[64] !== references || $[65] !== subagentNotifications || $[66] !== toolMarkdown || $[67] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$85) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+	if ($[60] !== id || $[61] !== isNonSubagentTool || $[62] !== message || $[63] !== references || $[64] !== subagentNotifications || $[65] !== toolMarkdown || $[66] !== toolSearchNamespaces) {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$84) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
-		$[61] = id;
-		$[62] = isNonSubagentTool;
-		$[63] = message;
-		$[64] = references;
-		$[65] = subagentNotifications;
-		$[66] = toolMarkdown;
-		$[67] = toolSearchNamespaces;
-		$[68] = t17;
-	} else t17 = $[68];
+		$[60] = id;
+		$[61] = isNonSubagentTool;
+		$[62] = message;
+		$[63] = references;
+		$[64] = subagentNotifications;
+		$[65] = toolMarkdown;
+		$[66] = toolSearchNamespaces;
+		$[67] = t17;
+	} else t17 = $[67];
 	let t18;
-	if ($[69] !== collapse || $[70] !== t15 || $[71] !== t16 || $[72] !== t17) {
+	if ($[68] !== collapse || $[69] !== t15 || $[70] !== t16 || $[71] !== t17) {
 		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: t15,
 			collapse,
 			lines: t16,
 			children: t17
 		});
-		$[69] = collapse;
-		$[70] = t15;
-		$[71] = t16;
-		$[72] = t17;
-		$[73] = t18;
-	} else t18 = $[73];
+		$[68] = collapse;
+		$[69] = t15;
+		$[70] = t16;
+		$[71] = t17;
+		$[72] = t18;
+	} else t18 = $[72];
 	let t19;
-	if ($[74] !== metadataBlock || $[75] !== t14 || $[76] !== t18) {
+	if ($[73] !== metadataBlock || $[74] !== t14 || $[75] !== t18) {
 		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t14,
 			children: [t18, metadataBlock]
 		});
-		$[74] = metadataBlock;
-		$[75] = t14;
-		$[76] = t18;
-		$[77] = t19;
-	} else t19 = $[77];
+		$[73] = metadataBlock;
+		$[74] = t14;
+		$[75] = t18;
+		$[76] = t19;
+	} else t19 = $[76];
 	let t20;
-	if ($[78] !== roleHeader || $[79] !== t10 || $[80] !== t19 || $[81] !== t7) {
+	if ($[77] !== roleHeader || $[78] !== t10 || $[79] !== t19 || $[80] !== t7) {
 		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-message-id": t7,
 			className: t10,
@@ -76500,12 +76786,12 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 			onMouseLeave: t12,
 			children: [roleHeader, t19]
 		});
-		$[78] = roleHeader;
-		$[79] = t10;
-		$[80] = t19;
-		$[81] = t7;
-		$[82] = t20;
-	} else t20 = $[82];
+		$[77] = roleHeader;
+		$[78] = t10;
+		$[79] = t19;
+		$[80] = t7;
+		$[81] = t20;
+	} else t20 = $[81];
 	return t20;
 });
 /** Splits an assistant message that carries server-side tool calls into
@@ -76530,7 +76816,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$85(c) {
+function _temp$84(c) {
 	return c.type === "text" || c.type === "image";
 }
 var ChatMessageRow_module_default = {
@@ -76772,7 +77058,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[14];
 		views = $[15];
 	}
-	const hasTools = viewKinds.some(_temp$84);
+	const hasTools = viewKinds.some(_temp$83);
 	if (useLabels || hasTools) {
 		let t1;
 		if ($[39] !== hasTools || $[40] !== highlightLabeled || $[41] !== highlightUserMessage || $[42] !== index || $[43] !== messageChip || $[44] !== resolvedMessage || $[45] !== viewChips || $[46] !== viewKinds || $[47] !== views) {
@@ -76854,7 +77140,7 @@ var MessageLabel_module_default = {
 	}
 }, chatMessageRowEqual);
 function chatMessageRowEqual(prev, next) {
-	const keys = Object.keys(prev);
+	const keys = Object.keys(prev).filter((key) => key in prev);
 	if (keys.length !== Object.keys(next).length) return false;
 	for (const key of keys) if (key === "resolvedMessage") {
 		const a = prev.resolvedMessage;
@@ -76922,7 +77208,7 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$84(k) {
+function _temp$83(k) {
 	return k !== "message";
 }
 //#endregion
@@ -77372,7 +77658,7 @@ var kLoadMoreMarginRows = 20;
 		$[30] = t10;
 	} else t10 = $[30];
 	const renderRow = t10;
-	const rowSearchText = _temp$83;
+	const rowSearchText = _temp$82;
 	if (rows.length === 0) {
 		if (backfilling) {
 			let t11;
@@ -77437,7 +77723,7 @@ var kLoadMoreMarginRows = 20;
 	} else t13 = $[48];
 	return t13;
 });
-function _temp$83(item_0) {
+function _temp$82(item_0) {
 	return messageSearchText(item_0.resolved);
 }
 //#endregion
@@ -77800,7 +78086,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$82,
+			getNextPageParam: _temp$81,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -77816,7 +78102,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	const pages = data?.pages;
 	let t7;
 	if ($[14] !== pages) {
-		t7 = pages?.flatMap(_temp2$52);
+		t7 = pages?.flatMap(_temp2$53);
 		$[14] = pages;
 		$[15] = t7;
 	} else t7 = $[15];
@@ -77924,10 +78210,10 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$82(last) {
+function _temp$81(last) {
 	return last.nextCursor?.offset;
 }
-function _temp2$52(page) {
+function _temp2$53(page) {
 	return page.rows;
 }
 function _temp3$41() {}
@@ -78226,7 +78512,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$81;
+			return _temp$80;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -78239,11 +78525,11 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$81() {
+function _temp$80() {
 	return deactivateFetchEngine();
 }
 //#endregion
-//#region ../../node_modules/.pnpm/immer@11.1.17/node_modules/immer/dist/immer.mjs
+//#region ../../node_modules/.pnpm/immer@11.1.18/node_modules/immer/dist/immer.mjs
 var NOTHING = Symbol.for("immer-nothing");
 var DRAFTABLE = Symbol.for("immer-draftable");
 var DRAFT_STATE = Symbol.for("immer-state");
@@ -78865,6 +79151,8 @@ function currentImpl(value) {
 	if (state) state.finalized_ = false;
 	return copy;
 }
+var _globalIterator = globalThis.Iterator;
+var hasIteratorFrom = typeof _globalIterator?.from === "function";
 function enableMapSet() {
 	class DraftMap extends Map {
 		constructor(target, parent) {
@@ -78975,7 +79263,7 @@ function enableMapSet() {
 		}
 	}
 	function iteratorFrom(iterable) {
-		if (typeof Iterator !== "undefined") return Iterator.from(iterable);
+		if (hasIteratorFrom) return _globalIterator.from(iterable);
 		const iterator = {
 			...iterable,
 			[Symbol.iterator]: () => iterator
@@ -79115,7 +79403,7 @@ function enableMapSet() {
 }
 var produce = new Immer2().produce;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@11.1.17_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/vanilla.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@11.1.18_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/vanilla.mjs
 var createStoreImpl = (createState) => {
 	let state;
 	const listeners = /* @__PURE__ */ new Set();
@@ -79144,7 +79432,7 @@ var createStoreImpl = (createState) => {
 };
 var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@11.1.17_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/react.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@11.1.18_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/react.mjs
 var identity = (arg) => arg;
 function useStore$1(api, selector = identity) {
 	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), import_react.useCallback(() => selector(api.getInitialState()), [api, selector]));
@@ -79159,7 +79447,7 @@ var createImpl = (createState) => {
 };
 var create = ((createState) => createState ? createImpl(createState) : createImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@11.1.17_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@11.1.18_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware.mjs
 var shouldDispatchFromDevtools = (api) => !!api.dispatchFromDevtools && typeof api.dispatch === "function";
 var trackedConnections = /* @__PURE__ */ new Map();
 var getTrackedConnectionState = (name) => {
@@ -79497,7 +79785,7 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 };
 var persist = persistImpl;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@11.1.17_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware/immer.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@11.1.18_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware/immer.mjs
 var immerImpl = (initializer) => (set, get, store) => {
 	store.setState = (updater, replace, ...args) => {
 		return set(typeof updater === "function" ? produce(updater) : updater, replace, ...args);
@@ -79579,7 +79867,12 @@ var createAppSlice = (set, get, _store) => {
 	};
 	return {
 		app: initialState$3,
-		capabilities: {},
+		capabilities: {
+			downloadFiles: false,
+			downloadLogs: false,
+			webWorkers: false,
+			streamSamples: false
+		},
 		appActions: {
 			setShowFind: (show) => set((state) => {
 				state.app.showFind = show;
@@ -83318,7 +83611,7 @@ var ApiError = class extends Error {
 	if (!body) return body;
 	try {
 		const parsed = JSON.parse(body);
-		if (parsed && typeof parsed === "object" && "detail" in parsed && typeof parsed.detail === "string") return parsed.detail;
+		if (isRecord(parsed) && typeof parsed["detail"] === "string") return parsed["detail"];
 	} catch {}
 	return body;
 }
@@ -83480,6 +83773,7 @@ var DirectFetchError = class extends Error {
 };
 var readSegment = async (seg) => {
 	const url = seg.direct_url;
+	if (!url) throw new Error("segment has no direct_url");
 	let bytes;
 	try {
 		const resp = await fetch(url);
@@ -83829,11 +84123,12 @@ var debugMiddleware = (name, _fn, args, result) => {
 };
 var applyMiddleware = (name, fn, middlewares) => {
 	if (middlewares.length === 0) return fn;
-	return (...args) => {
+	const wrapped = (...args) => {
 		let result = fn(...args);
 		for (const middleware of middlewares) result = middleware(name, fn, args, result);
 		return result;
 	};
+	return wrapped;
 };
 var createMiddlewareWrapper = (middlewares) => {
 	return (name, fn) => {
@@ -84062,18 +84357,24 @@ var transportRequestApi = (transport) => serverRequestApi(transport.apiBaseUrl |
 * explicit dir. Dir discovery runs before any `LogViewAPI` exists — the api
 * itself never answers "which dir?" (see #392) — so this is a standalone
 * function over the transport rather than a method on the api.
-*/ async function fetchViewServerLogRoot(transport = {}, logDir) {
+*/ /**
+* A view-server JSON response, typed by the caller. This is the #555 API
+* boundary: the server is a separate process on its own release cycle, so the
+* shape here is a claim about the contract rather than something checked. Kept
+* in one place so no other line in this module has to assert.
+*/ var asResponse = (parsed) => parsed;
+async function fetchViewServerLogRoot(transport = {}, logDir) {
 	const requestApi = transportRequestApi(transport);
 	const path = logDir ? `/logs?log_dir=${encodeURIComponent(logDir)}` : "/logs";
 	const logs = await requestApi.fetchString("GET", path);
 	lastEvalTime = Date.now();
-	return logs.parsed;
+	return asResponse(logs.parsed);
 }
 /**
 * Bootstrap probe: the server's configured log dir (`GET /log-dir`). Used
 * only to resolve a bare single-file ref (`?log_file=foo.eval`) to a dir.
 */ async function fetchViewServerLogDir(transport = {}) {
-	return (await transportRequestApi(transport).fetchString("GET", "/log-dir")).parsed.log_dir;
+	return asResponse((await transportRequestApi(transport).fetchString("GET", "/log-dir")).parsed).log_dir;
 }
 /**
 * Create a view server API bound to `logDir`. Every dir-scoped request
@@ -84086,7 +84387,7 @@ var transportRequestApi = (transport) => serverRequestApi(transport.apiBaseUrl |
 		const params = new URLSearchParams();
 		params.append("loaded_time", String(LOADED_TIME.valueOf()));
 		params.append("last_eval_time", String(lastEvalTime.valueOf()));
-		return (await requestApi.fetchString("GET", `/events?${params.toString()}`)).parsed;
+		return asResponse((await requestApi.fetchString("GET", `/events?${params.toString()}`)).parsed);
 	};
 	const get_logs = async (mtime, clientFileCount) => {
 		const path = `/log-files?log_dir=${encodeURIComponent(logDir)}`;
@@ -84094,7 +84395,7 @@ var transportRequestApi = (transport) => serverRequestApi(transport.apiBaseUrl |
 		const token = log_file_token(mtime, clientFileCount);
 		if (token) headers["If-None-Match"] = token;
 		lastEvalTime = Date.now();
-		return (await requestApi.fetchString("GET", path, headers)).parsed;
+		return asResponse((await requestApi.fetchString("GET", path, headers)).parsed);
 	};
 	const log_file_token = (mtime, fileCount) => {
 		return `W/"${mtime}-${fileCount}"`;
@@ -84106,7 +84407,7 @@ var transportRequestApi = (transport) => serverRequestApi(transport.apiBaseUrl |
 		if (dir) params.append("dir", dir);
 		const path = `${basePath}?${params.toString()}`;
 		try {
-			return (await requestApi.fetchString("GET", path)).parsed;
+			return asResponse((await requestApi.fetchString("GET", path)).parsed);
 		} catch (error) {
 			if (error instanceof ApiError && (error.status === 404 || error.status === 403)) return;
 			throw error;
@@ -84134,7 +84435,7 @@ var transportRequestApi = (transport) => serverRequestApi(transport.apiBaseUrl |
 		};
 	};
 	const get_log_info = async (file) => {
-		return (await requestApi.fetchString("GET", `/log-info/${encodeURIComponent(file)}`)).parsed;
+		return asResponse((await requestApi.fetchString("GET", `/log-info/${encodeURIComponent(file)}`)).parsed);
 	};
 	const toLogPreview = (header) => {
 		const primary_metric = headlineMetric(header.results, header.eval.headline_metric);
@@ -84287,19 +84588,19 @@ var transportRequestApi = (transport) => serverRequestApi(transport.apiBaseUrl |
 		};
 	};
 	const get_user_info = async () => {
-		return (await requestApi.fetchString("GET", "/user-info")).parsed ?? {};
+		return asResponse((await requestApi.fetchString("GET", "/user-info")).parsed) ?? {};
 	};
 	const get_app_config = async () => {
-		return (await requestApi.fetchString("GET", "/app-config")).parsed;
+		return asResponse((await requestApi.fetchString("GET", "/app-config")).parsed);
 	};
 	const list_searches = async (search_type, count) => {
 		const params = new URLSearchParams();
 		params.append("type", search_type);
 		params.append("count", String(count));
-		return (await requestApi.fetchString("GET", `/scout/searches?${params.toString()}`)).parsed;
+		return asResponse((await requestApi.fetchString("GET", `/scout/searches?${params.toString()}`)).parsed);
 	};
 	const post_search = async (transcriptDir, transcriptId, request) => {
-		return (await requestApi.fetchString("POST", `/scout/transcripts/${encodeBase64Url(transcriptDir)}/${encodeURIComponent(transcriptId)}/search`, { "Content-Type": "application/json" }, JSON.stringify(request))).parsed;
+		return asResponse((await requestApi.fetchString("POST", `/scout/transcripts/${encodeBase64Url(transcriptDir)}/${encodeURIComponent(transcriptId)}/search`, { "Content-Type": "application/json" }, JSON.stringify(request))).parsed);
 	};
 	const get_search_result = async (transcriptDir, transcriptId, search_id, scope) => {
 		const params = new URLSearchParams();
@@ -84308,7 +84609,7 @@ var transportRequestApi = (transport) => serverRequestApi(transport.apiBaseUrl |
 		const query = params.toString();
 		const path = `/scout/transcripts/${encodeBase64Url(transcriptDir)}/${encodeURIComponent(transcriptId)}/searches/${encodeURIComponent(search_id)}${query ? `?${query}` : ""}`;
 		try {
-			return (await requestApi.fetchString("GET", path)).parsed;
+			return asResponse((await requestApi.fetchString("GET", path)).parsed);
 		} catch (error) {
 			if (error instanceof ApiError && error.status === 404) return null;
 			throw error;
@@ -84409,21 +84710,6 @@ var transportRequestApi = (transport) => serverRequestApi(transport.apiBaseUrl |
 		return [];
 	}
 }
-//#endregion
-//#region src/app_config/resolveBackend.ts
-var embedderFactory;
-var embedderBackend = (createApi, logDir) => ({
-	resolveLogRoot: () => logDir !== void 0 ? Promise.resolve({
-		logs: [],
-		log_dir: logDir
-	}) : Promise.reject(/* @__PURE__ */ new Error("setApiFactory requires an initial log dir: pass initialLogDir or a ?log_dir= URL param.")),
-	resolveConfiguredDir: () => Promise.resolve(logDir),
-	createApi,
-	capabilities: {
-		downloadLogs: false,
-		streamSamples: false
-	}
-});
 var unsupportedHostBackend = (message) => ({
 	resolveLogRoot: () => Promise.reject(new Error(message)),
 	createApi: () => {
@@ -84458,7 +84744,6 @@ var staticBackend = (log_dir, abs_log_dir, app_config) => ({
 * factory (`setApiFactory`) supersedes them all. Called once, by
 * `resolveBootstrap()`.
 */ var resolveBackend = (source) => {
-	if (embedderFactory) return embedderBackend(embedderFactory.createApi, embedderFactory.initialLogDir ?? (source.kind === "dir" ? source.logDir : void 0));
 	const vscode = getVscodeApi();
 	if (vscode) {
 		if (!readHostCapabilities().includes("http_request")) return unsupportedHostBackend("This version of the log viewer requires a newer Inspect AI extension. Please update the Inspect AI extension in VS Code.");
@@ -85962,7 +86247,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 		t3 = () => {
 			if (previousValue.current !== value) {
 				previousValue.current = value;
-				setFlashKey(_temp$80);
+				setFlashKey(_temp$79);
 			}
 		};
 		t4 = [value];
@@ -85977,7 +86262,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	let t5;
 	if ($[5] !== expandable) {
 		t5 = () => {
-			if (expandable) setExpanded(_temp2$51);
+			if (expandable) setExpanded(_temp2$52);
 		};
 		$[5] = expandable;
 		$[6] = t5;
@@ -86118,10 +86403,10 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	return t7;
 });
 TreeNode$1.displayName = "TreeNode";
-function _temp$80(k) {
+function _temp$79(k) {
 	return k + 1;
 }
-function _temp2$51(e) {
+function _temp2$52(e) {
 	return !e;
 }
 function _temp3$40(entry) {
@@ -86282,20 +86567,25 @@ var categoricalScoreDescriptor = (values) => {
 };
 //#endregion
 //#region src/app/samples/descriptor/score/ListScoreDescriptor.tsx
+var formatListEntry = (value) => {
+	if (typeof value === "number" && value) return formatPrettyDecimal(value);
+	if (typeof value === "string" && value && isNumeric(value)) return formatPrettyDecimal(parseFloat(value));
+	return String(value);
+};
+var listLength = (value) => Array.isArray(value) ? value.length : 0;
 var listScoreDescriptor = (_values) => {
 	return {
 		scoreType: kScoreTypeList,
 		filterable: false,
 		compare: (a, b) => {
-			return a.value.length - b.value.length;
+			return listLength(a.value) - listLength(b.value);
 		},
 		render: (score) => {
 			if (score === null || score === void 0) return "[null]";
+			if (!Array.isArray(score)) throw new Error("Unexpected use of list score descriptor for non-list object");
 			const formattedScores = [];
 			score.forEach((value) => {
-				if (!Array.isArray(score)) throw new Error("Unexpected use of list score descriptor for non-lisß object");
-				const formattedValue = value && isNumeric(value) ? formatPrettyDecimal(typeof value === "number" ? value : parseFloat(value === true ? "1" : value)) : String(value);
-				formattedScores.push(formattedValue);
+				formattedScores.push(formatListEntry(value));
 			});
 			return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 				"[",
@@ -86501,8 +86791,10 @@ var createEvalDescriptor = (scores, samples) => {
 	const scoreValue = (sample, scoreLabel) => {
 		if (!sample.scores || Object.keys(sample.scores).length === 0 || !scoreLabel) return;
 		if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) {
-			if (typeof sample.scores[scoreLabel.scorer].value === "object") return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
-			else return sample.scores[scoreLabel.scorer].value;
+			if (typeof sample.scores[scoreLabel.scorer].value === "object") {
+				const temp = sample.scores[scoreLabel.scorer].value;
+				return isRecord(temp) ? temp[scoreLabel.name] : void 0;
+			} else return sample.scores[scoreLabel.scorer].value;
 		} else if (sample.scores[scoreLabel.name]) return sample.scores[scoreLabel.name].value;
 		else return;
 	};
@@ -89249,7 +89541,7 @@ var filterExpressionConstants = {
 var getNestedPropertyValue = (obj, path) => {
 	const keys = path.split(".");
 	let current = obj;
-	for (const key of keys) if (current && typeof current === "object" && key in current) current = current[key];
+	for (const key of keys) if (current && typeof current === "object" && key in current) current = Reflect.get(current, key);
 	else return;
 	return current;
 };
@@ -89311,7 +89603,7 @@ var sampleVariables = (sample, samplesDescriptor) => {
 		}
 		if (descriptor.categories) {
 			categories = descriptor.categories.map((cat) => {
-				const val = cat.val;
+				const val = isRecord(cat) ? cat["val"] : cat;
 				return valueToString(val);
 			});
 			tooltip += `\ncategories: ${categories.join(" ")}`;
@@ -89387,7 +89679,11 @@ var filterExpression = (samplesDescriptor, sample, filterValue) => {
 		else throw new TypeError(`Filter expression returned a non-boolean value: ${String(result)}`);
 	} catch (error) {
 		if (error instanceof ReferenceError) {
-			const propertyName = error["propertyName"] || "";
+			const raised = error;
+			const propertyName = isRecord(raised) ? (() => {
+				const name = raised["propertyName"];
+				return typeof name === "string" ? name : "";
+			})() : "";
 			if (propertyName) {
 				if (propertyName.startsWith("metadata.")) return {
 					matches: false,
@@ -89478,6 +89774,8 @@ var kScorePanelViewBag = "score-panel-view";
 var kScorePanelViewKey = "view";
 var kScorePanelSortBag = "score-panel-sort";
 var kScorePanelSortKey = "sort";
+var isScoreView = (value) => value === "grid" || value === "chips";
+var isScorePanelSortState = (value) => isRecord(value) && (value["dir"] === "asc" || value["dir"] === "desc") && (value["column"] === null || typeof value["column"] === "string");
 var kDefaultScorePanelSort = {
 	column: null,
 	dir: "asc"
@@ -89489,8 +89787,8 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$79);
-	const setPropertyValue = useStore(_temp2$50);
+	const stored = useStore(_temp$78);
+	const setPropertyValue = useStore(_temp2$51);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (view) => {
@@ -89644,7 +89942,7 @@ var useEvalSpec = () => {
 * The selected log's running metrics — the selection binding over the
 * param-driven `useRunningMetrics` acquisition hook.
 */ var useSelectedRunningMetrics = () => {
-	return useRunningMetrics(useLogDir(), useStore(_temp6$9));
+	return useRunningMetrics(useLogDir(), useStore(_temp6$8));
 };
 /**
 * Capability + plumbing for an edit-the-current-log surface (tag, metadata,
@@ -89997,14 +90295,16 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$79(state) {
-	return state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
+function _temp$78(state) {
+	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
+	return isScoreView(value) ? value : void 0;
 }
-function _temp2$50(state_0) {
+function _temp2$51(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
 function _temp3$39(state) {
-	return state.app.propertyBags[kScorePanelSortBag]?.[kScorePanelSortKey];
+	const value = state.app.propertyBags[kScorePanelSortBag]?.[kScorePanelSortKey];
+	return isScorePanelSortState(value) ? value : void 0;
 }
 function _temp4$32(state_0) {
 	return state_0.appActions.setPropertyValue;
@@ -90012,7 +90312,7 @@ function _temp4$32(state_0) {
 function _temp5$18(state) {
 	return state.logs.selectedLogFile;
 }
-function _temp6$9(state) {
+function _temp6$8(state) {
 	return state.logs.selectedLogFile;
 }
 function _temp7$6(s) {
@@ -90122,6 +90422,98 @@ var useLogOrSampleRouteParams = () => {
 	}
 };
 /**
+* Parses log route parameters from the splat path (everything after
+* /logs/ or /tasks/). Pure so it can be tested without a router.
+*/ var parseLogRouteParams = (splatPath) => {
+	const sampleUuidMatch = splatPath.match(/^(.+?)\/samples\/sample_uuid\/([^/]+)(?:\/(.+?))?\/?\s*$/);
+	if (sampleUuidMatch) {
+		const [, logPath, sampleUuid, sampleTabId] = sampleUuidMatch;
+		return {
+			logPath: decodeUrlParam(logPath),
+			tabId: void 0,
+			sampleTabId: decodeUrlParam(sampleTabId),
+			sampleId: void 0,
+			epoch: void 0,
+			sampleUuid: decodeUrlParam(sampleUuid)
+		};
+	}
+	const fullSampleUrlMatch = splatPath.match(/^(.+?)\/samples\/sample\/([^/]+)(?:\/([^/]+)(?:\/(.+?))?)?\/?\s*$/);
+	if (fullSampleUrlMatch) {
+		const [, logPath, sampleId, epoch, sampleTabId] = fullSampleUrlMatch;
+		return {
+			logPath: decodeUrlParam(logPath),
+			tabId: void 0,
+			sampleTabId: decodeUrlParam(sampleTabId),
+			sampleId: decodeUrlParam(sampleId),
+			epoch: epoch ? decodeUrlParam(epoch) : void 0
+		};
+	}
+	const sampleUrlMatch = splatPath.match(/^(.+?)\/samples(?:\/([^/]+)(?:\/([^/]+))?)?$/);
+	if (sampleUrlMatch) {
+		const [, logPath, firstSegment, secondSegment] = sampleUrlMatch;
+		if (firstSegment) {
+			if (new Set(kSampleTabIds).has(firstSegment) && !secondSegment) return {
+				logPath: decodeUrlParam(logPath),
+				tabId: "samples",
+				sampleTabId: decodeUrlParam(firstSegment),
+				sampleId: void 0,
+				epoch: void 0
+			};
+			else return {
+				logPath: decodeUrlParam(logPath),
+				tabId: void 0,
+				sampleTabId: void 0,
+				sampleId: decodeUrlParam(firstSegment),
+				epoch: secondSegment ? decodeUrlParam(secondSegment) : void 0
+			};
+		} else return {
+			logPath: decodeUrlParam(logPath),
+			tabId: "samples",
+			sampleTabId: void 0,
+			sampleId: void 0,
+			epoch: void 0
+		};
+	}
+	const pathSegments = splatPath.split("/").filter(Boolean);
+	if (pathSegments.length === 0) return {
+		logPath: void 0,
+		tabId: void 0,
+		sampleTabId: void 0,
+		sampleId: void 0,
+		epoch: void 0
+	};
+	const validTabIds = new Set(kWorkspaceTabs);
+	let tabIdIndex = -1;
+	let foundTabId = void 0;
+	for (let i = pathSegments.length - 1; i >= 0; i--) {
+		const segment = pathSegments[i];
+		if (segment === void 0) continue;
+		const decodedSegment = decodeUrlParam(segment) || segment;
+		if (validTabIds.has(decodedSegment)) {
+			tabIdIndex = i;
+			foundTabId = decodedSegment;
+			break;
+		}
+	}
+	if (foundTabId && tabIdIndex > 0) {
+		const pathSlice = pathSegments.slice(0, tabIdIndex);
+		const firstSegment = pathSlice[0];
+		return {
+			logPath: decodeUrlParam(firstSegment?.endsWith(":") && !firstSegment.includes("://") ? firstSegment + (firstSegment === "file:" ? "///" : "//") + pathSlice.slice(1).join("/") : pathSlice.join("/")),
+			tabId: foundTabId,
+			sampleTabId: void 0,
+			sampleId: void 0,
+			epoch: void 0
+		};
+	} else return {
+		logPath: decodeUrlParam(splatPath),
+		tabId: void 0,
+		sampleTabId: void 0,
+		sampleId: void 0,
+		epoch: void 0
+	};
+};
+/**
 * Hook that parses log route parameters from the splat route.
 * Handles nested paths properly by parsing the full path after /logs/
 *
@@ -90129,163 +90521,51 @@ var useLogOrSampleRouteParams = () => {
 * because React Router decodes %2F to /, which breaks parsing of sample IDs
 * that contain slashes (e.g., "ascii/bike" encoded as "ascii%2Fbike").
 */ var useLogRouteParams = () => {
-	const $ = (0, import_compiler_runtime.c)(3);
+	const $ = (0, import_compiler_runtime.c)(2);
 	const location = useLocation();
 	let t0;
 	if ($[0] !== location.pathname) {
-		bb0: {
-			const splatPath = location.pathname.match(/^\/(logs|tasks)\/(.*)$/)?.[2] ?? "";
-			const sampleUuidMatch = splatPath.match(/^(.+?)\/samples\/sample_uuid\/([^/]+)(?:\/(.+?))?\/?\s*$/);
-			if (sampleUuidMatch) {
-				const [, logPath, sampleUuid, sampleTabId] = sampleUuidMatch;
-				t0 = {
-					logPath: decodeUrlParam(logPath),
-					tabId: void 0,
-					sampleTabId: decodeUrlParam(sampleTabId),
-					sampleId: void 0,
-					epoch: void 0,
-					sampleUuid: decodeUrlParam(sampleUuid)
-				};
-				break bb0;
-			}
-			const fullSampleUrlMatch = splatPath.match(/^(.+?)\/samples\/sample\/([^/]+)(?:\/([^/]+)(?:\/(.+?))?)?\/?\s*$/);
-			if (fullSampleUrlMatch) {
-				const [, logPath_0, sampleId, epoch, sampleTabId_0] = fullSampleUrlMatch;
-				t0 = {
-					logPath: decodeUrlParam(logPath_0),
-					tabId: void 0,
-					sampleTabId: decodeUrlParam(sampleTabId_0),
-					sampleId: decodeUrlParam(sampleId),
-					epoch: epoch ? decodeUrlParam(epoch) : void 0
-				};
-				break bb0;
-			}
-			const sampleUrlMatch = splatPath.match(/^(.+?)\/samples(?:\/([^/]+)(?:\/([^/]+))?)?$/);
-			if (sampleUrlMatch) {
-				const [, logPath_1, firstSegment, secondSegment] = sampleUrlMatch;
-				if (firstSegment) {
-					if (new Set(kSampleTabIds).has(firstSegment) && !secondSegment) {
-						t0 = {
-							logPath: decodeUrlParam(logPath_1),
-							tabId: "samples",
-							sampleTabId: decodeUrlParam(firstSegment),
-							sampleId: void 0,
-							epoch: void 0
-						};
-						break bb0;
-					} else {
-						t0 = {
-							logPath: decodeUrlParam(logPath_1),
-							tabId: void 0,
-							sampleTabId: void 0,
-							sampleId: decodeUrlParam(firstSegment),
-							epoch: secondSegment ? decodeUrlParam(secondSegment) : void 0
-						};
-						break bb0;
-					}
-				} else {
-					t0 = {
-						logPath: decodeUrlParam(logPath_1),
-						tabId: "samples",
-						sampleTabId: void 0,
-						sampleId: void 0,
-						epoch: void 0
-					};
-					break bb0;
-				}
-			}
-			const pathSegments = splatPath.split("/").filter(Boolean);
-			if (pathSegments.length === 0) {
-				let t1;
-				if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-					t1 = {
-						logPath: void 0,
-						tabId: void 0,
-						sampleTabId: void 0,
-						sampleId: void 0,
-						epoch: void 0
-					};
-					$[2] = t1;
-				} else t1 = $[2];
-				t0 = t1;
-				break bb0;
-			}
-			const validTabIds = new Set(kWorkspaceTabs);
-			let tabIdIndex = -1;
-			let foundTabId = void 0;
-			for (let i = pathSegments.length - 1; i >= 0; i--) {
-				const segment = pathSegments[i];
-				if (segment === void 0) continue;
-				const decodedSegment = decodeUrlParam(segment) || segment;
-				if (validTabIds.has(decodedSegment)) {
-					tabIdIndex = i;
-					foundTabId = decodedSegment;
-					break;
-				}
-			}
-			if (foundTabId && tabIdIndex > 0) {
-				const pathSlice = pathSegments.slice(0, tabIdIndex);
-				const firstSegment_0 = pathSlice[0];
-				t0 = {
-					logPath: decodeUrlParam(firstSegment_0?.endsWith(":") && !firstSegment_0.includes("://") ? firstSegment_0 + (firstSegment_0 === "file:" ? "///" : "//") + pathSlice.slice(1).join("/") : pathSlice.join("/")),
-					tabId: foundTabId,
-					sampleTabId: void 0,
-					sampleId: void 0,
-					epoch: void 0
-				};
-			} else t0 = {
-				logPath: decodeUrlParam(splatPath),
-				tabId: void 0,
-				sampleTabId: void 0,
-				sampleId: void 0,
-				epoch: void 0
-			};
-		}
+		t0 = parseLogRouteParams(location.pathname.match(/^\/(logs|tasks)\/(.*)$/)?.[2] ?? "");
 		$[0] = location.pathname;
 		$[1] = t0;
 	} else t0 = $[1];
 	return t0;
 };
 /**
+* Parses samples route parameters from the splat path (everything after
+* /samples/), including sample detail routes
+* (/samples/path/to/file.eval/sample/id/epoch). Pure so it can be tested
+* without a router.
+*/ var parseSamplesRouteParams = (splatPath) => {
+	const sampleMatch = splatPath.match(/^(.+?)\/sample\/([^/]+)\/([^/]+)(?:\/([^/]+))?\/?$/);
+	if (sampleMatch) {
+		const [, logPath, sampleId, epoch, tabId] = sampleMatch;
+		return {
+			samplesPath: decodeUrlParam(logPath),
+			sampleId: decodeUrlParam(sampleId),
+			epoch: decodeUrlParam(epoch),
+			tabId: tabId ? decodeUrlParam(tabId) : void 0
+		};
+	}
+	return {
+		samplesPath: splatPath ? decodeUrlParam(splatPath) : void 0,
+		sampleId: void 0,
+		epoch: void 0,
+		tabId: void 0
+	};
+};
+/**
 * Hook that parses samples route parameters from the splat route.
-* Handles nested paths properly by parsing the full path after /samples/
-* Also handles sample detail routes: /samples/path/to/file.eval/sample/id/epoch
 *
 * Note: We use location.pathname instead of React Router's decoded params
 * because React Router decodes %2F to /, which breaks parsing of sample IDs
 * that contain slashes (e.g., "ascii/bike" encoded as "ascii%2Fbike").
 */ var useSamplesRouteParams = () => {
-	const $ = (0, import_compiler_runtime.c)(4);
+	const $ = (0, import_compiler_runtime.c)(2);
 	const location = useLocation();
 	let t0;
 	if ($[0] !== location.pathname) {
-		bb0: {
-			const splatPath = location.pathname.match(/^\/samples\/(.*)$/)?.[1] ?? "";
-			const sampleMatch = splatPath.match(/^(.+?)\/sample\/([^/]+)\/([^/]+)(?:\/([^/]+))?\/?$/);
-			if (sampleMatch) {
-				const [, logPath, sampleId, epoch, tabId] = sampleMatch;
-				t0 = {
-					samplesPath: decodeUrlParam(logPath),
-					sampleId: decodeUrlParam(sampleId),
-					epoch: decodeUrlParam(epoch),
-					tabId: tabId ? decodeUrlParam(tabId) : void 0
-				};
-				break bb0;
-			}
-			const t1 = splatPath ? decodeUrlParam(splatPath) : void 0;
-			let t2;
-			if ($[2] !== t1) {
-				t2 = {
-					samplesPath: t1,
-					sampleId: void 0,
-					epoch: void 0,
-					tabId: void 0
-				};
-				$[2] = t1;
-				$[3] = t2;
-			} else t2 = $[3];
-			t0 = t2;
-		}
+		t0 = parseSamplesRouteParams(location.pathname.match(/^\/samples\/(.*)$/)?.[1] ?? "");
 		$[0] = location.pathname;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -90358,9 +90638,9 @@ var sampleEventUrl = (builder, eventId, logPath, sampleId, sampleEpoch) => {
 	const $ = (0, import_compiler_runtime.c)(9);
 	const { logPath: urlLogPath, id: urlSampleId, epoch: urlEpoch } = useLogOrSampleRouteParams();
 	const location = useLocation();
-	const logFile = useStore(_temp$78);
+	const logFile = useStore(_temp$77);
 	const logDir = useLogDir();
-	const selectedSampleHandle = useStore(_temp2$49);
+	const selectedSampleHandle = useStore(_temp2$50);
 	const surface = location.pathname.startsWith("/samples/") ? "/samples" : location.pathname.startsWith("/tasks") ? "/tasks" : "/logs";
 	let t0;
 	if ($[0] !== logDir || $[1] !== logFile || $[2] !== selectedSampleHandle?.epoch || $[3] !== selectedSampleHandle?.id || $[4] !== surface || $[5] !== urlEpoch || $[6] !== urlLogPath || $[7] !== urlSampleId) {
@@ -90492,10 +90772,10 @@ var routeFromFullUrl = (url) => {
 	const hashIndex = url.indexOf("#");
 	return hashIndex >= 0 ? url.slice(hashIndex + 1) : url;
 };
-function _temp$78(state) {
+function _temp$77(state) {
 	return state.logs.selectedLogFile;
 }
-function _temp2$49(state_0) {
+function _temp2$50(state_0) {
 	return state_0.log.selectedSampleHandle;
 }
 function _temp5$17(state) {
@@ -90597,7 +90877,7 @@ FlowButton.displayName = "FlowButton";
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$77,
+			select: _temp$76,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -90606,7 +90886,7 @@ FlowButton.displayName = "FlowButton";
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$77(flow) {
+function _temp$76(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -90914,9 +91194,9 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$76);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$75);
 };
-function _temp$76() {
+function _temp$75() {
 	return false;
 }
 //#endregion
@@ -90931,13 +91211,13 @@ function _temp$76() {
 		t0 = { demand: "active" };
 		$[0] = t0;
 	} else t0 = $[0];
-	return useLogHeader(useLogDir(), useStore(_temp$75), t0);
+	return useLogHeader(useLogDir(), useStore(_temp$74), t0);
 };
 /** Whether the selected log's details are loading. Already false when no
 *  file is selected (`useLogHeader` idles as settled-undefined). */ var useSelectedLogLoading = () => {
 	return useSelectedLogDetail().loading;
 };
-function _temp$75(state) {
+function _temp$74(state) {
 	return state.logs.selectedLogFile;
 }
 var ViewerOptionsButton_module_default = {
@@ -91556,8 +91836,8 @@ var ApplicationNavbar = (t0) => {
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1 } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$74);
-	const setThemePreference = useUserSettings(_temp2$48);
+	const themePreference = useUserSettings(_temp$73);
+	const setThemePreference = useUserSettings(_temp2$49);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
 	const isShowing = useStore(_temp3$38);
@@ -91646,10 +91926,10 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[27];
 	return t8;
 };
-function _temp$74(s) {
+function _temp$73(s) {
 	return s.themePreference;
 }
-function _temp2$48(s_0) {
+function _temp2$49(s_0) {
 	return s_0.setThemePreference;
 }
 function _temp3$38(state) {
@@ -91819,7 +92099,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$73,
+			select: _temp$72,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -91828,7 +92108,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$73(evalSet) {
+function _temp$72(evalSet) {
 	return evalSet ?? void 0;
 }
 //#endregion
@@ -91865,6 +92145,7 @@ var ColumnSelectorPopover_module_default = {
 };
 //#endregion
 //#region src/app/shared/ColumnSelectorPopover.tsx
+var isColumnScoresViewMode = (value) => value === "by-metric" || value === "per-scorer";
 var isScoreField = (field) => field.startsWith("score_") || field.startsWith("metric_");
 var ColumnSelectorPopover = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(89);
@@ -91936,13 +92217,13 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$72);
+			t10 = columns.filter(_temp$71);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
 		let t11;
 		if ($[15] !== columns) {
-			t11 = columns.filter(_temp2$47);
+			t11 = columns.filter(_temp2$48);
 			$[15] = columns;
 			$[16] = t11;
 		} else t11 = $[16];
@@ -92006,7 +92287,7 @@ var ColumnSelectorPopover = (t0) => {
 		t13 = () => {
 			onVisibilityChange({
 				...currentVisibility,
-				...Object.fromEntries(columnGroups.scores.map(_temp6$8))
+				...Object.fromEntries(columnGroups.scores.map(_temp6$7))
 			});
 		};
 		$[32] = columnGroups.scores;
@@ -92189,7 +92470,7 @@ var ColumnSelectorPopover = (t0) => {
 							label: "Per Scorer"
 						}],
 						selectedId: scoresViewMode,
-						onSegmentChange: (id) => onScoresViewModeChange(id)
+						onSegmentChange: (id) => isColumnScoresViewMode(id) && onScoresViewModeChange(id)
 					})
 				})]
 			}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -92257,10 +92538,10 @@ var ColumnSelectorPopover = (t0) => {
 	} else t32 = $[88];
 	return t32;
 };
-function _temp$72(col_0) {
+function _temp$71(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
-function _temp2$47(col_1) {
+function _temp2$48(col_1) {
 	return isScoreField(getFieldKey(col_1));
 }
 function _temp3$37(col_2) {
@@ -92272,7 +92553,7 @@ function _temp4$30(col_3) {
 function _temp5$16(col_4) {
 	return [getFieldKey(col_4), true];
 }
-function _temp6$8(col_5) {
+function _temp6$7(col_5) {
 	return [getFieldKey(col_5), false];
 }
 //#endregion
@@ -92344,7 +92625,7 @@ var parseLogFileName = (logFileName) => {
 		timestamp: parseFileNameTimestamp(match[1]),
 		name: match[2],
 		taskId: match[3],
-		extension: match[4]
+		extension: match[4] === "json" ? "json" : "eval"
 	};
 };
 var gridCells_module_default$1 = {
@@ -92375,7 +92656,15 @@ var columns_module_default = {
 var isMissingNumber$1 = (v) => v === null || v === void 0 || v === "" || typeof v === "number" && Number.isNaN(v);
 /**
 * Common value-comparison functions for client-side grid sorting.
-*/ var comparators = {
+*/ var toTime = (value) => {
+	if (value instanceof Date) return value.getTime();
+	if (typeof value === "string" || typeof value === "number") {
+		const time = new Date(value).getTime();
+		return Number.isNaN(time) ? 0 : time;
+	}
+	return 0;
+};
+var comparators = {
 	/**
 	* Compare values as numbers. NaN / null / undefined / "" are pinned to the
 	* bottom regardless of sort direction — the sentinel is flipped on
@@ -92390,9 +92679,7 @@ var isMissingNumber$1 = (v) => v === null || v === void 0 || v === "" || typeof 
 		if (bMissing) return isDescending ? 1 : -1;
 		return Number(a) - Number(b);
 	},
-	/** Compare values as dates */ date: (a, b) => {
-		return (a ? new Date(a).getTime() : 0) - (b ? new Date(b).getTime() : 0);
-	}
+	/** Compare values as dates */ date: (a, b) => toTime(a) - toTime(b)
 };
 //#endregion
 //#region src/app/log-list/grid/columns/comparators.ts
@@ -92872,10 +93159,12 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 				const contributors = [];
 				for (const scorer of scorerOrder) {
 					const v = row_42[`score_${scorer}/${metricName_1}`];
-					if (v !== void 0 && v !== null && v !== "") contributors.push({
-						scorer,
-						value: v
-					});
+					if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+						if (v !== "") contributors.push({
+							scorer,
+							value: v
+						});
+					}
 				}
 				return contributors;
 			};
@@ -93001,6 +93290,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 		const v_1 = {};
 		for (const col_3 of allColumns) {
 			const field_0 = col_3.id;
+			if (field_0 === void 0) continue;
 			const defaultVisible = field_0.startsWith("score_") || field_0.startsWith("metric_") ? false : !defaultHiddenFields.has(field_0);
 			v_1[field_0] = columnVisibility[field_0] ?? defaultVisible;
 		}
@@ -93011,14 +93301,14 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 		defaultHiddenFields
 	]);
 	const pickerColumns = (0, import_react.useMemo)(() => {
-		return allColumns.filter((col_4) => matchesActiveMode(col_4.id)).map((col_5) => ({
-			colId: col_5.id,
-			headerName: typeof col_5.header === "string" ? col_5.header : ""
-		}));
+		return allColumns.flatMap((col_4) => col_4.id === void 0 || !matchesActiveMode(col_4.id) ? [] : [{
+			colId: col_4.id,
+			headerName: typeof col_4.header === "string" ? col_4.header : ""
+		}]);
 	}, [allColumns, viewMode]);
 	const columnsById = (0, import_react.useMemo)(() => {
 		const byId = /* @__PURE__ */ new Map();
-		for (const col_6 of allColumns) if (col_6.id) byId.set(col_6.id, col_6);
+		for (const col_5 of allColumns) if (col_5.id) byId.set(col_5.id, col_5);
 		return byId;
 	}, [allColumns]);
 	return {
@@ -93026,8 +93316,8 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 		visibility,
 		pickerColumns,
 		getValue: (0, import_react.useCallback)((row_47, columnId) => {
-			const col_7 = columnsById.get(columnId);
-			if (col_7 && "accessorFn" in col_7 && typeof col_7.accessorFn === "function") return col_7.accessorFn(row_47, 0);
+			const col_6 = columnsById.get(columnId);
+			if (col_6 && "accessorFn" in col_6 && typeof col_6.accessorFn === "function") return col_6.accessorFn(row_47, 0);
 			return row_47[columnId];
 		}, [columnsById]),
 		getComparator: (0, import_react.useCallback)((columnId_0) => columnsById.get(columnId_0)?.meta?.sortComparator, [columnsById]),
@@ -98711,6 +99001,52 @@ var DATE_OPERATORS = [
 	"is not blank": "Is not blank"
 };
 //#endregion
+//#region ../../packages/inspect-components/src/columnFilter/types.ts
+var UI_OPERATORS = [
+	"contains",
+	"does not contain",
+	"starts with",
+	"ends with",
+	"=",
+	"!=",
+	"<",
+	"<=",
+	">",
+	">=",
+	"in",
+	"not in",
+	"between",
+	"not between",
+	"is blank",
+	"is not blank"
+];
+var isUiOperator = (value) => UI_OPERATORS.some((operator) => operator === value);
+var isConditionShaped = (value) => {
+	if (!isRecord(value)) return false;
+	const c = value;
+	return isUiOperator(c.operator) && typeof c.value === "string" && (c.value2 === void 0 || typeof c.value2 === "string");
+};
+/**
+* Runtime guard for entries read from persisted grid state. Pre-FilterSpec
+* builds stored a compiled `condition` instead of a `spec`; those entries are
+* unusable anyway (JSON rehydration strips the ConditionBuilder prototype, so
+* `.and()` would crash) and are dropped by callers using this guard. When
+* `join`/`second` are present they must be consistent (both or neither) and
+* `second` must itself be condition-shaped.
+*/ var isColumnFilter = (value) => {
+	if (!isRecord(value)) return false;
+	const v = value;
+	if (typeof v.columnId !== "string" || typeof v.filterType !== "string") return false;
+	const spec = v.spec;
+	if (!isRecord(spec) || !isConditionShaped(spec)) return false;
+	const hasJoin = spec.join !== void 0;
+	const hasSecond = spec.second !== void 0;
+	if (hasJoin !== hasSecond) return false;
+	if (hasJoin && spec.join !== "and" && spec.join !== "or") return false;
+	if (hasSecond && !isConditionShaped(spec.second)) return false;
+	return true;
+};
+//#endregion
 //#region ../../packages/inspect-components/src/columnFilter/ColumnFilterEditor.tsx
 /** Renders the type-appropriate value control, shared by both conditions'
 *  value and range-end inputs. */ var FilterValueInput = (t0) => {
@@ -98872,7 +99208,8 @@ var DATE_OPERATORS = [
 	let t2;
 	if ($[0] !== onOperatorChange) {
 		t2 = (event) => {
-			onOperatorChange(event.target.value);
+			const value_0 = event.target.value;
+			if (isUiOperator(value_0)) onOperatorChange(value_0);
 		};
 		$[0] = onOperatorChange;
 		$[1] = t2;
@@ -98881,7 +99218,7 @@ var DATE_OPERATORS = [
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$71);
+		t4 = operatorOptions.map(_temp$70);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -99008,7 +99345,8 @@ var ColumnFilterEditor = (t0) => {
 	let t4;
 	if ($[2] !== onJoinChange) {
 		t4 = (event) => {
-			onJoinChange?.(event.target.value);
+			const value = event.target.value;
+			if (value === "and" || value === "or") onJoinChange?.(value);
 		};
 		$[2] = onJoinChange;
 		$[3] = t4;
@@ -99138,7 +99476,7 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$71(option) {
+function _temp$70(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
@@ -99182,69 +99520,75 @@ var isScalarArray = (val) => Array.isArray(val) && !isTuple(val);
 var isTuple = (val) => Array.isArray(val) && val.length === 2;
 //#endregion
 //#region ../../packages/inspect-common/src/query/conditionBuilder.ts
+var serializeValue = (value) => {
+	if (value === null) return null;
+	if (isScalarArray(value)) return value;
+	if (isTuple(value)) return value;
+	return value;
+};
 /**
-* Internal builder for creating Condition instances.
-*
-* Type assertions in this class are necessary because:
-* - Constructor accepts `compound: boolean` (TypeScript widens true|false to boolean)
-* - Discriminated union requires literal types (`compound: true` or `compound: false`)
-* - Factories guarantee correct literal values at runtime
-* - TypeScript can't statically prove constructor only receives literals
-*
-* This is acceptable because:
-* - Assertions are localized to this internal implementation
-* - Public API (serializers) has zero type assertions
-* - Standard pattern for builder + discriminated union
-*/ var ConditionBuilder = class ConditionBuilder {
+* Two builder classes rather than one taking `compound: boolean`: the
+* discriminated union is keyed on the literals `false` and `true`, and a
+* constructor parameter can only ever widen those to `boolean`. Each class
+* declares its own discriminant, so both halves of the union are satisfied
+* outright instead of asserted into place.
+*/ var ConditionBuilderBase = class {
+	and(other) {
+		return ConditionBuilder.compound("AND", this.self(), other);
+	}
+	or(other) {
+		return ConditionBuilder.compound("OR", this.self(), other);
+	}
+	not() {
+		return ConditionBuilder.compound("NOT", this.self(), null);
+	}
+};
+var SimpleConditionBuilder = class extends ConditionBuilderBase {
 	left;
 	operator;
 	right;
-	compound;
-	constructor(left, operator, right, compound) {
-		this.left = left;
-		this.operator = operator;
-		this.right = right;
-		this.compound = compound;
+	compound = false;
+	constructor(left, operator, right) {
+		super(), this.left = left, this.operator = operator, this.right = right;
 	}
-	static simple(field, operator, value) {
-		return new ConditionBuilder(field, operator, value, false);
-	}
-	static compound(operator, left, right = null) {
-		return new ConditionBuilder(left, operator, right, true);
-	}
-	and(other) {
-		return ConditionBuilder.compound("AND", this, other);
-	}
-	or(other) {
-		return ConditionBuilder.compound("OR", this, other);
-	}
-	not() {
-		return ConditionBuilder.compound("NOT", this, null);
+	self() {
+		return this;
 	}
 	toJSON() {
-		if (this.compound) {
-			const self = this;
-			return {
-				is_compound: true,
-				left: self.left.toJSON(),
-				operator: self.operator,
-				right: self.right ? self.right.toJSON() : null
-			};
-		} else {
-			const self = this;
-			return {
-				is_compound: false,
-				left: self.left,
-				operator: self.operator,
-				right: this.serializeValue(self.right)
-			};
-		}
+		return {
+			is_compound: false,
+			left: this.left,
+			operator: this.operator,
+			right: serializeValue(this.right)
+		};
 	}
-	serializeValue(value) {
-		if (value === null) return null;
-		if (isScalarArray(value)) return value;
-		if (isTuple(value)) return value;
-		return value;
+};
+var CompoundConditionBuilder = class extends ConditionBuilderBase {
+	left;
+	operator;
+	right;
+	compound = true;
+	constructor(left, operator, right) {
+		super(), this.left = left, this.operator = operator, this.right = right;
+	}
+	self() {
+		return this;
+	}
+	toJSON() {
+		return {
+			is_compound: true,
+			left: this.left.toJSON(),
+			operator: this.operator,
+			right: this.right ? this.right.toJSON() : null
+		};
+	}
+};
+/** Factories for Condition instances. */ var ConditionBuilder = {
+	simple(field, operator, value) {
+		return new SimpleConditionBuilder(field, operator, value);
+	},
+	compound(operator, left, right = null) {
+		return new CompoundConditionBuilder(left, operator, right);
 	}
 };
 //#endregion
@@ -99671,51 +100015,6 @@ var ColumnFilterControl = ({ columnId, filterType, spec, onChange, operators, su
 			})
 		})]
 	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/types.ts
-/** Column value kind, selecting the filter editor + operator set. */ var UI_OPERATORS = [
-	"contains",
-	"does not contain",
-	"starts with",
-	"ends with",
-	"=",
-	"!=",
-	"<",
-	"<=",
-	">",
-	">=",
-	"in",
-	"not in",
-	"between",
-	"not between",
-	"is blank",
-	"is not blank"
-];
-var isConditionShaped = (value) => {
-	if (typeof value !== "object" || value === null) return false;
-	const c = value;
-	return typeof c.operator === "string" && UI_OPERATORS.includes(c.operator) && typeof c.value === "string" && (c.value2 === void 0 || typeof c.value2 === "string");
-};
-/**
-* Runtime guard for entries read from persisted grid state. Pre-FilterSpec
-* builds stored a compiled `condition` instead of a `spec`; those entries are
-* unusable anyway (JSON rehydration strips the ConditionBuilder prototype, so
-* `.and()` would crash) and are dropped by callers using this guard. When
-* `join`/`second` are present they must be consistent (both or neither) and
-* `second` must itself be condition-shaped.
-*/ var isColumnFilter = (value) => {
-	if (typeof value !== "object" || value === null) return false;
-	const v = value;
-	if (typeof v.columnId !== "string" || typeof v.filterType !== "string") return false;
-	const spec = v.spec;
-	if (!isConditionShaped(spec)) return false;
-	const hasJoin = spec.join !== void 0;
-	const hasSecond = spec.second !== void 0;
-	if (hasJoin !== hasSecond) return false;
-	if (hasJoin && spec.join !== "and" && spec.join !== "or") return false;
-	if (hasSecond && !isConditionShaped(spec.second)) return false;
-	return true;
 };
 //#endregion
 //#region ../../packages/inspect-components/src/columnFilter/combineFilters.ts
@@ -100239,8 +100538,8 @@ var kFitSlack = 4;
 		sortDescFirst: false,
 		enableMultiSort: true,
 		isMultiSortEvent: (e_3) => {
-			const { shiftKey, metaKey, ctrlKey } = e_3;
-			return shiftKey || metaKey || ctrlKey;
+			if (!isRecord(e_3)) return false;
+			return e_3["shiftKey"] === true || e_3["metaKey"] === true || e_3["ctrlKey"] === true;
 		},
 		enableSortingRemoval: true,
 		enableColumnResizing: true,
@@ -100694,7 +100993,7 @@ function GridRowInner(t0) {
 		t19 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
-			onClick: _temp$70,
+			onClick: _temp$69,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -100795,7 +101094,7 @@ function GridRowInner(t0) {
 	} else t23 = $[63];
 	return t23;
 }
-function _temp$70(e_2) {
+function _temp$69(e_2) {
 	return e_2.stopPropagation();
 }
 //#endregion
@@ -101378,7 +101677,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$69);
+		t11 = searchColumns.map(_temp$68);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -101390,7 +101689,7 @@ var LogListGrid = (t0) => {
 		$[29] = t12;
 	} else t12 = $[29];
 	const rowText = t12;
-	const getRowId = _temp2$46;
+	const getRowId = _temp2$47;
 	let t13;
 	if ($[30] !== accessorsKey || $[31] !== filter || $[32] !== findTerm || $[33] !== getComparator || $[34] !== getFilterType || $[35] !== getValue || $[36] !== listing || $[37] !== orderBy || $[38] !== rowText || $[39] !== searchKey || $[40] !== showFind) {
 		t13 = {
@@ -101630,7 +101929,7 @@ var LogListGrid = (t0) => {
 				onColumnSizingChange: handleColumnSizingChange,
 				columnOrder,
 				onColumnOrderChange: handleColumnOrderChange,
-				getRowId: _temp6$7,
+				getRowId: _temp6$6,
 				selectedRowId: t29,
 				onSelectedRowChange: handleSelectedRowChange,
 				onRowActivate: handleRowActivate,
@@ -101668,10 +101967,10 @@ var LogListGrid = (t0) => {
 	} else t32 = $[108];
 	return t32;
 };
-function _temp$69(col_0) {
+function _temp$68(col_0) {
 	return col_0.id ?? "";
 }
-function _temp2$46(row_2) {
+function _temp2$47(row_2) {
 	return row_2.id;
 }
 function _temp3$36(row_3) {
@@ -101683,7 +101982,7 @@ function _temp4$29(row_4) {
 function _temp5$15(row_6) {
 	return row_6.id;
 }
-function _temp6$7(row_7) {
+function _temp6$6(row_7) {
 	return row_7.id;
 }
 //#endregion
@@ -101794,7 +102093,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$68, _temp2$45, _temp3$35);
+	const overlayData = useKeyedMemo(overlayItems, _temp$67, _temp2$46, _temp3$35);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -101933,10 +102232,10 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$68(item) {
+function _temp$67(item) {
 	return item.id;
 }
-function _temp2$45(item_0) {
+function _temp2$46(item_0) {
 	return [
 		item_0.id,
 		item_0.type,
@@ -102110,8 +102409,8 @@ var LogsPanel = (t0) => {
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$67);
-	const setShowRetriedLogs = useUserSettings(_temp2$44);
+	const showRetriedLogs = useUserSettings(_temp$66);
+	const setShowRetriedLogs = useUserSettings(_temp2$45);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
 	const { logPath } = useLogRouteParams();
@@ -102578,10 +102877,10 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$67(state) {
+function _temp$66(state) {
 	return state.showRetriedLogs;
 }
-function _temp2$44(state_0) {
+function _temp2$45(state_0) {
 	return state_0.setShowRetriedLogs;
 }
 function _temp3$34(state_1) {
@@ -102642,7 +102941,7 @@ function _temp5$14(prev) {
 	const prefix = useRoutePrefix();
 	const logDirectory = useLogDir();
 	const { logPath, tabId, sampleTabId } = useLogRouteParams();
-	const selectedLogFile = useStore(_temp2$43);
+	const selectedLogFile = useStore(_temp2$44);
 	let t0;
 	if ($[0] !== logDirectory || $[1] !== logPath || $[2] !== selectedLogFile) {
 		t0 = () => {
@@ -102980,7 +103279,7 @@ var useSampleDetailNavigation = () => {
 	} else t5 = $[33];
 	return t5;
 };
-function _temp2$43(state) {
+function _temp2$44(state) {
 	return state.logs.selectedLogFile;
 }
 function _temp3$33(state_0) {
@@ -103017,6 +103316,7 @@ var kTranscriptOutlineCollapseScope = "transcript-outline";
 	TYPE_TOOL,
 	TYPE_SUBTASK
 ];
+var isCollapsibleEvent = (event) => kCollapsibleEventTypes.some((type) => type === event.event);
 /** Event types whose *content* can be collapsed (panel-level collapse). */ var kContentCollapsibleEventTypes = [
 	"model",
 	"state",
@@ -103043,6 +103343,24 @@ var EventNode = class {
 		this.depth = depth;
 	}
 };
+var isEventNodeOf = (node, type) => node.event.event === type;
+/**
+* Re-reads an event node's discriminant to get a node typed to it.
+*
+* A `switch (node.event.event)` narrows the event but not the `EventNode`
+* wrapping it — TypeScript cannot re-key a generic class instance from a
+* discriminant on one of its fields. One string compare per branch buys back
+* the type the case already established.
+*/ var eventNodeOf = (node, type) => {
+	if (!isEventNodeOf(node, type)) throw new Error(`expected a "${type}" event node, got "${node.event.event}"`);
+	return node;
+};
+//#endregion
+//#region ../../packages/inspect-components/src/chat/types.ts
+/**
+* Shallow guard for messages read out of unvalidated state blobs. ChatView
+* dispatches on `role` and tolerates the rest, so that is what it checks.
+*/ var isChatMessage = (value) => isRecord(value) && typeof value["role"] === "string";
 var StateEventRenderers_module_default = {
 	toolsGrid: "_toolsGrid_1qqm2_1",
 	tools: "_tools_1qqm2_1",
@@ -103058,14 +103376,18 @@ var system_msg_added_sig = {
 		add: ["/messages/1"]
 	},
 	render: (_changes, resolvedState) => {
-		const message = resolvedState["messages"][0];
-		if (typeof message !== "object" || !message) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, {});
+		const messages = resolvedState["messages"];
+		const message = Array.isArray(messages) ? messages[0] : void 0;
+		if (!isChatMessage(message)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, {});
 		return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
 			id: "system_msg_event_preview",
 			messages: [message]
 		}, "system_msg_event_preview");
 	}
 };
+var readNumber = (value) => typeof value === "number" ? value : void 0;
+var readString = (value) => typeof value === "string" ? value : void 0;
+/** Shallow: Tools renders a name and description, and skips what lacks them. */ var isToolDefinition = (value) => isRecord(value) && typeof value["name"] === "string";
 var kToolPattern = "/tools/(\\d+)";
 var use_tools = {
 	type: "use_tools",
@@ -103103,7 +103425,7 @@ var messages = {
 		});
 	},
 	render: (changes) => {
-		const msgs = changes.map((c) => c.value);
+		const msgs = changes.map((c) => c.value).filter(isChatMessage);
 		return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
 			id: "system_msg_event_preview",
 			messages: msgs
@@ -103122,16 +103444,17 @@ var human_baseline_session = {
 		remove: []
 	},
 	render: (_changes, state, eventNodeId) => {
-		const started = state[humanAgentKey("started_running")];
-		const runtime = state[humanAgentKey("accumulated_time")];
-		const answer = state[humanAgentKey("answer")];
+		const started = readNumber(state[humanAgentKey("started_running")]);
+		const runtime = readNumber(state[humanAgentKey("accumulated_time")]);
+		const answer = readString(state[humanAgentKey("answer")]);
 		const completed = !!answer;
-		const running = state[humanAgentKey("running_state")];
+		const running = state[humanAgentKey("running_state")] === true;
 		const rawSessions = state[humanAgentKey("logs")];
 		const startedDate = started ? /* @__PURE__ */ new Date(started * 1e3) : void 0;
 		const partial = /* @__PURE__ */ new Map();
-		if (rawSessions) for (const key of Object.keys(rawSessions)) {
-			const value = rawSessions[key];
+		if (isRecord(rawSessions)) for (const [key, raw] of Object.entries(rawSessions)) {
+			const value = readString(raw);
+			if (value === void 0) continue;
 			const match = key.match(/(.*)_(\d+_\d+)\.(.*)/);
 			if (!match) continue;
 			const [, user, timestamp, type] = match;
@@ -103160,7 +103483,7 @@ var renderTools = (changes, resolvedState) => {
 		if (match?.[1]) toolIndexes.push(match[1]);
 	}
 	const toolName = (toolChoice) => {
-		if (typeof toolChoice === "object" && toolChoice && !Array.isArray(toolChoice)) return toolChoice["name"] || "";
+		if (isRecord(toolChoice)) return readString(toolChoice["name"]) ?? "";
 		else return String(toolChoice);
 	};
 	const toolsInfo = {};
@@ -103171,13 +103494,11 @@ var renderTools = (changes, resolvedState) => {
 		className: clsx("text-size-smaller"),
 		children: toolName(resolvedState.tool_choice)
 	});
-	const tools = resolvedState.tools;
+	const tools = Array.isArray(resolvedState.tools) ? resolvedState.tools : [];
 	if (tools.length > 0) {
-		if (toolIndexes.length === 0) toolsInfo["Tools"] = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tools, { toolDefinitions: resolvedState.tools });
+		if (toolIndexes.length === 0) toolsInfo["Tools"] = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tools, { toolDefinitions: tools.filter(isToolDefinition) });
 		else {
-			const filtered = tools.filter((_, index) => {
-				return toolIndexes.includes(index.toString());
-			});
+			const filtered = tools.filter((_, index) => toolIndexes.includes(index.toString())).filter(isToolDefinition);
 			toolsInfo["Tools"] = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tools, { toolDefinitions: filtered });
 		}
 	}
@@ -103203,6 +103524,7 @@ var createMessageRenderer = (name, role) => {
 		},
 		render: (changes) => {
 			const message = changes[0]?.value;
+			if (!isChatMessage(message)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, {});
 			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
 				id: "system_msg_event_preview",
 				messages: [message]
@@ -103237,7 +103559,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$66);
+		t1 = toolDefinitions.map(_temp$65);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -103281,7 +103603,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$66(toolDefinition, idx) {
+function _temp$65(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -103559,7 +103881,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$65);
+			setFocusEpoch(_temp$64);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -103763,7 +104085,7 @@ var GoToTurnBar_module_default = {
 	} else t15 = $[32];
 	return t15;
 });
-function _temp$65(epoch) {
+function _temp$64(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -103829,13 +104151,7 @@ var kDefaultIcon$1 = "bi bi-table";
 	} else t3 = $[9];
 	return t3;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/icons.ts
-/**
-* Bootstrap icon class names used by transcript event components.
-* Both apps (scout and inspect) use the same Bootstrap icons,
-* so these are safe to hardcode as string constants.
-*/ var TranscriptIcons = {
+var TranscriptIcons = {
 	agent: "bi bi-grid",
 	approve: "bi bi-shield",
 	cancel: "bi bi-x-circle",
@@ -104294,7 +104610,7 @@ var EventNavsPicker_module_default = {
 	let t9;
 	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
 		t8 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t9 = () => setOpen(_temp$64);
+		t9 = () => setOpen(_temp$63);
 		$[11] = t8;
 		$[12] = t9;
 	} else {
@@ -104387,7 +104703,7 @@ var EventNavsPicker_module_default = {
 	} else t16 = $[30];
 	return t16;
 };
-function _temp$64(v) {
+function _temp$63(v) {
 	return !v;
 }
 //#endregion
@@ -104481,7 +104797,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$63);
+		t6 = navs.map(_temp$62);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -104510,7 +104826,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$63(nav_1) {
+function _temp$62(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -105125,7 +105441,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$62), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$61), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -105280,7 +105596,7 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$62(file) {
+function _temp$61(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
@@ -105376,11 +105692,13 @@ var EmptyBranchView_module_default = {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/EmptyBranchView.tsx
+/** Shallow: the note below renders branchName and terminator. */ var isEmptyBranchData = (value) => isRecord(value) && typeof value["branchName"] === "string";
 var EmptyBranchView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(8);
 	const { eventNode, className } = t0;
-	const data = eventNode.event.metadata?.empty_branch;
-	if (!data) return null;
+	const metadata = eventNode.event.metadata;
+	const data = isRecord(metadata) ? metadata.empty_branch : void 0;
+	if (!isEmptyBranchData(data)) return null;
 	let t1;
 	if ($[0] !== className) {
 		t1 = clsx(EmptyBranchView_module_default.empty, className);
@@ -105628,52 +105946,68 @@ var LoggerEventView_module_default = { grid: "_grid_1pgwi_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/LoggerEventView.tsx
 var LoggerEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(21);
+	const $ = (0, import_compiler_runtime.c)(29);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
+	let T0;
 	let t1;
-	if ($[0] !== event.message.message) {
-		t1 = parsedJson(event.message.message);
-		$[0] = event.message.message;
-		$[1] = t1;
-	} else t1 = $[1];
-	const obj = t1;
-	const t2 = event.message.level;
-	const t3 = TranscriptIcons.logging[event.message.level.toLowerCase()] || TranscriptIcons.info;
+	let t2;
+	let t3;
 	let t4;
 	let t5;
-	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = clsx("text-size-base", LoggerEventView_module_default.grid);
-		t5 = clsx("text-size-smaller");
-		$[2] = t4;
-		$[3] = t5;
-	} else {
-		t4 = $[2];
-		t5 = $[3];
-	}
 	let t6;
-	if ($[4] !== event.message.message || $[5] !== obj) {
-		t6 = obj !== void 0 && obj !== null ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: obj }) : event.message.message;
-		$[4] = event.message.message;
-		$[5] = obj;
-		$[6] = t6;
-	} else t6 = $[6];
+	if ($[0] !== className || $[1] !== event.message.level || $[2] !== event.message.message) {
+		const obj = parsedJson(event.message.message);
+		T0 = EventRow;
+		t4 = className;
+		t5 = event.message.level;
+		t6 = TranscriptIcons.logging[event.message.level.toLowerCase()] || TranscriptIcons.info;
+		if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
+			t3 = clsx("text-size-base", LoggerEventView_module_default.grid);
+			t1 = clsx("text-size-smaller");
+			$[10] = t1;
+			$[11] = t3;
+		} else {
+			t1 = $[10];
+			t3 = $[11];
+		}
+		t2 = isRecord(obj) ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: obj }) : event.message.message;
+		$[0] = className;
+		$[1] = event.message.level;
+		$[2] = event.message.message;
+		$[3] = T0;
+		$[4] = t1;
+		$[5] = t2;
+		$[6] = t3;
+		$[7] = t4;
+		$[8] = t5;
+		$[9] = t6;
+	} else {
+		T0 = $[3];
+		t1 = $[4];
+		t2 = $[5];
+		t3 = $[6];
+		t4 = $[7];
+		t5 = $[8];
+		t6 = $[9];
+	}
 	let t7;
-	if ($[7] !== t6) {
+	if ($[12] !== t1 || $[13] !== t2) {
 		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t5,
-			children: t6
+			className: t1,
+			children: t2
 		});
-		$[7] = t6;
-		$[8] = t7;
-	} else t7 = $[8];
+		$[12] = t1;
+		$[13] = t2;
+		$[14] = t7;
+	} else t7 = $[14];
 	let t8;
-	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
 		t8 = clsx("text-size-smaller", "text-style-secondary");
-		$[9] = t8;
-	} else t8 = $[9];
+		$[15] = t8;
+	} else t8 = $[15];
 	let t9;
-	if ($[10] !== event.message.filename || $[11] !== event.message.lineno) {
+	if ($[16] !== event.message.filename || $[17] !== event.message.lineno) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t8,
 			children: [
@@ -105682,65 +106016,69 @@ var LoggerEventView = (t0) => {
 				event.message.lineno
 			]
 		});
-		$[10] = event.message.filename;
-		$[11] = event.message.lineno;
-		$[12] = t9;
-	} else t9 = $[12];
+		$[16] = event.message.filename;
+		$[17] = event.message.lineno;
+		$[18] = t9;
+	} else t9 = $[18];
 	let t10;
-	if ($[13] !== t7 || $[14] !== t9) {
+	if ($[19] !== t3 || $[20] !== t7 || $[21] !== t9) {
 		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t4,
+			className: t3,
 			children: [t7, t9]
 		});
-		$[13] = t7;
-		$[14] = t9;
-		$[15] = t10;
-	} else t10 = $[15];
+		$[19] = t3;
+		$[20] = t7;
+		$[21] = t9;
+		$[22] = t10;
+	} else t10 = $[22];
 	let t11;
-	if ($[16] !== className || $[17] !== event.message.level || $[18] !== t10 || $[19] !== t3) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
-			className,
-			title: t2,
-			icon: t3,
+	if ($[23] !== T0 || $[24] !== t10 || $[25] !== t4 || $[26] !== t5 || $[27] !== t6) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(T0, {
+			className: t4,
+			title: t5,
+			icon: t6,
 			children: t10
 		});
-		$[16] = className;
-		$[17] = event.message.level;
-		$[18] = t10;
-		$[19] = t3;
-		$[20] = t11;
-	} else t11 = $[20];
+		$[23] = T0;
+		$[24] = t10;
+		$[25] = t4;
+		$[26] = t5;
+		$[27] = t6;
+		$[28] = t11;
+	} else t11 = $[28];
 	return t11;
 };
 var ModelTokenTable_module_default = {
-	wrapper: "_wrapper_1qmpk_1",
-	table: "_table_1qmpk_7",
-	num: "_num_1qmpk_24",
-	modelRow: "_modelRow_1qmpk_28",
-	modelCell: "_modelCell_1qmpk_49",
-	modelName: "_modelName_1qmpk_55",
-	modelAlias: "_modelAlias_1qmpk_60",
-	modelTotal: "_modelTotal_1qmpk_69",
-	configSection: "_configSection_1qmpk_77",
-	configSectionLabel: "_configSectionLabel_1qmpk_84",
-	configTable: "_configTable_1qmpk_98",
-	configKey: "_configKey_1qmpk_110",
-	configVal: "_configVal_1qmpk_116",
-	composeCell: "_composeCell_1qmpk_131",
-	stack: "_stack_1qmpk_139",
-	pcts: "_pcts_1qmpk_154",
-	breakdown: "_breakdown_1qmpk_162",
-	breakdownLabel: "_breakdownLabel_1qmpk_170",
-	breakdownLeader: "_breakdownLeader_1qmpk_178",
-	breakdownValue: "_breakdownValue_1qmpk_185",
-	perSampleCell: "_perSampleCell_1qmpk_192",
-	perSampleSub: "_perSampleSub_1qmpk_197",
-	swatchSmall: "_swatchSmall_1qmpk_206",
-	catInput: "_catInput_1qmpk_212",
-	catCacheRead: "_catCacheRead_1qmpk_216",
-	catCacheWrite: "_catCacheWrite_1qmpk_220",
-	catOutput: "_catOutput_1qmpk_224",
-	catReasoning: "_catReasoning_1qmpk_228"
+	wrapper: "_wrapper_14pl5_1",
+	table: "_table_14pl5_7",
+	num: "_num_14pl5_24",
+	modelRow: "_modelRow_14pl5_28",
+	modelCell: "_modelCell_14pl5_49",
+	modelName: "_modelName_14pl5_55",
+	modelAlias: "_modelAlias_14pl5_60",
+	modelTotal: "_modelTotal_14pl5_69",
+	modelCost: "_modelCost_14pl5_77",
+	configSection: "_configSection_14pl5_85",
+	configSectionLabel: "_configSectionLabel_14pl5_92",
+	configTable: "_configTable_14pl5_106",
+	configKey: "_configKey_14pl5_118",
+	configVal: "_configVal_14pl5_124",
+	composeCell: "_composeCell_14pl5_139",
+	stack: "_stack_14pl5_147",
+	pcts: "_pcts_14pl5_162",
+	breakdown: "_breakdown_14pl5_170",
+	breakdownLabel: "_breakdownLabel_14pl5_178",
+	breakdownLeader: "_breakdownLeader_14pl5_186",
+	breakdownValue: "_breakdownValue_14pl5_193",
+	perSampleCell: "_perSampleCell_14pl5_200",
+	perSampleSub: "_perSampleSub_14pl5_205",
+	perSampleCost: "_perSampleCost_14pl5_214",
+	swatchSmall: "_swatchSmall_14pl5_220",
+	catInput: "_catInput_14pl5_226",
+	catCacheRead: "_catCacheRead_14pl5_230",
+	catCacheWrite: "_catCacheWrite_14pl5_234",
+	catOutput: "_catOutput_14pl5_238",
+	catReasoning: "_catReasoning_14pl5_242"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/ModelTokenTable.tsx
@@ -105855,11 +106193,15 @@ var ModelTokenTable = (t0) => {
 									className: ModelTokenTable_module_default.modelTotal,
 									children: [formatNumber(total), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("small", { children: "tokens" })]
 								}),
+								showTokenColumns && usage?.total_cost != null && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+									className: ModelTokenTable_module_default.modelCost,
+									children: formatCurrency(usage.total_cost)
+								}),
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$61) : [];
-									const argEntries = args ? Object.entries(args).filter(_temp2$42) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$60) : [];
+									const argEntries = args ? Object.entries(args).filter(_temp2$43) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
 									const renderSection = _temp4$26;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -105907,10 +106249,20 @@ var ModelTokenTable = (t0) => {
 						showPerSample && !usage && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("td", {}),
 						showPerSample && usage && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("td", {
 							className: clsx(ModelTokenTable_module_default.num, ModelTokenTable_module_default.perSampleCell),
-							children: [formatNumber(Math.round(total / samples)), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-								className: ModelTokenTable_module_default.perSampleSub,
-								children: "avg / sample"
-							})]
+							children: [
+								formatNumber(Math.round(total / samples)),
+								/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+									className: ModelTokenTable_module_default.perSampleSub,
+									children: "avg / sample"
+								}),
+								usage.total_cost != null && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+									className: ModelTokenTable_module_default.perSampleCost,
+									children: formatCurrency(usage.total_cost / samples)
+								}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+									className: ModelTokenTable_module_default.perSampleSub,
+									children: "avg cost / sample"
+								})] })
+							]
 						})
 					]
 				}) }, modelId);
@@ -105963,11 +106315,11 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$61(t0) {
+function _temp$60(t0) {
 	const [, v] = t0;
 	return v != null;
 }
-function _temp2$42(t0) {
+function _temp2$43(t0) {
 	const [, v_0] = t0;
 	return v_0 != null;
 }
@@ -106141,7 +106493,7 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$60, 0);
+		const composeTotal = categories.reduce(_temp$59, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
 		const denom = inputAll + ((usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0)) || total || 1;
@@ -106180,7 +106532,8 @@ var ModelUsagePanel = (t0) => {
 				inputPct,
 				"% input · ",
 				outputPct,
-				"% output"
+				"% output",
+				usage.total_cost != null && ` · ${formatCurrency(usage.total_cost)}`
 			]
 		});
 		if ($[18] !== t11 || $[19] !== t12) {
@@ -106217,7 +106570,7 @@ var ModelUsagePanel = (t0) => {
 			}, c_0.key))
 		});
 		t1 = ModelUsagePanel_module_default.breakdown;
-		t2 = categories.map(_temp2$41);
+		t2 = categories.map(_temp2$42);
 		$[0] = className;
 		$[1] = timing;
 		$[2] = usage;
@@ -106328,10 +106681,10 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$60(a, c) {
+function _temp$59(a, c) {
 	return a + c.value;
 }
-function _temp2$41(c_1) {
+function _temp2$42(c_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: clsx(ModelUsagePanel_module_default.swatch, c_1.swatchClass) }),
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: formatNumber(c_1.value) }),
@@ -106342,7 +106695,11 @@ function _temp2$41(c_1) {
 //#endregion
 //#region ../../packages/inspect-components/src/usage/connectionHistory.ts
 var kAdaptiveDefaultMax = 100;
-var nullProtoRecord = (entries) => Object.assign(Object.create(null), Object.fromEntries(entries));
+var nullProtoRecord = (entries) => {
+	const record = Object.fromEntries(entries);
+	Object.setPrototypeOf(record, null);
+	return record;
+};
 var connectionWindow = (history, startedAt, completedAt) => {
 	if (!history || history.length === 0) return void 0;
 	let first = Infinity;
@@ -106987,7 +107344,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$59);
+		t5 = changes.map(_temp$58);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -107030,7 +107387,7 @@ var ProvenanceGrid = (t0) => {
 	} else t9 = $[16];
 	return t9;
 };
-function _temp$59(change) {
+function _temp$58(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -107241,7 +107598,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$58), ...t2.map(_temp2$40)].sort(_temp3$31);
+		t1 = [...events.map(_temp$57), ...t2.map(_temp2$41)].sort(_temp3$31);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -107378,14 +107735,14 @@ var ConnectionLogModal = (t0) => {
 	} else t12 = $[34];
 	return t12;
 };
-function _temp$58(event) {
+function _temp$57(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
 		event
 	};
 }
-function _temp2$40(retune) {
+function _temp2$41(retune) {
 	return {
 		kind: "config",
 		time: retune.timestamp,
@@ -107593,7 +107950,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$57)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$56)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -107758,7 +108115,7 @@ var kBaselineY = 60;
 					y1: y(seg.value),
 					y2: y(seg.value)
 				}, `cap-${i}`)),
-				data.events.filter(_temp2$39).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
+				data.events.filter(_temp2$40).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
 					className: ConnectionsView_module_default.rateLimitLine,
 					x1: x(e_1.timestamp),
 					x2: x(e_1.timestamp),
@@ -107856,15 +108213,33 @@ var kBaselineY = 60;
 	} else t9 = $[37];
 	return t9;
 };
-function _temp$57(role) {
+function _temp$56(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
 	}, role);
 }
-function _temp2$39(e_0) {
+function _temp2$40(e_0) {
 	return e_0.reason === "rate_limit";
 }
+//#endregion
+//#region ../../packages/inspect-components/src/usage/cost.ts
+var tokenTotal = (usage) => usage.total_tokens || (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0) + (usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0);
+/** Sum recorded costs across a usage dict; undefined when nothing is priced
+*  (old logs and unpriced runs render no cost UI at all). */ var costSummary = (usage) => {
+	if (!usage) return void 0;
+	let total = 0;
+	let priced = false;
+	let partial = false;
+	for (const u of Object.values(usage)) if (u.total_cost != null) {
+		total += u.total_cost;
+		priced = true;
+	} else if (tokenTotal(u) > 0) partial = true;
+	return priced ? {
+		total,
+		partial
+	} : void 0;
+};
 var UsagePanel_module_default = {
 	panel: "_panel_ald9k_1",
 	head: "_head_ald9k_5",
@@ -107879,6 +108254,12 @@ var UsagePanel_module_default = {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/UsagePanel.tsx
+var kModes = [
+	"model",
+	"role",
+	"connections"
+];
+var isMode = (value) => kModes.some((mode) => mode === value);
 var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by_role, args_by_model, args_by_role, role_aliases, samples, meta, className, connection_limit_history, started_at, completed_at, config_updates, main_model, state_key, onViewTimeline }) => {
 	const keysOf = (...maps) => {
 		const out = /* @__PURE__ */ new Set();
@@ -107932,7 +108313,15 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 	const tableRowKeys = isModel ? modelKeys : roleKeys;
 	const logLane = logModel != null ? lanesByModel[logModel] : void 0;
 	const logRoles = logModel != null ? rolesForModel(role_aliases, logModel) : [];
-	const metaItems = hasUsageData || isConnections ? meta?.filter((m) => m.value != null && m.value !== "") ?? [] : [];
+	const cost = costSummary(model_usage) ?? costSummary(role_usage);
+	const costItem = cost ? [{
+		label: "Cost",
+		value: cost.partial ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			title: "Excludes models without recorded pricing",
+			children: `≥ ${formatCurrency(cost.total)}`
+		}) : formatCurrency(cost.total)
+	}] : [];
+	const metaItems = hasUsageData || isConnections ? [...costItem, ...meta?.filter((m) => m.value != null && m.value !== "") ?? []] : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: clsx(UsagePanel_module_default.panel, className),
 		children: [
@@ -107946,7 +108335,9 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 					}), showSegmented && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SegmentedControl, {
 						segments,
 						selectedId: effectiveMode,
-						onSegmentChange: (value) => setMode(value)
+						onSegmentChange: (value) => {
+							if (isMode(value)) setMode(value);
+						}
 					})]
 				}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 					className: UsagePanel_module_default.meta,
@@ -108225,7 +108616,7 @@ var RetryChip = (t0) => {
 	let t10;
 	let t9;
 	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = () => setOpen(_temp$56);
+		t9 = () => setOpen(_temp$55);
 		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
 			className: clsx("bi", "bi-arrow-repeat", RetryChip_module_default.chipIcon),
 			"aria-hidden": "true"
@@ -108329,7 +108720,7 @@ function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$56(v) {
+function _temp$55(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
@@ -108604,7 +108995,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output?.choices?.map(_temp$55);
+		t4 = event.output?.choices?.map(_temp$54);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -108638,7 +109029,7 @@ var ModelEventView = (t0) => {
 	const [showAllMessages, setShowAllMessages] = (0, import_react.useState)(false);
 	let t7;
 	if ($[14] !== event.pending || $[15] !== isCancelled || $[16] !== outputMessages) {
-		t7 = event.pending || isCancelled ? (outputMessages || []).filter(_temp2$38) : outputMessages || [];
+		t7 = event.pending || isCancelled ? (outputMessages || []).filter(_temp2$39) : outputMessages || [];
 		$[14] = event.pending;
 		$[15] = isCancelled;
 		$[16] = outputMessages;
@@ -109176,10 +109567,10 @@ var ToolChoiceView = (t0) => {
 		return t1;
 	}
 };
-function _temp$55(choice) {
+function _temp$54(choice) {
 	return choice.message;
 }
-function _temp2$38(m) {
+function _temp2$39(m) {
 	return !isLivePlaceholderMessage(m);
 }
 var SampleInitEventView_module_default = {
@@ -109192,164 +109583,176 @@ var SampleInitEventView_module_default = {
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SampleInitEventView.tsx
 var SampleInitEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(39);
+	const $ = (0, import_compiler_runtime.c)(43);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
-	const stateObj = event.state;
+	let t1;
+	if ($[0] !== event.state) {
+		t1 = isRecord(event.state) ? event.state : {};
+		$[0] = event.state;
+		$[1] = t1;
+	} else t1 = $[1];
+	const rawMessages = t1.messages;
+	let t2;
+	if ($[2] !== rawMessages) {
+		t2 = Array.isArray(rawMessages) ? rawMessages.filter(isChatMessage) : [];
+		$[2] = rawMessages;
+		$[3] = t2;
+	} else t2 = $[3];
+	const messages = t2;
 	let sections;
-	if ($[0] !== event.sample.files || $[1] !== event.sample.setup || $[2] !== eventNode.id) {
+	if ($[4] !== event.sample.files || $[5] !== event.sample.setup || $[6] !== eventNode.id) {
 		sections = [];
 		if (event.sample.files && Object.keys(event.sample.files).length > 0) {
-			const t1 = `event-${eventNode.id}`;
-			let t2;
-			if ($[4] !== event.sample.files) {
-				t2 = Object.keys(event.sample.files).map(_temp$54);
-				$[4] = event.sample.files;
-				$[5] = t2;
-			} else t2 = $[5];
-			let t3;
-			if ($[6] !== t1 || $[7] !== t2) {
-				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
+			const t3 = `event-${eventNode.id}`;
+			let t4;
+			if ($[8] !== event.sample.files) {
+				t4 = Object.keys(event.sample.files).map(_temp$53);
+				$[8] = event.sample.files;
+				$[9] = t4;
+			} else t4 = $[9];
+			let t5;
+			if ($[10] !== t3 || $[11] !== t4) {
+				t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
 					title: "Files",
-					children: t2
-				}, t1);
-				$[6] = t1;
-				$[7] = t2;
-				$[8] = t3;
-			} else t3 = $[8];
-			sections.push(t3);
+					children: t4
+				}, t3);
+				$[10] = t3;
+				$[11] = t4;
+				$[12] = t5;
+			} else t5 = $[12];
+			sections.push(t5);
 		}
 		if (event.sample.setup) {
-			const t1 = `${eventNode.id}-section-setup`;
-			let t2;
-			if ($[9] !== event.sample.setup) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
+			const t3 = `${eventNode.id}-section-setup`;
+			let t4;
+			if ($[13] !== event.sample.setup) {
+				t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 					className: SampleInitEventView_module_default.code,
 					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", {
 						className: "sourceCode",
 						children: event.sample.setup
 					})
 				});
-				$[9] = event.sample.setup;
-				$[10] = t2;
-			} else t2 = $[10];
-			let t3;
-			if ($[11] !== t1 || $[12] !== t2) {
-				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
+				$[13] = event.sample.setup;
+				$[14] = t4;
+			} else t4 = $[14];
+			let t5;
+			if ($[15] !== t3 || $[16] !== t4) {
+				t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
 					title: "Setup",
-					children: t2
-				}, t1);
-				$[11] = t1;
-				$[12] = t2;
-				$[13] = t3;
-			} else t3 = $[13];
-			sections.push(t3);
+					children: t4
+				}, t3);
+				$[15] = t3;
+				$[16] = t4;
+				$[17] = t5;
+			} else t5 = $[17];
+			sections.push(t5);
 		}
-		$[0] = event.sample.files;
-		$[1] = event.sample.setup;
-		$[2] = eventNode.id;
-		$[3] = sections;
-	} else sections = $[3];
-	let t1;
-	if ($[14] !== event.timestamp) {
-		t1 = event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0;
-		$[14] = event.timestamp;
-		$[15] = t1;
-	} else t1 = $[15];
-	const t2 = stateObj.messages;
+		$[4] = event.sample.files;
+		$[5] = event.sample.setup;
+		$[6] = eventNode.id;
+		$[7] = sections;
+	} else sections = $[7];
 	let t3;
-	if ($[16] !== t2) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
-			id: "sample-init-messages",
-			messages: t2
-		});
-		$[16] = t2;
-		$[17] = t3;
-	} else t3 = $[17];
+	if ($[18] !== event.timestamp) {
+		t3 = event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0;
+		$[18] = event.timestamp;
+		$[19] = t3;
+	} else t3 = $[19];
 	let t4;
-	if ($[18] !== event.sample.choices) {
-		t4 = event.sample.choices ? event.sample.choices.map(_temp2$37) : "";
-		$[18] = event.sample.choices;
-		$[19] = t4;
-	} else t4 = $[19];
+	if ($[20] !== messages) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
+			id: "sample-init-messages",
+			messages
+		});
+		$[20] = messages;
+		$[21] = t4;
+	} else t4 = $[21];
 	let t5;
-	if ($[20] !== sections) {
-		t5 = sections.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[22] !== event.sample.choices) {
+		t5 = event.sample.choices ? event.sample.choices.map(_temp2$38) : "";
+		$[22] = event.sample.choices;
+		$[23] = t5;
+	} else t5 = $[23];
+	let t6;
+	if ($[24] !== sections) {
+		t6 = sections.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SampleInitEventView_module_default.section,
 			children: sections
 		}) : "";
-		$[20] = sections;
-		$[21] = t5;
-	} else t5 = $[21];
-	let t6;
-	if ($[22] !== event.sample.target) {
-		t6 = event.sample.target ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
+		$[24] = sections;
+		$[25] = t6;
+	} else t6 = $[25];
+	let t7;
+	if ($[26] !== event.sample.target) {
+		t7 = event.sample.target ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
 			title: "Target",
 			children: toArray(event.sample.target).map(_temp3$30)
 		}) : void 0;
-		$[22] = event.sample.target;
-		$[23] = t6;
-	} else t6 = $[23];
-	let t7;
-	if ($[24] !== t4 || $[25] !== t5 || $[26] !== t6) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
-			t4,
-			t5,
-			t6
-		] });
-		$[24] = t4;
-		$[25] = t5;
-		$[26] = t6;
+		$[26] = event.sample.target;
 		$[27] = t7;
 	} else t7 = $[27];
 	let t8;
-	if ($[28] !== t3 || $[29] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	if ($[28] !== t5 || $[29] !== t6 || $[30] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
+			t5,
+			t6,
+			t7
+		] });
+		$[28] = t5;
+		$[29] = t6;
+		$[30] = t7;
+		$[31] = t8;
+	} else t8 = $[31];
+	let t9;
+	if ($[32] !== t4 || $[33] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-name": "Sample",
 			className: SampleInitEventView_module_default.sample,
-			children: [t3, t7]
+			children: [t4, t8]
 		});
-		$[28] = t3;
-		$[29] = t7;
-		$[30] = t8;
-	} else t8 = $[30];
-	let t9;
-	if ($[31] !== event.sample.metadata) {
-		t9 = event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+		$[32] = t4;
+		$[33] = t8;
+		$[34] = t9;
+	} else t9 = $[34];
+	let t10;
+	if ($[35] !== event.sample.metadata) {
+		t10 = event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
 			"data-name": "Metadata",
 			className: SampleInitEventView_module_default.metadata,
 			entries: event.sample.metadata,
 			options: { copyButton: true }
 		}) : "";
-		$[31] = event.sample.metadata;
-		$[32] = t9;
-	} else t9 = $[32];
-	let t10;
-	if ($[33] !== className || $[34] !== eventNode.id || $[35] !== t1 || $[36] !== t8 || $[37] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
+		$[35] = event.sample.metadata;
+		$[36] = t10;
+	} else t10 = $[36];
+	let t11;
+	if ($[37] !== className || $[38] !== eventNode.id || $[39] !== t10 || $[40] !== t3 || $[41] !== t9) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
 			eventNodeId: eventNode.id,
 			className,
 			title: "Sample",
 			icon: TranscriptIcons.sample,
-			subTitle: t1,
-			children: [t8, t9]
+			subTitle: t3,
+			children: [t9, t10]
 		});
-		$[33] = className;
-		$[34] = eventNode.id;
-		$[35] = t1;
-		$[36] = t8;
-		$[37] = t9;
-		$[38] = t10;
-	} else t10 = $[38];
-	return t10;
+		$[37] = className;
+		$[38] = eventNode.id;
+		$[39] = t10;
+		$[40] = t3;
+		$[41] = t9;
+		$[42] = t11;
+	} else t11 = $[42];
+	return t11;
 };
-function _temp$54(file) {
+function _temp$53(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
 	}, `sample-init-file-${file}`);
 }
-function _temp2$37(choice, index) {
+function _temp2$38(choice, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		String.fromCharCode(65 + index),
 		") ",
@@ -109367,8 +109770,8 @@ function _temp3$30(target) {
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$53;
-	const resolve_icon = _temp2$36;
+	const resolve_title = _temp$52;
+	const resolve_icon = _temp2$37;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
 	if ($[0] !== baseTitle || $[1] !== eventNode.event.timestamp) {
@@ -109418,7 +109821,7 @@ var SampleLimitEventView = (t0) => {
 	} else t6 = $[13];
 	return t6;
 };
-function _temp$53(type) {
+function _temp$52(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -109430,7 +109833,7 @@ function _temp$53(type) {
 		case "cost": return "Cost Limit Exceeded";
 	}
 }
-function _temp2$36(type_0) {
+function _temp2$37(type_0) {
 	switch (type_0) {
 		case "custom": return TranscriptIcons.limits.custom;
 		case "time": return TranscriptIcons.limits.time;
@@ -110003,7 +110406,7 @@ var ScoreEventView_module_default = {
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ScoreEventView.tsx
 var ScoreEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(40);
+	const $ = (0, import_compiler_runtime.c)(43);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
 	let t1;
@@ -110103,33 +110506,49 @@ var ScoreEventView = (t0) => {
 		$[19] = t17;
 	} else t17 = $[19];
 	let t18;
+	if ($[20] !== event.score.reason) {
+		t18 = event.score.reason ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ScoreEventView_module_default.separator) }),
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: "text-style-label",
+				children: "Reason"
+			}),
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx(ScoreEventView_module_default.wrappingContent),
+				children: event.score.reason
+			})
+		] }) : null;
+		$[20] = event.score.reason;
+		$[21] = t18;
+	} else t18 = $[21];
 	let t19;
-	if ($[20] === Symbol.for("react.memo_cache_sentinel")) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ScoreEventView_module_default.separator) });
-		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	let t20;
+	if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ScoreEventView_module_default.separator) });
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: "text-style-label",
 			children: "Score"
 		});
-		$[20] = t18;
-		$[21] = t19;
-	} else {
-		t18 = $[20];
-		t19 = $[21];
-	}
-	let t20;
-	if ($[22] !== event.score.value) {
-		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreValue, { score: event.score.value });
-		$[22] = event.score.value;
+		$[22] = t19;
 		$[23] = t20;
-	} else t20 = $[23];
+	} else {
+		t19 = $[22];
+		t20 = $[23];
+	}
 	let t21;
-	if ($[24] === Symbol.for("react.memo_cache_sentinel")) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ScoreEventView_module_default.separator) });
-		$[24] = t21;
-	} else t21 = $[24];
+	if ($[24] !== event.score.value) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreValue, { score: event.score.value });
+		$[24] = event.score.value;
+		$[25] = t21;
+	} else t21 = $[25];
 	let t22;
-	if ($[25] !== t12 || $[26] !== t17 || $[27] !== t20 || $[28] !== t7) {
-		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ScoreEventView_module_default.separator) });
+		$[26] = t22;
+	} else t22 = $[26];
+	let t23;
+	if ($[27] !== t12 || $[28] !== t17 || $[29] !== t18 || $[30] !== t21 || $[31] !== t7) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-name": "Explanation",
 			className: t6,
 			children: [
@@ -110143,18 +110562,20 @@ var ScoreEventView = (t0) => {
 				t18,
 				t19,
 				t20,
-				t21
+				t21,
+				t22
 			]
 		});
-		$[25] = t12;
-		$[26] = t17;
-		$[27] = t20;
-		$[28] = t7;
-		$[29] = t22;
-	} else t22 = $[29];
-	let t23;
-	if ($[30] !== event.score.metadata || $[31] !== eventNode.id) {
-		t23 = event.score.metadata ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[27] = t12;
+		$[28] = t17;
+		$[29] = t18;
+		$[30] = t21;
+		$[31] = t7;
+		$[32] = t23;
+	} else t23 = $[32];
+	let t24;
+	if ($[33] !== event.score.metadata || $[34] !== eventNode.id) {
+		t24 = event.score.metadata ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Metadata",
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
 				id: `${eventNode.id}-score-metadata`,
@@ -110164,54 +110585,56 @@ var ScoreEventView = (t0) => {
 				copyButton: true
 			})
 		}) : void 0;
-		$[30] = event.score.metadata;
-		$[31] = eventNode.id;
-		$[32] = t23;
-	} else t23 = $[32];
-	let t24;
-	if ($[33] !== eventNode.id || $[34] !== t22 || $[35] !== t23 || $[36] !== t3 || $[37] !== t4 || $[38] !== t5) {
-		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
+		$[33] = event.score.metadata;
+		$[34] = eventNode.id;
+		$[35] = t24;
+	} else t24 = $[35];
+	let t25;
+	if ($[36] !== eventNode.id || $[37] !== t23 || $[38] !== t24 || $[39] !== t3 || $[40] !== t4 || $[41] !== t5) {
+		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
 			eventNodeId: t2,
 			title: t3,
 			className: t4,
 			subTitle: t5,
 			icon: TranscriptIcons.scorer,
-			children: [t22, t23]
+			children: [t23, t24]
 		});
-		$[33] = eventNode.id;
-		$[34] = t22;
-		$[35] = t23;
-		$[36] = t3;
-		$[37] = t4;
-		$[38] = t5;
-		$[39] = t24;
-	} else t24 = $[39];
-	return t24;
+		$[36] = eventNode.id;
+		$[37] = t23;
+		$[38] = t24;
+		$[39] = t3;
+		$[40] = t4;
+		$[41] = t5;
+		$[42] = t25;
+	} else t25 = $[42];
+	return t25;
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SpanEventView.tsx
-var SpanEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(19);
+/**
+* Grouping panel for a span_begin event or its legacy step equivalent,
+* summarizing the child events it contains.
+*/ var SpanEventView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(18);
 	const { eventNode, childNodes, className, eventCallbacks } = t0;
 	const event = eventNode.event;
 	let t1;
 	if ($[0] !== event) {
-		t1 = spanDescriptor(event);
+		t1 = displayName(event) || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
 		$[0] = event;
 		$[1] = t1;
 	} else t1 = $[1];
-	const descriptor = t1;
-	const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
+	const title = t1;
 	let t2;
 	if ($[2] !== childNodes) {
-		t2 = summarize$1(childNodes);
+		t2 = summarize(childNodes);
 		$[2] = childNodes;
 		$[3] = t2;
 	} else t2 = $[3];
 	const text = t2;
 	let t3;
 	if ($[4] !== childNodes) {
-		t3 = childNodes.map(_temp$52);
+		t3 = childNodes.map(_temp$51);
 		$[4] = childNodes;
 		$[5] = t3;
 	} else t3 = $[5];
@@ -110230,7 +110653,7 @@ var SpanEventView = (t0) => {
 		$[9] = t6;
 	} else t6 = $[9];
 	let t7;
-	if ($[10] !== childIds || $[11] !== descriptor.icon || $[12] !== eventCallbacks || $[13] !== eventNode.id || $[14] !== t5 || $[15] !== t6 || $[16] !== text || $[17] !== title) {
+	if ($[10] !== childIds || $[11] !== eventCallbacks || $[12] !== eventNode.id || $[13] !== t5 || $[14] !== t6 || $[15] !== text || $[16] !== title) {
 		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
 			eventNodeId: t4,
 			muted: true,
@@ -110239,22 +110662,28 @@ var SpanEventView = (t0) => {
 			title,
 			subTitle: t6,
 			text,
-			icon: descriptor.icon,
 			eventCallbacks
 		});
 		$[10] = childIds;
-		$[11] = descriptor.icon;
-		$[12] = eventCallbacks;
-		$[13] = eventNode.id;
-		$[14] = t5;
-		$[15] = t6;
-		$[16] = text;
-		$[17] = title;
-		$[18] = t7;
-	} else t7 = $[18];
+		$[11] = eventCallbacks;
+		$[12] = eventNode.id;
+		$[13] = t5;
+		$[14] = t6;
+		$[15] = text;
+		$[16] = title;
+		$[17] = t7;
+	} else t7 = $[17];
 	return t7;
 };
-var summarize$1 = (children) => {
+/**
+* Friendly title for well-known spans/steps; undefined falls back to the
+* event's own type/name.
+*/ var displayName = (event) => {
+	if (event.type === "solver" || event.type === "scorer") return;
+	if (event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "Sandbox Events";
+	if (event.name === "init") return "Init";
+};
+var summarize = (children) => {
 	if (children.length === 0) return "(no events)";
 	const formatEvent = (event, count) => {
 		if (count === 1) return `${count} ${event} event`;
@@ -110271,29 +110700,7 @@ var summarize$1 = (children) => {
 	if (children.length === 1) return "1 event";
 	else return `${children.length} events`;
 };
-var spanDescriptor = (event) => {
-	const rootStepDescriptor = { endSpace: true };
-	if (event.type === "solver") return { ...rootStepDescriptor };
-	else if (event.type === "scorer") return { ...rootStepDescriptor };
-	else if (event.event === "span_begin") {
-		if (event.span_id === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return {
-			...rootStepDescriptor,
-			name: "Sandbox Events"
-		};
-		else if (event.name === "init") return {
-			...rootStepDescriptor,
-			name: "Init"
-		};
-		else return { ...rootStepDescriptor };
-	} else switch (event.name) {
-		case "sample_init": return {
-			...rootStepDescriptor,
-			name: "Sample Init"
-		};
-		default: return { endSpace: false };
-	}
-};
-function _temp$52(child) {
+function _temp$51(child) {
 	return child.id;
 }
 //#endregion
@@ -111606,7 +112013,7 @@ function format(delta, left) {
 	const { before, after, className } = t0;
 	let t1;
 	if ($[0] !== after || $[1] !== before) {
-		t1 = sanitizeRenderedHtml(unescapeNewlines(format(diff$1(sanitizeKeys(before), sanitizeKeys(after))) || "Unable to render differences"));
+		t1 = sanitizeRenderedHtml((format(diff$1(sanitizeKeys(before), sanitizeKeys(after))) || "Unable to render differences").replace(/\\n/g, "\n"));
 		$[0] = after;
 		$[1] = before;
 		$[2] = t1;
@@ -111635,16 +112042,14 @@ function format(delta, left) {
 	} else t4 = $[9];
 	return t4;
 };
-function unescapeNewlines(obj) {
-	if (typeof obj === "string") return obj.replace(/\\n/g, "\n");
-	if (obj === null || typeof obj !== "object") return obj;
-	if (Array.isArray(obj)) return obj.map((item) => unescapeNewlines(item));
-	return Object.fromEntries(Object.entries(obj).map(([key, value]) => [key, unescapeNewlines(value)]));
-}
-function sanitizeKeys(obj) {
-	if (typeof obj !== "object" || obj === null) return obj;
-	if (Array.isArray(obj)) return obj.map((item) => sanitizeKeys(item));
-	return Object.fromEntries(Object.entries(obj).map(([key, value]) => [key.replace(/</g, "&lt;").replace(/>/g, "&gt;"), sanitizeKeys(value)]));
+/**
+* Escapes angle brackets in object keys so jsondiffpatch's HTML formatter
+* renders them as text. Typed unknown -> unknown: it rebuilds the value rather
+* than preserving its type, which is what the old `<T>(obj: T): T` claimed.
+*/ function sanitizeKeys(value) {
+	if (Array.isArray(value)) return value.map((item) => sanitizeKeys(item));
+	if (!isRecord(value)) return value;
+	return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key.replace(/</g, "&lt;").replace(/>/g, "&gt;"), sanitizeKeys(entry)]));
 }
 var StateEventView_module_default = {
 	diff: "_diff_eobja_1",
@@ -111687,7 +112092,7 @@ var StateEventView_module_default = {
 	const isStore = eventNode.event.event === "store";
 	let t4;
 	if ($[5] !== after || $[6] !== event.changes || $[7] !== eventNode.id || $[8] !== isStore) {
-		const afterClone = structuredClone(after) || {};
+		const afterClone = structuredClone(after);
 		t4 = generatePreview(event.changes, afterClone, isStore, eventNode.id);
 		$[5] = after;
 		$[6] = event.changes;
@@ -111736,28 +112141,26 @@ var StateEventView_module_default = {
 		$[17] = changePreview;
 		$[18] = t10;
 	} else t10 = $[18];
-	const t11 = before;
-	const t12 = after;
-	let t13;
+	let t11;
 	if ($[19] === Symbol.for("react.memo_cache_sentinel")) {
-		t13 = clsx(StateEventView_module_default.diff);
-		$[19] = t13;
-	} else t13 = $[19];
-	let t14;
-	if ($[20] !== t11 || $[21] !== t12) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StateDiffView, {
-			before: t11,
-			after: t12,
+		t11 = clsx(StateEventView_module_default.diff);
+		$[19] = t11;
+	} else t11 = $[19];
+	let t12;
+	if ($[20] !== after || $[21] !== before) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StateDiffView, {
+			before,
+			after,
 			"data-name": "Diff",
-			className: t13
+			className: t11
 		});
-		$[20] = t11;
-		$[21] = t12;
-		$[22] = t14;
-	} else t14 = $[22];
-	let t15;
-	if ($[23] !== className || $[24] !== eventCallbacks || $[25] !== eventNode.id || $[26] !== t10 || $[27] !== t14 || $[28] !== t8 || $[29] !== t9 || $[30] !== title) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
+		$[20] = after;
+		$[21] = before;
+		$[22] = t12;
+	} else t12 = $[22];
+	let t13;
+	if ($[23] !== className || $[24] !== eventCallbacks || $[25] !== eventNode.id || $[26] !== t10 || $[27] !== t12 || $[28] !== t8 || $[29] !== t9 || $[30] !== title) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
 			eventNodeId: t7,
 			title,
 			className,
@@ -111765,19 +112168,19 @@ var StateEventView_module_default = {
 			text: t9,
 			collapsibleContent: true,
 			eventCallbacks,
-			children: [t10, t14]
+			children: [t10, t12]
 		});
 		$[23] = className;
 		$[24] = eventCallbacks;
 		$[25] = eventNode.id;
 		$[26] = t10;
-		$[27] = t14;
+		$[27] = t12;
 		$[28] = t8;
 		$[29] = t9;
 		$[30] = title;
-		$[31] = t15;
-	} else t15 = $[31];
-	return t15;
+		$[31] = t13;
+	} else t13 = $[31];
+	return t13;
 };
 /**
 * Renders the value of a change based on its type.
@@ -111828,20 +112231,31 @@ var StateEventView_module_default = {
 		case "test": changeMap.test.push(change.path);
 	}
 	const changeList = [];
-	if (Object.keys(changeMap).reduce((prev, current) => {
-		return prev + changeMap[current].length;
-	}, 0) > 2) Object.keys(changeMap).forEach((key) => {
-		const opChanges = changeMap[key];
+	if (Object.values(changeMap).reduce((prev, opChanges) => prev + opChanges.length, 0) > 2) Object.entries(changeMap).forEach(([key, opChanges]) => {
 		if (opChanges.length > 0) changeList.push(`${key} ${opChanges.length}`);
 	});
-	else Object.keys(changeMap).forEach((key) => {
-		const opChanges = changeMap[key];
+	else Object.entries(changeMap).forEach(([key, opChanges]) => {
 		if (opChanges.length > 0) changeList.push(`${key} ${opChanges.join(", ")}`);
 	});
 	return changeList.join(", ");
 };
+var isPathContainer = (value) => typeof value === "object" && value !== null;
+var getChild = (container, key) => Array.isArray(container) ? container[Number(key)] : container[key];
+var setChild = (container, key, value) => {
+	if (Array.isArray(container)) container[Number(key)] = value;
+	else container[key] = value;
+};
+var asArray$1 = (value) => Array.isArray(value) ? value : void 0;
+var arrayToObject = (arr) => {
+	const obj = {};
+	arr.forEach((item, index) => {
+		obj[index] = item;
+	});
+	return obj;
+};
 /**
-* Renders a view displaying a list of state changes.
+* Synthesizes before/after objects from a list of JSON-patch changes so the
+* pair can be diffed. Exported for tests.
 */ var synthesizeComparable = (changes) => {
 	const before = {};
 	const after = {};
@@ -111868,8 +112282,32 @@ var StateEventView_module_default = {
 			setPath(before, change.path, change.replaced);
 			setPath(after, change.path, change.value);
 	}
+	reconcileContainerKinds(before, after);
 	return [before, after];
 };
+/**
+* Aligns container kinds between the two synthesized sides. Ops that write
+* only one side (remove, move, copy) skip initializeArrays, so a mixed-key
+* re-key can fire on one side only — and jsondiffpatch renders array-vs-object
+* at the same path as a whole-value swap instead of key-level edits.
+*/ function reconcileContainerKinds(a, b) {
+	const keys = Array.isArray(a) ? a.map((_, index) => String(index)) : Object.keys(a);
+	for (const key of keys) {
+		const leftRaw = getChild(a, key);
+		const rightRaw = getChild(b, key);
+		if (!isPathContainer(leftRaw) || !isPathContainer(rightRaw)) continue;
+		let left = leftRaw;
+		let right = rightRaw;
+		if (Array.isArray(left) && !Array.isArray(right)) {
+			left = arrayToObject(left);
+			setChild(a, key, left);
+		} else if (Array.isArray(right) && !Array.isArray(left)) {
+			right = arrayToObject(right);
+			setChild(b, key, right);
+		}
+		reconcileContainerKinds(left, right);
+	}
+}
 /**
 * Sets a value at a path in an object
 */ function setPath(target, path, value) {
@@ -111877,14 +112315,21 @@ var StateEventView_module_default = {
 	let current = target;
 	for (let i = 0; i < keys.length - 1; i++) {
 		const key = keys[i];
-		if (key && !(key in current)) {
-			const nextKey = keys[i + 1];
-			if (nextKey) current[key] = isArrayIndex(nextKey) ? [] : {};
-			current = current[key];
+		if (!key) return;
+		const nextKey = keys[i + 1];
+		const existing = getChild(current, key);
+		let next;
+		if (isPathContainer(existing)) {
+			next = Array.isArray(existing) && nextKey && !isArrayIndex(nextKey) ? arrayToObject(existing) : existing;
+			if (next !== existing) setChild(current, key, next);
+		} else {
+			next = nextKey && isArrayIndex(nextKey) ? [] : {};
+			setChild(current, key, next);
 		}
+		current = next;
 	}
 	const lastKey = keys[keys.length - 1];
-	if (lastKey) current[lastKey] = value;
+	if (lastKey) setChild(current, lastKey, value);
 }
 /**
 * Places structure in an object (without placing values)
@@ -111895,15 +112340,17 @@ var StateEventView_module_default = {
 		const key = keys[i];
 		const nextKey = keys[i + 1];
 		if (!key || !nextKey) continue;
-		if (isArrayIndex(nextKey)) current[key] = initializeArray(current[key], nextKey);
-		else current[key] = initializeObject(current[key]);
-		current = current[key];
+		const existing = getChild(current, key);
+		if (isArrayIndex(nextKey)) {
+			if (Array.isArray(existing) || !isPathContainer(existing)) setChild(current, key, initializeArray(asArray$1(existing), nextKey));
+		} else if (Array.isArray(existing)) setChild(current, key, arrayToObject(existing));
+		else setChild(current, key, isPathContainer(existing) ? existing : {});
+		const next = getChild(current, key);
+		if (!isPathContainer(next)) return;
+		current = next;
 	}
 	const lastKey = keys[keys.length - 1];
-	if (lastKey && isArrayIndex(lastKey)) {
-		const lastValue = current[lastKey];
-		initializeArray(lastValue, lastKey);
-	}
+	if (lastKey && isArrayIndex(lastKey)) initializeArray(asArray$1(getChild(current, lastKey)), lastKey);
 }
 /**
 * Parses a path into an array of keys
@@ -111922,118 +112369,6 @@ var StateEventView_module_default = {
 	const nextKeyIndex = parseInt(nextKey, 10);
 	while (current.length < nextKeyIndex) current.push("");
 	return current;
-}
-/**
-* Initializes an object at a given key if it doesn't exist
-*/ function initializeObject(current) {
-	return current ?? {};
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/StepEventView.tsx
-var StepEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(19);
-	const { eventNode, childNodes, className, eventCallbacks } = t0;
-	const event = eventNode.event;
-	let t1;
-	if ($[0] !== event) {
-		t1 = stepDescriptor(event);
-		$[0] = event;
-		$[1] = t1;
-	} else t1 = $[1];
-	const descriptor = t1;
-	const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
-	let t2;
-	if ($[2] !== childNodes) {
-		t2 = summarize(childNodes);
-		$[2] = childNodes;
-		$[3] = t2;
-	} else t2 = $[3];
-	const text = t2;
-	const t3 = eventNode.id;
-	let t4;
-	if ($[4] !== childNodes) {
-		t4 = childNodes.map(_temp$51);
-		$[4] = childNodes;
-		$[5] = t4;
-	} else t4 = $[5];
-	let t5;
-	if ($[6] !== className) {
-		t5 = clsx("transcript-step", className);
-		$[6] = className;
-		$[7] = t5;
-	} else t5 = $[7];
-	let t6;
-	if ($[8] !== event.timestamp) {
-		t6 = event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0;
-		$[8] = event.timestamp;
-		$[9] = t6;
-	} else t6 = $[9];
-	let t7;
-	if ($[10] !== descriptor.icon || $[11] !== eventCallbacks || $[12] !== eventNode.id || $[13] !== t4 || $[14] !== t5 || $[15] !== t6 || $[16] !== text || $[17] !== title) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
-			eventNodeId: t3,
-			muted: true,
-			childIds: t4,
-			className: t5,
-			title,
-			subTitle: t6,
-			icon: descriptor.icon,
-			text,
-			eventCallbacks
-		});
-		$[10] = descriptor.icon;
-		$[11] = eventCallbacks;
-		$[12] = eventNode.id;
-		$[13] = t4;
-		$[14] = t5;
-		$[15] = t6;
-		$[16] = text;
-		$[17] = title;
-		$[18] = t7;
-	} else t7 = $[18];
-	return t7;
-};
-var summarize = (children) => {
-	if (children.length === 0) return "(no events)";
-	const formatEvent = (event, count) => {
-		if (count === 1) return `${count} ${event} event`;
-		else return `${count} ${event} events`;
-	};
-	const typeCount = {};
-	children.forEach((child) => {
-		const currentCount = typeCount[child.event.event] || 0;
-		typeCount[child.event.event] = currentCount + 1;
-	});
-	if (Object.keys(typeCount).length < 3) return Object.keys(typeCount).map((key) => {
-		return formatEvent(key, typeCount[key] || 0);
-	}).join(", ");
-	if (children.length === 1) return "1 event";
-	else return `${children.length} events`;
-};
-var stepDescriptor = (event) => {
-	const rootStepDescriptor = { endSpace: true };
-	if (event.type === "solver") return { ...rootStepDescriptor };
-	else if (event.type === "scorer") return { ...rootStepDescriptor };
-	else if (event.event === "step") {
-		if (event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return {
-			...rootStepDescriptor,
-			name: "Sandbox Events"
-		};
-		else if (event.name === "init") return {
-			...rootStepDescriptor,
-			name: "Init"
-		};
-		else return { ...rootStepDescriptor };
-	} else switch (event.name) {
-		case "sample_init": return {
-			...rootStepDescriptor,
-			name: "Sample Init"
-		};
-		default: return { endSpace: false };
-	}
-};
-function _temp$51(child) {
-	return child.id;
 }
 var SubtaskEventView_module_default = {
 	summary: "_summary_ac4z2_1",
@@ -112235,30 +112570,29 @@ var Rendered = (t0) => {
 	if (Array.isArray(values)) {
 		let t1;
 		if ($[0] !== values) {
-			t1 = values.map(_temp2$35);
+			t1 = values.map(_temp2$36);
 			$[0] = values;
 			$[1] = t1;
 		} else t1 = $[1];
 		return t1;
-	} else if (values && typeof values === "object") {
-		if (Object.keys(values).length === 0) {
-			let t1;
-			if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-				t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(None, {});
-				$[2] = t1;
-			} else t1 = $[2];
-			return t1;
-		} else {
-			const t1 = values;
-			let t2;
-			if ($[3] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: t1 });
-				$[3] = t1;
-				$[4] = t2;
-			} else t2 = $[4];
-			return t2;
-		}
-	} else return String(values);
+	}
+	if (isRecord(values)) {
+		let t1;
+		if ($[2] !== values) {
+			t1 = Object.keys(values).length === 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(None, {}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: values });
+			$[2] = values;
+			$[3] = t1;
+		} else t1 = $[3];
+		return t1;
+	}
+	if (typeof values === "string") return values;
+	if (typeof values === "number" || typeof values === "boolean") return String(values);
+	let t1;
+	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(None, {});
+		$[4] = t1;
+	} else t1 = $[4];
+	return t1;
 };
 var None = () => {
 	const $ = (0, import_compiler_runtime.c)(1);
@@ -112275,8 +112609,1801 @@ var None = () => {
 function _temp$50(child) {
 	return child.id;
 }
-function _temp2$35(val, index) {
+function _temp2$36(val, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Rendered, { values: val }, index);
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/core.ts
+/**
+* Transcript nodes: hierarchical structure for visualization and scanning.
+*
+* Transforms flat event streams into a semantic tree with agent-centric interpretation.
+*
+* TypeScript port of Python's nodes.py, implementing our own span tree building
+* since we don't have access to inspect_ai's event_tree().
+*/ function isSpanNode(item) {
+	return typeof item === "object" && item !== null && "children" in item && Array.isArray(item.children);
+}
+/**
+* Wraps a single Event with computed timing and token methods.
+*/ var TimelineEvent = class {
+	type = "event";
+	event;
+	constructor(event) {
+		this.event = event;
+	}
+	startTime() {
+		return new Date(this.event.timestamp);
+	}
+	endTime() {
+		const completed = "completed" in this.event && typeof this.event.completed === "string" ? this.event.completed : null;
+		return completed ? new Date(completed) : this.startTime();
+	}
+	totalTokens() {
+		return getEventTokens(this.event);
+	}
+	idleTime() {
+		return 0;
+	}
+	/**
+	* Returns true if this event is the fork point for the given `branchedFrom`.
+	*
+	* `branchedFrom` is an anchor ID; producers emit an `AnchorEvent` at each
+	* fork-able point (`timeline_branch()` does this automatically).
+	*/ matchesForkPoint(id) {
+		return this.event.event === "anchor" && this.event.anchor_id === id;
+	}
+};
+var TimelineSpan = class {
+	type = "span";
+	id;
+	name;
+	spanType;
+	content;
+	branches;
+	branchedFrom;
+	description;
+	utility;
+	toolInvoked;
+	agentResult;
+	outline;
+	constructor(props) {
+		this.id = props.id;
+		this.name = props.name;
+		this.spanType = props.spanType;
+		this.content = props.content ?? [];
+		this.branches = props.branches ?? [];
+		this.branchedFrom = props.branchedFrom ?? null;
+		this.description = props.description;
+		this.utility = props.utility ?? false;
+		this.toolInvoked = props.toolInvoked ?? false;
+		this.agentResult = props.agentResult;
+		this.outline = props.outline;
+	}
+	startTime(includeBranches = true) {
+		const items = includeBranches ? [...this.content, ...this.branches] : this.content;
+		return items.length > 0 ? minStartTime(items) : /* @__PURE__ */ new Date(0);
+	}
+	endTime(includeBranches = true) {
+		const items = includeBranches ? [...this.content, ...this.branches] : this.content;
+		return items.length > 0 ? maxEndTime(items) : /* @__PURE__ */ new Date(0);
+	}
+	totalTokens(includeBranches = true) {
+		return sumTokens(includeBranches ? [...this.content, ...this.branches] : this.content);
+	}
+	idleTime(includeBranches = true) {
+		return computeIdleTime(includeBranches ? [...this.content, ...this.branches] : this.content, this.startTime(includeBranches), this.endTime(includeBranches));
+	}
+};
+/**
+* True if `span` has no visible content and no non-empty nested branches.
+* `anchor`, `branch`, and `step` events are structural and don't count.
+*/ function isEmptyBranch(span) {
+	return !span.content.some((item) => {
+		if (item.type === "span") return true;
+		const evt = item.event.event;
+		return evt !== "anchor" && evt !== "branch" && evt !== "step";
+	}) && span.branches.length === 0;
+}
+/**
+* Return a copy of `timeline` with empty branches pruned recursively.
+* Walks the span tree, pruning empty branches bottom-up so that branches
+* which only carry other (empty) branches are themselves dropped.
+*/ function filterEmptyBranches(timeline) {
+	return {
+		name: timeline.name,
+		description: timeline.description,
+		root: pruneEmptyBranches(timeline.root)
+	};
+}
+function pruneEmptyBranches(span) {
+	const content = span.content.map((item) => item.type === "span" ? pruneEmptyBranches(item) : item);
+	const branches = span.branches.map(pruneEmptyBranches).filter((b) => !isEmptyBranch(b));
+	return new TimelineSpan({
+		id: span.id,
+		name: span.name,
+		spanType: span.spanType,
+		content,
+		branches,
+		branchedFrom: span.branchedFrom,
+		description: span.description,
+		utility: span.utility,
+		toolInvoked: span.toolInvoked,
+		agentResult: span.agentResult,
+		outline: span.outline
+	});
+}
+/**
+* True if `span` (or any descendant span in its content tree) has branches.
+*/ function spanHasBranches(span) {
+	if (span.branches.length > 0) return true;
+	for (const item of span.content) if (item.type === "span" && spanHasBranches(item)) return true;
+	return false;
+}
+/**
+* Count utility spans in `span`'s content tree.
+*
+* Used to surface how many utility agents are elided from display when the
+* "Utility agents" option is off, so they never disappear without a trace.
+* Branches are deliberately excluded: the indicator's contract is "what the
+* utility toggle reveals", and branch content stays hidden behind the
+* separate branches option regardless of the utility setting.
+*/ function countUtilitySpans(span) {
+	let count = 0;
+	for (const item of span.content) if (item.type === "span") {
+		if (item.utility) count++;
+		count += countUtilitySpans(item);
+	}
+	return count;
+}
+/**
+* Creates a display-ready TimelineSpan from a branch span.
+*
+* If the branch has exactly one child span, returns that span directly.
+* Otherwise creates a synthetic container. The returned span's name is
+* clean (no arrow prefix) — callers that need a display prefix (e.g. the
+* swimlane row label) should add it themselves.
+*/ function createBranchSpan(branch, label) {
+	const name = deriveBranchLabel(branch, label);
+	return new TimelineSpan({
+		id: branch.id,
+		name,
+		spanType: "branch",
+		content: branch.content,
+		branches: branch.branches,
+		branchedFrom: branch.branchedFrom,
+		description: branch.description,
+		utility: branch.utility,
+		toolInvoked: branch.toolInvoked,
+		agentResult: branch.agentResult,
+		outline: branch.outline
+	});
+}
+var kGenericBranchNames = /* @__PURE__ */ new Set([
+	"",
+	"branch",
+	"trajectory"
+]);
+function deriveBranchLabel(branch, label) {
+	if (!kGenericBranchNames.has(branch.name)) return branch.name;
+	for (const item of branch.content) if (item.type === "span") return item.name;
+	return `Branch ${label}`;
+}
+/**
+* Build an event lookup map from a flat event array, keyed by UUID.
+*/ function buildEventLookup(events) {
+	const map = /* @__PURE__ */ new Map();
+	for (const event of events) {
+		const uuid = event.uuid;
+		if (uuid) map.set(uuid, event);
+	}
+	return map;
+}
+/**
+* Convert a server-provided Timeline (snake_case) to the client-side Timeline
+* (camelCase with computed Date/token/idle properties).
+*
+* Server timelines store event references as UUID strings. The `events` array
+* is used to resolve these references to full Event objects.
+*/ function convertServerTimeline(server, events) {
+	const lookup = buildEventLookup(events);
+	const root = convertServerSpan(server.root, lookup);
+	return {
+		name: server.name,
+		description: server.description,
+		root
+	};
+}
+function convertServerContentItem(item, lookup) {
+	if (item.type === "event") return convertServerEvent(item, lookup);
+	return convertServerSpan(item, lookup);
+}
+function convertServerEvent(server, lookup) {
+	const eventRef = server.event;
+	const event = lookup.get(eventRef);
+	if (!event) return null;
+	return new TimelineEvent(event);
+}
+function convertServerSpan(server, lookup) {
+	const content = (server.content ?? []).map((item) => convertServerContentItem(item, lookup)).filter((item) => item !== null);
+	const branches = (server.branches ?? []).map((b) => convertServerSpan(b, lookup)).filter((b) => b.content.length > 0 || b.branches.length > 0);
+	return new TimelineSpan({
+		id: server.id,
+		name: server.name,
+		spanType: server.span_type ?? null,
+		branchedFrom: server.branched_from ?? null,
+		content,
+		branches,
+		description: server.description ?? void 0,
+		utility: server.utility,
+		toolInvoked: server.tool_invoked,
+		agentResult: server.agent_result ?? void 0,
+		outline: server.outline ?? void 0
+	});
+}
+/**
+* Reconstruct `target`'s full event stream by concatenating ancestor prefixes.
+*
+* For each ancestor, take events up to the `AnchorEvent` matching the next
+* child's `branchedFrom`, strip the `:{span_id}` suffix from span IDs, and
+* concatenate. The result is what a standalone unbranched run of `target`'s
+* lineage would have produced.
+*/ function splice(root, target) {
+	const chain = ancestorChain(root, target);
+	const out = [];
+	for (let i = 0; i < chain.length; i++) {
+		const node = chain[i];
+		let events = node.content.filter((it) => it.type === "event").map((it) => it.event);
+		if (i + 1 < chain.length) {
+			const anchor = chain[i + 1].branchedFrom;
+			if (!anchor) {
+				out.length = 0;
+				continue;
+			}
+			const cut = events.findIndex((e) => e.event === "anchor" && e.anchor_id === anchor);
+			if (cut < 0) throw new Error(`splice: anchor ${anchor} not found in ${node.name} (${node.id})`);
+			events = events.slice(0, cut + 1);
+		}
+		const suffix = `:${node.id}`;
+		for (const e of events) out.push(stripSuffix(e, suffix, node.id));
+	}
+	return out;
+}
+/** Splice `target` and rebuild it as a standalone (unbranched) Timeline. */ function spliceToTimeline(root, target) {
+	return buildTimeline(splice(root, target));
+}
+function ancestorChain(root, target) {
+	const path = [];
+	function walk(node) {
+		path.push(node);
+		if (node === target || node.id === target.id) return true;
+		for (const child of node.branches) if (walk(child)) return true;
+		path.pop();
+		return false;
+	}
+	if (!walk(root)) throw new Error(`TimelineSpan ${target.id} not reachable from root`);
+	return path;
+}
+function stripSuffix(e, suffix, trajId) {
+	const update = {};
+	if (e.span_id?.endsWith(suffix)) update.span_id = e.span_id.slice(0, -suffix.length);
+	else if (e.span_id === trajId) update.span_id = "";
+	if (e.event === "span_begin" || e.event === "span_end") {
+		if (e.id.endsWith(suffix)) update.id = e.id.slice(0, -suffix.length);
+	}
+	if (e.event === "span_begin" && e.parent_id != null) {
+		if (e.parent_id.endsWith(suffix)) update.parent_id = e.parent_id.slice(0, -suffix.length);
+		else if (e.parent_id === trajId) update.parent_id = "";
+	}
+	if (Object.keys(update).length === 0) return e;
+	return {
+		...e,
+		...update
+	};
+}
+/**
+* Get tokens from an event (ModelEvent only).
+*/ function getEventTokens(event) {
+	if (event.event === "model") {
+		const usage = event.output.usage;
+		if (usage) {
+			const inputTokens = usage.input_tokens ?? 0;
+			const cacheRead = usage.input_tokens_cache_read ?? 0;
+			const cacheWrite = usage.input_tokens_cache_write ?? 0;
+			const outputTokens = usage.output_tokens ?? 0;
+			return inputTokens + cacheRead + cacheWrite + outputTokens;
+		}
+	}
+	return 0;
+}
+/**
+* Return the earliest start time among nodes.
+* Requires at least one node (all nodes have non-null startTime).
+*/ function minStartTime(nodes) {
+	const first = nodes[0];
+	if (!first) throw new Error("minStartTime requires at least one node");
+	return nodes.reduce((min, n) => n.startTime() < min ? n.startTime() : min, first.startTime());
+}
+/**
+* Return the latest end time among nodes.
+* Requires at least one node (all nodes have non-null endTime).
+*/ function maxEndTime(nodes) {
+	const first = nodes[0];
+	if (!first) throw new Error("maxEndTime requires at least one node");
+	return nodes.reduce((max, n) => n.endTime() > max ? n.endTime() : max, first.endTime());
+}
+/**
+* Sum total tokens across all nodes.
+*/ function sumTokens(nodes) {
+	return nodes.reduce((sum, n) => sum + n.totalTokens(), 0);
+}
+var IDLE_THRESHOLD_MS = 3e5;
+/**
+* Compute idle time using gap-based detection between children.
+*
+* Any gap > 5 min between consecutive children (sorted by startTime)
+* is counted as idle. Children's own idleTime is summed recursively.
+*/ function computeIdleTime(content, startTime, endTime) {
+	if (content.length === 0) return 0;
+	const sorted = [...content].sort((a, b) => a.startTime().getTime() - b.startTime().getTime());
+	let idleMs = 0;
+	for (const child of sorted) idleMs += child.idleTime() * 1e3;
+	const firstGap = sorted[0].startTime().getTime() - startTime.getTime();
+	if (firstGap > IDLE_THRESHOLD_MS) idleMs += firstGap;
+	for (let i = 1; i < sorted.length; i++) {
+		const gap = sorted[i].startTime().getTime() - sorted[i - 1].endTime().getTime();
+		if (gap > IDLE_THRESHOLD_MS) idleMs += gap;
+	}
+	const lastGap = endTime.getTime() - sorted[sorted.length - 1].endTime().getTime();
+	if (lastGap > IDLE_THRESHOLD_MS) idleMs += lastGap;
+	return Math.max(0, idleMs / 1e3);
+}
+/**
+* Create a TimelineEvent from an Event.
+*/ function createTimelineEvent(event) {
+	return new TimelineEvent(event);
+}
+/**
+* Create a TimelineSpan with computed properties.
+*/ function createTimelineSpan(id, name, spanType, content, utility = false, branches = [], description, branchedFrom = null) {
+	if (content.length === 0) throw new Error(`createTimelineSpan called with empty content for span "${name}" (id=${id}). Callers must guard against empty content before calling the factory.`);
+	return new TimelineSpan({
+		id,
+		name: name.toLowerCase(),
+		spanType,
+		content,
+		utility,
+		branches,
+		description,
+		branchedFrom
+	});
+}
+/**
+* Build a span tree from a flat event list.
+*
+* Parses span_begin/span_end events to create hierarchical structure.
+* Events are associated with spans via their span_id field.
+*/ function buildSpanTree(events) {
+	const root = [];
+	const spansById = /* @__PURE__ */ new Map();
+	const spanStack = [];
+	for (const event of events) if (event.event === "span_begin") {
+		const span = {
+			id: event.id,
+			name: event.name,
+			type: event.type ?? void 0,
+			parentId: event.parent_id,
+			metadata: event.metadata ?? void 0,
+			children: [],
+			beginEvent: event
+		};
+		spansById.set(span.id, span);
+	}
+	for (const event of events) if (event.event === "span_begin") {
+		const span = spansById.get(event.id);
+		if (span.parentId && spansById.has(span.parentId)) spansById.get(span.parentId).children.push(span);
+		else if (spanStack.length > 0) {
+			const currentSpan = spanStack[spanStack.length - 1];
+			if (currentSpan) currentSpan.children.push(span);
+		} else root.push(span);
+		spanStack.push(span);
+	} else if (event.event === "span_end") {
+		const endSpan = spansById.get(event.id);
+		if (endSpan) endSpan.endEvent = event;
+		if (spanStack.length > 0) spanStack.pop();
+	} else {
+		const spanId = event.span_id;
+		if (spanId && spansById.has(spanId)) spansById.get(spanId).children.push(event);
+		else if (spanStack.length > 0) {
+			const currentSpan = spanStack[spanStack.length - 1];
+			if (currentSpan) currentSpan.children.push(event);
+		} else root.push(event);
+	}
+	const getTimestamp = (item) => {
+		if (isSpanNode(item)) return item.beginEvent.timestamp;
+		return item.timestamp;
+	};
+	for (const span of spansById.values()) span.children.sort((a, b) => getTimestamp(a).localeCompare(getTimestamp(b)));
+	return root;
+}
+/**
+* Flatten a tree item recursively to get all events.
+*/ function eventSequence(items) {
+	const events = [];
+	for (const item of items) if (isSpanNode(item)) events.push(...eventSequence(item.children));
+	else events.push(item);
+	return events;
+}
+/**
+* Check if a span contains any ModelEvent (recursively).
+*/ function containsModelEvents(span) {
+	for (const child of span.children) if (isSpanNode(child)) {
+		if (containsModelEvents(child)) return true;
+	} else if (child.event === "model") return true;
+	return false;
+}
+/**
+* Check if a span has any descendant span with type="agent".
+*
+* Used to suppress tool→agent classification when the tool already
+* wraps an explicit agent span (which will represent the agent itself).
+*/ function containsAgentSpan(span) {
+	for (const child of span.children) if (isSpanNode(child)) {
+		if (child.type === "agent" || containsAgentSpan(child)) return true;
+	}
+	return false;
+}
+/**
+* Convert an Event to a TimelineEvent or TimelineSpan.
+*
+* Handles ToolEvents that spawn nested agents, recursively processing
+* nested events to detect further agent spawning.
+*/ /**
+* ToolEvent.events is `unknown[]` in the schema. Shallow check: the timeline
+* dispatches on `event`, and anything without one can't be placed.
+*/ var isEvent = (value) => isRecord(value) && typeof value["event"] === "string";
+function eventToNode(event) {
+	if (event.event === "tool") {
+		const agentName = event.agent;
+		const nestedEvents = event.events.filter(isEvent);
+		if (agentName && nestedEvents.length > 0) {
+			const nestedContent = nestedEvents.map((e) => eventToNode(e));
+			if (nestedContent.length > 0) {
+				const span = createTimelineSpan(`tool-agent-${event.id}`, agentName, "agent", nestedContent);
+				span.toolInvoked = true;
+				const agentResult = extractToolEventResult(event.result);
+				if (agentResult) span.agentResult = codexResultText(event.function, event.result, agentResult);
+				return span;
+			}
+		}
+	}
+	return createTimelineEvent(event);
+}
+/**
+* Check if a SpanNode represents an agent trajectory.
+*
+* Agent spans are:
+* - Explicit agent spans (type="agent")
+* - Solver spans that wrap a genuine agent (e.g. an @agent run via as_solver)
+* - Tool spans containing model events (tool-spawned agents)
+*
+* Primitive solver spans (system_message, generate, use_tools, ...) wrap no
+* agent of their own, so they are not agent trajectories — they get unrolled
+* into their parent rather than occupying a swimlane.
+*/ function isAgentSpan(span) {
+	if (span.type === "agent") return true;
+	if (span.type === "solver") return containsAgentSpan(span);
+	if (span.type === "tool" && containsModelEvents(span) && !containsAgentSpan(span)) return true;
+	return false;
+}
+/**
+* Convert a tree item (SpanNode or Event) to a TimelineEvent, TimelineSpan,
+* or null if the resulting span would be empty.
+*/ function treeItemToNode(item) {
+	if (isSpanNode(item)) {
+		if (item.type === "agent" || item.type === "solver") return buildSpanFromAgentSpan(item);
+		else return buildSpanFromGenericSpan(item);
+	} else return eventToNode(item);
+}
+/**
+* Build a TimelineSpan from a SpanNode with type='agent'.
+*/ function buildSpanFromAgentSpan(span, extraItems) {
+	const content = [];
+	if (extraItems) for (const item of extraItems) if (isSpanNode(item) && !isAgentSpan(item)) unrollSpan(item, content);
+	else {
+		const node = treeItemToNode(item);
+		if (node !== null) content.push(node);
+	}
+	const [childContent, branches] = processChildren(span.children);
+	content.push(...childContent);
+	if (content.length === 0) return null;
+	const description = typeof span.metadata?.description === "string" ? span.metadata.description : void 0;
+	return createTimelineSpan(span.id, span.name, "agent", content, false, branches, description);
+}
+/**
+* Build a TimelineSpan from a non-agent SpanNode.
+*
+* If the span is a tool span (type="tool") containing model events,
+* we treat it as a tool-spawned agent (spanType="agent").
+*/ function buildSpanFromGenericSpan(span) {
+	const [content, branches] = processChildren(span.children);
+	if (content.length === 0) return null;
+	const spanType = span.type === "tool" && containsModelEvents(span) && !containsAgentSpan(span) ? "agent" : span.type ?? null;
+	return createTimelineSpan(span.id, span.name, spanType, content, false, branches);
+}
+/**
+* Recursively unwrap solver-type spans that contain exactly one agent child.
+*
+* This flattens unnecessary nesting (e.g. a "react" solver wrapping a single
+* agent) so the timeline shows the agent directly.
+*/ function unwrapSolverSpan(span) {
+	while (span.type === "solver") {
+		const agentChildren = span.children.filter((child) => isSpanNode(child) && child.type === "agent");
+		if (agentChildren.length !== 1) break;
+		if (span.children.some((c) => !isSpanNode(c) && c.event !== "state" && c.event !== "store")) break;
+		span = agentChildren[0];
+	}
+	return span;
+}
+/**
+* Build agent hierarchy from the solvers span.
+*
+* Looks for explicit agent spans (type='agent') within the solvers span.
+* If found, builds the agent tree from those spans. If not found, uses
+* the solvers span itself as the agent container.
+*/ function buildAgentFromSolversSpan(solversSpan) {
+	if (solversSpan.children.length === 0) return null;
+	const agentSpans = [];
+	const otherItems = [];
+	for (const child of solversSpan.children) if (isSpanNode(child) && isAgentSpan(child)) agentSpans.push(child);
+	else otherItems.push(child);
+	if (agentSpans.length > 0) {
+		const firstAgentSpan = agentSpans[0];
+		if (agentSpans.length === 1 && firstAgentSpan) {
+			const target = unwrapSolverSpan(firstAgentSpan);
+			const result = buildSpanFromAgentSpan(target, otherItems);
+			if (result !== null) return result;
+			return new TimelineSpan({
+				id: target.id,
+				name: target.name.toLowerCase(),
+				spanType: "agent"
+			});
+		} else {
+			const children = [];
+			for (const span of agentSpans) {
+				const node = buildSpanFromAgentSpan(span);
+				if (node !== null) children.push(node);
+			}
+			for (const item of otherItems) if (isSpanNode(item) && !isAgentSpan(item)) {
+				const orphanContent = [];
+				unrollSpan(item, orphanContent);
+				for (let i = orphanContent.length - 1; i >= 0; i--) children.unshift(orphanContent[i]);
+			} else {
+				const node = treeItemToNode(item);
+				if (node !== null) children.unshift(node);
+			}
+			if (children.length === 0) return null;
+			return createTimelineSpan("root", "main", "agent", children);
+		}
+	} else {
+		const [content, branches] = processChildren(solversSpan.children);
+		if (content.length === 0) return null;
+		return createTimelineSpan(solversSpan.id, solversSpan.name, "agent", content, false, branches);
+	}
+}
+/**
+* Build agent from a list of tree items when no explicit phase spans exist.
+*
+* Creates a synthetic "main" agent containing all tree items as content.
+*/ function buildAgentFromTree(tree) {
+	const [content, branches] = processChildren(tree);
+	if (content.length === 0) return null;
+	return createTimelineSpan("main", "main", "agent", content, false, branches);
+}
+/**
+* Dissolve a non-agent span, emitting its begin/end as regular events.
+*
+* Recursively unrolls nested non-agent spans while preserving any
+* nested agent spans as TimelineSpan nodes.
+*/ function unrollSpan(span, into) {
+	into.push(createTimelineEvent(span.beginEvent));
+	const parentIsTool = span.type === "tool";
+	for (const child of span.children) if (isSpanNode(child)) {
+		if (isAgentSpan(child)) {
+			const node = treeItemToNode(child);
+			if (node === null) continue;
+			if (node.type === "span" && node.content.length === 0) continue;
+			if (parentIsTool && node.type === "span") node.toolInvoked = true;
+			into.push(node);
+		} else unrollSpan(child, into);
+	} else into.push(eventToNode(child));
+	if (span.endEvent) into.push(createTimelineEvent(span.endEvent));
+}
+/**
+* Process a span's children with branch awareness.
+*
+* Collects adjacent type="branch" SpanNode runs and builds branch TimelineSpan
+* objects from those that contain a BranchEvent. Branch spans without a
+* BranchEvent are processed as normal content.
+*/ function processChildren(children) {
+	const content = [];
+	const branches = [];
+	let branchRun = [];
+	function flushBranchRun(run, parentContent) {
+		const result = [];
+		for (const span of run) {
+			const branchEvent = findBranchEvent(span);
+			if (branchEvent === null) {
+				processSpanAsContent(span, parentContent);
+				continue;
+			}
+			const branchContent = [];
+			for (const child of span.children) if (isSpanNode(child) && !isAgentSpan(child)) unrollSpan(child, branchContent);
+			else {
+				const node = treeItemToNode(child);
+				if (node === null) continue;
+				branchContent.push(node);
+			}
+			if (branchContent.length === 0) continue;
+			result.push(createTimelineSpan(span.id, span.name || "branch", "branch", branchContent, false, [], void 0, branchEvent.from_anchor));
+		}
+		return result;
+	}
+	for (const item of children) if (isSpanNode(item) && item.type === "branch") branchRun.push(item);
+	else {
+		if (branchRun.length > 0) {
+			branches.push(...flushBranchRun(branchRun, content));
+			branchRun = [];
+		}
+		if (isSpanNode(item) && !isAgentSpan(item)) unrollSpan(item, content);
+		else {
+			const node = treeItemToNode(item);
+			if (node === null) continue;
+			content.push(node);
+		}
+	}
+	if (branchRun.length > 0) branches.push(...flushBranchRun(branchRun, content));
+	return [content, branches];
+}
+/**
+* Find a BranchEvent in a span's direct children.
+*/ function findBranchEvent(span) {
+	for (const child of span.children) if (!isSpanNode(child) && child.event === "branch") return child;
+	return null;
+}
+/**
+* Process a branch span as normal content when it has no BranchEvent.
+*/ function processSpanAsContent(span, into) {
+	for (const child of span.children) if (isSpanNode(child) && !isAgentSpan(child)) unrollSpan(child, into);
+	else {
+		const node = treeItemToNode(child);
+		if (node === null) continue;
+		if (node.type === "span" && node.content.length === 0) continue;
+		into.push(node);
+	}
+}
+/**
+* Strip the per-call billing header from a system prompt.
+*
+* Claude Code prepends a line like `x-anthropic-billing-header: ...`
+* with a varying `cch=` hash. Removing it lets us compare prompts
+* across calls.
+*/ function normalizeSystemPrompt(prompt) {
+	if (prompt.startsWith("x-anthropic-billing-header:")) {
+		const idx = prompt.indexOf("\n");
+		if (idx !== -1) return prompt.substring(idx + 1);
+		return "";
+	}
+	return prompt;
+}
+/**
+* Extract and normalize the system prompt from a single ModelEvent.
+*/ function getSystemPromptForEvent(event) {
+	const input = event.input;
+	if (!input) return null;
+	for (const msg of input) if (msg.role === "system") {
+		let raw;
+		if (typeof msg.content === "string") raw = msg.content;
+		else if (Array.isArray(msg.content)) {
+			const parts = [];
+			for (const c of msg.content) if ("text" in c && typeof c.text === "string") parts.push(c.text);
+			raw = parts.join("\n");
+		} else return null;
+		const normalized = normalizeSystemPrompt(raw);
+		return normalized ? normalized : null;
+	}
+	return null;
+}
+/**
+* Check whether a ModelEvent's output contains tool calls.
+*/ function hasToolCalls(event) {
+	const choices = event.output.choices;
+	if (choices.length > 0) {
+		const msg = choices[0].message;
+		if (msg.tool_calls && msg.tool_calls.length > 0) return true;
+	}
+	return false;
+}
+/**
+* Wrap foreign-prompt model calls as synthetic utility spans.
+*
+* Within bridge-based agent spans (e.g. Claude Code), short extraction
+* model calls use a different system prompt and produce no tool calls.
+* This function detects them and wraps each one in a TimelineSpan
+* with utility=true so downstream code treats them as utility agents.
+*
+* The primary trajectory is identified by the system prompt of the first
+* tool-calling ModelEvent. When a span contains no tool-calling model
+* events there is no agentic loop to distinguish helpers from — plain
+* workflows of generate() calls routinely mix system prompts — so
+* foreign-prompt wrapping is skipped entirely (warmup calls are still
+* wrapped; they are identified independently of prompts).
+*
+* Operates recursively on the entire span tree.
+*/ function wrapUtilityEvents(agent) {
+	let primaryPrompt = null;
+	for (const item of agent.content) if (item.type === "event" && item.event.event === "model") {
+		const modelEvt = item.event;
+		if (hasToolCalls(modelEvt)) {
+			primaryPrompt = getSystemPromptForEvent(modelEvt);
+			break;
+		}
+	}
+	const utilityWrapper = (item, index) => {
+		const wrapper = createTimelineSpan(`utility-${item.event.uuid ?? `${agent.id}-${index}`}`, "utility", "agent", [item]);
+		wrapper.utility = true;
+		return wrapper;
+	};
+	const originalSpans = agent.content.filter((item) => item.type === "span");
+	const newContent = [];
+	for (const [index, item] of agent.content.entries()) {
+		if (item.type === "event" && item.event.event === "model") {
+			const modelEvt = item.event;
+			if (isWarmupCall(modelEvt)) {
+				newContent.push(utilityWrapper(item, index));
+				continue;
+			}
+			if (primaryPrompt !== null && !hasToolCalls(modelEvt)) {
+				const evtPrompt = getSystemPromptForEvent(modelEvt);
+				if (evtPrompt !== null && evtPrompt !== primaryPrompt) {
+					newContent.push(utilityWrapper(item, index));
+					continue;
+				}
+			}
+		}
+		newContent.push(item);
+	}
+	agent.content = newContent;
+	for (const item of originalSpans) wrapUtilityEvents(item);
+	for (const branch of agent.branches) wrapUtilityEvents(branch);
+}
+function isWarmupCall(event) {
+	if (event.config.max_tokens == null || event.config.max_tokens > 1) return false;
+	const input = event.input;
+	if (!input) return false;
+	for (let i = input.length - 1; i >= 0; i--) {
+		const msg = input[i];
+		if (msg?.role === "user") {
+			if (typeof msg.content === "string") return msg.content.trim().split(/\s+/).length <= 1;
+			return false;
+		}
+	}
+	return false;
+}
+/**
+* Extract the normalized system prompt from the first ModelEvent in span's
+* direct content (see getSystemPromptForEvent).
+*/ function getSystemPrompt(span) {
+	for (const item of span.content) if (item.type === "event" && item.event.event === "model") return getSystemPromptForEvent(item.event);
+	return null;
+}
+/**
+* Check if span has a single turn or single tool-calling turn.
+*
+* A single turn is 1 ModelEvent with no ToolEvents.
+* A single tool-calling turn is 2 ModelEvents with a ToolEvent between them.
+*/ function isSingleTurn(span) {
+	const directEvents = [];
+	for (const item of span.content) if (item.type === "event") {
+		if (item.event.event === "model") directEvents.push("model");
+		else if (item.event.event === "tool") directEvents.push("tool");
+	}
+	const modelCount = directEvents.filter((e) => e === "model").length;
+	const toolCount = directEvents.filter((e) => e === "tool").length;
+	if (modelCount === 1) return true;
+	if (modelCount === 2 && toolCount >= 1) {
+		const firstModel = directEvents.indexOf("model");
+		const secondModel = directEvents.lastIndexOf("model");
+		return directEvents.slice(firstModel + 1, secondModel).includes("tool");
+	}
+	return false;
+}
+/**
+* Check whether span's direct content contains a tool-calling ModelEvent.
+*/ function hasAgenticLoop(span) {
+	for (const item of span.content) if (item.type === "event" && item.event.event === "model" && hasToolCalls(item.event)) return true;
+	return false;
+}
+/**
+* Classify utility agents in the tree via post-processing.
+*
+* An agent is utility if it has a single turn (or single tool-calling turn)
+* and a different system prompt than its parent. Classification only applies
+* when the parent runs an agentic (tool-calling) loop: absent a loop there
+* is no main trajectory for a helper to be subordinate to — plain workflows
+* of generate() calls routinely mix system prompts.
+*/ function classifyUtilityAgents(node, parentSystemPrompt = null, parentHasLoop = false) {
+	const agentSystemPrompt = getSystemPrompt(node);
+	if (parentSystemPrompt !== null && parentHasLoop && agentSystemPrompt !== null && !node.toolInvoked) {
+		if (agentSystemPrompt !== parentSystemPrompt && isSingleTurn(node)) node.utility = true;
+	}
+	const effectivePrompt = agentSystemPrompt ?? parentSystemPrompt;
+	const effectiveHasLoop = node.content.some((item) => item.type === "event" && item.event.event === "model") ? hasAgenticLoop(node) : parentHasLoop;
+	for (const item of node.content) if (item.type === "span") classifyUtilityAgents(item, effectivePrompt, effectiveHasLoop);
+}
+/**
+* Build a Timeline from a flat event list.
+*
+* Transforms a flat event stream into a hierarchical Timeline tree
+* with agent-centric interpretation. The pipeline has two phases:
+*
+* **Phase 1 — Structure extraction:**
+*
+* Parses span_begin/span_end events into a tree, then looks for
+* top-level phase spans ("init", "solvers", "scorers"):
+* - If present, partitions events into init (setup), agent (solvers),
+*   and scoring sections.
+* - If absent, treats the entire event stream as the agent.
+*
+* **Phase 2 — Agent classification:**
+*
+* Within the agent section, spans are classified as agents or unrolled:
+* - type="agent"                → TimelineSpan (spanType="agent")
+* - type="solver" wrapping agent → TimelineSpan (spanType="agent")
+* - type="solver" (primitive)   → Unrolled into parent
+* - type="tool" + ModelEvents   → TimelineSpan (spanType="agent")
+* - ToolEvent with agent field  → TimelineSpan (spanType="agent")
+* - type="tool" (no models)     → Unrolled into parent
+* - Any other span type         → Unrolled into parent
+*
+* "Unrolled" means the span wrapper is removed and its child events
+* dissolve into the parent's content list.
+*
+* **Phase 3 — Post-processing passes:**
+* - Utility event wrapping (bridge-based agents with foreign prompts)
+* - Utility agent classification (single-turn, different system prompt)
+* - Recursive branch classification
+*/
+/**
+* Returns the pre-extracted agent result for a span.
+* Results are extracted during timeline building by `extractAgentResults()`.
+*/ function getSpanToolResult(span) {
+	return span.agentResult;
+}
+/**
+* Reshape a Codex sub-agent tool result into nicer markdown when applicable
+* (e.g. `spawn_agent`'s `{agent_id, nickname}` → a compact name line); falls
+* back to the raw extracted text for non-Codex tools.
+*/ function codexResultText(fn, content, fallback) {
+	if (fn) {
+		const markdown = codexToolMarkdown(fn, content);
+		if (markdown !== void 0) return markdown;
+	}
+	return fallback;
+}
+/**
+* Extract a string result from a ToolEvent result field.
+*/ function extractToolEventResult(result) {
+	if (typeof result === "string" && result) return result;
+	if (Array.isArray(result)) {
+		const parts = [];
+		for (const c of result) if (isRecord(c) && typeof c["text"] === "string") parts.push(c["text"]);
+		return parts.length > 0 ? parts.join("\n") : void 0;
+	}
+}
+/**
+* Extract agentResult for each agent sub-span.
+*
+* Three sources (checked in order):
+* 1. Tool-spawned agents: result already set during eventToNode
+* 2. Span-based agents (static flow): sibling ToolEvent with agent_span_id === span.id
+* 3. Bridge flow: next ModelEvent's input has tool message with function === span.name
+*/ function extractAgentResults(parent) {
+	const content = parent.content;
+	for (let i = 0; i < content.length; i++) {
+		const item = content[i];
+		if (item.type !== "span") continue;
+		if (item.spanType !== "agent") {
+			extractAgentResults(item);
+			continue;
+		}
+		if (item.agentResult) {
+			extractAgentResults(item);
+			continue;
+		}
+		for (const sibling of content) if (sibling.type === "event" && sibling.event.event === "tool" && sibling.event.agent_span_id === item.id) {
+			const resultText = extractToolEventResult(sibling.event.result);
+			if (resultText) item.agentResult = codexResultText(sibling.event.function, sibling.event.result, resultText);
+			break;
+		}
+		const toolCallId = item.id.startsWith("agent-") ? item.id.slice(6) : null;
+		if (!item.agentResult && toolCallId) for (let j = i + 1; j < content.length; j++) {
+			const nextItem = content[j];
+			if (nextItem.type !== "event") continue;
+			if (nextItem.event.event === "model") {
+				const modelEvent = nextItem.event;
+				if (modelEvent.input) {
+					for (const msg of modelEvent.input) if (msg.role === "tool" && msg.tool_call_id === toolCallId) {
+						const text = extractToolEventResult(msg.content);
+						if (text) item.agentResult = codexResultText(msg.function ?? void 0, msg.content, text);
+					}
+				}
+				if (item.agentResult) break;
+			}
+		}
+		extractAgentResults(item);
+	}
+}
+/**
+* Derive a display label for a utility agent span.
+*
+* Synthetic utility spans created by `wrapUtilityEvents` are named "utility"
+* which is redundant when paired with a "utility:" prefix. For these, extract
+* the model name from the inner model event. For classified utility agents
+* (real spans with meaningful names like "explore"), keep the existing name.
+*/ function getUtilityAgentLabel(span) {
+	const name = span.name.toLowerCase();
+	if (name !== "utility") return name;
+	for (const item of span.content) if (item.type === "event" && item.event.event === "model") return item.event.model;
+	return name;
+}
+function buildTimeline(events) {
+	if (events.length === 0) return {
+		name: "Default",
+		description: "",
+		root: new TimelineSpan({
+			id: "root",
+			name: "main",
+			spanType: null
+		})
+	};
+	const tree = buildSpanTree(events);
+	const topSpans = /* @__PURE__ */ new Map();
+	for (const item of tree) if (isSpanNode(item) && (item.name === "init" || item.name === "solvers" || item.name === "scorers")) topSpans.set(item.name, item);
+	const hasPhaseSpans = topSpans.has("init") || topSpans.has("solvers") || topSpans.has("scorers");
+	const orphanNodes = hasPhaseSpans ? tree.filter((item) => !(isSpanNode(item) && topSpans.get(item.name) === item)).map(treeItemToNode).filter((n) => n !== null) : [];
+	let root;
+	if (hasPhaseSpans) {
+		const initSpan = topSpans.get("init");
+		const solversSpan = topSpans.get("solvers");
+		const scorersSpan = topSpans.get("scorers");
+		let initSpanObj = null;
+		if (initSpan) {
+			const initContent = eventSequence(initSpan.children).map((e) => createTimelineEvent(e));
+			if (initContent.length > 0) initSpanObj = createTimelineSpan(initSpan.id, "init", "init", initContent);
+		}
+		const agentNode = solversSpan ? buildAgentFromSolversSpan(solversSpan) : null;
+		let scoringSpan = null;
+		if (scorersSpan) {
+			const scoringContent = eventSequence(scorersSpan.children).map((e) => createTimelineEvent(e));
+			if (scoringContent.length > 0) scoringSpan = createTimelineSpan(scorersSpan.id, "scoring", "scorers", scoringContent);
+		}
+		if (agentNode) {
+			agentNode.name = "main";
+			wrapUtilityEvents(agentNode);
+			classifyUtilityAgents(agentNode);
+			extractAgentResults(agentNode);
+			if (initSpanObj) agentNode.content = [initSpanObj, ...agentNode.content];
+			if (scoringSpan) agentNode.content.push(scoringSpan);
+			root = agentNode;
+		} else {
+			const rootContent = [];
+			if (initSpanObj) rootContent.push(initSpanObj);
+			if (scoringSpan) rootContent.push(scoringSpan);
+			if (rootContent.length > 0) root = createTimelineSpan("root", "main", null, rootContent);
+			else root = new TimelineSpan({
+				id: "root",
+				name: "main",
+				spanType: null
+			});
+		}
+	} else {
+		const agentRoot = buildAgentFromTree(tree);
+		if (agentRoot) {
+			wrapUtilityEvents(agentRoot);
+			classifyUtilityAgents(agentRoot);
+			extractAgentResults(agentRoot);
+			root = agentRoot;
+		} else root = new TimelineSpan({
+			id: "root",
+			name: "main",
+			spanType: null
+		});
+	}
+	if (orphanNodes.length > 0) root.content = [...root.content, ...orphanNodes].sort((a, b) => a.startTime().getTime() - b.startTime().getTime());
+	return {
+		name: "Default",
+		description: "",
+		root
+	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/swimlaneRows.ts
+/**
+* Swimlane row computation for the timeline UI.
+*
+* Transforms a TimelineSpan's children into SwimlaneRow[] for rendering
+* as horizontal swimlane bars. Handles sequential, iterative (multiple spans),
+* and parallel (overlapping) span patterns.
+*/
+/** Compare rows/entries by start time, with end time as tiebreaker. */ function compareByTime(a, b) {
+	return a.startTime.getTime() - b.startTime.getTime() || a.endTime.getTime() - b.endTime.getTime();
+}
+/** Compare TimelineSpans by start time, with end time as tiebreaker. */ function compareSpansByTime(a, b) {
+	return a.startTime(false).getTime() - b.startTime(false).getTime() || a.endTime(false).getTime() - b.endTime(false).getTime();
+}
+function isSingleSpan(span) {
+	return "agent" in span;
+}
+/** Unwrap a RowSpan to a flat array of TimelineSpan agents. */ function getAgents(span) {
+	return isSingleSpan(span) ? [span.agent] : span.agents;
+}
+/** Tolerance in milliseconds for considering two spans as overlapping. */ var OVERLAP_TOLERANCE_MS = 100;
+/**
+* Assigns time-sorted spans to lanes using greedy bin-packing.
+*
+* Each lane contains non-overlapping spans. The number of lanes equals
+* the maximum parallelism level (minimum possible).
+* Input must be sorted by start time.
+*/ function assignToLanes(sorted) {
+	if (sorted.length === 0) return [];
+	const lanes = [];
+	for (const span of sorted) {
+		const spanStart = span.startTime().getTime();
+		let assigned = false;
+		for (const lane of lanes) if (lane.endTime + OVERLAP_TOLERANCE_MS <= spanStart) {
+			lane.spans.push(span);
+			lane.endTime = span.endTime().getTime();
+			assigned = true;
+			break;
+		}
+		if (!assigned) lanes.push({
+			spans: [span],
+			endTime: span.endTime().getTime()
+		});
+	}
+	return lanes.map((l) => l.spans);
+}
+/**
+* Partitions time-sorted spans into clusters of overlapping spans.
+*
+* Uses a sweep-line: extends the current cluster while spans overlap its
+* time range, then starts a new cluster when a gap is found.
+* Input must be sorted by start time.
+*/ function partitionIntoClusters(sorted) {
+	if (sorted.length === 0) return [];
+	const clusters = [];
+	let current = [sorted[0]];
+	let clusterEnd = sorted[0].endTime().getTime();
+	for (let i = 1; i < sorted.length; i++) {
+		const span = sorted[i];
+		if (span.startTime().getTime() < clusterEnd + OVERLAP_TOLERANCE_MS) {
+			current.push(span);
+			clusterEnd = Math.max(clusterEnd, span.endTime().getTime());
+		} else {
+			clusters.push(current);
+			current = [span];
+			clusterEnd = span.endTime().getTime();
+		}
+	}
+	clusters.push(current);
+	return clusters;
+}
+function buildParentRow(node) {
+	return {
+		key: node.name.toLowerCase(),
+		name: node.name,
+		depth: 0,
+		spans: [{ agent: node }],
+		totalTokens: node.totalTokens(false),
+		startTime: node.startTime(false),
+		endTime: node.endTime(false)
+	};
+}
+/**
+* Groups spans by name (case-insensitive), preserving the display name
+* from the first span encountered in each group.
+*
+* Returns entries in insertion order (first-seen order).
+*/ function groupByName(spans) {
+	const map = /* @__PURE__ */ new Map();
+	for (const span of spans) {
+		const key = span.name.toLowerCase();
+		const existing = map.get(key);
+		if (existing) existing.spans.push(span);
+		else map.set(key, {
+			displayName: span.name,
+			spans: [span]
+		});
+	}
+	return Array.from(map.values()).map((g) => [g.displayName, g.spans]);
+}
+/**
+* Computes a fully expanded flat list of swimlane rows from the entire span tree.
+*
+* Unlike `computeSwimlaneRows` (which only shows direct children), this function
+* recursively walks all descendant spans in depth-first pre-order. Each row carries
+* a `depth` for indentation and a unique `key` for selection.
+*
+* Same-name non-overlapping spans (iterative) are collapsed onto a single row
+* with multiple bars. Same-name overlapping spans (parallel) are expanded into
+* separate numbered rows.
+*/ function computeFlatSwimlaneRows(root, options) {
+	const includeUtility = options?.includeUtility ?? false;
+	const showBranches = options?.showBranches ?? false;
+	return [buildParentRow(root), ...flattenChildren([root], 0, root.name.toLowerCase(), includeUtility, showBranches)];
+}
+/**
+* Recursively flattens descendant spans into rows in depth-first pre-order.
+*
+* Accepts multiple parent nodes so that iterative spans at the same level
+* can have their children merged before recursing.
+*
+* For each name group, partitions into overlapping clusters:
+* - If no cluster has >1 span (all iterative/sequential) → one row, multiple bars
+* - If any cluster has >1 span (parallel) → lanes via bin-packing, reusing lanes
+*   for non-overlapping spans (number of lanes = max parallelism level)
+*/ function flattenChildren(nodes, parentDepth, parentKey, includeUtility, showBranches, branchPrefix = "") {
+	const children = [];
+	for (const node of nodes) for (const item of node.content) if (item.type === "span" && (includeUtility || !item.utility)) children.push(item);
+	if (children.length === 0 && !showBranches) return [];
+	const groups = groupByName(children);
+	const depth = parentDepth + 1;
+	const entries = [];
+	for (const [displayName, spans] of groups) {
+		const sorted = [...spans].sort(compareSpansByTime);
+		const baseName = displayName.toLowerCase();
+		const hasParallel = partitionIntoClusters(sorted).some((c) => c.length > 1);
+		const groupStartTime = sorted[0].startTime(false);
+		if (!hasParallel) {
+			const rowSpans = sorted.map((s) => ({ agent: s }));
+			const first = sorted[0];
+			const endTime = sorted.reduce((latest, s) => s.endTime(false).getTime() > latest.getTime() ? s.endTime(false) : latest, first.endTime(false));
+			entries.push({
+				displayName,
+				key: `${parentKey}/${baseName}`,
+				spans: sorted,
+				rowSpans,
+				totalTokens: sorted.reduce((sum, s) => sum + s.totalTokens(false), 0),
+				startTime: first.startTime(false),
+				endTime,
+				groupStartTime,
+				laneIndex: -1
+			});
+		} else {
+			const lanes = assignToLanes(sorted);
+			if (lanes.length === 1) {
+				const laneSpans = lanes[0];
+				const rowSpans = laneSpans.map((s) => ({ agent: s }));
+				const first = laneSpans[0];
+				const endTime = laneSpans.reduce((latest, s) => s.endTime(false).getTime() > latest.getTime() ? s.endTime(false) : latest, first.endTime(false));
+				entries.push({
+					displayName,
+					key: `${parentKey}/${baseName}`,
+					spans: laneSpans,
+					rowSpans,
+					totalTokens: laneSpans.reduce((sum, s) => sum + s.totalTokens(false), 0),
+					startTime: first.startTime(false),
+					endTime,
+					groupStartTime,
+					laneIndex: -1
+				});
+			} else for (let i = 0; i < lanes.length; i++) {
+				const laneSpans = lanes[i];
+				const rowSpans = laneSpans.map((s) => ({ agent: s }));
+				const first = laneSpans[0];
+				const endTime = laneSpans.reduce((latest, s) => s.endTime(false).getTime() > latest.getTime() ? s.endTime(false) : latest, first.endTime(false));
+				entries.push({
+					displayName: `${displayName} ${i + 1}`,
+					key: `${parentKey}/${baseName}-${i + 1}`,
+					spans: laneSpans,
+					rowSpans,
+					totalTokens: laneSpans.reduce((sum, s) => sum + s.totalTokens(false), 0),
+					startTime: first.startTime(false),
+					endTime,
+					groupStartTime,
+					laneIndex: i
+				});
+			}
+		}
+	}
+	entries.sort((a, b) => a.groupStartTime.getTime() - b.groupStartTime.getTime() || a.laneIndex - b.laneIndex || compareByTime(a, b));
+	const result = [];
+	if (showBranches) for (const node of nodes) for (let i = 0; i < node.branches.length; i++) {
+		const branch = node.branches[i];
+		const label = `${branchPrefix}${i + 1}`;
+		const branchSpan = createBranchSpan(branch, label);
+		const branchKey = `${parentKey}/branch-${branch.branchedFrom}-${i + 1}`;
+		result.push({
+			key: branchKey,
+			name: branchSpan.name,
+			depth,
+			spans: [{ agent: branchSpan }],
+			totalTokens: branchSpan.totalTokens(false),
+			startTime: branchSpan.startTime(false),
+			endTime: branchSpan.endTime(false),
+			branch: true,
+			branchedFrom: branch.branchedFrom ?? void 0
+		});
+		result.push(...flattenChildren([branchSpan], depth, branchKey, includeUtility, showBranches, `${label}.`));
+	}
+	for (const entry of entries) {
+		result.push({
+			key: entry.key,
+			name: entry.displayName,
+			depth,
+			spans: entry.rowSpans,
+			totalTokens: entry.totalTokens,
+			startTime: entry.startTime,
+			endTime: entry.endTime
+		});
+		result.push(...flattenChildren(entry.spans, depth, entry.key, includeUtility, showBranches));
+	}
+	return result;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/timelineEventNodes.ts
+/**
+* Bridge from timeline spans to raw Event[] for the transcript display pipeline.
+*
+* Resolves the selected swimlane row to TimelineSpan(s), then walks their
+* content trees to produce a flat Event[] that can be fed through useEventNodes.
+* Child TimelineSpans are re-emitted as synthetic span_begin/span_end events
+* so treeifyEvents can reconstruct the hierarchy.
+*/
+/**
+* Parses a selection string into row key + optional span index + optional region index.
+* Returns null for null/empty input.
+*
+* Parse order: extract `@R` from end first, then `:N` from what remains.
+*/ function parseSelection(selected) {
+	if (!selected) return null;
+	let regionIndex = null;
+	let rest = selected;
+	const atIdx = rest.lastIndexOf("@");
+	if (atIdx !== -1) {
+		const regionSuffix = rest.slice(atIdx + 1);
+		const r = Number(regionSuffix);
+		if (Number.isInteger(r) && r >= 0) {
+			regionIndex = r;
+			rest = rest.slice(0, atIdx);
+		}
+	}
+	const colonIdx = rest.lastIndexOf(":");
+	if (colonIdx === -1) return {
+		rowKey: rest,
+		spanIndex: null,
+		regionIndex
+	};
+	const suffix = rest.slice(colonIdx + 1);
+	const idx = Number(suffix);
+	if (!Number.isInteger(idx) || idx < 0) return {
+		rowKey: rest,
+		spanIndex: null,
+		regionIndex
+	};
+	return {
+		rowKey: rest.slice(0, colonIdx),
+		spanIndex: idx,
+		regionIndex
+	};
+}
+/**
+* Builds a selection string from row key + optional span index + optional region index.
+*/ function buildSelectionKey(rowKey, spanIndex, regionIndex) {
+	let key = rowKey;
+	if (spanIndex !== void 0) key = `${key}:${spanIndex}`;
+	if (regionIndex !== void 0) key = `${key}@${regionIndex}`;
+	return key;
+}
+/** Find a swimlane row by key. */ function findRowByKey(rows, key) {
+	return rows.find((r) => r.key === key);
+}
+/**
+* Derive the branch prefix for nested branches from a selected row.
+*
+* If the row is a branch named "Branch 1", returns "1." so nested branches
+* become "Branch 1.1", "Branch 1.2", etc. Returns "" for non-branch rows.
+*/ function getBranchPrefix(rows, selected) {
+	const parsed = parseSelection(selected);
+	if (!parsed) return "";
+	const row = findRowByKey(rows, parsed.rowKey);
+	if (!row?.branch) return "";
+	const match = /^Branch (\S+)$/i.exec(row.name);
+	return match ? `${match[1]}.` : "";
+}
+/**
+* Resolves the selected swimlane row key to TimelineSpan(s).
+*
+* When the selection includes a span index (e.g. `"explore:1"`), returns
+* only that specific span. Otherwise returns all spans from the row.
+*/ function getSelectedSpans(rows, selected) {
+	const parsed = parseSelection(selected);
+	if (!parsed) return [];
+	const row = findRowByKey(rows, parsed.rowKey);
+	if (!row) return [];
+	if (parsed.spanIndex !== null) {
+		const span = row.spans[parsed.spanIndex];
+		if (!span) return [];
+		return isSingleSpan(span) ? [span.agent] : getAgents(span);
+	}
+	const result = [];
+	for (const rowSpan of row.spans) if (isSingleSpan(rowSpan)) result.push(rowSpan.agent);
+	else result.push(...getAgents(rowSpan));
+	return result;
+}
+/**
+* Computes the minimap selection for the currently selected swimlane row.
+*
+* When a span index is present, shows just that span's range.
+* When a region index is present, narrows to the region's time range.
+* Otherwise shows the full row's range.
+*/ function computeMinimapSelection(rows, selected) {
+	const parsed = parseSelection(selected);
+	if (!parsed) return void 0;
+	const row = findRowByKey(rows, parsed.rowKey);
+	if (!row) return void 0;
+	const allAgents = (parsed.spanIndex !== null ? row.spans[parsed.spanIndex] ? [row.spans[parsed.spanIndex]] : [] : row.spans).flatMap(getAgents);
+	if (allAgents.length === 0) return void 0;
+	if (parsed.regionIndex !== null && allAgents.length === 1) {
+		const agent = allAgents[0];
+		const region = computeCompactionRegions(agent.content)[parsed.regionIndex];
+		if (region && region.length > 0) {
+			const times = region.flatMap((item) => item.type === "event" ? [item.startTime(), item.endTime()] : [item.startTime(), item.endTime()]);
+			return {
+				startTime: new Date(Math.min(...times.map((t) => t.getTime()))),
+				endTime: new Date(Math.max(...times.map((t) => t.getTime()))),
+				totalTokens: region.reduce((sum, item) => sum + item.totalTokens(), 0)
+			};
+		}
+	}
+	if (allAgents.length === 1) {
+		const agent = allAgents[0];
+		return {
+			startTime: agent.startTime(false),
+			endTime: agent.endTime(false),
+			totalTokens: agent.totalTokens(false)
+		};
+	}
+	let envStart = allAgents[0].startTime(false);
+	let envEnd = allAgents[0].endTime(false);
+	for (let i = 1; i < allAgents.length; i++) {
+		const a = allAgents[i];
+		if (a.startTime(false) < envStart) envStart = a.startTime(false);
+		if (a.endTime(false) > envEnd) envEnd = a.endTime(false);
+	}
+	const tokens = allAgents.reduce((sum, a) => sum + a.totalTokens(false), 0);
+	return {
+		startTime: envStart,
+		endTime: envEnd,
+		totalTokens: tokens
+	};
+}
+/**
+* Partitions a content array into regions separated by compaction events.
+*
+* Returns an array of content slices. If no compaction events exist, returns
+* a single-element array containing the full content.
+*/ function computeCompactionRegions(content) {
+	const regions = [];
+	let current = [];
+	for (const item of content) if (item.type === "event" && item.event.event === "compaction") {
+		regions.push(current);
+		current = [];
+	} else current.push(item);
+	regions.push(current);
+	return regions;
+}
+/**
+* Collects raw Event[] from TimelineSpan content trees.
+*
+* When a single span is provided, walks its content directly (the span itself
+* is the implicit context). When multiple spans are provided, each is wrapped
+* in synthetic span_begin/span_end events so treeifyEvents can reconstruct
+* the grouping (e.g. parallel agents shown as collapsible sections).
+*
+* Agent spans (spanType === "agent") are emitted as empty span_begin/span_end
+* pairs with no child events — their content is accessed by selecting the
+* swimlane row. The returned sourceSpans map allows attaching the original
+* TimelineSpan to the resulting EventNodes for rich rendering.
+*
+* When `regionIndex` is set, only events from that compaction region are emitted.
+*/ function collectRawEvents(spans, options) {
+	const includeUtility = options?.includeUtility ?? false;
+	const regionIndex = options?.regionIndex ?? null;
+	const showBranches = options?.showBranches ?? false;
+	const branchPrefix = options?.branchPrefix ?? "";
+	const events = [];
+	const sourceSpans = /* @__PURE__ */ new Map();
+	if (spans.length === 1) {
+		const span = spans[0];
+		const agentSpanId = span.spanType === "agent" ? span.id : void 0;
+		let content = span.content;
+		if (regionIndex !== null) {
+			const regions = computeCompactionRegions(span.content);
+			if (regionIndex >= 0 && regionIndex < regions.length) content = regions[regionIndex];
+		}
+		collectFromContent(content, events, sourceSpans, agentSpanId, includeUtility, showBranches, span.branches.length > 0 ? span.branches : void 0, branchPrefix, false);
+	} else collectFromContent(spans, events, sourceSpans, void 0, includeUtility, showBranches, void 0, branchPrefix);
+	return {
+		events,
+		sourceSpans
+	};
+}
+/**
+* Emit a single branch as an empty span_begin/span_end pair (like agents).
+* Content is accessed by selecting the branch swimlane row.
+*/ function emitBranchSpan(branch, label, out, sourceSpans, parentSpanId) {
+	const branchSpan = createBranchSpan(branch, label);
+	sourceSpans.set(branchSpan.id, branchSpan);
+	const branchBegin = {
+		event: "span_begin",
+		name: branchSpan.name,
+		id: branchSpan.id,
+		span_id: branchSpan.id,
+		type: branchSpan.spanType,
+		timestamp: branchSpan.startTime().toISOString(),
+		parent_id: parentSpanId ?? null,
+		pending: false,
+		working_start: 0,
+		uuid: branchSpan.id,
+		metadata: null
+	};
+	out.push(branchBegin);
+	const branchEnd = {
+		event: "span_end",
+		id: `${branchSpan.id}-end`,
+		span_id: branchSpan.id,
+		timestamp: branchSpan.endTime().toISOString(),
+		pending: false,
+		working_start: 0,
+		uuid: null,
+		metadata: null
+	};
+	out.push(branchEnd);
+}
+function collectFromContent(content, out, sourceSpans, skipAgentSpanId, includeUtility = false, showBranches = false, branches, branchPrefix = "", isRoot = true) {
+	const agentSpans = isRoot ? content.filter((item) => item.type === "span" && item.spanType === "agent") : [];
+	const inlineAgentId = agentSpans.length === 1 ? agentSpans[0]?.id : void 0;
+	const pendingToolCallIds = /* @__PURE__ */ new Set();
+	const branchByBranchedFrom = /* @__PURE__ */ new Map();
+	if (branches) {
+		for (const branch of branches) if (branch.branchedFrom) {
+			const existing = branchByBranchedFrom.get(branch.branchedFrom);
+			if (existing) existing.push(branch);
+			else branchByBranchedFrom.set(branch.branchedFrom, [branch]);
+		}
+	}
+	const emittedBranchedFroms = /* @__PURE__ */ new Set();
+	for (const item of content) if (item.type === "event") {
+		if (skipAgentSpanId && item.event.event === "tool" && item.event.agent_span_id === skipAgentSpanId) continue;
+		if (item.event.event === "model" && pendingToolCallIds.size > 0) {
+			const modelEvent = item.event;
+			const filteredInput = modelEvent.input.filter((msg) => !(msg.role === "tool" && typeof msg.tool_call_id === "string" && pendingToolCallIds.has(msg.tool_call_id)));
+			if (filteredInput.length !== modelEvent.input.length) {
+				const patched = {
+					...modelEvent,
+					input: filteredInput,
+					agentResultsFiltered: true
+				};
+				out.push(patched);
+				pendingToolCallIds.clear();
+				emitInlineBranches(item, branchByBranchedFrom, branches ?? [], emittedBranchedFroms, out, sourceSpans, branchPrefix);
+				continue;
+			}
+		}
+		out.push(item.event);
+		emitInlineBranches(item, branchByBranchedFrom, branches ?? [], emittedBranchedFroms, out, sourceSpans, branchPrefix);
+	} else if (!includeUtility && item.utility) continue;
+	else {
+		const beginEvent = {
+			event: "span_begin",
+			name: item.name,
+			id: item.id,
+			span_id: item.id,
+			type: item.spanType,
+			timestamp: item.startTime().toISOString(),
+			parent_id: null,
+			pending: false,
+			working_start: 0,
+			uuid: item.id,
+			metadata: null
+		};
+		out.push(beginEvent);
+		if (item.spanType === "agent" && item.id !== inlineAgentId) {
+			sourceSpans.set(item.id, item);
+			if (item.agentResult && item.id.startsWith("agent-")) pendingToolCallIds.add(item.id.slice(6));
+		} else collectFromContent(item.content, out, sourceSpans, void 0, includeUtility, showBranches, item.branches.length > 0 ? item.branches : void 0, "", false);
+		const endEvent = {
+			event: "span_end",
+			id: `${item.id}-end`,
+			span_id: item.id,
+			timestamp: item.endTime().toISOString(),
+			pending: false,
+			working_start: 0,
+			uuid: null,
+			metadata: null
+		};
+		out.push(endEvent);
+	}
+	if (branches) for (const branch of branches) {
+		const branchedFrom = branch.branchedFrom ?? "";
+		if (!emittedBranchedFroms.has(branchedFrom)) emitBranchSpan(branch, `${branchPrefix}${branches.indexOf(branch) + 1}`, out, sourceSpans);
+	}
+}
+/**
+* Emit branches inline after their fork point event.
+*/ function emitInlineBranches(item, branchByBranchedFrom, allBranches, emittedBranchedFroms, out, sourceSpans, branchPrefix = "") {
+	for (const [messageId, forkedBranches] of branchByBranchedFrom) {
+		if (emittedBranchedFroms.has(messageId)) continue;
+		if (!item.matchesForkPoint(messageId)) continue;
+		const parentSpanId = item.event.span_id;
+		for (const branch of forkedBranches) {
+			const globalIndex = allBranches.indexOf(branch);
+			emitBranchSpan(branch, `${branchPrefix}${(globalIndex >= 0 ? globalIndex : 0) + 1}`, out, sourceSpans, parentSpanId);
+		}
+		emittedBranchedFroms.add(messageId);
+	}
+}
+/**
+* Derives the parent row key from a branch row key.
+*
+* Branch keys follow the pattern `"parentKey/branch-{branchedFrom}-{index}"`.
+* Returns null if the key doesn't contain a branch segment.
+*/ function getParentKeyFromBranch(branchKey) {
+	const match = /^(.+)\/branch-[^/]+$/.exec(branchKey);
+	return match ? match[1] : null;
+}
+/**
+* Shallow shape check for fork_nav metadata read off an event. Deliberately
+* only checks the outer shape — `forkNavToBranchPointProps` returns null for
+* groups it can't use, so a deep walk here would duplicate that.
+*/ var isForkNavData = (value) => isRecord(value) && Array.isArray(value["groups"]);
+function rowSpan(row) {
+	const s = row?.spans[0];
+	if (!s) return null;
+	return isSingleSpan(s) ? s.agent : getAgents(s)[0] ?? null;
+}
+/** Build root→selected segment list, each carrying its row key and cut anchor. */ function buildPath(rows, selectedKey) {
+	const byKey = new Map(rows.map((r) => [r.key, r]));
+	const keys = [selectedKey];
+	let k = selectedKey;
+	while (true) {
+		const parent = getParentKeyFromBranch(k);
+		if (!parent || !byKey.has(parent)) break;
+		keys.unshift(parent);
+		k = parent;
+	}
+	const segs = [];
+	for (let i = 0; i < keys.length; i++) {
+		const span = rowSpan(byKey.get(keys[i]));
+		if (!span) return segs;
+		const next = rowSpan(byKey.get(keys[i + 1] ?? ""));
+		segs.push({
+			span,
+			rowKey: keys[i],
+			cutAnchor: next?.branchedFrom ?? null
+		});
+	}
+	return segs;
+}
+/** Group a span's branches by the anchor they fork from, preserving `.branches` order. */ function branchesByAnchor(span, parentRowKey) {
+	const map = /* @__PURE__ */ new Map();
+	span.branches.forEach((b, i) => {
+		const anchor = b.branchedFrom ?? "";
+		const opt = {
+			label: b.name,
+			rowKey: `${parentRowKey}/branch-${b.branchedFrom}-${i + 1}`
+		};
+		const arr = map.get(anchor);
+		if (arr) arr.push(opt);
+		else map.set(anchor, [opt]);
+	});
+	return map;
+}
+/** Push a synthetic span_begin/span_end pair onto `events`. */ function emitSyntheticSpan(events, opts) {
+	events.push({
+		event: "span_begin",
+		name: opts.name,
+		id: opts.id,
+		span_id: opts.id,
+		type: opts.type,
+		timestamp: opts.start,
+		parent_id: opts.parentId,
+		pending: false,
+		working_start: 0,
+		uuid: opts.id,
+		metadata: opts.metadata ?? null
+	});
+	events.push({
+		event: "span_end",
+		id: opts.id,
+		span_id: opts.id,
+		timestamp: opts.end ?? opts.start,
+		pending: false,
+		working_start: 0,
+		uuid: null,
+		metadata: null
+	});
+}
+/**
+* Outline label for a fork navigator. Flattens all groups' child options
+* (excluding the leading stay-on-segment entry, which is always groups[*].options[0])
+* and caps at "first, second +N".
+*/ function forkNavLabel(groups) {
+	const children = groups.flatMap((g) => g.options.slice(1));
+	if (children.length <= 2) return children.map((c) => c.label).join(", ");
+	return `${children[0].label} +${children.length - 1}`;
+}
+/**
+* Collect events for the root→selected path, emitting an inline fork navigator
+* at every anchor where one or more branches fork off.
+*
+* The navigator's options are `[stay-on-segment, child₁, child₂, …]` for
+* children sharing that anchor. `selectedIndex` is whichever option the
+* current path follows next.
+*/ function collectPathWithNavigators(rows, selectedRowKey, rawEvents) {
+	const events = [];
+	const sourceSpans = /* @__PURE__ */ new Map();
+	const path = buildPath(rows, selectedRowKey);
+	let lastNavSegIdx = null;
+	for (let segIdx = 0; segIdx < path.length; segIdx++) {
+		const seg = path[segIdx];
+		const nextRowKey = path[segIdx + 1]?.rowKey;
+		const forks = branchesByAnchor(seg.span, seg.rowKey);
+		const suffix = `:${seg.span.id}`;
+		sourceSpans.set(seg.span.id, seg.span);
+		/** Emit a navigator for `children` at `anchorId`; returns true if the path cuts here. */ const navAt = (anchorId, children, ts, parentId) => {
+			const options = [{
+				label: seg.span.name,
+				rowKey: seg.rowKey
+			}, ...children];
+			const isCut = anchorId === seg.cutAnchor;
+			const sel = isCut ? options.findIndex((o) => o.rowKey === nextRowKey) : 0;
+			const group = {
+				anchorId,
+				options,
+				selectedIndex: Math.max(0, sel)
+			};
+			let i = events.length - 1;
+			while (i >= 0 && events[i].event === "anchor") i--;
+			const last = events[i];
+			const prev = events[i - 1];
+			if (lastNavSegIdx === segIdx && last && prev && last.event === "span_end" && prev.event === "span_begin" && prev.type === "fork_nav" && last.span_id === prev.span_id && prev.parent_id === parentId) {
+				const data = prev.metadata?.fork_nav;
+				if (data) {
+					data.groups.push(group);
+					prev.name = forkNavLabel(data.groups);
+					return isCut;
+				}
+			}
+			emitSyntheticSpan(events, {
+				id: `forknav-${seg.span.id}-${anchorId || "restart"}`,
+				name: forkNavLabel([group]),
+				type: "fork_nav",
+				parentId,
+				start: ts,
+				metadata: { fork_nav: { groups: [group] } }
+			});
+			lastNavSegIdx = segIdx;
+			return isCut;
+		};
+		const restartForks = forks.get("");
+		if (restartForks) {
+			if (navAt("", restartForks, seg.span.startTime().toISOString(), null)) continue;
+		}
+		for (const item of seg.span.content) {
+			if (item.type === "span") {
+				sourceSpans.set(item.id, item);
+				emitSyntheticSpan(events, {
+					id: item.id,
+					name: item.name,
+					type: item.spanType,
+					parentId: null,
+					start: item.startTime().toISOString(),
+					end: item.endTime().toISOString()
+				});
+				continue;
+			}
+			const stripped = stripSuffix(item.event, suffix, seg.span.id);
+			events.push(stripped);
+			if (item.event.event !== "anchor") continue;
+			const anchorId = item.event.anchor_id;
+			const children = forks.get(anchorId);
+			if (children?.length) {
+				const ts = item.event.timestamp;
+				if (navAt(anchorId, children, ts, stripped.span_id ?? null)) break;
+			} else if (anchorId === seg.cutAnchor) break;
+		}
+	}
+	const leaf = path[path.length - 1];
+	if (leaf && leaf.span.spanType === "branch") {
+		if (isEmptyBranch(leaf.span)) {
+			const terminator = rawEvents ? findTerminatorTool(rawEvents, leaf.span.id) : null;
+			const startTs = leaf.span.startTime().toISOString();
+			emitSyntheticSpan(events, {
+				id: `emptybranch-${leaf.span.id}`,
+				name: `${leaf.span.name} (empty)`,
+				type: "empty_branch",
+				parentId: null,
+				start: startTs,
+				metadata: { empty_branch: {
+					branchName: leaf.span.name,
+					terminator
+				} }
+			});
+		}
+	}
+	return {
+		events,
+		sourceSpans
+	};
+}
+/**
+* Builds a lookup from span ID to the selection key needed to select that span
+* in the swimlane UI.
+*
+* For rows with multiple spans (iterative), each span ID maps to a key with
+* the span index suffix (e.g. `"explore:0"`). For single-span rows, the key
+* is just the row key.
+*/ function buildSpanSelectKeys(rows) {
+	const keys = /* @__PURE__ */ new Map();
+	for (const row of rows) {
+		const hasMultipleSpans = row.spans.length > 1;
+		for (let i = 0; i < row.spans.length; i++) {
+			const rowSpan = row.spans[i];
+			const selectKey = hasMultipleSpans ? buildSelectionKey(row.key, i) : row.key;
+			if (isSingleSpan(rowSpan)) keys.set(rowSpan.agent.id, { key: selectKey });
+			else for (const agent of getAgents(rowSpan)) keys.set(agent.id, { key: selectKey });
+		}
+	}
+	return keys;
+}
+/**
+* Find the most recent tool event whose position sits inside the given
+* trajectory's span_begin/span_end range. Returns the tool's function name,
+* or null when no tool is found in range.
+*/ function findTerminatorTool(events, trajectorySpanId) {
+	let begin = -1;
+	let end = -1;
+	for (let i = 0; i < events.length; i++) {
+		const e = events[i];
+		if (e.span_id !== trajectorySpanId) continue;
+		if (e.event === "span_begin" && begin === -1) begin = i;
+		else if (e.event === "span_end") end = i;
+	}
+	if (begin === -1 || end === -1) return null;
+	for (let i = end - 1; i > begin; i--) {
+		const e = events[i];
+		if (e.event === "tool") return e.function;
+	}
+	return null;
+}
+/**
+* Walks the EventNode tree and attaches sourceSpan to any span_begin node
+* whose span_id matches an entry in the map. This links synthetic span events
+* back to their original TimelineSpan for rich rendering.
+*/ function attachSourceSpans(nodes, spanMap) {
+	for (const node of nodes) {
+		if (node.event.event === "span_begin") {
+			const spanId = node.event.span_id;
+			if (spanId) {
+				const span = spanMap.get(spanId);
+				if (span) node.sourceSpan = span;
+			}
+		}
+		if (node.children.length > 0) attachSourceSpans(node.children, spanMap);
+	}
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/TimelineSelectContext.ts
@@ -112305,9 +114432,8 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 	const resolvedView = (0, import_react.useMemo)(() => event.view ? substituteToolCallContent(event.view, event.arguments) : void 0, [event.view, event.arguments]);
 	const approvalNode = context?.toolApprovals?.get(event.id);
 	const lastModelNode = (0, import_react.useMemo)(() => {
-		return childNodes.findLast((e) => {
-			return e.event.event === "model";
-		});
+		const lastModel = childNodes.findLast((e) => e.event.event === "model");
+		return lastModel ? eventNodeOf(lastModel, "model") : void 0;
 	}, [event.events]);
 	const displayName = resolvedView?.title || title || name;
 	const panelTitle = displayName ? `Tool: ${displayName}` : "Tool";
@@ -112398,11 +114524,21 @@ var SANITIZED_CONTENT_KEYS = {
 	data: "data",
 	document: "document"
 };
+var readOptionalBoolean = (value, key) => {
+	if (!isRecord(value)) return false;
+	return value[key] === true;
+};
+var readOptionalString = (value, key) => {
+	if (!isRecord(value)) return void 0;
+	const raw = value[key];
+	return typeof raw === "string" ? raw : void 0;
+};
 var sanitizeContent = (val) => {
 	if (val === null || typeof val !== "object" || !("type" in val)) return;
 	if (val.type === "reasoning" && "reasoning" in val) {
-		const r = val;
-		return r.redacted ? r.summary ?? "" : r.reasoning || r.summary || "";
+		const reasoning = readOptionalString(val, "reasoning");
+		const summary = readOptionalString(val, "summary");
+		return readOptionalBoolean(val, "redacted") ? summary ?? "" : reasoning || summary || "";
 	}
 	if (typeof val.type === "string") {
 		const payloadKey = SANITIZED_CONTENT_KEYS[val.type];
@@ -112834,7 +114970,7 @@ var collapseTurns = (eventNodes) => {
 			const firstTurn = collecting[0];
 			if (!firstTurn) return;
 			const turnNode = new EventNode(firstTurn.id, {
-				...firstTurn.event,
+				...eventNodeOf(firstTurn, "span_begin").event,
 				name: `${numberOfTurns} ${numberOfTurns === 1 ? "turn" : "turns"}`,
 				type: kTurnsType
 			}, firstTurn.depth);
@@ -112860,7 +114996,7 @@ var collapseScoring = (eventNodes) => {
 			const firstScore = collecting[0];
 			if (!firstScore) return;
 			const turnNode = new EventNode(firstScore.id, {
-				...firstScore.event,
+				...eventNodeOf(firstScore, "score").event,
 				name: "scoring",
 				type: kCollapsedScoring
 			}, firstScore.depth);
@@ -113340,71 +115476,58 @@ function transcriptToolsRunning(eventNodes) {
 /**
 * Renders the event based on its type.
 */ var RenderedEventNodeInner = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(101);
+	const $ = (0, import_compiler_runtime.c)(147);
 	const { node, next, className, context, onAutoCollapse, renderAgentCard, eventCallbacks } = t0;
 	const selectRow = useTimelineRowSelect();
 	switch (node.event.event) {
 		case "sample_init": {
-			const t1 = node;
+			let t1;
+			if ($[0] !== node) {
+				t1 = eventNodeOf(node, "sample_init");
+				$[0] = node;
+				$[1] = t1;
+			} else t1 = $[1];
 			let t2;
-			if ($[0] !== className || $[1] !== t1) {
+			if ($[2] !== className || $[3] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleInitEventView, {
 					eventNode: t1,
 					className
 				});
-				$[0] = className;
-				$[1] = t1;
-				$[2] = t2;
-			} else t2 = $[2];
+				$[2] = className;
+				$[3] = t1;
+				$[4] = t2;
+			} else t2 = $[4];
 			return t2;
 		}
 		case "sample_limit": {
-			const t1 = node;
+			let t1;
+			if ($[5] !== node) {
+				t1 = eventNodeOf(node, "sample_limit");
+				$[5] = node;
+				$[6] = t1;
+			} else t1 = $[6];
 			let t2;
-			if ($[3] !== className || $[4] !== t1) {
+			if ($[7] !== className || $[8] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleLimitEventView, {
 					eventNode: t1,
 					className
 				});
-				$[3] = className;
-				$[4] = t1;
-				$[5] = t2;
-			} else t2 = $[5];
+				$[7] = className;
+				$[8] = t1;
+				$[9] = t2;
+			} else t2 = $[9];
 			return t2;
 		}
 		case "info": {
-			const t1 = node;
-			let t2;
-			if ($[6] !== className || $[7] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InfoEventView, {
-					eventNode: t1,
-					className
-				});
-				$[6] = className;
-				$[7] = t1;
-				$[8] = t2;
-			} else t2 = $[8];
-			return t2;
-		}
-		case "branch": {
-			const t1 = node;
-			let t2;
-			if ($[9] !== className || $[10] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(BranchEventView, {
-					eventNode: t1,
-					className
-				});
-				$[9] = className;
-				$[10] = t1;
-				$[11] = t2;
-			} else t2 = $[11];
-			return t2;
-		}
-		case "anchor": {
-			const t1 = node;
+			let t1;
+			if ($[10] !== node) {
+				t1 = eventNodeOf(node, "info");
+				$[10] = node;
+				$[11] = t1;
+			} else t1 = $[11];
 			let t2;
 			if ($[12] !== className || $[13] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnchorEventView, {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InfoEventView, {
 					eventNode: t1,
 					className
 				});
@@ -113414,60 +115537,54 @@ function transcriptToolsRunning(eventNodes) {
 			} else t2 = $[14];
 			return t2;
 		}
-		case "compaction": {
-			const t1 = node;
-			let t2;
-			if ($[15] !== className || $[16] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CompactionEventView, {
-					eventNode: t1,
-					className
-				});
-				$[15] = className;
+		case "branch": {
+			let t1;
+			if ($[15] !== node) {
+				t1 = eventNodeOf(node, "branch");
+				$[15] = node;
 				$[16] = t1;
-				$[17] = t2;
-			} else t2 = $[17];
-			return t2;
-		}
-		case "logger": {
-			const t1 = node;
+			} else t1 = $[16];
 			let t2;
-			if ($[18] !== className || $[19] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoggerEventView, {
+			if ($[17] !== className || $[18] !== t1) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(BranchEventView, {
 					eventNode: t1,
 					className
 				});
-				$[18] = className;
-				$[19] = t1;
-				$[20] = t2;
-			} else t2 = $[20];
+				$[17] = className;
+				$[18] = t1;
+				$[19] = t2;
+			} else t2 = $[19];
 			return t2;
 		}
-		case "model": {
-			const t1 = node;
-			const t2 = next?.event.event !== "tool";
-			let t3;
-			if ($[21] !== className || $[22] !== context || $[23] !== eventCallbacks || $[24] !== t1 || $[25] !== t2) {
-				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelEventView, {
+		case "anchor": {
+			let t1;
+			if ($[20] !== node) {
+				t1 = eventNodeOf(node, "anchor");
+				$[20] = node;
+				$[21] = t1;
+			} else t1 = $[21];
+			let t2;
+			if ($[22] !== className || $[23] !== t1) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnchorEventView, {
 					eventNode: t1,
-					showToolCalls: t2,
-					className,
-					context,
-					eventCallbacks
+					className
 				});
-				$[21] = className;
-				$[22] = context;
-				$[23] = eventCallbacks;
-				$[24] = t1;
-				$[25] = t2;
-				$[26] = t3;
-			} else t3 = $[26];
-			return t3;
+				$[22] = className;
+				$[23] = t1;
+				$[24] = t2;
+			} else t2 = $[24];
+			return t2;
 		}
-		case "score": {
-			const t1 = node;
+		case "compaction": {
+			let t1;
+			if ($[25] !== node) {
+				t1 = eventNodeOf(node, "compaction");
+				$[25] = node;
+				$[26] = t1;
+			} else t1 = $[26];
 			let t2;
 			if ($[27] !== className || $[28] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreEventView, {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CompactionEventView, {
 					eventNode: t1,
 					className
 				});
@@ -113477,183 +115594,288 @@ function transcriptToolsRunning(eventNodes) {
 			} else t2 = $[29];
 			return t2;
 		}
-		case "score_edit": {
-			const t1 = node;
+		case "logger": {
+			let t1;
+			if ($[30] !== node) {
+				t1 = eventNodeOf(node, "logger");
+				$[30] = node;
+				$[31] = t1;
+			} else t1 = $[31];
 			let t2;
-			if ($[30] !== className || $[31] !== t1) {
+			if ($[32] !== className || $[33] !== t1) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoggerEventView, {
+					eventNode: t1,
+					className
+				});
+				$[32] = className;
+				$[33] = t1;
+				$[34] = t2;
+			} else t2 = $[34];
+			return t2;
+		}
+		case "model": {
+			let t1;
+			if ($[35] !== node) {
+				t1 = eventNodeOf(node, "model");
+				$[35] = node;
+				$[36] = t1;
+			} else t1 = $[36];
+			const t2 = next?.event.event !== "tool";
+			let t3;
+			if ($[37] !== className || $[38] !== context || $[39] !== eventCallbacks || $[40] !== t1 || $[41] !== t2) {
+				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelEventView, {
+					eventNode: t1,
+					showToolCalls: t2,
+					className,
+					context,
+					eventCallbacks
+				});
+				$[37] = className;
+				$[38] = context;
+				$[39] = eventCallbacks;
+				$[40] = t1;
+				$[41] = t2;
+				$[42] = t3;
+			} else t3 = $[42];
+			return t3;
+		}
+		case "score": {
+			let t1;
+			if ($[43] !== node) {
+				t1 = eventNodeOf(node, "score");
+				$[43] = node;
+				$[44] = t1;
+			} else t1 = $[44];
+			let t2;
+			if ($[45] !== className || $[46] !== t1) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreEventView, {
+					eventNode: t1,
+					className
+				});
+				$[45] = className;
+				$[46] = t1;
+				$[47] = t2;
+			} else t2 = $[47];
+			return t2;
+		}
+		case "score_edit": {
+			let t1;
+			if ($[48] !== node) {
+				t1 = eventNodeOf(node, "score_edit");
+				$[48] = node;
+				$[49] = t1;
+			} else t1 = $[49];
+			let t2;
+			if ($[50] !== className || $[51] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreEditEventView, {
 					eventNode: t1,
 					className
 				});
-				$[30] = className;
-				$[31] = t1;
-				$[32] = t2;
-			} else t2 = $[32];
+				$[50] = className;
+				$[51] = t1;
+				$[52] = t2;
+			} else t2 = $[52];
 			return t2;
 		}
 		case "state": {
-			const t1 = node;
+			let t1;
+			if ($[53] !== node) {
+				t1 = eventNodeOf(node, "state");
+				$[53] = node;
+				$[54] = t1;
+			} else t1 = $[54];
 			let t2;
-			if ($[33] !== className || $[34] !== eventCallbacks || $[35] !== onAutoCollapse || $[36] !== t1) {
+			if ($[55] !== className || $[56] !== eventCallbacks || $[57] !== onAutoCollapse || $[58] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StateEventView, {
 					eventNode: t1,
 					className,
 					onAutoCollapse,
 					eventCallbacks
 				});
-				$[33] = className;
-				$[34] = eventCallbacks;
-				$[35] = onAutoCollapse;
-				$[36] = t1;
-				$[37] = t2;
-			} else t2 = $[37];
+				$[55] = className;
+				$[56] = eventCallbacks;
+				$[57] = onAutoCollapse;
+				$[58] = t1;
+				$[59] = t2;
+			} else t2 = $[59];
 			return t2;
 		}
 		case "span_begin": {
 			if (node.event.type === "fork_nav") {
-				const data = node.event.metadata?.fork_nav;
-				if (!data) return null;
+				const metadata = node.event.metadata;
+				const data = isRecord(metadata) ? metadata.fork_nav : void 0;
+				if (!isForkNavData(data)) return null;
 				let t1;
-				if ($[38] !== data) {
+				if ($[60] !== data) {
 					t1 = forkNavToBranchPointProps(data);
-					$[38] = data;
-					$[39] = t1;
-				} else t1 = $[39];
+					$[60] = data;
+					$[61] = t1;
+				} else t1 = $[61];
 				const props = t1;
 				if (!props) return null;
 				let t2;
-				if ($[40] !== data || $[41] !== selectRow) {
+				if ($[62] !== data || $[63] !== selectRow) {
 					t2 = (label, anchorEl) => {
 						const rowKey = findRowKeyForLabel(data, label);
 						if (rowKey) selectRow?.(rowKey, anchorEl);
 					};
-					$[40] = data;
-					$[41] = selectRow;
-					$[42] = t2;
-				} else t2 = $[42];
+					$[62] = data;
+					$[63] = selectRow;
+					$[64] = t2;
+				} else t2 = $[64];
 				let t3;
-				if ($[43] !== className || $[44] !== props || $[45] !== t2) {
+				if ($[65] !== className || $[66] !== props || $[67] !== t2) {
 					t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(BranchPoint, {
 						...props,
 						className,
 						onSelect: t2
 					});
-					$[43] = className;
-					$[44] = props;
-					$[45] = t2;
-					$[46] = t3;
-				} else t3 = $[46];
+					$[65] = className;
+					$[66] = props;
+					$[67] = t2;
+					$[68] = t3;
+				} else t3 = $[68];
 				return t3;
 			}
 			if (node.event.type === "empty_branch") {
-				const t1 = node;
+				let t1;
+				if ($[69] !== node) {
+					t1 = eventNodeOf(node, "span_begin");
+					$[69] = node;
+					$[70] = t1;
+				} else t1 = $[70];
 				let t2;
-				if ($[47] !== className || $[48] !== t1) {
+				if ($[71] !== className || $[72] !== t1) {
 					t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyBranchView, {
 						eventNode: t1,
 						className
 					});
-					$[47] = className;
-					$[48] = t1;
-					$[49] = t2;
-				} else t2 = $[49];
+					$[71] = className;
+					$[72] = t1;
+					$[73] = t2;
+				} else t2 = $[73];
 				return t2;
 			}
 			if (renderAgentCard && node.sourceSpan) {
 				const spanType = node.sourceSpan.spanType;
 				if (spanType === "agent" || spanType === "branch") {
 					let t1;
-					if ($[50] !== className || $[51] !== node || $[52] !== renderAgentCard) {
+					if ($[74] !== className || $[75] !== node || $[76] !== renderAgentCard) {
 						t1 = renderAgentCard(node, className);
-						$[50] = className;
-						$[51] = node;
-						$[52] = renderAgentCard;
-						$[53] = t1;
-					} else t1 = $[53];
+						$[74] = className;
+						$[75] = node;
+						$[76] = renderAgentCard;
+						$[77] = t1;
+					} else t1 = $[77];
 					let t2;
-					if ($[54] !== t1) {
+					if ($[78] !== t1) {
 						t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t1 });
-						$[54] = t1;
-						$[55] = t2;
-					} else t2 = $[55];
+						$[78] = t1;
+						$[79] = t2;
+					} else t2 = $[79];
 					return t2;
 				}
 			}
-			const t1 = node;
+			let t1;
+			if ($[80] !== node) {
+				t1 = eventNodeOf(node, "span_begin");
+				$[80] = node;
+				$[81] = t1;
+			} else t1 = $[81];
 			let t2;
-			if ($[56] !== className || $[57] !== eventCallbacks || $[58] !== node.children || $[59] !== t1) {
+			if ($[82] !== className || $[83] !== eventCallbacks || $[84] !== node.children || $[85] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
 					eventNode: t1,
 					childNodes: node.children,
 					className,
 					eventCallbacks
 				});
-				$[56] = className;
-				$[57] = eventCallbacks;
-				$[58] = node.children;
-				$[59] = t1;
-				$[60] = t2;
-			} else t2 = $[60];
+				$[82] = className;
+				$[83] = eventCallbacks;
+				$[84] = node.children;
+				$[85] = t1;
+				$[86] = t2;
+			} else t2 = $[86];
 			return t2;
 		}
 		case "step": {
-			const t1 = node;
+			let t1;
+			if ($[87] !== node) {
+				t1 = eventNodeOf(node, "step");
+				$[87] = node;
+				$[88] = t1;
+			} else t1 = $[88];
 			let t2;
-			if ($[61] !== className || $[62] !== eventCallbacks || $[63] !== node.children || $[64] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StepEventView, {
+			if ($[89] !== className || $[90] !== eventCallbacks || $[91] !== node.children || $[92] !== t1) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
 					eventNode: t1,
 					childNodes: node.children,
 					className,
 					eventCallbacks
 				});
-				$[61] = className;
-				$[62] = eventCallbacks;
-				$[63] = node.children;
-				$[64] = t1;
-				$[65] = t2;
-			} else t2 = $[65];
+				$[89] = className;
+				$[90] = eventCallbacks;
+				$[91] = node.children;
+				$[92] = t1;
+				$[93] = t2;
+			} else t2 = $[93];
 			return t2;
 		}
 		case "store": {
-			const t1 = node;
+			let t1;
+			if ($[94] !== node) {
+				t1 = eventNodeOf(node, "store");
+				$[94] = node;
+				$[95] = t1;
+			} else t1 = $[95];
 			let t2;
-			if ($[66] !== className || $[67] !== eventCallbacks || $[68] !== onAutoCollapse || $[69] !== t1) {
+			if ($[96] !== className || $[97] !== eventCallbacks || $[98] !== onAutoCollapse || $[99] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StateEventView, {
 					eventNode: t1,
 					className,
 					onAutoCollapse,
 					eventCallbacks
 				});
-				$[66] = className;
-				$[67] = eventCallbacks;
-				$[68] = onAutoCollapse;
-				$[69] = t1;
-				$[70] = t2;
-			} else t2 = $[70];
+				$[96] = className;
+				$[97] = eventCallbacks;
+				$[98] = onAutoCollapse;
+				$[99] = t1;
+				$[100] = t2;
+			} else t2 = $[100];
 			return t2;
 		}
 		case "subtask": {
-			const t1 = node;
+			let t1;
+			if ($[101] !== node) {
+				t1 = eventNodeOf(node, "subtask");
+				$[101] = node;
+				$[102] = t1;
+			} else t1 = $[102];
 			let t2;
-			if ($[71] !== className || $[72] !== eventCallbacks || $[73] !== node.children || $[74] !== t1) {
+			if ($[103] !== className || $[104] !== eventCallbacks || $[105] !== node.children || $[106] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SubtaskEventView, {
 					eventNode: t1,
 					className,
 					childNodes: node.children,
 					eventCallbacks
 				});
-				$[71] = className;
-				$[72] = eventCallbacks;
-				$[73] = node.children;
-				$[74] = t1;
-				$[75] = t2;
-			} else t2 = $[75];
+				$[103] = className;
+				$[104] = eventCallbacks;
+				$[105] = node.children;
+				$[106] = t1;
+				$[107] = t2;
+			} else t2 = $[107];
 			return t2;
 		}
 		case "tool": {
-			const t1 = node;
+			let t1;
+			if ($[108] !== node) {
+				t1 = eventNodeOf(node, "tool");
+				$[108] = node;
+				$[109] = t1;
+			} else t1 = $[109];
 			let t2;
-			if ($[76] !== className || $[77] !== context || $[78] !== eventCallbacks || $[79] !== node.children || $[80] !== t1) {
+			if ($[110] !== className || $[111] !== context || $[112] !== eventCallbacks || $[113] !== node.children || $[114] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolEventView, {
 					eventNode: t1,
 					className,
@@ -113661,99 +115883,129 @@ function transcriptToolsRunning(eventNodes) {
 					context,
 					eventCallbacks
 				});
-				$[76] = className;
-				$[77] = context;
-				$[78] = eventCallbacks;
-				$[79] = node.children;
-				$[80] = t1;
-				$[81] = t2;
-			} else t2 = $[81];
+				$[110] = className;
+				$[111] = context;
+				$[112] = eventCallbacks;
+				$[113] = node.children;
+				$[114] = t1;
+				$[115] = t2;
+			} else t2 = $[115];
 			return t2;
 		}
 		case "input": {
-			const t1 = node;
+			let t1;
+			if ($[116] !== node) {
+				t1 = eventNodeOf(node, "input");
+				$[116] = node;
+				$[117] = t1;
+			} else t1 = $[117];
 			let t2;
-			if ($[82] !== className || $[83] !== t1) {
+			if ($[118] !== className || $[119] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InputEventView, {
 					eventNode: t1,
 					className
 				});
-				$[82] = className;
-				$[83] = t1;
-				$[84] = t2;
-			} else t2 = $[84];
+				$[118] = className;
+				$[119] = t1;
+				$[120] = t2;
+			} else t2 = $[120];
 			return t2;
 		}
 		case "interrupt": {
-			const t1 = node;
+			let t1;
+			if ($[121] !== node) {
+				t1 = eventNodeOf(node, "interrupt");
+				$[121] = node;
+				$[122] = t1;
+			} else t1 = $[122];
 			let t2;
-			if ($[85] !== className || $[86] !== t1) {
+			if ($[123] !== className || $[124] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InterruptEventView, {
 					eventNode: t1,
 					className
 				});
-				$[85] = className;
-				$[86] = t1;
-				$[87] = t2;
-			} else t2 = $[87];
+				$[123] = className;
+				$[124] = t1;
+				$[125] = t2;
+			} else t2 = $[125];
 			return t2;
 		}
 		case "error": {
-			const t1 = node;
+			let t1;
+			if ($[126] !== node) {
+				t1 = eventNodeOf(node, "error");
+				$[126] = node;
+				$[127] = t1;
+			} else t1 = $[127];
 			let t2;
-			if ($[88] !== className || $[89] !== t1) {
+			if ($[128] !== className || $[129] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorEventView, {
 					eventNode: t1,
 					className
 				});
-				$[88] = className;
-				$[89] = t1;
-				$[90] = t2;
-			} else t2 = $[90];
+				$[128] = className;
+				$[129] = t1;
+				$[130] = t2;
+			} else t2 = $[130];
 			return t2;
 		}
 		case "approval": {
-			const t1 = node;
+			let t1;
+			if ($[131] !== node) {
+				t1 = eventNodeOf(node, "approval");
+				$[131] = node;
+				$[132] = t1;
+			} else t1 = $[132];
 			let t2;
-			if ($[91] !== className || $[92] !== t1) {
+			if ($[133] !== className || $[134] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalEventView, {
 					eventNode: t1,
 					className
 				});
-				$[91] = className;
-				$[92] = t1;
-				$[93] = t2;
-			} else t2 = $[93];
+				$[133] = className;
+				$[134] = t1;
+				$[135] = t2;
+			} else t2 = $[135];
 			return t2;
 		}
 		case "sandbox": {
-			const t1 = node;
+			let t1;
+			if ($[136] !== node) {
+				t1 = eventNodeOf(node, "sandbox");
+				$[136] = node;
+				$[137] = t1;
+			} else t1 = $[137];
 			let t2;
-			if ($[94] !== className || $[95] !== t1) {
+			if ($[138] !== className || $[139] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SandboxEventView, {
 					eventNode: t1,
 					className
 				});
-				$[94] = className;
-				$[95] = t1;
-				$[96] = t2;
-			} else t2 = $[96];
+				$[138] = className;
+				$[139] = t1;
+				$[140] = t2;
+			} else t2 = $[140];
 			return t2;
 		}
 		case "checkpoint": {
-			const t1 = node;
+			let t1;
+			if ($[141] !== node) {
+				t1 = eventNodeOf(node, "checkpoint");
+				$[141] = node;
+				$[142] = t1;
+			} else t1 = $[142];
 			let t2;
-			if ($[97] !== className || $[98] !== eventCallbacks || $[99] !== t1) {
+			if ($[143] !== className || $[144] !== eventCallbacks || $[145] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckpointEventView, {
 					eventNode: t1,
 					className,
 					eventCallbacks
 				});
-				$[97] = className;
-				$[98] = eventCallbacks;
-				$[99] = t1;
-				$[100] = t2;
-			} else t2 = $[100];
+				$[143] = className;
+				$[144] = eventCallbacks;
+				$[145] = t1;
+				$[146] = t2;
+			} else t2 = $[146];
 			return t2;
 		}
 		default: return null;
@@ -114034,7 +116286,9 @@ var transformers = () => {
 */ var elevateChildNode = (node, childEventType) => {
 	const targetIndex = node.children.findIndex((child) => child.event.event === childEventType);
 	if (targetIndex === -1) return null;
-	const targetNode = { ...node.children[targetIndex] };
+	const target = node.children[targetIndex];
+	if (!target) return null;
+	const targetNode = { ...target };
 	const remainingChildren = node.children.filter((_, i) => i !== targetIndex);
 	targetNode.depth = node.depth;
 	targetNode.children = setDepth(remainingChildren, node.depth + 1);
@@ -114062,9 +116316,11 @@ var skipFirstChildNode = (node) => {
 	return node;
 };
 var skipThisNode = (node) => {
-	const newNode = { ...node.children[0] };
+	const first = node.children[0];
+	if (!first) return node;
+	const newNode = { ...first };
 	newNode.depth = node.depth;
-	newNode.children = reduceDepth(newNode.children || [], 2);
+	newNode.children = reduceDepth(newNode.children, 2);
 	return newNode;
 };
 var discardNode = (node) => {
@@ -114246,1242 +116502,6 @@ var injectScorersSpan = (events) => {
 		return node.event.event !== "span_begin" && node.event.event !== "step" || node.children.length > 0;
 	});
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/core.ts
-/**
-* Transcript nodes: hierarchical structure for visualization and scanning.
-*
-* Transforms flat event streams into a semantic tree with agent-centric interpretation.
-*
-* TypeScript port of Python's nodes.py, implementing our own span tree building
-* since we don't have access to inspect_ai's event_tree().
-*/ function isSpanNode(item) {
-	return typeof item === "object" && item !== null && "children" in item && Array.isArray(item.children);
-}
-/**
-* Wraps a single Event with computed timing and token methods.
-*/ var TimelineEvent = class {
-	type = "event";
-	event;
-	constructor(event) {
-		this.event = event;
-	}
-	startTime() {
-		return new Date(this.event.timestamp ?? 0);
-	}
-	endTime() {
-		const completed = this.event.completed;
-		return completed ? new Date(completed) : this.startTime();
-	}
-	totalTokens() {
-		return getEventTokens(this.event);
-	}
-	idleTime() {
-		return 0;
-	}
-	/**
-	* Returns true if this event is the fork point for the given `branchedFrom`.
-	*
-	* `branchedFrom` is an anchor ID; producers emit an `AnchorEvent` at each
-	* fork-able point (`timeline_branch()` does this automatically).
-	*/ matchesForkPoint(id) {
-		return this.event.event === "anchor" && this.event.anchor_id === id;
-	}
-};
-/**
-* A span of execution — agent, scorer, tool, or root.
-*/ var TimelineSpan = class {
-	type = "span";
-	id;
-	name;
-	spanType;
-	content;
-	branches;
-	branchedFrom;
-	description;
-	utility;
-	toolInvoked;
-	agentResult;
-	outline;
-	constructor(props) {
-		this.id = props.id;
-		this.name = props.name;
-		this.spanType = props.spanType;
-		this.content = props.content ?? [];
-		this.branches = props.branches ?? [];
-		this.branchedFrom = props.branchedFrom ?? null;
-		this.description = props.description;
-		this.utility = props.utility ?? false;
-		this.toolInvoked = props.toolInvoked ?? false;
-		this.agentResult = props.agentResult;
-		this.outline = props.outline;
-	}
-	startTime(includeBranches = true) {
-		const items = includeBranches ? [...this.content, ...this.branches] : this.content;
-		return items.length > 0 ? minStartTime(items) : /* @__PURE__ */ new Date(0);
-	}
-	endTime(includeBranches = true) {
-		const items = includeBranches ? [...this.content, ...this.branches] : this.content;
-		return items.length > 0 ? maxEndTime(items) : /* @__PURE__ */ new Date(0);
-	}
-	totalTokens(includeBranches = true) {
-		return sumTokens(includeBranches ? [...this.content, ...this.branches] : this.content);
-	}
-	idleTime(includeBranches = true) {
-		return computeIdleTime(includeBranches ? [...this.content, ...this.branches] : this.content, this.startTime(includeBranches), this.endTime(includeBranches));
-	}
-};
-/**
-* True if `span` has no visible content and no non-empty nested branches.
-* `anchor`, `branch`, and `step` events are structural and don't count.
-*/ function isEmptyBranch(span) {
-	return !span.content.some((item) => {
-		if (item.type === "span") return true;
-		const evt = item.event.event;
-		return evt !== "anchor" && evt !== "branch" && evt !== "step";
-	}) && span.branches.length === 0;
-}
-/**
-* Return a copy of `timeline` with empty branches pruned recursively.
-* Walks the span tree, pruning empty branches bottom-up so that branches
-* which only carry other (empty) branches are themselves dropped.
-*/ function filterEmptyBranches(timeline) {
-	return {
-		name: timeline.name,
-		description: timeline.description,
-		root: pruneEmptyBranches(timeline.root)
-	};
-}
-function pruneEmptyBranches(span) {
-	const content = span.content.map((item) => item.type === "span" ? pruneEmptyBranches(item) : item);
-	const branches = span.branches.map(pruneEmptyBranches).filter((b) => !isEmptyBranch(b));
-	return new TimelineSpan({
-		id: span.id,
-		name: span.name,
-		spanType: span.spanType,
-		content,
-		branches,
-		branchedFrom: span.branchedFrom,
-		description: span.description,
-		utility: span.utility,
-		toolInvoked: span.toolInvoked,
-		agentResult: span.agentResult,
-		outline: span.outline
-	});
-}
-/**
-* True if `span` (or any descendant span in its content tree) has branches.
-*/ function spanHasBranches(span) {
-	if (span.branches.length > 0) return true;
-	for (const item of span.content) if (item.type === "span" && spanHasBranches(item)) return true;
-	return false;
-}
-/**
-* Count utility spans in `span`'s content tree.
-*
-* Used to surface how many utility agents are elided from display when the
-* "Utility agents" option is off, so they never disappear without a trace.
-* Branches are deliberately excluded: the indicator's contract is "what the
-* utility toggle reveals", and branch content stays hidden behind the
-* separate branches option regardless of the utility setting.
-*/ function countUtilitySpans(span) {
-	let count = 0;
-	for (const item of span.content) if (item.type === "span") {
-		if (item.utility) count++;
-		count += countUtilitySpans(item);
-	}
-	return count;
-}
-/**
-* Creates a display-ready TimelineSpan from a branch span.
-*
-* If the branch has exactly one child span, returns that span directly.
-* Otherwise creates a synthetic container. The returned span's name is
-* clean (no arrow prefix) — callers that need a display prefix (e.g. the
-* swimlane row label) should add it themselves.
-*/ function createBranchSpan(branch, label) {
-	const name = deriveBranchLabel(branch, label);
-	return new TimelineSpan({
-		id: branch.id,
-		name,
-		spanType: "branch",
-		content: branch.content,
-		branches: branch.branches,
-		branchedFrom: branch.branchedFrom,
-		description: branch.description,
-		utility: branch.utility,
-		toolInvoked: branch.toolInvoked,
-		agentResult: branch.agentResult,
-		outline: branch.outline
-	});
-}
-var kGenericBranchNames = /* @__PURE__ */ new Set([
-	"",
-	"branch",
-	"trajectory"
-]);
-function deriveBranchLabel(branch, label) {
-	if (!kGenericBranchNames.has(branch.name)) return branch.name;
-	for (const item of branch.content) if (item.type === "span") return item.name;
-	return `Branch ${label}`;
-}
-/**
-* Build an event lookup map from a flat event array, keyed by UUID.
-*/ function buildEventLookup(events) {
-	const map = /* @__PURE__ */ new Map();
-	for (const event of events) {
-		const uuid = event.uuid;
-		if (uuid) map.set(uuid, event);
-	}
-	return map;
-}
-/**
-* Convert a server-provided Timeline (snake_case) to the client-side Timeline
-* (camelCase with computed Date/token/idle properties).
-*
-* Server timelines store event references as UUID strings. The `events` array
-* is used to resolve these references to full Event objects.
-*/ function convertServerTimeline(server, events) {
-	const lookup = buildEventLookup(events);
-	const root = convertServerSpan(server.root, lookup);
-	return {
-		name: server.name,
-		description: server.description,
-		root
-	};
-}
-function convertServerContentItem(item, lookup) {
-	if (item.type === "event") return convertServerEvent(item, lookup);
-	return convertServerSpan(item, lookup);
-}
-function convertServerEvent(server, lookup) {
-	const eventRef = server.event;
-	const event = lookup.get(eventRef);
-	if (!event) return null;
-	return new TimelineEvent(event);
-}
-function convertServerSpan(server, lookup) {
-	const content = (server.content ?? []).map((item) => convertServerContentItem(item, lookup)).filter((item) => item !== null);
-	const branches = (server.branches ?? []).map((b) => convertServerSpan(b, lookup)).filter((b) => b.content.length > 0 || b.branches.length > 0);
-	return new TimelineSpan({
-		id: server.id,
-		name: server.name,
-		spanType: server.span_type ?? null,
-		branchedFrom: server.branched_from ?? null,
-		content,
-		branches,
-		description: server.description ?? void 0,
-		utility: server.utility,
-		toolInvoked: server.tool_invoked,
-		agentResult: server.agent_result ?? void 0,
-		outline: server.outline ?? void 0
-	});
-}
-/**
-* Reconstruct `target`'s full event stream by concatenating ancestor prefixes.
-*
-* For each ancestor, take events up to the `AnchorEvent` matching the next
-* child's `branchedFrom`, strip the `:{span_id}` suffix from span IDs, and
-* concatenate. The result is what a standalone unbranched run of `target`'s
-* lineage would have produced.
-*/ function splice(root, target) {
-	const chain = ancestorChain(root, target);
-	const out = [];
-	for (let i = 0; i < chain.length; i++) {
-		const node = chain[i];
-		let events = node.content.filter((it) => it.type === "event").map((it) => it.event);
-		if (i + 1 < chain.length) {
-			const anchor = chain[i + 1].branchedFrom;
-			if (!anchor) {
-				out.length = 0;
-				continue;
-			}
-			const cut = events.findIndex((e) => e.event === "anchor" && e.anchor_id === anchor);
-			if (cut < 0) throw new Error(`splice: anchor ${anchor} not found in ${node.name} (${node.id})`);
-			events = events.slice(0, cut + 1);
-		}
-		const suffix = `:${node.id}`;
-		for (const e of events) out.push(stripSuffix(e, suffix, node.id));
-	}
-	return out;
-}
-/** Splice `target` and rebuild it as a standalone (unbranched) Timeline. */ function spliceToTimeline(root, target) {
-	return buildTimeline(splice(root, target));
-}
-function ancestorChain(root, target) {
-	const path = [];
-	function walk(node) {
-		path.push(node);
-		if (node === target || node.id === target.id) return true;
-		for (const child of node.branches) if (walk(child)) return true;
-		path.pop();
-		return false;
-	}
-	if (!walk(root)) throw new Error(`TimelineSpan ${target.id} not reachable from root`);
-	return path;
-}
-function stripSuffix(e, suffix, trajId) {
-	const update = {};
-	if (e.span_id?.endsWith(suffix)) update.span_id = e.span_id.slice(0, -suffix.length);
-	else if (e.span_id === trajId) update.span_id = "";
-	if (e.event === "span_begin" || e.event === "span_end") {
-		if (e.id.endsWith(suffix)) update.id = e.id.slice(0, -suffix.length);
-	}
-	if (e.event === "span_begin" && e.parent_id != null) {
-		if (e.parent_id.endsWith(suffix)) update.parent_id = e.parent_id.slice(0, -suffix.length);
-		else if (e.parent_id === trajId) update.parent_id = "";
-	}
-	return Object.keys(update).length > 0 ? {
-		...e,
-		...update
-	} : e;
-}
-/**
-* Get tokens from an event (ModelEvent only).
-*/ function getEventTokens(event) {
-	if (event.event === "model") {
-		const usage = event.output.usage;
-		if (usage) {
-			const inputTokens = usage.input_tokens ?? 0;
-			const cacheRead = usage.input_tokens_cache_read ?? 0;
-			const cacheWrite = usage.input_tokens_cache_write ?? 0;
-			const outputTokens = usage.output_tokens ?? 0;
-			return inputTokens + cacheRead + cacheWrite + outputTokens;
-		}
-	}
-	return 0;
-}
-/**
-* Return the earliest start time among nodes.
-* Requires at least one node (all nodes have non-null startTime).
-*/ function minStartTime(nodes) {
-	const first = nodes[0];
-	if (!first) throw new Error("minStartTime requires at least one node");
-	return nodes.reduce((min, n) => n.startTime() < min ? n.startTime() : min, first.startTime());
-}
-/**
-* Return the latest end time among nodes.
-* Requires at least one node (all nodes have non-null endTime).
-*/ function maxEndTime(nodes) {
-	const first = nodes[0];
-	if (!first) throw new Error("maxEndTime requires at least one node");
-	return nodes.reduce((max, n) => n.endTime() > max ? n.endTime() : max, first.endTime());
-}
-/**
-* Sum total tokens across all nodes.
-*/ function sumTokens(nodes) {
-	return nodes.reduce((sum, n) => sum + n.totalTokens(), 0);
-}
-var IDLE_THRESHOLD_MS = 3e5;
-/**
-* Compute idle time using gap-based detection between children.
-*
-* Any gap > 5 min between consecutive children (sorted by startTime)
-* is counted as idle. Children's own idleTime is summed recursively.
-*/ function computeIdleTime(content, startTime, endTime) {
-	if (content.length === 0) return 0;
-	const sorted = [...content].sort((a, b) => a.startTime().getTime() - b.startTime().getTime());
-	let idleMs = 0;
-	for (const child of sorted) idleMs += child.idleTime() * 1e3;
-	const firstGap = sorted[0].startTime().getTime() - startTime.getTime();
-	if (firstGap > IDLE_THRESHOLD_MS) idleMs += firstGap;
-	for (let i = 1; i < sorted.length; i++) {
-		const gap = sorted[i].startTime().getTime() - sorted[i - 1].endTime().getTime();
-		if (gap > IDLE_THRESHOLD_MS) idleMs += gap;
-	}
-	const lastGap = endTime.getTime() - sorted[sorted.length - 1].endTime().getTime();
-	if (lastGap > IDLE_THRESHOLD_MS) idleMs += lastGap;
-	return Math.max(0, idleMs / 1e3);
-}
-/**
-* Create a TimelineEvent from an Event.
-*/ function createTimelineEvent(event) {
-	return new TimelineEvent(event);
-}
-/**
-* Create a TimelineSpan with computed properties.
-*/ function createTimelineSpan(id, name, spanType, content, utility = false, branches = [], description, branchedFrom = null) {
-	if (content.length === 0) throw new Error(`createTimelineSpan called with empty content for span "${name}" (id=${id}). Callers must guard against empty content before calling the factory.`);
-	return new TimelineSpan({
-		id,
-		name: name.toLowerCase(),
-		spanType,
-		content,
-		utility,
-		branches,
-		description,
-		branchedFrom
-	});
-}
-/**
-* Build a span tree from a flat event list.
-*
-* Parses span_begin/span_end events to create hierarchical structure.
-* Events are associated with spans via their span_id field.
-*/ function buildSpanTree(events) {
-	const root = [];
-	const spansById = /* @__PURE__ */ new Map();
-	const spanStack = [];
-	for (const event of events) if (event.event === "span_begin") {
-		const span = {
-			id: event.id,
-			name: event.name,
-			type: event.type ?? void 0,
-			parentId: event.parent_id,
-			metadata: event.metadata ?? void 0,
-			children: [],
-			beginEvent: event
-		};
-		spansById.set(span.id, span);
-	}
-	for (const event of events) if (event.event === "span_begin") {
-		const span = spansById.get(event.id);
-		if (span.parentId && spansById.has(span.parentId)) spansById.get(span.parentId).children.push(span);
-		else if (spanStack.length > 0) {
-			const currentSpan = spanStack[spanStack.length - 1];
-			if (currentSpan) currentSpan.children.push(span);
-		} else root.push(span);
-		spanStack.push(span);
-	} else if (event.event === "span_end") {
-		const endSpan = spansById.get(event.id);
-		if (endSpan) endSpan.endEvent = event;
-		if (spanStack.length > 0) spanStack.pop();
-	} else {
-		const spanId = event.span_id;
-		if (spanId && spansById.has(spanId)) spansById.get(spanId).children.push(event);
-		else if (spanStack.length > 0) {
-			const currentSpan = spanStack[spanStack.length - 1];
-			if (currentSpan) currentSpan.children.push(event);
-		} else root.push(event);
-	}
-	const getTimestamp = (item) => {
-		if (isSpanNode(item)) return item.beginEvent.timestamp;
-		return item.timestamp;
-	};
-	for (const span of spansById.values()) span.children.sort((a, b) => getTimestamp(a).localeCompare(getTimestamp(b)));
-	return root;
-}
-/**
-* Flatten a tree item recursively to get all events.
-*/ function eventSequence(items) {
-	const events = [];
-	for (const item of items) if (isSpanNode(item)) events.push(...eventSequence(item.children));
-	else events.push(item);
-	return events;
-}
-/**
-* Check if a span contains any ModelEvent (recursively).
-*/ function containsModelEvents(span) {
-	for (const child of span.children) if (isSpanNode(child)) {
-		if (containsModelEvents(child)) return true;
-	} else if (child.event === "model") return true;
-	return false;
-}
-/**
-* Check if a span has any descendant span with type="agent".
-*
-* Used to suppress tool→agent classification when the tool already
-* wraps an explicit agent span (which will represent the agent itself).
-*/ function containsAgentSpan(span) {
-	for (const child of span.children) if (isSpanNode(child)) {
-		if (child.type === "agent" || containsAgentSpan(child)) return true;
-	}
-	return false;
-}
-/**
-* Convert an Event to a TimelineEvent or TimelineSpan.
-*
-* Handles ToolEvents that spawn nested agents, recursively processing
-* nested events to detect further agent spawning.
-*/ function eventToNode(event) {
-	if (event.event === "tool") {
-		const agentName = event.agent;
-		const nestedEvents = event.events;
-		if (agentName && nestedEvents && nestedEvents.length > 0) {
-			const nestedContent = nestedEvents.map((e) => eventToNode(e));
-			if (nestedContent.length > 0) {
-				const span = createTimelineSpan(`tool-agent-${event.id}`, agentName, "agent", nestedContent);
-				span.toolInvoked = true;
-				const agentResult = extractToolEventResult(event.result);
-				if (agentResult) span.agentResult = codexResultText(event.function, event.result, agentResult);
-				return span;
-			}
-		}
-	}
-	return createTimelineEvent(event);
-}
-/**
-* Check if a SpanNode represents an agent trajectory.
-*
-* Agent spans are:
-* - Explicit agent spans (type="agent")
-* - Solver spans that wrap a genuine agent (e.g. an @agent run via as_solver)
-* - Tool spans containing model events (tool-spawned agents)
-*
-* Primitive solver spans (system_message, generate, use_tools, ...) wrap no
-* agent of their own, so they are not agent trajectories — they get unrolled
-* into their parent rather than occupying a swimlane.
-*/ function isAgentSpan(span) {
-	if (span.type === "agent") return true;
-	if (span.type === "solver") return containsAgentSpan(span);
-	if (span.type === "tool" && containsModelEvents(span) && !containsAgentSpan(span)) return true;
-	return false;
-}
-/**
-* Convert a tree item (SpanNode or Event) to a TimelineEvent, TimelineSpan,
-* or null if the resulting span would be empty.
-*/ function treeItemToNode(item) {
-	if (isSpanNode(item)) {
-		if (item.type === "agent" || item.type === "solver") return buildSpanFromAgentSpan(item);
-		else return buildSpanFromGenericSpan(item);
-	} else return eventToNode(item);
-}
-/**
-* Build a TimelineSpan from a SpanNode with type='agent'.
-*/ function buildSpanFromAgentSpan(span, extraItems) {
-	const content = [];
-	if (extraItems) for (const item of extraItems) if (isSpanNode(item) && !isAgentSpan(item)) unrollSpan(item, content);
-	else {
-		const node = treeItemToNode(item);
-		if (node !== null) content.push(node);
-	}
-	const [childContent, branches] = processChildren(span.children);
-	content.push(...childContent);
-	if (content.length === 0) return null;
-	const description = typeof span.metadata?.description === "string" ? span.metadata.description : void 0;
-	return createTimelineSpan(span.id, span.name, "agent", content, false, branches, description);
-}
-/**
-* Build a TimelineSpan from a non-agent SpanNode.
-*
-* If the span is a tool span (type="tool") containing model events,
-* we treat it as a tool-spawned agent (spanType="agent").
-*/ function buildSpanFromGenericSpan(span) {
-	const [content, branches] = processChildren(span.children);
-	if (content.length === 0) return null;
-	const spanType = span.type === "tool" && containsModelEvents(span) && !containsAgentSpan(span) ? "agent" : span.type ?? null;
-	return createTimelineSpan(span.id, span.name, spanType, content, false, branches);
-}
-/**
-* Recursively unwrap solver-type spans that contain exactly one agent child.
-*
-* This flattens unnecessary nesting (e.g. a "react" solver wrapping a single
-* agent) so the timeline shows the agent directly.
-*/ function unwrapSolverSpan(span) {
-	while (span.type === "solver") {
-		const agentChildren = span.children.filter((child) => isSpanNode(child) && child.type === "agent");
-		if (agentChildren.length !== 1) break;
-		if (span.children.some((c) => !isSpanNode(c) && c.event !== "state" && c.event !== "store")) break;
-		span = agentChildren[0];
-	}
-	return span;
-}
-/**
-* Build agent hierarchy from the solvers span.
-*
-* Looks for explicit agent spans (type='agent') within the solvers span.
-* If found, builds the agent tree from those spans. If not found, uses
-* the solvers span itself as the agent container.
-*/ function buildAgentFromSolversSpan(solversSpan) {
-	if (solversSpan.children.length === 0) return null;
-	const agentSpans = [];
-	const otherItems = [];
-	for (const child of solversSpan.children) if (isSpanNode(child) && isAgentSpan(child)) agentSpans.push(child);
-	else otherItems.push(child);
-	if (agentSpans.length > 0) {
-		const firstAgentSpan = agentSpans[0];
-		if (agentSpans.length === 1 && firstAgentSpan) {
-			const target = unwrapSolverSpan(firstAgentSpan);
-			const result = buildSpanFromAgentSpan(target, otherItems);
-			if (result !== null) return result;
-			return new TimelineSpan({
-				id: target.id,
-				name: target.name.toLowerCase(),
-				spanType: "agent"
-			});
-		} else {
-			const children = [];
-			for (const span of agentSpans) {
-				const node = buildSpanFromAgentSpan(span);
-				if (node !== null) children.push(node);
-			}
-			for (const item of otherItems) if (isSpanNode(item) && !isAgentSpan(item)) {
-				const orphanContent = [];
-				unrollSpan(item, orphanContent);
-				for (let i = orphanContent.length - 1; i >= 0; i--) children.unshift(orphanContent[i]);
-			} else {
-				const node = treeItemToNode(item);
-				if (node !== null) children.unshift(node);
-			}
-			if (children.length === 0) return null;
-			return createTimelineSpan("root", "main", "agent", children);
-		}
-	} else {
-		const [content, branches] = processChildren(solversSpan.children);
-		if (content.length === 0) return null;
-		return createTimelineSpan(solversSpan.id, solversSpan.name, "agent", content, false, branches);
-	}
-}
-/**
-* Build agent from a list of tree items when no explicit phase spans exist.
-*
-* Creates a synthetic "main" agent containing all tree items as content.
-*/ function buildAgentFromTree(tree) {
-	const [content, branches] = processChildren(tree);
-	if (content.length === 0) return null;
-	return createTimelineSpan("main", "main", "agent", content, false, branches);
-}
-/**
-* Dissolve a non-agent span, emitting its begin/end as regular events.
-*
-* Recursively unrolls nested non-agent spans while preserving any
-* nested agent spans as TimelineSpan nodes.
-*/ function unrollSpan(span, into) {
-	into.push(createTimelineEvent(span.beginEvent));
-	const parentIsTool = span.type === "tool";
-	for (const child of span.children) if (isSpanNode(child)) {
-		if (isAgentSpan(child)) {
-			const node = treeItemToNode(child);
-			if (node === null) continue;
-			if (node.type === "span" && node.content.length === 0) continue;
-			if (parentIsTool && node.type === "span") node.toolInvoked = true;
-			into.push(node);
-		} else unrollSpan(child, into);
-	} else into.push(eventToNode(child));
-	if (span.endEvent) into.push(createTimelineEvent(span.endEvent));
-}
-/**
-* Process a span's children with branch awareness.
-*
-* Collects adjacent type="branch" SpanNode runs and builds branch TimelineSpan
-* objects from those that contain a BranchEvent. Branch spans without a
-* BranchEvent are processed as normal content.
-*/ function processChildren(children) {
-	const content = [];
-	const branches = [];
-	let branchRun = [];
-	function flushBranchRun(run, parentContent) {
-		const result = [];
-		for (const span of run) {
-			const branchEvent = findBranchEvent(span);
-			if (branchEvent === null) {
-				processSpanAsContent(span, parentContent);
-				continue;
-			}
-			const branchContent = [];
-			for (const child of span.children) if (isSpanNode(child) && !isAgentSpan(child)) unrollSpan(child, branchContent);
-			else {
-				const node = treeItemToNode(child);
-				if (node === null) continue;
-				branchContent.push(node);
-			}
-			if (branchContent.length === 0) continue;
-			result.push(createTimelineSpan(span.id, span.name || "branch", "branch", branchContent, false, [], void 0, branchEvent.from_anchor));
-		}
-		return result;
-	}
-	for (const item of children) if (isSpanNode(item) && item.type === "branch") branchRun.push(item);
-	else {
-		if (branchRun.length > 0) {
-			branches.push(...flushBranchRun(branchRun, content));
-			branchRun = [];
-		}
-		if (isSpanNode(item) && !isAgentSpan(item)) unrollSpan(item, content);
-		else {
-			const node = treeItemToNode(item);
-			if (node === null) continue;
-			content.push(node);
-		}
-	}
-	if (branchRun.length > 0) branches.push(...flushBranchRun(branchRun, content));
-	return [content, branches];
-}
-/**
-* Find a BranchEvent in a span's direct children.
-*/ function findBranchEvent(span) {
-	for (const child of span.children) if (!isSpanNode(child) && child.event === "branch") return child;
-	return null;
-}
-/**
-* Process a branch span as normal content when it has no BranchEvent.
-*/ function processSpanAsContent(span, into) {
-	for (const child of span.children) if (isSpanNode(child) && !isAgentSpan(child)) unrollSpan(child, into);
-	else {
-		const node = treeItemToNode(child);
-		if (node === null) continue;
-		if (node.type === "span" && node.content.length === 0) continue;
-		into.push(node);
-	}
-}
-/**
-* Strip the per-call billing header from a system prompt.
-*
-* Claude Code prepends a line like `x-anthropic-billing-header: ...`
-* with a varying `cch=` hash. Removing it lets us compare prompts
-* across calls.
-*/ function normalizeSystemPrompt(prompt) {
-	if (prompt.startsWith("x-anthropic-billing-header:")) {
-		const idx = prompt.indexOf("\n");
-		if (idx !== -1) return prompt.substring(idx + 1);
-		return "";
-	}
-	return prompt;
-}
-/**
-* Extract and normalize the system prompt from a single ModelEvent.
-*/ function getSystemPromptForEvent(event) {
-	const input = event.input;
-	if (!input) return null;
-	for (const msg of input) if (msg.role === "system") {
-		let raw;
-		if (typeof msg.content === "string") raw = msg.content;
-		else if (Array.isArray(msg.content)) {
-			const parts = [];
-			for (const c of msg.content) if ("text" in c && typeof c.text === "string") parts.push(c.text);
-			raw = parts.join("\n");
-		} else return null;
-		const normalized = normalizeSystemPrompt(raw);
-		return normalized ? normalized : null;
-	}
-	return null;
-}
-/**
-* Check whether a ModelEvent's output contains tool calls.
-*/ function hasToolCalls(event) {
-	const choices = event.output.choices;
-	if (choices.length > 0) {
-		const msg = choices[0].message;
-		if (msg.tool_calls && msg.tool_calls.length > 0) return true;
-	}
-	return false;
-}
-/**
-* Wrap foreign-prompt model calls as synthetic utility spans.
-*
-* Within bridge-based agent spans (e.g. Claude Code), short extraction
-* model calls use a different system prompt and produce no tool calls.
-* This function detects them and wraps each one in a TimelineSpan
-* with utility=true so downstream code treats them as utility agents.
-*
-* The primary trajectory is identified by the system prompt of the first
-* tool-calling ModelEvent. When a span contains no tool-calling model
-* events there is no agentic loop to distinguish helpers from — plain
-* workflows of generate() calls routinely mix system prompts — so
-* foreign-prompt wrapping is skipped entirely (warmup calls are still
-* wrapped; they are identified independently of prompts).
-*
-* Operates recursively on the entire span tree.
-*/ function wrapUtilityEvents(agent) {
-	let primaryPrompt = null;
-	for (const item of agent.content) if (item.type === "event" && item.event.event === "model") {
-		const modelEvt = item.event;
-		if (hasToolCalls(modelEvt)) {
-			primaryPrompt = getSystemPromptForEvent(modelEvt);
-			break;
-		}
-	}
-	const utilityWrapper = (item, index) => {
-		const wrapper = createTimelineSpan(`utility-${item.event.uuid ?? `${agent.id}-${index}`}`, "utility", "agent", [item]);
-		wrapper.utility = true;
-		return wrapper;
-	};
-	const originalSpans = agent.content.filter((item) => item.type === "span");
-	const newContent = [];
-	for (const [index, item] of agent.content.entries()) {
-		if (item.type === "event" && item.event.event === "model") {
-			const modelEvt = item.event;
-			if (isWarmupCall(modelEvt)) {
-				newContent.push(utilityWrapper(item, index));
-				continue;
-			}
-			if (primaryPrompt !== null && !hasToolCalls(modelEvt)) {
-				const evtPrompt = getSystemPromptForEvent(modelEvt);
-				if (evtPrompt !== null && evtPrompt !== primaryPrompt) {
-					newContent.push(utilityWrapper(item, index));
-					continue;
-				}
-			}
-		}
-		newContent.push(item);
-	}
-	agent.content = newContent;
-	for (const item of originalSpans) wrapUtilityEvents(item);
-	for (const branch of agent.branches) wrapUtilityEvents(branch);
-}
-function isWarmupCall(event) {
-	if (event.config.max_tokens == null || event.config.max_tokens > 1) return false;
-	const input = event.input;
-	if (!input) return false;
-	for (let i = input.length - 1; i >= 0; i--) {
-		const msg = input[i];
-		if (msg?.role === "user") {
-			if (typeof msg.content === "string") return msg.content.trim().split(/\s+/).length <= 1;
-			return false;
-		}
-	}
-	return false;
-}
-/**
-* Extract the normalized system prompt from the first ModelEvent in span's
-* direct content (see getSystemPromptForEvent).
-*/ function getSystemPrompt(span) {
-	for (const item of span.content) if (item.type === "event" && item.event.event === "model") return getSystemPromptForEvent(item.event);
-	return null;
-}
-/**
-* Check if span has a single turn or single tool-calling turn.
-*
-* A single turn is 1 ModelEvent with no ToolEvents.
-* A single tool-calling turn is 2 ModelEvents with a ToolEvent between them.
-*/ function isSingleTurn(span) {
-	const directEvents = [];
-	for (const item of span.content) if (item.type === "event") {
-		if (item.event.event === "model") directEvents.push("model");
-		else if (item.event.event === "tool") directEvents.push("tool");
-	}
-	const modelCount = directEvents.filter((e) => e === "model").length;
-	const toolCount = directEvents.filter((e) => e === "tool").length;
-	if (modelCount === 1) return true;
-	if (modelCount === 2 && toolCount >= 1) {
-		const firstModel = directEvents.indexOf("model");
-		const secondModel = directEvents.lastIndexOf("model");
-		return directEvents.slice(firstModel + 1, secondModel).includes("tool");
-	}
-	return false;
-}
-/**
-* Check whether span's direct content contains a tool-calling ModelEvent.
-*/ function hasAgenticLoop(span) {
-	for (const item of span.content) if (item.type === "event" && item.event.event === "model" && hasToolCalls(item.event)) return true;
-	return false;
-}
-/**
-* Classify utility agents in the tree via post-processing.
-*
-* An agent is utility if it has a single turn (or single tool-calling turn)
-* and a different system prompt than its parent. Classification only applies
-* when the parent runs an agentic (tool-calling) loop: absent a loop there
-* is no main trajectory for a helper to be subordinate to — plain workflows
-* of generate() calls routinely mix system prompts.
-*/ function classifyUtilityAgents(node, parentSystemPrompt = null, parentHasLoop = false) {
-	const agentSystemPrompt = getSystemPrompt(node);
-	if (parentSystemPrompt !== null && parentHasLoop && agentSystemPrompt !== null && !node.toolInvoked) {
-		if (agentSystemPrompt !== parentSystemPrompt && isSingleTurn(node)) node.utility = true;
-	}
-	const effectivePrompt = agentSystemPrompt ?? parentSystemPrompt;
-	const effectiveHasLoop = node.content.some((item) => item.type === "event" && item.event.event === "model") ? hasAgenticLoop(node) : parentHasLoop;
-	for (const item of node.content) if (item.type === "span") classifyUtilityAgents(item, effectivePrompt, effectiveHasLoop);
-}
-/**
-* Build a Timeline from a flat event list.
-*
-* Transforms a flat event stream into a hierarchical Timeline tree
-* with agent-centric interpretation. The pipeline has two phases:
-*
-* **Phase 1 — Structure extraction:**
-*
-* Parses span_begin/span_end events into a tree, then looks for
-* top-level phase spans ("init", "solvers", "scorers"):
-* - If present, partitions events into init (setup), agent (solvers),
-*   and scoring sections.
-* - If absent, treats the entire event stream as the agent.
-*
-* **Phase 2 — Agent classification:**
-*
-* Within the agent section, spans are classified as agents or unrolled:
-* - type="agent"                → TimelineSpan (spanType="agent")
-* - type="solver" wrapping agent → TimelineSpan (spanType="agent")
-* - type="solver" (primitive)   → Unrolled into parent
-* - type="tool" + ModelEvents   → TimelineSpan (spanType="agent")
-* - ToolEvent with agent field  → TimelineSpan (spanType="agent")
-* - type="tool" (no models)     → Unrolled into parent
-* - Any other span type         → Unrolled into parent
-*
-* "Unrolled" means the span wrapper is removed and its child events
-* dissolve into the parent's content list.
-*
-* **Phase 3 — Post-processing passes:**
-* - Utility event wrapping (bridge-based agents with foreign prompts)
-* - Utility agent classification (single-turn, different system prompt)
-* - Recursive branch classification
-*/
-/**
-* Returns the pre-extracted agent result for a span.
-* Results are extracted during timeline building by `extractAgentResults()`.
-*/ function getSpanToolResult(span) {
-	return span.agentResult;
-}
-/**
-* Reshape a Codex sub-agent tool result into nicer markdown when applicable
-* (e.g. `spawn_agent`'s `{agent_id, nickname}` → a compact name line); falls
-* back to the raw extracted text for non-Codex tools.
-*/ function codexResultText(fn, content, fallback) {
-	if (fn) {
-		const markdown = codexToolMarkdown(fn, content);
-		if (markdown !== void 0) return markdown;
-	}
-	return fallback;
-}
-/**
-* Extract a string result from a ToolEvent result field.
-*/ function extractToolEventResult(result) {
-	if (typeof result === "string" && result) return result;
-	if (Array.isArray(result)) {
-		const parts = [];
-		for (const c of result) if (c && typeof c === "object" && "text" in c) parts.push(c.text);
-		return parts.length > 0 ? parts.join("\n") : void 0;
-	}
-}
-/**
-* Extract agentResult for each agent sub-span.
-*
-* Three sources (checked in order):
-* 1. Tool-spawned agents: result already set during eventToNode
-* 2. Span-based agents (static flow): sibling ToolEvent with agent_span_id === span.id
-* 3. Bridge flow: next ModelEvent's input has tool message with function === span.name
-*/ function extractAgentResults(parent) {
-	const content = parent.content;
-	for (let i = 0; i < content.length; i++) {
-		const item = content[i];
-		if (item.type !== "span") continue;
-		if (item.spanType !== "agent") {
-			extractAgentResults(item);
-			continue;
-		}
-		if (item.agentResult) {
-			extractAgentResults(item);
-			continue;
-		}
-		for (const sibling of content) if (sibling.type === "event" && sibling.event.event === "tool" && sibling.event.agent_span_id === item.id) {
-			const resultText = extractToolEventResult(sibling.event.result);
-			if (resultText) item.agentResult = codexResultText(sibling.event.function, sibling.event.result, resultText);
-			break;
-		}
-		const toolCallId = item.id.startsWith("agent-") ? item.id.slice(6) : null;
-		if (!item.agentResult && toolCallId) for (let j = i + 1; j < content.length; j++) {
-			const nextItem = content[j];
-			if (nextItem.type !== "event") continue;
-			if (nextItem.event.event === "model") {
-				const modelEvent = nextItem.event;
-				if (modelEvent.input) {
-					for (const msg of modelEvent.input) if (msg.role === "tool" && "tool_call_id" in msg && msg.tool_call_id === toolCallId) {
-						const text = extractToolEventResult(msg.content);
-						if (text) item.agentResult = codexResultText(msg.function, msg.content, text);
-					}
-				}
-				if (item.agentResult) break;
-			}
-		}
-		extractAgentResults(item);
-	}
-}
-/**
-* Derive a display label for a utility agent span.
-*
-* Synthetic utility spans created by `wrapUtilityEvents` are named "utility"
-* which is redundant when paired with a "utility:" prefix. For these, extract
-* the model name from the inner model event. For classified utility agents
-* (real spans with meaningful names like "explore"), keep the existing name.
-*/ function getUtilityAgentLabel(span) {
-	const name = span.name.toLowerCase();
-	if (name !== "utility") return name;
-	for (const item of span.content) if (item.type === "event" && item.event.event === "model") return item.event.model;
-	return name;
-}
-function buildTimeline(events) {
-	if (events.length === 0) return {
-		name: "Default",
-		description: "",
-		root: new TimelineSpan({
-			id: "root",
-			name: "main",
-			spanType: null
-		})
-	};
-	const tree = buildSpanTree(events);
-	const topSpans = /* @__PURE__ */ new Map();
-	for (const item of tree) if (isSpanNode(item) && (item.name === "init" || item.name === "solvers" || item.name === "scorers")) topSpans.set(item.name, item);
-	const hasPhaseSpans = topSpans.has("init") || topSpans.has("solvers") || topSpans.has("scorers");
-	const orphanNodes = hasPhaseSpans ? tree.filter((item) => !(isSpanNode(item) && topSpans.get(item.name) === item)).map(treeItemToNode).filter((n) => n !== null) : [];
-	let root;
-	if (hasPhaseSpans) {
-		const initSpan = topSpans.get("init");
-		const solversSpan = topSpans.get("solvers");
-		const scorersSpan = topSpans.get("scorers");
-		let initSpanObj = null;
-		if (initSpan) {
-			const initContent = eventSequence(initSpan.children).map((e) => createTimelineEvent(e));
-			if (initContent.length > 0) initSpanObj = createTimelineSpan(initSpan.id, "init", "init", initContent);
-		}
-		const agentNode = solversSpan ? buildAgentFromSolversSpan(solversSpan) : null;
-		let scoringSpan = null;
-		if (scorersSpan) {
-			const scoringContent = eventSequence(scorersSpan.children).map((e) => createTimelineEvent(e));
-			if (scoringContent.length > 0) scoringSpan = createTimelineSpan(scorersSpan.id, "scoring", "scorers", scoringContent);
-		}
-		if (agentNode) {
-			agentNode.name = "main";
-			wrapUtilityEvents(agentNode);
-			classifyUtilityAgents(agentNode);
-			extractAgentResults(agentNode);
-			if (initSpanObj) agentNode.content = [initSpanObj, ...agentNode.content];
-			if (scoringSpan) agentNode.content.push(scoringSpan);
-			root = agentNode;
-		} else {
-			const rootContent = [];
-			if (initSpanObj) rootContent.push(initSpanObj);
-			if (scoringSpan) rootContent.push(scoringSpan);
-			if (rootContent.length > 0) root = createTimelineSpan("root", "main", null, rootContent);
-			else root = new TimelineSpan({
-				id: "root",
-				name: "main",
-				spanType: null
-			});
-		}
-	} else {
-		const agentRoot = buildAgentFromTree(tree);
-		if (agentRoot) {
-			wrapUtilityEvents(agentRoot);
-			classifyUtilityAgents(agentRoot);
-			extractAgentResults(agentRoot);
-			root = agentRoot;
-		} else root = new TimelineSpan({
-			id: "root",
-			name: "main",
-			spanType: null
-		});
-	}
-	if (orphanNodes.length > 0) root.content = [...root.content, ...orphanNodes].sort((a, b) => a.startTime().getTime() - b.startTime().getTime());
-	return {
-		name: "Default",
-		description: "",
-		root
-	};
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/swimlaneRows.ts
-/**
-* Swimlane row computation for the timeline UI.
-*
-* Transforms a TimelineSpan's children into SwimlaneRow[] for rendering
-* as horizontal swimlane bars. Handles sequential, iterative (multiple spans),
-* and parallel (overlapping) span patterns.
-*/
-/** Compare rows/entries by start time, with end time as tiebreaker. */ function compareByTime(a, b) {
-	return a.startTime.getTime() - b.startTime.getTime() || a.endTime.getTime() - b.endTime.getTime();
-}
-/** Compare TimelineSpans by start time, with end time as tiebreaker. */ function compareSpansByTime(a, b) {
-	return a.startTime(false).getTime() - b.startTime(false).getTime() || a.endTime(false).getTime() - b.endTime(false).getTime();
-}
-function isSingleSpan(span) {
-	return "agent" in span;
-}
-/** Unwrap a RowSpan to a flat array of TimelineSpan agents. */ function getAgents(span) {
-	return isSingleSpan(span) ? [span.agent] : span.agents;
-}
-/** Tolerance in milliseconds for considering two spans as overlapping. */ var OVERLAP_TOLERANCE_MS = 100;
-/**
-* Assigns time-sorted spans to lanes using greedy bin-packing.
-*
-* Each lane contains non-overlapping spans. The number of lanes equals
-* the maximum parallelism level (minimum possible).
-* Input must be sorted by start time.
-*/ function assignToLanes(sorted) {
-	if (sorted.length === 0) return [];
-	const lanes = [];
-	for (const span of sorted) {
-		const spanStart = span.startTime().getTime();
-		let assigned = false;
-		for (const lane of lanes) if (lane.endTime + OVERLAP_TOLERANCE_MS <= spanStart) {
-			lane.spans.push(span);
-			lane.endTime = span.endTime().getTime();
-			assigned = true;
-			break;
-		}
-		if (!assigned) lanes.push({
-			spans: [span],
-			endTime: span.endTime().getTime()
-		});
-	}
-	return lanes.map((l) => l.spans);
-}
-/**
-* Partitions time-sorted spans into clusters of overlapping spans.
-*
-* Uses a sweep-line: extends the current cluster while spans overlap its
-* time range, then starts a new cluster when a gap is found.
-* Input must be sorted by start time.
-*/ function partitionIntoClusters(sorted) {
-	if (sorted.length === 0) return [];
-	const clusters = [];
-	let current = [sorted[0]];
-	let clusterEnd = sorted[0].endTime().getTime();
-	for (let i = 1; i < sorted.length; i++) {
-		const span = sorted[i];
-		if (span.startTime().getTime() < clusterEnd + OVERLAP_TOLERANCE_MS) {
-			current.push(span);
-			clusterEnd = Math.max(clusterEnd, span.endTime().getTime());
-		} else {
-			clusters.push(current);
-			current = [span];
-			clusterEnd = span.endTime().getTime();
-		}
-	}
-	clusters.push(current);
-	return clusters;
-}
-function buildParentRow(node) {
-	return {
-		key: node.name.toLowerCase(),
-		name: node.name,
-		depth: 0,
-		spans: [{ agent: node }],
-		totalTokens: node.totalTokens(false),
-		startTime: node.startTime(false),
-		endTime: node.endTime(false)
-	};
-}
-/**
-* Groups spans by name (case-insensitive), preserving the display name
-* from the first span encountered in each group.
-*
-* Returns entries in insertion order (first-seen order).
-*/ function groupByName(spans) {
-	const map = /* @__PURE__ */ new Map();
-	for (const span of spans) {
-		const key = span.name.toLowerCase();
-		const existing = map.get(key);
-		if (existing) existing.spans.push(span);
-		else map.set(key, {
-			displayName: span.name,
-			spans: [span]
-		});
-	}
-	return Array.from(map.values()).map((g) => [g.displayName, g.spans]);
-}
-/**
-* Computes a fully expanded flat list of swimlane rows from the entire span tree.
-*
-* Unlike `computeSwimlaneRows` (which only shows direct children), this function
-* recursively walks all descendant spans in depth-first pre-order. Each row carries
-* a `depth` for indentation and a unique `key` for selection.
-*
-* Same-name non-overlapping spans (iterative) are collapsed onto a single row
-* with multiple bars. Same-name overlapping spans (parallel) are expanded into
-* separate numbered rows.
-*/ function computeFlatSwimlaneRows(root, options) {
-	const includeUtility = options?.includeUtility ?? false;
-	const showBranches = options?.showBranches ?? false;
-	return [buildParentRow(root), ...flattenChildren([root], 0, root.name.toLowerCase(), includeUtility, showBranches)];
-}
-/**
-* Recursively flattens descendant spans into rows in depth-first pre-order.
-*
-* Accepts multiple parent nodes so that iterative spans at the same level
-* can have their children merged before recursing.
-*
-* For each name group, partitions into overlapping clusters:
-* - If no cluster has >1 span (all iterative/sequential) → one row, multiple bars
-* - If any cluster has >1 span (parallel) → lanes via bin-packing, reusing lanes
-*   for non-overlapping spans (number of lanes = max parallelism level)
-*/ function flattenChildren(nodes, parentDepth, parentKey, includeUtility, showBranches, branchPrefix = "") {
-	const children = [];
-	for (const node of nodes) for (const item of node.content) if (item.type === "span" && (includeUtility || !item.utility)) children.push(item);
-	if (children.length === 0 && !showBranches) return [];
-	const groups = groupByName(children);
-	const depth = parentDepth + 1;
-	const entries = [];
-	for (const [displayName, spans] of groups) {
-		const sorted = [...spans].sort(compareSpansByTime);
-		const baseName = displayName.toLowerCase();
-		const hasParallel = partitionIntoClusters(sorted).some((c) => c.length > 1);
-		const groupStartTime = sorted[0].startTime(false);
-		if (!hasParallel) {
-			const rowSpans = sorted.map((s) => ({ agent: s }));
-			const first = sorted[0];
-			const endTime = sorted.reduce((latest, s) => s.endTime(false).getTime() > latest.getTime() ? s.endTime(false) : latest, first.endTime(false));
-			entries.push({
-				displayName,
-				key: `${parentKey}/${baseName}`,
-				spans: sorted,
-				rowSpans,
-				totalTokens: sorted.reduce((sum, s) => sum + s.totalTokens(false), 0),
-				startTime: first.startTime(false),
-				endTime,
-				groupStartTime,
-				laneIndex: -1
-			});
-		} else {
-			const lanes = assignToLanes(sorted);
-			if (lanes.length === 1) {
-				const laneSpans = lanes[0];
-				const rowSpans = laneSpans.map((s) => ({ agent: s }));
-				const first = laneSpans[0];
-				const endTime = laneSpans.reduce((latest, s) => s.endTime(false).getTime() > latest.getTime() ? s.endTime(false) : latest, first.endTime(false));
-				entries.push({
-					displayName,
-					key: `${parentKey}/${baseName}`,
-					spans: laneSpans,
-					rowSpans,
-					totalTokens: laneSpans.reduce((sum, s) => sum + s.totalTokens(false), 0),
-					startTime: first.startTime(false),
-					endTime,
-					groupStartTime,
-					laneIndex: -1
-				});
-			} else for (let i = 0; i < lanes.length; i++) {
-				const laneSpans = lanes[i];
-				const rowSpans = laneSpans.map((s) => ({ agent: s }));
-				const first = laneSpans[0];
-				const endTime = laneSpans.reduce((latest, s) => s.endTime(false).getTime() > latest.getTime() ? s.endTime(false) : latest, first.endTime(false));
-				entries.push({
-					displayName: `${displayName} ${i + 1}`,
-					key: `${parentKey}/${baseName}-${i + 1}`,
-					spans: laneSpans,
-					rowSpans,
-					totalTokens: laneSpans.reduce((sum, s) => sum + s.totalTokens(false), 0),
-					startTime: first.startTime(false),
-					endTime,
-					groupStartTime,
-					laneIndex: i
-				});
-			}
-		}
-	}
-	entries.sort((a, b) => a.groupStartTime.getTime() - b.groupStartTime.getTime() || a.laneIndex - b.laneIndex || compareByTime(a, b));
-	const result = [];
-	if (showBranches) for (const node of nodes) for (let i = 0; i < node.branches.length; i++) {
-		const branch = node.branches[i];
-		const label = `${branchPrefix}${i + 1}`;
-		const branchSpan = createBranchSpan(branch, label);
-		const branchKey = `${parentKey}/branch-${branch.branchedFrom}-${i + 1}`;
-		result.push({
-			key: branchKey,
-			name: branchSpan.name,
-			depth,
-			spans: [{ agent: branchSpan }],
-			totalTokens: branchSpan.totalTokens(false),
-			startTime: branchSpan.startTime(false),
-			endTime: branchSpan.endTime(false),
-			branch: true,
-			branchedFrom: branch.branchedFrom ?? void 0
-		});
-		result.push(...flattenChildren([branchSpan], depth, branchKey, includeUtility, showBranches, `${label}.`));
-	}
-	for (const entry of entries) {
-		result.push({
-			key: entry.key,
-			name: entry.displayName,
-			depth,
-			spans: entry.rowSpans,
-			totalTokens: entry.totalTokens,
-			startTime: entry.startTime,
-			endTime: entry.endTime
-		});
-		result.push(...flattenChildren(entry.spans, depth, entry.key, includeUtility, showBranches));
-	}
-	return result;
-}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/resolveMessageToEvent.ts
 /**
@@ -116610,9 +117630,8 @@ function _temp$49(lane_1) {
 		tooltip: errorTooltip(event)
 	});
 	else if (isCompactionEvent(event)) {
-		const ce = event;
-		const before = ce.tokens_before?.toLocaleString() ?? "?";
-		const after = ce.tokens_after?.toLocaleString() ?? "?";
+		const before = event.tokens_before?.toLocaleString() ?? "?";
+		const after = event.tokens_after?.toLocaleString() ?? "?";
 		markers.push({
 			kind: "compaction",
 			timestamp: eventNode.startTime(),
@@ -116903,555 +117922,6 @@ function _temp$49(lane_1) {
 	if (lo < segments.length) return segments[lo];
 	if (hi >= 0) return segments[hi];
 	return null;
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/timelineEventNodes.ts
-/**
-* Bridge from timeline spans to raw Event[] for the transcript display pipeline.
-*
-* Resolves the selected swimlane row to TimelineSpan(s), then walks their
-* content trees to produce a flat Event[] that can be fed through useEventNodes.
-* Child TimelineSpans are re-emitted as synthetic span_begin/span_end events
-* so treeifyEvents can reconstruct the hierarchy.
-*/
-/**
-* Parses a selection string into row key + optional span index + optional region index.
-* Returns null for null/empty input.
-*
-* Parse order: extract `@R` from end first, then `:N` from what remains.
-*/ function parseSelection(selected) {
-	if (!selected) return null;
-	let regionIndex = null;
-	let rest = selected;
-	const atIdx = rest.lastIndexOf("@");
-	if (atIdx !== -1) {
-		const regionSuffix = rest.slice(atIdx + 1);
-		const r = Number(regionSuffix);
-		if (Number.isInteger(r) && r >= 0) {
-			regionIndex = r;
-			rest = rest.slice(0, atIdx);
-		}
-	}
-	const colonIdx = rest.lastIndexOf(":");
-	if (colonIdx === -1) return {
-		rowKey: rest,
-		spanIndex: null,
-		regionIndex
-	};
-	const suffix = rest.slice(colonIdx + 1);
-	const idx = Number(suffix);
-	if (!Number.isInteger(idx) || idx < 0) return {
-		rowKey: rest,
-		spanIndex: null,
-		regionIndex
-	};
-	return {
-		rowKey: rest.slice(0, colonIdx),
-		spanIndex: idx,
-		regionIndex
-	};
-}
-/**
-* Builds a selection string from row key + optional span index + optional region index.
-*/ function buildSelectionKey(rowKey, spanIndex, regionIndex) {
-	let key = rowKey;
-	if (spanIndex !== void 0) key = `${key}:${spanIndex}`;
-	if (regionIndex !== void 0) key = `${key}@${regionIndex}`;
-	return key;
-}
-/** Find a swimlane row by key. */ function findRowByKey(rows, key) {
-	return rows.find((r) => r.key === key);
-}
-/**
-* Derive the branch prefix for nested branches from a selected row.
-*
-* If the row is a branch named "Branch 1", returns "1." so nested branches
-* become "Branch 1.1", "Branch 1.2", etc. Returns "" for non-branch rows.
-*/ function getBranchPrefix(rows, selected) {
-	const parsed = parseSelection(selected);
-	if (!parsed) return "";
-	const row = findRowByKey(rows, parsed.rowKey);
-	if (!row?.branch) return "";
-	const match = /^Branch (\S+)$/i.exec(row.name);
-	return match ? `${match[1]}.` : "";
-}
-/**
-* Resolves the selected swimlane row key to TimelineSpan(s).
-*
-* When the selection includes a span index (e.g. `"explore:1"`), returns
-* only that specific span. Otherwise returns all spans from the row.
-*/ function getSelectedSpans(rows, selected) {
-	const parsed = parseSelection(selected);
-	if (!parsed) return [];
-	const row = findRowByKey(rows, parsed.rowKey);
-	if (!row) return [];
-	if (parsed.spanIndex !== null) {
-		const span = row.spans[parsed.spanIndex];
-		if (!span) return [];
-		return isSingleSpan(span) ? [span.agent] : getAgents(span);
-	}
-	const result = [];
-	for (const rowSpan of row.spans) if (isSingleSpan(rowSpan)) result.push(rowSpan.agent);
-	else result.push(...getAgents(rowSpan));
-	return result;
-}
-/**
-* Computes the minimap selection for the currently selected swimlane row.
-*
-* When a span index is present, shows just that span's range.
-* When a region index is present, narrows to the region's time range.
-* Otherwise shows the full row's range.
-*/ function computeMinimapSelection(rows, selected) {
-	const parsed = parseSelection(selected);
-	if (!parsed) return void 0;
-	const row = findRowByKey(rows, parsed.rowKey);
-	if (!row) return void 0;
-	const allAgents = (parsed.spanIndex !== null ? row.spans[parsed.spanIndex] ? [row.spans[parsed.spanIndex]] : [] : row.spans).flatMap(getAgents);
-	if (allAgents.length === 0) return void 0;
-	if (parsed.regionIndex !== null && allAgents.length === 1) {
-		const agent = allAgents[0];
-		const region = computeCompactionRegions(agent.content)[parsed.regionIndex];
-		if (region && region.length > 0) {
-			const times = region.flatMap((item) => item.type === "event" ? [item.startTime(), item.endTime()] : [item.startTime(), item.endTime()]);
-			return {
-				startTime: new Date(Math.min(...times.map((t) => t.getTime()))),
-				endTime: new Date(Math.max(...times.map((t) => t.getTime()))),
-				totalTokens: region.reduce((sum, item) => sum + item.totalTokens(), 0)
-			};
-		}
-	}
-	if (allAgents.length === 1) {
-		const agent = allAgents[0];
-		return {
-			startTime: agent.startTime(false),
-			endTime: agent.endTime(false),
-			totalTokens: agent.totalTokens(false)
-		};
-	}
-	let envStart = allAgents[0].startTime(false);
-	let envEnd = allAgents[0].endTime(false);
-	for (let i = 1; i < allAgents.length; i++) {
-		const a = allAgents[i];
-		if (a.startTime(false) < envStart) envStart = a.startTime(false);
-		if (a.endTime(false) > envEnd) envEnd = a.endTime(false);
-	}
-	const tokens = allAgents.reduce((sum, a) => sum + a.totalTokens(false), 0);
-	return {
-		startTime: envStart,
-		endTime: envEnd,
-		totalTokens: tokens
-	};
-}
-/**
-* Partitions a content array into regions separated by compaction events.
-*
-* Returns an array of content slices. If no compaction events exist, returns
-* a single-element array containing the full content.
-*/ function computeCompactionRegions(content) {
-	const regions = [];
-	let current = [];
-	for (const item of content) if (item.type === "event" && item.event.event === "compaction") {
-		regions.push(current);
-		current = [];
-	} else current.push(item);
-	regions.push(current);
-	return regions;
-}
-/**
-* Collects raw Event[] from TimelineSpan content trees.
-*
-* When a single span is provided, walks its content directly (the span itself
-* is the implicit context). When multiple spans are provided, each is wrapped
-* in synthetic span_begin/span_end events so treeifyEvents can reconstruct
-* the grouping (e.g. parallel agents shown as collapsible sections).
-*
-* Agent spans (spanType === "agent") are emitted as empty span_begin/span_end
-* pairs with no child events — their content is accessed by selecting the
-* swimlane row. The returned sourceSpans map allows attaching the original
-* TimelineSpan to the resulting EventNodes for rich rendering.
-*
-* When `regionIndex` is set, only events from that compaction region are emitted.
-*/ function collectRawEvents(spans, options) {
-	const includeUtility = options?.includeUtility ?? false;
-	const regionIndex = options?.regionIndex ?? null;
-	const showBranches = options?.showBranches ?? false;
-	const branchPrefix = options?.branchPrefix ?? "";
-	const events = [];
-	const sourceSpans = /* @__PURE__ */ new Map();
-	if (spans.length === 1) {
-		const span = spans[0];
-		const agentSpanId = span.spanType === "agent" ? span.id : void 0;
-		let content = span.content;
-		if (regionIndex !== null) {
-			const regions = computeCompactionRegions(span.content);
-			if (regionIndex >= 0 && regionIndex < regions.length) content = regions[regionIndex];
-		}
-		collectFromContent(content, events, sourceSpans, agentSpanId, includeUtility, showBranches, span.branches.length > 0 ? span.branches : void 0, branchPrefix, false);
-	} else collectFromContent(spans, events, sourceSpans, void 0, includeUtility, showBranches, void 0, branchPrefix);
-	return {
-		events,
-		sourceSpans
-	};
-}
-/**
-* Emit a single branch as an empty span_begin/span_end pair (like agents).
-* Content is accessed by selecting the branch swimlane row.
-*/ function emitBranchSpan(branch, label, out, sourceSpans, parentSpanId) {
-	const branchSpan = createBranchSpan(branch, label);
-	sourceSpans.set(branchSpan.id, branchSpan);
-	const branchBegin = {
-		event: "span_begin",
-		name: branchSpan.name,
-		id: branchSpan.id,
-		span_id: branchSpan.id,
-		type: branchSpan.spanType,
-		timestamp: branchSpan.startTime().toISOString(),
-		parent_id: parentSpanId ?? null,
-		pending: false,
-		working_start: 0,
-		uuid: branchSpan.id,
-		metadata: null
-	};
-	out.push(branchBegin);
-	const branchEnd = {
-		event: "span_end",
-		id: `${branchSpan.id}-end`,
-		span_id: branchSpan.id,
-		timestamp: branchSpan.endTime().toISOString(),
-		pending: false,
-		working_start: 0,
-		uuid: null,
-		metadata: null
-	};
-	out.push(branchEnd);
-}
-function collectFromContent(content, out, sourceSpans, skipAgentSpanId, includeUtility = false, showBranches = false, branches, branchPrefix = "", isRoot = true) {
-	const agentSpans = isRoot ? content.filter((item) => item.type === "span" && item.spanType === "agent") : [];
-	const inlineAgentId = agentSpans.length === 1 ? agentSpans[0]?.id : void 0;
-	const pendingToolCallIds = /* @__PURE__ */ new Set();
-	const branchByBranchedFrom = /* @__PURE__ */ new Map();
-	if (branches) {
-		for (const branch of branches) if (branch.branchedFrom) {
-			const existing = branchByBranchedFrom.get(branch.branchedFrom);
-			if (existing) existing.push(branch);
-			else branchByBranchedFrom.set(branch.branchedFrom, [branch]);
-		}
-	}
-	const emittedBranchedFroms = /* @__PURE__ */ new Set();
-	for (const item of content) if (item.type === "event") {
-		if (skipAgentSpanId && item.event.event === "tool" && item.event.agent_span_id === skipAgentSpanId) continue;
-		if (item.event.event === "model" && pendingToolCallIds.size > 0) {
-			const modelEvent = item.event;
-			const filteredInput = modelEvent.input.filter((msg) => !(msg.role === "tool" && typeof msg.tool_call_id === "string" && pendingToolCallIds.has(msg.tool_call_id)));
-			if (filteredInput.length !== modelEvent.input.length) {
-				const patched = {
-					...modelEvent,
-					input: filteredInput,
-					agentResultsFiltered: true
-				};
-				out.push(patched);
-				pendingToolCallIds.clear();
-				emitInlineBranches(item, branchByBranchedFrom, branches ?? [], emittedBranchedFroms, out, sourceSpans, branchPrefix);
-				continue;
-			}
-		}
-		out.push(item.event);
-		emitInlineBranches(item, branchByBranchedFrom, branches ?? [], emittedBranchedFroms, out, sourceSpans, branchPrefix);
-	} else if (!includeUtility && item.utility) continue;
-	else {
-		const beginEvent = {
-			event: "span_begin",
-			name: item.name,
-			id: item.id,
-			span_id: item.id,
-			type: item.spanType,
-			timestamp: item.startTime().toISOString(),
-			parent_id: null,
-			pending: false,
-			working_start: 0,
-			uuid: item.id,
-			metadata: null
-		};
-		out.push(beginEvent);
-		if (item.spanType === "agent" && item.id !== inlineAgentId) {
-			sourceSpans.set(item.id, item);
-			if (item.agentResult && item.id.startsWith("agent-")) pendingToolCallIds.add(item.id.slice(6));
-		} else collectFromContent(item.content, out, sourceSpans, void 0, includeUtility, showBranches, item.branches.length > 0 ? item.branches : void 0, "", false);
-		const endEvent = {
-			event: "span_end",
-			id: `${item.id}-end`,
-			span_id: item.id,
-			timestamp: item.endTime().toISOString(),
-			pending: false,
-			working_start: 0,
-			uuid: null,
-			metadata: null
-		};
-		out.push(endEvent);
-	}
-	if (branches) for (const branch of branches) {
-		const branchedFrom = branch.branchedFrom ?? "";
-		if (!emittedBranchedFroms.has(branchedFrom)) emitBranchSpan(branch, `${branchPrefix}${branches.indexOf(branch) + 1}`, out, sourceSpans);
-	}
-}
-/**
-* Emit branches inline after their fork point event.
-*/ function emitInlineBranches(item, branchByBranchedFrom, allBranches, emittedBranchedFroms, out, sourceSpans, branchPrefix = "") {
-	for (const [messageId, forkedBranches] of branchByBranchedFrom) {
-		if (emittedBranchedFroms.has(messageId)) continue;
-		if (!item.matchesForkPoint(messageId)) continue;
-		const parentSpanId = item.event.span_id;
-		for (const branch of forkedBranches) {
-			const globalIndex = allBranches.indexOf(branch);
-			emitBranchSpan(branch, `${branchPrefix}${(globalIndex >= 0 ? globalIndex : 0) + 1}`, out, sourceSpans, parentSpanId);
-		}
-		emittedBranchedFroms.add(messageId);
-	}
-}
-/**
-* Derives the parent row key from a branch row key.
-*
-* Branch keys follow the pattern `"parentKey/branch-{branchedFrom}-{index}"`.
-* Returns null if the key doesn't contain a branch segment.
-*/ function getParentKeyFromBranch(branchKey) {
-	const match = /^(.+)\/branch-[^/]+$/.exec(branchKey);
-	return match ? match[1] : null;
-}
-function rowSpan(row) {
-	const s = row?.spans[0];
-	if (!s) return null;
-	return isSingleSpan(s) ? s.agent : getAgents(s)[0] ?? null;
-}
-/** Build root→selected segment list, each carrying its row key and cut anchor. */ function buildPath(rows, selectedKey) {
-	const byKey = new Map(rows.map((r) => [r.key, r]));
-	const keys = [selectedKey];
-	let k = selectedKey;
-	while (true) {
-		const parent = getParentKeyFromBranch(k);
-		if (!parent || !byKey.has(parent)) break;
-		keys.unshift(parent);
-		k = parent;
-	}
-	const segs = [];
-	for (let i = 0; i < keys.length; i++) {
-		const span = rowSpan(byKey.get(keys[i]));
-		if (!span) return segs;
-		const next = rowSpan(byKey.get(keys[i + 1] ?? ""));
-		segs.push({
-			span,
-			rowKey: keys[i],
-			cutAnchor: next?.branchedFrom ?? null
-		});
-	}
-	return segs;
-}
-/** Group a span's branches by the anchor they fork from, preserving `.branches` order. */ function branchesByAnchor(span, parentRowKey) {
-	const map = /* @__PURE__ */ new Map();
-	span.branches.forEach((b, i) => {
-		const anchor = b.branchedFrom ?? "";
-		const opt = {
-			label: b.name,
-			rowKey: `${parentRowKey}/branch-${b.branchedFrom}-${i + 1}`
-		};
-		const arr = map.get(anchor);
-		if (arr) arr.push(opt);
-		else map.set(anchor, [opt]);
-	});
-	return map;
-}
-/** Push a synthetic span_begin/span_end pair onto `events`. */ function emitSyntheticSpan(events, opts) {
-	events.push({
-		event: "span_begin",
-		name: opts.name,
-		id: opts.id,
-		span_id: opts.id,
-		type: opts.type,
-		timestamp: opts.start,
-		parent_id: opts.parentId,
-		pending: false,
-		working_start: 0,
-		uuid: opts.id,
-		metadata: opts.metadata ?? null
-	});
-	events.push({
-		event: "span_end",
-		id: opts.id,
-		span_id: opts.id,
-		timestamp: opts.end ?? opts.start,
-		pending: false,
-		working_start: 0,
-		uuid: null,
-		metadata: null
-	});
-}
-/**
-* Outline label for a fork navigator. Flattens all groups' child options
-* (excluding the leading stay-on-segment entry, which is always groups[*].options[0])
-* and caps at "first, second +N".
-*/ function forkNavLabel(groups) {
-	const children = groups.flatMap((g) => g.options.slice(1));
-	if (children.length <= 2) return children.map((c) => c.label).join(", ");
-	return `${children[0].label} +${children.length - 1}`;
-}
-/**
-* Collect events for the root→selected path, emitting an inline fork navigator
-* at every anchor where one or more branches fork off.
-*
-* The navigator's options are `[stay-on-segment, child₁, child₂, …]` for
-* children sharing that anchor. `selectedIndex` is whichever option the
-* current path follows next.
-*/ function collectPathWithNavigators(rows, selectedRowKey, rawEvents) {
-	const events = [];
-	const sourceSpans = /* @__PURE__ */ new Map();
-	const path = buildPath(rows, selectedRowKey);
-	let lastNavSegIdx = null;
-	for (let segIdx = 0; segIdx < path.length; segIdx++) {
-		const seg = path[segIdx];
-		const nextRowKey = path[segIdx + 1]?.rowKey;
-		const forks = branchesByAnchor(seg.span, seg.rowKey);
-		const suffix = `:${seg.span.id}`;
-		sourceSpans.set(seg.span.id, seg.span);
-		/** Emit a navigator for `children` at `anchorId`; returns true if the path cuts here. */ const navAt = (anchorId, children, ts, parentId) => {
-			const options = [{
-				label: seg.span.name,
-				rowKey: seg.rowKey
-			}, ...children];
-			const isCut = anchorId === seg.cutAnchor;
-			const sel = isCut ? options.findIndex((o) => o.rowKey === nextRowKey) : 0;
-			const group = {
-				anchorId,
-				options,
-				selectedIndex: Math.max(0, sel)
-			};
-			let i = events.length - 1;
-			while (i >= 0 && events[i].event === "anchor") i--;
-			const last = events[i];
-			const prev = events[i - 1];
-			if (lastNavSegIdx === segIdx && last && prev && last.event === "span_end" && prev.event === "span_begin" && prev.type === "fork_nav" && last.span_id === prev.span_id && prev.parent_id === parentId) {
-				const data = prev.metadata?.fork_nav;
-				if (data) {
-					data.groups.push(group);
-					prev.name = forkNavLabel(data.groups);
-					return isCut;
-				}
-			}
-			emitSyntheticSpan(events, {
-				id: `forknav-${seg.span.id}-${anchorId || "restart"}`,
-				name: forkNavLabel([group]),
-				type: "fork_nav",
-				parentId,
-				start: ts,
-				metadata: { fork_nav: { groups: [group] } }
-			});
-			lastNavSegIdx = segIdx;
-			return isCut;
-		};
-		const restartForks = forks.get("");
-		if (restartForks) {
-			if (navAt("", restartForks, seg.span.startTime().toISOString(), null)) continue;
-		}
-		for (const item of seg.span.content) {
-			if (item.type === "span") {
-				sourceSpans.set(item.id, item);
-				emitSyntheticSpan(events, {
-					id: item.id,
-					name: item.name,
-					type: item.spanType,
-					parentId: null,
-					start: item.startTime().toISOString(),
-					end: item.endTime().toISOString()
-				});
-				continue;
-			}
-			const stripped = stripSuffix(item.event, suffix, seg.span.id);
-			events.push(stripped);
-			if (item.event.event !== "anchor") continue;
-			const anchorId = item.event.anchor_id;
-			const children = forks.get(anchorId);
-			if (children?.length) {
-				const ts = item.event.timestamp;
-				if (navAt(anchorId, children, ts, stripped.span_id ?? null)) break;
-			} else if (anchorId === seg.cutAnchor) break;
-		}
-	}
-	const leaf = path[path.length - 1];
-	if (leaf && leaf.span.spanType === "branch") {
-		if (isEmptyBranch(leaf.span)) {
-			const terminator = rawEvents ? findTerminatorTool(rawEvents, leaf.span.id) : null;
-			const startTs = leaf.span.startTime().toISOString();
-			emitSyntheticSpan(events, {
-				id: `emptybranch-${leaf.span.id}`,
-				name: `${leaf.span.name} (empty)`,
-				type: "empty_branch",
-				parentId: null,
-				start: startTs,
-				metadata: { empty_branch: {
-					branchName: leaf.span.name,
-					terminator
-				} }
-			});
-		}
-	}
-	return {
-		events,
-		sourceSpans
-	};
-}
-/**
-* Builds a lookup from span ID to the selection key needed to select that span
-* in the swimlane UI.
-*
-* For rows with multiple spans (iterative), each span ID maps to a key with
-* the span index suffix (e.g. `"explore:0"`). For single-span rows, the key
-* is just the row key.
-*/ function buildSpanSelectKeys(rows) {
-	const keys = /* @__PURE__ */ new Map();
-	for (const row of rows) {
-		const hasMultipleSpans = row.spans.length > 1;
-		for (let i = 0; i < row.spans.length; i++) {
-			const rowSpan = row.spans[i];
-			const selectKey = hasMultipleSpans ? buildSelectionKey(row.key, i) : row.key;
-			if (isSingleSpan(rowSpan)) keys.set(rowSpan.agent.id, { key: selectKey });
-			else for (const agent of getAgents(rowSpan)) keys.set(agent.id, { key: selectKey });
-		}
-	}
-	return keys;
-}
-/**
-* Find the most recent tool event whose position sits inside the given
-* trajectory's span_begin/span_end range. Returns the tool's function name,
-* or null when no tool is found in range.
-*/ function findTerminatorTool(events, trajectorySpanId) {
-	let begin = -1;
-	let end = -1;
-	for (let i = 0; i < events.length; i++) {
-		const e = events[i];
-		if (e.span_id !== trajectorySpanId) continue;
-		if (e.event === "span_begin" && begin === -1) begin = i;
-		else if (e.event === "span_end") end = i;
-	}
-	if (begin === -1 || end === -1) return null;
-	for (let i = end - 1; i > begin; i--) {
-		const e = events[i];
-		if (e.event === "tool") return e.function;
-	}
-	return null;
-}
-/**
-* Walks the EventNode tree and attaches sourceSpan to any span_begin node
-* whose span_id matches an entry in the map. This links synthetic span events
-* back to their original TimelineSpan for rich rendering.
-*/ function attachSourceSpans(nodes, spanMap) {
-	for (const node of nodes) {
-		if (node.event.event === "span_begin") {
-			const spanId = node.event.span_id;
-			if (spanId) {
-				const span = spanMap.get(spanId);
-				if (span) node.sourceSpan = span;
-			}
-		}
-		if (node.children.length > 0) attachSourceSpans(node.children, spanMap);
-	}
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/hooks/useActiveTimeline.ts
@@ -118034,7 +118504,7 @@ function useTranscriptTimeline(options) {
 	const state = useTimeline(timeline, timelineOptions, timelineProps);
 	let t7;
 	if ($[14] !== state.rows) {
-		t7 = state.rows.filter(_temp2$34);
+		t7 = state.rows.filter(_temp2$35);
 		$[14] = state.rows;
 		$[15] = t7;
 	} else t7 = $[15];
@@ -118355,7 +118825,7 @@ function _temp4$24(row_3) {
 function _temp3$29(item_0) {
 	return item_0.type === "span" || item_0.type === "event" && item_0.event.event === "span_begin";
 }
-function _temp2$34(row) {
+function _temp2$35(row) {
 	return row.depth === 0 || rowHasEvents(row);
 }
 function _temp$48(s_0) {
@@ -119457,7 +119927,7 @@ var TimelineSwimLanes = (t0) => {
 		t5 = (rowKey_0) => {
 			const current = isRowCollapsed(rowKey_0);
 			if (current && !header?.timelineConfig?.showBranches) {
-				if (layouts.find((l_0) => l_0.key === rowKey_0)?.markers.some(_temp2$33)) header?.timelineConfig?.setShowBranches(true);
+				if (layouts.find((l_0) => l_0.key === rowKey_0)?.markers.some(_temp2$34)) header?.timelineConfig?.setShowBranches(true);
 			}
 			setRowCollapsedById(rowKey_0, !current);
 		};
@@ -120612,7 +121082,7 @@ var MarkerGlyph = (t0) => {
 function _temp$45(m) {
 	return m.kind === "branch";
 }
-function _temp2$33(m_0) {
+function _temp2$34(m_0) {
 	return m_0.kind === "branch";
 }
 function _temp3$28(l_1) {
@@ -120818,7 +121288,7 @@ function _temp3$28(l_1) {
 	if ($[20] !== activeIndex) {
 		t9 = {
 			activeIndex,
-			onActiveChange: _temp2$32
+			onActiveChange: _temp2$33
 		};
 		$[20] = activeIndex;
 		$[21] = t9;
@@ -120876,7 +121346,7 @@ function _temp3$28(l_1) {
 	} else t14 = $[41];
 	return t14;
 }
-function _temp2$32() {}
+function _temp2$33() {}
 function _temp$44() {}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/hooks/useListPositionManager.ts
@@ -121269,7 +121739,8 @@ function _temp$44() {}
 	const defaultCollapsedIds = {};
 	const findCollapsibleEvents = (nodes) => {
 		for (const node of nodes) {
-			if (kCollapsibleEventTypes.includes(node.event.event) && collapseFilters.some((filter) => filter(node.event))) defaultCollapsedIds[node.id] = true;
+			const event = node.event;
+			if (isCollapsibleEvent(event) && collapseFilters.some((filter) => filter(event))) defaultCollapsedIds[node.id] = true;
 			findCollapsibleEvents(node.children);
 		}
 	};
@@ -122958,7 +123429,7 @@ var SETTLE_LIMIT = 90;
 * Preconditions: must be mounted inside an `ExtendedFindProvider`. The
 * `FindTargetProvider` is optional — its setter no-ops when absent.
 */ function useTranscriptSearchSource(options) {
-	const $ = (0, import_compiler_runtime.c)(30);
+	const $ = (0, import_compiler_runtime.c)(29);
 	const { events, rows, selected, onSelect, viewNodesRef, onHeadroomResetAnchor, onHeadroomSetHidden, id: t0 } = options;
 	const id = t0 === void 0 ? DEFAULT_ID : t0;
 	const { registerVirtualList, registerMatchCounter } = useExtendedFind();
@@ -123015,28 +123486,19 @@ var SETTLE_LIMIT = 90;
 	} else t5 = $[8];
 	const pendingTimersRef = (0, import_react.useRef)(t5);
 	let t6;
-	let t7;
 	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
 		t6 = () => {
-			const timers = pendingTimersRef.current;
-			return () => {
-				for (const t of timers) clearTimeout(t);
-				timers.clear();
-			};
+			for (const t of pendingTimersRef.current) clearTimeout(t);
+			pendingTimersRef.current.clear();
 		};
-		t7 = [];
 		$[9] = t6;
-		$[10] = t7;
-	} else {
-		t6 = $[9];
-		t7 = $[10];
-	}
-	(0, import_react.useEffect)(t6, t7);
+	} else t6 = $[9];
+	useUnmount(t6);
 	const activeTermRef = (0, import_react.useRef)("");
+	let t7;
 	let t8;
-	let t9;
-	if ($[11] !== getMatches) {
-		t8 = () => {
+	if ($[10] !== getMatches) {
+		t7 = () => {
 			if (typeof document === "undefined") return;
 			const onSelectionChange = () => {
 				const term_0 = activeTermRef.current;
@@ -123056,28 +123518,28 @@ var SETTLE_LIMIT = 90;
 			document.addEventListener("selectionchange", onSelectionChange);
 			return () => document.removeEventListener("selectionchange", onSelectionChange);
 		};
-		t9 = [getMatches];
-		$[11] = getMatches;
+		t8 = [getMatches];
+		$[10] = getMatches;
+		$[11] = t7;
 		$[12] = t8;
-		$[13] = t9;
 	} else {
+		t7 = $[11];
 		t8 = $[12];
-		t9 = $[13];
 	}
-	(0, import_react.useEffect)(t8, t9);
-	let t10;
-	if ($[14] !== getMatches) {
-		t10 = (term_1) => {
+	(0, import_react.useEffect)(t7, t8);
+	let t9;
+	if ($[13] !== getMatches) {
+		t9 = (term_1) => {
 			activeTermRef.current = term_1;
 			return getMatches(term_1).length;
 		};
-		$[14] = getMatches;
-		$[15] = t10;
-	} else t10 = $[15];
-	const countFn = t10;
-	let t11;
-	if ($[16] !== getMatches || $[17] !== onHeadroomResetAnchor || $[18] !== onHeadroomSetHidden || $[19] !== onSelect || $[20] !== setFindTarget || $[21] !== viewNodesRef) {
-		t11 = async (term_2, direction, onContentReady) => {
+		$[13] = getMatches;
+		$[14] = t9;
+	} else t9 = $[14];
+	const countFn = t9;
+	let t10;
+	if ($[15] !== getMatches || $[16] !== onHeadroomResetAnchor || $[17] !== onHeadroomSetHidden || $[18] !== onSelect || $[19] !== setFindTarget || $[20] !== viewNodesRef) {
+		t10 = async (term_2, direction, onContentReady) => {
 			const myId = invocationIdRef.current = invocationIdRef.current + 1;
 			const isStale = () => myId !== invocationIdRef.current;
 			const matches_1 = getMatches(term_2);
@@ -123141,19 +123603,19 @@ var SETTLE_LIMIT = 90;
 			pendingTimersRef.current.add(timer);
 			return true;
 		};
-		$[16] = getMatches;
-		$[17] = onHeadroomResetAnchor;
-		$[18] = onHeadroomSetHidden;
-		$[19] = onSelect;
-		$[20] = setFindTarget;
-		$[21] = viewNodesRef;
-		$[22] = t11;
-	} else t11 = $[22];
-	const searchFn = t11;
+		$[15] = getMatches;
+		$[16] = onHeadroomResetAnchor;
+		$[17] = onHeadroomSetHidden;
+		$[18] = onSelect;
+		$[19] = setFindTarget;
+		$[20] = viewNodesRef;
+		$[21] = t10;
+	} else t10 = $[21];
+	const searchFn = t10;
+	let t11;
 	let t12;
-	let t13;
-	if ($[23] !== countFn || $[24] !== id || $[25] !== registerMatchCounter || $[26] !== registerVirtualList || $[27] !== searchFn) {
-		t12 = () => {
+	if ($[22] !== countFn || $[23] !== id || $[24] !== registerMatchCounter || $[25] !== registerVirtualList || $[26] !== searchFn) {
+		t11 = () => {
 			const unCount = registerMatchCounter(id, countFn);
 			const unSearch = registerVirtualList(id, searchFn);
 			return () => {
@@ -123161,25 +123623,25 @@ var SETTLE_LIMIT = 90;
 				unSearch();
 			};
 		};
-		t13 = [
+		t12 = [
 			id,
 			registerMatchCounter,
 			registerVirtualList,
 			countFn,
 			searchFn
 		];
-		$[23] = countFn;
-		$[24] = id;
-		$[25] = registerMatchCounter;
-		$[26] = registerVirtualList;
-		$[27] = searchFn;
+		$[22] = countFn;
+		$[23] = id;
+		$[24] = registerMatchCounter;
+		$[25] = registerVirtualList;
+		$[26] = searchFn;
+		$[27] = t11;
 		$[28] = t12;
-		$[29] = t13;
 	} else {
+		t11 = $[27];
 		t12 = $[28];
-		t13 = $[29];
 	}
-	(0, import_react.useEffect)(t12, t13);
+	(0, import_react.useEffect)(t11, t12);
 }
 function pickNext(matches, position, dir) {
 	const len = matches.length;
@@ -123215,7 +123677,7 @@ function resolvePosition(matches, last, view, selected, term) {
 	if (!sel || sel.rangeCount === 0) return null;
 	const range = sel.getRangeAt(0);
 	const eventIds = new Set(matches.map((m) => m.eventId));
-	let el = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+	let el = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
 	while (el && !eventIds.has(el.id)) el = el.parentElement;
 	if (!el) return null;
 	const eventId = el.id;
@@ -123224,6 +123686,7 @@ function resolvePosition(matches, last, view, selected, term) {
 	let occurrenceInEvent = 0;
 	let node;
 	while (node = walker.nextNode()) {
+		if (!(node instanceof Text)) continue;
 		const textNode = node;
 		if (textNode === range.startContainer) {
 			const head = textNode.data.slice(0, range.startOffset).toLowerCase();
@@ -123273,6 +123736,7 @@ function resolvePosition(matches, last, view, selected, term) {
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	let target = null;
 	for (let node; node = walker.nextNode();) {
+		if (!(node instanceof Text)) continue;
 		const textNode = node;
 		const text = textNode.data.toLowerCase();
 		let from = 0;
@@ -123389,7 +123853,7 @@ var TranscriptLayout_module_default = {
 					hiddenApprovalIds.add(n.id);
 					if (toolNodeId) approvalScrollRedirects.set(n.id, toolNodeId);
 				} else if (toolNodeId) {
-					toolApprovals.set(n.event.call.id, n);
+					toolApprovals.set(n.event.call.id, eventNodeOf(n, "approval"));
 					hiddenApprovalIds.add(n.id);
 					approvalScrollRedirects.set(n.id, toolNodeId);
 				}
@@ -123860,9 +124324,15 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 * Shared layout for transcript views: timeline swimlanes, transcript outline,
 * and the virtualized event list. Apps provide events, selection state
 * adapters, and store-backed collapse callbacks.
-*/ function renderAgentCard(node, agentCardClassName) {
+*/
+/**
+* CSS custom properties for a `style` prop. csstype's `Properties` declares no
+* `--*` index signature, so a custom-property literal can't be written inline;
+* React passes these straight through to the DOM.
+*/ var cssVars$1 = (vars) => vars;
+function renderAgentCard(node, agentCardClassName) {
 	const span = node.sourceSpan;
-	if (!span) return null;
+	if (!(span instanceof TimelineSpan)) return null;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AgentCardView, {
 		span,
 		className: agentCardClassName
@@ -124369,18 +124839,17 @@ var TranscriptLayout = (t0) => {
 	const t54 = scrollerHeight ? `${scrollerHeight}px` : "100vh";
 	let t55;
 	if ($[160] !== t53 || $[161] !== t54) {
-		t55 = {
+		t55 = cssVars$1({
 			"--outline-top": t53,
 			"--scroller-height": t54
-		};
+		});
 		$[160] = t53;
 		$[161] = t54;
 		$[162] = t55;
 	} else t55 = $[162];
-	const t56 = t55;
-	let t57;
+	let t56;
 	if ($[163] !== backfilling || $[164] !== collapseState || $[165] !== defaultCollapsedIds || $[166] !== effectiveOffsetTop || $[167] !== eventNodes || $[168] !== getEventUrl || $[169] !== isOutlineCollapsed || $[170] !== listId || $[171] !== onOutlineHasNodesChange || $[172] !== outline || $[173] !== outlineHasNodes || $[174] !== running || $[175] !== scrollRef || $[176] !== selectedRowName || $[177] !== showSwimlanes) {
-		t57 = outline && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(OutlineSidebar, {
+		t56 = outline && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(OutlineSidebar, {
 			outline,
 			isCollapsed: isOutlineCollapsed,
 			hasNodes: outlineHasNodes,
@@ -124411,11 +124880,11 @@ var TranscriptLayout = (t0) => {
 		$[175] = scrollRef;
 		$[176] = selectedRowName;
 		$[177] = showSwimlanes;
-		$[178] = t57;
-	} else t57 = $[178];
-	let t58;
+		$[178] = t56;
+	} else t56 = $[178];
+	let t57;
 	if ($[179] !== backfilling || $[180] !== collapseState?.transcript || $[181] !== defaultCollapsedIds || $[182] !== effectiveInitialEventId || $[183] !== effectiveListId || $[184] !== effectiveOffsetTop || $[185] !== emptyBusy || $[186] !== emptyText || $[187] !== eventNodes || $[188] !== eventsListRef || $[189] !== getEventFocusUrl || $[190] !== getEventUrl || $[191] !== hasMatchingEvents || $[192] !== initialFollowRequested || $[193] !== initialMessageId || $[194] !== keyboardNavDisabled || $[195] !== linkingEnabled || $[196] !== mergedEventNodeContext || $[197] !== navLanes.lanes || $[198] !== onCollapseTranscript || $[199] !== onExpandNodes || $[200] !== onHeadroomResetAnchor || $[201] !== onHeadroomSetHidden || $[202] !== onLaneNext || $[203] !== onLanePrev || $[204] !== onNavigatedToEvent || $[205] !== onOpenEventFocus || $[206] !== running || $[207] !== scrollRef || $[208] !== scrollToTopOnFinish || $[209] !== showSwimlanes) {
-		t58 = hasMatchingEvents ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptViewNodes, {
+		t57 = hasMatchingEvents ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptViewNodes, {
 			ref: eventsListRef,
 			id: effectiveListId,
 			eventNodes,
@@ -124479,34 +124948,34 @@ var TranscriptLayout = (t0) => {
 		$[207] = scrollRef;
 		$[208] = scrollToTopOnFinish;
 		$[209] = showSwimlanes;
-		$[210] = t58;
-	} else t58 = $[210];
-	let t59;
-	if ($[211] !== t52 || $[212] !== t56 || $[213] !== t57 || $[214] !== t58) {
-		t59 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[210] = t57;
+	} else t57 = $[210];
+	let t58;
+	if ($[211] !== t52 || $[212] !== t55 || $[213] !== t56 || $[214] !== t57) {
+		t58 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t52,
-			style: t56,
-			children: [t57, t58]
+			style: t55,
+			children: [t56, t57]
 		});
 		$[211] = t52;
-		$[212] = t56;
-		$[213] = t57;
-		$[214] = t58;
-		$[215] = t59;
-	} else t59 = $[215];
-	let t60;
-	if ($[216] !== t48 || $[217] !== t59) {
-		t60 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[212] = t55;
+		$[213] = t56;
+		$[214] = t57;
+		$[215] = t58;
+	} else t58 = $[215];
+	let t59;
+	if ($[216] !== t48 || $[217] !== t58) {
+		t59 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: TranscriptLayout_module_default.main,
-			children: [t48, t59]
+			children: [t48, t58]
 		});
 		$[216] = t48;
-		$[217] = t59;
-		$[218] = t60;
-	} else t60 = $[218];
-	let t61;
+		$[217] = t58;
+		$[218] = t59;
+	} else t59 = $[218];
+	let t60;
 	if ($[219] !== offsetTop || $[220] !== rightRail || $[221] !== scrollRef || $[222] !== scrollerHeight) {
-		t61 = rightRail && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RailDock, {
+		t60 = rightRail && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RailDock, {
 			rail: rightRail.rail,
 			panel: rightRail.panel,
 			scrollRef,
@@ -124524,51 +124993,58 @@ var TranscriptLayout = (t0) => {
 		$[220] = rightRail;
 		$[221] = scrollRef;
 		$[222] = scrollerHeight;
-		$[223] = t61;
-	} else t61 = $[223];
-	let t62;
-	if ($[224] !== t47 || $[225] !== t60 || $[226] !== t61) {
-		t62 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[223] = t60;
+	} else t60 = $[223];
+	let t61;
+	if ($[224] !== t47 || $[225] !== t59 || $[226] !== t60) {
+		t61 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t47,
-			children: [t60, t61]
+			children: [t59, t60]
 		});
 		$[224] = t47;
-		$[225] = t60;
-		$[226] = t61;
-		$[227] = t62;
-	} else t62 = $[227];
-	let t63;
-	if ($[228] !== selectByRowKey || $[229] !== t62) {
-		t63 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineRowSelectContext.Provider, {
+		$[225] = t59;
+		$[226] = t60;
+		$[227] = t61;
+	} else t61 = $[227];
+	let t62;
+	if ($[228] !== selectByRowKey || $[229] !== t61) {
+		t62 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineRowSelectContext.Provider, {
 			value: selectByRowKey,
-			children: t62
+			children: t61
 		});
 		$[228] = selectByRowKey;
-		$[229] = t62;
-		$[230] = t63;
-	} else t63 = $[230];
-	let t64;
-	if ($[231] !== selectBySpanId || $[232] !== t63) {
-		t64 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineSelectContext.Provider, {
+		$[229] = t61;
+		$[230] = t62;
+	} else t62 = $[230];
+	let t63;
+	if ($[231] !== selectBySpanId || $[232] !== t62) {
+		t63 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineSelectContext.Provider, {
 			value: selectBySpanId,
-			children: t63
+			children: t62
 		});
 		$[231] = selectBySpanId;
-		$[232] = t63;
-		$[233] = t64;
-	} else t64 = $[233];
-	return t64;
+		$[232] = t62;
+		$[233] = t63;
+	} else t63 = $[233];
+	return t63;
 };
 function _temp$41() {}
-function _temp2$31(a) {
+function _temp2$32(a) {
 	return a.spanType === "agent";
 }
 function _temp3$27(s) {
-	return getAgents(s).some(_temp2$31);
+	return getAgents(s).some(_temp2$32);
 }
 function _temp4$23(l_0) {
 	return l_0.key;
 }
+//#endregion
+//#region src/utils/cssVars.ts
+/**
+* CSS custom properties for a `style` prop. csstype's `Properties` declares no
+* `--*` index signature, so a custom-property literal can't be written inline;
+* React passes these straight through to the DOM.
+*/ var cssVars = (vars) => vars;
 var SampleDisplay_module_default = {
 	tabControls: "_tabControls_fvnsu_1",
 	fullWidth: "_fullWidth_fvnsu_10",
@@ -124652,6 +125128,7 @@ var RetryAttemptCard_module_default = {
 };
 //#endregion
 //#region src/app/samples/retry-display/RetryAttemptCard.tsx
+var isRetryView = (value) => value === "error" || value === "events";
 var kViewSegments = [{
 	id: "error",
 	label: "Error",
@@ -124794,7 +125271,9 @@ var RetryAttemptCard = (t0) => {
 						children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SegmentedControl, {
 							segments: kViewSegments,
 							selectedId: view,
-							onSegmentChange: (id) => setView(id)
+							onSegmentChange: (id) => {
+								if (isRetryView(id)) setView(id);
+							}
 						})
 					}),
 					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -125802,7 +126281,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 	const { seedDefaultVisibility } = t0;
 	const evalDefault = useEvalDefaultSamplesView();
 	const view = useResolvedSamplesView();
-	const logFile = useStore(_temp2$30);
+	const logFile = useStore(_temp2$31);
 	const setSampleListViewAction = useStore(_temp3$26);
 	let t1;
 	if ($[2] !== logFile || $[3] !== setSampleListViewAction) {
@@ -126007,7 +126486,7 @@ function _temp4$22(c) {
 function _temp3$26(state_0) {
 	return state_0.logsActions.setSampleListView;
 }
-function _temp2$30(state) {
+function _temp2$31(state) {
 	return state.logs.selectedLogFile;
 }
 var ScorePanel_module_default = {
@@ -126391,7 +126870,7 @@ function formatPlainValue(v) {
 			$[10] = t2;
 		} else t2 = $[10];
 		const initial = scores.map(t2);
-		const numbers = initial.map(_temp$39).filter(_temp2$29);
+		const numbers = initial.map(_temp$39).filter(_temp2$30);
 		const min = numbers.length ? Math.min(...numbers) : 0;
 		const range = (numbers.length ? Math.max(...numbers) : 0) - min;
 		t1 = initial.map((s_0) => {
@@ -126745,7 +127224,7 @@ function makeCompare(column) {
 function _temp$39(s) {
 	return typeof s.value === "number" ? s.value : null;
 }
-function _temp2$29(v) {
+function _temp2$30(v) {
 	return v !== null;
 }
 function _temp3$25(s_2) {
@@ -126946,7 +127425,7 @@ var FieldLabel = (t0) => {
 				key: "task",
 				content: taskName
 			});
-			const fallbackModels = [...new Set((fields.model_fallbacks ?? []).map(_temp2$28))];
+			const fallbackModels = [...new Set((fields.model_fallbacks ?? []).map(_temp2$29))];
 			if (modelText || fallbackModels.length > 0) {
 				const t21 = fallbackModels.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("em", { children: ` (fallback → ${fallbackModels.join(", ")})` });
 				let t22;
@@ -127320,7 +127799,7 @@ function _temp$38(item, idx) {
 		children: item.content
 	})] }, item.key);
 }
-function _temp2$28(f) {
+function _temp2$29(f) {
 	return f.fallback_model;
 }
 function _temp3$24(acc, s) {
@@ -127413,7 +127892,7 @@ var MetadataValue = (t0) => {
 			} else t1 = $[3];
 			return t1;
 		}
-		case "object": {
+		case "object":
 			if (value === null) {
 				let t1;
 				if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
@@ -127447,22 +127926,23 @@ var MetadataValue = (t0) => {
 				} else t2 = $[9];
 				return t2;
 			}
-			const t1 = `metadata-${id}`;
-			const t2 = value;
-			let t3;
-			if ($[10] !== t1 || $[11] !== t2) {
-				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
-					id: t1,
-					record: t2,
-					useBorders: false,
-					copyButton: true
-				});
-				$[10] = t1;
-				$[11] = t2;
-				$[12] = t3;
-			} else t3 = $[12];
-			return t3;
-		}
+			if (isRecord(value)) {
+				const t1 = `metadata-${id}`;
+				let t2;
+				if ($[10] !== t1 || $[11] !== value) {
+					t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
+						id: t1,
+						record: value,
+						useBorders: false,
+						copyButton: true
+					});
+					$[10] = t1;
+					$[11] = value;
+					$[12] = t2;
+				} else t2 = $[12];
+				return t2;
+			}
+			return null;
 		default: {
 			const t1 = String(value);
 			let t2;
@@ -127476,7 +127956,7 @@ var MetadataValue = (t0) => {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/picomatch@4.0.5/node_modules/picomatch/lib/constants.js
+//#region ../../node_modules/.pnpm/picomatch@4.0.7/node_modules/picomatch/lib/constants.js
 var require_constants = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var WIN_SLASH = "\\\\/";
 	var WIN_NO_SLASH = `[^${WIN_SLASH}]`;
@@ -127645,7 +128125,7 @@ var require_constants = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/picomatch@4.0.5/node_modules/picomatch/lib/utils.js
+//#region ../../node_modules/.pnpm/picomatch@4.0.7/node_modules/picomatch/lib/utils.js
 var require_utils = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var { REGEX_BACKSLASH, REGEX_REMOVE_BACKSLASH, REGEX_SPECIAL_CHARS, REGEX_SPECIAL_CHARS_GLOBAL } = require_constants();
 	exports.isObject = (val) => val !== null && typeof val === "object" && !Array.isArray(val);
@@ -127693,7 +128173,7 @@ var require_utils = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/picomatch@4.0.5/node_modules/picomatch/lib/scan.js
+//#region ../../node_modules/.pnpm/picomatch@4.0.7/node_modules/picomatch/lib/scan.js
 var require_scan = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var utils = require_utils();
 	var { CHAR_ASTERISK, CHAR_AT, CHAR_BACKWARD_SLASH, CHAR_COMMA, CHAR_DOT, CHAR_EXCLAMATION_MARK, CHAR_FORWARD_SLASH, CHAR_LEFT_CURLY_BRACE, CHAR_LEFT_PARENTHESES, CHAR_LEFT_SQUARE_BRACKET, CHAR_PLUS, CHAR_QUESTION_MARK, CHAR_RIGHT_CURLY_BRACE, CHAR_RIGHT_PARENTHESES, CHAR_RIGHT_SQUARE_BRACKET } = require_constants();
@@ -127722,7 +128202,7 @@ var require_scan = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var scan = (input, options) => {
 		const opts = options || {};
 		const length = input.length - 1;
-		const scanToEnd = opts.parts === true || opts.scanToEnd === true;
+		const scanToEnd = opts.parts === true || opts.tokens === true || opts.scanToEnd === true;
 		const slashes = [];
 		const tokens = [];
 		const parts = [];
@@ -127825,14 +128305,18 @@ var require_scan = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 					finished = true;
 					if (code === CHAR_EXCLAMATION_MARK && index === start) negatedExtglob = true;
 					if (scanToEnd === true) {
+						let parens = 0;
 						while (eos() !== true && (code = advance())) {
 							if (code === CHAR_BACKWARD_SLASH) {
 								backslashes = token.backslashes = true;
-								code = advance();
+								advance();
 								continue;
 							}
-							if (code === CHAR_RIGHT_PARENTHESES) {
-								isGlob = token.isGlob = true;
+							if (code === CHAR_LEFT_PARENTHESES) {
+								parens++;
+								continue;
+							}
+							if (code === CHAR_RIGHT_PARENTHESES && --parens === 0) {
 								finished = true;
 								break;
 							}
@@ -127880,13 +128364,18 @@ var require_scan = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			if (opts.noparen !== true && code === CHAR_LEFT_PARENTHESES) {
 				isGlob = token.isGlob = true;
 				if (scanToEnd === true) {
+					let parens = 1;
 					while (eos() !== true && (code = advance())) {
-						if (code === CHAR_LEFT_PARENTHESES) {
+						if (code === CHAR_BACKWARD_SLASH) {
 							backslashes = token.backslashes = true;
-							code = advance();
+							advance();
 							continue;
 						}
-						if (code === CHAR_RIGHT_PARENTHESES) {
+						if (code === CHAR_LEFT_PARENTHESES) {
+							parens++;
+							continue;
+						}
+						if (code === CHAR_RIGHT_PARENTHESES && --parens === 0) {
 							finished = true;
 							break;
 						}
@@ -127949,7 +128438,7 @@ var require_scan = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		if (opts.parts === true || opts.tokens === true) {
 			let prevIndex;
 			for (let idx = 0; idx < slashes.length; idx++) {
-				const n = prevIndex ? prevIndex + 1 : start;
+				const n = prevIndex !== void 0 ? prevIndex + 1 : start;
 				const i = slashes[idx];
 				const value = input.slice(n, i);
 				if (opts.tokens) {
@@ -127960,17 +128449,18 @@ var require_scan = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 					depth(tokens[idx]);
 					state.maxDepth += tokens[idx].depth;
 				}
-				if (idx !== 0 || value !== "") parts.push(value);
-				prevIndex = i;
-			}
-			if (prevIndex && prevIndex + 1 < input.length) {
-				const value = input.slice(prevIndex + 1);
-				parts.push(value);
-				if (opts.tokens) {
-					tokens[tokens.length - 1].value = value;
-					depth(tokens[tokens.length - 1]);
-					state.maxDepth += tokens[tokens.length - 1].depth;
+				if (i >= start) {
+					parts.push(value);
+					prevIndex = i;
 				}
+			}
+			const n = prevIndex !== void 0 ? prevIndex + 1 : start;
+			const value = input.slice(n);
+			parts.push(value);
+			if (opts.tokens && prevIndex && prevIndex + 1 < input.length) {
+				tokens[tokens.length - 1].value = value;
+				depth(tokens[tokens.length - 1]);
+				state.maxDepth += tokens[tokens.length - 1].depth;
 			}
 			state.slashes = slashes;
 			state.parts = parts;
@@ -127980,7 +128470,7 @@ var require_scan = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = scan;
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/picomatch@4.0.5/node_modules/picomatch/lib/parse.js
+//#region ../../node_modules/.pnpm/picomatch@4.0.7/node_modules/picomatch/lib/parse.js
 var require_parse = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var constants = require_constants();
 	var utils = require_utils();
@@ -128880,6 +129370,7 @@ var require_parse = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 					rest = rest.slice(3);
 					consume("/**", 3);
 				}
+				const isEnd = eos() || state.parens > 0 && rest === ")".repeat(state.parens) && !extglobs.some((extglob) => extglob.type === "negate");
 				if (prior.type === "bos" && eos()) {
 					prev.type = "globstar";
 					prev.value += value;
@@ -128889,7 +129380,7 @@ var require_parse = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 					consume(value);
 					continue;
 				}
-				if (prior.type === "slash" && prior.prev.type !== "bos" && !afterStar && eos()) {
+				if (prior.type === "slash" && prior.prev.type !== "bos" && !afterStar && isEnd) {
 					state.output = state.output.slice(0, -(prior.output + prev.output).length);
 					prior.output = `(?:${prior.output}`;
 					prev.type = "globstar";
@@ -129054,7 +129545,7 @@ var require_parse = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = parse;
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/picomatch@4.0.5/node_modules/picomatch/lib/picomatch.js
+//#region ../../node_modules/.pnpm/picomatch@4.0.7/node_modules/picomatch/lib/picomatch.js
 var require_picomatch$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var scan = require_scan();
 	var parse = require_parse();
@@ -129392,6 +129883,7 @@ var import_picomatch = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 	"metadata"
 ];
 var kBuiltinNames = new Set(kBuiltinFieldOrder);
+var isBuiltinName = (value) => kBuiltinNames.has(value);
 /** Built-in default order when no scanner pattern matches. */ var kDefaultFields = kBuiltinFieldOrder.map((name) => ({
 	kind: "builtin",
 	name,
@@ -129495,7 +129987,7 @@ function coerceFields(raw) {
 			key: entry.slice(9),
 			collapsed: false
 		};
-		if (kBuiltinNames.has(entry)) return {
+		if (isBuiltinName(entry)) return {
 			kind: "builtin",
 			name: entry,
 			collapsed: false
@@ -129631,7 +130123,7 @@ var Result = (t0) => {
 var resolveTargetValue = (target, key) => {
 	if (target === void 0) return "";
 	if (key === void 0) return target;
-	if (target && typeof target === "object" && !Array.isArray(target)) return target[key] ?? false;
+	if (isRecord(target)) return target[key] ?? false;
 	return target;
 };
 var valueStr = (target) => {
@@ -129947,7 +130439,7 @@ var renderValue = (index, val, identifier, references, interactive) => {
 		children: "null"
 	});
 	else if (Array.isArray(val)) return printArray(val, 35);
-	else if (typeof val === "object") return !interactive ? printObject(val, 35) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
+	else if (isRecord(val)) return !interactive ? printObject(val, 35) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
 		id: `value-record-${identifier ?? "na"}-${index}`,
 		record: val
 	});
@@ -130030,7 +130522,9 @@ var Section = (t0) => {
 		t1 = (el) => {
 			if (!el) return;
 			const handler = (e) => {
+				if (!(e instanceof CustomEvent)) return;
 				const detail = e.detail;
+				if (!isRecord(detail) || typeof detail.open !== "boolean") return;
 				onToggle(id, detail.open);
 			};
 			el.addEventListener("vsc-collapsible-toggle", handler);
@@ -130183,7 +130677,7 @@ function readScannerReferences(metadata) {
 	if (!Array.isArray(raw)) return [];
 	const entries = [];
 	for (const item of raw) {
-		if (!item || typeof item !== "object") continue;
+		if (!isRecord(item)) continue;
 		const { type, id, cite } = item;
 		if ((type === "message" || type === "event") && typeof id === "string" && typeof cite === "string" && cite.length > 0) entries.push({
 			type,
@@ -130611,8 +131105,8 @@ var ScansSidebarPanel_module_default = {
 }
 //#endregion
 //#region src/app/samples/scores/SampleScores.tsx
-var SampleScores = ({ sample, scorer }) => {
-	const scoreData = sample.scores?.[scorer];
+var SampleScores = ({ scores, scorer }) => {
+	const scoreData = scores?.[scorer];
 	if (!scoreData) return;
 	return getScoreDescriptorForValues([scoreData.value], [typeof scoreData.value])?.render(scoreData.value);
 };
@@ -130685,12 +131179,14 @@ var SampleScoresGrid = (t0) => {
 		$[9] = t7;
 	} else t7 = $[9];
 	let t8;
-	if ($[10] !== evalSample || $[11] !== scrollRef || $[12] !== t7) {
+	if ($[10] !== evalSample.scores || $[11] !== scrollRef || $[12] !== t7) {
 		t8 = t7.map((scorer) => {
 			if (!evalSample.scores) return;
 			const scoreData = evalSample.scores[scorer];
+			if (!scoreData) return;
 			const explanation = scoreData.explanation || "(No Explanation)";
 			const answer = scoreData.answer;
+			const reason = scoreData.reason;
 			const metadata = scoreData.metadata || {};
 			return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
 				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
@@ -130704,7 +131200,7 @@ var SampleScoresGrid = (t0) => {
 				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: clsx(SampleScoresGrid_module_default.cell, "text-size-base"),
 					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleScores, {
-						sample: evalSample,
+						scores: evalSample.scores,
 						scorer
 					})
 				}),
@@ -130718,6 +131214,17 @@ var SampleScoresGrid = (t0) => {
 						}
 					})
 				}),
+				reason ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+						className: clsx("text-size-smaller", "text-style-label", "text-style-secondary", SampleScoresGrid_module_default.fullWidth),
+						children: "Reason"
+					}),
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+						className: clsx(SampleScoresGrid_module_default.fullWidth, "text-size-base"),
+						children: reason
+					}),
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(SampleScoresGrid_module_default.separator, SampleScoresGrid_module_default.separatorPadded, SampleScoresGrid_module_default.fullWidth) })
+				] }, `${scorer}-reason`) : void 0,
 				Object.keys(metadata).length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
 					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 						className: clsx("text-size-smaller", "text-style-label", "text-style-secondary", SampleScoresGrid_module_default.fullWidth),
@@ -130736,7 +131243,7 @@ var SampleScoresGrid = (t0) => {
 				] }, `${scorer}-metadata`) : void 0
 			] }, `${scorer}-row`);
 		});
-		$[10] = evalSample;
+		$[10] = evalSample.scores;
 		$[11] = scrollRef;
 		$[12] = t7;
 		$[13] = t8;
@@ -131459,7 +131966,7 @@ var useTranscriptFilter = (t0) => {
 		$[2] = t1;
 	} else t1 = $[2];
 	const filtered = t1;
-	const setFilteredEventTypes = useStore(_temp2$27);
+	const setFilteredEventTypes = useStore(_temp2$28);
 	let t2;
 	if ($[3] !== filtered || $[4] !== setFilteredEventTypes) {
 		t2 = (type, isFiltered) => {
@@ -131571,7 +132078,7 @@ var useTranscriptFilter = (t0) => {
 function _temp$35(state) {
 	return state.sample.eventFilter.filteredTypes;
 }
-function _temp2$27(state_0) {
+function _temp2$28(state_0) {
 	return state_0.sampleActions.setFilteredEventTypes;
 }
 function _temp3$23(col_0) {
@@ -131736,7 +132243,7 @@ var useInspectSearchPanelState = (t0) => {
 		$[5] = t2;
 	} else t2 = $[5];
 	const stored = useStore(t2);
-	const setSearchPanelState = useStore(_temp2$26);
+	const setSearchPanelState = useStore(_temp2$27);
 	let t3;
 	if ($[6] !== stored) {
 		t3 = normalizeSearchPanelState(stored);
@@ -131802,7 +132309,7 @@ var useInspectSearchNavigation = (t0) => {
 function _temp$34(s) {
 	return s.logs.selectedLogFile;
 }
-function _temp2$26(s_0) {
+function _temp2$27(s_0) {
 	return s_0.searchActions.setSearchPanelState;
 }
 function _temp3$22(s) {
@@ -132279,7 +132786,8 @@ var TranscriptFilterPopover = (t0) => {
 	const { logPath } = useLogRouteParams();
 	const outlineKey = `transcript-panel-${logPath || "na"}`;
 	const outlineCollapsedRaw = useStore((state) => {
-		return state.app.propertyBags["collapse-state-scope"]?.[outlineKey];
+		const stored = state.app.propertyBags["collapse-state-scope"]?.[outlineKey];
+		return typeof stored === "boolean" ? stored : void 0;
 	});
 	const setPropertyValue = useStore((state) => state.appActions.setPropertyValue);
 	const setOutlineCollapsed = (0, import_react.useCallback)((value) => {
@@ -132687,7 +133195,7 @@ var kNoMessageRows = [];
 	const headerHeight = useElementHeight(headerWrapperRef, !!selectedSampleSummary);
 	const effectiveHeaderHeight = selectedSampleSummary ? headerHeight : 0;
 	const stickyOffsetTop = tabsHeight + effectiveHeaderHeight;
-	const tabsContainerStyle = (0, import_react.useMemo)(() => ({ "--inspect-sample-header-height": `${effectiveHeaderHeight}px` }), [effectiveHeaderHeight]);
+	const tabsContainerStyle = (0, import_react.useMemo)(() => cssVars({ "--inspect-sample-header-height": `${effectiveHeaderHeight}px` }), [effectiveHeaderHeight]);
 	const activeRailId = rightDock === "scans" && scans.hasScans ? "scans" : rightDock === "search" && searchContext ? "search" : null;
 	const railItems = (0, import_react.useMemo)(() => {
 		const items = [];
@@ -133229,7 +133737,7 @@ var isRunning = (sampleSummary, runningSampleData, status) => {
 	const sampleTab = useStore(_temp$33);
 	const sampleDetailNavigation = useSampleDetailNavigation();
 	const isVirtualizedTab = sampleTab === kSampleTranscriptTabId || sampleTab === kSampleMessagesTabId;
-	const logFile = useStore(_temp2$25);
+	const logFile = useStore(_temp2$26);
 	const sampleHandle = useStore(_temp3$21);
 	const visitId = useVisitId(`${logFile}-${sampleHandle?.id}-${sampleHandle?.epoch}`);
 	useStatefulScrollPosition(scrollRef, `inline-sample-scroller-${visitId}-${sampleTab}`, 1e3, !isVirtualizedTab);
@@ -133324,7 +133832,7 @@ var isRunning = (sampleSummary, runningSampleData, status) => {
 function _temp$33(state) {
 	return state.app.tabs.sample;
 }
-function _temp2$25(state_0) {
+function _temp2$26(state_0) {
 	return state_0.logs.selectedLogFile;
 }
 function _temp3$21(state_1) {
@@ -133446,7 +133954,7 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 	}
 	const sampleMatchesRequest = t1;
 	const showFind = useStore(_temp$32);
-	const setShowFind = useStore(_temp2$24);
+	const setShowFind = useStore(_temp2$25);
 	const hideFind = useStore(_temp3$20);
 	const nativeFind = useStore(_temp4$19);
 	const setSampleTab = useStore(_temp5$10);
@@ -133536,7 +134044,7 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 function _temp$32(state) {
 	return state.app.showFind;
 }
-function _temp2$24(state_0) {
+function _temp2$25(state_0) {
 	return state_0.appActions.setShowFind;
 }
 function _temp3$20(state_1) {
@@ -133571,7 +134079,7 @@ function _temp5$10(state_3) {
 	const { singleFileMode } = useAppConfig();
 	const prefix = useRoutePrefix();
 	const selectedLogFile = useStore(_temp$31);
-	const selectedSampleHandle = useStore(_temp2$23);
+	const selectedSampleHandle = useStore(_temp2$24);
 	const logPath = routeLogPath || selectedLogFile;
 	let t0;
 	if ($[0] !== routeSampleId || $[1] !== selectedSampleHandle?.id) {
@@ -133706,7 +134214,7 @@ function _temp5$10(state_3) {
 function _temp$31(state) {
 	return state.logs.selectedLogFile;
 }
-function _temp2$23(state_0) {
+function _temp2$24(state_0) {
 	return state_0.log.selectedSampleHandle;
 }
 //#endregion
@@ -134366,6 +134874,15 @@ var ProvenanceFields = (t0) => {
 };
 //#endregion
 //#region src/app/log-view/title-view/EditMetadataDialog.tsx
+var kNewTypes = [
+	"string",
+	"number",
+	"boolean",
+	"object",
+	"array",
+	"null"
+];
+var asNewType = (value) => kNewTypes.find((type) => type === value) ?? "string";
 var toEditableString = (v) => {
 	if (typeof v === "string") return v;
 	return JSON.stringify(v, null, 2);
@@ -134427,7 +134944,7 @@ var seedFor = (type) => {
 	}
 };
 var EditMetadataDialog = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(131);
+	const $ = (0, import_compiler_runtime.c)(129);
 	const { showing, setShowing, currentMetadata, logFile, onSaved } = t0;
 	let t1;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
@@ -134490,7 +135007,7 @@ var EditMetadataDialog = (t0) => {
 			let cancelled = false;
 			if (api.get_user_info) api.get_user_info().then((info) => {
 				if (!cancelled && info.name) setAuthor((current) => current || info.name || "");
-			}).catch(_temp2$22);
+			}).catch(_temp2$23);
 			return () => {
 				cancelled = true;
 			};
@@ -134526,7 +135043,7 @@ var EditMetadataDialog = (t0) => {
 	const adding = t8;
 	let t9;
 	if ($[16] !== entries) {
-		t9 = entries.filter(_temp6$6).map(_temp7$5);
+		t9 = entries.filter(_temp6$5).map(_temp7$5);
 		$[16] = entries;
 		$[17] = t9;
 	} else t9 = $[17];
@@ -134634,8 +135151,9 @@ var EditMetadataDialog = (t0) => {
 	const inFlightRef = (0, import_react.useRef)(false);
 	let t17;
 	if ($[34] !== author || $[35] !== canSave || $[36] !== entries || $[37] !== logFile || $[38] !== onSaved || $[39] !== reason || $[40] !== removed || $[41] !== setShowing) {
-		t17 = async () => {
-			if (!canSave || inFlightRef.current || !api.edit_log) return;
+		t17 = () => {
+			const editLog = api.edit_log;
+			if (!canSave || inFlightRef.current || !editLog) return;
 			inFlightRef.current = true;
 			const indicatorTimer = window.setTimeout(() => setSubmitting(true), 200);
 			const changedEntries = entries.filter(_temp8$4);
@@ -134645,26 +135163,27 @@ var EditMetadataDialog = (t0) => {
 				metadata: {},
 				timestamp: (/* @__PURE__ */ new Date()).toISOString()
 			};
-			try {
+			Promise.resolve().then(() => {
 				const edit = {
 					type: "metadata",
 					metadata_set: buildMetadataSet(changedEntries),
 					metadata_remove: removed
 				};
-				await api.edit_log(logFile, {
+				return editLog(logFile, {
 					edits: [edit],
 					provenance
 				});
+			}).then(() => {
 				setShowing(false);
 				if (onSaved) onSaved();
-			} catch (t18) {
-				const err = t18;
+			}).catch((err) => {
 				if (err instanceof MetadataParseError) setError(`Invalid JSON for "${err.key}". Use JSON syntax — quote keys and strings, e.g. {"a": 1} or "yes".`);
 				else setError(formatEditError(err));
-			}
-			window.clearTimeout(indicatorTimer);
-			setSubmitting(false);
-			inFlightRef.current = false;
+			}).finally(() => {
+				window.clearTimeout(indicatorTimer);
+				setSubmitting(false);
+				inFlightRef.current = false;
+			});
 		};
 		$[34] = author;
 		$[35] = canSave;
@@ -134724,51 +135243,45 @@ var EditMetadataDialog = (t0) => {
 		t23 = clsx("btn", "btn-primary", "text-size-smaller");
 		$[55] = t23;
 	} else t23 = $[55];
-	let t24;
-	if ($[56] !== handleSave) {
-		t24 = () => void handleSave();
-		$[56] = handleSave;
-		$[57] = t24;
-	} else t24 = $[57];
-	const t25 = !canSave;
-	const t26 = submitting ? "Saving…" : "Save";
-	let t27;
-	if ($[58] !== t24 || $[59] !== t25 || $[60] !== t26) {
-		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+	const t24 = !canSave;
+	const t25 = submitting ? "Saving…" : "Save";
+	let t26;
+	if ($[56] !== handleSave || $[57] !== t24 || $[58] !== t25) {
+		t26 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: t23,
-			onClick: t24,
-			disabled: t25,
-			children: t26
+			onClick: handleSave,
+			disabled: t24,
+			children: t25
 		});
-		$[58] = t24;
-		$[59] = t25;
-		$[60] = t26;
-		$[61] = t27;
-	} else t27 = $[61];
-	let t28;
-	if ($[62] !== t22 || $[63] !== t27) {
-		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[56] = handleSave;
+		$[57] = t24;
+		$[58] = t25;
+		$[59] = t26;
+	} else t26 = $[59];
+	let t27;
+	if ($[60] !== t22 || $[61] !== t26) {
+		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditAnnotationsDialog_module_default.footerActions,
-			children: [t22, t27]
+			children: [t22, t26]
 		});
-		$[62] = t22;
-		$[63] = t27;
-		$[64] = t28;
-	} else t28 = $[64];
-	let t29;
-	if ($[65] !== t19 || $[66] !== t28) {
-		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[60] = t22;
+		$[61] = t26;
+		$[62] = t27;
+	} else t27 = $[62];
+	let t28;
+	if ($[63] !== t19 || $[64] !== t27) {
+		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditAnnotationsDialog_module_default.footer,
-			children: [t19, t28]
+			children: [t19, t27]
 		});
-		$[65] = t19;
-		$[66] = t28;
-		$[67] = t29;
-	} else t29 = $[67];
-	let t30;
-	if ($[68] === Symbol.for("react.memo_cache_sentinel")) {
-		t30 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[63] = t19;
+		$[64] = t27;
+		$[65] = t28;
+	} else t28 = $[65];
+	let t29;
+	if ($[66] === Symbol.for("react.memo_cache_sentinel")) {
+		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditAnnotationsDialog_module_default.labelRow,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				id: "edit-metadata-label",
@@ -134779,282 +135292,282 @@ var EditMetadataDialog = (t0) => {
 				children: "Values are edited as plain text. Use JSON syntax for nested values."
 			})]
 		});
-		$[68] = t30;
-	} else t30 = $[68];
-	let t31;
-	if ($[69] !== entries.length) {
-		t31 = entries.length === 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[66] = t29;
+	} else t29 = $[66];
+	let t30;
+	if ($[67] !== entries.length) {
+		t30 = entries.length === 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-size-smaller", EditMetadataDialog_module_default.empty),
 			children: "No metadata yet — add a key below."
 		});
-		$[69] = entries.length;
-		$[70] = t31;
-	} else t31 = $[70];
-	let t32;
-	if ($[71] !== entries || $[72] !== submitting) {
-		let t33;
-		if ($[74] !== submitting) {
-			t33 = (entry_0, idx) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaRow, {
+		$[67] = entries.length;
+		$[68] = t30;
+	} else t30 = $[68];
+	let t31;
+	if ($[69] !== entries || $[70] !== submitting) {
+		let t32;
+		if ($[72] !== submitting) {
+			t32 = (entry_0, idx) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaRow, {
 				entry: entry_0,
 				first: idx === 0,
 				onChange: (text_0) => updateValue(entry_0.key, text_0),
 				onRemove: () => removeKey(entry_0.key),
 				disabled: submitting
 			}, entry_0.key);
-			$[74] = submitting;
-			$[75] = t33;
-		} else t33 = $[75];
-		t32 = entries.map(t33);
-		$[71] = entries;
-		$[72] = submitting;
-		$[73] = t32;
-	} else t32 = $[73];
-	let t33;
-	if ($[76] !== t31 || $[77] !== t32) {
-		t33 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			$[72] = submitting;
+			$[73] = t32;
+		} else t32 = $[73];
+		t31 = entries.map(t32);
+		$[69] = entries;
+		$[70] = submitting;
+		$[71] = t31;
+	} else t31 = $[71];
+	let t32;
+	if ($[74] !== t30 || $[75] !== t31) {
+		t32 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: EditMetadataDialog_module_default.tableScroll,
 			role: "group",
 			"aria-labelledby": "edit-metadata-label",
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: EditMetadataDialog_module_default.table,
-				children: [t31, t32]
+				children: [t30, t31]
 			})
 		});
-		$[76] = t31;
-		$[77] = t32;
-		$[78] = t33;
-	} else t33 = $[78];
+		$[74] = t30;
+		$[75] = t31;
+		$[76] = t32;
+	} else t32 = $[76];
+	let t33;
+	if ($[77] === Symbol.for("react.memo_cache_sentinel")) {
+		t33 = clsx("form-control", "text-size-smaller", EditMetadataDialog_module_default.addKeyInput);
+		$[77] = t33;
+	} else t33 = $[77];
 	let t34;
-	if ($[79] === Symbol.for("react.memo_cache_sentinel")) {
-		t34 = clsx("form-control", "text-size-smaller", EditMetadataDialog_module_default.addKeyInput);
-		$[79] = t34;
-	} else t34 = $[79];
+	if ($[78] === Symbol.for("react.memo_cache_sentinel")) {
+		t34 = (e_9) => setNewKey(e_9.target.value);
+		$[78] = t34;
+	} else t34 = $[78];
 	let t35;
-	if ($[80] === Symbol.for("react.memo_cache_sentinel")) {
-		t35 = (e_9) => setNewKey(e_9.target.value);
-		$[80] = t35;
-	} else t35 = $[80];
-	let t36;
-	if ($[81] !== handleNewKeyDown || $[82] !== newKey || $[83] !== submitting) {
-		t36 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
+	if ($[79] !== handleNewKeyDown || $[80] !== newKey || $[81] !== submitting) {
+		t35 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 			type: "text",
-			className: t34,
+			className: t33,
 			placeholder: "Add a key…",
 			value: newKey,
-			onChange: t35,
+			onChange: t34,
 			onKeyDown: handleNewKeyDown,
 			disabled: submitting
 		});
-		$[81] = handleNewKeyDown;
-		$[82] = newKey;
-		$[83] = submitting;
-		$[84] = t36;
-	} else t36 = $[84];
+		$[79] = handleNewKeyDown;
+		$[80] = newKey;
+		$[81] = submitting;
+		$[82] = t35;
+	} else t35 = $[82];
+	let t36;
+	if ($[83] === Symbol.for("react.memo_cache_sentinel")) {
+		t36 = clsx("form-select", "text-size-smaller", EditMetadataDialog_module_default.typeSelect);
+		$[83] = t36;
+	} else t36 = $[83];
 	let t37;
-	if ($[85] === Symbol.for("react.memo_cache_sentinel")) {
-		t37 = clsx("form-select", "text-size-smaller", EditMetadataDialog_module_default.typeSelect);
-		$[85] = t37;
-	} else t37 = $[85];
+	if ($[84] === Symbol.for("react.memo_cache_sentinel")) {
+		t37 = (e_10) => setNewType(asNewType(e_10.target.value));
+		$[84] = t37;
+	} else t37 = $[84];
 	let t38;
-	if ($[86] === Symbol.for("react.memo_cache_sentinel")) {
-		t38 = (e_10) => setNewType(e_10.target.value);
-		$[86] = t38;
-	} else t38 = $[86];
 	let t39;
 	let t40;
 	let t41;
 	let t42;
 	let t43;
-	let t44;
-	if ($[87] === Symbol.for("react.memo_cache_sentinel")) {
-		t39 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
+	if ($[85] === Symbol.for("react.memo_cache_sentinel")) {
+		t38 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 			value: "string",
 			children: "string"
 		});
-		t40 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
+		t39 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 			value: "number",
 			children: "number"
 		});
-		t41 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
+		t40 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 			value: "boolean",
 			children: "boolean"
 		});
-		t42 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
+		t41 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 			value: "object",
 			children: "object"
 		});
-		t43 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
+		t42 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 			value: "array",
 			children: "array"
 		});
-		t44 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
+		t43 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 			value: "null",
 			children: "null"
 		});
-		$[87] = t39;
-		$[88] = t40;
-		$[89] = t41;
-		$[90] = t42;
-		$[91] = t43;
-		$[92] = t44;
+		$[85] = t38;
+		$[86] = t39;
+		$[87] = t40;
+		$[88] = t41;
+		$[89] = t42;
+		$[90] = t43;
 	} else {
-		t39 = $[87];
-		t40 = $[88];
-		t41 = $[89];
-		t42 = $[90];
-		t43 = $[91];
-		t44 = $[92];
+		t38 = $[85];
+		t39 = $[86];
+		t40 = $[87];
+		t41 = $[88];
+		t42 = $[89];
+		t43 = $[90];
 	}
-	let t45;
-	if ($[93] !== newType || $[94] !== submitting) {
-		t45 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("select", {
-			className: t37,
+	let t44;
+	if ($[91] !== newType || $[92] !== submitting) {
+		t44 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("select", {
+			className: t36,
 			value: newType,
-			onChange: t38,
+			onChange: t37,
 			"aria-label": "Type for new key",
 			disabled: submitting,
 			children: [
+				t38,
 				t39,
 				t40,
 				t41,
 				t42,
-				t43,
-				t44
+				t43
 			]
 		});
-		$[93] = newType;
-		$[94] = submitting;
+		$[91] = newType;
+		$[92] = submitting;
+		$[93] = t44;
+	} else t44 = $[93];
+	let t45;
+	if ($[94] !== newKey) {
+		t45 = newKey.trim() ? "btn-primary" : "btn-secondary";
+		$[94] = newKey;
 		$[95] = t45;
 	} else t45 = $[95];
 	let t46;
-	if ($[96] !== newKey) {
-		t46 = newKey.trim() ? "btn-primary" : "btn-secondary";
-		$[96] = newKey;
+	if ($[96] !== t45) {
+		t46 = clsx("btn", t45, "text-size-smaller", EditMetadataDialog_module_default.addButton);
+		$[96] = t45;
 		$[97] = t46;
 	} else t46 = $[97];
 	let t47;
-	if ($[98] !== t46) {
-		t47 = clsx("btn", t46, "text-size-smaller", EditMetadataDialog_module_default.addButton);
-		$[98] = t46;
-		$[99] = t47;
-	} else t47 = $[99];
+	if ($[98] !== newKey || $[99] !== submitting) {
+		t47 = submitting || !newKey.trim();
+		$[98] = newKey;
+		$[99] = submitting;
+		$[100] = t47;
+	} else t47 = $[100];
 	let t48;
-	if ($[100] !== newKey || $[101] !== submitting) {
-		t48 = submitting || !newKey.trim();
-		$[100] = newKey;
-		$[101] = submitting;
-		$[102] = t48;
-	} else t48 = $[102];
+	if ($[101] === Symbol.for("react.memo_cache_sentinel")) {
+		t48 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: ApplicationIcons.changes.add });
+		$[101] = t48;
+	} else t48 = $[101];
 	let t49;
-	if ($[103] === Symbol.for("react.memo_cache_sentinel")) {
-		t49 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: ApplicationIcons.changes.add });
-		$[103] = t49;
-	} else t49 = $[103];
-	let t50;
-	if ($[104] !== addKey || $[105] !== t47 || $[106] !== t48) {
-		t50 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+	if ($[102] !== addKey || $[103] !== t46 || $[104] !== t47) {
+		t49 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			type: "button",
-			className: t47,
+			className: t46,
 			onClick: addKey,
-			disabled: t48,
-			children: [t49, " Add key"]
+			disabled: t47,
+			children: [t48, " Add key"]
 		});
-		$[104] = addKey;
-		$[105] = t47;
-		$[106] = t48;
-		$[107] = t50;
-	} else t50 = $[107];
-	let t51;
-	if ($[108] !== t36 || $[109] !== t45 || $[110] !== t50) {
-		t51 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[102] = addKey;
+		$[103] = t46;
+		$[104] = t47;
+		$[105] = t49;
+	} else t49 = $[105];
+	let t50;
+	if ($[106] !== t35 || $[107] !== t44 || $[108] !== t49) {
+		t50 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditMetadataDialog_module_default.addRow,
 			children: [
-				t36,
-				t45,
+				t35,
+				t44,
+				t49
+			]
+		});
+		$[106] = t35;
+		$[107] = t44;
+		$[108] = t49;
+		$[109] = t50;
+	} else t50 = $[109];
+	let t51;
+	if ($[110] !== t32 || $[111] !== t50) {
+		t51 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: EditAnnotationsDialog_module_default.section,
+			children: [
+				t29,
+				t32,
 				t50
 			]
 		});
-		$[108] = t36;
-		$[109] = t45;
-		$[110] = t50;
-		$[111] = t51;
-	} else t51 = $[111];
+		$[110] = t32;
+		$[111] = t50;
+		$[112] = t51;
+	} else t51 = $[112];
 	let t52;
-	if ($[112] !== t33 || $[113] !== t51) {
-		t52 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: EditAnnotationsDialog_module_default.section,
-			children: [
-				t30,
-				t33,
-				t51
-			]
-		});
-		$[112] = t33;
-		$[113] = t51;
-		$[114] = t52;
-	} else t52 = $[114];
+	if ($[113] === Symbol.for("react.memo_cache_sentinel")) {
+		t52 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("hr", { className: EditAnnotationsDialog_module_default.divider });
+		$[113] = t52;
+	} else t52 = $[113];
 	let t53;
-	if ($[115] === Symbol.for("react.memo_cache_sentinel")) {
-		t53 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("hr", { className: EditAnnotationsDialog_module_default.divider });
-		$[115] = t53;
-	} else t53 = $[115];
-	let t54;
-	if ($[116] !== author || $[117] !== reason || $[118] !== submitting) {
-		t54 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ProvenanceFields, {
+	if ($[114] !== author || $[115] !== reason || $[116] !== submitting) {
+		t53 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ProvenanceFields, {
 			author,
 			setAuthor,
 			reason,
 			setReason,
 			disabled: submitting
 		});
-		$[116] = author;
-		$[117] = reason;
-		$[118] = submitting;
-		$[119] = t54;
-	} else t54 = $[119];
-	let t55;
-	if ($[120] !== error) {
-		t55 = error && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[114] = author;
+		$[115] = reason;
+		$[116] = submitting;
+		$[117] = t53;
+	} else t53 = $[117];
+	let t54;
+	if ($[118] !== error) {
+		t54 = error && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-size-smaller", EditAnnotationsDialog_module_default.error),
 			children: error
 		});
-		$[120] = error;
-		$[121] = t55;
-	} else t55 = $[121];
-	let t56;
-	if ($[122] !== t52 || $[123] !== t54 || $[124] !== t55) {
-		t56 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[118] = error;
+		$[119] = t54;
+	} else t54 = $[119];
+	let t55;
+	if ($[120] !== t51 || $[121] !== t53 || $[122] !== t54) {
+		t55 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditAnnotationsDialog_module_default.body,
 			children: [
+				t51,
 				t52,
 				t53,
-				t54,
-				t55
+				t54
 			]
 		});
-		$[122] = t52;
-		$[123] = t54;
-		$[124] = t55;
-		$[125] = t56;
-	} else t56 = $[125];
-	let t57;
-	if ($[126] !== showing || $[127] !== t18 || $[128] !== t29 || $[129] !== t56) {
-		t57 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Modal, {
+		$[120] = t51;
+		$[121] = t53;
+		$[122] = t54;
+		$[123] = t55;
+	} else t55 = $[123];
+	let t56;
+	if ($[124] !== showing || $[125] !== t18 || $[126] !== t28 || $[127] !== t55) {
+		t56 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Modal, {
 			id: "edit-metadata-dialog",
 			show: showing,
 			onHide: t18,
 			title: "Edit metadata",
 			width: "820px",
-			footer: t29,
-			children: t56
+			footer: t28,
+			children: t55
 		});
-		$[126] = showing;
-		$[127] = t18;
-		$[128] = t29;
-		$[129] = t56;
-		$[130] = t57;
-	} else t57 = $[130];
-	return t57;
+		$[124] = showing;
+		$[125] = t18;
+		$[126] = t28;
+		$[127] = t55;
+		$[128] = t56;
+	} else t56 = $[128];
+	return t56;
 };
 var MetaRow = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(22);
@@ -135150,7 +135663,7 @@ function _temp$29(t0) {
 		isString: typeof value === "string"
 	};
 }
-function _temp2$22() {}
+function _temp2$23() {}
 function _temp3$19(e) {
 	return e.key;
 }
@@ -135160,7 +135673,7 @@ function _temp4$18(e_0) {
 function _temp5$9(e_1) {
 	return e_1.key;
 }
-function _temp6$6(e_2) {
+function _temp6$5(e_2) {
 	return e_2.dirty && !e_2.isNew;
 }
 function _temp7$5(e_3) {
@@ -135473,7 +135986,7 @@ var PlanDetailView = (t0) => {
 	} else t2 = $[19];
 	let t3;
 	if ($[20] !== taskColumns) {
-		t3 = taskColumns.map(_temp2$21);
+		t3 = taskColumns.map(_temp2$22);
 		$[20] = taskColumns;
 		$[21] = t3;
 	} else t3 = $[21];
@@ -135538,7 +136051,7 @@ function _temp$27(accum, score) {
 	else existing.scores.push(score.name);
 	return accum;
 }
-function _temp2$21(col) {
+function _temp2$22(col) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PlanColumn, {
 		title: col.title,
 		className: col.className,
@@ -135832,7 +136345,7 @@ var kJsonMaxSize = 1e7;
 var useJsonTabConfig = (logDetails) => {
 	const $ = (0, import_compiler_runtime.c)(20);
 	const selectedLogFile = useStore(_temp$26);
-	const selectedTab = useStore(_temp2$20);
+	const selectedTab = useStore(_temp2$21);
 	let t0;
 	if ($[0] !== logDetails) {
 		t0 = logDetails ?? {};
@@ -135904,7 +136417,7 @@ var useJsonTabConfig = (logDetails) => {
 var copyFeedback = (e) => {
 	const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
 	const iconEl = e.currentTarget.querySelector("i.bi");
-	if (textEl) {
+	if (textEl instanceof HTMLElement && iconEl instanceof HTMLElement) {
 		const htmlEl = textEl;
 		const htmlIconEl = iconEl;
 		const oldText = htmlEl.innerText;
@@ -135970,7 +136483,7 @@ var copyFeedback = (e) => {
 function _temp$26(state) {
 	return state.logs.selectedLogFile;
 }
-function _temp2$20(state_0) {
+function _temp2$21(state_0) {
 	return state_0.app.tabs.workspace;
 }
 function _temp3$18() {
@@ -136003,7 +136516,7 @@ var timelineBandId = (band, model) => model ? `${band}:${model}` : band;
 * click opens the tab in a new browser tab instead.
 */ var useShowTimeline = () => {
 	const $ = (0, import_compiler_runtime.c)(6);
-	const setWorkspaceTab = useStore(_temp2$19);
+	const setWorkspaceTab = useStore(_temp2$20);
 	const navigation = useLogNavigationAction();
 	const logDir = useLogDir();
 	const loadedLog = useStore(_temp3$17);
@@ -136040,7 +136553,10 @@ var timelineBandId = (band, model) => model ? `${band}:${model}` : band;
 	const setPropertyValue = useStore(_temp4$16);
 	let t0;
 	if ($[0] !== bandsKey) {
-		t0 = (state_0) => state_0.app.propertyBags[kTimelineBag]?.[bandsKey];
+		t0 = (state_0) => {
+			const stored = state_0.app.propertyBags[kTimelineBag]?.[bandsKey];
+			return isRecord(stored) ? stored : void 0;
+		};
 		$[0] = bandsKey;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -136068,7 +136584,7 @@ var timelineBandId = (band, model) => model ? `${band}:${model}` : band;
 function _temp$25(state) {
 	return state.log.loadedLog;
 }
-function _temp2$19(state) {
+function _temp2$20(state) {
 	return state.appActions.setWorkspaceTab;
 }
 function _temp3$17(state_0) {
@@ -136560,7 +137076,7 @@ var SampleList = /*#__PURE__*/ (0, import_react.memo)((props) => {
 		$[6] = t2;
 	} else t2 = $[6];
 	const handleRowOpen = t2;
-	const getRowId = _temp2$18;
+	const getRowId = _temp2$19;
 	const handleRowSelect = _temp3$16;
 	let t3;
 	if ($[7] !== selectedSampleHandle) {
@@ -136728,7 +137244,7 @@ SampleList.displayName = "SampleList";
 function _temp$23(state) {
 	return state.log.selectedSampleHandle;
 }
-function _temp2$18(row_0) {
+function _temp2$19(row_0) {
 	return makeSampleRowId(row_0.sampleId, row_0.epoch);
 }
 function _temp3$16(row_1) {
@@ -136738,7 +137254,7 @@ function _temp4$15(warning) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageBand, {
 		id: `sample-warning-message-${warning.type}-${warning.msg}`,
 		message: warning.msg,
-		type: warning.type
+		type: warning.type === "error" || warning.type === "warning" ? warning.type : "info"
 	}, `sample-warning-message-${warning.type}-${warning.msg}`);
 }
 //#endregion
@@ -138337,7 +138853,7 @@ function codePointSize$1(code) {
 /**
 The data structure for documents. @nonabstract
 */
-var Text = class Text {
+var Text$1 = class Text$1 {
 	/**
 	Get the line description around the given position.
 	*/
@@ -138452,11 +138968,11 @@ var Text = class Text {
 	*/
 	static of(text) {
 		if (text.length == 0) throw new RangeError("A document must have at least one line");
-		if (text.length == 1 && !text[0]) return Text.empty;
+		if (text.length == 1 && !text[0]) return Text$1.empty;
 		return text.length <= 32 ? new TextLeaf(text) : TextNode.from(TextLeaf.split(text, []));
 	}
 };
-var TextLeaf = class TextLeaf extends Text {
+var TextLeaf = class TextLeaf extends Text$1 {
 	constructor(text, length = textLength(text)) {
 		super();
 		this.text = text;
@@ -138528,7 +139044,7 @@ var TextLeaf = class TextLeaf extends Text {
 		return target;
 	}
 };
-var TextNode = class TextNode extends Text {
+var TextNode = class TextNode extends Text$1 {
 	constructor(children, length) {
 		super();
 		this.children = children;
@@ -138646,7 +139162,7 @@ var TextNode = class TextNode extends Text {
 		return chunked.length == 1 ? chunked[0] : new TextNode(chunked, length);
 	}
 };
-Text.empty = /*@__PURE__*/ new TextLeaf([""], 0);
+Text$1.empty = /*@__PURE__*/ new TextLeaf([""], 0);
 function textLength(text) {
 	let length = -1;
 	for (let line of text) length += line.length + 1;
@@ -138797,7 +139313,7 @@ var LineCursor = class {
 	}
 };
 if (typeof Symbol != "undefined") {
-	Text.prototype[Symbol.iterator] = function() {
+	Text$1.prototype[Symbol.iterator] = function() {
 		return this.iter();
 	};
 	RawTextCursor.prototype[Symbol.iterator] = PartialTextCursor.prototype[Symbol.iterator] = LineCursor.prototype[Symbol.iterator] = function() {
@@ -139092,8 +139608,8 @@ var ChangeSet = class ChangeSet extends ChangeDesc {
 				sections[i] = ins;
 				sections[i + 1] = len;
 				let index = i >> 1;
-				while (inserted.length < index) inserted.push(Text.empty);
-				inserted.push(len ? doc.slice(pos, pos + len) : Text.empty);
+				while (inserted.length < index) inserted.push(Text$1.empty);
+				inserted.push(len ? doc.slice(pos, pos + len) : Text$1.empty);
 			}
 			pos += len;
 		}
@@ -139214,7 +139730,7 @@ var ChangeSet = class ChangeSet extends ChangeDesc {
 			} else {
 				let { from, to = from, insert } = spec;
 				if (from > to || from < 0 || to > length) throw new RangeError(`Invalid change range ${from} to ${to} (in doc of length ${length})`);
-				let insText = !insert ? Text.empty : typeof insert == "string" ? Text.of(insert.split(lineSep || DefaultSplit)) : insert;
+				let insText = !insert ? Text$1.empty : typeof insert == "string" ? Text$1.of(insert.split(lineSep || DefaultSplit)) : insert;
 				let insLen = insText.length;
 				if (from == to && insLen == 0) return;
 				if (from < pos) flush();
@@ -139247,8 +139763,8 @@ var ChangeSet = class ChangeSet extends ChangeDesc {
 			else if (!Array.isArray(part) || typeof part[0] != "number" || part.some((e, i) => i && typeof e != "string")) throw new RangeError("Invalid JSON representation of ChangeSet");
 			else if (part.length == 1) sections.push(part[0], 0);
 			else {
-				while (inserted.length < i) inserted.push(Text.empty);
-				inserted[i] = Text.of(part.slice(1));
+				while (inserted.length < i) inserted.push(Text$1.empty);
+				inserted[i] = Text$1.of(part.slice(1));
 				sections.push(part[0], inserted[i].length);
 			}
 		}
@@ -139276,7 +139792,7 @@ function addInsert(values, sections, value) {
 	let index = sections.length - 2 >> 1;
 	if (index < values.length) values[values.length - 1] = values[values.length - 1].append(value);
 	else {
-		while (values.length < index) values.push(Text.empty);
+		while (values.length < index) values.push(Text$1.empty);
 		values.push(value);
 	}
 }
@@ -139288,7 +139804,7 @@ function iterChanges(desc, f, individual) {
 			posA += len;
 			posB += len;
 		} else {
-			let endA = posA, endB = posB, text = Text.empty;
+			let endA = posA, endB = posB, text = Text$1.empty;
 			for (;;) {
 				endA += len;
 				endB += ins;
@@ -139400,11 +139916,11 @@ var SectionIter = class {
 	}
 	get text() {
 		let { inserted } = this.set, index = this.i - 2 >> 1;
-		return index >= inserted.length ? Text.empty : inserted[index];
+		return index >= inserted.length ? Text$1.empty : inserted[index];
 	}
 	textBit(len) {
 		let { inserted } = this.set, index = this.i - 2 >> 1;
-		return index >= inserted.length && !len ? Text.empty : inserted[index].slice(this.off, len == null ? void 0 : this.off + len);
+		return index >= inserted.length && !len ? Text$1.empty : inserted[index].slice(this.off, len == null ? void 0 : this.off + len);
 	}
 	forward(len) {
 		if (len == this.len) this.next();
@@ -140689,7 +141205,7 @@ var EditorState = class EditorState {
 	[`Text`](https://codemirror.net/6/docs/ref/#state.Text) instance from the given string.
 	*/
 	toText(string) {
-		return Text.of(string.split(this.facet(EditorState.lineSeparator) || DefaultSplit));
+		return Text$1.of(string.split(this.facet(EditorState.lineSeparator) || DefaultSplit));
 	}
 	/**
 	Return the given range of the document as a string.
@@ -140751,7 +141267,7 @@ var EditorState = class EditorState {
 	*/
 	static create(config = {}) {
 		let configuration = Configuration.resolve(config.extensions || [], /* @__PURE__ */ new Map());
-		let doc = config.doc instanceof Text ? config.doc : Text.of((config.doc || "").split(configuration.staticFacet(EditorState.lineSeparator) || DefaultSplit));
+		let doc = config.doc instanceof Text$1 ? config.doc : Text$1.of((config.doc || "").split(configuration.staticFacet(EditorState.lineSeparator) || DefaultSplit));
 		let selection = !config.selection ? EditorSelection.single(0) : config.selection instanceof EditorSelection ? config.selection : EditorSelection.single(config.selection.anchor, config.selection.head);
 		checkSelection(selection, doc.length);
 		if (!configuration.staticFacet(allowMultipleSelections)) selection = selection.asSingle();
@@ -143685,9 +144201,9 @@ var WidgetTile = class WidgetTile extends Tile {
 		}
 	}
 	get overrideDOMText() {
-		if (!this.length) return Text.empty;
+		if (!this.length) return Text$1.empty;
 		let { root } = this;
-		if (!root) return Text.empty;
+		if (!root) return Text$1.empty;
 		let start = this.posAtStart;
 		return root.view.state.doc.slice(start, start + this.length);
 	}
@@ -143714,7 +144230,7 @@ var WidgetBufferTile = class extends Tile {
 		return true;
 	}
 	get overrideDOMText() {
-		return Text.empty;
+		return Text$1.empty;
 	}
 	coordsIn(pos, side, rtl) {
 		let rect = this.dom.getBoundingClientRect();
@@ -145394,14 +145910,14 @@ function applyDOMChange(view, domChange) {
 		if (!sel.empty && sel.from >= from && sel.to <= to && (domChange.typeOver || cmp != domChange.text) && cmp.slice(0, sel.from - from) == domChange.text.slice(0, sel.from - from) && cmp.slice(sel.to - from) == domChange.text.slice(selEnd = domChange.text.length - (cmp.length - (sel.to - from)))) change = {
 			from: sel.from,
 			to: sel.to,
-			insert: Text.of(domChange.text.slice(sel.from - from, selEnd).split(LineBreakPlaceholder))
+			insert: Text$1.of(domChange.text.slice(sel.from - from, selEnd).split(LineBreakPlaceholder))
 		};
 		else if (diff = findDiff(cmp, domChange.text, preferredPos - from, preferredSide)) {
 			if (browser.chrome && lastKey == 13 && diff.toB == diff.from + 2 && domChange.text.slice(diff.from, diff.toB) == "￿￿") diff.toB--;
 			change = {
 				from: from + diff.from,
 				to: from + diff.toA,
-				insert: Text.of(domChange.text.slice(diff.from, diff.toB).split(LineBreakPlaceholder))
+				insert: Text$1.of(domChange.text.slice(diff.from, diff.toB).split(LineBreakPlaceholder))
 			};
 		}
 	} else if (newSel && (!view.hasFocus && state.facet(editable) || sameSelPos(newSel, sel))) newSel = null;
@@ -145411,7 +145927,7 @@ function applyDOMChange(view, domChange) {
 		change = {
 			from: change.from,
 			to: change.to,
-			insert: Text.of([change.insert.toString().replace(".", " ")])
+			insert: Text$1.of([change.insert.toString().replace(".", " ")])
 		};
 	} else if (state.doc.lineAt(sel.from).to < sel.to && view.docView.lineHasWidget(sel.to) && view.inputState.insertingTextAt > Date.now() - 50) change = {
 		from: sel.from,
@@ -145423,7 +145939,7 @@ function applyDOMChange(view, domChange) {
 		change = {
 			from: sel.from,
 			to: sel.to,
-			insert: Text.of([" "])
+			insert: Text$1.of([" "])
 		};
 	}
 	if (change) return applyDOMChangeInner(view, change, newSel, lastKey);
@@ -146321,7 +146837,7 @@ function clearHeightChangeFlag() {
 var HeightOracle = class {
 	constructor(lineWrapping) {
 		this.lineWrapping = lineWrapping;
-		this.doc = Text.empty;
+		this.doc = Text$1.empty;
 		this.heightSamples = {};
 		this.lineHeight = 14;
 		this.charWidth = 7;
@@ -147050,7 +147566,7 @@ var ViewState = class {
 		let guessWrapping = state.facet(contentAttributes).some((v) => typeof v != "function" && v.class == "cm-lineWrapping");
 		this.heightOracle = new HeightOracle(guessWrapping);
 		this.stateDeco = staticDeco(state);
-		this.heightMap = HeightMap.empty().applyChanges(this.stateDeco, Text.empty, this.heightOracle.setDoc(state.doc), [new ChangedRange(0, 0, 0, state.doc.length)]);
+		this.heightMap = HeightMap.empty().applyChanges(this.stateDeco, Text$1.empty, this.heightOracle.setDoc(state.doc), [new ChangedRange(0, 0, 0, state.doc.length)]);
 		for (let i = 0; i < 2; i++) {
 			this.viewport = this.getViewport(0, null);
 			if (!this.updateForViewport()) break;
@@ -147188,7 +147704,7 @@ var ViewState = class {
 			clearHeightChangeFlag();
 			for (let vp of this.viewports) {
 				let heights = vp.from == this.viewport.from ? lineHeights : view.docView.measureVisibleLineHeights(vp);
-				this.heightMap = (refresh ? HeightMap.empty().applyChanges(this.stateDeco, Text.empty, this.heightOracle, [new ChangedRange(0, 0, 0, view.state.doc.length)]) : this.heightMap).updateHeight(oracle, 0, refresh, new MeasuredHeights(vp.from, heights));
+				this.heightMap = (refresh ? HeightMap.empty().applyChanges(this.stateDeco, Text$1.empty, this.heightOracle, [new ChangedRange(0, 0, 0, view.state.doc.length)]) : this.heightMap).updateHeight(oracle, 0, refresh, new MeasuredHeights(vp.from, heights));
 			}
 			if (heightChangeFlag) result |= 2;
 		}
@@ -148175,12 +148691,12 @@ var EditContextManager = class {
 			let change = {
 				from: diff.from + from,
 				to: diff.toA + from,
-				insert: Text.of(e.text.slice(diff.from, diff.toB).split("\n"))
+				insert: Text$1.of(e.text.slice(diff.from, diff.toB).split("\n"))
 			};
 			if ((browser.mac || browser.android) && change.from == head - 1 && /^\. ?$/.test(e.text) && view.contentDOM.getAttribute("autocorrect") == "off") change = {
 				from,
 				to,
-				insert: Text.of([e.text.replace(".", " ")])
+				insert: Text$1.of([e.text.replace(".", " ")])
 			};
 			this.pendingContextChange = change;
 			if (!view.state.readOnly) {
@@ -153559,7 +154075,7 @@ var ParseFailure = class extends Error {
 		super(message), this.position = position;
 	}
 };
-var RELATION_OPS = /* @__PURE__ */ new Set([
+var RELATION_OPS = [
 	"==",
 	"!=",
 	"<",
@@ -153567,7 +154083,24 @@ var RELATION_OPS = /* @__PURE__ */ new Set([
 	">",
 	">=",
 	"~="
-]);
+];
+var isRelationOp = (text) => RELATION_OPS.some((op) => op === text);
+var kBinaryOps = [
+	...RELATION_OPS,
+	"and",
+	"or",
+	"+",
+	"-",
+	"*",
+	"/",
+	"^",
+	"mod"
+];
+var asBinaryOp = (text) => {
+	const op = kBinaryOps.find((candidate) => candidate === text);
+	if (!op) throw new Error(`not a binary operator: ${text}`);
+	return op;
+};
 var Parser = class {
 	tokens;
 	pos = 0;
@@ -153665,7 +154198,7 @@ var Parser = class {
 	parseRelation() {
 		const left = this.parseAdd();
 		const t = this.peek();
-		if (t && t.type === "relation" && RELATION_OPS.has(t.text)) {
+		if (t && t.type === "relation" && isRelationOp(t.text)) {
 			this.eat();
 			const right = this.parseAdd();
 			return {
@@ -153680,7 +154213,7 @@ var Parser = class {
 	parseAdd() {
 		let left = this.parseMul();
 		while (this.match("miscOperator", "+") || this.match("miscOperator", "-")) {
-			const op = this.eat().text;
+			const op = asBinaryOp(this.eat().text);
 			const right = this.parseMul();
 			left = {
 				kind: "binary",
@@ -153694,7 +154227,7 @@ var Parser = class {
 	parseMul() {
 		let left = this.parsePow();
 		while (this.match("miscOperator", "*") || this.match("miscOperator", "/") || this.match("keyword", "mod")) {
-			const op = this.eat().text;
+			const op = asBinaryOp(this.eat().text);
 			const right = this.parsePow();
 			left = {
 				kind: "binary",
@@ -157834,7 +158367,7 @@ var splitLine = ({ state, dispatch }) => {
 			changes: {
 				from: range.from,
 				to: range.to,
-				insert: Text.of(["", ""])
+				insert: Text$1.of(["", ""])
 			},
 			range: EditorSelection.cursor(range.from)
 		};
@@ -158037,7 +158570,7 @@ function newlineAndIndent(atEof) {
 				changes: {
 					from,
 					to,
-					insert: Text.of(insert)
+					insert: Text$1.of(insert)
 				},
 				range: EditorSelection.cursor(from + 1 + insert[1].length)
 			};
@@ -158647,7 +159180,7 @@ var getMetadataPropertyValues = (samples, propertyPath) => {
 var getNestedProperty = (obj, path) => {
 	const keys = path.split(".");
 	let current = obj;
-	for (const key of keys) if (current && typeof current === "object" && key in current) current = current[key];
+	for (const key of keys) if (current && typeof current === "object" && key in current) current = Reflect.get(current, key);
 	else return;
 	return current;
 };
@@ -159028,7 +159561,7 @@ var getLints = (view, filterError) => {
 	}];
 };
 var SampleFilter = () => {
-	const $ = (0, import_compiler_runtime.c)(48);
+	const $ = (0, import_compiler_runtime.c)(47);
 	const editorRef = (0, import_react.useRef)(null);
 	const editorViewRef = (0, import_react.useRef)(null);
 	let t0;
@@ -159058,7 +159591,7 @@ var SampleFilter = () => {
 	} else t3 = $[4];
 	const filterItems = t3;
 	const filter = useStore(_temp$22);
-	const filterError = useStore(_temp2$17);
+	const filterError = useStore(_temp2$18);
 	const samples = useSelectedSampleSummaries().data ?? kNoSamples;
 	const setFilter = useStore(_temp3$15);
 	const handleFocus = _temp4$14;
@@ -159132,16 +159665,11 @@ var SampleFilter = () => {
 		$[18] = makeUpdateListener;
 		$[19] = t8;
 	} else t8 = $[19];
-	let t9;
-	if ($[20] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = [];
-		$[20] = t9;
-	} else t9 = $[20];
-	(0, import_react.useEffect)(t8, t9);
+	useMountEffect(t8);
 	let t10;
-	let t11;
-	if ($[21] !== filter) {
-		t10 = () => {
+	let t9;
+	if ($[20] !== filter) {
+		t9 = () => {
 			if (!editorViewRef.current) return;
 			const currentValue = editorViewRef.current.state.doc.toString();
 			if (filter === currentValue) return;
@@ -159151,120 +159679,120 @@ var SampleFilter = () => {
 				insert: filter || ""
 			} });
 		};
-		t11 = [filter];
-		$[21] = filter;
-		$[22] = t10;
-		$[23] = t11;
+		t10 = [filter];
+		$[20] = filter;
+		$[21] = t10;
+		$[22] = t9;
 	} else {
-		t10 = $[22];
-		t11 = $[23];
+		t10 = $[21];
+		t9 = $[22];
 	}
-	(0, import_react.useEffect)(t10, t11);
-	let t12;
-	if ($[24] !== makeUpdateListener) {
-		t12 = () => {
+	(0, import_react.useEffect)(t9, t10);
+	let t11;
+	if ($[23] !== makeUpdateListener) {
+		t11 = () => {
 			editorViewRef.current?.dispatch({ effects: updateListenerCompartment.current.reconfigure(makeUpdateListener()) });
 		};
-		$[24] = makeUpdateListener;
-		$[25] = t12;
-	} else t12 = $[25];
+		$[23] = makeUpdateListener;
+		$[24] = t11;
+	} else t11 = $[24];
+	let t12;
+	if ($[25] !== evalDescriptor || $[26] !== makeUpdateListener) {
+		t12 = [evalDescriptor, makeUpdateListener];
+		$[25] = evalDescriptor;
+		$[26] = makeUpdateListener;
+		$[27] = t12;
+	} else t12 = $[27];
+	(0, import_react.useEffect)(t11, t12);
 	let t13;
-	if ($[26] !== evalDescriptor || $[27] !== makeUpdateListener) {
-		t13 = [evalDescriptor, makeUpdateListener];
-		$[26] = evalDescriptor;
-		$[27] = makeUpdateListener;
-		$[28] = t13;
-	} else t13 = $[28];
-	(0, import_react.useEffect)(t12, t13);
-	let t14;
-	if ($[29] !== makeAutocompletion) {
-		t14 = () => {
+	if ($[28] !== makeAutocompletion) {
+		t13 = () => {
 			editorViewRef.current?.dispatch({ effects: autocompletionCompartment.current.reconfigure(makeAutocompletion()) });
 		};
-		$[29] = makeAutocompletion;
-		$[30] = t14;
-	} else t14 = $[30];
-	let t15;
-	if ($[31] !== filterItems || $[32] !== makeAutocompletion || $[33] !== samples) {
-		t15 = [
+		$[28] = makeAutocompletion;
+		$[29] = t13;
+	} else t13 = $[29];
+	let t14;
+	if ($[30] !== filterItems || $[31] !== makeAutocompletion || $[32] !== samples) {
+		t14 = [
 			filterItems,
 			makeAutocompletion,
 			samples
 		];
-		$[31] = filterItems;
-		$[32] = makeAutocompletion;
-		$[33] = samples;
-		$[34] = t15;
-	} else t15 = $[34];
-	(0, import_react.useEffect)(t14, t15);
-	let t16;
-	if ($[35] !== makeLinter) {
-		t16 = () => {
+		$[30] = filterItems;
+		$[31] = makeAutocompletion;
+		$[32] = samples;
+		$[33] = t14;
+	} else t14 = $[33];
+	(0, import_react.useEffect)(t13, t14);
+	let t15;
+	if ($[34] !== makeLinter) {
+		t15 = () => {
 			editorViewRef.current?.dispatch({ effects: linterCompartment.current.reconfigure(makeLinter()) });
 		};
-		$[35] = makeLinter;
-		$[36] = t16;
-	} else t16 = $[36];
+		$[34] = makeLinter;
+		$[35] = t15;
+	} else t15 = $[35];
+	let t16;
+	if ($[36] !== filterError || $[37] !== makeLinter) {
+		t16 = [filterError, makeLinter];
+		$[36] = filterError;
+		$[37] = makeLinter;
+		$[38] = t16;
+	} else t16 = $[38];
+	(0, import_react.useEffect)(t15, t16);
 	let t17;
-	if ($[37] !== filterError || $[38] !== makeLinter) {
-		t17 = [filterError, makeLinter];
-		$[37] = filterError;
-		$[38] = makeLinter;
-		$[39] = t17;
-	} else t17 = $[39];
-	(0, import_react.useEffect)(t16, t17);
-	let t18;
-	if ($[40] === Symbol.for("react.memo_cache_sentinel")) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	if ($[39] === Symbol.for("react.memo_cache_sentinel")) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: clsx("sample-filter-label", "text-size-smaller", "text-style-label", "text-style-secondary", SampleFilter_module_default.label),
 			children: "Filter:"
 		});
+		$[39] = t17;
+	} else t17 = $[39];
+	const t18 = filterError && "filter-pending";
+	let t19;
+	if ($[40] !== t18) {
+		t19 = clsx(t18, SampleFilter_module_default.input);
 		$[40] = t18;
-	} else t18 = $[40];
-	const t19 = filterError && "filter-pending";
-	let t20;
-	if ($[41] !== t19) {
-		t20 = clsx(t19, SampleFilter_module_default.input);
 		$[41] = t19;
-		$[42] = t20;
-	} else t20 = $[42];
-	let t21;
-	if ($[43] !== t20) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	} else t19 = $[41];
+	let t20;
+	if ($[42] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			ref: editorRef,
-			className: t20
+			className: t19
 		});
+		$[42] = t19;
 		$[43] = t20;
-		$[44] = t21;
-	} else t21 = $[44];
-	let t22;
-	if ($[45] === Symbol.for("react.memo_cache_sentinel")) {
-		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	} else t20 = $[43];
+	let t21;
+	if ($[44] === Symbol.for("react.memo_cache_sentinel")) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: clsx("bi", "bi-question-circle", SampleFilter_module_default.help),
 			"data-tooltip": FILTER_TOOLTIP,
 			"data-tooltip-position": "bottom-left"
 		});
-		$[45] = t22;
-	} else t22 = $[45];
-	let t23;
-	if ($[46] !== t21) {
-		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[44] = t21;
+	} else t21 = $[44];
+	let t22;
+	if ($[45] !== t20) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SampleFilter_module_default.root,
 			children: [
-				t18,
-				t21,
-				t22
+				t17,
+				t20,
+				t21
 			]
 		});
-		$[46] = t21;
-		$[47] = t23;
-	} else t23 = $[47];
-	return t23;
+		$[45] = t20;
+		$[46] = t22;
+	} else t22 = $[46];
+	return t22;
 };
 function _temp$22(state) {
 	return state.log.filter;
 }
-function _temp2$17(state_0) {
+function _temp2$18(state_0) {
 	return state_0.log.filterError;
 }
 function _temp3$15(state_1) {
@@ -159613,7 +160141,7 @@ var ScoreFilterTools = () => {
 	const $ = (0, import_compiler_runtime.c)(4);
 	const scores = useScores();
 	const selectedScores = useSelectedScores();
-	const setSelectedScores = useStore(_temp2$16);
+	const setSelectedScores = useStore(_temp2$17);
 	if (scores.length <= 1) return;
 	let t0;
 	if ($[0] !== scores || $[1] !== selectedScores || $[2] !== setSelectedScores) {
@@ -159632,7 +160160,7 @@ var ScoreFilterTools = () => {
 function _temp$20(prev) {
 	return !prev;
 }
-function _temp2$16(state) {
+function _temp2$17(state) {
 	return state.logActions.setSelectedScores;
 }
 var RunningNoSamples_module_default = {
@@ -159703,7 +160231,7 @@ var useSamplesTabConfig = (evalStatus, refreshLog) => {
 	let t0;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t0 = () => {
-			setShowColumnSelector(_temp2$15);
+			setShowColumnSelector(_temp2$16);
 		};
 		$[0] = t0;
 	} else t0 = $[0];
@@ -159795,7 +160323,7 @@ var SamplesTab = (t0) => {
 	const wireScoreColorScales = useSamplesViewScoreColorScales();
 	const scoreColorScales = useSamplesViewColorScalesEnabled() ? wireScoreColorScales : kNoScoreColorScales;
 	const filter = useStore(_temp5$7);
-	const setFilter = useStore(_temp6$5);
+	const setFilter = useStore(_temp6$4);
 	let t1;
 	if ($[0] !== samplesDescriptor?.evalDescriptor) {
 		t1 = () => buildSampleFilterSpecRegistry(samplesDescriptor?.evalDescriptor);
@@ -160174,7 +160702,7 @@ var SamplesTab = (t0) => {
 function _temp$19(state) {
 	return state.capabilities.streamSamples;
 }
-function _temp2$15(p) {
+function _temp2$16(p) {
 	return !p;
 }
 function _temp3$14(state) {
@@ -160186,7 +160714,7 @@ function _temp4$13(state_0) {
 function _temp5$7(state_1) {
 	return state_1.log.filter;
 }
-function _temp6$5(state_2) {
+function _temp6$4(state_2) {
 	return state_2.logActions.setFilter;
 }
 function _temp7$4(c, i) {
@@ -160292,7 +160820,7 @@ var TagChip = (t0) => {
 //#endregion
 //#region src/app/log-view/title-view/EditTagsDialog.tsx
 var EditTagsDialog = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(118);
+	const $ = (0, import_compiler_runtime.c)(116);
 	const { showing, setShowing, currentTags, logFile, onSaved } = t0;
 	let t1;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
@@ -160454,7 +160982,7 @@ var EditTagsDialog = (t0) => {
 	const inFlightRef = (0, import_react.useRef)(false);
 	let t13;
 	if ($[34] !== author || $[35] !== canSave || $[36] !== logFile || $[37] !== onSaved || $[38] !== reason || $[39] !== setShowing || $[40] !== tagsAdd || $[41] !== tagsRemove) {
-		t13 = async () => {
+		t13 = () => {
 			if (!canSave || inFlightRef.current || !api.edit_log) return;
 			inFlightRef.current = true;
 			const indicatorTimer = window.setTimeout(() => setSubmitting(true), 200);
@@ -160464,24 +160992,22 @@ var EditTagsDialog = (t0) => {
 				metadata: {},
 				timestamp: (/* @__PURE__ */ new Date()).toISOString()
 			};
-			try {
-				const edit = {
-					type: "tags",
-					tags_add: tagsAdd,
-					tags_remove: tagsRemove
-				};
-				await api.edit_log(logFile, {
-					edits: [edit],
-					provenance
-				});
+			const edit = {
+				type: "tags",
+				tags_add: tagsAdd,
+				tags_remove: tagsRemove
+			};
+			api.edit_log(logFile, {
+				edits: [edit],
+				provenance
+			}).then(() => {
 				setShowing(false);
 				if (onSaved) onSaved();
-			} catch (t14) {
-				setError(formatEditError(t14));
-			}
-			window.clearTimeout(indicatorTimer);
-			setSubmitting(false);
-			inFlightRef.current = false;
+			}).catch((err) => setError(formatEditError(err))).finally(() => {
+				window.clearTimeout(indicatorTimer);
+				setSubmitting(false);
+				inFlightRef.current = false;
+			});
 		};
 		$[34] = author;
 		$[35] = canSave;
@@ -160539,246 +161065,240 @@ var EditTagsDialog = (t0) => {
 		t19 = clsx("btn", "btn-primary", "text-size-smaller");
 		$[54] = t19;
 	} else t19 = $[54];
-	let t20;
-	if ($[55] !== handleSave) {
-		t20 = () => void handleSave();
-		$[55] = handleSave;
-		$[56] = t20;
-	} else t20 = $[56];
-	const t21 = !canSave;
-	const t22 = submitting ? "Saving…" : "Save";
-	let t23;
-	if ($[57] !== t20 || $[58] !== t21 || $[59] !== t22) {
-		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+	const t20 = !canSave;
+	const t21 = submitting ? "Saving…" : "Save";
+	let t22;
+	if ($[55] !== handleSave || $[56] !== t20 || $[57] !== t21) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: t19,
-			onClick: t20,
-			disabled: t21,
-			children: t22
+			onClick: handleSave,
+			disabled: t20,
+			children: t21
 		});
-		$[57] = t20;
-		$[58] = t21;
-		$[59] = t22;
-		$[60] = t23;
-	} else t23 = $[60];
-	let t24;
-	if ($[61] !== t18 || $[62] !== t23) {
-		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[55] = handleSave;
+		$[56] = t20;
+		$[57] = t21;
+		$[58] = t22;
+	} else t22 = $[58];
+	let t23;
+	if ($[59] !== t18 || $[60] !== t22) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditAnnotationsDialog_module_default.footerActions,
-			children: [t18, t23]
+			children: [t18, t22]
 		});
-		$[61] = t18;
-		$[62] = t23;
-		$[63] = t24;
-	} else t24 = $[63];
-	let t25;
-	if ($[64] !== t15 || $[65] !== t24) {
-		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[59] = t18;
+		$[60] = t22;
+		$[61] = t23;
+	} else t23 = $[61];
+	let t24;
+	if ($[62] !== t15 || $[63] !== t23) {
+		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditAnnotationsDialog_module_default.footer,
-			children: [t15, t24]
+			children: [t15, t23]
 		});
-		$[64] = t15;
-		$[65] = t24;
-		$[66] = t25;
-	} else t25 = $[66];
-	let t26;
-	if ($[67] === Symbol.for("react.memo_cache_sentinel")) {
-		t26 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		$[62] = t15;
+		$[63] = t23;
+		$[64] = t24;
+	} else t24 = $[64];
+	let t25;
+	if ($[65] === Symbol.for("react.memo_cache_sentinel")) {
+		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			id: "edit-tags-label",
 			className: clsx("text-size-smaller", EditAnnotationsDialog_module_default.label),
 			children: "Tags"
 		});
-		$[67] = t26;
-	} else t26 = $[67];
-	let t27;
-	if ($[68] !== tags.length) {
-		t27 = tags.length === 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		$[65] = t25;
+	} else t25 = $[65];
+	let t26;
+	if ($[66] !== tags.length) {
+		t26 = tags.length === 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: clsx("text-size-smaller", EditTagsDialog_module_default.empty),
 			children: "No tags yet — add one below."
 		});
-		$[68] = tags.length;
-		$[69] = t27;
-	} else t27 = $[69];
-	let t28;
-	if ($[70] !== initialSet || $[71] !== tags) {
-		let t29;
-		if ($[73] !== initialSet) {
-			t29 = (tag_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TagChip, {
+		$[66] = tags.length;
+		$[67] = t26;
+	} else t26 = $[67];
+	let t27;
+	if ($[68] !== initialSet || $[69] !== tags) {
+		let t28;
+		if ($[71] !== initialSet) {
+			t28 = (tag_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TagChip, {
 				label: tag_0,
 				isNew: !initialSet.has(tag_0),
 				onRemove: () => removeTag(tag_0)
 			}, tag_0);
-			$[73] = initialSet;
-			$[74] = t29;
-		} else t29 = $[74];
-		t28 = tags.map(t29);
-		$[70] = initialSet;
-		$[71] = tags;
-		$[72] = t28;
-	} else t28 = $[72];
-	let t29;
-	if ($[75] !== t27 || $[76] !== t28) {
-		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			$[71] = initialSet;
+			$[72] = t28;
+		} else t28 = $[72];
+		t27 = tags.map(t28);
+		$[68] = initialSet;
+		$[69] = tags;
+		$[70] = t27;
+	} else t27 = $[70];
+	let t28;
+	if ($[73] !== t26 || $[74] !== t27) {
+		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditTagsDialog_module_default.chipBox,
 			role: "group",
 			"aria-labelledby": "edit-tags-label",
-			children: [t27, t28]
+			children: [t26, t27]
 		});
-		$[75] = t27;
-		$[76] = t28;
-		$[77] = t29;
-	} else t29 = $[77];
+		$[73] = t26;
+		$[74] = t27;
+		$[75] = t28;
+	} else t28 = $[75];
+	let t29;
+	if ($[76] === Symbol.for("react.memo_cache_sentinel")) {
+		t29 = clsx("form-control", "text-size-smaller", EditTagsDialog_module_default.input);
+		$[76] = t29;
+	} else t29 = $[76];
 	let t30;
-	if ($[78] === Symbol.for("react.memo_cache_sentinel")) {
-		t30 = clsx("form-control", "text-size-smaller", EditTagsDialog_module_default.input);
-		$[78] = t30;
-	} else t30 = $[78];
+	if ($[77] === Symbol.for("react.memo_cache_sentinel")) {
+		t30 = (e_0) => setPending(e_0.target.value);
+		$[77] = t30;
+	} else t30 = $[77];
 	let t31;
-	if ($[79] === Symbol.for("react.memo_cache_sentinel")) {
-		t31 = (e_0) => setPending(e_0.target.value);
-		$[79] = t31;
-	} else t31 = $[79];
-	let t32;
-	if ($[80] !== handleInputKeyDown || $[81] !== pending || $[82] !== submitting) {
-		t32 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
+	if ($[78] !== handleInputKeyDown || $[79] !== pending || $[80] !== submitting) {
+		t31 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 			type: "text",
-			className: t30,
+			className: t29,
 			placeholder: "Add a tag and press Enter",
 			value: pending,
-			onChange: t31,
+			onChange: t30,
 			onKeyDown: handleInputKeyDown,
 			disabled: submitting,
 			"data-autofocus": true
 		});
-		$[80] = handleInputKeyDown;
-		$[81] = pending;
-		$[82] = submitting;
+		$[78] = handleInputKeyDown;
+		$[79] = pending;
+		$[80] = submitting;
+		$[81] = t31;
+	} else t31 = $[81];
+	let t32;
+	if ($[82] !== pending) {
+		t32 = pending.trim() ? "btn-primary" : "btn-secondary";
+		$[82] = pending;
 		$[83] = t32;
 	} else t32 = $[83];
 	let t33;
-	if ($[84] !== pending) {
-		t33 = pending.trim() ? "btn-primary" : "btn-secondary";
-		$[84] = pending;
+	if ($[84] !== t32) {
+		t33 = clsx("btn", t32, "text-size-smaller", EditTagsDialog_module_default.addButton);
+		$[84] = t32;
 		$[85] = t33;
 	} else t33 = $[85];
 	let t34;
-	if ($[86] !== t33) {
-		t34 = clsx("btn", t33, "text-size-smaller", EditTagsDialog_module_default.addButton);
-		$[86] = t33;
-		$[87] = t34;
-	} else t34 = $[87];
+	if ($[86] !== pending || $[87] !== submitting) {
+		t34 = submitting || !pending.trim();
+		$[86] = pending;
+		$[87] = submitting;
+		$[88] = t34;
+	} else t34 = $[88];
 	let t35;
-	if ($[88] !== pending || $[89] !== submitting) {
-		t35 = submitting || !pending.trim();
-		$[88] = pending;
-		$[89] = submitting;
-		$[90] = t35;
-	} else t35 = $[90];
+	if ($[89] === Symbol.for("react.memo_cache_sentinel")) {
+		t35 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: ApplicationIcons.changes.add });
+		$[89] = t35;
+	} else t35 = $[89];
 	let t36;
-	if ($[91] === Symbol.for("react.memo_cache_sentinel")) {
-		t36 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: ApplicationIcons.changes.add });
-		$[91] = t36;
-	} else t36 = $[91];
-	let t37;
-	if ($[92] !== addPendingTag || $[93] !== t34 || $[94] !== t35) {
-		t37 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+	if ($[90] !== addPendingTag || $[91] !== t33 || $[92] !== t34) {
+		t36 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			type: "button",
-			className: t34,
+			className: t33,
 			onClick: addPendingTag,
-			disabled: t35,
-			children: [t36, " Add"]
+			disabled: t34,
+			children: [t35, " Add"]
 		});
-		$[92] = addPendingTag;
-		$[93] = t34;
-		$[94] = t35;
-		$[95] = t37;
-	} else t37 = $[95];
-	let t38;
-	if ($[96] !== t32 || $[97] !== t37) {
-		t38 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[90] = addPendingTag;
+		$[91] = t33;
+		$[92] = t34;
+		$[93] = t36;
+	} else t36 = $[93];
+	let t37;
+	if ($[94] !== t31 || $[95] !== t36) {
+		t37 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditTagsDialog_module_default.addRow,
-			children: [t32, t37]
+			children: [t31, t36]
 		});
-		$[96] = t32;
-		$[97] = t37;
-		$[98] = t38;
-	} else t38 = $[98];
-	let t39;
-	if ($[99] !== t29 || $[100] !== t38) {
-		t39 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[94] = t31;
+		$[95] = t36;
+		$[96] = t37;
+	} else t37 = $[96];
+	let t38;
+	if ($[97] !== t28 || $[98] !== t37) {
+		t38 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditAnnotationsDialog_module_default.section,
 			children: [
-				t26,
-				t29,
-				t38
+				t25,
+				t28,
+				t37
 			]
 		});
-		$[99] = t29;
-		$[100] = t38;
-		$[101] = t39;
-	} else t39 = $[101];
+		$[97] = t28;
+		$[98] = t37;
+		$[99] = t38;
+	} else t38 = $[99];
+	let t39;
+	if ($[100] === Symbol.for("react.memo_cache_sentinel")) {
+		t39 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("hr", { className: EditAnnotationsDialog_module_default.divider });
+		$[100] = t39;
+	} else t39 = $[100];
 	let t40;
-	if ($[102] === Symbol.for("react.memo_cache_sentinel")) {
-		t40 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("hr", { className: EditAnnotationsDialog_module_default.divider });
-		$[102] = t40;
-	} else t40 = $[102];
-	let t41;
-	if ($[103] !== author || $[104] !== reason || $[105] !== submitting) {
-		t41 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ProvenanceFields, {
+	if ($[101] !== author || $[102] !== reason || $[103] !== submitting) {
+		t40 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ProvenanceFields, {
 			author,
 			setAuthor,
 			reason,
 			setReason,
 			disabled: submitting
 		});
-		$[103] = author;
-		$[104] = reason;
-		$[105] = submitting;
-		$[106] = t41;
-	} else t41 = $[106];
-	let t42;
-	if ($[107] !== error) {
-		t42 = error && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[101] = author;
+		$[102] = reason;
+		$[103] = submitting;
+		$[104] = t40;
+	} else t40 = $[104];
+	let t41;
+	if ($[105] !== error) {
+		t41 = error && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-size-smaller", EditAnnotationsDialog_module_default.error),
 			children: error
 		});
-		$[107] = error;
-		$[108] = t42;
-	} else t42 = $[108];
-	let t43;
-	if ($[109] !== t39 || $[110] !== t41 || $[111] !== t42) {
-		t43 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[105] = error;
+		$[106] = t41;
+	} else t41 = $[106];
+	let t42;
+	if ($[107] !== t38 || $[108] !== t40 || $[109] !== t41) {
+		t42 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: EditAnnotationsDialog_module_default.body,
 			children: [
+				t38,
 				t39,
 				t40,
-				t41,
-				t42
+				t41
 			]
 		});
-		$[109] = t39;
-		$[110] = t41;
-		$[111] = t42;
-		$[112] = t43;
-	} else t43 = $[112];
-	let t44;
-	if ($[113] !== showing || $[114] !== t14 || $[115] !== t25 || $[116] !== t43) {
-		t44 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Modal, {
+		$[107] = t38;
+		$[108] = t40;
+		$[109] = t41;
+		$[110] = t42;
+	} else t42 = $[110];
+	let t43;
+	if ($[111] !== showing || $[112] !== t14 || $[113] !== t24 || $[114] !== t42) {
+		t43 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Modal, {
 			id: "edit-tags-dialog",
 			show: showing,
 			onHide: t14,
 			title: "Edit tags",
 			width: "580px",
-			footer: t25,
-			children: t43
+			footer: t24,
+			children: t42
 		});
-		$[113] = showing;
-		$[114] = t14;
-		$[115] = t25;
-		$[116] = t43;
-		$[117] = t44;
-	} else t44 = $[117];
-	return t44;
+		$[111] = showing;
+		$[112] = t14;
+		$[113] = t24;
+		$[114] = t42;
+		$[115] = t43;
+	} else t43 = $[115];
+	return t43;
 };
 function _temp$18() {}
 var TagStrip_module_default = { tagRow: "_tagRow_pg3wd_4" };
@@ -160841,9 +161361,9 @@ var MAX_ROWS = 2;
 		t2 = () => {
 			if (!enableCollapse || !rowRef.current) return;
 			const el = rowRef.current;
-			const kids = Array.from(el.children);
+			const kids = Array.from(el.children).filter(_temp$17);
 			if (kids.length < 2) return;
-			const next = nextVisibleCount(kids.map(_temp$17), Math.min(visibleCount, tags.length), MAX_ROWS);
+			const next = nextVisibleCount(kids.map(_temp2$15), Math.min(visibleCount, tags.length), MAX_ROWS);
 			if (next !== null) setVisibleCount(next);
 		};
 		$[0] = enableCollapse;
@@ -161007,7 +161527,10 @@ var MAX_ROWS = 2;
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$17(k) {
+function _temp$17(kid) {
+	return kid instanceof HTMLElement;
+}
+function _temp2$15(k) {
 	return k.offsetTop;
 }
 //#endregion
@@ -162689,7 +163212,7 @@ var TimelineChart = (t0) => {
 	const yTicks = _temp4$12;
 	const renderActive = (band_2) => {
 		const guideMax = samplesGuide.reduce(_temp5$6, 0);
-		const dataMax = activeSeries.reduce(_temp6$4, Math.max(guideMax, 1));
+		const dataMax = activeSeries.reduce(_temp6$3, Math.max(guideMax, 1));
 		const yMax = dataMax * 1.1;
 		const y = (v) => band_2.top + kPlotBottom - v / yMax * 50;
 		let path = "";
@@ -163715,7 +164238,7 @@ function _temp4$12(yOf, max) {
 function _temp5$6(m_0, s) {
 	return Math.max(m_0, s.value);
 }
-function _temp6$4(m_1, p) {
+function _temp6$3(m_1, p) {
 	return Math.max(m_1, p.value);
 }
 function _temp7$3(e) {
@@ -164603,8 +165126,9 @@ var groupMetricModifier = (metric) => {
 	const groupKey = metric.params?.["group_key"];
 	if (groupKey === void 0 || typeof groupKey !== "string") return;
 	const metricRaw = metric.params?.["metric"];
-	if (metricRaw === void 0 || typeof metricRaw !== "object") return;
-	return metricRaw["name"];
+	if (!isRecord(metricRaw)) return;
+	const name = metricRaw["name"];
+	return typeof name === "string" ? name : void 0;
 };
 var metricModifiers = [clusterMetricModifier, groupMetricModifier];
 /**
@@ -164644,8 +165168,9 @@ var isGroupedMetric = (metric) => {
 var getBaseMetricName = (metric) => {
 	if (!metric.params) return;
 	const metricObj = metric.params["metric"];
-	if (!metricObj || typeof metricObj !== "object") return;
-	return metricObj["name"];
+	if (!isRecord(metricObj)) return;
+	const name = metricObj["name"];
+	return typeof name === "string" ? name : void 0;
 };
 var normalizeMetricName = (name) => {
 	return name.replace(/\d+$/, "");
@@ -165355,14 +165880,15 @@ var ResultsPanel = (t0) => {
 					$[6] = t3;
 				} else t3 = $[6];
 				const headlineGroup = grouped.findIndex(t3);
-				let primaryResults = headlineGroup !== -1 ? leadWith(grouped[headlineGroup], holdsHeadline(grouped[headlineGroup])) : grouped[0];
+				const headlineScores = headlineGroup === -1 ? void 0 : grouped[headlineGroup];
+				let primaryResults = headlineScores ? leadWith(headlineScores, holdsHeadline(headlineScores)) : grouped[0];
 				if (!primaryResults) {
 					t2 = void 0;
 					break bb0;
 				}
 				let showMore_0 = grouped.length > 1;
 				if (primaryResults.length > kMaxPrimaryScoreRows) {
-					const shorterResults = headlineDeclared && headlineGroup !== -1 ? void 0 : grouped.find(_temp6$3);
+					const shorterResults = headlineDeclared && headlineGroup !== -1 ? void 0 : grouped.find(_temp6$2);
 					if (shorterResults) primaryResults = shorterResults;
 					if (primaryResults.length > kMaxPrimaryScoreRows) {
 						primaryResults = primaryResults.slice(0, kMaxPrimaryScoreRows);
@@ -165601,7 +166127,7 @@ function _temp4$9(score_0) {
 function _temp5$4(group) {
 	return group.findIndex(_temp4$9);
 }
-function _temp6$3(g) {
+function _temp6$2(g) {
 	return g.length <= kMaxPrimaryScoreRows;
 }
 function _temp7$2(score_3) {
@@ -165966,7 +166492,7 @@ var DownloadLogButton_module_default = { downloadLogButton: "_downloadLogButton_
 //#endregion
 //#region src/components/DownloadLogButton.tsx
 var DownloadLogButton = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(22);
+	const $ = (0, import_compiler_runtime.c)(20);
 	const { log_file, className: t1, ariaLabel: t2 } = t0;
 	const className = t1 === void 0 ? "" : t1;
 	const ariaLabel = t2 === void 0 ? "Download log as EVAL" : t2;
@@ -165979,19 +166505,17 @@ var DownloadLogButton = (t0) => {
 	const api = t3;
 	let t4;
 	if ($[1] !== log_file) {
-		t4 = async () => {
+		t4 = () => {
 			if (!api.download_log) return;
 			setDownloadState("downloading");
-			try {
-				await api.download_log(log_file);
-				setDownloadState("success");
-			} catch (t5) {
-				console.error("Failed to download log:", t5);
+			api.download_log(log_file).then(() => setDownloadState("success")).catch((error) => {
+				console.error("Failed to download log:", error);
 				setDownloadState("error");
-			}
-			setTimeout(() => {
-				setDownloadState("idle");
-			}, 1250);
+			}).finally(() => {
+				setTimeout(() => {
+					setDownloadState("idle");
+				}, 1250);
+			});
 		};
 		$[1] = log_file;
 		$[2] = t4;
@@ -166030,46 +166554,40 @@ var DownloadLogButton = (t0) => {
 		$[8] = className;
 		$[9] = t7;
 	} else t7 = $[9];
-	let t8;
-	if ($[10] !== handleClick) {
-		t8 = () => void handleClick();
-		$[10] = handleClick;
-		$[11] = t8;
-	} else t8 = $[11];
-	const t9 = downloadState !== "idle";
+	const t8 = downloadState !== "idle";
+	let t9;
+	if ($[10] !== getIconClass) {
+		t9 = getIconClass();
+		$[10] = getIconClass;
+		$[11] = t9;
+	} else t9 = $[11];
 	let t10;
-	if ($[12] !== getIconClass) {
-		t10 = getIconClass();
-		$[12] = getIconClass;
+	if ($[12] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t9,
+			"aria-hidden": "true"
+		});
+		$[12] = t9;
 		$[13] = t10;
 	} else t10 = $[13];
 	let t11;
-	if ($[14] !== t10) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
-			className: t10,
-			"aria-hidden": "true"
-		});
-		$[14] = t10;
-		$[15] = t11;
-	} else t11 = $[15];
-	let t12;
-	if ($[16] !== ariaLabel || $[17] !== t11 || $[18] !== t7 || $[19] !== t8 || $[20] !== t9) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+	if ($[14] !== ariaLabel || $[15] !== handleClick || $[16] !== t10 || $[17] !== t7 || $[18] !== t8) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: t7,
-			onClick: t8,
+			onClick: handleClick,
 			"aria-label": ariaLabel,
-			disabled: t9,
-			children: t11
+			disabled: t8,
+			children: t10
 		});
-		$[16] = ariaLabel;
-		$[17] = t11;
-		$[18] = t7;
-		$[19] = t8;
-		$[20] = t9;
-		$[21] = t12;
-	} else t12 = $[21];
-	return t12;
+		$[14] = ariaLabel;
+		$[15] = handleClick;
+		$[16] = t10;
+		$[17] = t7;
+		$[18] = t8;
+		$[19] = t11;
+	} else t11 = $[19];
+	return t11;
 };
 var ModelRolesView_module_default = {
 	container: "_container_q17yq_1",
@@ -167345,7 +167863,7 @@ function _temp4$6(state_2) {
 * LogContainer component that handles routing to specific logs and tabs.
 * Sample detail URLs are now handled by LogSampleDetailView.
 */ var LogViewContainer = () => {
-	const $ = (0, import_compiler_runtime.c)(30);
+	const $ = (0, import_compiler_runtime.c)(29);
 	const { logPath, tabId, sampleUuid, sampleTabId } = useLogRouteParams();
 	const initialState = useStore(_temp$8);
 	const clearInitialState = useStore(_temp2$6);
@@ -167370,123 +167888,118 @@ function _temp4$6(state_2) {
 		$[4] = t0;
 	} else t0 = $[4];
 	const sampleUuidRedirectUrl = useSampleUuidRedirectUrl(t0);
+	useUnmount(_temp5$3);
 	let t1;
-	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = [];
-		$[5] = t1;
-	} else t1 = $[5];
-	(0, import_react.useEffect)(_temp6$2, t1);
 	let t2;
-	let t3;
-	if ($[6] !== clearInitialState || $[7] !== evalSpec || $[8] !== initialState || $[9] !== navigate || $[10] !== prefix) {
-		t2 = () => {
+	if ($[5] !== clearInitialState || $[6] !== evalSpec || $[7] !== initialState || $[8] !== navigate || $[9] !== prefix) {
+		t1 = () => {
 			if (initialState && !evalSpec) {
 				const url = baseUrl(initialState.log, initialState.sample_id, initialState.sample_epoch, prefix);
 				clearInitialState();
 				navigate(url);
 			}
 		};
-		t3 = [
+		t2 = [
 			initialState,
 			evalSpec,
 			clearInitialState,
 			navigate,
 			prefix
 		];
-		$[6] = clearInitialState;
-		$[7] = evalSpec;
-		$[8] = initialState;
-		$[9] = navigate;
-		$[10] = prefix;
+		$[5] = clearInitialState;
+		$[6] = evalSpec;
+		$[7] = initialState;
+		$[8] = navigate;
+		$[9] = prefix;
+		$[10] = t1;
 		$[11] = t2;
-		$[12] = t3;
 	} else {
+		t1 = $[10];
 		t2 = $[11];
-		t3 = $[12];
 	}
-	(0, import_react.useEffect)(t2, t3);
+	(0, import_react.useEffect)(t1, t2);
 	const prevLogPathRef = (0, import_react.useRef)(void 0);
+	let t3;
 	let t4;
-	let t5;
-	if ($[13] !== clearSelectedSample || $[14] !== logPath) {
-		t4 = () => {
+	if ($[12] !== clearSelectedSample || $[13] !== logPath) {
+		t3 = () => {
 			const prevLogPath = prevLogPathRef.current;
 			prevLogPathRef.current = logPath;
 			if (prevLogPath && logPath && logPath !== prevLogPath) clearSelectedSample();
 		};
-		t5 = [logPath, clearSelectedSample];
-		$[13] = clearSelectedSample;
-		$[14] = logPath;
+		t4 = [logPath, clearSelectedSample];
+		$[12] = clearSelectedSample;
+		$[13] = logPath;
+		$[14] = t3;
 		$[15] = t4;
-		$[16] = t5;
 	} else {
+		t3 = $[14];
 		t4 = $[15];
-		t5 = $[16];
 	}
-	(0, import_react.useLayoutEffect)(t4, t5);
+	(0, import_react.useLayoutEffect)(t3, t4);
+	let t5;
 	let t6;
-	let t7;
-	if ($[17] !== logPath || $[18] !== setWorkspaceTab || $[19] !== tabId) {
-		t6 = () => {
+	if ($[16] !== logPath || $[17] !== setWorkspaceTab || $[18] !== tabId) {
+		t5 = () => {
 			if (!logPath) return;
 			setWorkspaceTab(tabId ?? "samples");
 		};
-		t7 = [
+		t6 = [
 			logPath,
 			tabId,
 			setWorkspaceTab
 		];
-		$[17] = logPath;
-		$[18] = setWorkspaceTab;
-		$[19] = tabId;
+		$[16] = logPath;
+		$[17] = setWorkspaceTab;
+		$[18] = tabId;
+		$[19] = t5;
 		$[20] = t6;
-		$[21] = t7;
 	} else {
+		t5 = $[19];
 		t6 = $[20];
-		t7 = $[21];
 	}
-	(0, import_react.useEffect)(t6, t7);
+	(0, import_react.useEffect)(t5, t6);
+	let t7;
 	let t8;
-	let t9;
-	if ($[22] !== logPath) {
-		t8 = () => {
+	if ($[21] !== logPath) {
+		t7 = () => {
 			if (logPath) selectLogFile(logPath);
 		};
-		t9 = [logPath];
-		$[22] = logPath;
+		t8 = [logPath];
+		$[21] = logPath;
+		$[22] = t7;
 		$[23] = t8;
-		$[24] = t9;
 	} else {
+		t7 = $[22];
 		t8 = $[23];
-		t9 = $[24];
 	}
-	(0, import_react.useEffect)(t8, t9);
+	(0, import_react.useEffect)(t7, t8);
 	if (sampleUuidRedirectUrl) {
-		let t10;
-		if ($[25] !== searchParams) {
-			t10 = searchParams.toString();
-			$[25] = searchParams;
-			$[26] = t10;
-		} else t10 = $[26];
-		const search = t10;
-		const t11 = search ? `${sampleUuidRedirectUrl}?${search}` : sampleUuidRedirectUrl;
-		let t12;
-		if ($[27] !== t11) {
-			t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Navigate, {
-				to: t11,
+		let t9;
+		if ($[24] !== searchParams) {
+			t9 = searchParams.toString();
+			$[24] = searchParams;
+			$[25] = t9;
+		} else t9 = $[25];
+		const search = t9;
+		const t10 = search ? `${sampleUuidRedirectUrl}?${search}` : sampleUuidRedirectUrl;
+		let t11;
+		if ($[26] !== t10) {
+			t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Navigate, {
+				to: t10,
 				replace: true
 			});
+			$[26] = t10;
 			$[27] = t11;
-			$[28] = t12;
-		} else t12 = $[28];
-		return t12;
+		} else t11 = $[27];
+		return t11;
 	}
-	let t10;
-	if ($[29] === Symbol.for("react.memo_cache_sentinel")) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogViewLayout, {});
-		$[29] = t10;
-	} else t10 = $[29];
-	return t10;
+	let t9;
+	if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogViewLayout, {});
+		$[28] = t9;
+	} else t9 = $[28];
+	return t9;
 };
 function _temp$8(state) {
 	return state.app.initialState;
@@ -167502,9 +168015,6 @@ function _temp4$5(state_2) {
 }
 function _temp5$3() {
 	unloadLog();
-}
-function _temp6$2() {
-	return _temp5$3;
 }
 var SampleEventView_module_default = {
 	root: "_root_1hhbn_1",
@@ -168523,63 +169033,70 @@ function _temp$5(timestamp) {
 * - FlowPanel: for flow files (.yaml/.yml)
 * - LogViewContainer: for log files (.eval/.json)
 * - LogsPanel: for directory views
-*/ var RouteDispatcher = () => {
-	const $ = (0, import_compiler_runtime.c)(7);
+*
+* `mode` selects how directory views render: "tasks" (flat) for /tasks/*
+* routes, "logs" otherwise.
+*/ var RouteDispatcher = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(9);
+	const { mode: t1 } = t0;
+	const mode = t1 === void 0 ? "logs" : t1;
 	const { logPath, sampleId, epoch, sampleTabId, sampleUuid } = useLogRouteParams();
 	if (!logPath) {
-		let t0;
-		if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogsPanel, {});
-			$[0] = t0;
-		} else t0 = $[0];
-		return t0;
+		let t2;
+		if ($[0] !== mode) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogsPanel, { mode });
+			$[0] = mode;
+			$[1] = t2;
+		} else t2 = $[1];
+		return t2;
 	}
 	if (sampleId && epoch && sampleTabId === "print") {
-		let t0;
-		if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SamplePrintView, {});
-			$[1] = t0;
-		} else t0 = $[1];
-		return t0;
+		let t2;
+		if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SamplePrintView, {});
+			$[2] = t2;
+		} else t2 = $[2];
+		return t2;
 	}
 	if (sampleId && epoch && sampleTabId === kSampleEventTabId) {
-		let t0;
-		if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleEventView, {});
-			$[2] = t0;
-		} else t0 = $[2];
-		return t0;
+		let t2;
+		if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleEventView, {});
+			$[3] = t2;
+		} else t2 = $[3];
+		return t2;
 	}
 	if (sampleId && epoch || sampleUuid) {
-		let t0;
-		if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogSampleDetailView, {});
-			$[3] = t0;
-		} else t0 = $[3];
-		return t0;
+		let t2;
+		if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogSampleDetailView, {});
+			$[4] = t2;
+		} else t2 = $[4];
+		return t2;
 	}
 	if (logPath.endsWith(".yaml") || logPath.endsWith(".yml")) {
-		let t0;
-		if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FlowPanel, {});
-			$[4] = t0;
-		} else t0 = $[4];
-		return t0;
+		let t2;
+		if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FlowPanel, {});
+			$[5] = t2;
+		} else t2 = $[5];
+		return t2;
 	}
 	if (logPath.endsWith(".eval") || logPath.endsWith(".json")) {
-		let t0;
-		if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogViewContainer, {});
-			$[5] = t0;
-		} else t0 = $[5];
-		return t0;
-	} else {
-		let t0;
+		let t2;
 		if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogsPanel, {});
-			$[6] = t0;
-		} else t0 = $[6];
-		return t0;
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogViewContainer, {});
+			$[6] = t2;
+		} else t2 = $[6];
+		return t2;
+	} else {
+		let t2;
+		if ($[7] !== mode) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogsPanel, { mode });
+			$[7] = mode;
+			$[8] = t2;
+		} else t2 = $[8];
+		return t2;
 	}
 };
 //#endregion
@@ -169591,69 +170108,6 @@ function _temp$1(state) {
 	return t0;
 };
 //#endregion
-//#region src/app/routing/TasksRouter.tsx
-/**
-* Route dispatcher for /tasks/* paths.
-* Mirrors RouteDispatcher but defaults to LogsPanel in "tasks" (flat) mode.
-*/ var TasksRouter = () => {
-	const $ = (0, import_compiler_runtime.c)(7);
-	const { logPath, sampleId, epoch, sampleTabId, sampleUuid } = useLogRouteParams();
-	if (!logPath) {
-		let t0;
-		if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogsPanel, { mode: "tasks" });
-			$[0] = t0;
-		} else t0 = $[0];
-		return t0;
-	}
-	if (sampleId && epoch && sampleTabId === "print") {
-		let t0;
-		if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SamplePrintView, {});
-			$[1] = t0;
-		} else t0 = $[1];
-		return t0;
-	}
-	if (sampleId && epoch && sampleTabId === kSampleEventTabId) {
-		let t0;
-		if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleEventView, {});
-			$[2] = t0;
-		} else t0 = $[2];
-		return t0;
-	}
-	if (sampleId && epoch || sampleUuid) {
-		let t0;
-		if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogSampleDetailView, {});
-			$[3] = t0;
-		} else t0 = $[3];
-		return t0;
-	}
-	if (logPath.endsWith(".yaml") || logPath.endsWith(".yml")) {
-		let t0;
-		if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FlowPanel, {});
-			$[4] = t0;
-		} else t0 = $[4];
-		return t0;
-	}
-	if (logPath.endsWith(".eval") || logPath.endsWith(".json")) {
-		let t0;
-		if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-			t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogViewContainer, {});
-			$[5] = t0;
-		} else t0 = $[5];
-		return t0;
-	}
-	let t0;
-	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
-		t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogsPanel, { mode: "tasks" });
-		$[6] = t0;
-	} else t0 = $[6];
-	return t0;
-};
-//#endregion
 //#region src/app/routing/AppRouter.tsx
 var AppLayout = () => {
 	const $ = (0, import_compiler_runtime.c)(10);
@@ -169728,7 +170182,7 @@ var AppRouter = createHashRouter([{
 		},
 		{
 			path: kTaskRouteUrlPattern,
-			element: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TasksRouter, {})
+			element: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RouteDispatcher, { mode: "tasks" })
 		},
 		{
 			path: "/samples/*",
@@ -169792,7 +170246,7 @@ var componentIcons = {
 * Renders the application content. Mounted below the config gate so it can
 * read the resolved app config.
 */ var AppContent = () => {
-	const $ = (0, import_compiler_runtime.c)(15);
+	const $ = (0, import_compiler_runtime.c)(14);
 	let t0;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t0 = getApi();
@@ -169866,28 +170320,23 @@ var componentIcons = {
 		t5 = $[10];
 	}
 	(0, import_react.useEffect)(t4, t5);
+	useMountEffect(_temp7);
 	let t6;
-	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = [];
-		$[11] = t6;
-	} else t6 = $[11];
-	(0, import_react.useEffect)(_temp7, t6);
 	let t7;
-	let t8;
-	if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
+	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
+		$[11] = t6;
 		$[12] = t7;
-		$[13] = t8;
 	} else {
+		t6 = $[11];
 		t7 = $[12];
-		t8 = $[13];
 	}
-	let t9;
-	if ($[14] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+	let t8;
+	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+			t6,
 			t7,
-			t8,
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentIconProvider, {
 				icons: componentIcons,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentStateProvider, {
@@ -169896,9 +170345,9 @@ var componentIcons = {
 				})
 			})
 		] });
-		$[14] = t9;
-	} else t9 = $[14];
-	return t9;
+		$[13] = t8;
+	} else t8 = $[13];
+	return t8;
 };
 var App = () => {
 	const $ = (0, import_compiler_runtime.c)(1);
@@ -169946,12 +170395,11 @@ var resolveStorage = () => {
 	if (vscodeApi) return {
 		getItem: (_name) => {
 			const state = vscodeApi.getState();
+			if (typeof state !== "string") throw new Error("vscode state is not a serialized string");
 			return import_dist.default.parse(state);
 		},
 		setItem: (_name, value) => {
-			const valObj = value;
-			const serialized = import_dist.default.stringify(valObj);
-			vscodeApi.setState(serialized);
+			vscodeApi.setState(import_dist.default.stringify(value));
 		},
 		removeItem: (_name) => {
 			vscodeApi.setState(null);
