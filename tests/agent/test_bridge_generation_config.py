@@ -316,6 +316,33 @@ def test_anthropic_invalid_output_config_schema_is_rejected_not_raised():
     assert provider_error_payload(ex.value)["status"] == 400
 
 
+def test_anthropic_invalid_output_config_name_is_rejected_not_raised():
+    """A bad `format.name` must answer 400, not escape as a raw `ValidationError`.
+
+    `ResponseSchema` validates `name` on construction, so a non-string one
+    escapes the same way an invalid schema would -- `status: None`, a traceback
+    in the log and no status for the client. New surface with this mapping:
+    before it, the whole `output_config.format` was ignored.
+    """
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_anthropic(
+            {
+                "model": "inspect",
+                "max_tokens": 16,
+                "messages": [{"role": "user", "content": "hi"}],
+                "output_config": {
+                    "format": {
+                        "type": "json_schema",
+                        "name": 5,
+                        "schema": {"type": "object"},
+                    }
+                },
+            }
+        )
+    assert "output_config.format.name" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
 def test_anthropic_output_config_effort_and_format_coexist():
     config = generate_config_from_anthropic(
         {

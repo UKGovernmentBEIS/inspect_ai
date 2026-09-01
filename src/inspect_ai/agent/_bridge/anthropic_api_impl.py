@@ -80,6 +80,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     web_search,
 )
 
+from ._errors import BridgePolicyError
 from .types import AgentBridge
 from .util import (
     apply_message_ids,
@@ -248,8 +249,19 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
         ):
             schema = output_format.get("schema", None)
             if schema is not None:
+                # `ResponseSchema` validates `name` on construction, so a
+                # non-string one escapes as a raw `ValidationError` -- the
+                # status-less failure `client_json_schema` exists to prevent.
+                # Route it to the same 400 the real API answers.
+                name = output_format.get("name") or "response"
+                if not isinstance(name, str):
+                    raise BridgePolicyError(
+                        "invalid response schema in bridged request "
+                        "(output_config.format.name: input should be a valid "
+                        f"string, got {type(name).__name__})"
+                    )
                 config.response_schema = ResponseSchema(
-                    name=output_format.get("name") or "response",
+                    name=name,
                     # NOTE: Inspect's `JSONSchema` does not model every keyword
                     # Anthropic's structured outputs accept (`allOf`, `const`,
                     # `$ref`/`$defs`, `minItems`), and unmodelled keywords are dropped
