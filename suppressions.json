@@ -1,0 +1,2048 @@
+{
+  "docs/_extensions/meridianlabs-ai/inspect-docs/filters/reference/commands.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[arg-type]": {
+      "count": 5,
+      "undescribed": 5
+    }
+  },
+  "docs/_extensions/meridianlabs-ai/inspect-docs/filters/reference/filter.py": {
+    "noqa:E402": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "docs/_extensions/meridianlabs-ai/inspect-docs/filters/reference/render.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "docs/_extensions/meridianlabs-ai/inspect-docs/post-render.py": {
+    "noqa:E402": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[no-any-return]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "docs/_extensions/meridianlabs-ai/inspect-docs/pre-render.py": {
+    "noqa:E402": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[no-any-return]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "docs/evals/llms.py": {
+    "noqa:E402": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "examples/hooks/mlflow_tracing.py": {
+    "type: ignore[import-not-found]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "examples/hooks/mlflow_tracing_example.py": {
+    "noqa:E402": {
+      "count": 7,
+      "undescribed": 7
+    },
+    "noqa:F401": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "examples/hooks/mlflow_tracking.py": {
+    "type: ignore[import-not-found]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "examples/hooks/trackio_tracking.py": {
+    "type: ignore[import-not-found]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "scripts/pypi-release.py": {
+    "noqa:DTZ005": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/__init__.py": {
+    "noqa:F401 (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "noqa:F403 (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "noqa:F405 (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_cli/common.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_cli/eval.py": {
+    "noqa:F811": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_cli/log.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_control/server.py": {
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[valid-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_display/core/rich.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/_display/textual/app.py": {
+    "type: ignore[assignment]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/_display/textual/widgets/clock.py": {
+    "noqa:DTZ005": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/_display/textual/widgets/tasks.py": {
+    "noqa:DTZ005": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[override]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_eval/task/__init__.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "noqa:I001": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_eval/task/hf.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_eval/task/scan.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_eval/task/store.py": {
+    "noqa:S301": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_util/_async.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_util/asyncfiles.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_util/download.py": {
+    "type: ignore[import-not-found]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_util/file.py": {
+    "type: ignore": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "src/inspect_ai/_util/generate_config_args.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_util/json.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 1
+    },
+    "type: ignore[import-untyped]": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "src/inspect_ai/_util/notebook.py": {
+    "type: ignore": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/_util/notgiven.py": {
+    "pyright: ignore[reportUnknownArgumentType]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "pyright: ignore[reportUnknownVariableType]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/_util/path.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_util/platform.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/_util/registry.py": {
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[import-not-found]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[return]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[unused-ignore]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/_util/s3_monitor.py": {
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_util/strenum.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[override]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_util/textual/form.py": {
+    "type: ignore[override]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_util/zipfile.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[attr-defined]": {
+      "count": 6,
+      "undescribed": 6
+    },
+    "type: ignore[import-not-found]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[import-untyped]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_view/azure.py": {
+    "noqa:BLE001": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/_view/common.py": {
+    "type: ignore": {
+      "count": 5,
+      "undescribed": 5
+    }
+  },
+  "src/inspect_ai/_view/network.py": {
+    "type: ignore[literal-required]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_acp/discovery.py": {
+    "type: ignore[call-overload]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_acp/transport.py": {
+    "noqa:E402": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_acp/tui/app.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_acp/tui/client.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_acp/tui/session_screen.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_acp/tui/state.py": {
+    "noqa:BLE001": {
+      "count": 1
+    }
+  },
+  "src/inspect_ai/agent/_acp/tui/widgets/cancel_card.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_acp/tui/widgets/footer.py": {
+    "type: ignore[misc]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/agent/_agent.py": {
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_as_tool.py": {
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_bridge/anthropic_api_impl.py": {
+    "noqa:B023": {
+      "count": 3,
+      "undescribed": 3
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[typeddict-item]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_bridge/responses_impl.py": {
+    "type: ignore[comparison-overlap]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[typeddict-item]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_bridge/sandbox/service.py": {
+    "noqa:E402": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_bridge/util.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_channel/__init__.py": {
+    "noqa:BLE001": {
+      "count": 2,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/agent/_deepagent/agent_tool.py": {
+    "type: ignore[attr-defined]": {
+      "count": 4,
+      "undescribed": 4
+    },
+    "type: ignore[no-redef]": {
+      "count": 3,
+      "undescribed": 3
+    },
+    "type: ignore[return-value]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/analysis/_dataframe/columns.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/analysis/_dataframe/evals/columns.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/analysis/_dataframe/events/columns.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/analysis/_dataframe/messages/columns.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/analysis/_dataframe/record.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[call-arg]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/analysis/_dataframe/samples/columns.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/analysis/_dataframe/samples/extract.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/analysis/_dataframe/samples/table.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[attr-defined]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/analysis/_dataframe/util.py": {
+    "noqa:F401": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/analysis/_dataframe/validate.py": {
+    "type: ignore": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/analysis/_prepare/log_viewer.py": {
+    "type: ignore[type-arg]": {
+      "count": 6,
+      "undescribed": 6
+    }
+  },
+  "src/inspect_ai/analysis/_prepare/task_info.py": {
+    "type: ignore[type-arg]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/approval/_call.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/approval/_human/acp.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/dataset/__init__.py": {
+    "noqa:F403 (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "noqa:F405 (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/dataset/_sources/hf.py": {
+    "mypy: disable-error-code[unused-ignore] (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/event/_pool.py": {
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/event/_tree.py": {
+    "type: ignore[overload-overlap]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/log/_file.py": {
+    "noqa:BLE001": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "src/inspect_ai/log/_recorders/eval.py": {
+    "type: ignore[assignment]": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[import-untyped]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/log/_recorders/file.py": {
+    "noqa:F841": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/log/_recorders/json.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/log/_recover/_api.py": {
+    "type: ignore[union-attr]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/model/__init__.py": {
+    "noqa:F401 (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "noqa:F403 (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "noqa:F405 (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_call_tools.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/model/_generate_config.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_message_ids.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[union-attr]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/model/_model.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_model_data/sync_models.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/model/_model_info.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_openai.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[comparison-overlap]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_openai_responses.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[literal-required]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[return]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[typeddict-item]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/model/_providers/_grok_batch.py": {
+    "type: ignore": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/model/_providers/_openai_batch.py": {
+    "pyright: ignore[reportPrivateUsage]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/_openai_computer_use.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[typeddict-unknown-key]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/anthropic.py": {
+    "type: ignore[comparison-overlap]": {
+      "count": 3,
+      "undescribed": 3
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[typeddict-item]": {
+      "count": 5,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/model/_providers/bedrock.py": {
+    "type: ignore[call-overload]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/google.py": {
+    "type: ignore[arg-type]": {
+      "count": 4,
+      "undescribed": 4
+    },
+    "type: ignore[union-attr]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/model/_providers/grok.py": {
+    "type: ignore": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/model/_providers/hf.py": {
+    "type: ignore": {
+      "count": 7,
+      "undescribed": 7
+    },
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[no-untyped-call]": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "src/inspect_ai/model/_providers/mistral_conversation.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/nnterp.py": {
+    "type: ignore": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/model/_providers/openai.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[typeddict-unknown-key]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/providers.py": {
+    "noqa:F401": {
+      "count": 9,
+      "undescribed": 9
+    },
+    "type: ignore": {
+      "count": 3,
+      "undescribed": 3
+    },
+    "type: ignore[import-untyped]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/sagemaker.py": {
+    "type: ignore[call-overload]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[dict-item]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[import-untyped]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/model/_providers/sglang.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/transformer_lens.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/util/bedrock_hosting.py": {
+    "type: ignore[import-untyped]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/util/hooks.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/vllm.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/scorer/_math.py": {
+    "noqa:F401": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[import-untyped]": {
+      "count": 6,
+      "undescribed": 6
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/scorer/_metric.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/scorer/_metrics/krippendorff.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[type-var]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/scorer/_reducer/reducer.py": {
+    "type: ignore": {
+      "count": 15,
+      "undescribed": 15
+    },
+    "type: ignore[redundant-cast]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/solver/_basic_agent.py": {
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[operator]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/solver/_fork.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/solver/_plan.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/tool/_mcp/_local.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[return-value]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/tool/_mcp/_sandbox.py": {
+    "type: ignore": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/tool/_mcp/server.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/tool/_tools/_code_execution.py": {
+    "type: ignore[literal-required]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/tool/_tools/_memory.py": {
+    "type: ignore[attr-defined]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/tool/_tools/_web_search/_web_search.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[literal-required]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/util/_console.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/util/_input/panel.py": {
+    "type: ignore[return-value]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/util/_json.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[valid-type]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/util/_limited_conversation.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[index]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/util/_notify.py": {
+    "type: ignore[import-not-found]": {
+      "count": 3,
+      "undescribed": 3
+    },
+    "type: ignore[import-untyped]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "src/inspect_ai/util/_sandbox/__init__.py": {
+    "noqa:F401": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_ai/util/_sandbox/limits.py": {
+    "type: ignore[assignment]": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "src/inspect_ai/util/_sandbox/self_check.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/util/_sandbox/service.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/util/_store.py": {
+    "noqa:E402": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/util/_subprocess.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/util/_subtask.py": {
+    "type: ignore[no-any-return]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/util/_throttle.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_sandbox_tools/src/inspect_sandbox_tools/_agent_bridge/proxy.py": {
+    "noqa:B904": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_sandbox_tools/tests/test_mcp_json_rpc_methods.py": {
+    "type: ignore[assignment]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "src/inspect_tool_support/src/inspect_tool_support/_remote_tools/_web_browser/scale_factor.py": {
+    "noqa:PLC0415": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_tool_support/src/inspect_tool_support/_remote_tools/_web_browser/test_scale_factor.py": {
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/_control/conftest.py": {
+    "type: ignore[call-arg]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/_control/control_probe.py": {
+    "noqa:D102": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/_control/test_ctl.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/_control/test_eval_set_integration.py": {
+    "type: ignore[arg-type]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "tests/_control/test_limits.py": {
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[typeddict-item]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/_control/test_server.py": {
+    "type: ignore[operator]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/_eval/task/test_logger_flush.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[assignment]": {
+      "count": 8,
+      "undescribed": 8
+    }
+  },
+  "tests/_view/test_custom_json_schema_generator.py": {
+    "type: ignore[valid-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/_view/test_view_server.py": {
+    "pyright: ignore[reportPrivateImportUsage]": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "pyright: ignore[reportUnknownMemberType]": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[arg-type]": {
+      "count": 7,
+      "undescribed": 7
+    }
+  },
+  "tests/agent/deepagent/test_agent_tool.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/deepagent/test_deepagent_background.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[assignment]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/agent/deepagent/test_subagent.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_action_methods.py": {
+    "noqa:BLE001": {
+      "count": 1
+    }
+  },
+  "tests/agent/test_acp/test_active_sample_link.py": {
+    "type: ignore[attr-defined]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/agent/test_acp/test_elicitation.py": {
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_operator_provenance.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_picker.py": {
+    "type: ignore[union-attr]": {
+      "count": 6,
+      "undescribed": 6
+    }
+  },
+  "tests/agent/test_acp/test_raw_events.py": {
+    "type: ignore[arg-type]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "tests/agent/test_acp/test_react_integration.py": {
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_router.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_router_bridge_tools.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_router_phase2.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_server.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_server_dispatch.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/agent/test_acp/test_server_forwarding.py": {
+    "type: ignore[method-assign]": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/agent/test_acp/test_session.py": {
+    "noqa:E402": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_span_boundary.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/agent/test_acp/test_standard_acp_client.py": {
+    "type: ignore[method-assign]": {
+      "count": 5,
+      "undescribed": 5
+    }
+  },
+  "tests/agent/test_acp/test_stdio_bridge.py": {
+    "noqa:ARG002": {
+      "count": 1
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_cancel_card.py": {
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_cancel_sample.py": {
+    "type: ignore[arg-type]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_cancel_tool_call.py": {
+    "type: ignore[assignment]": {
+      "count": 3,
+      "undescribed": 3
+    },
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[method-assign]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_defer_body.py": {
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_event_chip_widget.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_interactive.py": {
+    "type: ignore[arg-type]": {
+      "count": 3,
+      "undescribed": 3
+    },
+    "type: ignore[attr-defined]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_plan.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_queued_messages_pilot.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_reconnect.py": {
+    "type: ignore[arg-type]": {
+      "count": 3,
+      "undescribed": 3
+    },
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[method-assign]": {
+      "count": 5,
+      "undescribed": 5
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_replay_dedup.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_session_screen.py": {
+    "type: ignore[attr-defined]": {
+      "count": 36,
+      "undescribed": 36
+    },
+    "type: ignore[comparison-overlap]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_session_screen_phase2.py": {
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_state.py": {
+    "type: ignore[arg-type]": {
+      "count": 4,
+      "undescribed": 4
+    },
+    "type: ignore[comparison-overlap]": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_tool_call_footer.py": {
+    "noqa:SLF001": {
+      "count": 5,
+      "undescribed": 4
+    }
+  },
+  "tests/agent/test_acp/test_tui/test_widgets.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_agent_bridge.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[call-overload]": {
+      "count": 4,
+      "undescribed": 4
+    },
+    "type: ignore[list-item]": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/agent/test_agent_execute.py": {
+    "noqa:D417": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_bridge_approval.py": {
+    "type: ignore[union-attr]": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/agent/test_bridge_raw_response.py": {
+    "type: ignore[arg-type]": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/agent/test_channel/test_channel.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/agent/test_monitor_proxy.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/analysis/test_validate.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/checkpoint/test_checkpointer.py": {
+    "type: ignore[arg-type]": {
+      "count": 5,
+      "undescribed": 5
+    },
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/checkpoint/test_current_checkpointer_post_exit.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[attr-defined]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/checkpoint/test_snapshot_strategy.py": {
+    "type: ignore[override]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/conftest.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/dataset/test_hf_dataset.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/display/test_sample_toolbar.py": {
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/hooks/test_mlflow_tracking.py": {
+    "noqa:E402": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/input/test_input_panel.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/log/test_config_updates.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/log/test_interrupt_event.py": {
+    "type: ignore[arg-type]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "tests/log/test_recover_filestore.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/model/providers/test_anthropic.py": {
+    "type: ignore[arg-type]": {
+      "count": 8,
+      "undescribed": 8
+    },
+    "type: ignore[method-assign]": {
+      "count": 4,
+      "undescribed": 4
+    },
+    "type: ignore[union-attr]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/model/providers/test_anthropic_cache_diagnostics.py": {
+    "type: ignore[method-assign]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "tests/model/providers/test_anthropic_model_names.py": {
+    "type: ignore[attr-defined]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/model/providers/test_bedrock_adaptive_thinking.py": {
+    "noqa:E402": {
+      "count": 11,
+      "undescribed": 11
+    }
+  },
+  "tests/model/providers/test_bedrock_assistant_tool_calls.py": {
+    "noqa:E402": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/model/providers/test_bedrock_hooks.py": {
+    "noqa:E402": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/model/providers/test_bedrock_nova_max_tokens.py": {
+    "noqa:E402": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/model/providers/test_bedrock_prompt_cache.py": {
+    "noqa:E402": {
+      "count": 6,
+      "undescribed": 6
+    }
+  },
+  "tests/model/providers/test_bedrock_structured_output.py": {
+    "noqa:E402": {
+      "count": 6,
+      "undescribed": 6
+    }
+  },
+  "tests/model/providers/test_grok.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[import-untyped]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/model/providers/test_hf.py": {
+    "type: ignore[attr-defined]": {
+      "count": 9,
+      "undescribed": 9
+    },
+    "type: ignore[import-not-found]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[import-untyped]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[unused-ignore]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/model/providers/test_nnterp.py": {
+    "type: ignore[attr-defined]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "tests/model/providers/test_openai.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/model/providers/test_openai_compatible.py": {
+    "type: ignore[arg-type]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "tests/model/providers/test_openrouter.py": {
+    "type: ignore[typeddict-item]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/model/providers/test_transformer_lens.py": {
+    "type: ignore": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/model/test_adaptive_connections.py": {
+    "type: ignore[attr-defined]": {
+      "count": 6,
+      "undescribed": 6
+    }
+  },
+  "tests/model/test_compaction.py": {
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/model/test_compaction_auto.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/model/test_compaction_native.py": {
+    "type: ignore[dict-item]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/model/test_redacted_reasoning_tokens.py": {
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/model/test_should_retry_classification.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[typeddict-unknown-key]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/model/test_tool_info_lifecycle.py": {
+    "type: ignore[method-assign]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/scorer/test_math.py": {
+    "type: ignore[import-untyped]": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/scorer/test_metric.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/scorer/test_model_graded.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/scorer/test_perplexity_scorer.py": {
+    "type: ignore[arg-type]": {
+      "count": 16,
+      "undescribed": 16
+    },
+    "type: ignore[operator]": {
+      "count": 1
+    }
+  },
+  "tests/scorer/test_precomputed_scores.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/scorer/test_reducers.py": {
+    "noqa:F821": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/scorer/test_scorer.py": {
+    "type: ignore (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/test_eval_set_capture.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/test_eval_set_scanner.py": {
+    "noqa:E402": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[attr-defined]": {
+      "count": 9,
+      "undescribed": 9
+    }
+  },
+  "tests/test_helpers/retry_deferred_log_harness.py": {
+    "type: ignore[method-assign]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/test_helpers/utils.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[attr-defined]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "tests/test_package/inspect_package/__init__.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/test_package/inspect_package/_registry.py": {
+    "noqa:F401 (file-wide)": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/test_sample_id.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/test_task_cancel.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/test_task_retry_error_history.py": {
+    "type: ignore[arg-type]": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/tools/test_call_tools.py": {
+    "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/tools/test_code_execution.py": {
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/tools/test_mcp_call_tool_timeout.py": {
+    "noqa:E402": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/tools/test_mcp_stdio_stderr.py": {
+    "type: ignore": {
+      "count": 4,
+      "undescribed": 4
+    }
+  },
+  "tests/tools/test_sandbox_docker_and_local.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "noqa:F403": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/tools/test_skill.py": {
+    "type: ignore[call-arg]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  },
+  "tests/tools/test_web_search.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/util/sandbox/test_docker_compose_config.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/util/sandbox/test_json_rpc_transport.py": {
+    "type: ignore[arg-type]": {
+      "count": 8,
+      "undescribed": 8
+    }
+  },
+  "tests/util/sandbox/test_sandbox_timeout.py": {
+    "type: ignore[override]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/util/test_async_zip.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[import-untyped]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/util/test_file.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/util/test_limit.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/util/test_parse_retry_after.py": {
+    "type: ignore[arg-type]": {
+      "count": 2,
+      "undescribed": 2
+    }
+  },
+  "tests/util/test_retry_logging.py": {
+    "type: ignore[attr-defined]": {
+      "count": 6,
+      "undescribed": 6
+    }
+  },
+  "tests/util/test_strenum.py": {
+    "type: ignore[comparison-overlap]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/util/test_utc_datetime_str.py": {
+    "type: ignore": {
+      "count": 5,
+      "undescribed": 5
+    }
+  },
+  "tests/util/test_zipfile_multiframe.py": {
+    "noqa:F401": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "tests/view/test_openapi_schema_generation.py": {
+    "type: ignore[valid-type]": {
+      "count": 5,
+      "undescribed": 5
+    }
+  },
+  "tests/view/test_viewer_config.py": {
+    "type: ignore[arg-type]": {
+      "count": 8,
+      "undescribed": 8
+    },
+    "type: ignore[call-arg]": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[dict-item]": {
+      "count": 3,
+      "undescribed": 3
+    }
+  }
+}

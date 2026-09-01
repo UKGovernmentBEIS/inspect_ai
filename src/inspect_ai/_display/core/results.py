@@ -11,6 +11,7 @@ from inspect_ai._util.rich import rich_traceback
 from inspect_ai.log import EvalStats
 from inspect_ai.log._log import EvalScore
 from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.util._early_stopping import EarlyStoppingSummary
 
 from .config import task_config, task_dict
 from .display import (
@@ -72,8 +73,6 @@ def task_result_cancelled(
 
 
 def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
-    theme = rich_theme()
-
     grid = Table.grid(expand=True)
     grid.add_column()
 
@@ -82,43 +81,55 @@ def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
             grid.add_row(row)
 
     # note if some of our samples had errors or were stopped early
-    if success.samples_completed < profile.samples:
-        # pending message
-        message: list[str] = []
-
-        # early stopped
-        samples_early_stopped = (
-            len(success.results.early_stopping.early_stops)
-            if success.results.early_stopping
-            else 0
-        )
-        if samples_early_stopped > 0:
-            sample_early_stop_pct = int(
-                float(samples_early_stopped) / float(profile.samples) * 100
-            )
-            message.append(
-                f"[{theme.meta}]NOTE: {samples_early_stopped} of {profile.samples} samples ({sample_early_stop_pct}%) were not executed due to early stopping.[/{theme.meta}]"
-            )
-
-        # executed
-        samples_executed = profile.samples - samples_early_stopped
-
-        # errors
-        sample_errors = samples_executed - success.samples_completed
-        if sample_errors > 0:
-            sample_error_pct = int(float(sample_errors) / float(samples_executed) * 100)
-            scored_qualifier = (
-                "" if profile.eval_config.score_on_error else " and were not scored"
-            )
-            message.append(
-                f"[{theme.warning}]WARNING: {sample_errors} of {samples_executed} executed samples ({sample_error_pct}%) had errors{scored_qualifier}.[/{theme.warning}]"
-            )
-
-        # return special messages if we have them
-        if len(message) > 0:
-            return Group(grid, "\n" + "\n\n".join(message))
+    message = sample_coverage_messages(
+        total_samples=profile.samples,
+        completed_samples=success.samples_completed,
+        early_stopping=success.results.early_stopping,
+        score_on_error=profile.eval_config.score_on_error,
+    )
+    if len(message) > 0:
+        return Group(grid, "\n" + "\n\n".join(message))
 
     return grid
+
+
+def sample_coverage_messages(
+    total_samples: int,
+    completed_samples: int,
+    early_stopping: EarlyStoppingSummary | None,
+    score_on_error: bool | None,
+) -> list[str]:
+    """Notes on samples that were not executed, or executed but not scored.
+
+    Early stops are a deliberate outcome, so they are excluded from the error
+    remainder rather than counted in it.
+    """
+    if completed_samples >= total_samples:
+        return []
+
+    theme = rich_theme()
+    message: list[str] = []
+
+    samples_early_stopped = len(early_stopping.early_stops) if early_stopping else 0
+    if samples_early_stopped > 0:
+        sample_early_stop_pct = int(
+            float(samples_early_stopped) / float(total_samples) * 100
+        )
+        message.append(
+            f"[{theme.meta}]NOTE: {samples_early_stopped} of {total_samples} samples ({sample_early_stop_pct}%) were not executed due to early stopping.[/{theme.meta}]"
+        )
+
+    samples_executed = total_samples - samples_early_stopped
+
+    sample_errors = samples_executed - completed_samples
+    if sample_errors > 0:
+        sample_error_pct = int(float(sample_errors) / float(samples_executed) * 100)
+        scored_qualifier = "" if score_on_error else " and were not scored"
+        message.append(
+            f"[{theme.warning}]WARNING: {sample_errors} of {samples_executed} executed samples ({sample_error_pct}%) had errors{scored_qualifier}.[/{theme.warning}]"
+        )
+
+    return message
 
 
 SCORES_PER_ROW = 4

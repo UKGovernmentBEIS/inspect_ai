@@ -206,6 +206,7 @@ def test_score_resolution_cancel_completes_eval() -> None:
         assert sample.id == 1
         assert sample.error is None
         assert sample.limit is not None and sample.limit.type == "operator"
+        assert sample.limit.reason == "Sample completed: interrupted by operator"
         assert sample.scores  # the scorer ran on the work done so far
 
 
@@ -454,14 +455,15 @@ def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
 
     A sample that just errored with sample-level retries remaining still looks
     in flight (`started` set, `completed` unset, no interrupt) while it drains
-    its transcript events before recursing into the retry, so a task-cancel
-    sweep interrupts it there — but the interrupt only stamps
+    its transcript events before handing back to the retry loop, so a
+    task-cancel sweep interrupts it there — but the interrupt only stamps
     `interrupt_action` (the sample's task group has already exited, so the
     cancel-scope fire is a no-op). The retry must be suppressed and the sample
-    resolved as the same interrupt a moment later (at the retry recursion's
+    resolved as the same interrupt a moment later (at the retry attempt's
     queue check) would resolve it: counted cancelled (not errored), absent
     from the log, its buffered events removed.
     """
+    from inspect_ai._control.cancel import CancelTaskResult
     from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
     from inspect_ai._control.eval_state import (
         get_eval_states,
@@ -471,7 +473,7 @@ def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
     from inspect_ai._eval.task.log import TaskLogger
 
     attempts = 0
-    sweep_results: list[dict[str, Any]] = []
+    sweep_results: list[CancelTaskResult] = []
     recorded: list[str] = []
     removed: list[tuple[str | int, int]] = []
 
@@ -533,7 +535,8 @@ def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
 
         # the sweep saw the sample as in flight and applied
         assert len(sweep_results) == 1
-        assert sweep_results[0]["ok"] is True and sweep_results[0]["in_flight"] == 1
+        sweep = sweep_results[0]
+        assert sweep["ok"] is True and sweep["in_flight"] == 1
         # the retry was suppressed
         assert attempts == 1
         # counted cancelled — never errored — and its buffered events removed
@@ -573,9 +576,20 @@ def test_external_interrupt_with_pending_resolution_logs_cancelled(
 
         return solve
 
+    eval_returned = threading.Event()
+
     def send_sigint() -> None:
+        # a single SIGINT can be silently lost: the KeyboardInterrupt it
+        # raises lands at an arbitrary bytecode boundary in the main thread,
+        # and if that happens to be inside a context that swallows exceptions
+        # (e.g. a weakref finalizer callback reports it as "unraisable" and
+        # drops it) the eval never sees it. Resend until the eval unwinds —
+        # the interval is generous so a delivered interrupt has ample time to
+        # finalize the log and return before another could land mid-write.
         time.sleep(1)
-        os.kill(os.getpid(), signal.SIGINT)
+        while not eval_returned.is_set():
+            os.kill(os.getpid(), signal.SIGINT)
+            eval_returned.wait(3)
 
     sigint_thread = threading.Thread(target=send_sigint, daemon=True)
     sigint_thread.start()
@@ -593,6 +607,8 @@ def test_external_interrupt_with_pending_resolution_logs_cancelled(
         )
     except KeyboardInterrupt:
         pass
+    finally:
+        eval_returned.set()
     sigint_thread.join(timeout=5)
 
     log_files = list_eval_logs(str(tmp_path))

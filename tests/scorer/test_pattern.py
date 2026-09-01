@@ -1,7 +1,7 @@
 import pytest
 from test_helpers.utils import simple_task_state
 
-from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, Target, pattern
+from inspect_ai.scorer import CORRECT, INCORRECT, Target, pattern
 
 
 @pytest.mark.anyio
@@ -20,6 +20,7 @@ async def test_single_match_failure_with_target():
     result = await scorer(state, Target(["target doesn't match"]))
 
     assert result.text == INCORRECT
+    assert result.reason is None
 
 
 @pytest.mark.anyio
@@ -28,7 +29,8 @@ async def test_single_match_failure_from_model():
     state = simple_task_state(model_output="model doesn't match")
     result = await scorer(state, Target(["foo"]))
 
-    assert result.text == NOANSWER
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
 
 
 @pytest.mark.anyio
@@ -87,6 +89,7 @@ async def test_multi_match_failure_with_target():
     result = await scorer(state, Target(["target doesn't match"]))
 
     assert result.text == INCORRECT
+    assert result.reason is None
 
 
 @pytest.mark.anyio
@@ -95,7 +98,8 @@ async def test_multi_match_failure_from_model():
     state = simple_task_state(model_output="model doesn't match")
     result = await scorer(state, Target(["bar"]))
 
-    assert result.text == NOANSWER
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
 
 
 @pytest.mark.anyio
@@ -146,3 +150,39 @@ async def test_match_all_unmatched_optional_group_is_not_correct():
 
     assert result.text == INCORRECT
     assert result.answer is None
+
+
+@pytest.mark.anyio
+async def test_pattern_no_capture_groups():
+    # A regex without explicit capture groups (e.g. `\d+`) should fall back
+    # to the full match `match.group(0)`.
+    scorer = pattern(r"\d+")
+    state = simple_task_state(model_output="The answer is 42")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == CORRECT
+    assert result.answer == "42"
+
+
+@pytest.mark.anyio
+async def test_pattern_no_capture_groups_non_matching_target():
+    # No-groups fallback with a non-matching target: INCORRECT, with the
+    # extracted full match reported as the answer.
+    scorer = pattern(r"\d+")
+    state = simple_task_state(model_output="The answer is 42")
+    result = await scorer(state, Target(["43"]))
+
+    assert result.text == INCORRECT
+    assert result.answer == "42"
+
+
+@pytest.mark.anyio
+async def test_pattern_no_capture_groups_match_all():
+    # match_all=True with a no-groups pattern reduces to the single
+    # full-match comparison.
+    scorer = pattern(r"\d+", match_all=True)
+    state = simple_task_state(model_output="The answer is 42")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == CORRECT
+    assert result.answer == "42"
