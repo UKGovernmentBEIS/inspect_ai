@@ -146,13 +146,12 @@ class MCPServerLocal(MCPServer):
         return await self._task_session().tools()
 
     # create a separate MCPServer session per async task, keyed by the running
-    # task OBJECT, rather than per sample. Tool calls within one sample can
-    # run concurrently (parallel tool-call stages) and a handoff/subagent's
-    # entire turn — including its own tools() resolution — runs inside its
-    # own child task, so sharing one ClientSession across those concurrent
-    # callers isn't safe. This is why a handoff currently gets a fresh
-    # connection (empty state, for a stateful server) rather than the
-    # parent's live session; that isolation is intentional, not a gap.
+    # task OBJECT, rather than per sample. A handoff/subagent's turn, including
+    # its own tools() resolution, runs in its own child task, so it gets a
+    # fresh connection (empty state, for a stateful server) rather than the
+    # parent's live session. That isolation is intentional (see CHANGELOG),
+    # not a safety requirement: concurrent call_tool on one ClientSession is
+    # safe in the mcp SDK.
     #
     # Keying by task id would be both stale and unbounded: anyio's
     # TaskInfo.id is id()-derived, so an id is reusable once its task is

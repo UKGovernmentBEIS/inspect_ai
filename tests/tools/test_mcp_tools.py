@@ -589,8 +589,8 @@ async def test_mcp_task_session_dies_with_its_task() -> None:
     async with anyio.create_task_group() as tg:
         tg.start_soon(never_entered)
 
-    # no gc.collect(): the session holds only a weak reference back to its
-    # registry, so dropping the dead task's entry releases it by refcount
+    # no gc.collect(): nothing else references the session, so dropping the
+    # dead task's registry entry releases it by refcount
     assert session_refs[0]() is None, (
         "a session that was created but never entered outlived its task"
     )
