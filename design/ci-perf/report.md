@@ -546,4 +546,7 @@ proposal 1, and both of its candidate fixes are maintainer decisions rather than
 mechanical ones, so it was filed as
 [#393](https://github.com/meridianlabs-ai/inspect_ai/issues/393) with the full
 measurement. New evidence was posted to
-[#317](https://github.com/meridianlabs-ai/inspect_ai/issues/317).
+[#317](https://github.com/meridianlabs-ai/inspect_ai/issues/317) (docs
+render-cache index) and [#298](https://github.com/meridianlabs-ai/inspect_ai/issues/298)
+(the three blockers, re-probed — upstream PR creation returned 403 again, so
+this PR still needs maintainer promotion).
