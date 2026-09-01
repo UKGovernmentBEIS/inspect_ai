@@ -534,6 +534,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
+    abandoned = False
     try:
         with trace_action(
             log, "Run Task", f"task: {options.task.name} ({options.model})"
@@ -568,18 +569,25 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                 task_cancel.cancel_task = cancel_task
 
                 async def run() -> None:
-                    nonlocal result
-                    result = await task_run(options, task_cancel=task_cancel)
+                    nonlocal result, abandoned
+                    try:
+                        result = await task_run(options, task_cancel=task_cancel)
+                    except TaskRetryAbandonedError:
+                        # abandoned at attempt start (a drain/cancel stamped
+                        # the retry-abandoned registry between the
+                        # dispatcher's pick and the attempt registering).
+                        # Caught here, inside the trace action, so an
+                        # operator-requested outcome is not traced as a task
+                        # error with a stacktrace; the sentinel is returned
+                        # below. Writing an errored EvalLog would supersede
+                        # the errored prior attempt's log, which must remain
+                        # the task's final state.
+                        abandoned = True
 
                 task_tg.start_soon(run)
-    except Exception as ex:
-        # abandoned at attempt start (a drain/cancel stamped the
-        # retry-abandoned registry between the dispatcher's pick and the
-        # attempt registering) — surface the dedicated sentinel; writing an
-        # errored EvalLog here would supersede the errored prior attempt's
-        # log, which must remain the task's final state
-        if isinstance(inner_exception(ex), TaskRetryAbandonedError):
+        if abandoned:
             return TaskRunResult(None, None, abandoned=True)
+    except Exception as ex:
         # errors generally don't escape from tasks -- the exception is a
         # failure to write the log itself (e.g. the log_start() header flush,
         # or the log_finish() of an already-errored task, when log storage is
