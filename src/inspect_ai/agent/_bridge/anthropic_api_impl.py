@@ -17,7 +17,6 @@ from anthropic.types import (
     OutputTokensDetails,
     SearchResultBlockParam,
     TextBlockParam,
-    ToolChoiceParam,
     ToolReferenceBlockParam,
     Usage,
     WebSearchTool20250305Param,
@@ -136,9 +135,9 @@ async def inspect_anthropic_api_request_impl(
     )
 
     # tool choice
-    anthropic_tool_choice: ToolChoiceParam | None = json_data.get("tool_choice", None)
     tool_choice = relax_tool_choice_for_withheld(
-        tool_choice_from_anthropic_tool_choice(anthropic_tool_choice), tools
+        tool_choice_from_anthropic_tool_choice(json_data.get("tool_choice", None)),
+        tools,
     )
 
     # convert to inspect messages
@@ -450,12 +449,17 @@ def resolve_web_search_providers(
 
 
 def tool_choice_from_anthropic_tool_choice(
-    tool_choice: ToolChoiceParam | None,
+    tool_choice: Any,
 ) -> ToolChoice | None:
+    # `Any` rather than `ToolChoiceParam`: the value is client-controlled JSON,
+    # and this converter runs before `generate_config_from_anthropic` on the
+    # request path -- so its guard must fire here, before the first subscript,
+    # for a mistyped container to 400 rather than escape as a raw `TypeError`.
+    tool_choice = client_request_object(tool_choice, "tool_choice")
     if tool_choice is None:
         return None
 
-    match tool_choice["type"]:
+    match tool_choice.get("type", None):
         case "any":
             return "any"
         case "auto":
@@ -464,6 +468,14 @@ def tool_choice_from_anthropic_tool_choice(
             return "none"
         case "tool":
             return ToolFunction(name=tool_choice["name"])
+        case invalid:
+            # A missing or unknown `type` previously fell through silently
+            # (or raised a status-less `KeyError`); answer the 400 the real
+            # API gives rather than ignoring the client's stated intent.
+            raise BridgePolicyError(
+                "invalid request field in bridged request (tool_choice.type: "
+                f"expected one of 'any', 'auto', 'none', 'tool', got {invalid!r})"
+            )
 
 
 async def messages_from_anthropic_input(

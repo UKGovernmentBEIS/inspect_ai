@@ -545,6 +545,77 @@ async def test_bridged_request_rejects_invalid_value_at_the_call_site():
     assert called == [], "request must be rejected before the model is called"
 
 
+@pytest.mark.anyio
+async def test_anthropic_mistyped_tool_choice_rejected_on_request_path():
+    """The `tool_choice` container guard must fire in REQUEST-PATH order.
+
+    On the request path, `tool_choice_from_anthropic_tool_choice` subscripts
+    the value *before* `generate_config_from_anthropic` runs, so a guard that
+    lives only in the config extractor never fires -- the mistyped container
+    escapes as a raw `TypeError` first. Drive the real impl to pin the
+    ordering, not just the extractor in isolation.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        inspect_anthropic_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    called = []
+
+    def _never(input, tools, tool_choice, config):
+        called.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="unreachable")
+
+    model = get_model("mockllm/model", custom_outputs=_never)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+        forward_generation_config=True,
+    )
+    bridge.model_aliases = {"claude-sonnet-5": model}
+
+    with pytest.raises(BridgePolicyError, match="tool_choice") as ex:
+        await inspect_anthropic_api_request_impl(
+            json_data={
+                "model": "claude-sonnet-5",
+                "max_tokens": 64,
+                "messages": [{"role": "user", "content": "hi"}],
+                "tool_choice": "auto",
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+
+    assert provider_error_payload(ex.value)["status"] == 400
+    assert called == [], "request must be rejected before the model is called"
+
+
+@pytest.mark.parametrize(
+    "tool_choice",
+    [{"type": "banana"}, {}],
+)
+def test_anthropic_unknown_tool_choice_type_rejected(tool_choice: dict[str, Any]):
+    """An unknown or missing `tool_choice.type` answers 400, not silence.
+
+    These previously fell through the match silently (unknown type) or raised
+    a status-less `KeyError` (missing type); the real API answers 400.
+    """
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        tool_choice_from_anthropic_tool_choice,
+    )
+
+    with pytest.raises(BridgePolicyError) as ex:
+        tool_choice_from_anthropic_tool_choice(tool_choice)
+    assert "tool_choice.type" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
 def test_google_generation_config_fields_the_provider_sends_are_all_read():
     """Every `generationConfig` field the Google provider sends must be read.
 

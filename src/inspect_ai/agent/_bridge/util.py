@@ -202,9 +202,13 @@ def _unmodelled_schema_keywords(schema: Any) -> set[str]:
 
 
 def client_json_schema(
-    schema: dict[str, Any], dialect_field: str, *, warn_dropped: bool = True
+    schema: Any, dialect_field: str, *, warn_dropped: bool = True
 ) -> JSONSchema:
     """Parse a client-supplied JSON Schema, answering 400 rather than escaping.
+
+    `schema` is deliberately `Any`, not `dict`: a non-dict client value is
+    in-contract and must reach `model_validate` to produce the 400 -- callers
+    must not pre-enforce dict-ness.
 
     `JSONSchema.model_validate` raises `ValidationError`, and an uncaught one here
     is worse than the bad value that caused it: `provider_error_payload` reports
