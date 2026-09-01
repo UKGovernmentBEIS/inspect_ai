@@ -8,21 +8,19 @@ from shortuuid import uuid
 
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessageSystem
-from inspect_ai.model._generate_config import (
-    GenerateConfig,
-    ResponseSchema,
-)
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._openai_convert import messages_from_openai
 from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
-from inspect_ai.util._json import JSONSchema
 
 from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    client_json_schema,
+    client_response_schema,
     resolve_generate_config,
     resolve_inspect_model,
     validate_bridge_media,
@@ -171,11 +169,15 @@ def generate_config_from_openai_completions(
     if response_format is not None:
         json_schema: dict[str, Any] | None = response_format.get("json_schema", None)
         if json_schema is not None:
-            config.response_schema = ResponseSchema(
+            config.response_schema = client_response_schema(
                 name=json_schema.get("name", "schema"),
                 description=json_schema.get("description", None),
-                json_schema=JSONSchema.model_validate(json_schema.get("schema", {})),
+                json_schema=client_json_schema(
+                    json_schema.get("schema", {}),
+                    "response_format.json_schema.schema",
+                ),
                 strict=json_schema.get("strict", None),
+                dialect_field="response_format.json_schema",
             )
 
     return config

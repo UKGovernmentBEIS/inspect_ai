@@ -45,7 +45,6 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     web_search,
 )
-from inspect_ai.util._json import JSONSchema
 
 from ._errors import BridgePolicyError
 from .types import AgentBridge
@@ -53,6 +52,7 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    client_json_schema,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
@@ -187,10 +187,15 @@ def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateCo
         "responseSchema"
     )
     if schema:
+        schema_field = (
+            "responseJsonSchema"
+            if generation_config.get("responseJsonSchema")
+            else "responseSchema"
+        )
         config.response_schema = ResponseSchema(
             name="response",
-            json_schema=JSONSchema.model_validate(
-                _google_schema_to_json_schema(schema)
+            json_schema=client_json_schema(
+                _google_schema_to_json_schema(schema), schema_field
             ),
         )
 

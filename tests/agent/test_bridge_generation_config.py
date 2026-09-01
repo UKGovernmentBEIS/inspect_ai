@@ -743,3 +743,127 @@ def test_client_json_schema_silent_for_fully_modelled_schema(_warn_once_messages
         "output_config.format.schema",
     )
     assert _warn_once_messages == []
+
+
+@pytest.mark.parametrize(
+    "json_schema,expected_field",
+    [
+        ({"name": "n", "schema": {"type": 5}}, "response_format.json_schema.schema"),
+        ({"name": 5, "schema": {"type": "object"}}, "response_format.json_schema.name"),
+        ({"name": 0, "schema": {"type": "object"}}, "response_format.json_schema.name"),
+        (
+            {"name": "n", "description": 5, "schema": {"type": "object"}},
+            "response_format.json_schema.description",
+        ),
+        (
+            {"name": "n", "strict": "banana", "schema": {"type": "object"}},
+            "response_format.json_schema.strict",
+        ),
+    ],
+)
+def test_openai_completions_invalid_response_format_is_rejected_not_raised(
+    json_schema: dict[str, Any], expected_field: str
+):
+    """A bad `response_format.json_schema` must answer 400, not escape raw.
+
+    `ResponseSchema` validates on construction and `JSONSchema.model_validate`
+    raises `ValidationError`, so any client-controlled field here escaped as a
+    raw pydantic error -- `provider_error_payload` reports `status: None`, the
+    status-less outcome `client_json_schema` exists to prevent.
+    """
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_openai_completions(
+            {
+                "model": "inspect",
+                "response_format": {"type": "json_schema", "json_schema": json_schema},
+            }
+        )
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "format,expected_field",
+    [
+        (
+            {"type": "json_schema", "name": "n", "schema": {"type": 5}},
+            "text.format.schema",
+        ),
+        (
+            {"type": "json_schema", "name": 5, "schema": {"type": "object"}},
+            "text.format.name",
+        ),
+        (
+            {
+                "type": "json_schema",
+                "name": "n",
+                "description": 5,
+                "schema": {"type": "object"},
+            },
+            "text.format.description",
+        ),
+        (
+            {
+                "type": "json_schema",
+                "name": "n",
+                "strict": "banana",
+                "schema": {"type": "object"},
+            },
+            "text.format.strict",
+        ),
+    ],
+)
+def test_openai_responses_invalid_text_format_is_rejected_not_raised(
+    format: dict[str, Any], expected_field: str
+):
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_openai_responses(
+            {"model": "inspect", "text": {"format": format}}
+        )
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "generation_config,expected_field",
+    [
+        ({"responseJsonSchema": {"type": 5}}, "responseJsonSchema"),
+        ({"responseSchema": {"type": 5}}, "responseSchema"),
+    ],
+)
+def test_google_invalid_response_schema_is_rejected_not_raised(
+    generation_config: dict[str, Any], expected_field: str
+):
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_google(generation_config)
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+def test_openai_completions_schema_warning_names_dialect_field(_warn_once_messages):
+    """The dropped-keyword warning must name the OpenAI request field.
+
+    Pydantic-generated schemas (`$defs`/`$ref`) are most common on OpenAI
+    structured-output clients, so the diagnosability the warning provides on the
+    Anthropic path matters at least as much here.
+    """
+    config = generate_config_from_openai_completions(
+        {
+            "model": "inspect",
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "n",
+                    "schema": {
+                        "type": "object",
+                        "properties": {"a": {"$ref": "#/$defs/A"}},
+                        "$defs": {"A": {"type": "string"}},
+                    },
+                },
+            },
+        }
+    )
+    assert config.response_schema is not None
+    assert len(_warn_once_messages) == 1
+    assert "response_format.json_schema.schema" in _warn_once_messages[0]
+    assert "$ref" in _warn_once_messages[0]

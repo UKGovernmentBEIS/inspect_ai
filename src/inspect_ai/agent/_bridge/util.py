@@ -30,7 +30,11 @@ from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    ResponseSchema,
+    active_generate_config,
+)
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -222,6 +226,36 @@ def client_json_schema(schema: dict[str, Any], dialect_field: str) -> JSONSchema
         )
         raise BridgePolicyError(
             f"invalid response schema in bridged request ({dialect_field}: {details})"
+        ) from ex
+
+
+def client_response_schema(
+    *,
+    name: Any,
+    json_schema: JSONSchema,
+    dialect_field: str,
+    description: Any = None,
+    strict: Any = None,
+) -> ResponseSchema:
+    """Construct a `ResponseSchema` from client-supplied fields, answering 400.
+
+    `ResponseSchema` validates on construction, so a non-string `name` or
+    `description` (or a non-bool `strict`) read straight off the client request
+    escapes as a raw `ValidationError` -- the same status-less failure
+    `client_json_schema` exists to prevent for the sibling `schema` field. Route
+    it to the same 400 the real API answers.
+    """
+    try:
+        return ResponseSchema(
+            name=name, json_schema=json_schema, description=description, strict=strict
+        )
+    except ValidationError as ex:
+        details = "; ".join(
+            f"{dialect_field}.{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
+            for err in ex.errors()
+        )
+        raise BridgePolicyError(
+            f"invalid response schema in bridged request ({details})"
         ) from ex
 
 
