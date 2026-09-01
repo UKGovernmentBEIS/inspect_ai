@@ -453,10 +453,18 @@ class CallPoolIndex:
                 ``indices``. Omitting it (copy everything) is always safe
                 for callers that do not prefix-match.
         """
+        # Staleness eviction (see _CALL_PREV_MAX_IDLE), before the capacity
+        # rules so it can make room instead of evicting at random, and before
+        # the `match` is resolved so the drop guard below covers a `prev` this
+        # aged out (a caller may interpose scans between the paired calls).
+        self._prevs = [
+            p for p in self._prevs if self._calls - p.last_used <= _CALL_PREV_MAX_IDLE
+        ]
         prev = match.slot if match is not None else None
         prefix_len = len(match.indices) if match is not None else 0
         if prev is not None and prev not in self._prevs:
-            # dropped by restore() since the match: nothing valid to carry
+            # dropped since the match (restore(), or aged out above): nothing
+            # valid to carry
             prev, prefix_len = None, 0
         carried = prev.msgs[:prefix_len] if prev is not None else []
         entry = _PrevRequest(
@@ -464,13 +472,6 @@ class CallPoolIndex:
             indices=list(indices),
             last_used=self._calls,
         )
-        # Staleness eviction (see _CALL_PREV_MAX_IDLE), before the capacity
-        # rules so it can make room instead of evicting at random. `prev` is
-        # never dropped here: match_prefix stamped it with the current
-        # self._calls, so its idle age is 0.
-        self._prevs = [
-            p for p in self._prevs if self._calls - p.last_used <= _CALL_PREV_MAX_IDLE
-        ]
         # see docstring: replace only when the match fully consumed the
         # lineage, else keep it and append a sibling
         if prev is not None and prefix_len == len(prev.msgs):

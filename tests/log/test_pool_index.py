@@ -375,6 +375,26 @@ def test_call_pool_index_abandoned_lineage_bytes_are_released() -> None:
     assert len(retained) < len(sentinel)
 
 
+def test_call_pool_index_match_survives_intervening_scans() -> None:
+    """A held match stays usable however many scans separate it from set_prev.
+
+    The pairing is documented per message list, not per adjacency, so a
+    caller may scan in between and age the matched lineage out. That must
+    degrade to copying everything, not raise.
+    """
+    from inspect_ai.event._pool_index import _CALL_PREV_MAX_IDLE
+
+    index = CallPoolIndex()
+    msgs: list[JsonValue] = [{"content": "a"}]
+    index.set_prev(msgs, [0])
+    match = index.match_prefix(msgs)
+    for _ in range(_CALL_PREV_MAX_IDLE + 1):
+        index.match_prefix([{"content": "other"}])
+
+    index.set_prev(msgs, [0], match=match)
+    assert _prefix(index, msgs) == [0]
+
+
 def test_call_pool_index_restore_drops_all_slots() -> None:
     index = CallPoolIndex()
     index.set_prev([{"content": "a"}], [0])
