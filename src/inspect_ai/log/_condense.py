@@ -64,9 +64,22 @@ MAX_SAMPLE_DUMP_DEPTH = 250
 Not a rejection threshold: exceeding it only triggers the explicit
 serialization check in `condense_sample` (see there). Set just below
 pydantic-core's hard JSON serialization limit (it writes 254 nested containers
-but fails at 255) and well above `MAX_JSON_VALUE_DEPTH` (200) plus the nesting
-the sample's own structure adds, so ordinary samples never pay for the check.
+but fails at 255) and above `MAX_JSON_VALUE_DEPTH` (240) plus the nesting a
+walked value's position within the sample typically adds, so ordinary samples
+rarely pay for the check (and when a deep-but-writable sample does trip it,
+the serialization check — not this threshold — decides acceptance).
 """
+
+
+class SampleSerializationError(ValueError):
+    """Sample content cannot be serialized to the eval log.
+
+    Raised by `condense_sample` when a sample's content defeats the log
+    writer's serializer (e.g. nested beyond pydantic-core's depth limit).
+    A `ValueError` subclass so callers handling condensation failures
+    generically keep working; `log_sample` catches this type specifically
+    so recorder/flush I/O errors are never mistaken for it.
+    """
 
 
 class WalkContext(TypedDict):
@@ -306,7 +319,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     if exceeds_max_depth(
         dumped_sample, MAX_SAMPLE_DUMP_DEPTH
     ) and not _is_log_serializable(condensed_sample):
-        raise ValueError(
+        raise SampleSerializationError(
             f"Sample content (id: {sample.id}, epoch: {sample.epoch}) is nested "
             "too deeply to be serialized to the eval log."
         )
@@ -740,15 +753,18 @@ def walk_state_json_change(
     )
 
 
-MAX_JSON_VALUE_DEPTH = 200
+MAX_JSON_VALUE_DEPTH = 240
 """Maximum container nesting depth walked (and preserved) in JSON values.
 
 Deeper content is replaced with `JSON_VALUE_MAX_DEPTH_EXCEEDED`: the walk
 recurses per nesting level (unbounded depth would exhaust the interpreter
 stack), and pydantic-core refuses to serialize structures nested beyond a
-hard limit of ~255, which would otherwise crash sample logging. The cap
-leaves ample headroom over `MAX_TOOL_CALL_ARGUMENTS_DEPTH` (100), so
-depth-bounded tool arguments are never truncated here.
+hard limit of ~255, which would otherwise crash sample logging. Set as close
+to that limit as the nesting a value's position within its sample adds
+(events/messages wrapper containers, well under 10 levels) allows, so values
+that serialize today keep round-tripping; it also leaves ample headroom over
+`MAX_TOOL_CALL_ARGUMENTS_DEPTH` (100), so depth-bounded tool arguments are
+never truncated here.
 """
 
 JSON_VALUE_MAX_DEPTH_EXCEEDED = "<max nesting depth exceeded>"

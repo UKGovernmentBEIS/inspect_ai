@@ -500,3 +500,40 @@ async def test_log_sample_degrades_gracefully_when_serialization_fails(
     assert log.samples[0].id == "sample"
     assert log.samples[0].store == {}
     assert log.samples[0].error is not None
+
+
+@pytest.mark.anyio
+async def test_log_sample_reraises_recorder_write_errors(
+    tmp_path, monkeypatch
+) -> None:
+    # only a condensation/serialization failure may trigger the stripped-content
+    # fallback: a transient recorder write failure (e.g. an S3 blip) on a
+    # healthy sample must propagate unchanged — writing a stripped fallback
+    # record instead would silently drop the sample's content when a retry of
+    # the eval would have logged it intact
+    sample = _sample().model_copy(
+        update={"messages": [ChatMessageUser(content="hello")]}
+    )
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    written: list[EvalSample] = []
+
+    async def failing_log_sample(
+        eval: EvalSpec, sample: EvalSample, **kwargs: object
+    ) -> None:
+        written.append(sample)
+        raise OSError("simulated transient write failure")
+
+    monkeypatch.setattr(recorder, "log_sample", failing_log_sample)
+    logger = TaskLoggerShim(None)
+    logger.recorder = recorder
+    logger.eval = spec
+    logger.flush_buffer = 1
+    logger.flush_pending = []
+    logger._samples_completed = 0
+
+    with pytest.raises(OSError):
+        await log_sample(sample, logger, log_images=True, from_memory=True)
+
+    # a single write attempt, with the sample's content intact (no fallback)
+    assert len(written) == 1
+    assert written[0].messages

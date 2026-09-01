@@ -1,11 +1,13 @@
 import pytest
 from pydantic import JsonValue
 
+from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import (
     ATTACHMENT_PROTOCOL,
     JSON_VALUE_MAX_DEPTH_EXCEEDED,
     MAX_JSON_VALUE_DEPTH,
     MAX_SAMPLE_DUMP_DEPTH,
+    SampleSerializationError,
     WalkContext,
     attachment_refs_from_value,
     condense_sample,
@@ -13,6 +15,7 @@ from inspect_ai.log._condense import (
     walk_tool_call,
 )
 from inspect_ai.log._log import EvalSample
+from inspect_ai.model import ChatMessageAssistant
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent
 
 
@@ -124,6 +127,36 @@ def test_walk_json_value_preserves_values_within_depth_cap() -> None:
     assert walked is value
 
 
+def test_walked_value_at_depth_cap_serializes_within_sample() -> None:
+    # the cap must leave room for the nesting a value's position within the
+    # sample adds: a value the walk preserves (depth <= MAX_JSON_VALUE_DEPTH)
+    # must still be serializable by the log writer once wrapped in the sample's
+    # own structure (here messages -> tool_calls -> arguments)
+    deep: JsonValue = "leaf"
+    for _ in range(MAX_JSON_VALUE_DEPTH - 1):
+        deep = {"a": deep}
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="question",
+        target="answer",
+        messages=[
+            ChatMessageAssistant(
+                content="calling tool",
+                tool_calls=[ToolCall(id="1", function="f", arguments={"arg": deep})],
+            )
+        ],
+    )
+
+    condensed = condense_sample(sample)
+
+    message = condensed.messages[0]
+    assert isinstance(message, ChatMessageAssistant)
+    assert message.tool_calls is not None
+    assert message.tool_calls[0].arguments == {"arg": deep}
+    to_json_safe(condensed, indent=None)
+
+
 def test_attachment_refs_from_value_handles_pathologically_deep_values() -> None:
     deep: object = {"ref": f"{ATTACHMENT_PROTOCOL}abc123"}
     for _ in range(10_000):
@@ -146,7 +179,7 @@ def test_condense_sample_rejects_unserializable_depth() -> None:
     # pydantic-core can serialize must be rejected by condense_sample (raising
     # inside the sample-logging path, which degrades gracefully) rather than
     # detonating later at log flush time, outside any per-sample handling
-    with pytest.raises(ValueError):
+    with pytest.raises(SampleSerializationError):
         condense_sample(_sample_with_nested_store(1000))
 
 

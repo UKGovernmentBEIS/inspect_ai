@@ -79,7 +79,11 @@ from inspect_ai.log import (
     EvalStats,
     HeadlineMetric,
 )
-from inspect_ai.log._condense import condense_sample, resolve_events_attachments
+from inspect_ai.log._condense import (
+    SampleSerializationError,
+    condense_sample,
+    resolve_events_attachments,
+)
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,
@@ -3179,7 +3183,7 @@ async def log_sample(
                 logging_sample, sample_history, flush=True
             )
         return materialized_sample
-    except Exception as ex:
+    except SampleSerializationError as ex:
         # A sample whose content defeats condensation/serialization (e.g.
         # structures nested beyond pydantic-core's serialization depth limit)
         # must not abort the whole eval: this code runs after the
@@ -3187,6 +3191,10 @@ async def log_sample(
         # down the scheduler task group (cancelling in-flight sibling
         # samples) and lose this sample's record entirely. Degrade instead:
         # strip the sample content and log an error record in its place.
+        # Only the condensation error is caught: any other failure here — in
+        # particular a transient recorder/flush I/O error on a healthy sample —
+        # must propagate to normal error handling rather than silently strip
+        # the sample's content.
         py_logger.warning(
             f"Unable to serialize sample for logging "
             f"(id: {eval_sample.id}, epoch: {eval_sample.epoch}): {ex}. "
