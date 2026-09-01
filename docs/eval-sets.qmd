@@ -172,6 +172,8 @@ We mentioned above that each eval set you run wants a dedicated log directory. T
 
 2.  This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs).
 
+Only the logs directly in the log directory are tracked: `eval_set()` writes its logs flat, so logs in subdirectories are ignored.
+
 Once all of the tasks in an eval set are complete, re-running `inspect eval-set` or `eval_set()` on the same log directory will be a no-op as there is no more work to do. At this point you can use the `list_eval_logs()` function to collect up logs for analysis:
 
 ``` python

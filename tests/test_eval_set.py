@@ -275,6 +275,30 @@ def test_validate_eval_set_prerequisites_mismatch_log_dir_allow_dirty() -> None:
     assert len(all_logs) == 0
 
 
+def test_eval_set_ignores_logs_in_subdirectories() -> None:
+    # eval_set writes its logs flat into log_dir, so a log in a subdirectory
+    # belongs to something else (a child eval, a bundle) and must neither read
+    # as a dirty log dir nor count towards the eval set's completed work
+    with tempfile.TemporaryDirectory() as log_dir:
+        nested_dir = os.path.join(log_dir, "nested")
+        eval(tasks="examples/hello_world.py", model="mockllm/model", log_dir=nested_dir)
+        assert len(list_eval_logs(nested_dir)) == 1
+        assert len(list_all_eval_logs(log_dir, recursive=False)) == 0
+
+        success, logs = eval_set(
+            tasks="examples/popularity.py",
+            log_dir=log_dir,
+            limit=1,
+            model="mockllm/model",
+            log_dir_allow_dirty=False,
+        )
+        assert success
+        assert len(logs) == 1
+        assert len(list_all_eval_logs(log_dir, recursive=False)) == 1
+        # the nested log is neither adopted nor cleaned up
+        assert len(list_eval_logs(nested_dir)) == 1
+
+
 @pytest.mark.slow
 @skip_if_trio
 def test_eval_set_s3(mock_s3) -> None:

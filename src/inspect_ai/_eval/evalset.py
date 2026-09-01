@@ -998,8 +998,12 @@ def eval_set(
                 "Error: No inspect tasks were found at the specified paths."
             )
 
-        # list all logs currently in the log directory (update manifest if there are some)
-        all_logs = list_all_eval_logs(log_dir)
+        # list the logs this eval set owns: the ones directly in log_dir. eval_set
+        # only ever writes flat into log_dir, so a log in a subdirectory (a
+        # bundle, a child eval's logs, another run's directory) belongs to
+        # something else and must not trip the dirty-log-dir check below
+        # (update manifest if there are some)
+        all_logs = list_all_eval_logs(log_dir, recursive=False)
         if len(all_logs) > 0:
             write_log_dir_manifest(log_dir)
 
@@ -1772,11 +1776,12 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     return canonical(requested) != canonical(config.epochs_reducer)
 
 
-# cleanup logs that aren't the latest
+# cleanup logs that aren't the latest (only the eval set's own logs, which
+# live directly in log_dir -- never anything in a subdirectory)
 def cleanup_older_eval_logs(log_dir: str, task_ids: set[str]) -> None:
     logs = [
         log
-        for log in list_all_eval_logs(log_dir)
+        for log in list_all_eval_logs(log_dir, recursive=False)
         if log.header.eval.task_id in task_ids
     ]
     latest_completed_task_eval_logs(logs=logs, cleanup_older=True)
