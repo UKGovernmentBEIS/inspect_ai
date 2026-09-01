@@ -96,9 +96,10 @@ async def apply_bridge_tool_approval(
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return.
 
-    When approval is active, multi-choice responses are reduced to the primary
-    choice (with a warning): only that choice is reviewed, so returning the others
-    would hand the scaffold tool calls no approver ever saw.
+    When approval is active, a multi-choice response whose alternate choices
+    carry tool calls is reduced to the primary choice (with a warning): only the
+    primary choice is reviewed, so returning the others would hand the scaffold
+    tool calls no approver ever saw. Text-only alternates pass through.
 
     Args:
         bridge: Bridge whose `approval` policies (if any) apply for this call.
@@ -115,16 +116,12 @@ async def apply_bridge_tool_approval(
         if not have_tool_approval():
             return BridgeApproval(output, None)
 
-        # approval reviews (and the sandbox bridge grants) only the primary
-        # choice, so alternate choices would reach the scaffold unreviewed —
-        # drop them rather than hand back tool calls no approver ever saw.
-        if len(output.choices) > 1:
+        if any(choice.message.tool_calls for choice in output.choices[1:]):
             warn_once(
                 logger,
                 "Tool approval reviews only the primary choice of a bridged "
-                f"response; dropping {len(output.choices) - 1} alternate "
-                "choice(s). Request a single choice (n=1) when approval is "
-                "active.",
+                "response; dropping alternate choices that carry tool calls. "
+                "Request a single choice (n=1) when approval is active.",
             )
             output = output.model_copy(update={"choices": output.choices[:1]})
 

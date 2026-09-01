@@ -91,8 +91,9 @@ class SandboxAgentBridge(AgentBridge):
         ambiguous — no grant is registered (fail closed, with a warning). A
         grant is not scoped to the turn it was approved in: it persists until
         consumed (or evicted, with a warning, once `_MAX_TOOL_EXECUTION_GRANTS`
-        unconsumed grants accumulate), but only ever re-authorizes the exact
-        approved action. The approval API carries no execution target, so an
+        unconsumed grants accumulate) — including when the approved response
+        never reached the scaffold (serialization or transport failure) — but
+        only ever re-authorizes the exact approved action. The approval API carries no execution target, so an
         approved scaffold-local call whose name denotes a bridged tool also
         mints a grant for it — still bounded to the approved arguments.
         """
@@ -121,11 +122,11 @@ class SandboxAgentBridge(AgentBridge):
                     "unconsumed grant. An approved-but-never-executed call "
                     "that old can no longer be executed.",
                 )
-            server, tool = targets[0]
+            target = targets[0]
             self._tool_execution_grants.append(
                 _ToolExecutionGrant(
-                    server=server,
-                    tool=tool,
+                    server=target.server,
+                    tool=target.tool,
                     arguments=to_jsonable_python(dict(call.arguments), fallback=str),
                 )
             )
@@ -201,12 +202,19 @@ def _candidate_functions(server: str, tool: str) -> tuple[str, str, str]:
     return (tool, f"mcp__{server}__{tool}", f"{server}__{tool}")
 
 
+class _BridgedToolId(NamedTuple):
+    """Identity of one bridged tool within the registry."""
+
+    server: str
+    tool: str
+
+
 def _resolve_bridged_tools(
     bridged_tools: dict[str, dict[str, Tool]], function: str
-) -> list[tuple[str, str]]:
+) -> list[_BridgedToolId]:
     """Every bridged (server, tool) a call's function name could denote."""
     return [
-        (server, tool)
+        _BridgedToolId(server=server, tool=tool)
         for server, tools in bridged_tools.items()
         for tool in tools
         if function in _candidate_functions(server, tool)

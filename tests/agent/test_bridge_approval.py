@@ -760,6 +760,25 @@ async def test_multi_choice_response_truncated_under_approval() -> None:
     assert run.output.message.tool_calls[0].id == "main"
 
 
+async def test_multi_choice_text_alternates_pass_through_under_approval() -> None:
+    """Alternates without tool calls carry nothing to review, so they survive."""
+    output = tool_calls_output(
+        ToolCall(id="main", function="bash", arguments={"cmd": "ls"})
+    )
+    output.choices.append(
+        ChatCompletionChoice(
+            message=ChatMessageAssistant(content="alternate"),
+            stop_reason="stop",
+        )
+    )
+
+    run = await run_bridge(
+        [output], approval=[ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+
+    assert len(run.output.choices) == 2
+
+
 async def test_multi_choice_response_passes_through_without_approval() -> None:
     output = tool_calls_output(
         ToolCall(id="main", function="bash", arguments={"cmd": "ls"})
