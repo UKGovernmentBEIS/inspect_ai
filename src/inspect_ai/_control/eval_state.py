@@ -399,6 +399,18 @@ class EvalState:
         """
         return self.completed + self.errored + self.cancelled
 
+    def queued(self, in_flight: int) -> int:
+        """Samples not yet dispatched, given the live ``in_flight`` count.
+
+        Everything :attr:`total` doesn't account for as terminal or in flight
+        — ``in_flight`` is read from ``active_samples`` (see the class
+        docstring), so callers pass it in. Clamped at zero: the two reads
+        aren't one snapshot, so a sample finishing between them can briefly
+        be counted in both. The single derivation behind the task rows'
+        ``queued`` and the drain result's, so the two can't drift.
+        """
+        return max(0, self.total - self.terminal - in_flight)
+
     @property
     def is_finished(self) -> bool:
         """True once every sample has terminated (success, error, or cancel).

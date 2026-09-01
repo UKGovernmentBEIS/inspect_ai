@@ -843,11 +843,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # read complete and the remainder would silently never re-run).
         # Deliberately scoped to the graceful resolutions: other legitimately
         # fewer-samples success logs (e.g. early stopping) must keep reading
-        # complete.
-        record_logged_samples = (
-            log_samples
-            and task_cancel is not None
-            and task_cancel.cancel_type in ("score", "error", "drain")
+        # complete. Not gated on log_samples: a drained `--no-log-samples`
+        # log holds no samples at all, so it records 0 and a later eval-set
+        # re-runs the task in full (nothing in it can seed a resume) rather
+        # than reusing it as complete with the abandoned remainder never run.
+        record_logged_samples = task_cancel is not None and task_cancel.cancel_type in (
+            "score",
+            "error",
+            "drain",
         )
         return await _finish_task_log(
             logger=logger,
@@ -1011,9 +1014,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             if not options.run_samples:
                 return await logger.log_finish("started", stats)
 
-            # call hook
-            await emit_task_start(logger, eval_plan)
-
             sample_semaphore = create_sample_semaphore(
                 config,
                 model.config.merge(generate_config),
@@ -1057,6 +1057,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # register_eval below (no awaits between), so on the eval's
             # single loop a stamp lands either before this check (caught
             # here) or after registration (the ordinary running-task path).
+            # Nothing with an end-side pairing has fired yet (the task-start
+            # hook comes after register_eval); the display row opened above
+            # is left result-less, which is cosmetic and confined to this
+            # window by the pre-row check.
             if task_retry_abandoned(logger.eval.task_id):
                 raise TaskRetryAbandonedError()
 
@@ -1089,6 +1093,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # while blocked in next_samples() with an empty seed)
                 dynamic=sample_feed is not None,
             )
+
+            # call hook (after the retry-abandon check above: every task
+            # start must be paired with a task end, and an abandoned attempt
+            # ends with neither a log nor an end hook)
+            await emit_task_start(logger, eval_plan)
 
             # publish the interim-scoring capability (the task's scorers and
             # scoring inputs as resolved at eval start) for the control

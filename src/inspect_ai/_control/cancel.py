@@ -281,15 +281,8 @@ def _task_cancel_directive(
         result["action"] = action
     else:
         # drain reports the other half of the split too: queued samples are
-        # what a drain abandons (derived the same way the task rows derive it)
-        result["queued"] = max(
-            0,
-            state.total
-            - state.completed
-            - state.errored
-            - state.cancelled
-            - len(in_flight),
-        )
+        # what a drain abandons
+        result["queued"] = state.queued(len(in_flight))
     if state.completed_at is not None:
         # consulted before the finished no-op so a repeat lands on the honest
         # reason: the registry stamp, not the pending state, marks the

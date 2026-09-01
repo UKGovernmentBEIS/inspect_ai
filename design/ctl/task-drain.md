@@ -570,6 +570,18 @@ the sketch above; the semantics are as designed.
   therefore excludes cancellation-classified samples, using the same
   classifier as the read/requeue surfaces; a requeued re-run superseding a
   cancelled record counts again.
+- **A drained `log_samples=False` log records `logged_samples = 0`.** The
+  stamp is not gated on sample logging: such a log holds no samples, so 0
+  is the honest count, and a later eval-set re-invocation re-runs the task
+  in full (nothing in the log can seed a resume). The alternative — leaving
+  the field unset — would reuse the log as complete and silently never run
+  the abandoned remainder.
+- **Interim scoring is not superseded by a drain.** The scoring pass's
+  between-samples "attempt no longer current" check treats a stamped
+  `"score"`/`"error"` (already resolving the in-flight samples) and
+  `"abort"`/`"retry"` (tearing the task down) as superseding, but not
+  `"drain"`: a draining task's in-flight samples run normally, and they are
+  exactly what an operator who has seen enough wants interim scores for.
 
 Two mechanics from the sketch also landed slightly differently, without
 changing behavior: the dispatch-pick drop runs at the top of the dispatch
@@ -601,7 +613,9 @@ Implementation review surfaced two gaps the sketch missed; both are closed:
   before `display().task()` opens a task row, since an abandoned row with no
   result would become the last row for its task id and make the rich
   header's task count read the task as incomplete for the rest of the run
-  (best-effort; the pre-register check stays the race-free backstop), and
-  every abandon path discards via `TaskLogger.discard`, which drops the
+  (best-effort; the pre-register check stays the race-free backstop). The
+  task-start hook fires only after the pre-register check, so an abandoned
+  attempt never emits a task start without its matching task end. Every
+  abandon path discards via `TaskLogger.discard`, which drops the
   recorder's in-memory entry (otherwise leaked for the rest of the run)
   and removes a destination file the abandoned attempt itself flushed.

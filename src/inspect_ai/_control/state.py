@@ -1354,7 +1354,7 @@ def _build_summary(
     completed = latest.completed
     errored = latest.errored
     cancelled = latest.cancelled
-    queued = max(0, total - completed - errored - cancelled - in_flight)
+    queued = latest.queued(in_flight)
     completed_at = latest.completed_at
     status = "completed" if completed_at is not None else "running"
 
