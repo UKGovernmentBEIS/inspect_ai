@@ -612,8 +612,11 @@ Implementation review surfaced two gaps the sketch missed; both are closed:
   `task_run` consults the registry once more before `log_start` — and
   before `display().task()` opens a task row, since an abandoned row with no
   result would become the last row for its task id and make the rich
-  header's task count read the task as incomplete for the rest of the run
-  (best-effort; the pre-register check stays the race-free backstop). The
+  header's task count read the task as incomplete for the rest of the run,
+  and before the dataset is paged to disk, since an abandon raised past the
+  end of `task_run` would otherwise leave the paged store's temp file behind
+  (best-effort; the pre-register check stays the race-free backstop, and the
+  store's close sits in the `finally` that check unwinds through). The
   task-start hook fires only after the pre-register check, so an abandoned
   attempt never emits a task start without its matching task end. Every
   abandon path discards via `TaskLogger.discard`, which drops the

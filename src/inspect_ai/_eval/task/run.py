@@ -878,6 +878,22 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         defer_fractional=sample_feed is not None,
     )
 
+    # a task drain/cancel abandoned this queued retry before it started: bail
+    # before anything that needs unwinding is set up — the paged-to-disk
+    # sample store below (its temp file is only unlinked by the close in the
+    # finally, which an abandoned attempt never reaches), the log_start
+    # destination header (a zero-seed retry has no destination hold, so
+    # log_start writes a stray `started` log the retry-cleanup sweep would
+    # prefer over the errored attempt's log), and the display task row (an
+    # abandoned row with no result would become the last row for this task id
+    # and read as incomplete in the rich header for the rest of the run).
+    # Best-effort — awaits separate this from register_eval, so the
+    # pre-register check below remains the race-free backstop (and the
+    # dispatcher's discard removes any header a stamp landing in between
+    # still flushed).
+    if task_retry_abandoned(logger.eval.task_id):
+        raise TaskRetryAbandonedError()
+
     # optionally page dataset to disk if it exceeds the memory budget
     sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
 
@@ -981,19 +997,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # set custom sandbox limits
     limit_tokens = set_sandbox_limits()
 
-    # a task drain/cancel abandoned this queued retry before it started: bail
-    # before log_start can flush a destination header (a zero-seed retry has
-    # no destination hold, so log_start writes a stray `started` log the
-    # retry-cleanup sweep would prefer over the errored attempt's log), and
-    # before display().task() creates a task row (an abandoned row with no
-    # result would become the last row for this task id and read as
-    # incomplete in the rich header for the rest of the run). Best-effort —
-    # awaits separate this from register_eval, so the pre-register check
-    # below remains the race-free backstop (and the dispatcher's discard
-    # removes any header a stamp landing in between still flushed).
-    if task_retry_abandoned(logger.eval.task_id):
-        raise TaskRetryAbandonedError()
-
     with display().task(
         profile,
     ) as td:
@@ -1060,7 +1063,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # Nothing with an end-side pairing has fired yet (the task-start
             # hook comes after register_eval); the display row opened above
             # is left result-less, which is cosmetic and confined to this
-            # window by the pre-row check.
+            # window by the earlier check above the disk paging. The finally
+            # below still runs, so the paged sample store's temp file is
+            # unlinked.
             if task_retry_abandoned(logger.eval.task_id):
                 raise TaskRetryAbandonedError()
 
@@ -1889,9 +1894,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # group), so any still-unaccounted samples can no longer record
             finalize_eval(logger.eval.eval_id)
 
-    # cleanup disk sample store if used
-    if isinstance(sample_store, DiskSampleStore):
-        sample_store.close()
+            # cleanup disk sample store if used (here rather than after the
+            # `with` so an attempt abandoned before register_eval, which
+            # unwinds past the rest of task_run, still unlinks the temp file)
+            if isinstance(sample_store, DiskSampleStore):
+                sample_store.close()
 
     # notify the view module that an eval just completed
     # (in case we have a view polling for new evals)

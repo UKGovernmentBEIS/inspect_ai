@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json as json_lib
 import time
+from collections.abc import Callable
 from typing import Any, Literal, cast
 
 import click
@@ -442,20 +443,35 @@ def _run_log_flush(
         _echo("\nNo buffered samples to flush.")
 
 
-@_envelope_failures
-def _run_task_cancel(
+_TaskStopVerb = Literal["cancel", "drain"]
+"""The task-stop directives sharing the cancel-stamp route family."""
+
+
+def _run_task_stop_directive(
     task: str,
     *,
-    action: TaskCancelAction = "cancel",
+    verb: _TaskStopVerb,
+    params: dict[str, Any],
+    route_missing: str,
+    render_changed: Callable[[dict[str, Any], str, bool], None],
     dry_run: bool,
     as_json: bool,
-    terse: bool | None = None,
-    model: str | None = None,
+    terse: bool | None,
+    model: str | None,
 ) -> None:
+    """Shared scaffolding for the ``task cancel`` and ``task drain`` verbs.
+
+    Both POST an idempotent directive to ``/tasks/<task-id>/<verb>`` (so a
+    repeat is a clean no-op and may ride the narrated busy-retry policy like
+    keep/release), share the ``--json`` envelope, the header/terse preamble,
+    the between-attempts ``retry_abandoned`` outcome and the ``changed:
+    false`` no-op rendering. Only the ``changed: true`` narration differs —
+    ``render_changed(result, target_label, terse_mode)`` supplies it.
+    """
     servers = _http.list_discovered_servers()
     summaries = _fetch._fetch_summaries(servers).summaries
     scope = _resolve_scope(
-        servers, summaries, task, per_task_option="task cancel", model=model
+        servers, summaries, task, per_task_option=f"task {verb}", model=model
     )
     if scope is None:
         if as_json:
@@ -465,27 +481,17 @@ def _run_task_cancel(
         return
     assert scope.task_id is not None
 
-    params: dict[str, Any] = {}
-    if action != "cancel":
-        # omit the param when it's the default: a strict server that
-        # predates `action` 400s on unknown mutation params, and a plain
-        # cancel must keep working against any server with the route
-        # (abort is what those servers do anyway). An explicit
-        # score/error against such a server *should* fail loudly.
-        params["action"] = action
     if dry_run:
         params["dry_run"] = True
-    # idempotent (a repeat cancel is a clean no-op), so it may ride the
-    # narrated busy-retry policy like keep/release
     result = _http._request_json(
         scope.socket_path,
-        f"/tasks/{scope.task_id}/cancel",
+        f"/tasks/{scope.task_id}/{verb}",
         params=params,
-        what=f"cancel of task {scope.task_id}",
+        what=f"{verb} of task {scope.task_id}",
         not_found=(
             f"Task '{scope.task_id}' not found in this process (it may have finished)."
         ),
-        not_found_missing_route=_CANCEL_ROUTE_MISSING,
+        not_found_missing_route=route_missing,
         mutate="post",
         retry_mutation=True,
         pid=scope.pid,
@@ -506,8 +512,39 @@ def _run_task_cancel(
         _echo(scope.header)
         _echo()
     if result.get("changed") and result.get("retry_abandoned"):
-        _echo_retry_abandoned("cancel", target_label, dry_run=dry_run, terse=terse_mode)
+        _echo_retry_abandoned(verb, target_label, dry_run=dry_run, terse=terse_mode)
     elif result.get("changed"):
+        render_changed(result, target_label, terse_mode)
+    else:
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
+        if terse_mode:
+            _echo(_terse_line(verb, target_label, f"no-op — {reason}"))
+        else:
+            _echo(f"Nothing to do: {reason}.")
+
+
+@_envelope_failures
+def _run_task_cancel(
+    task: str,
+    *,
+    action: TaskCancelAction = "cancel",
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None = None,
+    model: str | None = None,
+) -> None:
+    params: dict[str, Any] = {}
+    if action != "cancel":
+        # omit the param when it's the default: a strict server that
+        # predates `action` 400s on unknown mutation params, and a plain
+        # cancel must keep working against any server with the route
+        # (abort is what those servers do anyway). An explicit
+        # score/error against such a server *should* fail loudly.
+        params["action"] = action
+
+    def render_changed(
+        result: dict[str, Any], target_label: str, terse_mode: bool
+    ) -> None:
         in_flight = int(result.get("in_flight", 0) or 0)
         outcome = {
             "cancel": "interrupted",
@@ -538,12 +575,18 @@ def _run_task_cancel(
             _echo(f"Would cancel — {interrupted}; {suffix}.")
         else:
             _echo(f"Cancel requested — {interrupted}; {suffix}.")
-    else:
-        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
-        if terse_mode:
-            _echo(_terse_line("cancel", target_label, f"no-op — {reason}"))
-        else:
-            _echo(f"Nothing to do: {reason}.")
+
+    _run_task_stop_directive(
+        task,
+        verb="cancel",
+        params=params,
+        route_missing=_CANCEL_ROUTE_MISSING,
+        render_changed=render_changed,
+        dry_run=dry_run,
+        as_json=as_json,
+        terse=terse,
+        model=model,
+    )
 
 
 def _echo_retry_abandoned(
@@ -578,55 +621,9 @@ def _run_task_drain(
     terse: bool | None = None,
     model: str | None = None,
 ) -> None:
-    servers = _http.list_discovered_servers()
-    summaries = _fetch._fetch_summaries(servers).summaries
-    scope = _resolve_scope(
-        servers, summaries, task, per_task_option="task drain", model=model
-    )
-    if scope is None:
-        if as_json:
-            _echo_raw("null")
-            return
-        _echo_no_running_evals()
-        return
-    assert scope.task_id is not None
-
-    params: dict[str, Any] = {}
-    if dry_run:
-        params["dry_run"] = True
-    # idempotent (a repeat drain is a clean no-op), so it may ride the
-    # narrated busy-retry policy like cancel
-    result = _http._request_json(
-        scope.socket_path,
-        f"/tasks/{scope.task_id}/drain",
-        params=params,
-        what=f"drain of task {scope.task_id}",
-        not_found=(
-            f"Task '{scope.task_id}' not found in this process (it may have finished)."
-        ),
-        not_found_missing_route=_DRAIN_ROUTE_MISSING,
-        mutate="post",
-        retry_mutation=True,
-        pid=scope.pid,
-    )
-
-    if as_json:
-        target = {"task_id": scope.task_id, "task": scope.task}
-        _echo_raw(
-            json_lib.dumps(
-                _mutation_envelope(target, result, dry_run=dry_run), indent=2
-            )
-        )
-        return
-
-    terse_mode = _use_terse(terse)
-    target_label = scope.task or scope.task_id
-    if not terse_mode:
-        _echo(scope.header)
-        _echo()
-    if result.get("changed") and result.get("retry_abandoned"):
-        _echo_retry_abandoned("drain", target_label, dry_run=dry_run, terse=terse_mode)
-    elif result.get("changed"):
+    def render_changed(
+        result: dict[str, Any], target_label: str, terse_mode: bool
+    ) -> None:
         in_flight = int(result.get("in_flight", 0) or 0)
         queued = int(result.get("queued", 0) or 0)
         will = "would" if dry_run else "will"
@@ -646,12 +643,18 @@ def _run_task_drain(
                 f"Drain requested — {body}. Escalate with `inspect ctl task "
                 "cancel --action score` to resolve in-flight samples now."
             )
-    else:
-        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
-        if terse_mode:
-            _echo(_terse_line("drain", target_label, f"no-op — {reason}"))
-        else:
-            _echo(f"Nothing to do: {reason}.")
+
+    _run_task_stop_directive(
+        task,
+        verb="drain",
+        params={},
+        route_missing=_DRAIN_ROUTE_MISSING,
+        render_changed=render_changed,
+        dry_run=dry_run,
+        as_json=as_json,
+        terse=terse,
+        model=model,
+    )
 
 
 _SCORE_ROUTE_MISSING = (
