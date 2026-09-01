@@ -26,6 +26,7 @@
 - Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
 - Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
 - Bugfix: Approval policies set on a `Task` are now recorded in the eval log.
+- Hooks: Fixed hooks published by extension packages silently not loading when another hook was already registered at startup.
 
 ## 0.3.261 (30 August 2026)
 
