@@ -3052,7 +3052,7 @@ def test_ctl_task_drain_finishes_in_flight_and_abandons_queued(
     assert drained.samples is not None and len(drained.samples) == 1
     assert drained.results is not None
     assert drained.results.total_samples == 3
-    assert (drained.results.metadata or {})["logged_samples"] == 1
+    assert drained.results.logged_samples == 1
 
     # the abandoned remainder stays explicitly resumable: a re-invocation on
     # the same log_dir classifies the drained log incomplete (via the

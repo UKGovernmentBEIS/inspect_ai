@@ -1737,12 +1737,11 @@ def log_samples_complete(
     # a success log whose total_samples records the *planned* count — such
     # logs carry the count of samples actually resolved (stamped at finalize,
     # cancellation-resolved samples excluded; see _finish_task_log in
-    # task/run.py), so prefer it when present. Absent
-    # on ordinary logs (and logs from older versions), which fall through to
-    # the planned-count comparison below.
-    metadata = log.header.results.metadata or {}
-    logged_samples = metadata.get("logged_samples")
-    if isinstance(logged_samples, int):
+    # task/run.py), so prefer it when present. None on ordinary logs (and
+    # logs from older versions), which fall through to the planned-count
+    # comparison below.
+    logged_samples = log.header.results.logged_samples
+    if logged_samples is not None:
         if logged_samples >= planned:
             return True
         # a resolution stamped in this process is honored for the life of

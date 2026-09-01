@@ -3731,13 +3731,9 @@ async def _finish_task_log(
         await carry_forward_unlogged_samples(
             logger, sample_source, sample_ids, epochs, log_images
         )
-    # carried in results.metadata (rather than a first-class EvalResults
-    # field) so the log schema stays unchanged; log_samples_complete
-    # (_eval/evalset.py) prefers it over the planned total_samples. Read
-    # after the carry-forward above so re-logged samples are counted.
+    # log_samples_complete (_eval/evalset.py) prefers this count over the
+    # planned total_samples. Read after the carry-forward above so re-logged
+    # samples are counted.
     if results is not None and record_logged_samples:
-        results.metadata = {
-            **(results.metadata or {}),
-            "logged_samples": logger.samples_logged,
-        }
+        results.logged_samples = logger.samples_logged
     return await logger.log_finish(status, stats, results, reductions, error)

@@ -3242,6 +3242,17 @@
               }
             ]
           },
+          "logged_samples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logged Samples"
+          },
           "metadata": {
             "anyOf": [
               {

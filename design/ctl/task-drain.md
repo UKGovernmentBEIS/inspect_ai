@@ -539,16 +539,17 @@ by awaits.
 Three places the shipped implementation spells a mechanism differently than
 the sketch above; the semantics are as designed.
 
-- **The logged-samples count lives in `results.metadata`, not a first-class
-  `EvalResults` field.** Adding a field to `EvalResults` changes the log
-  schema, which requires the coordinated ts-mono type-regeneration dance
-  (cross-repo PR + gitlink bump — see `.claude/skills/land-ts-mono`);
-  `EvalResults.metadata` is an existing free-form field, so
-  `results.metadata["logged_samples"]` is additive with no schema change.
-  `log_samples_complete` prefers it when present exactly as designed
-  (absent on ordinary and older logs → today's classification). Promotion
-  to a first-class `EvalResults.logged_samples` can ride a future schema
-  regeneration.
+- **The logged-samples count is a typed optional `EvalResults.logged_samples`
+  field** (None on ordinary logs and on logs written by older versions →
+  today's classification), as sketched. An earlier revision carried it in
+  `results.metadata["logged_samples"]` to avoid the schema change; that was
+  rejected in review because the eval-set re-run classification depends on
+  the count — a correctness contract, not annotation — and a free-form key
+  survives rescoring only by convention. As a field, every path that
+  rebuilds `EvalResults` from an existing log (`inspect score`'s
+  `eval_results` call in `_eval/score.py`, `recompute_metrics` in
+  `log/_metric.py`) carries it explicitly and is pinned by tests, so a
+  rebuild can no longer silently flip an incomplete log to complete.
 - **The count is stamped only on graceful-resolution finalizes** (a stamped
   `"score"` / `"error"` / `"drain"`), not on every finalize. A blanket
   stamp would flip *legitimately* fewer-samples success logs — early
