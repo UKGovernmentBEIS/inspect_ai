@@ -3,6 +3,7 @@ from typing import Any, Literal
 import httpx2
 import pytest
 from openai import (
+    APIError,
     APIStatusError,
     ContentFilterFinishReasonError,
     LengthFinishReasonError,
@@ -26,8 +27,10 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._openai import (
+    OpenAIResponseError,
     chat_choices_from_openai,
     openai_chat_completion_stream_final,
+    openai_handle_stream_error,
 )
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.together import TogetherAIAPI
@@ -483,6 +486,159 @@ async def test_openai_compatible_streaming_returns_snapshot_on_content_filter(
         await api.aclose()
 
 
+def _mid_stream_error(body: dict[str, Any]) -> APIError:
+    """The exception the SDK's stream iterator raises for an error event: a plain APIError."""
+    return APIError(
+        message=str(body.get("message")),
+        request=httpx2.Request(method="POST", url="https://example.com"),
+        body=body,
+    )
+
+
+class _ErroringChunkStream(_FakeChunkStream):
+    """A chunk stream that raises mid-iteration, like the SDK on error events."""
+
+    def __init__(self, chunks: list[ChatCompletionChunk], error: APIError) -> None:
+        super().__init__(chunks)
+        self._error = error
+
+    def __aiter__(self) -> Any:
+        async def gen() -> Any:
+            for chunk in self._chunks:
+                yield chunk
+            raise self._error
+
+        return gen()
+
+
+async def test_openai_compatible_streaming_converts_mid_stream_safeguard_block(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A safeguard block raised mid-stream becomes content_filter output (like the 400 path)."""
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        stream=True,
+    )
+
+    stream = _ErroringChunkStream(
+        [
+            _chunk(
+                dict(
+                    choices=[
+                        dict(
+                            index=0,
+                            delta=dict(role="assistant", content="par"),
+                            finish_reason=None,
+                        )
+                    ]
+                )
+            )
+        ],
+        _mid_stream_error(
+            dict(
+                message="Your prompt was blocked by our content policy.",
+                type="invalid_request_error",
+                code="content_policy_violation",
+            )
+        ),
+    )
+
+    async def fake_create(**kwargs: Any) -> _ErroringChunkStream:
+        return stream
+
+    monkeypatch.setattr(api.client.chat.completions, "create", fake_create)
+
+    try:
+        result = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+        assert isinstance(result, tuple)
+        output, model_call = result
+        assert isinstance(output, ModelOutput)
+        assert output.choices[0].stop_reason == "content_filter"
+        assert "blocked" in output.completion
+        assert model_call.error is True
+    finally:
+        await api.aclose()
+
+
+async def test_openai_compatible_streaming_raises_unrecognized_mid_stream_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A mid-stream error that isn't a recognized block still raises."""
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        stream=True,
+    )
+
+    error = _mid_stream_error(
+        dict(message="The server had an error.", type="server_error")
+    )
+
+    async def fake_create(**kwargs: Any) -> _ErroringChunkStream:
+        return _ErroringChunkStream([], error)
+
+    monkeypatch.setattr(api.client.chat.completions, "create", fake_create)
+
+    try:
+        with pytest.raises(APIError) as excinfo:
+            await api.generate(
+                input=[ChatMessageUser(content="hi")],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+            )
+        assert excinfo.value is error
+    finally:
+        await api.aclose()
+
+
+def test_openai_handle_stream_error_ignores_status_errors() -> None:
+    """Status errors are never converted mid-stream; they keep retry semantics."""
+    status_error = APIStatusError(
+        message="blocked",
+        response=httpx2.Response(
+            status_code=429,
+            request=httpx2.Request(method="POST", url="https://example.com"),
+        ),
+        body=dict(message="blocked", code="content_policy_violation"),
+    )
+    assert openai_handle_stream_error("gpt-5", status_error) is None
+
+    converted = openai_handle_stream_error(
+        "gpt-5",
+        _mid_stream_error(dict(message="blocked", code="content_policy_violation")),
+    )
+    assert isinstance(converted, ModelOutput)
+    assert converted.choices[0].stop_reason == "content_filter"
+
+
+def test_openai_handle_stream_error_converts_response_errors() -> None:
+    """Responses-API error events (OpenAIResponseError) convert by block code.
+
+    Unrecognized codes return None so `server_error`/`rate_limit_exceeded`
+    keep their retry classification.
+    """
+    converted = openai_handle_stream_error(
+        "gpt-5",
+        OpenAIResponseError(code="content_policy_violation", message="blocked"),
+    )
+    assert isinstance(converted, ModelOutput)
+    assert converted.choices[0].stop_reason == "content_filter"
+
+    unrecognized = openai_handle_stream_error(
+        "gpt-5", OpenAIResponseError(code="server_error", message="oops")
+    )
+    assert unrecognized is None
+
+
 def test_sdk_stream_state_contract() -> None:
     """The SDK contracts the stream accumulation and recovery depend on.
 
@@ -712,9 +868,11 @@ async def test_chat_completion_stream_gated_without_on_stream(
 
 
 async def test_chat_completion_stream_empty_raises() -> None:
-    """A zero-chunk stream raises a descriptive error, not a bare assert."""
+    """A zero-chunk stream raises a descriptive, retryable error, not a bare assert."""
+    from inspect_ai.model._stream import NoStreamDataError
+
     fake_stream: Any = _FakeChunkStream([])
-    with pytest.raises(RuntimeError, match="without delivering any chunks"):
+    with pytest.raises(NoStreamDataError, match="without delivering any chunks"):
         await openai_chat_completion_stream_final(fake_stream)
 
 

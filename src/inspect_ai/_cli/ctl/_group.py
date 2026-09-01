@@ -30,22 +30,42 @@ else:
 
 
 class _IntOrClearType(_IntOrClearBase):
-    """Integer >= ``min``, or the keyword ``clear`` (restore launch config).
+    """Integer at or above ``minimum``, or the keyword ``clear``.
 
-    The override knobs' value domain (the retry overrides and the per-sample
-    limit overrides alike): every integer >= 0 (up to the server-shared
+    The default instance (:data:`_INT_OR_CLEAR`) is the override knobs' value
+    domain (the retry overrides and the per-sample limit overrides alike):
+    every integer >= 0 (up to the server-shared
     ``MAX_GENERATE_CONFIG_OVERRIDE`` bound, which ``MAX_SAMPLE_LIMIT_OVERRIDE``
     matches) is a real value (``--max-retries 0`` means fail after the first
     attempt), so clearing an override needs an out-of-band spelling — the
-    literal ``clear``, passed through to the server verbatim. ``--max-tasks``
-    uses ``min=1`` (0 would be a disguised pause — `inspect ctl process
-    pause` is the real spelling).
+    literal ``clear``, passed through to the server verbatim.
+    ``minimum`` / ``bounded`` / ``clear_hint`` fit knobs with a different
+    domain: ``--max-tasks`` (:data:`_INT_MIN_ONE_OR_CLEAR`) uses ``minimum=1``
+    (0 would be a disguised pause — `inspect ctl process pause` is the real
+    spelling), and ``--max-samples`` (:data:`_MAX_SAMPLES_INT_OR_CLEAR`)
+    rejects 0 like the ``IntRange(min=1)`` it replaces, has no upper bound,
+    and clears to adaptive tracking rather than launch config.
     """
 
     name = "integer or 'clear'"
 
-    def __init__(self, min: int = 0) -> None:
-        self._min = min
+    def __init__(
+        self,
+        minimum: int = 0,
+        bounded: bool = True,
+        clear_hint: str = "restore launch config",
+    ) -> None:
+        self._minimum = minimum
+        # bounded = enforce the shared MAX_GENERATE_CONFIG_OVERRIDE ceiling
+        # (resolved lazily at convert time); False for a knob with no upper
+        # bound
+        self._bounded = bounded
+        # clear_hint = what 'clear' does for this knob, spliced into the
+        # negative-value error; the default fits the override knobs and
+        # --max-tasks, while --max-samples clears to adaptive tracking (and
+        # is rejected outright for static-setpoint tasks, so "restore launch
+        # config" would mislead)
+        self._clear_hint = clear_hint
 
     def convert(
         self, value: Any, param: click.Parameter | None, ctx: click.Context | None
@@ -63,14 +83,19 @@ class _IntOrClearType(_IntOrClearBase):
                 parsed = int(value)
             except ValueError:
                 self.fail(f"{value!r} is not an integer or 'clear'.", param, ctx)
-        if parsed < self._min:
-            bound = "negative" if self._min == 0 else f"less than {self._min}"
+        if parsed < self._minimum:
+            if parsed < 0:
+                self.fail(
+                    f"{parsed} is negative (pass 'clear' to {self._clear_hint}).",
+                    param,
+                    ctx,
+                )
             self.fail(
-                f"{parsed} is {bound} (pass 'clear' to restore launch config).",
+                f"{parsed} is less than {self._minimum}.",
                 param,
                 ctx,
             )
-        if parsed > MAX_GENERATE_CONFIG_OVERRIDE:
+        if self._bounded and parsed > MAX_GENERATE_CONFIG_OVERRIDE:
             self.fail(
                 f"{parsed} is larger than the maximum override value "
                 f"({MAX_GENERATE_CONFIG_OVERRIDE}).",
@@ -81,7 +106,15 @@ class _IntOrClearType(_IntOrClearBase):
 
 
 _INT_OR_CLEAR = _IntOrClearType()
-_INT_MIN_ONE_OR_CLEAR = _IntOrClearType(min=1)
+_INT_MIN_ONE_OR_CLEAR = _IntOrClearType(minimum=1)
+
+# --max-samples: a concurrency setpoint, not an override-store value — 0 is
+# invalid (it would silently block all acquires — the limiter layers guard
+# >= 1) and there is no upper bound (matching the launch-time knob). See
+# design/ctl/max-samples-adaptive.md "Bounds".
+_MAX_SAMPLES_INT_OR_CLEAR = _IntOrClearType(
+    minimum=1, bounded=False, clear_hint="resume adaptive tracking"
+)
 
 
 class _NounGroup(click.Group):

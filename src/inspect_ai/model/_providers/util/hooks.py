@@ -34,13 +34,12 @@ class RequestInfo(NamedTuple):
     last_request: float
     # populated by response_hook for the most recent attempt — used by
     # update_request_time on the next retry to classify rate_limit vs transient
-    # and to honor server-provided wait times.
+    # and to report the server-provided wait time.
     last_status: int | None = None
     # Stored as an absolute monotonic deadline (time.monotonic() + retry_after)
     # rather than a duration. Between recording and consuming, the SDK may do
     # its own backoff, so we recompute the *remaining* seconds at consumption
-    # time — otherwise the controller's `now + retry_after` cooldown formula
-    # would double-count any time the SDK already waited.
+    # time so the reported hint reflects reality at that point.
     last_retry_after_deadline: float | None = None
     # Provider-supplied classification for the previous response. Set by
     # subclasses (e.g. ConverseHooks) when the HTTP status alone isn't enough
@@ -125,7 +124,9 @@ class HttpHooks:
             return
         # Convert the relative Retry-After to an absolute monotonic deadline
         # so any SDK-side backoff between now and the next retry is accounted
-        # for when we report remaining seconds to the controller.
+        # for when we report remaining seconds to the controller. The
+        # controller ignores the value today — it's carried for a future
+        # request-backoff consumer; see AdaptiveConcurrencyController.notify_retry.
         deadline: float | None = None
         if headers is not None:
             try:
