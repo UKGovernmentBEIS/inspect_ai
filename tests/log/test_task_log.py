@@ -1504,3 +1504,34 @@ async def test_task_logger_discard_contains_recorder_failures() -> None:
         "Error discarding abandoned log entry" in str(call.args[0])
         for call in warning.call_args_list
     )
+
+
+async def test_task_logger_discard_drops_recorder_entry_when_cleanup_fails(
+    tmp_path: Path,
+) -> None:
+    # a failing buffer-db removal in cleanup must not skip the recorder drop:
+    # the in-memory entry (open temp file included) is the leak discard exists
+    # to close, so each step is contained on its own
+    class _FailingCleanupBufferDB(_FlushBufferDB):
+        def cleanup(self) -> None:
+            raise OSError("simulated buffer db removal failure")
+
+    spec = _eval_spec()
+    recorder = EvalRecorder(str(tmp_path))
+    logger = TaskLoggerShim(_FailingCleanupBufferDB())
+    logger.recorder = cast(Recorder, recorder)
+    logger.eval = spec
+    location = await recorder.log_init(spec)
+    logger._location = location
+    await logger.log_start(EvalPlan())
+    assert Path(location).exists()
+
+    with patch.object(task_log_module.logger, "warning") as warning:
+        await logger.discard()
+
+    assert not Path(location).exists()
+    assert recorder.data == {}
+    assert any(
+        "Error cleaning up abandoned log entry" in str(call.args[0])
+        for call in warning.call_args_list
+    )

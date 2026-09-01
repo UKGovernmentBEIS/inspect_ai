@@ -952,10 +952,17 @@ class TaskLogger:
         storage error (e.g. a transient remote-fs failure on the file
         removal) would cancel every in-flight task in the run. Worst case a
         failed removal leaves the same stray ``started`` log the crash
-        would have left anyway.
+        would have left anyway. Each step is contained on its own so a
+        failed buffer-db removal in ``cleanup`` doesn't skip the recorder
+        drop — the entry leak is the very thing this method exists to close.
         """
         try:
             await self.cleanup()
+        except Exception as ex:
+            logger.warning(
+                f"Error cleaning up abandoned log entry '{self.location}': {ex}"
+            )
+        try:
             await self.recorder.log_discard(self.eval)
         except Exception as ex:
             logger.warning(
