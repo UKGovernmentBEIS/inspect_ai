@@ -440,9 +440,10 @@ class CallPoolIndex:
         and appends the new entry as a sibling lineage instead, since a
         partial match means the two lineages diverged from a shared prefix
         and replacing would merge them. With no match the entry is appended.
-        An append first drops any lineage unmatched for
-        ``_CALL_PREV_MAX_IDLE`` prefix scans, then, still at cap, evicts a random existing lineage (see class
-        docstring: LRU is pathological here).
+        Every call first drops any lineage unmatched for
+        ``_CALL_PREV_MAX_IDLE`` prefix scans; an append still at cap after
+        that evicts a random existing lineage (see class docstring: LRU is
+        pathological here).
 
         Args:
             msgs: Pre-walk wire-format message list.
