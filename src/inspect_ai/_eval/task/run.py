@@ -978,20 +978,22 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # set custom sandbox limits
     limit_tokens = set_sandbox_limits()
 
+    # a task drain/cancel abandoned this queued retry before it started: bail
+    # before log_start can flush a destination header (a zero-seed retry has
+    # no destination hold, so log_start writes a stray `started` log the
+    # retry-cleanup sweep would prefer over the errored attempt's log), and
+    # before display().task() creates a task row (an abandoned row with no
+    # result would become the last row for this task id and read as
+    # incomplete in the rich header for the rest of the run). Best-effort —
+    # awaits separate this from register_eval, so the pre-register check
+    # below remains the race-free backstop (and the dispatcher's discard
+    # removes any header a stamp landing in between still flushed).
+    if task_retry_abandoned(logger.eval.task_id):
+        raise TaskRetryAbandonedError()
+
     with display().task(
         profile,
     ) as td:
-        # a task drain/cancel abandoned this queued retry before it started:
-        # bail before log_start can flush a destination header (a zero-seed
-        # retry has no destination hold, so log_start writes a stray
-        # `started` log the retry-cleanup sweep would prefer over the errored
-        # attempt's log). Best-effort — awaits separate this from
-        # register_eval, so the pre-register check below remains the
-        # race-free backstop (and the dispatcher's discard removes any
-        # header a stamp landing in between still flushed).
-        if task_retry_abandoned(logger.eval.task_id):
-            raise TaskRetryAbandonedError()
-
         # start the log (do this outside fo the try b/c the try/except assumes
         # that the log is initialized)
         eval_plan = plan_to_eval_plan(plan, generate_config)

@@ -597,7 +597,10 @@ Implementation review surfaced two gaps the sketch missed; both are closed:
   (no destination hold) the header has already been flushed — the stray
   `started` log would win the end-of-run retry-cleanup sweep by mtime,
   deleting the errored attempt's log the abandon promised would stand.
-  `task_run` consults the registry once more before `log_start`
+  `task_run` consults the registry once more before `log_start` — and
+  before `display().task()` opens a task row, since an abandoned row with no
+  result would become the last row for its task id and make the rich
+  header's task count read the task as incomplete for the rest of the run
   (best-effort; the pre-register check stays the race-free backstop), and
   every abandon path discards via `TaskLogger.discard`, which drops the
   recorder's in-memory entry (otherwise leaked for the rest of the run)
