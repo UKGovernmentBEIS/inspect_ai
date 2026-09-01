@@ -36,6 +36,7 @@
 - Hooks: Fixed hooks published by extension packages silently not loading when another hook was already registered at startup.
 - Bugfix: Model calls no longer time out during long samples with realtime logging or bounded transcripts enabled.
 - Control Channel: `inspect ctl sample cancel --action cancel` now works on samples that haven't started — cancelling a never-started sample before it runs and withdrawing (un-requeuing) a queued re-run so its prior outcome stands.
+- Metrics: Add `ci_wilson()` metric reporting the Wilson score confidence interval for the mean of binary scores (as `{"lower", "upper"}`), with bounds always within [0, 1]; `cluster=` computes an effective-sample-size interval accounting for within-cluster correlation.
 
 ## 0.3.261 (30 August 2026)
 
@@ -111,7 +112,6 @@
 - Hugging Face: Chat templates that use dict methods (e.g. Gemma's `message.get(...)`) no longer fail with a Jinja `UndefinedError`.
 - Sandbox: When remote exec polling exhausts its retries, the error now names the sandbox's actual failure instead of an opaque tenacity RetryError.
 - Fixed a sandbox service (including the sandbox agent bridge) permanently ceasing to answer requests after one slow request, which previously required destroying the sandbox to recover.
-- Metrics: Add `ci_wilson()` metric reporting the Wilson score confidence interval for the mean of binary scores (as `{"lower", "upper"}`), with bounds always within [0, 1]; `cluster=` computes an effective-sample-size interval accounting for within-cluster correlation.
 
 ## 0.3.260 (21 August 2026)
 
