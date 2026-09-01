@@ -23,7 +23,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.anthropic import AnthropicAPI
-from inspect_ai.tool import ToolCall, ToolInfo
+from inspect_ai.tool import ToolCall, ToolFunction, ToolInfo
 
 
 @pytest.mark.anyio
@@ -222,6 +222,8 @@ def test_anthropic_thinking_keeps_display_without_full_thinking_beta() -> None:
         # Fable/Mythos 5 always think and reject `disabled` — leave thinking unset
         ("claude-fable-5", False),
         ("claude-mythos-5", False),
+        ("claude-fable-5-1", False),
+        ("claude-mythos-5-1", False),
         # pre-4.7 default to no thinking — omitting the field already means off
         ("claude-sonnet-4-6", False),
         ("claude-sonnet-4-5", False),
@@ -1380,6 +1382,8 @@ async def test_anthropic_opus_5_disabled_thinking_effort_clamp_live() -> None:
         # Claude 5 (GA opus/fable + hypothetical tier-named): 128k via "claude 5+" branch
         ("claude-opus-5", 128000),
         ("claude-fable-5", 128000),
+        ("claude-fable-5-1", 128000),
+        ("claude-mythos-5-1", 128000),
         ("claude-opus-5-0", 128000),
         ("claude-sonnet-5-0", 128000),
         # Non-opus 4.5 / 4.6+ (incl. 4.7 and future 4.x minor): 64k
@@ -1410,8 +1414,10 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
         "claude-opus-5",
         "claude-fable-5",
         "claude-mythos-5",
-        # forward-compat variants: point release, tier-named, new codename
+        # point releases
         "claude-fable-5-1",
+        "claude-mythos-5-1",
+        # forward-compat variants: tier-named, new codename
         "claude-opus-5-0",
         "claude-saga-5",
     ],
@@ -1455,7 +1461,8 @@ def _computer_tool_info() -> ToolInfo:
 
 
 @pytest.mark.parametrize(
-    "model_name", ["claude-fable-5", "claude-mythos-5", "claude-saga-5"]
+    "model_name",
+    ["claude-fable-5", "claude-mythos-5", "claude-fable-5-1", "claude-saga-5"],
 )
 def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
     """Undocumented Claude 5 models error on computer use rather than degrade.
@@ -1499,6 +1506,225 @@ def test_anthropic_computer_use_tool_version(
     param = api.computer_use_tool_param(_computer_tool_info())
     assert param is not None
     assert param["type"] == expected_type
+
+
+# ---------------------------------------------------------------------------
+# Fable/Mythos 5.1: forced tool choice + thinking block binding
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("claude-fable-5-1", True),
+        ("claude-mythos-5-1", True),
+        ("anthropic.claude-fable-5-1", True),
+        # assume later point releases keep the 5.1 behavior
+        ("claude-fable-5-2", True),
+        ("claude-fable-5.1", True),
+        # base names and other models don't match
+        ("claude-fable-5", False),
+        ("claude-mythos-5", False),
+        ("claude-sonnet-5", False),
+        ("claude-opus-5", False),
+        ("claude-saga-5-1", False),
+        ("claude-haiku-4-5", False),
+        ("claude-3-5-sonnet-latest", False),
+        # a hypothetical date-suffixed base snapshot is not a point release
+        ("claude-fable-5-20260609", False),
+    ],
+)
+def test_anthropic_is_claude_fable_5_1_or_later(
+    model_name: str, expected: bool
+) -> None:
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.is_claude_fable_5_1_or_later() is expected
+
+
+@pytest.mark.parametrize("model_name", ["claude-fable-5-1", "claude-mythos-5-1"])
+def test_anthropic_fable_5_1_degrades_forced_tool_choice(model_name: str) -> None:
+    """Fable/Mythos 5.1 reject forced tool choice (400); degrade to auto."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.resolved_tool_choice("any") == "auto"
+    assert api.resolved_tool_choice(ToolFunction(name="get_weather")) == "auto"
+    # auto and none are unchanged on these models
+    assert api.resolved_tool_choice("auto") == "auto"
+    assert api.resolved_tool_choice("none") == "none"
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ["claude-fable-5", "claude-mythos-5", "claude-sonnet-5", "claude-opus-4-8"],
+)
+def test_anthropic_forced_tool_choice_unchanged_elsewhere(model_name: str) -> None:
+    """Models other than Fable/Mythos 5.1 keep forced tool choice as requested."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.resolved_tool_choice("any") == "any"
+    tool_function = ToolFunction(name="get_weather")
+    assert api.resolved_tool_choice(tool_function) is tool_function
+
+
+def _request_with_thinking_history() -> dict[str, Any]:
+    return {
+        "messages": [
+            {"role": "user", "content": [{"type": "text", "text": "hi"}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "", "signature": "sig"},
+                    {"type": "text", "text": "hello"},
+                ],
+            },
+            {"role": "user", "content": [{"type": "text", "text": "again"}]},
+        ]
+    }
+
+
+def test_anthropic_fable_5_1_thinking_block_binding() -> None:
+    """Replayed thinking blocks opt into drop_block on prefix mismatch."""
+    api = AnthropicAPI(model_name="claude-fable-5-1", api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
+
+
+def test_anthropic_fable_5_1_thinking_block_binding_merges_existing() -> None:
+    """An existing thinking param keeps its fields when block_binding is added."""
+    api = AnthropicAPI(model_name="claude-fable-5-1", api_key="test-key")
+    request = _request_with_thinking_history() | {
+        "thinking": {"type": "adaptive", "display": "summarized"}
+    }
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "display": "summarized",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
+
+
+def test_anthropic_fable_5_1_no_binding_without_thinking_blocks() -> None:
+    """No thinking blocks in the history means no beta and no thinking param."""
+    api = AnthropicAPI(model_name="claude-fable-5-1", api_key="test-key")
+    request: dict[str, Any] = {
+        "messages": [{"role": "user", "content": [{"type": "text", "text": "hi"}]}]
+    }
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == []
+    assert "thinking" not in request
+
+
+def test_anthropic_fable_5_no_binding_on_base_model() -> None:
+    """The base Fable 5 model does not bind thinking blocks."""
+    api = AnthropicAPI(model_name="claude-fable-5", api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == []
+    assert "thinking" not in request
+
+
+def test_anthropic_fable_5_1_no_binding_on_bedrock() -> None:
+    """The thinking-binding beta is first-party only (not bedrock/vertex)."""
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    api = AnthropicAPI(
+        model_name="bedrock/anthropic.claude-fable-5-1", api_key="test-key"
+    )
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == []
+    assert "thinking" not in request
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_name,expected_type",
+    [
+        ("claude-fable-5-1", "auto"),
+        ("claude-fable-5", "tool"),
+    ],
+)
+async def test_anthropic_forced_tool_choice_request_wiring(
+    model_name: str, expected_type: str
+) -> None:
+    """The degraded tool choice is what actually lands in the request."""
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    captured: dict[str, Any] = {}
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    with patch.object(api, "_perform_request_and_continuations", fake_perform):
+        await api.generate(
+            input=[ChatMessageUser(content="What is 1 + 1?")],
+            tools=[
+                ToolInfo(
+                    name="addition",
+                    description="Add two numbers.",
+                    parameters=ToolParams(
+                        properties={"x": ToolParam(type="integer")}, required=["x"]
+                    ),
+                )
+            ],
+            tool_choice=ToolFunction(name="addition"),
+            config=GenerateConfig(max_tokens=64),
+        )
+
+    assert captured["tool_choice"]["type"] == expected_type
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_fable_5_1_generate_live() -> None:
+    """Fable 5.1 accepts our request shape (adaptive thinking + effort) and generates."""
+    model = get_model(
+        "anthropic/claude-fable-5-1",
+        config=GenerateConfig(effort="high", max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_fable_5_1_forced_tool_choice_live() -> None:
+    """Forced tool choice must not 400 on Fable 5.1 (degraded to auto)."""
+    from test_helpers.tools import addition
+
+    model = get_model(
+        "anthropic/claude-fable-5-1",
+        config=GenerateConfig(max_tokens=1024),
+    )
+    response = await model.generate(
+        input="What is 1 + 1? Use the addition tool to compute it.",
+        tools=[addition()],
+        tool_choice=ToolFunction(name="addition"),
+    )
+    assert len(response.completion) >= 1 or response.message.tool_calls
 
 
 # ---------------------------------------------------------------------------

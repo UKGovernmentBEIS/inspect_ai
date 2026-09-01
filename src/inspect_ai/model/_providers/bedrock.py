@@ -54,6 +54,13 @@ from .util.hooks import ConverseHooks
 
 logger = getLogger(__name__)
 
+# mirrors the same-named warning in the native anthropic provider
+_FORCED_TOOL_CHOICE_WARNING = (
+    "anthropic model '{model}' does not support forced tool choice "
+    "(tool_choice 'any' or a specific tool returns a 400 error); using "
+    "tool_choice 'auto' instead."
+)
+
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
 
@@ -599,6 +606,37 @@ class BedrockAPI(ModelAPI):
                 return True
         return False
 
+    def is_claude_fable_5_1_or_later(self) -> bool:
+        """Mirrors `is_claude_fable_5_1_or_later` in the native anthropic provider.
+
+        Fable/Mythos 5.1+ (e.g. anthropic.claude-fable-5-1) reject forced tool
+        choice with a 400; base names and date-suffixed base snapshots do not
+        match.
+        """
+        return (
+            self.is_claude()
+            and re.search(
+                r"claude-(?:fable|mythos)-5[-.](?!20\d{6})\d", self.model_family()
+            )
+            is not None
+        )
+
+    def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
+        """Mirrors `resolved_tool_choice` in the native anthropic provider.
+
+        Fable/Mythos 5.1 reject forced tool choice with a 400 — degrade to
+        auto with a warning rather than failing the request.
+        """
+        if (
+            tool_choice == "any" or isinstance(tool_choice, ToolFunction)
+        ) and self.is_claude_fable_5_1_or_later():
+            warn_once(
+                logger,
+                _FORCED_TOOL_CHOICE_WARNING.format(model=self.model_family()),
+            )
+            return "auto"
+        return tool_choice
+
     def is_thinking_model(self) -> bool:
         """Mirrors the native anthropic provider — claude-3 / claude-3.5 don't think."""
         return self.is_claude() and not self.is_claude_3() and not self.is_claude_3_5()
@@ -668,7 +706,7 @@ class BedrockAPI(ModelAPI):
             resolved_tools = converse_tools(tools)
             tool_config = None
             if resolved_tools is not None:
-                choice = converse_tool_choice(tool_choice)
+                choice = converse_tool_choice(self.resolved_tool_choice(tool_choice))
                 tool_config = ConverseToolConfig(
                     tools=resolved_tools, toolChoice=choice
                 )

@@ -297,6 +297,32 @@ def test_claude_40_reasoning_tokens_not_promoted_to_adaptive():
     assert fields == {"thinking": {"type": "enabled", "budget_tokens": 4096}}
 
 
+# --- Fable/Mythos 5.1 forced tool choice ----------------------------------
+
+
+def test_fable_5_1_degrades_forced_tool_choice():
+    """Fable/Mythos 5.1 reject forced tool choice with a 400; degrade to auto."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    api = _make_api("anthropic.claude-fable-5-1")
+    assert api.is_claude_fable_5_1_or_later() is True
+    assert api.resolved_tool_choice("any") == "auto"
+    assert api.resolved_tool_choice(ToolFunction(name="get_weather")) == "auto"
+    assert api.resolved_tool_choice("auto") == "auto"
+    assert api.resolved_tool_choice("none") == "none"
+
+
+def test_fable_5_base_keeps_forced_tool_choice():
+    """The base Fable 5 model keeps forced tool choice as requested."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    api = _make_api("anthropic.claude-fable-5")
+    assert api.is_claude_fable_5_1_or_later() is False
+    assert api.resolved_tool_choice("any") == "any"
+    tool_function = ToolFunction(name="get_weather")
+    assert api.resolved_tool_choice(tool_function) is tool_function
+
+
 # --- thinking + tool use round trip (live) ---------------------------------
 #
 # AWS docs require the last assistant message's thinking block (with
