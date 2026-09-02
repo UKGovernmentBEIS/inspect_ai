@@ -11320,7 +11320,7 @@ function toString$2(v) {
 ({ ...functions });
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/util/error.js
-function error$8(message, cause) {
+function error$9(message, cause) {
 	throw Error(message, { cause });
 }
 //#endregion
@@ -11883,7 +11883,7 @@ var windowFunctions = {
 	ntile: {
 		create(num) {
 			num = +num;
-			if (!(num > 0)) error$8("ntile num must be greater than zero.");
+			if (!(num > 0)) error$9("ntile num must be greater than zero.");
 			const { init, value } = cume_dist.create();
 			return {
 				init,
@@ -11944,7 +11944,7 @@ var windowFunctions = {
 	nth_value: {
 		create(nth) {
 			nth = +nth;
-			if (!(nth > 0)) error$8("nth_value nth must be greater than zero.");
+			if (!(nth > 0)) error$9("nth_value nth must be greater than zero.");
 			return {
 				init: noop$1,
 				value: (w, f) => {
@@ -20266,6 +20266,23 @@ var printObject = (val, size = 50) => {
 	const allItems = [...headItems, ...tailItems];
 	return envelope[0] + allItems.join(separator) + envelope[1];
 };
+/**
+* Own-property read of a string-keyed record. Plain indexing walks the
+* prototype chain, so a key taken from untrusted data (a log's uuid, score
+* name, attachment id, ...) that happens to be `constructor`, `toString` or
+* `__proto__` resolves to a builtin instead of "absent"; this returns
+* `undefined` for any key the record does not own.
+*/ var getOwn = (record, key) => record !== void 0 && Object.hasOwn(record, key) ? record[key] : void 0;
+/**
+* Record with a null prototype built from a Map. `Object.fromEntries` alone
+* only makes *present* keys own properties; an absent prototype-named key
+* would still resolve through Object.prototype at read sites, and a present
+* `__proto__` key could not be assigned onto a plain object at all.
+*/ var nullProtoRecord = (entries) => {
+	const record = Object.fromEntries(entries);
+	Object.setPrototypeOf(record, null);
+	return record;
+};
 //#endregion
 //#region ../../packages/util/src/path.ts
 /**
@@ -20798,12 +20815,12 @@ var kModelNameSeparator = ", ";
 * treat "no roles" and "absent" uniformly.
 */ var modelRoleNames = (modelRoles) => {
 	if (!modelRoles) return void 0;
-	const roles = {};
+	const roles = /* @__PURE__ */ new Map();
 	for (const [role, value] of Object.entries(modelRoles)) {
 		const names = modelRoleModelNames(value);
-		if (names) roles[role] = names;
+		if (names) roles.set(role, names);
 	}
-	return Object.keys(roles).length > 0 ? roles : void 0;
+	return roles.size > 0 ? nullProtoRecord(roles) : void 0;
 };
 //#endregion
 //#region ../../packages/inspect-common/src/utils/time.ts
@@ -26499,7 +26516,7 @@ function debounce$2(func, wait, options) {
 	return debouncedFn;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
 var QueryClientContext = import_react.createContext(void 0);
 var useQueryClient = (queryClient) => {
 	const client = import_react.useContext(QueryClientContext);
@@ -26520,7 +26537,7 @@ var QueryClientProvider = ({ client, children }) => {
 	});
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
 var defaultTimeoutProvider = {
 	setTimeout: (callback, delay) => setTimeout(callback, delay),
 	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
@@ -26569,11 +26586,11 @@ function systemSetTimeoutZero(callback) {
 	setTimeout(callback, 0);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/utils.js
 /** @deprecated
 * use `environmentManager.isServer()` instead.
 */
-var isServer = typeof window === "undefined" || "Deno" in globalThis;
+var isServer$1 = typeof window === "undefined" || "Deno" in globalThis;
 function noop() {}
 function functionalUpdate$1(updater, input) {
 	return typeof updater === "function" ? updater(input) : updater;
@@ -26584,11 +26601,8 @@ function isValidTimeout(value) {
 function timeUntilStale(updatedAt, staleTime) {
 	return Math.max(updatedAt + (staleTime || 0) - Date.now(), 0);
 }
-function resolveStaleTime(staleTime, query) {
-	return typeof staleTime === "function" ? staleTime(query) : staleTime;
-}
-function resolveQueryBoolean(option, query) {
-	return typeof option === "function" ? option(query) : option;
+function resolveQueryValue(value, query) {
+	return typeof value === "function" ? value(query) : value;
 }
 function matchQuery(filters, query) {
 	const { type = "all", exact, fetchStatus, predicate, queryKey, stale } = filters;
@@ -26748,29 +26762,14 @@ function addConsumeAwareSignal(object, getSignal, onCancelled) {
 	return object;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+var isServerFn = () => isServer$1;
 /**
-* Manages environment detection used by TanStack Query internals.
+* Returns whether the current runtime should be treated as a server environment.
 */
-var environmentManager = (() => {
-	let isServerFn = () => isServer;
-	return {
-		/**
-		* Returns whether the current runtime should be treated as a server environment.
-		*/
-		isServer() {
-			return isServerFn();
-		},
-		/**
-		* Overrides the server check globally.
-		*/
-		setIsServer(isServerValue) {
-			isServerFn = isServerValue;
-		}
-	};
-})();
+var isServer = () => isServerFn();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/subscribable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/subscribable.js
 var Subscribable = class {
 	constructor() {
 		this.listeners = /* @__PURE__ */ new Set();
@@ -26791,7 +26790,7 @@ var Subscribable = class {
 	onUnsubscribe() {}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/focusManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/focusManager.js
 var FocusManager = class extends Subscribable {
 	#focused;
 	#cleanup;
@@ -26844,7 +26843,7 @@ var FocusManager = class extends Subscribable {
 };
 var focusManager = new FocusManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/notifyManager.js
 var defaultScheduler = systemSetTimeoutZero;
 function createNotifyManager() {
 	let queue = [];
@@ -26917,7 +26916,7 @@ function createNotifyManager() {
 }
 var notifyManager = createNotifyManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/onlineManager.js
 var OnlineManager = class extends Subscribable {
 	#online = true;
 	#cleanup;
@@ -26965,7 +26964,7 @@ var OnlineManager = class extends Subscribable {
 };
 var onlineManager = new OnlineManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/retryer.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/retryer.js
 function defaultRetryDelay(failureCount) {
 	return Math.min(1e3 * 2 ** failureCount, 3e4);
 }
@@ -27043,7 +27042,7 @@ function createRetryer(config) {
 		}
 		Promise.resolve(promiseOrValue).then(resolve).catch((error) => {
 			if (isResolved()) return;
-			const retry = config.retry ?? (environmentManager.isServer() ? 0 : 3);
+			const retry = config.retry ?? (isServer() ? 0 : 3);
 			const retryDelay = config.retryDelay ?? defaultRetryDelay;
 			const delay = typeof retryDelay === "function" ? retryDelay(failureCount, error) : retryDelay;
 			const shouldRetry = retry === true || typeof retry === "number" && failureCount < retry || typeof retry === "function" && retry(failureCount, error);
@@ -27080,7 +27079,7 @@ function createRetryer(config) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/removable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/removable.js
 var Removable = class {
 	#gcTimeout;
 	destroy() {
@@ -27093,7 +27092,7 @@ var Removable = class {
 		}, this.gcTime);
 	}
 	updateGcTime(newGcTime) {
-		this.gcTime = Math.max(this.gcTime || 0, newGcTime ?? (environmentManager.isServer() ? Infinity : 3e5));
+		this.gcTime = Math.max(this.gcTime || 0, newGcTime ?? (isServer() ? Infinity : 3e5));
 	}
 	clearGcTimeout() {
 		if (this.#gcTimeout !== void 0) {
@@ -27103,7 +27102,7 @@ var Removable = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
 function infiniteQueryBehavior(pages) {
 	return { onFetch: (context, query) => {
 		const options = context.options;
@@ -27196,7 +27195,7 @@ function hasPreviousPage(options, data) {
 	return getPreviousPageParam(options, data) != null;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/query.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/query.js
 var Query = class extends Removable {
 	#queryType;
 	#initialState;
@@ -27280,7 +27279,7 @@ var Query = class extends Removable {
 		this.setState(this.resetState);
 	}
 	isActive() {
-		return this.observers.some((observer) => resolveQueryBoolean(observer.options.enabled, this) !== false);
+		return this.observers.some((observer) => resolveQueryValue(observer.options.enabled, this) !== false);
 	}
 	isDisabled() {
 		if (this.getObserversCount() > 0) return !this.isActive();
@@ -27290,7 +27289,7 @@ var Query = class extends Removable {
 		return this.state.dataUpdateCount + this.state.errorUpdateCount > 0;
 	}
 	isStatic() {
-		if (this.getObserversCount() > 0) return this.observers.some((observer) => resolveStaleTime(observer.options.staleTime, this) === "static");
+		if (this.getObserversCount() > 0) return this.observers.some((observer) => resolveQueryValue(observer.options.staleTime, this) === "static");
 		return false;
 	}
 	isStale() {
@@ -27328,7 +27327,7 @@ var Query = class extends Removable {
 			this.observers.splice(index, 1);
 			if (!this.observers.length) {
 				if (this.#retryer) {
-					if (this.#abortSignalConsumed || this.#isInitialPausedFetch()) this.#retryer.cancel({ revert: true });
+					if (this.#abortSignalConsumed || this.state.fetchStatus === "paused" && this.state.status === "pending") this.#retryer.cancel({ revert: true });
 					else this.#retryer.cancelRetry();
 				}
 				this.scheduleGc();
@@ -27342,9 +27341,6 @@ var Query = class extends Removable {
 	}
 	getObserversCount() {
 		return this.observers.length;
-	}
-	#isInitialPausedFetch() {
-		return this.state.fetchStatus === "paused" && this.state.status === "pending";
 	}
 	invalidate() {
 		if (!this.state.isInvalidated) this.#dispatch({ type: "invalidate" });
@@ -27572,7 +27568,7 @@ function getDefaultState$1(options) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/queryObserver.js
 var QueryObserver = class extends Subscribable {
 	#client;
 	#currentQuery = void 0;
@@ -27626,7 +27622,7 @@ var QueryObserver = class extends Subscribable {
 		const prevOptions = this.options;
 		const prevQuery = this.#currentQuery;
 		this.options = this.#client.defaultQueryOptions(options);
-		if (this.options.enabled !== void 0 && typeof this.options.enabled !== "boolean" && typeof this.options.enabled !== "function" && typeof resolveQueryBoolean(this.options.enabled, this.#currentQuery) !== "boolean") throw new Error("Expected enabled to be a boolean or a callback that returns a boolean");
+		if (this.options.enabled !== void 0 && typeof this.options.enabled !== "boolean" && typeof this.options.enabled !== "function" && typeof resolveQueryValue(this.options.enabled, this.#currentQuery) !== "boolean") throw new Error("Expected enabled to be a boolean or a callback that returns a boolean");
 		this.#updateQuery();
 		this.#currentQuery.setOptions(this.options);
 		if (prevOptions._defaulted && !shallowEqualObjects(this.options, prevOptions)) this.#client.getQueryCache().notify({
@@ -27637,14 +27633,14 @@ var QueryObserver = class extends Subscribable {
 		const mounted = this.hasListeners();
 		if (mounted && shouldFetchOptionally(this.#currentQuery, prevQuery, this.options, prevOptions)) this.#executeFetch();
 		this.updateResult();
-		if (mounted && (this.#currentQuery !== prevQuery || resolveQueryBoolean(this.options.enabled, this.#currentQuery) !== resolveQueryBoolean(prevOptions.enabled, this.#currentQuery) || resolveStaleTime(this.options.staleTime, this.#currentQuery) !== resolveStaleTime(prevOptions.staleTime, this.#currentQuery))) this.#updateStaleTimeout();
+		if (mounted && (this.#currentQuery !== prevQuery || resolveQueryValue(this.options.enabled, this.#currentQuery) !== resolveQueryValue(prevOptions.enabled, this.#currentQuery) || resolveQueryValue(this.options.staleTime, this.#currentQuery) !== resolveQueryValue(prevOptions.staleTime, this.#currentQuery))) this.#updateStaleTimeout();
 		const nextRefetchInterval = this.#computeRefetchInterval();
-		if (mounted && (this.#currentQuery !== prevQuery || resolveQueryBoolean(this.options.enabled, this.#currentQuery) !== resolveQueryBoolean(prevOptions.enabled, this.#currentQuery) || nextRefetchInterval !== this.#currentRefetchInterval)) this.#updateRefetchInterval(nextRefetchInterval);
+		if (mounted && (this.#currentQuery !== prevQuery || resolveQueryValue(this.options.enabled, this.#currentQuery) !== resolveQueryValue(prevOptions.enabled, this.#currentQuery) || nextRefetchInterval !== this.#currentRefetchInterval)) this.#updateRefetchInterval(nextRefetchInterval);
 	}
 	getOptimisticResult(options) {
 		const query = this.#client.getQueryCache().build(this.#client, options);
 		const result = this.createResult(query, options);
-		if (shouldAssignObserverCurrentProperties(this, result)) {
+		if (!shallowEqualObjects(this.getCurrentResult(), result)) {
 			this.#currentResult = result;
 			this.#currentResultOptions = this.options;
 			this.#currentResultState = this.#currentQuery.state;
@@ -27707,10 +27703,13 @@ var QueryObserver = class extends Subscribable {
 		if (!fetchOptions?.throwOnError) promise = promise.catch(noop);
 		return promise;
 	}
+	#shouldScheduleTimer(timeout) {
+		return !isServer() && resolveQueryValue(this.options.enabled, this.#currentQuery) !== false && isValidTimeout(timeout);
+	}
 	#updateStaleTimeout() {
 		this.#clearStaleTimeout();
-		const staleTime = resolveStaleTime(this.options.staleTime, this.#currentQuery);
-		if (environmentManager.isServer() || this.#currentResult.isStale || !isValidTimeout(staleTime)) return;
+		const staleTime = resolveQueryValue(this.options.staleTime, this.#currentQuery);
+		if (this.#currentResult.isStale || !this.#shouldScheduleTimer(staleTime)) return;
 		const timeout = timeUntilStale(this.#currentResult.dataUpdatedAt, staleTime) + 1;
 		this.#staleTimeoutId = timeoutManager.setTimeout(() => {
 			if (!this.#currentResult.isStale) this.updateResult();
@@ -27722,7 +27721,7 @@ var QueryObserver = class extends Subscribable {
 	#updateRefetchInterval(nextInterval) {
 		this.#clearRefetchInterval();
 		this.#currentRefetchInterval = nextInterval;
-		if (environmentManager.isServer() || resolveQueryBoolean(this.options.enabled, this.#currentQuery) === false || !isValidTimeout(this.#currentRefetchInterval) || this.#currentRefetchInterval === 0) return;
+		if (this.#currentRefetchInterval === 0 || !this.#shouldScheduleTimer(this.#currentRefetchInterval)) return;
 		this.#refetchIntervalId = timeoutManager.setInterval(() => {
 			if (this.options.refetchIntervalInBackground || focusManager.isFocused()) this.#executeFetch();
 		}, this.#currentRefetchInterval);
@@ -27828,7 +27827,7 @@ var QueryObserver = class extends Subscribable {
 			isRefetchError: isError && hasData,
 			isStale: isStale(query, options),
 			refetch: this.refetch,
-			isEnabled: resolveQueryBoolean(options.enabled, query) !== false
+			isEnabled: resolveQueryValue(options.enabled, query) !== false
 		};
 	}
 	updateResult() {
@@ -27851,7 +27850,16 @@ var QueryObserver = class extends Subscribable {
 				return this.#currentResult[typedKey] !== prevResult[typedKey] && includedProps.has(typedKey);
 			});
 		};
-		this.#notify({ listeners: shouldNotifyListeners() });
+		const notifyListeners = shouldNotifyListeners();
+		notifyManager.batch(() => {
+			if (notifyListeners) this.listeners.forEach((listener) => {
+				listener(this.#currentResult);
+			});
+			this.#client.getQueryCache().notify({
+				query: this.#currentQuery,
+				type: "observerResultsUpdated"
+			});
+		});
 	}
 	#updateQuery() {
 		const query = this.#client.getQueryCache().build(this.#client, this.options);
@@ -27868,43 +27876,28 @@ var QueryObserver = class extends Subscribable {
 		this.updateResult();
 		if (this.hasListeners()) this.#updateTimers();
 	}
-	#notify(notifyOptions) {
-		notifyManager.batch(() => {
-			if (notifyOptions.listeners) this.listeners.forEach((listener) => {
-				listener(this.#currentResult);
-			});
-			this.#client.getQueryCache().notify({
-				query: this.#currentQuery,
-				type: "observerResultsUpdated"
-			});
-		});
-	}
 };
 function shouldLoadOnMount(query, options) {
-	return resolveQueryBoolean(options.enabled, query) !== false && query.state.data === void 0 && !(query.state.status === "error" && resolveQueryBoolean(options.retryOnMount, query) === false);
+	return resolveQueryValue(options.enabled, query) !== false && query.state.data === void 0 && !(query.state.status === "error" && resolveQueryValue(options.retryOnMount, query) === false);
 }
 function shouldFetchOnMount(query, options) {
 	return shouldLoadOnMount(query, options) || query.state.data !== void 0 && shouldFetchOn(query, options, options.refetchOnMount);
 }
 function shouldFetchOn(query, options, field) {
-	if (resolveQueryBoolean(options.enabled, query) !== false && resolveStaleTime(options.staleTime, query) !== "static") {
+	if (resolveQueryValue(options.enabled, query) !== false && resolveQueryValue(options.staleTime, query) !== "static") {
 		const value = typeof field === "function" ? field(query) : field;
 		return value === "always" || value !== false && isStale(query, options);
 	}
 	return false;
 }
 function shouldFetchOptionally(query, prevQuery, options, prevOptions) {
-	return (query !== prevQuery || resolveQueryBoolean(prevOptions.enabled, query) === false) && (!options.suspense || query.state.status !== "error") && isStale(query, options);
+	return (query !== prevQuery || resolveQueryValue(prevOptions.enabled, query) === false) && (!options.suspense || query.state.status !== "error") && isStale(query, options);
 }
 function isStale(query, options) {
-	return resolveQueryBoolean(options.enabled, query) !== false && query.isStaleByTime(resolveStaleTime(options.staleTime, query));
-}
-function shouldAssignObserverCurrentProperties(observer, optimisticResult) {
-	if (!shallowEqualObjects(observer.getCurrentResult(), optimisticResult)) return true;
-	return false;
+	return resolveQueryValue(options.enabled, query) !== false && query.isStaleByTime(resolveQueryValue(options.staleTime, query));
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
 var InfiniteQueryObserver = class extends QueryObserver {
 	constructor(client, options) {
 		super(client, options);
@@ -27959,7 +27952,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/mutation.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/mutation.js
 var Mutation = class extends Removable {
 	#client;
 	#observers;
@@ -28176,7 +28169,7 @@ function getDefaultState() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/mutationCache.js
 var MutationCache = class extends Subscribable {
 	#mutations;
 	#scopes;
@@ -28283,7 +28276,7 @@ function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
 var MutationObserver$1 = class extends Subscribable {
 	#client;
 	#currentResult = void 0;
@@ -28393,7 +28386,7 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/queryCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/queryCache.js
 var QueryCache = class extends Subscribable {
 	#queries;
 	constructor(config = {}) {
@@ -28485,7 +28478,7 @@ var QueryCache = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/queryClient.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/queryClient.js
 var QueryClient = class {
 	#queryCache;
 	#mutationCache;
@@ -28558,7 +28551,7 @@ var QueryClient = class {
 		const query = this.#queryCache.build(this, defaultedOptions);
 		const cachedData = query.state.data;
 		if (cachedData === void 0) return this.fetchQuery(options);
-		if (options.revalidateIfStale && query.isStaleByTime(resolveStaleTime(defaultedOptions.staleTime, query))) this.prefetchQuery(defaultedOptions);
+		if (options.revalidateIfStale && query.isStaleByTime(resolveQueryValue(defaultedOptions.staleTime, query))) this.prefetchQuery(defaultedOptions);
 		return Promise.resolve(cachedData);
 	}
 	getQueriesData(filters) {
@@ -28641,7 +28634,7 @@ var QueryClient = class {
 		const defaultedOptions = this.defaultQueryOptions(options);
 		if (defaultedOptions.retry === void 0) defaultedOptions.retry = false;
 		const query = this.#queryCache.build(this, defaultedOptions);
-		const queryData = query.isStaleByTime(resolveStaleTime(defaultedOptions.staleTime, query)) ? await query.fetch(defaultedOptions) : query.state.data;
+		const queryData = query.isStaleByTime(resolveQueryValue(defaultedOptions.staleTime, query)) ? await query.fetch(defaultedOptions) : query.state.data;
 		const select = defaultedOptions.select;
 		if (select) return select(queryData);
 		return queryData;
@@ -28653,7 +28646,7 @@ var QueryClient = class {
 		const defaultedOptions = this.defaultQueryOptions(options);
 		if (defaultedOptions.retry === void 0) defaultedOptions.retry = false;
 		const query = this.#queryCache.build(this, defaultedOptions);
-		return query.isStaleByTime(resolveStaleTime(defaultedOptions.staleTime, query)) ? query.fetch(defaultedOptions) : Promise.resolve(query.state.data);
+		return query.isStaleByTime(resolveQueryValue(defaultedOptions.staleTime, query)) ? query.fetch(defaultedOptions) : Promise.resolve(query.state.data);
 	}
 	/**
 	* @deprecated Use queryClient.query(options) instead. You can swallow errors with `.catch(noop)`. This method will be removed in the next major version.
@@ -28759,12 +28752,12 @@ var QueryClient = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
 function createValue() {
 	let isReset = false;
 	return {
@@ -28782,7 +28775,7 @@ function createValue() {
 var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
 var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
 	const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
 	if (options.suspense || throwOnError) {
@@ -28798,7 +28791,7 @@ var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/suspense.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/suspense.js
 var ensureSuspenseTimers = (defaultedOptions) => {
 	if (defaultedOptions.suspense) {
 		const MIN_SUSPENSE_TIME_MS = 1e3;
@@ -28813,7 +28806,7 @@ var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observ
 	errorResetBoundary.clearReset();
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
 function useBaseQuery(options, Observer, queryClient) {
 	const isRestoring = useIsRestoring();
 	const errorResetBoundary = useQueryErrorResetBoundary();
@@ -28847,12 +28840,12 @@ function useBaseQuery(options, Observer, queryClient) {
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useMutation.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useMutation.js
 function useMutation(options, queryClient) {
 	const client = useQueryClient(queryClient);
 	const [observer] = import_react.useState(() => new MutationObserver$1(client, options));
@@ -28871,7 +28864,7 @@ function useMutation(options, queryClient) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
 function useInfiniteQuery(options, queryClient) {
 	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
@@ -29077,9 +29070,9 @@ var asArray$2 = (v) => isReadonlyArray(v) ? v : [v];
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/url.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/url.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -29094,9 +29087,9 @@ function normalizeProtocolRelativeUrl(url, protocol) {
 	return protocol + url.replace(/\\/g, "/");
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/history.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/history.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -29150,7 +29143,7 @@ function warning$1(cond, message) {
 		if (typeof console !== "undefined") console.warn(message);
 		try {
 			throw new Error(message);
-		} catch (e) {}
+		} catch {}
 	}
 }
 function createKey() {
@@ -29332,7 +29325,7 @@ function createBrowserURLImpl(windowImpl, to, isAbsolute = false) {
 	return new URL(href, base);
 }
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -29660,13 +29653,13 @@ function matchPathImpl(pattern, pathname, matcher, compiledParams) {
 	let match = pathname.match(matcher);
 	if (!match) return null;
 	let matchedPathname = match[0];
-	let pathnameBase = matchedPathname.replace(/(.)\/+$/, "$1");
+	let pathnameBase = removeTrailingSlash(matchedPathname, 1);
 	let captureGroups = match.slice(1);
 	return {
 		params: compiledParams.reduce((memo, { paramName, isOptional }, index) => {
 			if (paramName === "*") {
 				let splatValue = captureGroups[index] || "";
-				pathnameBase = matchedPathname.slice(0, matchedPathname.length - splatValue.length).replace(/(.)\/+$/, "$1");
+				pathnameBase = removeTrailingSlash(matchedPathname.slice(0, matchedPathname.length - splatValue.length), 1);
 			}
 			const value = captureGroups[index];
 			if (isOptional && !value) memo[paramName] = void 0;
@@ -29735,7 +29728,7 @@ function resolvePath(to, fromPathname = "/") {
 	let pathname;
 	if (toPathname) {
 		toPathname = removeDoubleSlashes(toPathname);
-		if (toPathname.startsWith("/")) pathname = resolvePathname(toPathname.substring(1), "/");
+		if (toPathname.startsWith("/") || toPathname.startsWith("\\")) pathname = resolvePathname(toPathname.substring(1), "/");
 		else pathname = resolvePathname(toPathname, fromPathname);
 	} else pathname = fromPathname;
 	return {
@@ -29796,7 +29789,11 @@ function resolveTo(toArg, routePathnames, locationPathname, isPathRelative = fal
 }
 var removeDoubleSlashes = (path) => path.replace(/[\\/]{2,}/g, "/");
 var joinPaths = (paths) => removeDoubleSlashes(paths.join("/"));
-var removeTrailingSlash = (path) => path.replace(/\/+$/, "");
+function removeTrailingSlash(path, minLength = 0) {
+	let end = path.length;
+	while (end > minLength && path.charCodeAt(end - 1) === 47) end--;
+	return end === path.length ? path : path.slice(0, end);
+}
 var normalizePathname = (pathname) => removeTrailingSlash(pathname).replace(/^\/*/, "/");
 var normalizeSearch = (search) => !search || search === "?" ? "" : search.startsWith("?") ? search : "?" + search;
 var normalizeHash = (hash) => !hash || hash === "#" ? "" : hash.startsWith("#") ? hash : "#" + hash;
@@ -29892,7 +29889,7 @@ function parseToInfo(_to, basename) {
 		let path = stripBasename(targetUrl.pathname, basename);
 		if (targetUrl.origin === currentUrl.origin && path != null) to = path + targetUrl.search + targetUrl.hash;
 		else isExternal = true;
-	} catch (e) {
+	} catch {
 		warning$1(false, `<Link to="${to}"> contains an invalid URL which will probably break when clicked - please update to a valid URL path.`);
 	}
 	return {
@@ -29902,9 +29899,9 @@ function parseToInfo(_to, basename) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/instrumentation.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/instrumentation.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -30161,9 +30158,53 @@ function getReadonlyContext(context) {
 	return { get: (ctx) => context.get(ctx) };
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/router.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/navigation.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+var DEFAULT_NAVIGATION_URL = new URL("http://localhost");
+function getNavigatorCurrentUrl(navigator) {
+	if (navigator.createURL) return navigator.createURL("/");
+	try {
+		return new URL(navigator.createHref("/"), DEFAULT_NAVIGATION_URL);
+	} catch {
+		return DEFAULT_NAVIGATION_URL;
+	}
+}
+function isSameOrigin(a, b) {
+	return a.origin === b.origin && (a.origin !== "null" || a.protocol === b.protocol && a.host === b.host);
+}
+function isExplicitUrl(destination, target) {
+	if (destination.startsWith("//")) return true;
+	let protocol = target.protocol.toLowerCase();
+	if (!destination.toLowerCase().startsWith(protocol)) return false;
+	return target.host === "" || destination.slice(protocol.length).startsWith("//");
+}
+function validateNavigationTarget(original, resolved, currentUrl, externalPolicy) {
+	let originalUrl = null;
+	try {
+		originalUrl = original == null ? null : new URL(original, currentUrl);
+	} catch {}
+	let resolvedUrl = new URL(resolved, currentUrl);
+	let originalIsExternal = originalUrl != null && !isSameOrigin(originalUrl, currentUrl);
+	let resolvedIsExternal = !isSameOrigin(resolvedUrl, currentUrl);
+	if (externalPolicy === "reject") {
+		if (originalIsExternal || resolvedIsExternal) throw new Error("External navigation is not allowed");
+	} else if (resolvedIsExternal) {
+		if (originalUrl == null || !isExplicitUrl(original, originalUrl) || !isSameOrigin(originalUrl, resolvedUrl)) throw new Error("External navigation is not allowed");
+	}
+}
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/router.js
+/**
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -30571,21 +30612,27 @@ function createRouter(init) {
 		let instrumentationNavigateMetaReceiver = consumeInstrumentationClientResultMetaReceiver(router);
 		let { path, submission, error } = normalizeNavigateOptions(false, normalizeTo(state.location, state.matches, basename, to, opts?.fromRouteId, opts?.relative), opts);
 		let maskPath;
-		if (opts?.mask) maskPath = {
-			pathname: "",
-			search: "",
-			hash: "",
-			...typeof opts.mask === "string" ? parsePath$1(opts.mask) : {
+		if (opts?.mask) {
+			let partialPath = typeof opts.mask === "string" ? parsePath$1(opts.mask) : {
 				...state.location.mask,
 				...opts.mask
-			}
-		};
+			};
+			maskPath = {
+				pathname: partialPath.pathname ?? "",
+				search: partialPath.search ?? "",
+				hash: partialPath.hash ?? ""
+			};
+			if (PROTOCOL_RELATIVE_URL_REGEX.test(maskPath.pathname)) throw new Error("External navigation is not allowed");
+			else if (maskPath.pathname.startsWith("\\")) maskPath.pathname = maskPath.pathname.replace(/^\\+/, "/");
+			validateNavigationTarget(typeof opts.mask === "string" ? opts.mask : createPath(opts.mask), createPath(maskPath), init.history.createURL("/"), "reject");
+		}
 		let currentLocation = state.location;
 		let nextLocation = createLocation(currentLocation, path, opts && opts.state, void 0, maskPath);
 		nextLocation = {
 			...nextLocation,
 			...init.history.encodeLocation(nextLocation)
 		};
+		validateNavigationTarget(to == null ? init.history.createHref(state.location) : typeof to === "string" ? to : createPath(to), init.history.createHref(nextLocation.mask || nextLocation), init.history.createURL("/"), "reject");
 		let userReplace = opts && opts.replace != null ? opts.replace : void 0;
 		let historyAction = "PUSH";
 		if (userReplace === true) historyAction = "REPLACE";
@@ -31042,7 +31089,10 @@ function createRouter(init) {
 		let abortPendingFetchRevalidations = () => revalidatingFetchers.forEach((rf) => abortFetcher(rf.key));
 		abortController.signal.addEventListener("abort", abortPendingFetchRevalidations);
 		let { loaderResults, fetcherResults } = await callLoadersAndMaybeResolveData(dsMatches, revalidatingFetchers, revalidationRequest, nextLocation, scopedContext);
-		if (abortController.signal.aborted) return;
+		if (abortController.signal.aborted) {
+			if (fetchReloadIds.get(key) === loadId) fetchReloadIds.delete(key);
+			return;
+		}
 		abortController.signal.removeEventListener("abort", abortPendingFetchRevalidations);
 		fetchReloadIds.delete(key);
 		fetchControllers.delete(key);
@@ -31164,7 +31214,10 @@ function createRouter(init) {
 		if (redirect.response.headers.has("X-Remix-Revalidate")) isRevalidationRequired = true;
 		let location = redirect.response.headers.get("Location");
 		invariant$1(location, "Expected a Location header on the redirect Response");
-		location = normalizeRedirectLocation(location, new URL(request.url), basename, init.history);
+		let originalLocation = location;
+		let currentUrl = new URL(request.url);
+		location = normalizeRedirectLocation(location, currentUrl, basename, init.history);
+		validateNavigationTarget(originalLocation, location, currentUrl, "allow-explicit");
 		let redirectLocation = createLocation(state.location, location, { _isRedirect: true });
 		if (isBrowser) {
 			let isDocumentReload = false;
@@ -31516,6 +31569,7 @@ function createRouter(init) {
 		fetch,
 		revalidate,
 		createHref: (to) => init.history.createHref(to),
+		createURL: (to) => init.history.createURL(to),
 		encodeLocation: (to) => init.history.encodeLocation(to),
 		getFetcher,
 		resetFetcher,
@@ -31617,7 +31671,7 @@ function normalizeNavigateOptions(isFetcher, path, opts) {
 						text: void 0
 					}
 				};
-			} catch (e) {
+			} catch {
 				return getInvalidBodyError();
 			}
 		}
@@ -31640,7 +31694,7 @@ function normalizeNavigateOptions(isFetcher, path, opts) {
 	} else try {
 		searchParams = new URLSearchParams(opts.body);
 		formData = convertSearchParamsToFormData(searchParams);
-	} catch (e) {
+	} catch {
 		return getInvalidBodyError();
 	}
 	let submission = {
@@ -32135,7 +32189,7 @@ async function callDataStrategyImpl(dataStrategyImpl, request, path, matches, fe
 	});
 	try {
 		await Promise.all(matches.flatMap((m) => [m._lazyPromises?.handler, m._lazyPromises?.route]));
-	} catch (e) {}
+	} catch {}
 	return results;
 }
 async function callLoaderOrAction({ request, path, pattern, match, lazyHandlerPromise, lazyRoutePromise, handlerOverride, scopedContext }) {
@@ -32318,7 +32372,7 @@ function normalizeRedirectLocation(location, currentUrl, basename, historyInstan
 	}
 	try {
 		if (hasInvalidProtocol(historyInstance.createURL(location).toString())) throw new Error("Invalid redirect location");
-	} catch (e) {}
+	} catch {}
 	return location;
 }
 function createClientSideRequest(history, location, signal, submission) {
@@ -32665,7 +32719,7 @@ function restoreAppliedTransitions(_window, transitions) {
 			let json = JSON.parse(sessionPositions);
 			for (let [k, v] of Object.entries(json || {})) if (v && Array.isArray(v)) transitions.set(k, new Set(v || []));
 		}
-	} catch (e) {}
+	} catch {}
 }
 function persistAppliedTransitions(_window, transitions) {
 	if (transitions.size > 0) {
@@ -32686,13 +32740,13 @@ function createDeferred() {
 			res(val);
 			try {
 				await promise;
-			} catch (e) {}
+			} catch {}
 		};
 		reject = async (error) => {
 			rej(error);
 			try {
 				await promise;
-			} catch (e) {}
+			} catch {}
 		};
 	});
 	return {
@@ -32702,9 +32756,9 @@ function createDeferred() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/context.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/context.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -32740,9 +32794,9 @@ RouteContext.displayName = "Route";
 var RouteErrorContext = import_react.createContext(null);
 RouteErrorContext.displayName = "RouteError";
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/errors.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/errors.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -32767,9 +32821,9 @@ function decodeRouteErrorResponseDigest(digest) {
 	} catch {}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/hooks.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/hooks.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -33027,6 +33081,7 @@ function useNavigateUnstable() {
 		}
 		let path = resolveTo(to, JSON.parse(routePathnamesJson), locationPathname, options.relative === "path");
 		if (dataRouterContext == null && basename !== "/") path.pathname = path.pathname === "/" ? basename : joinPaths([basename, path.pathname]);
+		validateNavigationTarget(typeof to === "string" ? to : createPath(to), navigator.createHref(path), getNavigatorCurrentUrl(navigator), "reject");
 		(!!options.replace ? navigator.replace : navigator.push)(path, options.state, options);
 	}, [
 		basename,
@@ -33291,7 +33346,7 @@ var RenderErrorBoundary = class extends import_react.Component {
 };
 var errorRedirectHandledMap = /* @__PURE__ */ new WeakMap();
 function RSCErrorHandler({ children, error }) {
-	let { basename } = import_react.useContext(NavigationContext);
+	let { basename, navigator } = import_react.useContext(NavigationContext);
 	if (typeof error === "object" && error && "digest" in error && typeof error.digest === "string") {
 		let redirect = decodeRedirectErrorDigest(error.digest);
 		if (redirect) {
@@ -33299,6 +33354,7 @@ function RSCErrorHandler({ children, error }) {
 			if (existingRedirect) throw existingRedirect;
 			let parsed = parseToInfo(redirect.location, basename);
 			let target = parsed.absoluteURL || parsed.to;
+			validateNavigationTarget(redirect.location, target, getNavigatorCurrentUrl(navigator), "allow-explicit");
 			if (hasInvalidProtocol(target)) throw new Error("Invalid redirect location");
 			if (isBrowser$1 && !errorRedirectHandledMap.get(error)) if (parsed.isExternal || redirect.reloadDocument) window.location.href = target;
 			else {
@@ -33566,9 +33622,9 @@ function warningOnce(key, cond, message) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -33585,9 +33641,9 @@ function warnOnce(condition, message) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/components.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/components.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -33792,6 +33848,7 @@ function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, use
 	let navigator = import_react.useMemo(() => {
 		return {
 			createHref: router.createHref,
+			createURL: router.createURL,
 			encodeLocation: router.encodeLocation,
 			go: (n) => router.navigate(n),
 			push: (to, state, opts) => router.navigate(to, {
@@ -33874,12 +33931,13 @@ function DataRoutes({ routes, manifest, future, state, isStatic, onError }) {
 */
 function Navigate({ to, replace, state, relative }) {
 	invariant$1(useInRouterContext(), `<Navigate> may be used only in the context of a <Router> component.`);
-	let { static: isStatic } = import_react.useContext(NavigationContext);
+	let { static: isStatic, navigator } = import_react.useContext(NavigationContext);
 	warning$1(!isStatic, "<Navigate> must not be used on the initial render in a <StaticRouter>. This is a no-op, but you should modify your code so the <Navigate> is only ever rendered in response to some user interaction or state change.");
 	let { matches } = import_react.useContext(RouteContext);
 	let { pathname: locationPathname } = useLocation();
 	let navigate = useNavigate();
 	let path = resolveTo(to, getResolveToMatches(matches), locationPathname, relative === "path");
+	validateNavigationTarget(typeof to === "string" ? to : createPath(to), navigator.createHref(path), getNavigatorCurrentUrl(navigator), "reject");
 	let jsonPath = JSON.stringify(path);
 	import_react.useEffect(() => {
 		navigate(JSON.parse(jsonPath), {
@@ -33992,9 +34050,9 @@ function Router({ basename: basenameProp = "/", children = null, location: locat
 }
 import_react.Component;
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/dom.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/dom.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34068,7 +34126,7 @@ function isFormDataSubmitterSupported() {
 	if (_formDataSupportsSubmitter === null) try {
 		new FormData(document.createElement("form"), 0);
 		_formDataSupportsSubmitter = false;
-	} catch (e) {
+	} catch {
 		_formDataSupportsSubmitter = true;
 	}
 	return _formDataSupportsSubmitter;
@@ -34133,9 +34191,9 @@ function getFormSubmissionInfo(target, basename) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34148,9 +34206,9 @@ function invariant(value, message) {
 	if (value === false || value === null || typeof value === "undefined") throw new Error(message);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34171,9 +34229,9 @@ function escapeHtml$1(html) {
 	return html.replace(ESCAPE_REGEX, (match) => ESCAPE_LOOKUP[match]);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34189,9 +34247,9 @@ function singleFetchUrl(reqUrl, extension) {
 	return url;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34219,9 +34277,9 @@ async function loadRouteModule(route, routeModulesCache) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/links.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/links.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34320,9 +34378,9 @@ function dedupeLinkDescriptors(descriptors, preloads) {
 	}, []);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/components.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/components.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34579,9 +34637,9 @@ function mergeRefs(...refs) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/lib.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/lib.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34592,8 +34650,8 @@ function mergeRefs(...refs) {
 */
 var isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
 try {
-	if (isBrowser) window.__reactRouterVersion = "8.3.0";
-} catch (e) {}
+	if (isBrowser) window.__reactRouterVersion = "8";
+} catch {}
 /**
 * Create a new {@link DataRouter| data router} that manages the application
 * path via the URL [`hash`](https://developer.mozilla.org/en-US/docs/Web/API/URL/hash).
@@ -34653,7 +34711,7 @@ function deserializeErrors(errors) {
 				let error = new ErrorConstructor(val.message);
 				error.stack = "";
 				serialized[key] = error;
-			} catch (e) {}
+			} catch {}
 		}
 		if (serialized[key] == null) {
 			let error = new Error(val.message);
@@ -35245,6 +35303,7 @@ function useSubmit() {
 		if (options.navigate === false) await routerFetch(options.fetcherKey || getUniqueFetcherId(), currentRouteId, options.action || action, {
 			defaultShouldRevalidate: options.defaultShouldRevalidate,
 			preventScrollReset: options.preventScrollReset,
+			relative: options.relative,
 			formData,
 			body,
 			formMethod: options.method || method,
@@ -35254,6 +35313,7 @@ function useSubmit() {
 		else await routerNavigate(options.action || action, {
 			defaultShouldRevalidate: options.defaultShouldRevalidate,
 			preventScrollReset: options.preventScrollReset,
+			relative: options.relative,
 			formData,
 			body,
 			formMethod: options.method || method,
@@ -35377,6 +35437,9 @@ function useScrollRestoration({ getKey, storageKey } = {}) {
 			window.history.scrollRestoration = "auto";
 		};
 	}, []);
+	usePageShow(import_react.useCallback((event) => {
+		if (event.persisted) window.history.scrollRestoration = "manual";
+	}, []));
 	usePageHide(import_react.useCallback(() => {
 		if (navigation.state === "idle") {
 			let key = getScrollRestorationKey(location, matches, basename, getKey);
@@ -35401,7 +35464,7 @@ function useScrollRestoration({ getKey, storageKey } = {}) {
 			try {
 				let sessionPositions = sessionStorage.getItem(storageKey || SCROLL_RESTORATION_STORAGE_KEY);
 				if (sessionPositions) savedScrollPositions = JSON.parse(sessionPositions);
-			} catch (e) {}
+			} catch {}
 		}, [storageKey]);
 		import_react.useLayoutEffect(() => {
 			let disableScrollRestoration = router?.enableScrollRestoration(savedScrollPositions, () => window.scrollY, getKey ? (location, matches) => getScrollRestorationKey(location, matches, basename, getKey) : void 0);
@@ -35444,6 +35507,16 @@ function usePageHide(callback, options) {
 		window.addEventListener("pagehide", callback, opts);
 		return () => {
 			window.removeEventListener("pagehide", callback, opts);
+		};
+	}, [callback, capture]);
+}
+function usePageShow(callback, options) {
+	let { capture } = options || {};
+	import_react.useEffect(() => {
+		let opts = capture != null ? { capture } : void 0;
+		window.addEventListener("pageshow", callback, opts);
+		return () => {
+			window.removeEventListener("pageshow", callback, opts);
 		};
 	}, [callback, capture]);
 }
@@ -36995,7 +37068,7 @@ var usePrismHighlight = (containerRef, contentLength) => {
 				highlightCodeBlocks(container);
 			});
 			const observer = new MutationObserver((mutations) => {
-				if (mutations.some(_temp2$61)) highlightCodeBlocks(container);
+				if (mutations.some(_temp2$62)) highlightCodeBlocks(container);
 			});
 			observer.observe(container, {
 				childList: true,
@@ -37016,12 +37089,12 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useEffect)(t0, t1);
 };
-function _temp$105(node) {
+function _temp$109(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$61(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$105);
+function _temp2$62(mutation) {
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$109);
 	return false;
 }
 //#endregion
@@ -37566,7 +37639,7 @@ function useRevokableUrls() {
 	let t3;
 	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = () => () => {
-			urlsRef.current.forEach(_temp$104);
+			urlsRef.current.forEach(_temp$108);
 			urlsRef.current = [];
 		};
 		t3 = [];
@@ -37579,7 +37652,7 @@ function useRevokableUrls() {
 	(0, import_react.useEffect)(t2, t3);
 	return createRevokableUrl;
 }
-function _temp$104(url_0) {
+function _temp$108(url_0) {
 	return URL.revokeObjectURL(url_0);
 }
 //#endregion
@@ -37689,7 +37762,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$103));
+				replaceMeasurementItems(testElement, segments.map(_temp$107));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -37715,7 +37788,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$60),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$61),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -37753,10 +37826,10 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$103(segment) {
+function _temp$107(segment) {
 	return segment.text;
 }
-function _temp2$60(segment_0) {
+function _temp2$61(segment_0) {
 	return segment_0.text;
 }
 //#endregion
@@ -38114,6 +38187,1116 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	}
 	(0, import_react.useEffect)(t0, t1);
 }
+//#endregion
+//#region ../../packages/react/src/hooks/useCopyToClipboard.ts
+/**
+* Clipboard write with a transient "copied" flag for confirm-icon feedback.
+* The flag flips only after the write resolves (it can reject in an unfocused
+* document, and flipping early reads as a false success) and clears
+* `confirmMs` after the latest successful copy.
+*/ function useCopyToClipboard(t0) {
+	const $ = (0, import_compiler_runtime.c)(6);
+	const confirmMs = t0 === void 0 ? 1250 : t0;
+	const [copied, setCopied] = (0, import_react.useState)(false);
+	const timer = (0, import_react.useRef)(void 0);
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = () => window.clearTimeout(timer.current);
+		$[0] = t1;
+	} else t1 = $[0];
+	useUnmount(t1);
+	let t2;
+	if ($[1] !== confirmMs) {
+		t2 = (text) => {
+			Promise.resolve().then(() => navigator.clipboard.writeText(text)).then(() => {
+				setCopied(true);
+				window.clearTimeout(timer.current);
+				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
+			}).catch(_temp$106);
+		};
+		$[1] = confirmMs;
+		$[2] = t2;
+	} else t2 = $[2];
+	const copy = t2;
+	let t3;
+	if ($[3] !== copied || $[4] !== copy) {
+		t3 = {
+			copied,
+			copy
+		};
+		$[3] = copied;
+		$[4] = copy;
+		$[5] = t3;
+	} else t3 = $[5];
+	return t3;
+}
+function _temp$106(error) {
+	console.error("Failed to copy:", error);
+}
+//#endregion
+//#region ../../packages/react/src/hooks/useOnChange.ts
+/**
+* Runs `onChange` after a commit in which `value` differs (by `Object.is`)
+* from the previous commit's; not on mount. Always calls the latest
+* `onChange`, so it can close over current state without dependency plumbing.
+*/ function useOnChange(value, onChange) {
+	const $ = (0, import_compiler_runtime.c)(4);
+	const onChangeRef = useLatestRef(onChange);
+	const previousRef = (0, import_react.useRef)(value);
+	let t0;
+	let t1;
+	if ($[0] !== onChangeRef || $[1] !== value) {
+		t0 = () => {
+			const previous = previousRef.current;
+			if (Object.is(previous, value)) return;
+			previousRef.current = value;
+			onChangeRef.current(value, previous);
+		};
+		t1 = [value, onChangeRef];
+		$[0] = onChangeRef;
+		$[1] = value;
+		$[2] = t0;
+		$[3] = t1;
+	} else {
+		t0 = $[2];
+		t1 = $[3];
+	}
+	(0, import_react.useEffect)(t0, t1);
+}
+//#endregion
+//#region ../../packages/react/src/find/findClip.ts
+/** Whether `range` sits below a collapsed clip of height `foldPx`. */ function rangeExceedsFold(clip, range, foldPx) {
+	if (typeof range.getClientRects !== "function") return false;
+	const box = range.getClientRects()[0];
+	if (box === void 0) return false;
+	return box.bottom > clip.getBoundingClientRect().top + foldPx + 1;
+}
+//#endregion
+//#region ../../packages/react/src/find/findStore.ts
+var FIND_IDLE_STATE = {
+	term: "",
+	rows: [],
+	activeRow: null,
+	activeOccurrence: null,
+	activeOrdinal: null,
+	count: null,
+	exact: false,
+	noResults: false,
+	error: null,
+	scopeId: null
+};
+/**
+* The registered FindSurface plus the query, matching rows and navigation.
+*
+* A term scans the source forward from the top, one page after another,
+* and keeps every matching row, so "N of M" is a position in that list and
+* M grows page by page (M+ until the scan walks off a sealed source).
+* Stepping is local; a step past the known rows waits for the next page
+* (steps accumulate as a signed count meanwhile) and past the end of a
+* finished scan it wraps. A data or source change, or a same-scope
+* re-register, re-scans while the old rows stay on screen, then puts the
+* user back on their row by anchor without scrolling (else on the nearest
+* row by index, scrolled to). Only an activation (first hit, step, wrap,
+* that fallback) reveals: it asks the surface to bring the row in and holds
+* one reveal for the row's highlighter to claim. Inside a row the step
+* count is its DOM match count while it is mounted and has reported, the
+* source's count otherwise; a row rendering none of its matches is skipped.
+*/ var FindStore = class {
+	state = FIND_IDLE_STATE;
+	listeners = /* @__PURE__ */ new Set();
+	surface = null;
+	term = "";
+	rows = [];
+	scanDone = false;
+	sealed = false;
+	error = null;
+	active = null;
+	scan = null;
+	/** Kept across an unregister so a same-scope re-register (a tab switch)
+	*  lands back on the row; a different scope discards it. */ lastActive = null;
+	mounted = /* @__PURE__ */ new Set();
+	domCounts = /* @__PURE__ */ new Map();
+	revealAbort = null;
+	/** The last activation's reveal, until its row claims it. */ pendingReveal = null;
+	/** Steps waiting for rows the scan has not delivered: +1 forward, -1 back. */ pending = 0;
+	subscribe = (listener) => {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
+	};
+	getState = () => this.state;
+	publish() {
+		const next = {
+			term: this.term,
+			rows: this.rows,
+			activeRow: this.active?.row ?? null,
+			activeOccurrence: this.active?.occurrence ?? null,
+			activeOrdinal: this.ordinal(),
+			count: this.count(),
+			exact: this.scanDone && this.sealed,
+			noResults: this.scanDone && this.rows.length === 0,
+			error: this.error,
+			scopeId: this.surface?.scopeId ?? null
+		};
+		if (this.state.term === next.term && this.state.rows === next.rows && this.state.activeRow === next.activeRow && this.state.activeOccurrence === next.activeOccurrence && this.state.activeOrdinal === next.activeOrdinal && this.state.count === next.count && this.state.exact === next.exact && this.state.noResults === next.noResults && this.state.error === next.error && this.state.scopeId === next.scopeId) return;
+		this.state = next;
+		for (const l of this.listeners) l();
+	}
+	/** Matches found so far; null until the first page has landed. */ count() {
+		if (this.rows.length === 0 && !this.scanDone) return null;
+		let occurrences = 0;
+		for (const row of this.rows) occurrences += row.count;
+		return occurrences;
+	}
+	stepCount(row) {
+		return this.domCounts.get(row.anchor.id) ?? row.count;
+	}
+	/** The active occurrence's position in source counts; null while the
+	*  active row renders no match (it flashes instead). */ ordinal() {
+		const active = this.active;
+		if (!active) return null;
+		const activeRow = this.rows[active.row];
+		if (this.stepCount(activeRow) === 0) return null;
+		let before = 0;
+		for (let i = 0; i < active.row; i++) before += this.rows[i].count;
+		const within = Math.min(active.occurrence, Math.max(activeRow.count - 1, 0));
+		return before + within;
+	}
+	registerSurface(surface) {
+		this.setSurface(surface);
+		return () => {
+			if (this.surface === surface) this.setSurface(null);
+		};
+	}
+	updateSource(scopeId, source) {
+		const surface = this.surface;
+		if (!surface || surface.scopeId !== scopeId || surface.source === source) return;
+		surface.source = source;
+		if (this.term) this.startScan(this.relocation());
+	}
+	invalidate(scopeId) {
+		if (this.surface?.scopeId !== scopeId || !this.term) return;
+		this.startScan(this.relocation());
+	}
+	/** Where a re-scan should put the user: the active row, or the row a
+	*  re-scan already in flight is still looking for. */ relocation() {
+		return this.position() ?? this.scan?.relocate ?? null;
+	}
+	attachRow(anchorId) {
+		this.mounted.add(anchorId);
+		return () => {
+			this.mounted.delete(anchorId);
+			this.forgetRowCount(anchorId);
+		};
+	}
+	reportRowCount(anchorId, count) {
+		if (!this.mounted.has(anchorId)) return;
+		if (count === null) {
+			this.forgetRowCount(anchorId);
+			return;
+		}
+		if (this.domCounts.get(anchorId) === count) return;
+		this.domCounts.set(anchorId, count);
+		this.clampActive(anchorId, count);
+		this.publish();
+	}
+	/** Back to the source count: clamp the active occurrence to it. */ forgetRowCount(anchorId) {
+		if (!this.domCounts.delete(anchorId)) return;
+		const active = this.active;
+		if (active) this.clampActive(anchorId, this.rows[active.row].count);
+		this.publish();
+	}
+	clampActive(anchorId, count) {
+		const active = this.active;
+		if (active && this.rows[active.row].anchor.id === anchorId && active.occurrence >= count) active.occurrence = Math.max(count - 1, 0);
+	}
+	setSurface(surface) {
+		const previous = this.relocation() ?? this.lastActive;
+		const relocate = surface && previous?.scopeId !== surface.scopeId ? null : previous;
+		const reveal = this.pendingReveal;
+		this.surface = surface;
+		this.reset();
+		this.lastActive = surface === null ? previous : null;
+		if (reveal !== null && reveal.anchorId === relocate?.anchorId) this.pendingReveal = reveal;
+		this.publish();
+		if (surface && this.term) this.startScan(relocate);
+	}
+	claimReveal(anchorId) {
+		const reveal = this.pendingReveal;
+		if (reveal === null || reveal.anchorId !== anchorId) return null;
+		this.pendingReveal = null;
+		return reveal.kind;
+	}
+	setTerm(term) {
+		if (term === this.term) return;
+		this.reset();
+		this.lastActive = null;
+		this.term = term;
+		this.publish();
+		if (term && this.surface) this.startScan(null);
+	}
+	next() {
+		this.step("forward");
+	}
+	previous() {
+		this.step("backward");
+	}
+	/** Run the current term again (Enter after a failed page). */ refresh() {
+		if (this.term && this.surface) this.startScan(this.relocation());
+	}
+	close() {
+		this.reset();
+		this.lastActive = null;
+		this.term = "";
+		this.publish();
+	}
+	dispose() {
+		this.abortAll();
+		this.listeners.clear();
+	}
+	position() {
+		const active = this.active;
+		const scopeId = this.surface?.scopeId;
+		if (!active || scopeId === void 0) return null;
+		const row = this.rows[active.row];
+		return {
+			scopeId,
+			anchorId: row.anchor.id,
+			index: row.index,
+			occurrence: active.occurrence
+		};
+	}
+	abortAll() {
+		this.scan?.ac.abort();
+		this.scan = null;
+		this.revealAbort?.abort();
+		this.revealAbort = null;
+		this.pending = 0;
+	}
+	reset() {
+		this.abortAll();
+		this.rows = [];
+		this.scanDone = false;
+		this.sealed = false;
+		this.error = null;
+		this.active = null;
+		this.pendingReveal = null;
+		this.domCounts.clear();
+	}
+	/** Walk the source from the top. With `relocate`, the rows on screen stay
+	*  until the scan reaches that row (by anchor, or past its index), then
+	*  the user is put back there; without it the first page replaces them. */ startScan(relocate) {
+		this.scan?.ac.abort();
+		this.scan = {
+			ac: new AbortController(),
+			rows: [],
+			done: false,
+			sealed: false,
+			relocate
+		};
+		this.error = null;
+		if (!relocate) {
+			this.rows = [];
+			this.scanDone = false;
+			this.active = null;
+		}
+		this.publish();
+		this.fetchPage(this.scan, void 0);
+	}
+	fetchPage(scan, after) {
+		const surface = this.surface;
+		if (!surface) return;
+		surface.source.find({ text: this.term }, after, scan.ac.signal).then((page) => {
+			if (this.scan !== scan) return;
+			this.onPage(scan, page);
+		}, (error) => {
+			if (this.scan !== scan) return;
+			this.error = error instanceof Error ? error.message : String(error);
+			this.scan = null;
+			this.pending = 0;
+			if (scan.rows.length > 0) {
+				scan.done = true;
+				scan.sealed = false;
+				this.commit(scan);
+			}
+			this.publish();
+		});
+	}
+	onPage(scan, page) {
+		const known = scan.rows[scan.rows.length - 1];
+		const first = page.rows[0];
+		const stuck = known !== void 0 && first !== void 0 && first.index <= known.index;
+		scan.rows = stuck ? scan.rows : scan.rows.concat(page.rows);
+		scan.sealed = page.complete;
+		scan.done = page.atEnd || stuck;
+		if (scan.done) this.scan = null;
+		this.commit(scan);
+		this.drain();
+		this.publish();
+		if (!scan.done) {
+			const last = scan.rows[scan.rows.length - 1];
+			if (last) this.fetchPage(scan, last.anchor);
+			else this.fetchPage(scan, void 0);
+		}
+	}
+	/** Publish the scan's rows: right away when nothing on screen is kept,
+	*  else once the scan has reached the user's row (or ended). */ commit(scan) {
+		const previous = scan.relocate && (this.position() ?? scan.relocate);
+		if (previous) {
+			const at = scan.rows.findIndex((r) => r.anchor.id === previous.anchorId);
+			const last = scan.rows[scan.rows.length - 1];
+			const passed = last !== void 0 && last.index >= previous.index;
+			if (at === -1 && !passed && !scan.done) return;
+			scan.relocate = null;
+			this.rows = scan.rows;
+			this.scanDone = scan.done;
+			this.sealed = scan.sealed;
+			if (at !== -1) {
+				const max = Math.max(this.stepCount(this.rows[at]) - 1, 0);
+				this.active = {
+					row: at,
+					occurrence: Math.min(previous.occurrence, max)
+				};
+			} else {
+				this.active = null;
+				const nearest = this.nearestByIndex(previous.index);
+				if (nearest !== null) this.activateRow(nearest, "forward");
+			}
+			return;
+		}
+		this.rows = scan.rows;
+		this.scanDone = scan.done;
+		this.sealed = scan.sealed;
+		if (this.active === null && this.pending === 0) {
+			const first = this.nextRow(-1, "forward");
+			if (first !== null) this.activateRow(first, "forward");
+		}
+	}
+	nearestByIndex(index) {
+		let best = null;
+		let distance = Infinity;
+		this.rows.forEach((row, i) => {
+			const d = Math.abs(row.index - index);
+			if (d < distance && this.stepCount(row) > 0) {
+				best = i;
+				distance = d;
+			}
+		});
+		return best;
+	}
+	step(direction) {
+		if (!this.term || !this.surface) return;
+		this.pending += direction === "forward" ? 1 : -1;
+		this.drain();
+		this.publish();
+	}
+	/** Apply pending steps until none remain or one needs rows not yet
+	*  scanned; those stay pending for the next page. */ drain() {
+		while (this.pending !== 0) {
+			if (this.scanDone && this.rows.length === 0) {
+				this.pending = 0;
+				return;
+			}
+			const direction = this.pending > 0 ? "forward" : "backward";
+			if (!this.tryStep(direction)) return;
+			this.pending -= this.pending > 0 ? 1 : -1;
+		}
+	}
+	/** The nearest row past `from` in `direction` that still has matches to
+	*  step through, or null at the edge of the known rows. */ nextRow(from, direction) {
+		const step = direction === "forward" ? 1 : -1;
+		for (let i = from + step; i >= 0 && i < this.rows.length; i += step) if (this.stepCount(this.rows[i]) > 0) return i;
+		return null;
+	}
+	/** One step; false when it needs rows the scan has not delivered yet. */ tryStep(direction) {
+		const active = this.active;
+		const forward = direction === "forward";
+		if (active) {
+			const count = this.stepCount(this.rows[active.row]);
+			if (forward && active.occurrence + 1 < count) {
+				this.activate(active.row, active.occurrence + 1);
+				return true;
+			}
+			if (!forward && active.occurrence > 0 && count > 0) {
+				this.activate(active.row, Math.min(active.occurrence - 1, count - 1));
+				return true;
+			}
+		}
+		if (!active && !forward && (!this.scanDone || this.scan !== null)) return false;
+		const from = active ? active.row : forward ? -1 : this.rows.length;
+		const row = this.nextRow(from, direction);
+		if (row !== null) {
+			this.activateRow(row, direction);
+			return true;
+		}
+		if (!this.scanDone || this.scan !== null) return false;
+		const wrapped = this.nextRow(forward ? -1 : this.rows.length, direction);
+		if (wrapped !== null) this.activateRow(wrapped, direction);
+		return true;
+	}
+	/** Enter a row from the direction of travel: its first occurrence going
+	*  forward, its last going backward. */ activateRow(row, direction) {
+		const count = this.stepCount(this.rows[row]);
+		this.activate(row, direction === "forward" ? 0 : Math.max(count - 1, 0));
+	}
+	activate(row, occurrence) {
+		const target = this.rows[row];
+		if (!target || !this.surface) return;
+		this.active = {
+			row,
+			occurrence: Math.max(occurrence, 0)
+		};
+		this.pendingReveal = {
+			anchorId: target.anchor.id,
+			kind: this.mounted.has(target.anchor.id) ? "mounted" : "jumped"
+		};
+		this.publish();
+		this.revealAbort?.abort();
+		this.revealAbort = new AbortController();
+		this.surface.reveal(target, this.revealAbort.signal);
+	}
+};
+//#endregion
+//#region ../../packages/react/src/find/FindCoordinatorContext.tsx
+var FindCoordinatorContext = /*#__PURE__*/ (0, import_react.createContext)(null);
+/** The find coordinator: a registry of per-scope FindSurfaces plus the
+*  query/match-window store FindBand and the per-row highlighter consume. */ var FindProvider = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(5);
+	const { children } = t0;
+	const [store] = (0, import_react.useState)(_temp$105);
+	let t1;
+	if ($[0] !== store) {
+		t1 = () => store.dispose();
+		$[0] = store;
+		$[1] = t1;
+	} else t1 = $[1];
+	useUnmount(t1);
+	let t2;
+	if ($[2] !== children || $[3] !== store) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindCoordinatorContext.Provider, {
+			value: store,
+			children
+		});
+		$[2] = children;
+		$[3] = store;
+		$[4] = t2;
+	} else t2 = $[4];
+	return t2;
+};
+/** Null outside a FindProvider, for surfaces that integrate with find when
+*  available but must not require it. */ var useFindCoordinatorOptional = () => {
+	return (0, import_react.useContext)(FindCoordinatorContext);
+};
+var noopSubscribe = () => () => {};
+/** Live find state; the idle state outside a FindProvider. */ var useFindState = () => {
+	const $ = (0, import_compiler_runtime.c)(2);
+	const store = (0, import_react.useContext)(FindCoordinatorContext);
+	let t0;
+	if ($[0] !== store) {
+		t0 = store ? store.getState : _temp2$60;
+		$[0] = store;
+		$[1] = t0;
+	} else t0 = $[1];
+	return (0, import_react.useSyncExternalStore)(store ? store.subscribe : noopSubscribe, t0);
+};
+function _temp$105() {
+	return new FindStore();
+}
+function _temp2$60() {
+	return FIND_IDLE_STATE;
+}
+//#endregion
+//#region ../../packages/react/src/find/highlightRegistry.ts
+var FIND_MATCH_HIGHLIGHT = "find-match";
+var FIND_ACTIVE_HIGHLIGHT = "find-active";
+var contributions = /* @__PURE__ */ new Map();
+function supportsCustomHighlights() {
+	return typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined";
+}
+var matchRanges$1 = (c) => c.active === null ? c.matches : c.matches.filter((r) => r !== c.active);
+var activeRanges = (c) => c.active === null ? [] : [c.active];
+/** Re-register the named Highlight from every contribution. A registered
+*  Highlight is re-processed by Firefox on each add/delete (about 1 ms per
+*  range, 40 s for the ten rows a wrap to the last hit mounts on the
+*  million-hit log), so the set is built detached and swapped in once. */ function publish(name, pick, previous, next) {
+	const highlight = new Highlight();
+	for (const c of contributions.values()) {
+		if (c === previous) continue;
+		for (const range of pick(c)) highlight.add(range);
+	}
+	if (next) for (const range of pick(next)) highlight.add(range);
+	if (highlight.size === 0) CSS.highlights.delete(name);
+	else CSS.highlights.set(name, highlight);
+}
+function replaceContribution(id, next) {
+	const previous = contributions.get(id);
+	if (!previous && !next) return;
+	if (supportsCustomHighlights()) {
+		publish(FIND_MATCH_HIGHLIGHT, matchRanges$1, previous, next);
+		publish(FIND_ACTIVE_HIGHLIGHT, activeRanges, previous, next);
+	}
+	if (next) contributions.set(id, next);
+	else contributions.delete(id);
+}
+function setHighlightContribution(id, matches, active) {
+	replaceContribution(id, matches.length === 0 && active === null ? void 0 : {
+		matches,
+		active
+	});
+}
+function clearHighlightContribution(id) {
+	replaceContribution(id, void 0);
+}
+var FLASH_CLASS = "find-flash";
+/** Briefly flash an element (the never-silent-jump fallback): used when
+*  Custom Highlights are unsupported, or when the active occurrence isn't in
+*  the row's rendered text. The `.find-flash` rule in the shared theme
+*  stylesheet owns the animation; the class comes off when it ends. */ function flashElement(el) {
+	if (el.classList.contains(FLASH_CLASS)) {
+		for (const animation of el.getAnimations()) {
+			animation.cancel();
+			animation.play();
+		}
+		return;
+	}
+	el.classList.add(FLASH_CLASS);
+	el.addEventListener("animationend", () => el.classList.remove(FLASH_CLASS), { once: true });
+}
+//#endregion
+//#region ../../packages/react/src/find/rangeScroll.ts
+/**
+* Finds the nearest scrollable ancestor with enough overflow to benefit from
+* programmatic scrolling.
+*/ function findScrollableParent(element, options) {
+	const minBuffer = options?.minScrollBuffer ?? 100;
+	let current = element instanceof HTMLElement ? element : element?.parentElement;
+	while (current && current !== document.body) {
+		const style = getComputedStyle(current);
+		if ((style.overflowY === "auto" || style.overflowY === "scroll") && current.scrollHeight > current.clientHeight + minBuffer) return current;
+		current = current.parentElement;
+	}
+	return null;
+}
+/**
+* Centers the selected text range rather than its containing element, which
+* keeps matches in large elements such as code blocks correctly positioned.
+*/ function scrollRangeToCenter(range, options) {
+	const { behavior = "auto", fallbackToScrollIntoView = true } = options ?? {};
+	const rects = range.getClientRects();
+	if (rects.length === 0) return;
+	const selectionRect = rects[0];
+	if (selectionRect === void 0) return;
+	const scrollableParent = findScrollableParent(range.startContainer.parentElement);
+	if (scrollableParent) {
+		const parentRect = scrollableParent.getBoundingClientRect();
+		const targetScrollTop = selectionRect.top - parentRect.top + scrollableParent.scrollTop - scrollableParent.clientHeight / 2;
+		scrollableParent.scrollTo({
+			top: Math.max(0, targetScrollTop),
+			behavior
+		});
+	} else if (fallbackToScrollIntoView) range.startContainer.parentElement?.scrollIntoView({
+		behavior,
+		block: "center"
+	});
+}
+//#endregion
+//#region ../../packages/react/src/virtual/VirtualScrollerContext.tsx
+var VirtualScrollerContext = /*#__PURE__*/ (0, import_react.createContext)(null);
+/** The enclosing VirtualList's scroller, or null outside one. */ var useVirtualScroller = () => {
+	return (0, import_react.useContext)(VirtualScrollerContext);
+};
+//#endregion
+//#region ../../packages/react/src/hooks/useFindHighlights.ts
+var ROW_HIGHLIGHT_CAP = 1e3;
+var SKIPPED_SUBTREES = `[data-unsearchable], [data-find-chrome]`;
+var MARKDOWN_PENDING = "[data-markdown-pending]";
+var RowHandle = class {
+	range = null;
+	listeners = /* @__PURE__ */ new Set();
+	activeRange = () => this.range;
+	subscribe = (listener) => {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
+	};
+	publish(range) {
+		if (range === null && this.range === null) return;
+		this.range = range;
+		for (const listener of this.listeners) listener();
+	}
+};
+var FindRowContext = (0, import_react.createContext)(null);
+/** Wrap the row's children so collapsed panels can ask the row where its
+*  active occurrence is instead of scanning the row themselves. */ var FindRowProvider = FindRowContext.Provider;
+/** The enclosing find row, or null outside one (the legacy window.find
+*  path). */ var useFindRow = () => {
+	return (0, import_react.useContext)(FindRowContext);
+};
+/**
+* Per-row highlighting over the CSS Custom Highlight API: every DOM
+* occurrence of the texts the source matched in this row, plus the active one
+* when this row is active. While mounted the row is attached to the
+* coordinator and reports its DOM match count once its markdown has
+* rendered; that count drives stepping inside it. A row that renders none of
+* its matches flashes instead (a jump is never silent), as does every row
+* where the API is missing. The active occurrence is shown only for the
+* reveal the row claims from the coordinator (one per activation; a
+* relocation onto the row requests none), once its range has a box: inside
+* a VirtualList through the virtualizer, re-run after the list measures the
+* row and, while the target was clamped short at the list end, after the
+* row itself grows.
+*/ function useFindHighlights(ref, anchorId) {
+	const $ = (0, import_compiler_runtime.c)(24);
+	const { rows, activeRow, activeOccurrence } = useFindState();
+	const coordinator = useFindCoordinatorOptional();
+	const scroller = useVirtualScroller();
+	const [handle] = (0, import_react.useState)(_temp$104);
+	let active;
+	let row;
+	let t0;
+	if ($[0] !== activeOccurrence || $[1] !== activeRow || $[2] !== anchorId || $[3] !== rows) {
+		row = anchorId === null || anchorId === void 0 ? void 0 : rows.find((r) => r.anchor.id === anchorId);
+		active = row && activeRow !== null && rows[activeRow] === row ? activeOccurrence : null;
+		t0 = row ? textsKeyOf(row.texts) : "";
+		$[0] = activeOccurrence;
+		$[1] = activeRow;
+		$[2] = anchorId;
+		$[3] = rows;
+		$[4] = active;
+		$[5] = row;
+		$[6] = t0;
+	} else {
+		active = $[4];
+		row = $[5];
+		t0 = $[6];
+	}
+	const textsKey = t0;
+	let t1;
+	if ($[7] !== textsKey) {
+		t1 = textsKey ? variantsPattern(textsOfKey(textsKey)) : null;
+		$[7] = textsKey;
+		$[8] = t1;
+	} else t1 = $[8];
+	const pattern = t1;
+	const inWindow = row !== void 0;
+	const contributionId = (0, import_react.useId)();
+	const reveal = (0, import_react.useRef)(null);
+	const measured = (0, import_react.useRef)(false);
+	let t2;
+	let t3;
+	if ($[9] !== anchorId || $[10] !== coordinator) {
+		t2 = () => {
+			if (!coordinator || anchorId === null || anchorId === void 0) return;
+			return coordinator.attachRow(anchorId);
+		};
+		t3 = [coordinator, anchorId];
+		$[9] = anchorId;
+		$[10] = coordinator;
+		$[11] = t2;
+		$[12] = t3;
+	} else {
+		t2 = $[11];
+		t3 = $[12];
+	}
+	(0, import_react.useLayoutEffect)(t2, t3);
+	let t4;
+	let t5;
+	if ($[13] !== active || $[14] !== anchorId || $[15] !== contributionId || $[16] !== coordinator || $[17] !== handle || $[18] !== inWindow || $[19] !== pattern || $[20] !== ref || $[21] !== scroller) {
+		t4 = () => {
+			const root = ref.current;
+			if (!root || anchorId === null || anchorId === void 0 || !inWindow) {
+				clearHighlightContribution(contributionId);
+				handle.publish(null);
+				return;
+			}
+			if (active === null) reveal.current = null;
+			else reveal.current = coordinator?.claimReveal(anchorId) ?? reveal.current;
+			let flashed = false;
+			let rowJump = reveal.current === "jumped" ? "landed" : "none";
+			let markdownWasPending = false;
+			let published = null;
+			let disposed = false;
+			if (!scroller) measured.current = true;
+			const apply = () => {
+				if (disposed) return;
+				const markdownPending = root.querySelector(MARKDOWN_PENDING) !== null;
+				if (markdownPending) markdownWasPending = true;
+				else if (markdownWasPending) {
+					markdownWasPending = false;
+					flashed = false;
+				}
+				const { ranges, activeRange, count } = computeRowRanges(root, pattern, active);
+				handle.publish(activeRange);
+				coordinator?.reportRowCount(anchorId, markdownPending ? null : count);
+				const settled = active !== null && !markdownPending;
+				if (!supportsCustomHighlights()) {
+					if (settled && reveal.current !== null) {
+						reveal.current = null;
+						flashElement(root);
+					}
+					return;
+				}
+				if (settled && reveal.current !== null) {
+					if (activeRange !== null) {
+						const force = reveal.current === "jumped";
+						if (rowJump !== "pending" && (measured.current || !force)) {
+							openEnclosingDetails(activeRange, root);
+							const outcome = revealRange(activeRange, root, scroller, force, rowJump === "landed");
+							if (outcome === "shown") reveal.current = null;
+							else if (outcome === "needs-row" && scroller) {
+								rowJump = "pending";
+								const landed = () => {
+									rowJump = "landed";
+									apply();
+								};
+								const node = activeRange.startContainer.parentElement ?? root;
+								if (!scroller.scrollToRow(node, landed)) landed();
+							}
+						}
+					} else if (!flashed) {
+						flashed = true;
+						flashElement(root);
+					}
+				}
+				if (!sameRanges(ranges, activeRange, published)) {
+					published = {
+						ranges,
+						active: activeRange
+					};
+					setHighlightContribution(contributionId, ranges, activeRange);
+				}
+			};
+			apply();
+			const unsubscribeMeasure = scroller?.onRowMeasured((node_0) => {
+				if (!node_0.contains(root)) return;
+				measured.current = true;
+				apply();
+			});
+			const observer = new MutationObserver(apply);
+			observer.observe(root, {
+				childList: true,
+				subtree: true,
+				characterData: true,
+				attributes: true,
+				attributeFilter: ["data-markdown-pending"]
+			});
+			const resizeObserver = active === null ? null : new ResizeObserver(() => {
+				if (reveal.current !== null) apply();
+			});
+			resizeObserver?.observe(root);
+			return () => {
+				disposed = true;
+				resizeObserver?.disconnect();
+				observer.disconnect();
+				unsubscribeMeasure?.();
+				clearHighlightContribution(contributionId);
+			};
+		};
+		t5 = [
+			ref,
+			anchorId,
+			inWindow,
+			pattern,
+			active,
+			scroller,
+			coordinator,
+			contributionId,
+			handle
+		];
+		$[13] = active;
+		$[14] = anchorId;
+		$[15] = contributionId;
+		$[16] = coordinator;
+		$[17] = handle;
+		$[18] = inWindow;
+		$[19] = pattern;
+		$[20] = ref;
+		$[21] = scroller;
+		$[22] = t4;
+		$[23] = t5;
+	} else {
+		t4 = $[22];
+		t5 = $[23];
+	}
+	(0, import_react.useLayoutEffect)(t4, t5);
+	return handle;
+}
+function _temp$104() {
+	return new RowHandle();
+}
+/** One string per distinct text set; any character may appear in a text. */ var textsKeyOf = (texts) => [...new Set(texts)].map(encodeURIComponent).join(",");
+var textsOfKey = (key) => key.split(",").map(decodeURIComponent);
+var escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Alternation of the matched texts, longest first so a variant that is a
+*  prefix of another cannot shadow it. Exact code points, no folding: the
+*  source already chose the substrings. */ function variantsPattern(texts) {
+	const sorted = [...texts].sort((a, b) => b.length - a.length);
+	return new RegExp(sorted.map(escapeRegExp).join("|"), "gu");
+}
+/** The row's text nodes outside skipped subtrees, in document order, each
+*  with its offset into their plain concatenation. */ function collectRowSegments(root) {
+	const segments = [];
+	let text = "";
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (node) => node.parentElement?.closest(SKIPPED_SUBTREES) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+	for (let node; node = walker.nextNode();) {
+		segments.push({
+			node,
+			start: text.length
+		});
+		text += node.nodeValue ?? "";
+	}
+	return {
+		segments,
+		text
+	};
+}
+/** Occurrences of the pattern in the row's rendered text as DOM Ranges (may
+*  span element boundaries). */ function computeRowRanges(root, pattern, activeOccurrence) {
+	const { segments, text } = collectRowSegments(root);
+	if (!pattern || segments.length === 0) return {
+		ranges: [],
+		activeRange: null,
+		count: 0
+	};
+	const toRange = (start, end) => {
+		const range = document.createRange();
+		const startSeg = segmentAt(segments, start);
+		range.setStart(startSeg.node, start - startSeg.start);
+		const endSeg = segmentAt(segments, end - 1);
+		range.setEnd(endSeg.node, end - endSeg.start);
+		return range;
+	};
+	const ranges = [];
+	let activeRange = null;
+	let count = 0;
+	for (const found of text.matchAll(pattern)) {
+		const start = found.index;
+		const end = start + found[0].length;
+		if (count < ROW_HIGHLIGHT_CAP) ranges.push(toRange(start, end));
+		if (count === activeOccurrence) activeRange = ranges[count] ?? toRange(start, end);
+		count++;
+	}
+	return {
+		ranges,
+		activeRange,
+		count
+	};
+}
+/** A closed `<details>` lays out none of its content, so a match inside one
+*  has no box to centre (and would neither scroll nor flash): open every
+*  closed one between the range and the row. */ function openEnclosingDetails(range, root) {
+	for (let el = range.startContainer.parentElement; el && el !== root; el = el.parentElement) if (el instanceof HTMLDetailsElement && !el.open) el.open = true;
+}
+var sameRange = (a, b) => a.startContainer === b.startContainer && a.startOffset === b.startOffset && a.endContainer === b.endContainer && a.endOffset === b.endOffset;
+function sameRanges(ranges, active, published) {
+	if (published === null || published.ranges.length !== ranges.length) return false;
+	if (active === null !== (published.active === null)) return false;
+	if (active && published.active && !sameRange(active, published.active)) return false;
+	return ranges.every((r, i) => sameRange(r, published.ranges[i]));
+}
+/** Whether the range's box lies below the bottom edge of an ancestor that
+*  clips its overflow (a collapsed ExpandablePanel): the text has a layout
+*  position there but nothing shows at it, and in a virtual list that
+*  position is where later rows are laid out, so centring on it scrolls the
+*  row itself out of the mounted band. The panel opens for the active
+*  occurrence on the same publish; the row's resize re-runs the reveal. */ function isClippedByAncestor(rect, range, root) {
+	for (let el = range.startContainer.parentElement; el && el !== root; el = el.parentElement) {
+		const overflow = getComputedStyle(el).overflowY;
+		if (overflow !== "hidden" && overflow !== "clip") continue;
+		if (rect.top >= el.getBoundingClientRect().bottom - 1) return true;
+	}
+	return false;
+}
+/** The range's first box with area: a range starting at a line wrap reports
+*  an empty box at the previous line's end first. */ function firstBox(range) {
+	for (const rect of range.getClientRects()) if (rect.width > 0 && rect.height > 0) return rect;
+}
+/** Whether a range's box is wholly inside `viewport` and not covered by
+*  something outside its row (a sticky header or tab bar inside the scroller
+*  hides a match that is geometrically within the viewport). */ function isRangeVisible(rect, viewport, root) {
+	if (rect.top < viewport.top || rect.bottom > viewport.bottom) return false;
+	const x = rect.left + 1;
+	const hitsRow = (y) => {
+		if (x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight) return true;
+		const hit = document.elementFromPoint(x, y);
+		return hit !== null && root.contains(hit);
+	};
+	return hitsRow(rect.top + 1) && hitsRow(rect.bottom - 1);
+}
+/** Show the active occurrence. "waiting" when there is nothing to show yet:
+*  no box (unmeasured, not laid out, still inside a collapsed clip), or the
+*  scroll left the box out of view (a target past the list end while later
+*  rows sit at estimated sizes is clamped), so the caller retries on the
+*  next change. In a virtual list the row comes first: "needs-row" asks the
+*  caller to have the list bring the row in by index (the virtualizer
+*  re-aims that as rows measure); centring inside the row (a row taller
+*  than the viewport) follows once `rowLanded`, with `force` centring even
+*  an occurrence already in view (a row the list jumped to is edge-aligned). */ function revealRange(range, root, scroller, force, rowLanded) {
+	const rect = firstBox(range);
+	if (rect === void 0 || isClippedByAncestor(rect, range, root)) return "waiting";
+	if (scroller) {
+		const viewport = scroller.viewportRect();
+		if (!force && isRangeVisible(rect, viewport, root)) return "shown";
+		if (!rowLanded) return "needs-row";
+		const node = range.startContainer.parentElement ?? root;
+		const landing = {};
+		scroller.centreInRow(node, rect, () => {
+			const settled = firstBox(range);
+			if (settled !== void 0 && landing.box !== void 0 && settled.top !== landing.box.top && !isRangeVisible(settled, scroller.viewportRect(), root)) scroller.centreInRow(node, settled);
+		});
+		const after = firstBox(range);
+		landing.box = after;
+		return after !== void 0 && isRangeVisible(after, scroller.viewportRect(), root) ? "shown" : "waiting";
+	}
+	const parent = findScrollableParent(range.startContainer.parentElement);
+	const viewport = parent ? parent.getBoundingClientRect() : new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+	if (force || !isRangeVisible(rect, viewport, root)) scrollRangeToCenter(range);
+	return "shown";
+}
+function segmentAt(segments, pos) {
+	let lo = 0;
+	let hi = segments.length - 1;
+	while (lo < hi) {
+		const mid = lo + hi + 1 >> 1;
+		if (segments[mid].start <= pos) lo = mid;
+		else hi = mid - 1;
+	}
+	return segments[lo];
+}
+//#endregion
+//#region ../../packages/react/src/hooks/useExpandWhenFindBelowFold.ts
+/** `maxHeight: ${lines}rem` resolves against the root font size, not the
+*  panel's own. */ var rootFontSizePx = () => parseFloat(getComputedStyle(document.documentElement).fontSize);
+/**
+* Expand a collapsed panel only when the active Find occurrence sits below
+* its fold. Matching the typed letter anywhere in the subtree grew every
+* assistant message on the first keystroke.
+*
+* Inside a find row the row says where its active occurrence is (the panel
+* decides in its own layout effect and again after every row scan, so a
+* markdown render that moves the occurrence is followed). Panels outside a
+* find row still use a substring check so the legacy window.find path can
+* open a clipped hit.
+*/ function useExpandWhenFindBelowFold(contentRef, lines, fallbackTerm) {
+	const $ = (0, import_compiler_runtime.c)(6);
+	const row = useFindRow();
+	const [expand, setExpand] = (0, import_react.useState)(false);
+	let t0;
+	let t1;
+	if ($[0] !== contentRef || $[1] !== fallbackTerm || $[2] !== lines || $[3] !== row) {
+		t0 = () => {
+			if (row) {
+				const decide = () => {
+					const root = contentRef.current;
+					const range = row.activeRange();
+					setExpand(root !== null && range !== null && root.contains(range.startContainer) && rangeExceedsFold(root, range, lines * rootFontSizePx()));
+				};
+				decide();
+				return row.subscribe(decide);
+			}
+			const scan = () => {
+				const root_0 = contentRef.current;
+				if (!root_0 || !fallbackTerm) {
+					setExpand(false);
+					return;
+				}
+				const text = root_0.textContent || "";
+				setExpand(text.toLowerCase().includes(fallbackTerm.toLowerCase()));
+			};
+			scan();
+			const root_1 = contentRef.current;
+			if (!root_1) return;
+			const observer = new MutationObserver(scan);
+			observer.observe(root_1, {
+				subtree: true,
+				childList: true,
+				characterData: true,
+				attributes: true,
+				attributeFilter: ["data-markdown-pending"]
+			});
+			return () => observer.disconnect();
+		};
+		t1 = [
+			row,
+			lines,
+			fallbackTerm,
+			contentRef
+		];
+		$[0] = contentRef;
+		$[1] = fallbackTerm;
+		$[2] = lines;
+		$[3] = row;
+		$[4] = t0;
+		$[5] = t1;
+	} else {
+		t0 = $[4];
+		t1 = $[5];
+	}
+	(0, import_react.useLayoutEffect)(t0, t1);
+	return expand;
+}
+//#endregion
+//#region ../../packages/react/src/hooks/usePendingFindReveal.ts
+/**
+* A surface's `reveal` over a host that may hold only a loaded prefix of its
+* rows: a row the host has (`revealLoaded` true) is shown at once; a row past
+* the prefix (`row.index >= loadedCount`) is paged in through the host's
+* load-more and shown once its rows arrive; on a host whose rows still grow
+* on their own (`mayGrow`, a running sample polled from a buffer the source
+* may be ahead of) it waits for them. A row the host should have but does
+* not (its index is loaded, or nothing more can arrive) is an anchor
+* mismatch between source and surface: it is dropped and logged rather than
+* guessed at by index.
+*/ function usePendingFindReveal(revealLoaded, loadedCount, hasMoreRows, onLoadMoreRows, t0) {
+	const $ = (0, import_compiler_runtime.c)(11);
+	const mayGrow = t0 === void 0 ? false : t0;
+	const pending = (0, import_react.useRef)(null);
+	let t1;
+	if ($[0] !== hasMoreRows || $[1] !== loadedCount || $[2] !== mayGrow || $[3] !== onLoadMoreRows || $[4] !== revealLoaded) {
+		t1 = (row, signal) => {
+			if (signal.aborted || revealLoaded(row)) return true;
+			if (row.index < loadedCount || !hasMoreRows && !mayGrow) {
+				console.warn(`find: row ${row.anchor.id} (index ${row.index}) is not among the ${loadedCount} loaded rows`);
+				return true;
+			}
+			if (hasMoreRows) onLoadMoreRows?.();
+			return false;
+		};
+		$[0] = hasMoreRows;
+		$[1] = loadedCount;
+		$[2] = mayGrow;
+		$[3] = onLoadMoreRows;
+		$[4] = revealLoaded;
+		$[5] = t1;
+	} else t1 = $[5];
+	const attempt = t1;
+	let t2;
+	let t3;
+	if ($[6] !== attempt) {
+		t2 = () => {
+			const p = pending.current;
+			if (p && attempt(p.row, p.signal)) pending.current = null;
+		};
+		t3 = [attempt];
+		$[6] = attempt;
+		$[7] = t2;
+		$[8] = t3;
+	} else {
+		t2 = $[7];
+		t3 = $[8];
+	}
+	(0, import_react.useEffect)(t2, t3);
+	let t4;
+	if ($[9] !== attempt) {
+		t4 = (row_0, signal_0) => {
+			pending.current = attempt(row_0, signal_0) ? null : {
+				row: row_0,
+				signal: signal_0
+			};
+		};
+		$[9] = attempt;
+		$[10] = t4;
+	} else t4 = $[10];
+	return t4;
+}
 var AsyncGate_module_default = { gate: "_gate_111wv_1" };
 //#endregion
 //#region ../../node_modules/.pnpm/clsx@2.1.1/node_modules/clsx/dist/clsx.mjs
@@ -38311,7 +39494,7 @@ var AutocompleteInput = (t0) => {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$102);
+				t8 = suggestions.filter(_temp$103);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -38675,7 +39858,7 @@ var AutocompleteInput = (t0) => {
 	} else t30 = $[78];
 	return t30;
 };
-function _temp$102(s) {
+function _temp$103(s) {
 	return s !== null;
 }
 function _temp2$59(s_1) {
@@ -53858,7 +55041,7 @@ var stringFromCharCode = String.fromCharCode;
 * @param {String} type The error type.
 * @returns {Error} Throws a `RangeError` with the applicable error message.
 */
-function error$7(type) {
+function error$8(type) {
 	throw new RangeError(errors[type]);
 }
 /**
@@ -53992,26 +55175,26 @@ var decode = function(input) {
 	let basic = input.lastIndexOf(delimiter);
 	if (basic < 0) basic = 0;
 	for (let j = 0; j < basic; ++j) {
-		if (input.charCodeAt(j) >= 128) error$7("not-basic");
+		if (input.charCodeAt(j) >= 128) error$8("not-basic");
 		output.push(input.charCodeAt(j));
 	}
 	for (let index = basic > 0 ? basic + 1 : 0; index < inputLength;) {
 		const oldi = i;
 		for (let w = 1, k = base$1;; k += base$1) {
-			if (index >= inputLength) error$7("invalid-input");
+			if (index >= inputLength) error$8("invalid-input");
 			const digit = basicToDigit(input.charCodeAt(index++));
-			if (digit >= base$1) error$7("invalid-input");
-			if (digit > floor((maxInt - i) / w)) error$7("overflow");
+			if (digit >= base$1) error$8("invalid-input");
+			if (digit > floor((maxInt - i) / w)) error$8("overflow");
 			i += digit * w;
 			const t = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
 			if (digit < t) break;
 			const baseMinusT = base$1 - t;
-			if (w > floor(maxInt / baseMinusT)) error$7("overflow");
+			if (w > floor(maxInt / baseMinusT)) error$8("overflow");
 			w *= baseMinusT;
 		}
 		const out = output.length + 1;
 		bias = adapt(i - oldi, out, oldi == 0);
-		if (floor(i / out) > maxInt - n) error$7("overflow");
+		if (floor(i / out) > maxInt - n) error$8("overflow");
 		n += floor(i / out);
 		i %= out;
 		output.splice(i++, 0, n);
@@ -54040,11 +55223,11 @@ var encode = function(input) {
 		let m = maxInt;
 		for (const currentValue of input) if (currentValue >= n && currentValue < m) m = currentValue;
 		const handledCPCountPlusOne = handledCPCount + 1;
-		if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) error$7("overflow");
+		if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) error$8("overflow");
 		delta += (m - n) * handledCPCountPlusOne;
 		n = m;
 		for (const currentValue of input) {
-			if (currentValue < n && ++delta > maxInt) error$7("overflow");
+			if (currentValue < n && ++delta > maxInt) error$8("overflow");
 			if (currentValue === n) {
 				let q = delta;
 				for (let k = base$1;; k += base$1) {
@@ -54123,8 +55306,8 @@ var punycode = {
 	"toUnicode": toUnicode
 };
 //#endregion
-//#region ../../node_modules/.pnpm/markdown-it@15.0.0/node_modules/markdown-it/dist/markdown-it.mjs
-/*! markdown-it 15.0.0 https://github.com/markdown-it/markdown-it @license MIT */
+//#region ../../node_modules/.pnpm/markdown-it@15.0.1/node_modules/markdown-it/dist/markdown-it.mjs
+/*! markdown-it 15.0.1 https://github.com/markdown-it/markdown-it @license MIT */
 var __defProp = Object.defineProperty;
 var __exportAll = (all, no_symbols) => {
 	let target = {};
@@ -54685,13 +55868,25 @@ var Token = class {
 */
 var Ruler = class {
 	constructor() {
-		_defineProperty(this, "__rules__", []);
-		_defineProperty(this, "__cache__", null);
+		_defineProperty(
+			this,
+			/** @internal */
+			"__rules__",
+			[]
+		);
+		_defineProperty(
+			this,
+			/** @internal */
+			"__cache__",
+			null
+		);
 	}
+	/** @internal */
 	__find__(name) {
 		for (let i = 0; i < this.__rules__.length; i++) if (this.__rules__[i].name === name) return i;
 		return -1;
 	}
+	/** @internal */
 	__compile__() {
 		const chains = /* @__PURE__ */ new Set();
 		this.__rules__.forEach((rule) => {
@@ -54716,11 +55911,6 @@ var Ruler = class {
 	* Replace rule by name with new function & options. Throws error if name not
 	* found.
 	*
-	* @param name Rule name to replace.
-	* @param fn New rule function.
-	* @param options Rule options. `alt` is an array with names of "alternate"
-	* chains.
-	*
 	* @example Replace existing typographer replacement rule with new one
 	* ```javascript
 	* import MarkdownIt from 'markdown-it'
@@ -54741,12 +55931,6 @@ var Ruler = class {
 	/**
 	* Add new rule to chain before one with given name. See also
 	* {@link Ruler.after}, {@link Ruler.push}.
-	*
-	* @param beforeName New rule will be added before this one.
-	* @param ruleName Name of added rule.
-	* @param fn Rule function.
-	* @param options Rule options. `alt` is an array with names of "alternate"
-	* chains.
 	*
 	* @example
 	* ```javascript
@@ -54773,12 +55957,6 @@ var Ruler = class {
 	* Add new rule to chain after one with given name. See also
 	* {@link Ruler.before}, {@link Ruler.push}.
 	*
-	* @param afterName New rule will be added after this one.
-	* @param ruleName Name of added rule.
-	* @param fn Rule function.
-	* @param options Rule options. `alt` is an array with names of "alternate"
-	* chains.
-	*
 	* @example
 	* ```javascript
 	* import MarkdownIt from 'markdown-it'
@@ -54803,11 +55981,6 @@ var Ruler = class {
 	/**
 	* Push new rule to the end of chain. See also
 	* {@link Ruler.before}, {@link Ruler.after}.
-	*
-	* @param ruleName Name of added rule.
-	* @param fn Rule function.
-	* @param options Rule options. `alt` is an array with names of "alternate"
-	* chains.
 	*
 	* @example
 	* ```javascript
@@ -54834,9 +56007,7 @@ var Ruler = class {
 	*
 	* See also {@link Ruler.disable}, {@link Ruler.enableOnly}.
 	*
-	* @param list List of rule names to enable.
-	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
-	* @returns List of found rule names (if no exception happened).
+	* Returns list of found rule names (if no exception happened).
 	*/
 	enable(list, ignoreInvalid = false) {
 		if (!Array.isArray(list)) list = [list];
@@ -54858,9 +56029,6 @@ var Ruler = class {
 	* not found - throw Error. Errors can be disabled by second param.
 	*
 	* See also {@link Ruler.disable}, {@link Ruler.enable}.
-	*
-	* @param list List of rule names to enable (whitelist).
-	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
 	*/
 	enableOnly(list, ignoreInvalid = false) {
 		if (!Array.isArray(list)) list = [list];
@@ -54875,9 +56043,7 @@ var Ruler = class {
 	*
 	* See also {@link Ruler.enable}, {@link Ruler.enableOnly}.
 	*
-	* @param list List of rule names to disable.
-	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
-	* @returns List of found rule names (if no exception happened).
+	* Returns list of found rule names (if no exception happened).
 	*/
 	disable(list, ignoreInvalid = false) {
 		if (!Array.isArray(list)) list = [list];
@@ -55015,10 +56181,6 @@ var Renderer = class {
 	/**
 	* Default token renderer. Can be overriden by custom function
 	* in {@link Renderer.rules}.
-	*
-	* @param tokens List of tokens.
-	* @param idx Token index to render.
-	* @param options Params of parser instance.
 	*/
 	renderToken(tokens, idx, options) {
 		const token = tokens[idx];
@@ -55048,10 +56210,6 @@ var Renderer = class {
 	}
 	/**
 	* The same as {@link Renderer.render}, but for single token of `inline` type.
-	*
-	* @param tokens List on block tokens to render.
-	* @param options Params of parser instance.
-	* @param env Additional data from parsed input (references, for example).
 	*/
 	renderInline(tokens, options, env) {
 		let result = "";
@@ -55067,10 +56225,6 @@ var Renderer = class {
 	* Special kludge for image `alt` attributes to conform CommonMark spec.
 	* Don't try to use it! Spec requires to show `alt` content with stripped markup,
 	* instead of simple escaping.
-	*
-	* @param tokens List on block tokens to render.
-	* @param options Params of parser instance.
-	* @param env Additional data from parsed input (references, for example).
 	*/
 	renderInlineAsText(tokens, options, env) {
 		let result = "";
@@ -55094,10 +56248,6 @@ var Renderer = class {
 	/**
 	* Takes token stream and generates HTML. Probably, you will never need to call
 	* this method directly.
-	*
-	* @param tokens List on block tokens to render.
-	* @param options Params of parser instance.
-	* @param env Additional data from parsed input (references, for example).
 	*/
 	render(tokens, options, env) {
 		let result = "";
@@ -55122,11 +56272,11 @@ var StateCore = class {
 		this.md = md;
 	}
 };
-var NEWLINES_RE = /\r\n?|\n/g;
+var UNNORMALIZED_NEWLINE_RE = /\r\n?/g;
 var NULL_RE = /\0/g;
 function normalize(state) {
 	let str;
-	str = state.src.replace(NEWLINES_RE, "\n");
+	str = state.src.replace(UNNORMALIZED_NEWLINE_RE, "\n");
 	str = str.replace(NULL_RE, "�");
 	state.src = str;
 }
@@ -55168,7 +56318,8 @@ function linkify$1(state) {
 	if (!state.md.options.linkify) return;
 	for (let j = 0, l = blockTokens.length; j < l; j++) {
 		if (blockTokens[j].type !== "inline" || !state.md.linkify.test(blockTokens[j].content)) continue;
-		let tokens = blockTokens[j].children;
+		const tokens = blockTokens[j].children;
+		const replacements = [];
 		let htmlLinkLevel = 0;
 		for (let i = tokens.length - 1; i >= 0; i--) {
 			const currentToken = tokens[i];
@@ -55227,8 +56378,27 @@ function linkify$1(state) {
 					token.level = level;
 					nodes.push(token);
 				}
-				blockTokens[j].children = tokens = arrayReplaceAt(tokens, i, nodes);
+				replacements.push({
+					index: i,
+					nodes
+				});
 			}
+		}
+		if (replacements.length > 0) {
+			let newTokensLength = tokens.length;
+			for (const replacement of replacements) newTokensLength += replacement.nodes.length - 1;
+			const newTokens = new Array(newTokensLength);
+			let replacementIndex = 0;
+			let newTokenIndex = 0;
+			replacements.reverse();
+			for (let i = 0; i < tokens.length; i++) {
+				const replacement = replacements[replacementIndex];
+				if ((replacement === null || replacement === void 0 ? void 0 : replacement.index) === i) {
+					for (const node of replacement.nodes) newTokens[newTokenIndex++] = node;
+					replacementIndex++;
+				} else newTokens[newTokenIndex++] = tokens[i];
+			}
+			blockTokens[j].children = newTokens;
 		}
 	}
 }
@@ -56668,7 +57838,12 @@ function text$3(state, silent) {
 	state.pos = pos;
 	return true;
 }
-var SCHEME_RE = /(?:^|[^a-z0-9.+-])([a-z][a-z0-9.+-]*)$/i;
+function isAsciiAlpha(code) {
+	return code >= 65 && code <= 90 || code >= 97 && code <= 122;
+}
+function isSchemeChar(code) {
+	return code >= 65 && code <= 90 || code >= 97 && code <= 122 || code >= 48 && code <= 57 || code === 43 || code === 45 || code === 46;
+}
 function linkify(state, silent) {
 	if (!state.md.options.linkify) return false;
 	if (state.linkLevel > 0) return false;
@@ -56678,20 +57853,22 @@ function linkify(state, silent) {
 	if (state.src.charCodeAt(pos) !== 58) return false;
 	if (state.src.charCodeAt(pos + 1) !== 47) return false;
 	if (state.src.charCodeAt(pos + 2) !== 47) return false;
-	const match = state.pending.match(SCHEME_RE);
-	if (!match) return false;
-	const proto = match[1];
-	const link = state.md.linkify.matchAtStart(state.src.slice(pos - proto.length));
+	const protoMin = pos - Math.min(10, state.pending.length, pos);
+	let protoStart = pos;
+	while (protoStart > protoMin && isSchemeChar(state.src.charCodeAt(protoStart - 1))) protoStart--;
+	if (protoStart === pos || !isAsciiAlpha(state.src.charCodeAt(protoStart))) return false;
+	const protoLength = pos - protoStart;
+	const link = state.md.linkify.matchAtStart(state.src.slice(protoStart));
 	if (!link) return false;
 	let url = link.url;
-	if (url.length <= proto.length) return false;
+	if (url.length <= protoLength) return false;
 	let urlEnd = url.length;
 	while (urlEnd > 0 && url.charCodeAt(urlEnd - 1) === 42) urlEnd--;
 	if (urlEnd !== url.length) url = url.slice(0, urlEnd);
 	const fullUrl = state.md.normalizeLink(url);
 	if (!state.md.validateLink(fullUrl)) return false;
 	if (!silent) {
-		state.pending = state.pending.slice(0, -proto.length);
+		state.pending = state.pending.slice(0, -protoLength);
 		const token_o = state.push("link_open", "a", 1);
 		token_o.attrs = [["href", fullUrl]];
 		token_o.markup = "linkify";
@@ -56702,7 +57879,7 @@ function linkify(state, silent) {
 		token_c.markup = "linkify";
 		token_c.info = "auto";
 	}
-	state.pos += url.length - proto.length;
+	state.pos += url.length - protoLength;
 	return true;
 }
 function newline(state, silent) {
@@ -56777,40 +57954,51 @@ function escape(state, silent) {
 	state.pos = pos + 1;
 	return true;
 }
+function buildLastRuns(src) {
+	const lastRuns = {};
+	let pos = 0;
+	while ((pos = src.indexOf("`", pos)) !== -1) {
+		const start = pos;
+		while (src.charCodeAt(++pos) === 96);
+		lastRuns[pos - start] = start;
+	}
+	return lastRuns;
+}
 function backtick(state, silent) {
-	let pos = state.pos;
-	if (state.src.charCodeAt(pos) !== 96) return false;
-	const start = pos;
-	pos++;
+	var _state$backticks$open;
+	const start = state.pos;
+	if (state.src.charCodeAt(start) !== 96) return false;
 	const max = state.posMax;
+	let pos = start + 1;
 	while (pos < max && state.src.charCodeAt(pos) === 96) pos++;
 	const marker = state.src.slice(start, pos);
 	const openerLength = marker.length;
-	if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start) {
-		if (!silent) state.pending += marker;
-		state.pos += openerLength;
-		return true;
+	if (!state.backticksScanned) {
+		state.backticks = buildLastRuns(state.src);
+		state.backticksScanned = true;
 	}
-	let matchEnd = pos;
-	let matchStart;
-	while ((matchStart = state.src.indexOf("`", matchEnd)) !== -1) {
-		matchEnd = matchStart + 1;
-		while (matchEnd < max && state.src.charCodeAt(matchEnd) === 96) matchEnd++;
-		const closerLength = matchEnd - matchStart;
-		if (closerLength === openerLength) {
-			if (!silent) {
-				const token = state.push("code_inline", "code", 0);
-				token.markup = marker;
-				token.content = state.src.slice(pos, matchStart).replace(/\n/g, " ").replace(/^ (.+) $/, "$1");
+	if (((_state$backticks$open = state.backticks[openerLength]) !== null && _state$backticks$open !== void 0 ? _state$backticks$open : -1) >= pos) {
+		let matchEnd = pos;
+		let matchStart;
+		while ((matchStart = state.src.indexOf("`", matchEnd)) !== -1 && matchStart < max) {
+			matchEnd = matchStart + 1;
+			while (state.src.charCodeAt(matchEnd) === 96) matchEnd++;
+			if (matchEnd > max) break;
+			if (matchEnd - matchStart === openerLength) {
+				if (!silent) {
+					const token = state.push("code_inline", "code", 0);
+					token.markup = marker;
+					let content = state.src.slice(pos, matchStart).replace(/\n/g, " ");
+					if (content.startsWith(" ") && content.endsWith(" ") && /[^ ]/.test(content)) content = content.slice(1, -1);
+					token.content = content;
+				}
+				state.pos = matchEnd;
+				return true;
 			}
-			state.pos = matchEnd;
-			return true;
 		}
-		state.backticks[closerLength] = matchStart;
 	}
-	state.backticksScanned = true;
 	if (!silent) state.pending += marker;
-	state.pos += openerLength;
+	state.pos = pos;
 	return true;
 }
 function strikethrough_tokenize(state, silent) {
@@ -57563,7 +58751,12 @@ var MarkdownIt = class {
 				parsed.hostname = punycode.toASCII(parsed.hostname);
 			} catch (er) {}
 		}
-		return encode$1(format$1(parsed));
+		if (parsed.auth) parsed.auth = encode$1(parsed.auth);
+		if (parsed.hostname) parsed.hostname = encode$1(parsed.hostname);
+		if (parsed.pathname) parsed.pathname = encode$1(parsed.pathname);
+		if (parsed.search) parsed.search = encode$1(parsed.search);
+		if (parsed.hash) parsed.hash = encode$1(parsed.hash);
+		return format$1(parsed);
 	}
 	/**
 	* Function used to decode link url to a human-readable format`
@@ -57731,9 +58924,6 @@ var MarkdownIt = class {
 	* containing rules with given names. If rule not found, and `ignoreInvalid`
 	* not set - throws exception.
 	*
-	* @param list Rule name or list of rule names to enable.
-	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
-	*
 	* @example
 	* ```javascript
 	* import MarkdownIt from 'markdown-it'
@@ -57760,9 +58950,6 @@ var MarkdownIt = class {
 	}
 	/**
 	* The same as {@link MarkdownIt.enable}, but turn specified rules off.
-	*
-	* @param list Rule name or list of rule names to disable.
-	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
 	*/
 	disable(list, ignoreInvalid = false) {
 		let result = [];
@@ -57808,9 +58995,6 @@ var MarkdownIt = class {
 	* metadata like reference info, needed for the renderer. It also can be used to
 	* inject data in specific cases. Usually, you will be ok to pass `{}`,
 	* and then pass updated object to renderer.
-	*
-	* @param src Source string.
-	* @param env Environment sandbox.
 	*/
 	parse(src, env) {
 		if (typeof src !== "string") throw new Error("Input data should be a String");
@@ -57824,9 +59008,6 @@ var MarkdownIt = class {
 	* `env` can be used to inject additional metadata (`{}` by default).
 	* But you will not need it with high probability. See also comment
 	* in {@link MarkdownIt.parse}.
-	*
-	* @param src Source string.
-	* @param env Environment sandbox.
 	*/
 	render(src, env = {}) {
 		return this.renderer.render(this.parse(src, env), this.options, env);
@@ -57835,9 +59016,6 @@ var MarkdownIt = class {
 	* The same as {@link MarkdownIt.parse} but skip all block rules. It returns
 	* the block tokens list with the single `inline` element, containing parsed
 	* inline tokens in `children` property. Also updates `env` object.
-	*
-	* @param src Source string.
-	* @param env Environment sandbox.
 	*/
 	parseInline(src, env) {
 		const state = new this.core.State(src, this, env);
@@ -57848,9 +59026,6 @@ var MarkdownIt = class {
 	/**
 	* Similar to {@link MarkdownIt.render} but for single paragraph content.
 	* Result will NOT be wrapped into `<p>` tags.
-	*
-	* @param src Source string.
-	* @param env Environment sandbox.
 	*/
 	renderInline(src, env = {}) {
 		return this.renderer.render(this.parseInline(src, env), this.options, env);
@@ -57954,7 +59129,7 @@ var getMarkdownInstance = async (renderer, contentHasMath) => {
 	mdInstanceCache[cacheKey] = md;
 	return md;
 };
-var escapeHtmlCharacters$1 = (content) => {
+var escapeHtmlCharacters = (content) => {
 	if (!content) return content;
 	return content.replace(/[<>&'"]/g, (c) => {
 		switch (c) {
@@ -58041,7 +59216,7 @@ function unescapeCodeHtmlEntities(str) {
 	});
 }
 var renderFullPipelineMarkdown = async (markdown, renderer) => {
-	const preparedForMarkdown = restoreBackslashesForLatex(protectMarkdown(preRenderText(escapeHtmlCharacters$1(protectBackslashesInLatex(markdown)))));
+	const preparedForMarkdown = restoreBackslashesForLatex(protectMarkdown(preRenderText(escapeHtmlCharacters(protectBackslashesInLatex(markdown)))));
 	let html = preparedForMarkdown;
 	try {
 		html = (await getMarkdownInstance(renderer, hasMathContent(markdown))).render(preparedForMarkdown);
@@ -58057,7 +59232,7 @@ var renderTextOnlyMarkdown = async (markdown) => {
 	} catch (ex) {
 		console.log("Unable to markdown render content");
 		console.error(ex);
-		return escapeHtmlCharacters$1(markdown).replace(/\n/g, "<br/>");
+		return escapeHtmlCharacters(markdown).replace(/\n/g, "<br/>");
 	}
 };
 var markdownRenderers = {
@@ -60445,6 +61620,93 @@ function createDOMPurify() {
 }
 var purify$1 = createDOMPurify();
 //#endregion
+//#region ../../packages/react/src/components/mathjaxStyles.ts
+var MATHJAX_STYLES = `
+:scope {
+  display: contents;
+}
+:scope mjx-container[jax="SVG"] {
+  direction: ltr;
+  position: relative;
+}
+:scope mjx-container[jax="SVG"] > svg {
+  /* WebKit ignores overflow-clip-margin and clips at the SVG box. */
+  overflow: clip;
+  overflow-clip-margin: 1em;
+  min-height: 1px;
+  min-width: 1px;
+}
+:scope mjx-container[jax="SVG"] > svg a {
+  fill: blue;
+  stroke: blue;
+}
+:scope mjx-assistive-mml {
+  top: 0px;
+  left: 0px;
+  clip: rect(1px, 1px, 1px, 1px) !important;
+  user-select: text !important;
+  position: absolute !important;
+  padding: 1px 0px 0px !important;
+  border: 0px !important;
+  display: block !important;
+  width: auto !important;
+  overflow: hidden !important;
+}
+:scope mjx-assistive-mml[display="block"] {
+  width: 100% !important;
+}
+:scope mjx-container[jax="SVG"][display="true"] {
+  display: block;
+  text-align: center;
+  margin: 1em 0px;
+}
+:scope mjx-container[jax="SVG"][display="true"][width="full"] {
+  display: flex;
+}
+:scope mjx-container[jax="SVG"][justify="left"] {
+  text-align: left;
+}
+:scope mjx-container[jax="SVG"][justify="right"] {
+  text-align: right;
+}
+:scope g[data-mml-node="merror"] > g {
+  fill: red;
+  stroke: red;
+}
+:scope g[data-mml-node="merror"] > rect[data-background] {
+  fill: yellow;
+  stroke: none;
+}
+:scope g[data-mml-node="mtable"] > line[data-line], :scope svg[data-table] > g > line[data-line] {
+  stroke-width: 70px;
+  fill: none;
+}
+:scope g[data-mml-node="mtable"] > rect[data-frame], :scope svg[data-table] > g > rect[data-frame] {
+  stroke-width: 70px;
+  fill: none;
+}
+:scope g[data-mml-node="mtable"] > .mjx-dashed, :scope svg[data-table] > g > .mjx-dashed {
+  stroke-dasharray: 140;
+}
+:scope g[data-mml-node="mtable"] > .mjx-dotted, :scope svg[data-table] > g > .mjx-dotted {
+  stroke-linecap: round;
+  stroke-dasharray: 0, 140;
+}
+:scope g[data-mml-node="mtable"] > g > svg {
+  overflow: visible;
+}
+:scope g[data-mml-node="maction"][data-toggle] {
+  cursor: pointer;
+}
+:scope mjx-container[jax="SVG"] path[data-c], :scope mjx-container[jax="SVG"] use[data-c] {
+  stroke-width: 3;
+}
+:scope g[data-mml-node="xypic"] path {
+  stroke-width: inherit;
+}
+`;
+var mathJaxStyles = (scopeId) => MATHJAX_STYLES.replaceAll(":scope", `#${scopeId}`).trim();
+//#endregion
 //#region ../../packages/react/src/components/renderedHtmlSanitizer.ts
 var FORBIDDEN_TAGS = [
 	"animate",
@@ -60476,9 +61738,6 @@ var FORBIDDEN_TAGS = [
 var MATHJAX_TAGS = [
 	"mjx-assistive-mml",
 	"mjx-container",
-	"mjx-status",
-	"mjx-tip",
-	"mjx-tool",
 	"style"
 ];
 var MATHJAX_ATTRS = [
@@ -60499,7 +61758,24 @@ var URL_ATTRIBUTES = /* @__PURE__ */ new Set([
 	"src",
 	"xlink:href"
 ]);
-var SAFE_STYLE_PROPERTIES = /* @__PURE__ */ new Set([
+var BOX_LONGHANDS = [
+	"overflow-x",
+	"overflow-y",
+	...[
+		"top",
+		"right",
+		"bottom",
+		"left"
+	].flatMap((edge) => [
+		`margin-${edge}`,
+		`padding-${edge}`,
+		`border-${edge}-color`,
+		`border-${edge}-style`,
+		`border-${edge}-width`
+	])
+];
+var INLINE_STYLE_PROPERTIES = /* @__PURE__ */ new Set([
+	...BOX_LONGHANDS,
 	"-khtml-user-select",
 	"-moz-user-select",
 	"-ms-user-select",
@@ -60507,8 +61783,6 @@ var SAFE_STYLE_PROPERTIES = /* @__PURE__ */ new Set([
 	"-webkit-user-select",
 	"background-color",
 	"border",
-	"bottom",
-	"box-shadow",
 	"clip",
 	"color",
 	"direction",
@@ -60517,33 +61791,42 @@ var SAFE_STYLE_PROPERTIES = /* @__PURE__ */ new Set([
 	"font-family",
 	"font-size",
 	"height",
-	"left",
 	"line-height",
 	"margin",
 	"min-height",
 	"min-width",
 	"overflow",
 	"padding",
-	"position",
-	"right",
 	"stroke",
 	"stroke-dasharray",
 	"stroke-linecap",
 	"stroke-width",
 	"text-align",
-	"top",
 	"user-select",
 	"vertical-align",
 	"width"
 ]);
+var SAFE_CSS_FUNCTIONS = /* @__PURE__ */ new Set([
+	"hsl",
+	"hsla",
+	"rect",
+	"rgb",
+	"rgba"
+]);
 var UNSAFE_CSS_PATTERN = /@import|behavior\s*:|binding\s*:|expression\s*\(|javascript\s*:|vbscript\s*:|url\s*\(/i;
+var RAW_CSS_REJECT_PATTERN = /[\\@<]/;
+var MATHJAX_WRAPPER_ID = /^mjx-[a-f0-9]+$/i;
 var PURIFY_CONFIG = {
 	ADD_ATTR: [...MATHJAX_ATTRS, "target"],
 	ADD_DATA_URI_TAGS: ["img"],
 	ADD_TAGS: MATHJAX_TAGS,
 	ALLOW_DATA_ATTR: true,
 	ALLOW_UNKNOWN_PROTOCOLS: false,
-	FORBID_ATTR: ["srcdoc", "srcset"],
+	FORBID_ATTR: [
+		"overflow",
+		"srcdoc",
+		"srcset"
+	],
 	FORBID_TAGS: FORBIDDEN_TAGS,
 	USE_PROFILES: {
 		html: true,
@@ -60553,16 +61836,6 @@ var PURIFY_CONFIG = {
 };
 var purify;
 var hooksInstalled = false;
-var escapeHtmlCharacters = (content) => content.replace(/[<>&'"]/g, (c) => {
-	switch (c) {
-		case "<": return "&lt;";
-		case ">": return "&gt;";
-		case "&": return "&amp;";
-		case "'": return "&apos;";
-		case "\"": return "&quot;";
-		default: return c;
-	}
-});
 var sanitizeRenderedHtml = (html) => {
 	if (!html) return html;
 	const purifier = getPurify();
@@ -60579,10 +61852,18 @@ var installHooks = (purify) => {
 	if (hooksInstalled) return;
 	hooksInstalled = true;
 	purify.addHook("uponSanitizeElement", (node, hookEvent) => {
-		if (hookEvent.tagName === "style" && node instanceof Element && !isAllowedMathJaxStyleElement(node)) node.remove();
+		if (hookEvent.tagName !== "style" || !(node instanceof Element)) return;
+		const css = sanitizeMathJaxStyleElement(node);
+		if (css) node.textContent = css;
+		else node.remove();
 	});
 	purify.addHook("uponSanitizeAttribute", (node, hookEvent) => {
 		if (hookEvent.attrName === "style") {
+			if (node.tagName.toLowerCase() === "mjx-assistive-mml") {
+				hookEvent.keepAttr = false;
+				node.removeAttribute("style");
+				return;
+			}
 			sanitizeStyleAttributeHook(node, hookEvent);
 			return;
 		}
@@ -60639,33 +61920,42 @@ var isSafeUrlAttribute = (value) => {
 	return !/^(?:javascript|vbscript):/i.test(normalized);
 };
 var sanitizeStyleAttribute = (style) => {
-	if (!style || UNSAFE_CSS_PATTERN.test(style)) return "";
+	if (!style || UNSAFE_CSS_PATTERN.test(style) || RAW_CSS_REJECT_PATTERN.test(style)) return "";
 	const scratch = document.createElement("span");
 	scratch.setAttribute("style", style);
-	const safeDeclarations = [];
-	for (const property of Array.from(scratch.style)) {
-		const normalizedProperty = property.toLowerCase();
-		const value = scratch.style.getPropertyValue(property);
-		if (SAFE_STYLE_PROPERTIES.has(normalizedProperty) && value && !UNSAFE_CSS_PATTERN.test(value)) {
-			const priority = scratch.style.getPropertyPriority(property);
-			safeDeclarations.push(`${normalizedProperty}: ${value}${priority ? ` !${priority}` : ""};`);
-		}
-	}
-	return safeDeclarations.join(" ");
+	return safeDeclarations(scratch.style).join(" ");
 };
-var isAllowedMathJaxStyleElement = (element) => {
+var safeDeclarations = (style) => {
+	const declarations = [];
+	for (const property of Array.from(style)) {
+		const normalizedProperty = property.toLowerCase();
+		const value = style.getPropertyValue(property);
+		if (!INLINE_STYLE_PROPERTIES.has(normalizedProperty) || !value || !isSafeStyleValue(normalizedProperty, value)) continue;
+		const priority = style.getPropertyPriority(property);
+		declarations.push(`${normalizedProperty}: ${value}${priority ? ` !${priority}` : ""};`);
+	}
+	return declarations;
+};
+var isSafeStyleValue = (property, value) => {
+	if (UNSAFE_CSS_PATTERN.test(value) || RAW_CSS_REJECT_PATTERN.test(value)) return false;
+	for (const call of value.matchAll(/([-\w]*)\s*\(/g)) if (!SAFE_CSS_FUNCTIONS.has((call[1] ?? "").toLowerCase())) return false;
+	if (property.startsWith("overflow") && /\bvisible\b/.test(value)) return false;
+	if (property.startsWith("margin") && /(?:^|\s)-/.test(value)) return false;
+	return true;
+};
+var sanitizeMathJaxStyleElement = (element) => {
 	const parent = element.parentElement;
-	const parentId = parent?.getAttribute("id") || "";
-	const css = element.textContent || "";
-	return parent?.tagName.toLowerCase() === "span" && /^mjx-[a-f0-9]+$/i.test(parentId) && css.includes(`#${parentId}`) && !UNSAFE_CSS_PATTERN.test(css);
+	const scopeId = parent?.getAttribute("id") ?? "";
+	if (parent?.tagName.toLowerCase() !== "span" || !MATHJAX_WRAPPER_ID.test(scopeId)) return "";
+	return mathJaxStyles(scopeId);
 };
 //#endregion
 //#region ../../packages/react/src/components/MarkdownDiv.tsx
 var sanitizeMarkdown = (md) => {
-	return escapeHtmlCharacters$1(md).replace(/\n/g, "<br/>");
+	return escapeHtmlCharacters(md).replace(/\n/g, "<br/>");
 };
 var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
-	const $ = (0, import_compiler_runtime.c)(25);
+	const $ = (0, import_compiler_runtime.c)(27);
 	const { markdown, renderer, style, className, postProcess, onClick } = t0;
 	const rendererName = renderer ?? "full";
 	const cacheKey = `${rendererName}:${markdown}`;
@@ -60687,29 +61977,39 @@ var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) 
 	} else t2 = $[3];
 	const applyPostProcess = t2;
 	let t3;
-	if ($[4] !== applyPostProcess || $[5] !== cachedHtml || $[6] !== markdown) {
-		t3 = () => {
-			if (cachedHtml) return applyPostProcess(cachedHtml);
-			return sanitizeMarkdown(markdown);
+	if ($[4] !== applyPostProcess || $[5] !== cacheKey || $[6] !== cachedHtml || $[7] !== markdown) {
+		t3 = () => cachedHtml ? {
+			html: applyPostProcess(cachedHtml),
+			key: cacheKey
+		} : {
+			html: sanitizeMarkdown(markdown),
+			key: null
 		};
 		$[4] = applyPostProcess;
-		$[5] = cachedHtml;
-		$[6] = markdown;
-		$[7] = t3;
-	} else t3 = $[7];
-	const [renderedHtml, setRenderedHtml] = (0, import_react.useState)(t3);
+		$[5] = cacheKey;
+		$[6] = cachedHtml;
+		$[7] = markdown;
+		$[8] = t3;
+	} else t3 = $[8];
+	const [rendered, setRendered] = (0, import_react.useState)(t3);
 	let t4;
 	let t5;
-	if ($[8] !== applyPostProcess || $[9] !== cacheKey || $[10] !== cachedHtml || $[11] !== markdown || $[12] !== rendererName) {
+	if ($[9] !== applyPostProcess || $[10] !== cacheKey || $[11] !== cachedHtml || $[12] !== markdown || $[13] !== rendererName) {
 		t4 = () => {
 			if (cachedHtml) {
 				const finalHtml = applyPostProcess(cachedHtml);
 				(0, import_react.startTransition)(() => {
-					setRenderedHtml((prev) => prev === finalHtml ? prev : finalHtml);
+					setRendered((prev) => prev.html === finalHtml && prev.key === cacheKey ? prev : {
+						html: finalHtml,
+						key: cacheKey
+					});
 				});
 				return;
 			}
-			setRenderedHtml(sanitizeMarkdown(markdown));
+			setRendered({
+				html: sanitizeMarkdown(markdown),
+				key: null
+			});
 			const { promise, cancel } = renderQueue.enqueue(() => renderMarkdown(markdown, rendererName));
 			promise.then((result) => {
 				if (renderCache.size >= MAX_CACHE_SIZE) {
@@ -60719,9 +62019,12 @@ var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) 
 				const sanitizedResult = sanitizeRenderedHtml(result);
 				renderCache.set(cacheKey, sanitizedResult);
 				(0, import_react.startTransition)(() => {
-					setRenderedHtml(applyPostProcess(sanitizedResult));
+					setRendered({
+						html: applyPostProcess(sanitizedResult),
+						key: cacheKey
+					});
 				});
-			}).catch(_temp$101);
+			}).catch(_temp$102);
 			return () => {
 				cancel();
 			};
@@ -60733,47 +62036,50 @@ var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) 
 			cacheKey,
 			applyPostProcess
 		];
-		$[8] = applyPostProcess;
-		$[9] = cacheKey;
-		$[10] = cachedHtml;
-		$[11] = markdown;
-		$[12] = rendererName;
-		$[13] = t4;
-		$[14] = t5;
+		$[9] = applyPostProcess;
+		$[10] = cacheKey;
+		$[11] = cachedHtml;
+		$[12] = markdown;
+		$[13] = rendererName;
+		$[14] = t4;
+		$[15] = t5;
 	} else {
-		t4 = $[13];
-		t5 = $[14];
+		t4 = $[14];
+		t5 = $[15];
 	}
 	(0, import_react.useEffect)(t4, t5);
-	let t6;
-	if ($[15] !== renderedHtml) {
-		t6 = { __html: renderedHtml };
-		$[15] = renderedHtml;
-		$[16] = t6;
-	} else t6 = $[16];
+	const t6 = rendered.key !== cacheKey ? true : void 0;
 	let t7;
-	if ($[17] !== className) {
-		t7 = clsx(className, "markdown-content");
-		$[17] = className;
-		$[18] = t7;
-	} else t7 = $[18];
+	if ($[16] !== rendered.html) {
+		t7 = { __html: rendered.html };
+		$[16] = rendered.html;
+		$[17] = t7;
+	} else t7 = $[17];
 	let t8;
-	if ($[19] !== onClick || $[20] !== ref || $[21] !== style || $[22] !== t6 || $[23] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[18] !== className) {
+		t8 = clsx(className, "markdown-content");
+		$[18] = className;
+		$[19] = t8;
+	} else t8 = $[19];
+	let t9;
+	if ($[20] !== onClick || $[21] !== ref || $[22] !== style || $[23] !== t6 || $[24] !== t7 || $[25] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			ref,
-			dangerouslySetInnerHTML: t6,
+			"data-markdown-pending": t6,
+			dangerouslySetInnerHTML: t7,
 			style,
-			className: t7,
+			className: t8,
 			onClick
 		});
-		$[19] = onClick;
-		$[20] = ref;
-		$[21] = style;
-		$[22] = t6;
-		$[23] = t7;
-		$[24] = t8;
-	} else t8 = $[24];
-	return t8;
+		$[20] = onClick;
+		$[21] = ref;
+		$[22] = style;
+		$[23] = t6;
+		$[24] = t7;
+		$[25] = t8;
+		$[26] = t9;
+	} else t9 = $[26];
+	return t9;
 });
 MarkdownDivComponent.displayName = "MarkdownDivComponent";
 var MarkdownDiv = /*#__PURE__*/ (0, import_react.memo)(MarkdownDivComponent);
@@ -60836,7 +62142,7 @@ var MarkdownRenderQueue = class {
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$101(error) {
+function _temp$102(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -63678,19 +64984,24 @@ var TextInput = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 });
 TextInput.displayName = "TextInput";
 var ToolDropdownButton_module_default = {
-	toolButton: "_toolButton_1swkv_1",
-	bodyColor: "_bodyColor_1swkv_5",
-	chevron: "_chevron_1swkv_17",
-	backdrop: "_backdrop_1swkv_31",
-	dropdownMenu: "_dropdownMenu_1swkv_41",
-	dropdownItem: "_dropdownItem_1swkv_52"
+	toolButton: "_toolButton_3h5lc_1",
+	bodyColor: "_bodyColor_3h5lc_5",
+	chevron: "_chevron_3h5lc_17",
+	backdrop: "_backdrop_3h5lc_31",
+	dropdownMenu: "_dropdownMenu_3h5lc_41",
+	dropdownItem: "_dropdownItem_3h5lc_52",
+	dropdownHeading: "_dropdownHeading_3h5lc_73",
+	dropdownDivider: "_dropdownDivider_3h5lc_82",
+	dropdownFooter: "_dropdownFooter_3h5lc_87"
 };
 //#endregion
 //#region ../../packages/react/src/components/ToolDropdownButton.tsx
 var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
-	const $ = (0, import_compiler_runtime.c)(53);
+	const $ = (0, import_compiler_runtime.c)(57);
 	let className;
 	let dropdownClassName;
+	let footer;
+	let heading;
 	let icon;
 	let items;
 	let label;
@@ -63698,25 +65009,29 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 	let subtle;
 	let t1;
 	if ($[0] !== t0) {
-		({label, icon, className, items, dropdownAlign: t1, dropdownClassName, subtle, ...rest} = t0);
+		({label, icon, className, items, heading, footer, dropdownAlign: t1, dropdownClassName, subtle, ...rest} = t0);
 		$[0] = t0;
 		$[1] = className;
 		$[2] = dropdownClassName;
-		$[3] = icon;
-		$[4] = items;
-		$[5] = label;
-		$[6] = rest;
-		$[7] = subtle;
-		$[8] = t1;
+		$[3] = footer;
+		$[4] = heading;
+		$[5] = icon;
+		$[6] = items;
+		$[7] = label;
+		$[8] = rest;
+		$[9] = subtle;
+		$[10] = t1;
 	} else {
 		className = $[1];
 		dropdownClassName = $[2];
-		icon = $[3];
-		items = $[4];
-		label = $[5];
-		rest = $[6];
-		subtle = $[7];
-		t1 = $[8];
+		footer = $[3];
+		heading = $[4];
+		icon = $[5];
+		items = $[6];
+		label = $[7];
+		rest = $[8];
+		subtle = $[9];
+		t1 = $[10];
 	}
 	const dropdownAlign = t1 === void 0 ? "left" : t1;
 	const icons = useComponentIcons();
@@ -63724,18 +65039,18 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 	const buttonRef = (0, import_react.useRef)(null);
 	const [menuPosition, setMenuPosition] = (0, import_react.useState)(null);
 	let t2;
-	if ($[9] !== ref) {
+	if ($[11] !== ref) {
 		t2 = (el) => {
 			buttonRef.current = el;
 			if (typeof ref === "function") ref(el);
 			else if (ref && "current" in ref) ref.current = el;
 		};
-		$[9] = ref;
-		$[10] = t2;
-	} else t2 = $[10];
+		$[11] = ref;
+		$[12] = t2;
+	} else t2 = $[12];
 	const setRef = t2;
 	let t3;
-	if ($[11] !== dropdownAlign) {
+	if ($[13] !== dropdownAlign) {
 		t3 = () => {
 			const btn = buttonRef.current;
 			if (!btn) return;
@@ -63753,30 +65068,30 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 				minWidth
 			});
 		};
-		$[11] = dropdownAlign;
-		$[12] = t3;
-	} else t3 = $[12];
+		$[13] = dropdownAlign;
+		$[14] = t3;
+	} else t3 = $[14];
 	const computePosition = t3;
 	let t4;
 	let t5;
-	if ($[13] !== computePosition || $[14] !== isOpen) {
+	if ($[15] !== computePosition || $[16] !== isOpen) {
 		t4 = () => {
 			if (!isOpen) return;
 			computePosition();
 		};
 		t5 = [isOpen, computePosition];
-		$[13] = computePosition;
-		$[14] = isOpen;
-		$[15] = t4;
-		$[16] = t5;
+		$[15] = computePosition;
+		$[16] = isOpen;
+		$[17] = t4;
+		$[18] = t5;
 	} else {
-		t4 = $[15];
-		t5 = $[16];
+		t4 = $[17];
+		t5 = $[18];
 	}
 	(0, import_react.useLayoutEffect)(t4, t5);
 	let t6;
 	let t7;
-	if ($[17] !== computePosition || $[18] !== isOpen) {
+	if ($[19] !== computePosition || $[20] !== isOpen) {
 		t6 = () => {
 			if (!isOpen) return;
 			const handler = () => computePosition();
@@ -63788,19 +65103,19 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 			};
 		};
 		t7 = [isOpen, computePosition];
-		$[17] = computePosition;
-		$[18] = isOpen;
-		$[19] = t6;
-		$[20] = t7;
+		$[19] = computePosition;
+		$[20] = isOpen;
+		$[21] = t6;
+		$[22] = t7;
 	} else {
-		t6 = $[19];
-		t7 = $[20];
+		t6 = $[21];
+		t7 = $[22];
 	}
 	(0, import_react.useEffect)(t6, t7);
 	const menuRef = (0, import_react.useRef)(null);
 	let t8;
 	let t9;
-	if ($[21] !== isOpen) {
+	if ($[23] !== isOpen) {
 		t8 = () => {
 			if (!isOpen) return;
 			const handleKeyDown = (e) => {
@@ -63814,63 +65129,63 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 			return () => document.removeEventListener("keydown", handleKeyDown, true);
 		};
 		t9 = [isOpen];
-		$[21] = isOpen;
-		$[22] = t8;
-		$[23] = t9;
+		$[23] = isOpen;
+		$[24] = t8;
+		$[25] = t9;
 	} else {
-		t8 = $[22];
-		t9 = $[23];
+		t8 = $[24];
+		t9 = $[25];
 	}
 	(0, import_react.useEffect)(t8, t9);
 	let t10;
-	if ($[24] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
 		t10 = (fn) => {
 			fn();
 			setIsOpen(false);
 		};
-		$[24] = t10;
-	} else t10 = $[24];
+		$[26] = t10;
+	} else t10 = $[26];
 	const handleItemClick = t10;
 	const t11 = subtle ? ToolDropdownButton_module_default.bodyColor : void 0;
 	let t12;
-	if ($[25] !== className || $[26] !== t11) {
+	if ($[27] !== className || $[28] !== t11) {
 		t12 = clsx("btn", "btn-tools", ToolDropdownButton_module_default.toolButton, t11, className);
-		$[25] = className;
-		$[26] = t11;
-		$[27] = t12;
-	} else t12 = $[27];
+		$[27] = className;
+		$[28] = t11;
+		$[29] = t12;
+	} else t12 = $[29];
 	let t13;
-	if ($[28] !== isOpen) {
+	if ($[30] !== isOpen) {
 		t13 = () => setIsOpen(!isOpen);
-		$[28] = isOpen;
-		$[29] = t13;
-	} else t13 = $[29];
+		$[30] = isOpen;
+		$[31] = t13;
+	} else t13 = $[31];
 	let t14;
-	if ($[30] !== icon) {
+	if ($[32] !== icon) {
 		t14 = icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
 			className: `${icon}`,
 			"aria-hidden": "true"
 		});
-		$[30] = icon;
-		$[31] = t14;
-	} else t14 = $[31];
+		$[32] = icon;
+		$[33] = t14;
+	} else t14 = $[33];
 	let t15;
-	if ($[32] !== icons.chevronDown) {
+	if ($[34] !== icons.chevronDown) {
 		t15 = clsx(icons.chevronDown, ToolDropdownButton_module_default.chevron);
-		$[32] = icons.chevronDown;
-		$[33] = t15;
-	} else t15 = $[33];
+		$[34] = icons.chevronDown;
+		$[35] = t15;
+	} else t15 = $[35];
 	let t16;
-	if ($[34] !== t15) {
+	if ($[36] !== t15) {
 		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
 			className: t15,
 			"aria-hidden": "true"
 		});
-		$[34] = t15;
-		$[35] = t16;
-	} else t16 = $[35];
+		$[36] = t15;
+		$[37] = t16;
+	} else t16 = $[37];
 	let t17;
-	if ($[36] !== isOpen || $[37] !== label || $[38] !== rest || $[39] !== setRef || $[40] !== t12 || $[41] !== t13 || $[42] !== t14 || $[43] !== t16) {
+	if ($[38] !== isOpen || $[39] !== label || $[40] !== rest || $[41] !== setRef || $[42] !== t12 || $[43] !== t13 || $[44] !== t14 || $[45] !== t16) {
 		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			ref: setRef,
 			type: "button",
@@ -63885,23 +65200,23 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 				t16
 			]
 		});
-		$[36] = isOpen;
-		$[37] = label;
-		$[38] = rest;
-		$[39] = setRef;
-		$[40] = t12;
-		$[41] = t13;
-		$[42] = t14;
-		$[43] = t16;
-		$[44] = t17;
-	} else t17 = $[44];
+		$[38] = isOpen;
+		$[39] = label;
+		$[40] = rest;
+		$[41] = setRef;
+		$[42] = t12;
+		$[43] = t13;
+		$[44] = t14;
+		$[45] = t16;
+		$[46] = t17;
+	} else t17 = $[46];
 	let t18;
-	if ($[45] !== dropdownClassName || $[46] !== isOpen || $[47] !== items || $[48] !== menuPosition) {
+	if ($[47] !== dropdownClassName || $[48] !== footer || $[49] !== heading || $[50] !== isOpen || $[51] !== items || $[52] !== menuPosition) {
 		t18 = isOpen && menuPosition && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ToolDropdownButton_module_default.backdrop,
 			role: "presentation",
 			onClick: () => setIsOpen(false)
-		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			ref: menuRef,
 			className: clsx(ToolDropdownButton_module_default.dropdownMenu, dropdownClassName),
 			style: {
@@ -63910,29 +65225,46 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 				right: menuPosition.right,
 				minWidth: menuPosition.minWidth
 			},
-			children: Object.entries(items).map((t19) => {
-				const [itemLabel, fn_0] = t19;
-				return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			children: [
+				heading ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: ToolDropdownButton_module_default.dropdownHeading,
+					children: heading
+				}) : null,
+				Object.entries(items).map((t19) => {
+					const [itemLabel, fn_0] = t19;
+					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: ToolDropdownButton_module_default.dropdownItem,
+						onClick: () => handleItemClick(fn_0),
+						children: itemLabel
+					}, itemLabel);
+				}),
+				footer ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: ToolDropdownButton_module_default.dropdownDivider,
+					role: "separator"
+				}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 					type: "button",
-					className: ToolDropdownButton_module_default.dropdownItem,
-					onClick: () => handleItemClick(fn_0),
-					children: itemLabel
-				}, itemLabel);
-			})
+					className: clsx(ToolDropdownButton_module_default.dropdownItem, ToolDropdownButton_module_default.dropdownFooter),
+					onClick: () => handleItemClick(footer.onClick),
+					children: [footer.icon ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: footer.icon }) : null, footer.label]
+				})] }) : null
+			]
 		})] }), document.body);
-		$[45] = dropdownClassName;
-		$[46] = isOpen;
-		$[47] = items;
-		$[48] = menuPosition;
-		$[49] = t18;
-	} else t18 = $[49];
+		$[47] = dropdownClassName;
+		$[48] = footer;
+		$[49] = heading;
+		$[50] = isOpen;
+		$[51] = items;
+		$[52] = menuPosition;
+		$[53] = t18;
+	} else t18 = $[53];
 	let t19;
-	if ($[50] !== t17 || $[51] !== t18) {
+	if ($[54] !== t17 || $[55] !== t18) {
 		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t17, t18] });
-		$[50] = t17;
-		$[51] = t18;
-		$[52] = t19;
-	} else t19 = $[52];
+		$[54] = t17;
+		$[55] = t18;
+		$[56] = t19;
+	} else t19 = $[56];
 	return t19;
 });
 ToolDropdownButton.displayName = "ToolDropdownButton";
@@ -64296,7 +65628,7 @@ var TabPanels = (t0) => {
 	const t2 = `${id}-content`;
 	let t3;
 	if ($[2] !== tabs) {
-		t3 = tabs.map(_temp$100);
+		t3 = tabs.map(_temp$101);
 		$[2] = tabs;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -64388,7 +65720,7 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$100(tab, index) {
+function _temp$101(tab, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 		...tab.props,
 		index
@@ -64419,7 +65751,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
 	if ($[0] !== ctx?.setTarget) {
-		t0 = ctx?.setTarget ?? _temp$99;
+		t0 = ctx?.setTarget ?? _temp$100;
 		$[0] = ctx?.setTarget;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -64452,11 +65784,11 @@ var FindTargetProvider = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$99() {}
+function _temp$100() {}
 //#endregion
 //#region ../../packages/react/src/components/ExpandablePanel.tsx
 var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
-	const $ = (0, import_compiler_runtime.c)(46);
+	const $ = (0, import_compiler_runtime.c)(41);
 	const { id, collapse, border, lines: t1, children, className, togglePosition: t2 } = t0;
 	const lines = t1 === void 0 ? 15 : t1;
 	const layout = t2 === void 0 ? "inline-right" : t2;
@@ -64480,50 +65812,22 @@ var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 		$[1] = t3;
 	} else t3 = $[1];
 	const contentRef = useResizeObserver(t3);
-	const findTarget = useFindTarget();
+	const effectiveCollapsed = useExpandWhenFindBelowFold(contentRef, lines, useFindTarget()?.term) ? false : collapsed;
 	let t4;
-	if ($[2] !== findTarget) {
-		t4 = () => findTarget !== null;
-		$[2] = findTarget;
-		$[3] = t4;
-	} else t4 = $[3];
-	const [containsFindTarget, setContainsFindTarget] = (0, import_react.useState)(t4);
-	let t5;
-	if ($[4] !== contentRef || $[5] !== findTarget) {
-		t5 = () => {
-			if (!findTarget) {
-				setContainsFindTarget(false);
-				return;
-			}
-			const root = contentRef.current;
-			if (!root) {
-				setContainsFindTarget(false);
-				return;
-			}
-			const text = (root.textContent ?? "").toLowerCase();
-			setContainsFindTarget(text.includes(findTarget.term.toLowerCase()));
-		};
-		$[4] = contentRef;
-		$[5] = findTarget;
-		$[6] = t5;
-	} else t5 = $[6];
-	(0, import_react.useEffect)(t5);
-	const effectiveCollapsed = containsFindTarget ? false : collapsed;
-	let t6;
-	if ($[7] !== effectiveCollapsed || $[8] !== lines) {
-		t6 = effectiveCollapsed ? {
+	if ($[2] !== effectiveCollapsed || $[3] !== lines) {
+		t4 = effectiveCollapsed ? {
 			overflow: "hidden",
 			maxHeight: `${lines}rem`,
 			contain: "layout paint"
 		} : {};
-		$[7] = effectiveCollapsed;
-		$[8] = lines;
-		$[9] = t6;
-	} else t6 = $[9];
-	const contentStyles = t6;
-	let t7;
-	if ($[10] !== collapsed || $[11] !== contentRef || $[12] !== setCollapsed) {
-		t7 = () => {
+		$[2] = effectiveCollapsed;
+		$[3] = lines;
+		$[4] = t4;
+	} else t4 = $[4];
+	const contentStyles = t4;
+	let t5;
+	if ($[5] !== collapsed || $[6] !== contentRef || $[7] !== setCollapsed) {
+		t5 = () => {
 			const tallerThanViewport = !collapsed && !!contentRef.current && contentRef.current.getBoundingClientRect().height > window.innerHeight;
 			setCollapsed(!collapsed);
 			if (tallerThanViewport) requestAnimationFrame(() => {
@@ -64533,107 +65837,107 @@ var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 				});
 			});
 		};
-		$[10] = collapsed;
-		$[11] = contentRef;
-		$[12] = setCollapsed;
-		$[13] = t7;
-	} else t7 = $[13];
-	const handleToggle = t7;
+		$[5] = collapsed;
+		$[6] = contentRef;
+		$[7] = setCollapsed;
+		$[8] = t5;
+	} else t5 = $[8];
+	const handleToggle = t5;
+	let t6;
+	if ($[9] !== className) {
+		t6 = clsx(ExpandablePanel_module_default.outer, className);
+		$[9] = className;
+		$[10] = t6;
+	} else t6 = $[10];
+	const t7 = border ? ExpandablePanel_module_default.expandableBordered : void 0;
 	let t8;
-	if ($[14] !== className) {
-		t8 = clsx(ExpandablePanel_module_default.outer, className);
-		$[14] = className;
-		$[15] = t8;
-	} else t8 = $[15];
-	const t9 = border ? ExpandablePanel_module_default.expandableBordered : void 0;
+	if ($[11] !== className || $[12] !== t7) {
+		t8 = clsx(ExpandablePanel_module_default.expandablePanel, t7, className);
+		$[11] = className;
+		$[12] = t7;
+		$[13] = t8;
+	} else t8 = $[13];
+	const t9 = effectiveCollapsed && showToggle ? ExpandablePanel_module_default.expandableTruncated : void 0;
 	let t10;
-	if ($[16] !== className || $[17] !== t9) {
-		t10 = clsx(ExpandablePanel_module_default.expandablePanel, t9, className);
-		$[16] = className;
-		$[17] = t9;
-		$[18] = t10;
-	} else t10 = $[18];
-	const t11 = effectiveCollapsed && showToggle ? ExpandablePanel_module_default.expandableTruncated : void 0;
-	let t12;
-	if ($[19] !== t11) {
-		t12 = clsx(t11);
-		$[19] = t11;
-		$[20] = t12;
-	} else t12 = $[20];
-	let t13;
-	if ($[21] !== children || $[22] !== contentRef || $[23] !== contentStyles || $[24] !== t12) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[14] !== t9) {
+		t10 = clsx(t9);
+		$[14] = t9;
+		$[15] = t10;
+	} else t10 = $[15];
+	let t11;
+	if ($[16] !== children || $[17] !== contentRef || $[18] !== contentStyles || $[19] !== t10) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			ref: contentRef,
 			style: contentStyles,
-			className: t12,
+			className: t10,
 			children
 		});
-		$[21] = children;
-		$[22] = contentRef;
-		$[23] = contentStyles;
-		$[24] = t12;
-		$[25] = t13;
-	} else t13 = $[25];
-	let t14;
-	if ($[26] !== border || $[27] !== collapsed || $[28] !== handleToggle || $[29] !== layout || $[30] !== showToggle) {
-		t14 = showToggle && layout === "inline-right" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[16] = children;
+		$[17] = contentRef;
+		$[18] = contentStyles;
+		$[19] = t10;
+		$[20] = t11;
+	} else t11 = $[20];
+	let t12;
+	if ($[21] !== border || $[22] !== effectiveCollapsed || $[23] !== handleToggle || $[24] !== layout || $[25] !== showToggle) {
+		t12 = showToggle && layout === "inline-right" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ExpandablePanel_module_default.inlineToggleHolder,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				className: ExpandablePanel_module_default.inlineToggleSticky,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MoreToggle, {
-					collapsed,
+					collapsed: effectiveCollapsed,
 					onToggle: handleToggle,
 					border: !border,
 					position: "inline-right"
 				})
 			})
 		});
-		$[26] = border;
-		$[27] = collapsed;
-		$[28] = handleToggle;
-		$[29] = layout;
-		$[30] = showToggle;
-		$[31] = t14;
-	} else t14 = $[31];
-	let t15;
-	if ($[32] !== t10 || $[33] !== t13 || $[34] !== t14) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[21] = border;
+		$[22] = effectiveCollapsed;
+		$[23] = handleToggle;
+		$[24] = layout;
+		$[25] = showToggle;
+		$[26] = t12;
+	} else t12 = $[26];
+	let t13;
+	if ($[27] !== t11 || $[28] !== t12 || $[29] !== t8) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-expandable-panel": "true",
-			className: t10,
-			children: [t13, t14]
+			className: t8,
+			children: [t11, t12]
 		});
-		$[32] = t10;
-		$[33] = t13;
-		$[34] = t14;
-		$[35] = t15;
-	} else t15 = $[35];
-	let t16;
-	if ($[36] !== border || $[37] !== collapsed || $[38] !== handleToggle || $[39] !== layout || $[40] !== showToggle) {
-		t16 = showToggle && layout === "block-left" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MoreToggle, {
-			collapsed,
+		$[27] = t11;
+		$[28] = t12;
+		$[29] = t8;
+		$[30] = t13;
+	} else t13 = $[30];
+	let t14;
+	if ($[31] !== border || $[32] !== effectiveCollapsed || $[33] !== handleToggle || $[34] !== layout || $[35] !== showToggle) {
+		t14 = showToggle && layout === "block-left" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MoreToggle, {
+			collapsed: effectiveCollapsed,
 			onToggle: handleToggle,
 			border: !border,
 			position: "block-left"
 		});
-		$[36] = border;
-		$[37] = collapsed;
-		$[38] = handleToggle;
-		$[39] = layout;
-		$[40] = showToggle;
-		$[41] = t16;
-	} else t16 = $[41];
-	let t17;
-	if ($[42] !== t15 || $[43] !== t16 || $[44] !== t8) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t8,
-			children: [t15, t16]
+		$[31] = border;
+		$[32] = effectiveCollapsed;
+		$[33] = handleToggle;
+		$[34] = layout;
+		$[35] = showToggle;
+		$[36] = t14;
+	} else t14 = $[36];
+	let t15;
+	if ($[37] !== t13 || $[38] !== t14 || $[39] !== t6) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t6,
+			children: [t13, t14]
 		});
-		$[42] = t15;
-		$[43] = t16;
-		$[44] = t8;
-		$[45] = t17;
-	} else t17 = $[45];
-	return t17;
+		$[37] = t13;
+		$[38] = t14;
+		$[39] = t6;
+		$[40] = t15;
+	} else t15 = $[40];
+	return t15;
 });
 var MoreToggle = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(11);
@@ -64670,6 +65974,7 @@ var MoreToggle = (t0) => {
 		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: t3,
 			style,
+			"data-find-chrome": true,
 			children: t5
 		});
 		$[7] = style;
@@ -65130,56 +66435,111 @@ var useComponentNavigation = () => {
 	return navigation;
 };
 //#endregion
-//#region ../../packages/react/src/components/findBandDom.ts
-/**
-* Finds the nearest scrollable ancestor with enough overflow to benefit from
-* programmatic scrolling.
-*/ function findScrollableParent(element, options) {
-	const minBuffer = options?.minScrollBuffer ?? 100;
-	let current = element instanceof HTMLElement ? element : element?.parentElement;
-	while (current && current !== document.body) {
-		const style = getComputedStyle(current);
-		if ((style.overflowY === "auto" || style.overflowY === "scroll") && current.scrollHeight > current.clientHeight + minBuffer) return current;
-		current = current.parentElement;
+//#region ../../packages/react/src/hooks/useFindSurface.ts
+/** Register a surface for as long as the component is mounted (no-op
+*  outside a FindProvider). Registration is per scope; a new source identity
+*  is swapped in place and a change of `dataKey` (the surface's data changed
+*  under the same source) re-surveys, both keeping the window on screen.
+*  reveal() is read through a ref: it closes over fast-moving view state
+*  (selection, scroll handles). */ var useFindSurface = (surface, dataKey) => {
+	const $ = (0, import_compiler_runtime.c)(18);
+	const store = useFindCoordinatorOptional();
+	const latest = useLatestRef(surface);
+	const lastDataKey = (0, import_react.useRef)(dataKey);
+	const scopeId = surface?.scopeId;
+	const source = surface?.source;
+	let t0;
+	if ($[0] !== latest.current || $[1] !== scopeId || $[2] !== store) {
+		t0 = () => {
+			const current = latest.current;
+			if (!store || scopeId === void 0 || !current) return;
+			return store.registerSurface({
+				scopeId,
+				source: current.source,
+				reveal: (match, signal) => {
+					latest.current?.reveal(match, signal);
+				}
+			});
+		};
+		$[0] = latest.current;
+		$[1] = scopeId;
+		$[2] = store;
+		$[3] = t0;
+	} else t0 = $[3];
+	let t1;
+	if ($[4] !== latest || $[5] !== scopeId || $[6] !== store) {
+		t1 = [
+			store,
+			scopeId,
+			latest
+		];
+		$[4] = latest;
+		$[5] = scopeId;
+		$[6] = store;
+		$[7] = t1;
+	} else t1 = $[7];
+	(0, import_react.useEffect)(t0, t1);
+	let t2;
+	let t3;
+	if ($[8] !== scopeId || $[9] !== source || $[10] !== store) {
+		t2 = () => {
+			if (store && scopeId !== void 0 && source) store.updateSource(scopeId, source);
+		};
+		t3 = [
+			store,
+			scopeId,
+			source
+		];
+		$[8] = scopeId;
+		$[9] = source;
+		$[10] = store;
+		$[11] = t2;
+		$[12] = t3;
+	} else {
+		t2 = $[11];
+		t3 = $[12];
 	}
-	return null;
-}
-/**
-* Centers the selected text range rather than its containing element, which
-* keeps matches in large elements such as code blocks correctly positioned.
-*/ function scrollRangeToCenter(range, options) {
-	const { behavior = "auto", fallbackToScrollIntoView = true } = options ?? {};
-	const rects = range.getClientRects();
-	if (rects.length === 0) return;
-	const selectionRect = rects[0];
-	if (selectionRect === void 0) return;
-	const scrollableParent = findScrollableParent(range.startContainer.parentElement);
-	if (scrollableParent) {
-		const parentRect = scrollableParent.getBoundingClientRect();
-		const targetScrollTop = selectionRect.top - parentRect.top + scrollableParent.scrollTop - scrollableParent.clientHeight / 2;
-		scrollableParent.scrollTo({
-			top: Math.max(0, targetScrollTop),
-			behavior
-		});
-	} else if (fallbackToScrollIntoView) range.startContainer.parentElement?.scrollIntoView({
-		behavior,
-		block: "center"
-	});
-}
+	(0, import_react.useEffect)(t2, t3);
+	let t4;
+	let t5;
+	if ($[13] !== dataKey || $[14] !== scopeId || $[15] !== store) {
+		t4 = () => {
+			if (lastDataKey.current === dataKey) return;
+			lastDataKey.current = dataKey;
+			if (store && scopeId !== void 0) store.invalidate(scopeId);
+		};
+		t5 = [
+			store,
+			scopeId,
+			dataKey
+		];
+		$[13] = dataKey;
+		$[14] = scopeId;
+		$[15] = store;
+		$[16] = t4;
+		$[17] = t5;
+	} else {
+		t4 = $[16];
+		t5 = $[17];
+	}
+	(0, import_react.useEffect)(t4, t5);
+};
 var FindBandUI_module_default = {
-	findBand: "_findBand_oh7be_1",
-	matchCount: "_matchCount_oh7be_30",
-	noResults: "_noResults_oh7be_40",
-	next: "_next_oh7be_48",
-	prev: "_prev_oh7be_49",
-	close: "_close_oh7be_55"
+	findBand: "_findBand_zozvs_1",
+	matchCount: "_matchCount_zozvs_31",
+	noResults: "_noResults_zozvs_41",
+	error: "_error_zozvs_49",
+	next: "_next_zozvs_64",
+	prev: "_prev_zozvs_65",
+	close: "_close_zozvs_71"
 };
 //#endregion
 //#region ../../packages/react/src/components/FindBandUI.tsx
 var FindBandUI = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(43);
-	const { onClose, onNext, onPrevious, onKeyDown, onChange, onBeforeInput, value, matchCount, matchIndex, noResults: t1, disableNav, inputRef: externalRef } = t0;
-	const noResults = t1 === void 0 ? false : t1;
+	const $ = (0, import_compiler_runtime.c)(56);
+	const { onClose, onNext, onPrevious, onKeyDown, onChange, onBeforeInput, value, matchCount, matchIndex, countIsLowerBound: t1, noResults: t2, error, disableNav, inputRef: externalRef } = t0;
+	const countIsLowerBound = t1 === void 0 ? false : t1;
+	const noResults = t2 === void 0 ? false : t2;
 	const icons = useComponentIcons();
 	const internalRef = (0, import_react.useRef)(null);
 	const inputRef = externalRef ?? internalRef;
@@ -65199,150 +66559,182 @@ var FindBandUI = (t0) => {
 		$[3] = value;
 		$[4] = inputProps;
 	} else inputProps = $[4];
-	const hasCount = matchCount !== void 0 && matchIndex !== void 0;
-	const showStatus = noResults || hasCount && matchCount > 0;
-	const statusText = !noResults && hasCount && matchCount > 0 ? `${matchIndex + 1} of ${matchCount}` : "No results";
-	let t2;
-	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = clsx(FindBandUI_module_default.findBand, "findBand");
-		$[5] = t2;
-	} else t2 = $[5];
+	const hasCount = matchCount !== void 0 && matchCount > 0;
+	const showStatus = noResults || hasCount || error !== void 0;
 	let t3;
-	if ($[6] !== inputProps || $[7] !== inputRef) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
+	if ($[5] !== countIsLowerBound || $[6] !== hasCount || $[7] !== matchCount) {
+		t3 = hasCount ? `${matchCount.toLocaleString()}${countIsLowerBound ? "+" : ""}` : "";
+		$[5] = countIsLowerBound;
+		$[6] = hasCount;
+		$[7] = matchCount;
+		$[8] = t3;
+	} else t3 = $[8];
+	const total = t3;
+	let t4;
+	if ($[9] !== error || $[10] !== hasCount || $[11] !== matchIndex || $[12] !== noResults || $[13] !== total) {
+		t4 = noResults ? "No results" : error !== void 0 && !hasCount ? "Error" : matchIndex === void 0 ? total : `${(matchIndex + 1).toLocaleString()} of ${total}`;
+		$[9] = error;
+		$[10] = hasCount;
+		$[11] = matchIndex;
+		$[12] = noResults;
+		$[13] = total;
+		$[14] = t4;
+	} else t4 = $[14];
+	const statusText = t4;
+	let t5;
+	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = clsx(FindBandUI_module_default.findBand, "findBand");
+		$[15] = t5;
+	} else t5 = $[15];
+	let t6;
+	if ($[16] !== inputProps || $[17] !== inputRef) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 			ref: inputRef,
 			...inputProps
 		});
-		$[6] = inputProps;
-		$[7] = inputRef;
-		$[8] = t3;
-	} else t3 = $[8];
-	const t4 = noResults && FindBandUI_module_default.noResults;
-	let t5;
-	if ($[9] !== t4) {
-		t5 = clsx(FindBandUI_module_default.matchCount, t4);
-		$[9] = t4;
-		$[10] = t5;
-	} else t5 = $[10];
-	const t6 = showStatus ? "visible" : "hidden";
-	let t7;
-	if ($[11] !== t6) {
-		t7 = { visibility: t6 };
-		$[11] = t6;
-		$[12] = t7;
-	} else t7 = $[12];
+		$[16] = inputProps;
+		$[17] = inputRef;
+		$[18] = t6;
+	} else t6 = $[18];
+	const t7 = (noResults || error !== void 0 && !hasCount) && FindBandUI_module_default.noResults;
 	let t8;
-	if ($[13] !== statusText || $[14] !== t5 || $[15] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	if ($[19] !== t7) {
+		t8 = clsx(FindBandUI_module_default.matchCount, t7);
+		$[19] = t7;
+		$[20] = t8;
+	} else t8 = $[20];
+	const t9 = showStatus ? "visible" : "hidden";
+	let t10;
+	if ($[21] !== t9) {
+		t10 = { visibility: t9 };
+		$[21] = t9;
+		$[22] = t10;
+	} else t10 = $[22];
+	let t11;
+	if ($[23] !== statusText || $[24] !== t10 || $[25] !== t8) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			"data-testid": "find-band-match-count",
-			className: t5,
-			style: t7,
+			className: t8,
+			style: t10,
 			children: statusText
 		});
-		$[13] = statusText;
-		$[14] = t5;
-		$[15] = t7;
-		$[16] = t8;
-	} else t8 = $[16];
-	let t9;
-	if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = clsx("btn", FindBandUI_module_default.prev);
-		$[17] = t9;
-	} else t9 = $[17];
-	let t10;
-	if ($[18] !== icons.arrowUp) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.arrowUp });
-		$[18] = icons.arrowUp;
-		$[19] = t10;
-	} else t10 = $[19];
-	let t11;
-	if ($[20] !== disableNav || $[21] !== onPrevious || $[22] !== t10) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[23] = statusText;
+		$[24] = t10;
+		$[25] = t8;
+		$[26] = t11;
+	} else t11 = $[26];
+	let t12;
+	if ($[27] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = clsx("btn", FindBandUI_module_default.prev);
+		$[27] = t12;
+	} else t12 = $[27];
+	let t13;
+	if ($[28] !== icons.arrowUp) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.arrowUp });
+		$[28] = icons.arrowUp;
+		$[29] = t13;
+	} else t13 = $[29];
+	let t14;
+	if ($[30] !== disableNav || $[31] !== onPrevious || $[32] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			title: "Previous match",
 			"data-testid": "find-band-prev",
-			className: t9,
-			onClick: onPrevious,
-			disabled: disableNav,
-			children: t10
-		});
-		$[20] = disableNav;
-		$[21] = onPrevious;
-		$[22] = t10;
-		$[23] = t11;
-	} else t11 = $[23];
-	let t12;
-	if ($[24] === Symbol.for("react.memo_cache_sentinel")) {
-		t12 = clsx("btn", FindBandUI_module_default.next);
-		$[24] = t12;
-	} else t12 = $[24];
-	let t13;
-	if ($[25] !== icons.arrowDown) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.arrowDown });
-		$[25] = icons.arrowDown;
-		$[26] = t13;
-	} else t13 = $[26];
-	let t14;
-	if ($[27] !== disableNav || $[28] !== onNext || $[29] !== t13) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-			type: "button",
-			title: "Next match",
-			"data-testid": "find-band-next",
 			className: t12,
-			onClick: onNext,
+			onClick: onPrevious,
 			disabled: disableNav,
 			children: t13
 		});
-		$[27] = disableNav;
-		$[28] = onNext;
-		$[29] = t13;
-		$[30] = t14;
-	} else t14 = $[30];
+		$[30] = disableNav;
+		$[31] = onPrevious;
+		$[32] = t13;
+		$[33] = t14;
+	} else t14 = $[33];
 	let t15;
-	if ($[31] === Symbol.for("react.memo_cache_sentinel")) {
-		t15 = clsx("btn", FindBandUI_module_default.close);
-		$[31] = t15;
-	} else t15 = $[31];
+	if ($[34] === Symbol.for("react.memo_cache_sentinel")) {
+		t15 = clsx("btn", FindBandUI_module_default.next);
+		$[34] = t15;
+	} else t15 = $[34];
 	let t16;
-	if ($[32] !== icons.close) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.close });
-		$[32] = icons.close;
-		$[33] = t16;
-	} else t16 = $[33];
+	if ($[35] !== icons.arrowDown) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.arrowDown });
+		$[35] = icons.arrowDown;
+		$[36] = t16;
+	} else t16 = $[36];
 	let t17;
-	if ($[34] !== onClose || $[35] !== t16) {
+	if ($[37] !== disableNav || $[38] !== onNext || $[39] !== t16) {
 		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
-			title: "Close",
+			title: "Next match",
+			"data-testid": "find-band-next",
 			className: t15,
-			onClick: onClose,
+			onClick: onNext,
+			disabled: disableNav,
 			children: t16
 		});
-		$[34] = onClose;
-		$[35] = t16;
-		$[36] = t17;
-	} else t17 = $[36];
+		$[37] = disableNav;
+		$[38] = onNext;
+		$[39] = t16;
+		$[40] = t17;
+	} else t17 = $[40];
 	let t18;
-	if ($[37] !== t11 || $[38] !== t14 || $[39] !== t17 || $[40] !== t3 || $[41] !== t8) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	if ($[41] === Symbol.for("react.memo_cache_sentinel")) {
+		t18 = clsx("btn", FindBandUI_module_default.close);
+		$[41] = t18;
+	} else t18 = $[41];
+	let t19;
+	if ($[42] !== icons.close) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.close });
+		$[42] = icons.close;
+		$[43] = t19;
+	} else t19 = $[43];
+	let t20;
+	if ($[44] !== onClose || $[45] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			title: "Close",
+			className: t18,
+			onClick: onClose,
+			children: t19
+		});
+		$[44] = onClose;
+		$[45] = t19;
+		$[46] = t20;
+	} else t20 = $[46];
+	let t21;
+	if ($[47] !== error) {
+		t21 = error !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			"data-testid": "find-band-error",
+			className: FindBandUI_module_default.error,
+			title: error,
+			children: error
+		}) : null;
+		$[47] = error;
+		$[48] = t21;
+	} else t21 = $[48];
+	let t22;
+	if ($[49] !== t11 || $[50] !== t14 || $[51] !== t17 || $[52] !== t20 || $[53] !== t21 || $[54] !== t6) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-unsearchable": "true",
-			className: t2,
+			className: t5,
 			children: [
-				t3,
-				t8,
+				t6,
 				t11,
 				t14,
-				t17
+				t17,
+				t20,
+				t21
 			]
 		});
-		$[37] = t11;
-		$[38] = t14;
-		$[39] = t17;
-		$[40] = t3;
-		$[41] = t8;
-		$[42] = t18;
-	} else t18 = $[42];
-	return t18;
+		$[49] = t11;
+		$[50] = t14;
+		$[51] = t17;
+		$[52] = t20;
+		$[53] = t21;
+		$[54] = t6;
+		$[55] = t22;
+	} else t22 = $[55];
+	return t22;
 };
 //#endregion
 //#region ../../packages/react/src/components/findShortcuts.ts
@@ -65361,9 +66753,13 @@ var findConfig = {
 	searchInFrames: false,
 	showDialog: false
 };
-var FindBand = ({ onClose, debounceMs = 100 }) => {
+var FIRST_LETTER_DEBOUNCE_MS = 500;
+var FindBand = ({ onClose, debounceMs = 300 }) => {
 	const searchBoxRef = (0, import_react.useRef)(null);
 	const { extendedFindTerm, countAllMatches, getMatchCountersVersion } = useExtendedFind();
+	const coordinator = useFindCoordinatorOptional();
+	const findState = useFindState();
+	const hasSurface = coordinator !== null && findState.scopeId !== null;
 	const setFindTarget = useFindTargetSetter();
 	const lastFoundItem = (0, import_react.useRef)(null);
 	const currentSearchTerm = (0, import_react.useRef)("");
@@ -65371,6 +66767,7 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 	const scrollTimeoutRef = (0, import_react.useRef)(null);
 	const focusTimeoutRef = (0, import_react.useRef)(null);
 	const searchIdRef = (0, import_react.useRef)(0);
+	const typingTimerRef = (0, import_react.useRef)(null);
 	const cachedCount = (0, import_react.useRef)({
 		term: "",
 		version: -1,
@@ -65380,14 +66777,47 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 	const [matchCount, setMatchCount] = (0, import_react.useState)(null);
 	const [currentMatchIndex, setCurrentMatchIndex] = (0, import_react.useState)(0);
 	const [noResults, setNoResults] = (0, import_react.useState)(false);
+	const [legacyStateForSurface, setLegacyStateForSurface] = (0, import_react.useState)(hasSurface);
+	if (legacyStateForSurface !== hasSurface) {
+		setLegacyStateForSurface(hasSurface);
+		setMatchCount(null);
+		setCurrentMatchIndex(0);
+		setNoResults(false);
+	}
+	const searchCoordinator = (0, import_react.useCallback)((searchTerm, back, typing) => {
+		if (!coordinator) return;
+		if (typing || searchTerm !== findState.term) {
+			setFindTarget({
+				term: searchTerm,
+				eventId: ""
+			});
+			coordinator.setTerm(searchTerm);
+		} else if (findState.error !== null) coordinator.refresh();
+		else if (back) coordinator.previous();
+		else coordinator.next();
+	}, [
+		coordinator,
+		findState.term,
+		findState.error,
+		setFindTarget
+	]);
 	const handleSearch = (0, import_react.useCallback)(async (back = false, skipKnownMiss = false) => {
+		if (typingTimerRef.current !== null) {
+			window.clearTimeout(typingTimerRef.current);
+			typingTimerRef.current = null;
+		}
 		const thisSearchId = ++searchIdRef.current;
 		const searchTerm = searchBoxRef.current?.value ?? "";
 		if (!searchTerm) {
+			coordinator?.setTerm("");
 			setMatchCount(null);
 			setCurrentMatchIndex(0);
 			setNoResults(false);
 			setFindTarget(null);
+			return;
+		}
+		if (hasSurface) {
+			searchCoordinator(searchTerm, back, skipKnownMiss);
 			return;
 		}
 		const countersVersion = getMatchCountersVersion();
@@ -65419,7 +66849,7 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 		if (selection && selection.rangeCount > 0) savedRange = selection.getRangeAt(0).cloneRange();
 		const savedScrollParent = savedRange ? findScrollableParent(savedRange.startContainer.parentElement) : null;
 		const savedScrollTop = savedScrollParent?.scrollTop ?? 0;
-		const result = await findExtendedInDOM(searchTerm, back, lastFoundItem.current, extendedFindTerm);
+		const result = await findExtendedInDOM(searchTerm, back, lastFoundItem.current, extendedFindTerm, () => searchIdRef.current !== thisSearchId);
 		if (searchIdRef.current !== thisSearchId) return;
 		setNoResults(!result);
 		lastNoResult.current = result ? null : {
@@ -65464,8 +66894,26 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 		setFindTarget,
 		extendedFindTerm,
 		countAllMatches,
-		getMatchCountersVersion
+		getMatchCountersVersion,
+		coordinator,
+		hasSurface,
+		searchCoordinator
 	]);
+	useUnmount(() => coordinator?.close());
+	useOnChange(hasSurface, (surfaceNow) => {
+		if (surfaceNow && coordinator) {
+			searchIdRef.current++;
+			const term = searchBoxRef.current?.value ?? "";
+			if (term) setFindTarget({
+				term,
+				eventId: ""
+			});
+			coordinator.setTerm(term);
+		} else {
+			lastFoundItem.current = null;
+			currentSearchTerm.current = "";
+		}
+	});
 	(0, import_react.useEffect)(() => {
 		focusTimeoutRef.current = window.setTimeout(() => {
 			searchBoxRef.current?.focus();
@@ -65474,6 +66922,7 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 		const focusTimeout = focusTimeoutRef.current;
 		return () => {
 			if (scrollTimeoutRef.current !== null) window.clearTimeout(scrollTimeoutRef.current);
+			if (typingTimerRef.current !== null) window.clearTimeout(typingTimerRef.current);
 			if (focusTimeout !== null) window.clearTimeout(focusTimeout);
 			setFindTarget(null);
 		};
@@ -65504,11 +66953,27 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 			input.setSelectionRange(len, len);
 		}
 	}, []);
-	const handleInputChange = useDebouncedCallback((0, import_react.useCallback)(async () => {
+	const runDebouncedSearch = (0, import_react.useCallback)(async () => {
 		if (!searchBoxRef.current) return;
 		await handleSearch(false, true);
-		needsCursorRestoreRef.current = true;
-	}, [handleSearch]), debounceMs);
+		if (!hasSurface) needsCursorRestoreRef.current = true;
+	}, [handleSearch, hasSurface]);
+	const handleInputChange = (0, import_react.useCallback)(() => {
+		if (typingTimerRef.current !== null) {
+			window.clearTimeout(typingTimerRef.current);
+			typingTimerRef.current = null;
+		}
+		const len = searchBoxRef.current?.value.length ?? 0;
+		if (len === 0) {
+			runDebouncedSearch().catch((error) => console.error(error));
+			return;
+		}
+		const delay = len === 1 ? FIRST_LETTER_DEBOUNCE_MS : debounceMs;
+		typingTimerRef.current = window.setTimeout(() => {
+			typingTimerRef.current = null;
+			runDebouncedSearch().catch((error) => console.error(error));
+		}, delay);
+	}, [debounceMs, runDebouncedSearch]);
 	const restoreCursorIfNeeded = (0, import_react.useCallback)(() => {
 		const input = searchBoxRef.current;
 		if (!input) return;
@@ -65565,11 +67030,16 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 		onKeyDown: handleKeyDown,
 		onBeforeInput: handleBeforeInput,
 		onChange: handleInputChange,
-		noResults,
-		matchCount: matchCount ?? void 0,
-		matchIndex: matchCount !== null && matchCount > 0 ? currentMatchIndex - 1 : void 0
+		noResults: hasSurface ? findState.noResults : noResults,
+		error: hasSurface ? findState.error ?? void 0 : void 0,
+		matchCount: hasSurface ? coordinatorCount(findState) : matchCount ?? void 0,
+		matchIndex: hasSurface ? findState.activeOrdinal ?? void 0 : matchCount !== null && matchCount > 0 ? currentMatchIndex - 1 : void 0,
+		countIsLowerBound: hasSurface && !findState.exact
 	});
 };
+function coordinatorCount({ count }) {
+	return count !== null && count > 0 ? count : void 0;
+}
 function windowFind(searchTerm, back) {
 	return window.find?.(searchTerm, findConfig.caseSensitive, back, findConfig.wrapAround, findConfig.wholeWord, findConfig.searchInFrames, findConfig.showDialog) ?? false;
 }
@@ -65584,12 +67054,13 @@ function positionSelectionForWrap(back) {
 		sel.addRange(range);
 	}
 }
-async function findExtendedInDOM(searchTerm, back, lastFoundItem, extendedFindTerm) {
+async function findExtendedInDOM(searchTerm, back, lastFoundItem, extendedFindTerm, superseded) {
 	let result = false;
 	let hasTriedExtendedSearch = false;
 	let extendedSearchSucceeded = false;
 	const maxAttempts = 25;
 	for (let attempts = 0; attempts < maxAttempts; attempts++) {
+		if (superseded()) return false;
 		result = windowFind(searchTerm, back);
 		if (result) {
 			const selection = window.getSelection();
@@ -65602,7 +67073,9 @@ async function findExtendedInDOM(searchTerm, back, lastFoundItem, extendedFindTe
 					if (!hasTriedExtendedSearch) {
 						hasTriedExtendedSearch = true;
 						window.getSelection()?.removeAllRanges();
-						if (await extendedFindTerm(searchTerm, back ? "backward" : "forward")) {
+						const foundInVirtual = await extendedFindTerm(searchTerm, back ? "backward" : "forward");
+						if (superseded()) return false;
+						if (foundInVirtual) {
 							extendedSearchSucceeded = true;
 							await waitForTextInDOM(searchTerm);
 							continue;
@@ -65628,7 +67101,9 @@ async function findExtendedInDOM(searchTerm, back, lastFoundItem, extendedFindTe
 		} else if (!hasTriedExtendedSearch) {
 			hasTriedExtendedSearch = true;
 			window.getSelection()?.removeAllRanges();
-			if (await extendedFindTerm(searchTerm, back ? "backward" : "forward")) {
+			const foundInVirtual = await extendedFindTerm(searchTerm, back ? "backward" : "forward");
+			if (superseded()) return false;
+			if (foundInVirtual) {
 				extendedSearchSucceeded = true;
 				await waitForTextInDOM(searchTerm);
 				continue;
@@ -65787,7 +67262,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((t0, 
 	const [visibleKey, setVisibleKey, clearVisibleKey] = useProperty("popover", "visibleKey");
 	let t1;
 	if ($[0] !== references) {
-		t1 = new Map(references?.map(_temp$98));
+		t1 = new Map(references?.map(_temp$99));
 		$[0] = references;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -65985,11 +67460,13 @@ var popoverKey = (ref) => `markdown-ref-popover-${ref.id}`;
 		return bracketMatch.replace(/\b[ME]\d+\b/g, (ordinal) => {
 			const ref = refByOrdinal.get(ordinal);
 			if (!ref) return ordinal;
-			return `<a href="${ref.citeUrl || "javascript:void(0)"}" class="${citeClass}" data-ref-id="${ref.id}">${ordinal}</a>`;
+			const href = ref.citeUrl ? ` href="${escapeHtmlCharacters(ref.citeUrl)}"` : "";
+			const id = escapeHtmlCharacters(ref.id);
+			return `<a${href} class="${escapeHtmlCharacters(citeClass)}" data-ref-id="${id}">${ordinal}</a>`;
 		});
 	});
 }
-function _temp$98(r) {
+function _temp$99(r) {
 	return [r.id, r];
 }
 /**
@@ -66166,7 +67643,7 @@ var NextPreviousNav_module_default = {
 		$[4] = t1;
 	} else t1 = $[4];
 	useArrowStepper(t1);
-	const handleKeyDown = _temp$97;
+	const handleKeyDown = _temp$98;
 	const t2 = hasPrevious ? onPrevious : void 0;
 	let t3;
 	if ($[5] !== hasPrevious || $[6] !== onPrevious) {
@@ -66285,7 +67762,7 @@ var NextPreviousNav_module_default = {
 	} else t23 = $[38];
 	return t23;
 };
-function _temp$97(e, action, enabled) {
+function _temp$98(e, action, enabled) {
 	if ((e.key === "Enter" || e.key === " ") && enabled && action) {
 		e.preventDefault();
 		action();
@@ -67320,7 +68797,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$96);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$97);
 		};
 		t2 = [
 			logDir,
@@ -67409,7 +68886,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$96() {}
+function _temp$97() {}
 //#endregion
 //#region src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
@@ -67514,7 +68991,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$95,
+			refetchInterval: _temp$96,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -67554,7 +69031,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$95(query) {
+function _temp$96(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
 function _temp2$58(data) {
@@ -68022,8 +69499,12 @@ var statsEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/events/${STATS_J
 	}
 	return starts.sort((a, b) => a - b);
 };
-/** Bounds-checked index (an out-of-range index is a coding error). */ var at = (items, i) => {
-	const item = items[i];
+/**
+* Bounds-checked index (an out-of-range index is a coding error). Only an
+* own integer position counts: a key that resolves through the array's
+* prototype ("__proto__", "constructor") must not pass as an element.
+*/ var at = (items, i) => {
+	const item = Number.isInteger(i) && i >= 0 && i < items.length && Object.hasOwn(items, i) ? items[i] : void 0;
 	if (item === void 0) throw new Error(`Index ${i} out of range (length ${items.length})`);
 	return item;
 };
@@ -68215,7 +69696,12 @@ var decoder$1 = new TextDecoder();
 * stacks, and filter visibility — all answered from span extents and
 * counters with zero event reads (sticky headers and depth seeding for the
 * decode walk).
-*/ var SkeletonIndex = class {
+*/ var parentIndex = (parent, i) => {
+	if (parent === void 0) return;
+	if (typeof parent !== "number" || !Number.isInteger(parent) || parent < 0 || parent >= i) throw new Error(`Skeleton span ${i} has an invalid parent ${JSON.stringify(parent)}`);
+	return parent;
+};
+var SkeletonIndex = class {
 	skeleton;
 	spans;
 	childrenOf;
@@ -68229,8 +69715,9 @@ var decoder$1 = new TextDecoder();
 		this.roots = [];
 		this.spans.forEach((span, i) => {
 			this.byBegin.set(span.begin, i);
-			if (span.parent === void 0) this.roots.push(i);
-			else at(this.childrenOf, span.parent).push(i);
+			const parent = parentIndex(span.parent, i);
+			if (parent === void 0) this.roots.push(i);
+			else at(this.childrenOf, parent).push(i);
 		});
 		this.spanIds = new Set(this.spans.map((span) => span.id));
 	}
@@ -69056,8 +70543,8 @@ var resolveString = (value, attachments, onFailedResolve) => {
 	const ref = value.startsWith(CONTENT_PROTOCOL$1) ? value.replace(CONTENT_PROTOCOL$1, ATTACHMENT_PROTOCOL$1) : value;
 	if (!ref.startsWith(ATTACHMENT_PROTOCOL$1)) return value;
 	const attachmentId = ref.slice(13);
-	const attachment = attachments[attachmentId];
-	if (attachment === void 0) {
+	const attachment = getOwn(attachments, attachmentId);
+	if (typeof attachment !== "string") {
 		onFailedResolve?.(attachmentId);
 		return value;
 	}
@@ -69092,6 +70579,7 @@ var resolveValue = (value, attachments, onFailedResolve) => {
 * their content, leaving the value's shape untouched. TypeScript can't
 * express "same type, strings substituted", so the walk works in `unknown`
 * and this is where the shape is handed back.
+* Attachment values are untrusted; only own string entries resolve.
 */ var resolveAttachments = (value, attachments, onFailedResolve) => resolveValue(value, attachments, onFailedResolve);
 //#endregion
 //#region src/log_data/sampleFetch.ts
@@ -69625,11 +71113,11 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$94(row) {
+function _temp$95(row) {
 	return row.summary;
 }
 function _temp2$57(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$94), settled.pending?.samples ?? []);
+	return mergeSampleSummaries(settled.rows.map(_temp$95), settled.pending?.samples ?? []);
 }
 //#endregion
 //#region src/log_data/runningSampleQuery.ts
@@ -69770,7 +71258,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$93,
+			refetchInterval: _temp$94,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -69782,7 +71270,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$93(query) {
+function _temp$94(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
 //#endregion
@@ -70010,7 +71498,7 @@ var collectRefs = (value, into) => {
 		this.onRow = onRow;
 	}
 	next(message, index) {
-		const resolved = message.id === void 0 ? {
+		const resolved = message.id === void 0 || message.id === null ? {
 			...message,
 			id: `msg-${index}`
 		} : message;
@@ -70091,6 +71579,22 @@ var resolveMessages = (messages) => {
 * data layer's target drain must agree on this, so it lives with the row
 * type.
 */ var rowContainsMessage = (row, messageId) => row.resolved.message.id === messageId || row.resolved.toolMessages.some((tm) => tm.id === messageId);
+/**
+* Find anchor ids for the rows, index-aligned, mirrored by the server: a
+* row's anchor is its head message id verbatim (the fold mints `msg-{index}`
+* for a missing id; "" stays "" and is a legal anchor) unless a prior row was
+* assigned that string, in which case `#rowIndex` is appended, again while
+* the result is already assigned. Only prior rows' anchors collide (never
+* folded tool message ids or later rows), so anchors are stable under append.
+*/ var messageRowAnchorIds = (rows) => {
+	const assigned = /* @__PURE__ */ new Set();
+	return rows.map((row, index) => {
+		let anchor = row.resolved.message.id ?? "";
+		while (assigned.has(anchor)) anchor += `#${index}`;
+		assigned.add(anchor);
+		return anchor;
+	});
+};
 /**
 * Fold options from a view's tool options — the one place the fold
 * defaults ("complete", collapse on) are defined. Data-layer folds and
@@ -72152,9 +73656,6 @@ function computeScale(contentTotal, safeMax) {
 function toContent(spacerScroll, s) {
 	return spacerScroll * s;
 }
-function toSpacer(contentScroll, s) {
-	return contentScroll / s;
-}
 //#endregion
 //#region ../../packages/react/src/virtual/use-scaled-virtualizer.ts
 function useScaledVirtualizer(opts) {
@@ -72162,16 +73663,23 @@ function useScaledVirtualizer(opts) {
 	const scaledObserveElementOffset = (0, import_react.useMemo)(() => (instance, cb) => {
 		const el = instance.scrollElement;
 		if (!el) return;
-		const onScroll = () => {
-			cb(el.scrollTop * scaleRef.current, true);
-		};
+		const supportsScrollend = "onscrollend" in window;
+		let settleTimer;
 		const onScrollEnd = () => {
 			cb(el.scrollTop * scaleRef.current, false);
 		};
-		cb(el.scrollTop * scaleRef.current, false);
+		const onScroll = () => {
+			if (!supportsScrollend) {
+				clearTimeout(settleTimer);
+				settleTimer = setTimeout(onScrollEnd, instance.options.isScrollingResetDelay);
+			}
+			cb(el.scrollTop * scaleRef.current, true);
+		};
+		onScrollEnd();
 		el.addEventListener("scroll", onScroll, { passive: true });
-		el.addEventListener("scrollend", onScrollEnd, { passive: true });
+		if (supportsScrollend) el.addEventListener("scrollend", onScrollEnd, { passive: true });
 		return () => {
+			clearTimeout(settleTimer);
 			el.removeEventListener("scroll", onScroll);
 			el.removeEventListener("scrollend", onScrollEnd);
 		};
@@ -72184,6 +73692,7 @@ function useScaledVirtualizer(opts) {
 			top: adjusted / scaleRef.current,
 			behavior
 		});
+		if (behavior !== "smooth" && adjustments === void 0) instance.scrollOffset = el.scrollTop * scaleRef.current;
 	}, []);
 	const virtualizer = useVirtualizer({
 		count: opts.count,
@@ -72196,20 +73705,17 @@ function useScaledVirtualizer(opts) {
 		scrollToFn: scaledScrollToFn
 	});
 	virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => item.end <= (instance.scrollOffset ?? 0);
-	const contentTotal = virtualizer.getTotalSize();
-	const scale = computeScale(contentTotal, SAFE_MAX_SPACER);
+	const scale = computeScale(virtualizer.getTotalSize(), SAFE_MAX_SPACER);
 	scaleRef.current = scale;
 	return {
 		virtualizer,
 		scale,
-		spacerHeight: scale === 1 ? contentTotal : SAFE_MAX_SPACER,
-		toContentScroll: (0, import_react.useCallback)((spacerScroll) => toContent(spacerScroll, scaleRef.current), []),
-		toSpacerScroll: (0, import_react.useCallback)((contentScroll) => toSpacer(contentScroll, scaleRef.current), [])
+		toContentScroll: (0, import_react.useCallback)((spacerScroll) => toContent(spacerScroll, scaleRef.current), [])
 	};
 }
 //#endregion
 //#region ../../packages/react/src/virtual/use-virtual-list-state.ts
-var CURRENT_VERSION = 1;
+var CURRENT_VERSION = 2;
 function useVirtualListState(persistenceKey) {
 	const $ = (0, import_compiler_runtime.c)(8);
 	let t0;
@@ -72221,8 +73727,7 @@ function useVirtualListState(persistenceKey) {
 	let t1;
 	if ($[1] !== stored) {
 		t1 = () => {
-			if (!stored) return;
-			if (stored.version !== CURRENT_VERSION) return;
+			if (!stored || stored.version !== CURRENT_VERSION) return;
 			return stored;
 		};
 		$[1] = stored;
@@ -72300,21 +73805,18 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	const internalScrollRef = (0, import_react.useRef)(null);
 	const wrapperRef = (0, import_react.useRef)(null);
 	const [scrollParent, setScrollParent] = (0, import_react.useState)(null);
-	const [scrollMargin, setScrollMargin] = (0, import_react.useState)(0);
+	const [listOffset, setListOffset] = (0, import_react.useState)(0);
+	const scrollMargin = embedded ? listOffset : 0;
 	const measureScrollMargin = (0, import_react.useCallback)(() => {
 		const wrapper = wrapperRef.current;
-		const parent = embedded ? externalScrollEl ?? scrollParent : null;
-		let margin = 0;
+		const parent = externalScrollEl ?? scrollParent;
+		let offset = 0;
 		if (wrapper && parent && parent !== wrapper) {
 			const parentRect = parent.getBoundingClientRect();
-			if (parentRect.width > 0 || parentRect.height > 0) margin = Math.max(0, Math.round(wrapper.getBoundingClientRect().top - parentRect.top + parent.scrollTop));
+			if (parentRect.width > 0 || parentRect.height > 0) offset = Math.max(0, Math.round(wrapper.getBoundingClientRect().top - parentRect.top + parent.scrollTop));
 		}
-		setScrollMargin((prev) => prev === margin ? prev : margin);
-	}, [
-		embedded,
-		externalScrollEl,
-		scrollParent
-	]);
+		setListOffset((prev) => prev === offset ? prev : offset);
+	}, [externalScrollEl, scrollParent]);
 	(0, import_react.useLayoutEffect)(measureScrollMargin);
 	(0, import_react.useEffect)(() => {
 		if (externalScrollRef === null) return;
@@ -72333,7 +73835,7 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		return () => observer.disconnect();
 	}, [externalScrollRef, measureScrollMargin]);
 	const getScrollElement = (0, import_react.useCallback)(() => externalScrollEl ?? scrollParent ?? internalScrollRef.current, [externalScrollEl, scrollParent]);
-	const { virtualizer, scale, toContentScroll, toSpacerScroll } = useScaledVirtualizer({
+	const { virtualizer, scale, toContentScroll } = useScaledVirtualizer({
 		count: data.length,
 		estimateSize: () => estimatedItemHeight,
 		getScrollElement,
@@ -72341,6 +73843,25 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		scrollPaddingStart: scrollPaddingStart ?? 0,
 		scrollMargin
 	});
+	const measureListeners = (0, import_react.useRef)(/* @__PURE__ */ new Set());
+	const pendingMeasure = (0, import_react.useRef)([]);
+	const bandRef = (0, import_react.useRef)(null);
+	const measureRow = (0, import_react.useCallback)((node) => {
+		const pending = pendingMeasure.current;
+		pending.push(node);
+		if (pending.length > 1) return;
+		queueMicrotask(() => {
+			const nodes = pending.splice(0);
+			for (const node_0 of nodes) {
+				if (node_0 && !node_0.isConnected) continue;
+				virtualizer.measureElement(node_0);
+			}
+			for (const node_1 of nodes) {
+				if (!node_1?.isConnected) continue;
+				for (const listener of measureListeners.current) listener(node_1);
+			}
+		});
+	}, [virtualizer]);
 	const { getRestoreSnapshot, recordSnapshot } = useVirtualListState(persistenceKey);
 	const [storedFollow, setFollowOutput] = useProperty(persistenceKey, "follow", { defaultValue: null });
 	const isAutoScrollingRef = (0, import_react.useRef)(false);
@@ -72510,132 +74031,195 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	]);
 	const hasInitialScrolledRef = (0, import_react.useRef)(false);
 	const userScrolledRef = (0, import_react.useRef)(false);
+	const mountPositionedRef = (0, import_react.useRef)(false);
 	const lastAutoScrollTopRef = (0, import_react.useRef)(null);
-	const settleFrameRef = (0, import_react.useRef)(0);
+	const lastInitialKeyRef = (0, import_react.useRef)(null);
+	const buildSnapshot = (0, import_react.useCallback)((el_4) => {
+		const containerOffset = el_4 ? toContentScroll(el_4.scrollTop) : 0;
+		const itemOffset = containerOffset - listOffset + scrollMargin;
+		const anchor = virtualizer.getVirtualItemForOffset(itemOffset);
+		const snapshot = {
+			version: 2,
+			index: anchor?.index ?? 0,
+			offsetInRow: anchor ? itemOffset - anchor.start : 0,
+			totalCount: data.length
+		};
+		if (containerOffset < listOffset) snapshot.containerOffset = containerOffset;
+		return snapshot;
+	}, [
+		toContentScroll,
+		virtualizer,
+		data.length,
+		listOffset,
+		scrollMargin
+	]);
+	const pendingSnapshotRef = (0, import_react.useRef)(null);
+	const settleLandingRef = useLatestRef((el_5, persist) => {
+		if (pendingSnapshotRef.current) pendingSnapshotRef.current = buildSnapshot(el_5);
+		if (persist) recordSnapshot(buildSnapshot(el_5));
+	});
+	const landingRef = (0, import_react.useRef)(null);
 	const releaseFrameRef = (0, import_react.useRef)(0);
-	const settleScrollToIndex = (0, import_react.useCallback)((index, align, onDone) => {
-		const jump = () => virtualizer.scrollToIndex(index, {
-			align,
-			behavior: "auto"
-		});
+	const pendingScrollRef = (0, import_react.useRef)(null);
+	const programmaticScroll = (0, import_react.useCallback)((run, onDone, persist_0 = false) => {
+		if (!getScrollElement()) {
+			pendingScrollRef.current = {
+				run,
+				onDone,
+				persist: persist_0
+			};
+			return;
+		}
+		pendingScrollRef.current = null;
+		hasInitialScrolledRef.current = true;
+		mountPositionedRef.current = true;
 		isAutoScrollingRef.current = true;
 		cancelAnimationFrame(releaseFrameRef.current);
-		const finish = () => {
-			const elNow = getScrollElement();
-			if (elNow) lastAutoScrollTopRef.current = elNow.scrollTop;
-			releaseFrameRef.current = requestAnimationFrame(() => {
-				isAutoScrollingRef.current = false;
-			});
+		landingRef.current = persist_0 ? { snapshot: null } : null;
+		run();
+		const release = () => {
+			const userTookOver = userInteractingRef.current;
+			if (virtualizer.isScrolling && !userTookOver) {
+				releaseFrameRef.current = requestAnimationFrame(release);
+				return;
+			}
+			const el_6 = getScrollElement();
+			if (el_6) {
+				if (!userTookOver) lastAutoScrollTopRef.current = el_6.scrollTop;
+				settleLandingRef.current(el_6, persist_0 && !userTookOver && lastInitialKeyRef.current === persistenceKey);
+			}
+			landingRef.current = null;
+			isAutoScrollingRef.current = false;
 			onDone?.();
 		};
-		jump();
-		const el_4 = getScrollElement();
-		if (!el_4) {
-			finish();
-			return;
-		}
-		cancelAnimationFrame(settleFrameRef.current);
-		let frames = 0;
-		let stable = 0;
-		let lastTop = el_4.scrollTop;
-		const settle = () => {
-			if (userInteractingRef.current) {
-				finish();
-				return;
-			}
-			jump();
-			stable = Math.abs(el_4.scrollTop - lastTop) <= 1 ? stable + 1 : 0;
-			lastTop = el_4.scrollTop;
-			if (stable < 3 && (frames += 1) < 30) settleFrameRef.current = requestAnimationFrame(settle);
-			else finish();
-		};
-		settleFrameRef.current = requestAnimationFrame(settle);
-	}, [virtualizer, getScrollElement]);
+		releaseFrameRef.current = requestAnimationFrame(release);
+	}, [
+		virtualizer,
+		getScrollElement,
+		persistenceKey,
+		settleLandingRef
+	]);
 	useUnmount(() => {
-		cancelAnimationFrame(settleFrameRef.current);
 		cancelAnimationFrame(releaseFrameRef.current);
 	});
-	const lastInitialKeyRef = (0, import_react.useRef)(null);
-	const settleRestoreScroll = (0, import_react.useCallback)((getTargetSpacerTop) => {
-		isAutoScrollingRef.current = true;
-		cancelAnimationFrame(releaseFrameRef.current);
-		cancelAnimationFrame(settleFrameRef.current);
-		const el_5 = getScrollElement();
-		const keyAtStart = lastInitialKeyRef.current;
-		const finish_0 = () => {
-			if (el_5) lastAutoScrollTopRef.current = el_5.scrollTop;
-			releaseFrameRef.current = requestAnimationFrame(() => {
-				isAutoScrollingRef.current = false;
-			});
-		};
-		if (!el_5) {
-			finish_0();
-			return;
+	const jumpToIndex = (0, import_react.useCallback)((index, align, behavior, onDone_0) => {
+		if (live && followOutputRef.current) {
+			followUserActedRef.current = true;
+			setFollowOutput(false);
 		}
-		el_5.scrollTop = getTargetSpacerTop();
-		let frames_0 = 0;
-		let stable_0 = 0;
-		let lastTop_0 = el_5.scrollTop;
-		const settle_0 = () => {
-			if (userInteractingRef.current || lastInitialKeyRef.current !== keyAtStart) {
-				finish_0();
-				return;
-			}
-			const preTop = el_5.scrollTop;
-			el_5.scrollTop = getTargetSpacerTop();
-			const postTop = el_5.scrollTop;
-			stable_0 = Math.abs(preTop - lastTop_0) > 1 || Math.abs(postTop - lastTop_0) > 1 ? 0 : stable_0 + 1;
-			lastTop_0 = postTop;
-			if (stable_0 < 3 && (frames_0 += 1) < 30) settleFrameRef.current = requestAnimationFrame(settle_0);
-			else finish_0();
-		};
-		settleFrameRef.current = requestAnimationFrame(settle_0);
-	}, [getScrollElement]);
+		programmaticScroll(() => virtualizer.scrollToIndex(index, {
+			align,
+			behavior: scale > SMOOTH_SCROLL_MAX_S ? "auto" : behavior
+		}), onDone_0, true);
+	}, [
+		live,
+		programmaticScroll,
+		virtualizer,
+		scale,
+		setFollowOutput
+	]);
+	const rowIndexOf = (0, import_react.useCallback)((node_2) => {
+		const band = bandRef.current;
+		let row = node_2;
+		while (row && row.parentElement !== band) row = row.parentElement;
+		const index_0 = row instanceof HTMLElement ? Number(row.dataset.index) : NaN;
+		return row && Number.isInteger(index_0) ? index_0 : null;
+	}, []);
+	const scroller = (0, import_react.useMemo)(() => ({
+		viewportRect: () => getScrollElement()?.getBoundingClientRect() ?? new DOMRect(),
+		scrollToRow: (node_3, onDone_1) => {
+			const index_1 = rowIndexOf(node_3);
+			if (index_1 === null) return false;
+			jumpToIndex(index_1, "start", "auto", onDone_1);
+			return true;
+		},
+		centreInRow: (node_4, box, onDone_2) => {
+			const index_2 = rowIndexOf(node_4);
+			if (index_2 === null) return false;
+			const rowRect = node_4.closest(`[data-index="${index_2}"]`)?.getBoundingClientRect() ?? box;
+			virtualizer.resizeItem(index_2, Math.round(rowRect.height));
+			virtualizer.getVirtualItems();
+			const start = virtualizer.measurementsCache[index_2]?.start ?? scrollMargin;
+			const viewportHeight = getScrollElement()?.clientHeight ?? 0;
+			const target = start + (box.top - rowRect.top) - (viewportHeight - box.height) / 2;
+			programmaticScroll(() => virtualizer.scrollToOffset(target), onDone_2, true);
+			return true;
+		},
+		onRowMeasured: (listener_0) => {
+			measureListeners.current.add(listener_0);
+			return () => measureListeners.current.delete(listener_0);
+		}
+	}), [
+		getScrollElement,
+		virtualizer,
+		programmaticScroll,
+		scrollMargin,
+		rowIndexOf,
+		jumpToIndex
+	]);
 	const lastInitialIndexRef = (0, import_react.useRef)(void 0);
 	const hasResetTopRef = (0, import_react.useRef)(false);
 	(0, import_react.useEffect)(() => {
 		if (lastInitialKeyRef.current !== persistenceKey || lastInitialIndexRef.current !== initialIndex) {
 			hasInitialScrolledRef.current = false;
 			userScrolledRef.current = false;
+			mountPositionedRef.current = false;
 			hasResetTopRef.current = false;
 			lastInitialKeyRef.current = persistenceKey;
 			lastInitialIndexRef.current = initialIndex ?? void 0;
 		}
+		const el_7 = getScrollElement();
+		if (!el_7) return;
+		const pending_0 = pendingScrollRef.current;
+		if (pending_0) {
+			programmaticScroll(pending_0.run, pending_0.onDone, pending_0.persist);
+			return;
+		}
 		if (hasInitialScrolledRef.current) return;
-		const el_6 = getScrollElement();
-		if (!el_6) return;
-		const snapshot = getRestoreSnapshot();
+		const snapshot_0 = getRestoreSnapshot();
 		let releaseFrame_0 = 0;
 		const frame_0 = requestAnimationFrame(() => {
-			isAutoScrollingRef.current = true;
-			const release = () => {
-				lastAutoScrollTopRef.current = el_6.scrollTop;
+			if (hasInitialScrolledRef.current) return;
+			mountPositionedRef.current = true;
+			if (initialIndex != null) {
+				hasInitialScrolledRef.current = true;
+				programmaticScroll(() => virtualizer.scrollToIndex(initialIndex, {
+					align: "start",
+					behavior: "auto"
+				}));
+			} else if (followOutput && live) hasInitialScrolledRef.current = true;
+			else if (snapshot_0) {
+				hasInitialScrolledRef.current = true;
+				if (!userScrolledRef.current) {
+					const anchorIndex = Math.min(snapshot_0.index, data.length - 1);
+					const anchorMeasurement = () => {
+						virtualizer.getVirtualItems();
+						return virtualizer.measurementsCache[anchorIndex];
+					};
+					const anchorTarget = () => {
+						if (snapshot_0.containerOffset !== void 0) return snapshot_0.containerOffset;
+						return (anchorMeasurement()?.start ?? scrollMargin) + snapshot_0.offsetInRow + listOffset - scrollMargin;
+					};
+					const maxScrollOffset = () => toContentScroll(el_7.scrollHeight - el_7.clientHeight);
+					const anchorFits = () => snapshot_0.offsetInRow <= (anchorMeasurement()?.size ?? 0);
+					if (anchorFits() && anchorTarget() <= maxScrollOffset()) programmaticScroll(() => virtualizer.scrollToOffset(anchorTarget()));
+					else programmaticScroll(() => virtualizer.scrollToIndex(anchorIndex, {
+						align: "start",
+						behavior: "auto"
+					}), () => {
+						if (lastInitialKeyRef.current !== persistenceKey || userInteractingRef.current || !anchorFits() || anchorTarget() > maxScrollOffset()) return;
+						programmaticScroll(() => virtualizer.scrollToOffset(anchorTarget()));
+					});
+				}
+			} else if (!userScrolledRef.current && !hasResetTopRef.current && resetScrollOnMount) {
+				isAutoScrollingRef.current = true;
+				el_7.scrollTop = 0;
+				hasResetTopRef.current = true;
+				lastAutoScrollTopRef.current = el_7.scrollTop;
 				releaseFrame_0 = requestAnimationFrame(() => {
 					isAutoScrollingRef.current = false;
 				});
-			};
-			if (initialIndex != null) {
-				hasInitialScrolledRef.current = true;
-				settleScrollToIndex(initialIndex, "start");
-			} else if (followOutput && live) {
-				hasInitialScrolledRef.current = true;
-				release();
-			} else if (snapshot) {
-				hasInitialScrolledRef.current = true;
-				if (!userScrolledRef.current) {
-					const clampToMax = snapshot.totalCount !== data.length;
-					settleRestoreScroll(() => {
-						const target = toSpacerScroll(snapshot.scrollOffset);
-						if (!clampToMax) return target;
-						const maxSpacerTop = Math.max(0, toSpacerScroll(virtualizer.getTotalSize()) + scrollMargin - el_6.clientHeight);
-						return Math.min(target, maxSpacerTop);
-					});
-				} else release();
-			} else if (!userScrolledRef.current && !hasResetTopRef.current && resetScrollOnMount) {
-				el_6.scrollTop = 0;
-				hasResetTopRef.current = true;
-				release();
-			} else release();
+			}
 		});
 		return () => {
 			cancelAnimationFrame(frame_0);
@@ -72647,46 +74231,46 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	}, [
 		persistenceKey,
 		initialIndex,
-		settleScrollToIndex,
-		settleRestoreScroll,
+		programmaticScroll,
 		contentTotal,
 		data.length,
 		followOutput,
 		live,
 		getRestoreSnapshot,
 		getScrollElement,
-		toSpacerScroll,
+		toContentScroll,
 		virtualizer,
 		scrollMargin,
+		listOffset,
 		resetScrollOnMount
 	]);
-	const buildSnapshot = (0, import_react.useCallback)((el_7) => ({
-		version: 1,
-		scrollOffset: toContentScroll(el_7.scrollTop),
-		totalCount: data.length
-	}), [toContentScroll, data.length]);
 	const persistTimerRef = (0, import_react.useRef)(null);
-	const pendingSnapshotRef = (0, import_react.useRef)(null);
 	const persistOnScroll = useRafThrottle(() => {
-		if (isAutoScrollingRef.current) return;
-		const elNow_0 = getScrollElement();
-		if (elNow_0 && lastAutoScrollTopRef.current !== null && Math.abs(elNow_0.scrollTop - lastAutoScrollTopRef.current) <= 2) return;
+		if (!wrapperRef.current?.isConnected) return;
+		const elNow = getScrollElement();
+		if (isAutoScrollingRef.current) {
+			const landing = landingRef.current;
+			if (landing && elNow) landing.snapshot = buildSnapshot(elNow);
+			return;
+		}
+		const userInput = userInteractingRef.current || pointerDownRef.current;
+		if (elNow && !userInput && lastAutoScrollTopRef.current !== null && Math.abs(elNow.scrollTop - lastAutoScrollTopRef.current) <= 2) return;
+		if (!mountPositionedRef.current && !userInput) return;
 		userScrolledRef.current = true;
-		if (elNow_0) pendingSnapshotRef.current = buildSnapshot(elNow_0);
+		if (elNow) pendingSnapshotRef.current = buildSnapshot(elNow);
 		if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
 		persistTimerRef.current = setTimeout(() => {
 			persistTimerRef.current = null;
+			const snapshot_1 = pendingSnapshotRef.current;
 			pendingSnapshotRef.current = null;
-			const el_8 = getScrollElement();
-			if (!el_8) return;
-			recordSnapshot(buildSnapshot(el_8));
+			if (snapshot_1) recordSnapshot(snapshot_1);
 		}, PERSIST_DEBOUNCE_MS);
 	});
 	(0, import_react.useEffect)(() => {
-		const el_9 = getScrollElement();
-		if (!el_9) return;
-		el_9.addEventListener("scroll", persistOnScroll);
-		return () => el_9.removeEventListener("scroll", persistOnScroll);
+		const el_8 = getScrollElement();
+		if (!el_8) return;
+		el_8.addEventListener("scroll", persistOnScroll);
+		return () => el_8.removeEventListener("scroll", persistOnScroll);
 	}, [getScrollElement, persistOnScroll]);
 	(0, import_react.useEffect)(() => () => {
 		if (persistTimerRef.current) {
@@ -72695,6 +74279,9 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 			if (pendingSnapshotRef.current) recordSnapshot(pendingSnapshotRef.current);
 		}
 		pendingSnapshotRef.current = null;
+		const landing_0 = landingRef.current?.snapshot;
+		if (landing_0) recordSnapshot(landing_0);
+		landingRef.current = null;
 	}, [recordSnapshot]);
 	useUnmount(() => {
 		if (interactTimerRef.current) {
@@ -72723,50 +74310,34 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	]);
 	(0, import_react.useImperativeHandle)(ref, () => ({
 		scrollToIndex(opts) {
-			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
-			if (behavior === "auto") {
-				settleScrollToIndex(opts.index, opts.align, opts.onDone);
-				return;
-			}
-			virtualizer.scrollToIndex(opts.index, {
-				align: opts.align,
-				behavior
-			});
-			opts.onDone?.();
+			jumpToIndex(opts.index, opts.align, opts.behavior ?? (smoothScroll ? "smooth" : "auto"), opts.onDone);
 		},
 		scrollTo(opts_0) {
-			const el_10 = getScrollElement();
-			if (!el_10) return;
+			const el_9 = getScrollElement();
+			if (!el_9) return;
 			const behavior_0 = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts_0.behavior ?? (smoothScroll ? "smooth" : "auto");
-			el_10.scrollTo({
+			el_9.scrollTo({
 				top: opts_0.top,
 				behavior: behavior_0
 			});
 		},
 		getState(callback) {
-			const el_11 = getScrollElement();
-			callback({
-				version: 1,
-				scrollOffset: el_11 ? toContentScroll(el_11.scrollTop) : 0,
-				totalCount: data.length
-			});
+			callback(buildSnapshot(getScrollElement()));
 		},
 		jumpToStart() {
-			const el_12 = getScrollElement();
-			if (el_12) el_12.scrollTop = 0;
+			const el_10 = getScrollElement();
+			if (el_10) el_10.scrollTop = 0;
 		},
 		jumpToEnd() {
-			const el_13 = getScrollElement();
-			if (el_13) el_13.scrollTop = el_13.scrollHeight;
+			const el_11 = getScrollElement();
+			if (el_11) el_11.scrollTop = el_11.scrollHeight;
 		}
 	}), [
-		virtualizer,
 		scale,
-		settleScrollToIndex,
 		smoothScroll,
 		getScrollElement,
-		toContentScroll,
-		data.length
+		buildSnapshot,
+		jumpToIndex
 	]);
 	const extendedFind = useExtendedFindOptional();
 	const findContext = findScope === "none" ? null : extendedFind;
@@ -72778,8 +74349,8 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		const current = isForward ? range_0.endIndex : range_0.startIndex;
 		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
 		const prepared = prepareSearchTerm(term);
-		for (let offset = 1; offset < len; offset++) {
-			const i = isForward ? (current + offset) % len : (current - offset + len) % len;
+		for (let offset_0 = 1; offset_0 < len; offset_0++) {
+			const i = isForward ? (current + offset_0) % len : (current - offset_0 + len) % len;
 			const item_0 = data[i];
 			if (item_0 === void 0) continue;
 			const texts = getText(item_0);
@@ -72790,7 +74361,10 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 				if (prepared.jsonEscaped && lower.includes(prepared.jsonEscaped)) return true;
 				return false;
 			})) {
-				settleScrollToIndex(i, "center");
+				programmaticScroll(() => virtualizer.scrollToIndex(i, {
+					align: "center",
+					behavior: "auto"
+				}), void 0, true);
 				setTimeout(onContentReady, 200);
 				return Promise.resolve(true);
 			}
@@ -72799,7 +74373,8 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	}, [
 		data,
 		itemSearchText,
-		settleScrollToIndex
+		programmaticScroll,
+		virtualizer
 	]);
 	const precomputedSearchTexts = (0, import_react.useMemo)(() => {
 		if (!findContext) return [];
@@ -72842,11 +74417,11 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	const bottomPaddingSpacer = (lastItem ? Math.max(0, virtualizer.getTotalSize() + scrollMargin - (lastItem.start + lastItem.size)) : virtualizer.getTotalSize()) / scale;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		id,
-		ref: (el_14) => {
-			wrapperRef.current = el_14;
+		ref: (el_12) => {
+			wrapperRef.current = el_12;
 			if (!ownsScroll) return;
-			internalScrollRef.current = el_14;
-			setScrollParent((prev_1) => prev_1 === el_14 ? prev_1 : el_14);
+			internalScrollRef.current = el_12;
+			setScrollParent((prev_1) => prev_1 === el_12 ? prev_1 : el_12);
 		},
 		className: clsx(VirtualList_module_default.scroller, className),
 		style: ownsScroll ? {
@@ -72859,46 +74434,50 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 				height: topPaddingSpacer,
 				prefix: "top"
 			}),
-			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-				style: {
-					position: "relative",
-					height: renderedBandHeight
-				},
-				children: items.map((vItem) => {
-					const item_3 = data[vItem.index];
-					if (item_3 === void 0) return null;
-					const top = vItem.start - bandStart;
-					const child = renderRow(vItem.index, item_3);
-					if (ItemSlot) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-						ref: virtualizer.measureElement,
-						"data-index": vItem.index,
-						style: {
-							position: "absolute",
-							top,
-							left: 0,
-							right: 0
-						},
-						children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ItemSlot, {
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualScrollerContext.Provider, {
+				value: scroller,
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					ref: bandRef,
+					style: {
+						position: "relative",
+						height: renderedBandHeight
+					},
+					children: items.map((vItem) => {
+						const item_3 = data[vItem.index];
+						if (item_3 === void 0) return null;
+						const top = vItem.start - bandStart;
+						const child = renderRow(vItem.index, item_3);
+						if (ItemSlot) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+							ref: measureRow,
+							"data-index": vItem.index,
+							style: {
+								position: "absolute",
+								top,
+								left: 0,
+								right: 0
+							},
+							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ItemSlot, {
+								"data-index": vItem.index,
+								"data-item-index": vItem.index,
+								"data-known-size": vItem.size,
+								style: {},
+								children: child
+							})
+						}, vItem.key);
+						return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+							ref: measureRow,
 							"data-index": vItem.index,
 							"data-item-index": vItem.index,
 							"data-known-size": vItem.size,
-							style: {},
+							style: {
+								position: "absolute",
+								top,
+								left: 0,
+								right: 0
+							},
 							children: child
-						})
-					}, vItem.key);
-					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-						ref: virtualizer.measureElement,
-						"data-index": vItem.index,
-						"data-item-index": vItem.index,
-						"data-known-size": vItem.size,
-						style: {
-							position: "absolute",
-							top,
-							left: 0,
-							right: 0
-						},
-						children: child
-					}, vItem.key);
+						}, vItem.key);
+					})
 				})
 			}),
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(PaddingChunks, {
@@ -73037,6 +74616,57 @@ var ContentRenderersContext = /*#__PURE__*/ (0, import_react.createContext)(null
 var useContentRenderers = () => {
 	return (0, import_react.useContext)(ContentRenderersContext);
 };
+//#endregion
+//#region ../../packages/inspect-components/src/content/ExternalLink.tsx
+/**
+* Renders a log-supplied URL as a new-tab link when it is an absolute http(s)
+* URL, and as inert text otherwise. Log content is the only source of these
+* hrefs, and the markdown and media paths already refuse every other scheme
+* (file:, blob:, custom protocol handlers); this keeps the React-rendered
+* anchors on the same policy.
+*/ var ExternalLink = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(11);
+	const { href, className, title, children } = t0;
+	let t1;
+	if ($[0] !== href) {
+		t1 = parseAbsoluteHttpUrl(href);
+		$[0] = href;
+		$[1] = t1;
+	} else t1 = $[1];
+	const safeHref = t1;
+	if (safeHref === void 0) {
+		let t2;
+		if ($[2] !== children || $[3] !== className || $[4] !== title) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className,
+				title,
+				children
+			});
+			$[2] = children;
+			$[3] = className;
+			$[4] = title;
+			$[5] = t2;
+		} else t2 = $[5];
+		return t2;
+	}
+	let t2;
+	if ($[6] !== children || $[7] !== className || $[8] !== safeHref || $[9] !== title) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+			href: safeHref,
+			target: "_blank",
+			rel: "noopener noreferrer",
+			className,
+			title,
+			children
+		});
+		$[6] = children;
+		$[7] = className;
+		$[8] = safeHref;
+		$[9] = title;
+		$[10] = t2;
+	} else t2 = $[10];
+	return t2;
+};
 var MetaDataGrid_module_default = {
 	grid: "_grid_17hbv_5",
 	rows: "_rows_17hbv_14",
@@ -73073,7 +74703,7 @@ var hasHtmlEscape = (v) => isPlainObject$1(v) && "_html" in v && v._html != null
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$92);
+	const scalars = allEntries.filter(_temp$93);
 	const groups = allEntries.filter(_temp2$56);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
@@ -73201,7 +74831,7 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$92(e) {
+function _temp$93(e) {
 	return !isNonEmptyObject(e.value) || hasHtmlEscape(e.value);
 }
 function _temp2$56(e_0) {
@@ -73248,7 +74878,7 @@ var Buckets = {
 		$[1] = entry;
 		$[2] = t2;
 	} else t2 = $[2];
-	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$91).find(t2);
+	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$92).find(t2);
 	if (renderer_0) {
 		const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 		if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) return rendered;
@@ -73399,18 +75029,18 @@ var Buckets = {
 						" ",
 						entry.value.query
 					]
-				}));
-				entry.value.results.forEach((result) => {
-					results.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+				}, "query"));
+				entry.value.results.forEach((result, index) => {
+					results.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 						href: result.url,
 						children: result.url
-					}) }));
+					}) }, `url-${index}`));
 					results.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 						className: clsx("text-size-smaller", RenderedContent_module_default.summary),
 						children: result.summary
-					}));
+					}, `summary-${index}`));
 				});
-				return { rendered: results };
+				return { rendered: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_react.Fragment, { children: results }) };
 			}
 		},
 		web_browser: {
@@ -73464,7 +75094,7 @@ var Buckets = {
 	};
 	return contentRenderers;
 };
-function _temp$91(a, b) {
+function _temp$92(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
@@ -73952,7 +75582,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$90);
+		t3 = results.map(_temp$91);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -73967,13 +75597,11 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$90(result, index) {
+function _temp$91(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
-		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 			href: result.url,
-			target: "_blank",
-			rel: "noopener noreferrer",
 			title: result.url + (result.page_age ? `\n(Age: ${result.page_age})` : ""),
 			children: result.title
 		})
@@ -74271,8 +75899,8 @@ var JsonMessageContent = (t0) => {
 	return t2;
 };
 var MessageCitations_module_default = {
-	citations: "_citations_1ggvf_1",
-	citationLink: "_citationLink_1ggvf_9"
+	citations: "_citations_1gzkd_1",
+	citationLink: "_citationLink_1gzkd_9"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/MessageCitations.tsx
@@ -74287,7 +75915,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$89);
+		t2 = citations.map(_temp$90);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -74337,10 +75965,8 @@ var UrlCitation = (t0) => {
 	const t3 = citation.cited_text && typeof citation.cited_text === "string" ? `${citation.cited_text}\n${citation.url}` : citation.url;
 	let t4;
 	if ($[1] !== children || $[2] !== citation.url || $[3] !== t3) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 			href: t1,
-			target: "_blank",
-			rel: "noopener noreferrer",
 			className: t2,
 			title: t3,
 			children
@@ -74363,7 +75989,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$89(citation, index) {
+function _temp$90(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -74955,7 +76581,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$88);
+		t2 = results.map(_temp$89);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -75145,11 +76771,10 @@ var maybeListTools = (content) => {
 };
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
-function _temp$88(result, index) {
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+function _temp$89(result, index) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
-		target: "_blank",
-		rel: "noopener noreferrer",
+		title: result.url,
 		children: result.title
 	}) }, index);
 }
@@ -75651,7 +77276,7 @@ function asCoordinate(value) {
 	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$87);
+		t1 = contents.findLastIndex(_temp$88);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -75822,7 +77447,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$87(c) {
+function _temp$88(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -75862,7 +77487,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$86(tool, toolIdx) {
+function _temp$87(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -75886,7 +77511,7 @@ function _temp2$55(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$86)]
+		}) : null] }) : null, namespace.tools.map(_temp$87)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -76066,7 +77691,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$85);
+		t7 = normalizedContent.find(_temp$86);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -76267,7 +77892,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$85(c) {
+function _temp$86(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -76588,6 +78213,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 				children: [message.timestamp && formatDateTime && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 					className: ChatMessage_module_default.timestamp,
 					title: message.timestamp,
+					"data-find-chrome": true,
 					children: formatDateTime(new Date(message.timestamp))
 				}), label]
 			}) : null]
@@ -76606,14 +78232,17 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const roleHeader = t4;
 	let t5;
 	if ($[25] !== id || $[26] !== message.metadata) {
-		t5 = message.metadata && Object.keys(message.metadata).length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LabeledValue, {
-			label: "Metadata",
-			className: clsx(ChatMessage_module_default.metadataLabel, "text-size-smaller"),
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
-				record: message.metadata,
-				id: `${id}-metadata`,
-				defaultExpandLevel: 0,
-				copyButton: true
+		t5 = message.metadata && Object.keys(message.metadata).length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			"data-find-chrome": true,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LabeledValue, {
+				label: "Metadata",
+				className: clsx(ChatMessage_module_default.metadataLabel, "text-size-smaller"),
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
+					record: message.metadata,
+					id: `${id}-metadata`,
+					defaultExpandLevel: 0,
+					copyButton: true
+				})
 			})
 		}) : null;
 		$[25] = id;
@@ -76741,7 +78370,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : collapse ? 15 : 25;
 	let t17;
 	if ($[60] !== id || $[61] !== isNonSubagentTool || $[62] !== message || $[63] !== references || $[64] !== subagentNotifications || $[65] !== toolMarkdown || $[66] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$84) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$85) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
@@ -76818,7 +78447,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$84(c) {
+function _temp$85(c) {
 	return c.type === "text" || c.type === "image";
 }
 var ChatMessageRow_module_default = {
@@ -76899,6 +78528,7 @@ var MessageLabel_module_default = {
 		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: classes,
 			title,
+			"data-find-chrome": true,
 			children: text
 		});
 		$[12] = classes;
@@ -76941,7 +78571,7 @@ var MessageLabel_module_default = {
 		const baseNumber = startNumber ?? index + 1;
 		let t2;
 		if ($[19] !== labelValues) {
-			t2 = (blockId, blockNumber) => labelValues && blockId ? labelValues[blockId] : String(blockNumber);
+			t2 = (blockId, blockNumber) => labelValues && blockId ? getOwn(labelValues, blockId) : String(blockNumber);
 			$[19] = labelValues;
 			$[20] = t2;
 		} else t2 = $[20];
@@ -77060,7 +78690,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[14];
 		views = $[15];
 	}
-	const hasTools = viewKinds.some(_temp$83);
+	const hasTools = viewKinds.some(_temp$84);
 	if (useLabels || hasTools) {
 		let t1;
 		if ($[39] !== hasTools || $[40] !== highlightLabeled || $[41] !== highlightUserMessage || $[42] !== index || $[43] !== messageChip || $[44] !== resolvedMessage || $[45] !== viewChips || $[46] !== viewKinds || $[47] !== views) {
@@ -77210,7 +78840,7 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$83(k) {
+function _temp$84(k) {
 	return k !== "message";
 }
 //#endregion
@@ -77531,6 +79161,49 @@ var ChatItem = (t0) => {
 	return t4;
 };
 var chatComponents = { Item: ChatItem };
+var FindAnchorRow = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const { anchorId, mounted, children } = t0;
+	const ref = (0, import_react.useRef)(null);
+	const row = useFindHighlights(ref, anchorId);
+	let t1;
+	if ($[0] !== anchorId || $[1] !== mounted) {
+		t1 = (el) => {
+			ref.current = el;
+			mounted.add(anchorId);
+			return () => {
+				mounted.delete(anchorId);
+			};
+		};
+		$[0] = anchorId;
+		$[1] = mounted;
+		$[2] = t1;
+	} else t1 = $[2];
+	const track = t1;
+	let t2;
+	if ($[3] !== anchorId || $[4] !== children || $[5] !== track) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			ref: track,
+			"data-find-anchor": anchorId,
+			children
+		});
+		$[3] = anchorId;
+		$[4] = children;
+		$[5] = track;
+		$[6] = t2;
+	} else t2 = $[6];
+	let t3;
+	if ($[7] !== row || $[8] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindRowProvider, {
+			value: row,
+			children: t2
+		});
+		$[7] = row;
+		$[8] = t2;
+		$[9] = t3;
+	} else t3 = $[9];
+	return t3;
+};
 var kChatScrollPaddingStart = -15;
 var kLoadMoreMarginRows = 20;
 /**
@@ -77538,8 +79211,8 @@ var kLoadMoreMarginRows = 20;
 * layer render through this; the message-array wrapper below covers callers
 * that still hold raw messages.
 */ var ChatViewRowsVirtualList = /*#__PURE__*/ (0, import_react.memo)(function ChatViewRowsVirtualList(t0) {
-	const $ = (0, import_compiler_runtime.c)(49);
-	const { id, rows, hasMoreRows, onLoadMoreRows, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish: t1, onNativeFindChanged, display, labels, linking, tools } = t0;
+	const $ = (0, import_compiler_runtime.c)(67);
+	const { id, rows, hasMoreRows, onLoadMoreRows, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish: t1, onNativeFindChanged, display, labels, linking, tools, findMessages } = t0;
 	const scrollToTopOnFinish = t1 === void 0 ? true : t1;
 	const listHandle = (0, import_react.useRef)(null);
 	let t2;
@@ -77624,17 +79297,78 @@ var kLoadMoreMarginRows = 20;
 		$[20] = t9;
 	} else t9 = $[20];
 	const maxLabelLength = t9;
-	const lastIndex = rows.length - 1;
 	let t10;
-	if ($[21] !== backfilling || $[22] !== display || $[23] !== id || $[24] !== labels || $[25] !== lastIndex || $[26] !== linking || $[27] !== maxLabelLength || $[28] !== running || $[29] !== tools) {
-		t10 = (index_0, item) => {
-			if (running && index_0 === lastIndex && isLivePlaceholderMessage(item.resolved.message)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[21] !== rows) {
+		t10 = messageRowAnchorIds(rows);
+		$[21] = rows;
+		$[22] = t10;
+	} else t10 = $[22];
+	const anchorIds = t10;
+	const unlabeledRoles = display?.unlabeledRoles;
+	const toolCallStyle = tools?.callStyle ?? "complete";
+	const displayMode = useDisplayMode();
+	let t11;
+	if ($[23] !== displayMode || $[24] !== findMessages || $[25] !== toolCallStyle || $[26] !== unlabeledRoles) {
+		t11 = findMessages === void 0 ? null : { find: (query, after, signal) => findMessages.find({
+			text: query.text,
+			projection: {
+				unlabeledRoles: unlabeledRoles ?? [],
+				toolCallStyle,
+				displayMode
+			}
+		}, after, signal) };
+		$[23] = displayMode;
+		$[24] = findMessages;
+		$[25] = toolCallStyle;
+		$[26] = unlabeledRoles;
+		$[27] = t11;
+	} else t11 = $[27];
+	const findSource = t11;
+	let t12;
+	if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = /* @__PURE__ */ new Set();
+		$[28] = t12;
+	} else t12 = $[28];
+	const mountedAnchors = (0, import_react.useRef)(t12).current;
+	let t13;
+	if ($[29] !== anchorIds) {
+		t13 = (row_0) => {
+			const index_0 = anchorIds.indexOf(row_0.anchor.id);
+			if (index_0 === -1) return false;
+			if (!mountedAnchors.has(row_0.anchor.id)) listHandle.current?.scrollToIndex({
+				index: index_0,
+				align: "auto"
+			});
+			return true;
+		};
+		$[29] = anchorIds;
+		$[30] = t13;
+	} else t13 = $[30];
+	const reveal = usePendingFindReveal(t13, rows.length, hasMoreRows, onLoadMoreRows, running);
+	let t14;
+	if ($[31] !== findMessages || $[32] !== findSource || $[33] !== reveal) {
+		t14 = findSource !== null && findMessages !== void 0 ? {
+			scopeId: findMessages.scopeId,
+			source: findSource,
+			reveal
+		} : null;
+		$[31] = findMessages;
+		$[32] = findSource;
+		$[33] = reveal;
+		$[34] = t14;
+	} else t14 = $[34];
+	useFindSurface(t14, running ? rows : void 0);
+	const lastIndex = rows.length - 1;
+	let t15;
+	if ($[35] !== anchorIds || $[36] !== backfilling || $[37] !== display || $[38] !== findMessages || $[39] !== id || $[40] !== labels || $[41] !== lastIndex || $[42] !== linking || $[43] !== maxLabelLength || $[44] !== running || $[45] !== tools) {
+		t15 = (index_1, item) => {
+			if (running && index_1 === lastIndex && isLivePlaceholderMessage(item.resolved.message)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				className: ChatViewVirtualList_module_default.generatingRow,
 				children: backfilling ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GeneratingIndicator, {})
 			});
-			const toolExecuting = running && index_0 === lastIndex && isToolExecutingMessage(item.resolved.message, item.resolved.toolMessages.length);
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatMessageRow, {
-				index: index_0,
+			const toolExecuting = running && index_1 === lastIndex && isToolExecutingMessage(item.resolved.message, item.resolved.toolMessages.length);
+			const row_1 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatMessageRow, {
+				index: index_1,
 				parentName: id || "chat-virtual-list",
 				resolvedMessage: item.resolved,
 				display,
@@ -77645,55 +79379,65 @@ var kLoadMoreMarginRows = 20;
 				startNumber: item.startNumber
 			}), toolExecuting ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				className: ChatViewVirtualList_module_default.generatingRow,
+				"data-find-chrome": "true",
 				children: backfilling ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GeneratingIndicator, { label: "running" })
 			}) : null] });
+			return findMessages === void 0 ? row_1 : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindAnchorRow, {
+				anchorId: anchorIds[index_1],
+				mounted: mountedAnchors,
+				children: row_1
+			});
 		};
-		$[21] = backfilling;
-		$[22] = display;
-		$[23] = id;
-		$[24] = labels;
-		$[25] = lastIndex;
-		$[26] = linking;
-		$[27] = maxLabelLength;
-		$[28] = running;
-		$[29] = tools;
-		$[30] = t10;
-	} else t10 = $[30];
-	const renderRow = t10;
-	const rowSearchText = _temp$82;
+		$[35] = anchorIds;
+		$[36] = backfilling;
+		$[37] = display;
+		$[38] = findMessages;
+		$[39] = id;
+		$[40] = labels;
+		$[41] = lastIndex;
+		$[42] = linking;
+		$[43] = maxLabelLength;
+		$[44] = running;
+		$[45] = tools;
+		$[46] = t15;
+	} else t15 = $[46];
+	const renderRow = t15;
+	const rowSearchText = _temp$83;
 	if (rows.length === 0) {
 		if (backfilling) {
-			let t11;
-			if ($[31] === Symbol.for("react.memo_cache_sentinel")) {
-				t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" });
-				$[31] = t11;
-			} else t11 = $[31];
-			return t11;
+			let t16;
+			if ($[47] === Symbol.for("react.memo_cache_sentinel")) {
+				t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" });
+				$[47] = t16;
+			} else t16 = $[47];
+			return t16;
 		}
-		let t11;
-		if ($[32] !== running) {
-			t11 = running ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, {
+		let t16;
+		if ($[48] !== running) {
+			t16 = running ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, {
 				text: "Waiting for messages",
 				busy: true
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "No messages" });
-			$[32] = running;
-			$[33] = t11;
-		} else t11 = $[33];
-		return t11;
+			$[48] = running;
+			$[49] = t16;
+		} else t16 = $[49];
+		return t16;
 	}
-	const t11 = `chat-${id}`;
-	let t12;
-	if ($[34] !== className) {
-		t12 = clsx(ChatViewVirtualList_module_default.list, className);
-		$[34] = className;
-		$[35] = t12;
-	} else t12 = $[35];
-	let t13;
-	if ($[36] !== followRequested || $[37] !== handleVisibleRangeChange || $[38] !== hasMoreRows || $[39] !== initialMessageIndex || $[40] !== navOwned || $[41] !== renderRow || $[42] !== rows || $[43] !== running || $[44] !== scrollRef || $[45] !== scrollToTopOnFinish || $[46] !== t11 || $[47] !== t12) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
-			persistenceKey: t11,
+	const t16 = `chat-${id}`;
+	let t17;
+	if ($[50] !== className) {
+		t17 = clsx(ChatViewVirtualList_module_default.list, className);
+		$[50] = className;
+		$[51] = t17;
+	} else t17 = $[51];
+	const t18 = findMessages === void 0 ? rowSearchText : void 0;
+	const t19 = findMessages === void 0 ? "local" : "none";
+	let t20;
+	if ($[52] !== followRequested || $[53] !== handleVisibleRangeChange || $[54] !== hasMoreRows || $[55] !== initialMessageIndex || $[56] !== navOwned || $[57] !== renderRow || $[58] !== rows || $[59] !== running || $[60] !== scrollRef || $[61] !== scrollToTopOnFinish || $[62] !== t16 || $[63] !== t17 || $[64] !== t18 || $[65] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
+			persistenceKey: t16,
 			ref: listHandle,
-			className: t12,
+			className: t17,
 			scrollRef,
 			data: rows,
 			renderRow,
@@ -77705,27 +79449,30 @@ var kLoadMoreMarginRows = 20;
 			scrollToTopOnFinish,
 			components: chatComponents,
 			smoothScroll: false,
-			itemSearchText: rowSearchText,
+			itemSearchText: t18,
+			findScope: t19,
 			showProgress: hasMoreRows,
 			onVisibleRangeChange: handleVisibleRangeChange
 		});
-		$[36] = followRequested;
-		$[37] = handleVisibleRangeChange;
-		$[38] = hasMoreRows;
-		$[39] = initialMessageIndex;
-		$[40] = navOwned;
-		$[41] = renderRow;
-		$[42] = rows;
-		$[43] = running;
-		$[44] = scrollRef;
-		$[45] = scrollToTopOnFinish;
-		$[46] = t11;
-		$[47] = t12;
-		$[48] = t13;
-	} else t13 = $[48];
-	return t13;
+		$[52] = followRequested;
+		$[53] = handleVisibleRangeChange;
+		$[54] = hasMoreRows;
+		$[55] = initialMessageIndex;
+		$[56] = navOwned;
+		$[57] = renderRow;
+		$[58] = rows;
+		$[59] = running;
+		$[60] = scrollRef;
+		$[61] = scrollToTopOnFinish;
+		$[62] = t16;
+		$[63] = t17;
+		$[64] = t18;
+		$[65] = t19;
+		$[66] = t20;
+	} else t20 = $[66];
+	return t20;
 });
-function _temp$82(item_0) {
+function _temp$83(item_0) {
 	return messageSearchText(item_0.resolved);
 }
 //#endregion
@@ -78088,7 +79835,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$81,
+			getNextPageParam: _temp$82,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -78212,7 +79959,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$81(last) {
+function _temp$82(last) {
 	return last.nextCursor?.offset;
 }
 function _temp2$53(page) {
@@ -78514,7 +80261,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$80;
+			return _temp$81;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -78527,7 +80274,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$80() {
+function _temp$81() {
 	return deactivateFetchEngine();
 }
 //#endregion
@@ -80012,27 +81759,37 @@ var createAppSlice = (set, get, _store) => {
 				});
 			},
 			getPropertyValue: (bagName, key, defaultValue) => {
-				const bag = get().app.propertyBags[bagName] || {};
-				return key in bag ? bag[key] : defaultValue;
+				const bag = getOwn(get().app.propertyBags, bagName);
+				return bag !== void 0 && Object.hasOwn(bag, key) ? bag[key] : defaultValue;
 			},
 			setPropertyValue: (bagName, key, value) => {
 				set((state) => {
-					if (!state.app.propertyBags[bagName]) state.app.propertyBags[bagName] = {};
-					state.app.propertyBags[bagName][key] = value;
+					const bags = state.app.propertyBags;
+					const bag = getOwn(bags, bagName);
+					if (bag !== void 0 && key !== "__proto__") {
+						bag[key] = value;
+						return;
+					}
+					const next = {
+						...bag,
+						[key]: value
+					};
+					if (bagName === "__proto__") state.app.propertyBags = {
+						...bags,
+						[bagName]: next
+					};
+					else bags[bagName] = next;
 				});
 			},
 			removePropertyValue: (bagName, key) => {
 				set((state) => {
-					if (state.app.propertyBags[bagName]) {
-						const { [key]: _, ...rest } = state.app.propertyBags[bagName];
-						state.app.propertyBags[bagName] = rest;
-					}
+					const bag = getOwn(state.app.propertyBags, bagName);
+					if (bag !== void 0) delete bag[key];
 				});
 			},
 			removeAllProperties: (bagName) => {
 				set((state) => {
-					const { [bagName]: _, ...rest } = state.app.propertyBags;
-					state.app.propertyBags = rest;
+					delete state.app.propertyBags[bagName];
 				});
 			},
 			removeBagsByPrefix: (bagNamePrefix) => {
@@ -80042,20 +81799,14 @@ var createAppSlice = (set, get, _store) => {
 			},
 			removeByPrefix: (bagName, prefix) => {
 				set((state) => {
-					const bag = state.app.propertyBags[bagName];
+					const bag = getOwn(state.app.propertyBags, bagName);
 					if (!bag) return;
 					let changed = false;
-					const next = { ...bag };
-					for (const key of Object.keys(next)) if (key.startsWith(prefix)) {
-						delete next[key];
+					for (const key of Object.keys(bag)) if (key.startsWith(prefix)) {
+						delete bag[key];
 						changed = true;
 					}
-					if (changed) {
-						if (Object.keys(next).length === 0) {
-							const { [bagName]: _, ...rest } = state.app.propertyBags;
-							state.app.propertyBags = rest;
-						} else state.app.propertyBags[bagName] = next;
-					}
+					if (changed && Object.keys(bag).length === 0) delete state.app.propertyBags[bagName];
 				});
 			},
 			setUrlHash: (urlHash) => {
@@ -80273,6 +82024,13 @@ var displaySamplesEqual = (a, b) => {
 };
 //#endregion
 //#region src/state/sampleSlice.ts
+var kNoEventSelection$1 = {
+	key: null,
+	active: false,
+	selectedIds: [],
+	lastToggledId: null
+};
+/** Key of the evidence selection for a sample tab. */ var eventSelectionKey = (handle, tabId) => `${handle?.logFile ?? ""}:${handle?.id ?? ""}:${handle?.epoch ?? ""}:${tabId}`;
 var initialState = {
 	visiblePopover: void 0,
 	collapsedEvents: null,
@@ -80280,6 +82038,7 @@ var initialState = {
 	eventFilter: { filteredTypes: null },
 	collapsedIdBuckets: {},
 	selectedOutlineId: void 0,
+	eventSelection: kNoEventSelection$1,
 	timelineSelected: null,
 	activeTimelineIndex: 0
 };
@@ -80360,6 +82119,36 @@ var createSampleSlice = (set, _get, _store) => {
 			clearSelectedOutlineId: () => {
 				set((state) => {
 					state.sample.selectedOutlineId = void 0;
+				});
+			},
+			setEventSelectionActive: (key, active) => {
+				set((state) => {
+					if (state.sample.eventSelection.key !== key) state.sample.eventSelection = {
+						...kNoEventSelection$1,
+						key
+					};
+					state.sample.eventSelection.active = active;
+				});
+			},
+			setEventSelection: (key, selectedIds, lastToggledId) => {
+				set((state) => {
+					state.sample.eventSelection = {
+						key,
+						active: true,
+						selectedIds,
+						lastToggledId
+					};
+				});
+			},
+			clearEventSelection: () => {
+				set((state) => {
+					state.sample.eventSelection.selectedIds = [];
+					state.sample.eventSelection.lastToggledId = null;
+				});
+			},
+			resetEventSelection: () => {
+				set((state) => {
+					state.sample.eventSelection = kNoEventSelection$1;
 				});
 			},
 			setTimelineSelected: (selected) => {
@@ -83670,7 +85459,7 @@ function serverRequestApi(baseUrl, getHeaders, customFetch) {
 			raw: text
 		};
 	};
-	const fetchString = async (method, path, headers, body) => {
+	const fetchString = async (method, path, headers, body, signal) => {
 		const url = buildApiUrl(path);
 		const requestHeaders = {
 			Accept: "application/json",
@@ -83689,6 +85478,7 @@ function serverRequestApi(baseUrl, getHeaders, customFetch) {
 			method,
 			headers: requestHeaders,
 			body,
+			signal,
 			credentials: isApiCrossOrigin() ? "include" : "same-origin"
 		});
 		if (response.ok) {
@@ -84100,7 +85890,8 @@ var isEvalFile = (file) => {
 		}) : void 0,
 		list_searches: api.list_searches ? middleware("list_searches", (search_type, count) => api.list_searches(search_type, count)) : void 0,
 		post_search: api.post_search ? middleware("post_search", (transcriptDir, transcriptId, request) => api.post_search(transcriptDir, transcriptId, request)) : void 0,
-		get_search_result: api.get_search_result ? middleware("get_search_result", (transcriptDir, transcriptId, search_id, scope) => api.get_search_result(transcriptDir, transcriptId, search_id, scope)) : void 0
+		get_search_result: api.get_search_result ? middleware("get_search_result", (transcriptDir, transcriptId, search_id, scope) => api.get_search_result(transcriptDir, transcriptId, search_id, scope)) : void 0,
+		find_messages: api.find_messages ? middleware("find_messages", (log_file, request, signal) => api.find_messages(log_file, request, signal)) : void 0
 	};
 };
 var debugMiddleware = (name, _fn, args, result) => {
@@ -84617,6 +86408,9 @@ async function fetchViewServerLogRoot(transport = {}, logDir) {
 			throw error;
 		}
 	};
+	const find_messages = async (log_file, request, signal) => {
+		return asResponse((await requestApi.fetchString("POST", `/find-messages/${encodeURIComponent(log_file)}`, { "Content-Type": "application/json" }, JSON.stringify(request), signal)).parsed);
+	};
 	const download_log = (log_file) => {
 		const url = `${apiBaseUrl || "/api"}/log-download/${encodeURIComponent(log_file)}`;
 		const link = document.createElement("a");
@@ -84648,7 +86442,8 @@ async function fetchViewServerLogRoot(transport = {}, logDir) {
 		get_app_config,
 		list_searches,
 		post_search,
-		get_search_result
+		get_search_result,
+		find_messages
 	};
 }
 //#endregion
@@ -86097,9 +87892,9 @@ var require_clipboard = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	});
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -86249,7 +88044,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 		t3 = () => {
 			if (previousValue.current !== value) {
 				previousValue.current = value;
-				setFlashKey(_temp$79);
+				setFlashKey(_temp$80);
 			}
 		};
 		t4 = [value];
@@ -86405,7 +88200,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	return t7;
 });
 TreeNode$1.displayName = "TreeNode";
-function _temp$79(k) {
+function _temp$80(k) {
 	return k + 1;
 }
 function _temp2$52(e) {
@@ -86430,7 +88225,7 @@ var inspectStateHooks = {
 	])),
 	useSetValue: () => useStore((state) => state.appActions.setPropertyValue),
 	useRemoveValue: () => useStore((state) => state.appActions.removePropertyValue),
-	useEntries: (id) => useStore((0, import_react.useCallback)((state) => state.app.propertyBags[id], [id])),
+	useEntries: (id) => useStore((0, import_react.useCallback)((state) => getOwn(state.app.propertyBags, id), [id])),
 	useRemoveAll: () => useStore((state) => state.appActions.removeAllProperties),
 	useRemoveByPrefix: () => useStore((state) => state.appActions.removeByPrefix)
 };
@@ -89789,7 +91584,7 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$78);
+	const stored = useStore(_temp$79);
 	const setPropertyValue = useStore(_temp2$51);
 	let t0;
 	if ($[0] !== setPropertyValue) {
@@ -89944,7 +91739,7 @@ var useEvalSpec = () => {
 * The selected log's running metrics — the selection binding over the
 * param-driven `useRunningMetrics` acquisition hook.
 */ var useSelectedRunningMetrics = () => {
-	return useRunningMetrics(useLogDir(), useStore(_temp6$8));
+	return useRunningMetrics(useLogDir(), useStore(_temp6$9));
 };
 /**
 * Capability + plumbing for an edit-the-current-log surface (tag, metadata,
@@ -90297,7 +92092,7 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$78(state) {
+function _temp$79(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
@@ -90314,7 +92109,7 @@ function _temp4$32(state_0) {
 function _temp5$18(state) {
 	return state.logs.selectedLogFile;
 }
-function _temp6$8(state) {
+function _temp6$9(state) {
 	return state.logs.selectedLogFile;
 }
 function _temp7$6(s) {
@@ -90607,8 +92402,14 @@ var logSamplesUrl = (logPath, sampleId, sampleEpoch, sampleTabId, prefix = "/log
 	if (sampleId !== void 0 && sampleEpoch !== void 0) return encodePathParts(`${prefix}/${decodedLogPath}/samples/sample/${encodeURIComponent(String(sampleId))}/${sampleEpoch}/${sampleTabId || ""}`);
 	else return encodePathParts(`${prefix}/${decodedLogPath}/samples/${sampleTabId || ""}`);
 };
-var printSampleUrl = (logPath, sampleId, epoch, view, prefix = "/logs") => {
-	return encodePathParts(`${prefix}/${decodeUrlParam(logPath) || logPath}/samples/sample/${encodeURIComponent(String(sampleId))}/${epoch}/print`) + `?view=${view}`;
+/**
+* Print route for a sample tab. `eventIds` narrows a transcript print to the
+* selected events (one `events=` param each, so ids never need a separator).
+*/ var printSampleUrl = (logPath, sampleId, epoch, view, prefix = "/logs", eventIds) => {
+	const decodedLogPath = decodeUrlParam(logPath) || logPath;
+	const encodedSampleId = encodeURIComponent(String(sampleId));
+	const eventParams = (eventIds ?? []).map((id) => `&events=${encodeURIComponent(id)}`).join("");
+	return encodePathParts(`${prefix}/${decodedLogPath}/samples/sample/${encodedSampleId}/${epoch}/print`) + `?view=${view}${eventParams}`;
 };
 var samplesSampleUrl = (logPath, sampleId, epoch, sampleTabId) => {
 	return encodePathParts(`/samples/${decodeUrlParam(logPath) || logPath}/sample/${encodeURIComponent(String(sampleId))}/${epoch}/${sampleTabId || ""}`);
@@ -90640,7 +92441,7 @@ var sampleEventUrl = (builder, eventId, logPath, sampleId, sampleEpoch) => {
 	const $ = (0, import_compiler_runtime.c)(9);
 	const { logPath: urlLogPath, id: urlSampleId, epoch: urlEpoch } = useLogOrSampleRouteParams();
 	const location = useLocation();
-	const logFile = useStore(_temp$77);
+	const logFile = useStore(_temp$78);
 	const logDir = useLogDir();
 	const selectedSampleHandle = useStore(_temp2$50);
 	const surface = location.pathname.startsWith("/samples/") ? "/samples" : location.pathname.startsWith("/tasks") ? "/tasks" : "/logs";
@@ -90774,7 +92575,7 @@ var routeFromFullUrl = (url) => {
 	const hashIndex = url.indexOf("#");
 	return hashIndex >= 0 ? url.slice(hashIndex + 1) : url;
 };
-function _temp$77(state) {
+function _temp$78(state) {
 	return state.logs.selectedLogFile;
 }
 function _temp2$50(state_0) {
@@ -90879,7 +92680,7 @@ FlowButton.displayName = "FlowButton";
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$76,
+			select: _temp$77,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -90888,7 +92689,7 @@ FlowButton.displayName = "FlowButton";
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$76(flow) {
+function _temp$77(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -91196,9 +92997,9 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$75);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$76);
 };
-function _temp$75() {
+function _temp$76() {
 	return false;
 }
 //#endregion
@@ -91213,13 +93014,13 @@ function _temp$75() {
 		t0 = { demand: "active" };
 		$[0] = t0;
 	} else t0 = $[0];
-	return useLogHeader(useLogDir(), useStore(_temp$74), t0);
+	return useLogHeader(useLogDir(), useStore(_temp$75), t0);
 };
 /** Whether the selected log's details are loading. Already false when no
 *  file is selected (`useLogHeader` idles as settled-undefined). */ var useSelectedLogLoading = () => {
 	return useSelectedLogDetail().loading;
 };
-function _temp$74(state) {
+function _temp$75(state) {
 	return state.logs.selectedLogFile;
 }
 var ViewerOptionsButton_module_default = {
@@ -91838,7 +93639,7 @@ var ApplicationNavbar = (t0) => {
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1 } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$73);
+	const themePreference = useUserSettings(_temp$74);
 	const setThemePreference = useUserSettings(_temp2$49);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
@@ -91928,7 +93729,7 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[27];
 	return t8;
 };
-function _temp$73(s) {
+function _temp$74(s) {
 	return s.themePreference;
 }
 function _temp2$49(s_0) {
@@ -92101,7 +93902,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$72,
+			select: _temp$73,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -92110,7 +93911,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$72(evalSet) {
+function _temp$73(evalSet) {
 	return evalSet ?? void 0;
 }
 //#endregion
@@ -92219,7 +94020,7 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$71);
+			t10 = columns.filter(_temp$72);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
@@ -92289,7 +94090,7 @@ var ColumnSelectorPopover = (t0) => {
 		t13 = () => {
 			onVisibilityChange({
 				...currentVisibility,
-				...Object.fromEntries(columnGroups.scores.map(_temp6$7))
+				...Object.fromEntries(columnGroups.scores.map(_temp6$8))
 			});
 		};
 		$[32] = columnGroups.scores;
@@ -92540,7 +94341,7 @@ var ColumnSelectorPopover = (t0) => {
 	} else t32 = $[88];
 	return t32;
 };
-function _temp$71(col_0) {
+function _temp$72(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
 function _temp2$48(col_1) {
@@ -92555,7 +94356,7 @@ function _temp4$30(col_3) {
 function _temp5$16(col_4) {
 	return [getFieldKey(col_4), true];
 }
-function _temp6$7(col_5) {
+function _temp6$8(col_5) {
 	return [getFieldKey(col_5), false];
 }
 //#endregion
@@ -99220,7 +101021,7 @@ var isConditionShaped = (value) => {
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$70);
+		t4 = operatorOptions.map(_temp$71);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -99478,7 +101279,7 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$70(option) {
+function _temp$71(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
@@ -100995,7 +102796,7 @@ function GridRowInner(t0) {
 		t19 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
-			onClick: _temp$69,
+			onClick: _temp$70,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -101096,7 +102897,7 @@ function GridRowInner(t0) {
 	} else t23 = $[63];
 	return t23;
 }
-function _temp$69(e_2) {
+function _temp$70(e_2) {
 	return e_2.stopPropagation();
 }
 //#endregion
@@ -101679,7 +103480,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$68);
+		t11 = searchColumns.map(_temp$69);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -101931,7 +103732,7 @@ var LogListGrid = (t0) => {
 				onColumnSizingChange: handleColumnSizingChange,
 				columnOrder,
 				onColumnOrderChange: handleColumnOrderChange,
-				getRowId: _temp6$6,
+				getRowId: _temp6$7,
 				selectedRowId: t29,
 				onSelectedRowChange: handleSelectedRowChange,
 				onRowActivate: handleRowActivate,
@@ -101969,7 +103770,7 @@ var LogListGrid = (t0) => {
 	} else t32 = $[108];
 	return t32;
 };
-function _temp$68(col_0) {
+function _temp$69(col_0) {
 	return col_0.id ?? "";
 }
 function _temp2$47(row_2) {
@@ -101984,7 +103785,7 @@ function _temp4$29(row_4) {
 function _temp5$15(row_6) {
 	return row_6.id;
 }
-function _temp6$6(row_7) {
+function _temp6$7(row_7) {
 	return row_7.id;
 }
 //#endregion
@@ -102095,7 +103896,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$67, _temp2$46, _temp3$35);
+	const overlayData = useKeyedMemo(overlayItems, _temp$68, _temp2$46, _temp3$35);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -102234,7 +104035,7 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$67(item) {
+function _temp$68(item) {
 	return item.id;
 }
 function _temp2$46(item_0) {
@@ -102411,7 +104212,7 @@ var LogsPanel = (t0) => {
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$66);
+	const showRetriedLogs = useUserSettings(_temp$67);
 	const setShowRetriedLogs = useUserSettings(_temp2$45);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
@@ -102879,7 +104680,7 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$66(state) {
+function _temp$67(state) {
 	return state.showRetriedLogs;
 }
 function _temp2$45(state_0) {
@@ -103305,6 +105106,7 @@ var SPAN_END = "span_end";
 var TYPE_TOOL = "tool";
 var TYPE_SUBTASK = "subtask";
 var TYPE_SCORERS = "scorers";
+/** Span/step events group the rows below them; they are structure, not content. */ var isStructuralEvent = (event) => event.event === "span_begin" || event.event === "span_end" || event.event === "step";
 var hasSpans = (events) => {
 	return events.some((event) => event.event === SPAN_BEGIN);
 };
@@ -103323,6 +105125,31 @@ var isCollapsibleEvent = (event) => kCollapsibleEventTypes.some((type) => type =
 	"model",
 	"state",
 	"store"
+];
+var eventTypeValues = [
+	"sample_init",
+	"sample_limit",
+	"state",
+	"store",
+	"model",
+	"logger",
+	"info",
+	"step",
+	"subtask",
+	"score",
+	"score_edit",
+	"tool",
+	"input",
+	"interrupt",
+	"error",
+	"anchor",
+	"approval",
+	"branch",
+	"checkpoint",
+	"compaction",
+	"sandbox",
+	"span_begin",
+	"span_end"
 ];
 var kDefaultExcludeEvents = [
 	"sample_init",
@@ -103561,7 +105388,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$65);
+		t1 = toolDefinitions.map(_temp$66);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -103605,7 +105432,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$65(toolDefinition, idx) {
+function _temp$66(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -103883,7 +105710,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$64);
+			setFocusEpoch(_temp$65);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -104087,7 +105914,7 @@ var GoToTurnBar_module_default = {
 	} else t15 = $[32];
 	return t15;
 });
-function _temp$64(epoch) {
+function _temp$65(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -104099,61 +105926,13 @@ var TimelineSelector_module_default = {
 	dropdownItem: "_dropdownItem_djjmp_57",
 	dropdownItemActive: "_dropdownItemActive_djjmp_74"
 };
-var EventRow_module_default = {
-	title: "_title_xefxk_1",
-	contents: "_contents_xefxk_7",
-	below: "_below_xefxk_14"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventRow.tsx
-var kDefaultIcon$1 = "bi bi-table";
-/**
-* Renders the EventRow component.
-*/ var EventRow = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(10);
-	const { title, icon, iconClassName, className, children, below } = t0;
-	let t1;
-	if ($[0] !== below || $[1] !== children || $[2] !== className || $[3] !== icon || $[4] !== iconClassName || $[5] !== title) {
-		t1 = title ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: clsx("text-size-small", EventRow_module_default.title, className),
-			children: [
-				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon || kDefaultIcon$1, iconClassName) }),
-				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: clsx("text-style-label"),
-					children: title
-				}),
-				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children })
-			]
-		}), below ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx("text-size-small", EventRow_module_default.below),
-			children: below
-		}) : null] }) : "";
-		$[0] = below;
-		$[1] = children;
-		$[2] = className;
-		$[3] = icon;
-		$[4] = iconClassName;
-		$[5] = title;
-		$[6] = t1;
-	} else t1 = $[6];
-	const contentEl = t1;
-	let t2;
-	if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = clsx("card", EventRow_module_default.contents);
-		$[7] = t2;
-	} else t2 = $[7];
-	let t3;
-	if ($[8] !== contentEl) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t2,
-			children: contentEl
-		});
-		$[8] = contentEl;
-		$[9] = t3;
-	} else t3 = $[9];
-	return t3;
-};
 var TranscriptIcons = {
+	selection: {
+		select: "bi bi-square",
+		selecting: "bi bi-check2-square",
+		checked: "bi bi-check-lg",
+		clear: "bi bi-x-lg"
+	},
 	agent: "bi bi-grid",
 	approve: "bi bi-shield",
 	cancel: "bi bi-x-circle",
@@ -104200,9 +105979,166 @@ var TranscriptIcons = {
 	solvers: { use_tools: "bi bi-tools" }
 };
 //#endregion
+//#region ../../packages/inspect-components/src/transcript/selection/EventRowSelectionContext.ts
+/** Toggle for the whole list while selection mode is on (stable identity). */ var TranscriptRowToggleContext = (0, import_react.createContext)(void 0);
+/**
+* The id of the row being rendered, set only for selectable rows. A primitive
+* so scrolling doesn't re-render every card; `EventPanel`/`EventRow` compare
+* it to their own id, so panels nested inside a row (e.g. an inline approval)
+* don't get a checkbox too.
+*/ var EventRowIdContext = (0, import_react.createContext)(void 0);
+/** Whether the row being rendered is selected — a primitive, so a toggle
+*  re-renders only the rows whose value changed. */ var EventRowSelectedContext = (0, import_react.createContext)(false);
+var EventSelectCheckbox_module_default = {
+	selectBox: "_selectBox_19rqv_1",
+	selectBoxChecked: "_selectBoxChecked_19rqv_19"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/selection/EventSelectCheckbox.tsx
+/** The row's selection when selection mode is on and this card IS the row. */ var useEventRowSelection = (eventNodeId) => {
+	const $ = (0, import_compiler_runtime.c)(5);
+	const onToggle = (0, import_react.useContext)(TranscriptRowToggleContext);
+	const rowId = (0, import_react.useContext)(EventRowIdContext);
+	const selected = (0, import_react.useContext)(EventRowSelectedContext);
+	let t0;
+	if ($[0] !== eventNodeId || $[1] !== onToggle || $[2] !== rowId || $[3] !== selected) {
+		t0 = onToggle && rowId !== void 0 && rowId === eventNodeId ? {
+			id: rowId,
+			selected,
+			onToggle
+		} : void 0;
+		$[0] = eventNodeId;
+		$[1] = onToggle;
+		$[2] = rowId;
+		$[3] = selected;
+		$[4] = t0;
+	} else t0 = $[4];
+	return t0;
+};
+/**
+* Header checkbox for evidence selection. Shift-click extends the selection
+* from the last toggled row.
+*/ var EventSelectCheckbox = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(14);
+	const { selection } = t0;
+	const { id, selected, onToggle } = selection;
+	const t1 = selected ? "Deselect event" : "Select event";
+	const t2 = selected ? "Deselect event" : "Select event";
+	const t3 = selected && EventSelectCheckbox_module_default.selectBoxChecked;
+	let t4;
+	if ($[0] !== t3) {
+		t4 = clsx(EventSelectCheckbox_module_default.selectBox, t3);
+		$[0] = t3;
+		$[1] = t4;
+	} else t4 = $[1];
+	let t5;
+	if ($[2] !== id || $[3] !== onToggle) {
+		t5 = (e_0) => {
+			e_0.stopPropagation();
+			onToggle(id, e_0.shiftKey);
+		};
+		$[2] = id;
+		$[3] = onToggle;
+		$[4] = t5;
+	} else t5 = $[4];
+	let t6;
+	if ($[5] !== selected) {
+		t6 = selected ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: TranscriptIcons.selection.checked }) : null;
+		$[5] = selected;
+		$[6] = t6;
+	} else t6 = $[6];
+	let t7;
+	if ($[7] !== selected || $[8] !== t1 || $[9] !== t2 || $[10] !== t4 || $[11] !== t5 || $[12] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			role: "checkbox",
+			"aria-checked": selected,
+			"aria-label": t1,
+			title: t2,
+			className: t4,
+			onMouseDown: _temp$64,
+			onClick: t5,
+			children: t6
+		});
+		$[7] = selected;
+		$[8] = t1;
+		$[9] = t2;
+		$[10] = t4;
+		$[11] = t5;
+		$[12] = t6;
+		$[13] = t7;
+	} else t7 = $[13];
+	return t7;
+};
+function _temp$64(e) {
+	if (e.shiftKey) e.preventDefault();
+}
+var EventRow_module_default = {
+	title: "_title_9b4ex_1",
+	selectable: "_selectable_9b4ex_7",
+	contents: "_contents_9b4ex_13",
+	selected: "_selected_9b4ex_13",
+	below: "_below_9b4ex_26"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/event/EventRow.tsx
+var kDefaultIcon$1 = "bi bi-table";
+/**
+* Renders the EventRow component.
+*/ var EventRow = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(13);
+	const { eventNodeId, title, icon, iconClassName, className, children, below } = t0;
+	const rowSelection = useEventRowSelection(eventNodeId);
+	let t1;
+	if ($[0] !== below || $[1] !== children || $[2] !== className || $[3] !== icon || $[4] !== iconClassName || $[5] !== rowSelection || $[6] !== title) {
+		t1 = title ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: clsx("text-size-small", EventRow_module_default.title, rowSelection && EventRow_module_default.selectable, className),
+			children: [
+				rowSelection ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSelectCheckbox, { selection: rowSelection }) : null,
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon || kDefaultIcon$1, iconClassName) }),
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: clsx("text-style-label"),
+					children: title
+				}),
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children })
+			]
+		}), below ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx("text-size-small", EventRow_module_default.below),
+			children: below
+		}) : null] }) : "";
+		$[0] = below;
+		$[1] = children;
+		$[2] = className;
+		$[3] = icon;
+		$[4] = iconClassName;
+		$[5] = rowSelection;
+		$[6] = title;
+		$[7] = t1;
+	} else t1 = $[7];
+	const contentEl = t1;
+	const t2 = rowSelection?.selected && EventRow_module_default.selected;
+	let t3;
+	if ($[8] !== t2) {
+		t3 = clsx("card", EventRow_module_default.contents, t2);
+		$[8] = t2;
+		$[9] = t3;
+	} else t3 = $[9];
+	let t4;
+	if ($[10] !== contentEl || $[11] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t3,
+			children: contentEl
+		});
+		$[10] = contentEl;
+		$[11] = t3;
+		$[12] = t4;
+	} else t4 = $[12];
+	return t4;
+};
+//#endregion
 //#region ../../packages/inspect-components/src/transcript/AnchorEventView.tsx
 var AnchorEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(8);
+	const $ = (0, import_compiler_runtime.c)(9);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
 	let t1;
@@ -104224,18 +106160,20 @@ var AnchorEventView = (t0) => {
 		$[3] = t2;
 	} else t2 = $[3];
 	let t3;
-	if ($[4] !== className || $[5] !== t1 || $[6] !== t2) {
+	if ($[4] !== className || $[5] !== eventNode.id || $[6] !== t1 || $[7] !== t2) {
 		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventRow, {
+			eventNodeId: eventNode.id,
 			title: "Anchor",
 			icon: TranscriptIcons.fork,
 			className,
 			children: [t1, t2]
 		});
 		$[4] = className;
-		$[5] = t1;
-		$[6] = t2;
-		$[7] = t3;
-	} else t3 = $[7];
+		$[5] = eventNode.id;
+		$[6] = t1;
+		$[7] = t2;
+		$[8] = t3;
+	} else t3 = $[8];
 	return t3;
 };
 var ApprovalEventView_module_default = {
@@ -104248,7 +106186,7 @@ var ApprovalEventView_module_default = {
 /**
 * Renders the ApprovalEventView component.
 */ var ApprovalEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(31);
+	const $ = (0, import_compiler_runtime.c)(32);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
 	const decision = event.decision;
@@ -104275,39 +106213,40 @@ var ApprovalEventView_module_default = {
 		t1 = $[6];
 	}
 	const explanationIsBlock = t1;
-	let t2;
+	const t2 = eventNode.id;
+	let t3;
 	if ($[7] !== alarming || $[8] !== decision) {
-		t2 = alarming ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		t3 = alarming ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ApprovalEventView_module_default.rejected,
 			children: decisionLabel(decision)
 		}) : decisionLabel(decision);
 		$[7] = alarming;
 		$[8] = decision;
-		$[9] = t2;
-	} else t2 = $[9];
-	let t3;
+		$[9] = t3;
+	} else t3 = $[9];
+	let t4;
 	if ($[10] !== decision) {
-		t3 = decisionIcon(decision);
+		t4 = decisionIcon(decision);
 		$[10] = decision;
-		$[11] = t3;
-	} else t3 = $[11];
-	const t4 = alarming ? ApprovalEventView_module_default.rejected : void 0;
-	let t5;
+		$[11] = t4;
+	} else t4 = $[11];
+	const t5 = alarming ? ApprovalEventView_module_default.rejected : void 0;
+	let t6;
 	if ($[12] !== explanation || $[13] !== explanationIsBlock) {
-		t5 = explanation && explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0;
+		t6 = explanation && explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0;
 		$[12] = explanation;
 		$[13] = explanationIsBlock;
-		$[14] = t5;
-	} else t5 = $[14];
-	let t6;
-	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = clsx("text-style-secondary");
-		$[15] = t6;
-	} else t6 = $[15];
+		$[14] = t6;
+	} else t6 = $[14];
 	let t7;
+	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
+		t7 = clsx("text-style-secondary");
+		$[15] = t7;
+	} else t7 = $[15];
+	let t8;
 	if ($[16] !== approver) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: t6,
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: t7,
 			children: [
 				"(",
 				approver,
@@ -104315,47 +106254,49 @@ var ApprovalEventView_module_default = {
 			]
 		});
 		$[16] = approver;
-		$[17] = t7;
-	} else t7 = $[17];
-	let t8;
+		$[17] = t8;
+	} else t8 = $[17];
+	let t9;
 	if ($[18] !== explanation || $[19] !== explanationIsBlock) {
-		t8 = explanation && !explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		t9 = explanation && !explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ApprovalEventView_module_default.inlineExplanation,
 			children: explanation
 		}) : null;
 		$[18] = explanation;
 		$[19] = explanationIsBlock;
-		$[20] = t8;
-	} else t8 = $[20];
-	let t9;
-	if ($[21] !== t7 || $[22] !== t8) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: ApprovalEventView_module_default.headline,
-			children: [t7, t8]
-		});
-		$[21] = t7;
-		$[22] = t8;
-		$[23] = t9;
-	} else t9 = $[23];
+		$[20] = t9;
+	} else t9 = $[20];
 	let t10;
-	if ($[24] !== className || $[25] !== t2 || $[26] !== t3 || $[27] !== t4 || $[28] !== t5 || $[29] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
-			title: t2,
-			icon: t3,
-			iconClassName: t4,
+	if ($[21] !== t8 || $[22] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: ApprovalEventView_module_default.headline,
+			children: [t8, t9]
+		});
+		$[21] = t8;
+		$[22] = t9;
+		$[23] = t10;
+	} else t10 = $[23];
+	let t11;
+	if ($[24] !== className || $[25] !== eventNode.id || $[26] !== t10 || $[27] !== t3 || $[28] !== t4 || $[29] !== t5 || $[30] !== t6) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
+			eventNodeId: t2,
+			title: t3,
+			icon: t4,
+			iconClassName: t5,
 			className,
-			below: t5,
-			children: t9
+			below: t6,
+			children: t10
 		});
 		$[24] = className;
-		$[25] = t2;
-		$[26] = t3;
-		$[27] = t4;
-		$[28] = t5;
-		$[29] = t9;
-		$[30] = t10;
-	} else t10 = $[30];
-	return t10;
+		$[25] = eventNode.id;
+		$[26] = t10;
+		$[27] = t3;
+		$[28] = t4;
+		$[29] = t5;
+		$[30] = t6;
+		$[31] = t11;
+	} else t11 = $[31];
+	return t11;
 };
 var decisionLabel = (decision) => {
 	switch (decision) {
@@ -104840,28 +106781,29 @@ function _temp$62(nav_1) {
 	}, nav_1.id);
 }
 var EventPanel_module_default = {
-	stickyWrapper: "_stickyWrapper_1v3k0_1",
-	label: "_label_1v3k0_21",
-	title: "_title_1v3k0_30",
-	titleExtra: "_titleExtra_1v3k0_38",
-	navs: "_navs_1v3k0_45",
-	turnLabel: "_turnLabel_1v3k0_52",
-	turnNav: "_turnNav_1v3k0_60",
-	turnNavFollower: "_turnNavFollower_1v3k0_75",
-	turnLabelButton: "_turnLabelButton_1v3k0_83",
-	turnButton: "_turnButton_1v3k0_100",
-	card: "_card_1v3k0_132",
-	jumpTarget: "_jumpTarget_1v3k0_141",
-	cardContent: "_cardContent_1v3k0_146",
-	hidden: "_hidden_1v3k0_151",
-	copyLink: "_copyLink_1v3k0_159",
-	hover: "_hover_1v3k0_169",
-	eventLabel: "_eventLabel_1v3k0_174",
-	root: "_root_1v3k0_178",
-	expanded: "_expanded_1v3k0_189",
-	collapseToggle: "_collapseToggle_1v3k0_196",
-	bottomDongle: "_bottomDongle_1v3k0_207",
-	dongleIcon: "_dongleIcon_1v3k0_225"
+	stickyWrapper: "_stickyWrapper_loteg_1",
+	label: "_label_loteg_21",
+	title: "_title_loteg_30",
+	titleExtra: "_titleExtra_loteg_38",
+	navs: "_navs_loteg_45",
+	turnLabel: "_turnLabel_loteg_52",
+	turnNav: "_turnNav_loteg_60",
+	turnNavFollower: "_turnNavFollower_loteg_75",
+	turnLabelButton: "_turnLabelButton_loteg_83",
+	turnButton: "_turnButton_loteg_100",
+	card: "_card_loteg_132",
+	jumpTarget: "_jumpTarget_loteg_141",
+	selected: "_selected_loteg_147",
+	cardContent: "_cardContent_loteg_153",
+	hidden: "_hidden_loteg_158",
+	copyLink: "_copyLink_loteg_166",
+	hover: "_hover_loteg_176",
+	eventLabel: "_eventLabel_loteg_181",
+	root: "_root_loteg_185",
+	expanded: "_expanded_loteg_146",
+	collapseToggle: "_collapseToggle_loteg_203",
+	bottomDongle: "_bottomDongle_loteg_214",
+	dongleIcon: "_dongleIcon_loteg_232"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/EventPanel.tsx
@@ -104876,6 +106818,8 @@ var kFocusIcon = "bi bi-arrows-angle-expand";
 */ var EventPanel = ({ eventNodeId, className, title, subTitle, text, icon, children, childIds, collapsibleContent, collapseControl = "top", muted, depth, turnNav, headerExtra, eventCallbacks }) => {
 	const { onCollapse, getCollapsed, getEventUrl, linkingEnabled, getEventFocusUrl, onFocusTabChange, onPrevTurn, onNextTurn, onTurnLabelClick, onOpenEventFocus, getSelectedTab, onSelectTab, onTabSelected } = eventCallbacks ?? {};
 	const eventLabel = (0, import_react.useContext)(EventLabelContext);
+	const rowSelection = useEventRowSelection(eventNodeId);
+	const selected = rowSelection?.selected === true;
 	const collapsed = getCollapsed?.(eventNodeId) ?? false;
 	const setCollapsed = (0, import_react.useCallback)((value) => {
 		onCollapse?.(eventNodeId, value);
@@ -104920,6 +106864,7 @@ var kFocusIcon = "bi bi-arrows-angle-expand";
 		reportFocusTab
 	]);
 	const gridColumns = [];
+	if (rowSelection) gridColumns.push("max-content");
 	if (isCollapsible && !useBottomDongle) gridColumns.push("minmax(0, max-content)");
 	if (icon) gridColumns.push("max-content");
 	gridColumns.push("minmax(0, max-content)");
@@ -104930,7 +106875,7 @@ var kFocusIcon = "bi bi-arrows-angle-expand";
 		setCollapsed(!collapsed);
 	}, [setCollapsed, collapsed]);
 	const [mouseOver, setMouseOver] = (0, import_react.useState)(false);
-	const titleEl = eventLabel || title || icon || filteredArrChildren.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	const titleEl = eventLabel || title || icon || rowSelection || filteredArrChildren.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		title: subTitle,
 		className: clsx("text-size-small", mouseOver ? EventPanel_module_default.hover : "", EventPanel_module_default.stickyWrapper),
 		ref: stickyRef,
@@ -104945,6 +106890,7 @@ var kFocusIcon = "bi bi-arrows-angle-expand";
 		onMouseEnter: () => setMouseOver(true),
 		onMouseLeave: () => setMouseOver(false),
 		children: [
+			rowSelection ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSelectCheckbox, { selection: rowSelection }) : null,
 			isCollapsible && !useBottomDongle ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				type: "button",
 				className: EventPanel_module_default.collapseToggle,
@@ -105066,7 +107012,7 @@ var kFocusIcon = "bi bi-arrows-angle-expand";
 	const detailExpanded = filteredArrChildren.length > 1 ? !collapsed && selectedNav !== defaultPillId : !!collapsibleContent && !collapsed;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		id: `event-panel-${eventNodeId}`,
-		className: clsx(className, EventPanel_module_default.card, isRoot ? EventPanel_module_default.root : void 0, detailExpanded ? EventPanel_module_default.expanded : void 0, eventCallbacks?.isJumpTarget?.(eventNodeId) ? EventPanel_module_default.jumpTarget : void 0),
+		className: clsx(className, EventPanel_module_default.card, isRoot ? EventPanel_module_default.root : void 0, detailExpanded ? EventPanel_module_default.expanded : void 0, selected ? EventPanel_module_default.selected : void 0, eventCallbacks?.isJumpTarget?.(eventNodeId) ? EventPanel_module_default.jumpTarget : void 0),
 		children: [
 			titleEl,
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
@@ -105107,12 +107053,69 @@ function hasDataDefault(node) {
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/utils.ts
+var sampleLimitTitles = {
+	custom: "Custom Limit Exceeded",
+	time: "Time Limit Exceeded",
+	message: "Message Limit Exceeded",
+	token: "Token Limit Exceeded",
+	turn: "Turn Limit Exceeded",
+	operator: "Operator Canceled",
+	working: "Execution Time Limit Exceeded",
+	cost: "Cost Limit Exceeded"
+};
 var cancelErrors = /* @__PURE__ */ new Set([
 	"Cancelled by operator",
 	"Cancelled by limit",
 	"Cancelled by system"
 ]);
 /** True when a model error is a cancel sentinel (not a genuine failure). */ var isCancelError = (error) => !!error && cancelErrors.has(error);
+var approvalDecisionLabels = {
+	approve: "Approved",
+	reject: "Rejected",
+	terminate: "Terminated",
+	escalate: "Escalated",
+	modify: "Modified"
+};
+/**
+* Returns the base title string for any event type.
+* Used by both event rendering components and search text extraction.
+*/ var eventTitle = (event) => {
+	switch (event.event) {
+		case "model": return event.role ? `Model Call (${event.role}): ${event.model}` : `Model Call: ${event.model}`;
+		case "tool": {
+			let title = event.view?.title || event.function;
+			if (event.view?.title) title = title.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+				if (!Object.hasOwn(event.arguments, key)) return match;
+				const val = event.arguments[key];
+				return typeof val === "string" ? val : JSON.stringify(val);
+			});
+			return `Tool: ${title}`;
+		}
+		case "error": return "Error";
+		case "logger": return event.message.level;
+		case "info": return "Info" + (event.source ? ": " + event.source : "");
+		case "compaction": return "Compaction" + (event.source && event.source !== "inspect" ? event.source : "");
+		case "step":
+			if (event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "Sandbox Events";
+			if (event.name === "init") return "Init";
+			if (event.name === "sample_init") return "Sample Init";
+			return event.type ? `${event.type}: ${event.name}` : `Step: ${event.name}`;
+		case "subtask": return event.type === "fork" ? `Fork: ${event.name}` : `Subtask: ${event.name}`;
+		case "span_begin":
+			if (event.span_id === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "Sandbox Events";
+			if (event.name === "init") return "Init";
+			if (event.name === "sample_init") return "Sample Init";
+			return event.type ? `${event.type}: ${event.name}` : `Step: ${event.name}`;
+		case "score": return (event.intermediate ? "Intermediate " : "") + "Score";
+		case "score_edit": return "Edit Score";
+		case "sample_init": return "Sample";
+		case "sample_limit": return sampleLimitTitles[event.type] ?? event.type;
+		case "input": return "Input";
+		case "approval": return approvalDecisionLabels[event.decision] ?? event.decision;
+		case "sandbox": return `Sandbox: ${event.action}`;
+		default: return "";
+	}
+};
 var formatTiming = (timestamp, working_start) => {
 	if (working_start) return `${formatDateTime$1(new Date(timestamp))}\n@ working time: ${formatTime$1(working_start)}`;
 	else return formatDateTime$1(new Date(timestamp));
@@ -105948,7 +107951,7 @@ var LoggerEventView_module_default = { grid: "_grid_1pgwi_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/LoggerEventView.tsx
 var LoggerEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(29);
+	const $ = (0, import_compiler_runtime.c)(32);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
 	let T0;
@@ -105958,97 +107961,104 @@ var LoggerEventView = (t0) => {
 	let t4;
 	let t5;
 	let t6;
-	if ($[0] !== className || $[1] !== event.message.level || $[2] !== event.message.message) {
+	let t7;
+	if ($[0] !== className || $[1] !== event.message.level || $[2] !== event.message.message || $[3] !== eventNode.id) {
 		const obj = parsedJson(event.message.message);
 		T0 = EventRow;
-		t4 = className;
-		t5 = event.message.level;
-		t6 = TranscriptIcons.logging[event.message.level.toLowerCase()] || TranscriptIcons.info;
-		if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
+		t4 = eventNode.id;
+		t5 = className;
+		t6 = event.message.level;
+		t7 = TranscriptIcons.logging[event.message.level.toLowerCase()] || TranscriptIcons.info;
+		if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
 			t3 = clsx("text-size-base", LoggerEventView_module_default.grid);
 			t1 = clsx("text-size-smaller");
-			$[10] = t1;
-			$[11] = t3;
+			$[12] = t1;
+			$[13] = t3;
 		} else {
-			t1 = $[10];
-			t3 = $[11];
+			t1 = $[12];
+			t3 = $[13];
 		}
 		t2 = isRecord(obj) ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: obj }) : event.message.message;
 		$[0] = className;
 		$[1] = event.message.level;
 		$[2] = event.message.message;
-		$[3] = T0;
-		$[4] = t1;
-		$[5] = t2;
-		$[6] = t3;
-		$[7] = t4;
-		$[8] = t5;
-		$[9] = t6;
+		$[3] = eventNode.id;
+		$[4] = T0;
+		$[5] = t1;
+		$[6] = t2;
+		$[7] = t3;
+		$[8] = t4;
+		$[9] = t5;
+		$[10] = t6;
+		$[11] = t7;
 	} else {
-		T0 = $[3];
-		t1 = $[4];
-		t2 = $[5];
-		t3 = $[6];
-		t4 = $[7];
-		t5 = $[8];
-		t6 = $[9];
+		T0 = $[4];
+		t1 = $[5];
+		t2 = $[6];
+		t3 = $[7];
+		t4 = $[8];
+		t5 = $[9];
+		t6 = $[10];
+		t7 = $[11];
 	}
-	let t7;
-	if ($[12] !== t1 || $[13] !== t2) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	let t8;
+	if ($[14] !== t1 || $[15] !== t2) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: t1,
 			children: t2
 		});
-		$[12] = t1;
-		$[13] = t2;
-		$[14] = t7;
-	} else t7 = $[14];
-	let t8;
-	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = clsx("text-size-smaller", "text-style-secondary");
-		$[15] = t8;
-	} else t8 = $[15];
+		$[14] = t1;
+		$[15] = t2;
+		$[16] = t8;
+	} else t8 = $[16];
 	let t9;
-	if ($[16] !== event.message.filename || $[17] !== event.message.lineno) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t8,
+	if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
+		t9 = clsx("text-size-smaller", "text-style-secondary");
+		$[17] = t9;
+	} else t9 = $[17];
+	let t10;
+	if ($[18] !== event.message.filename || $[19] !== event.message.lineno) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t9,
 			children: [
 				event.message.filename,
 				":",
 				event.message.lineno
 			]
 		});
-		$[16] = event.message.filename;
-		$[17] = event.message.lineno;
-		$[18] = t9;
-	} else t9 = $[18];
-	let t10;
-	if ($[19] !== t3 || $[20] !== t7 || $[21] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t3,
-			children: [t7, t9]
-		});
-		$[19] = t3;
-		$[20] = t7;
-		$[21] = t9;
-		$[22] = t10;
-	} else t10 = $[22];
+		$[18] = event.message.filename;
+		$[19] = event.message.lineno;
+		$[20] = t10;
+	} else t10 = $[20];
 	let t11;
-	if ($[23] !== T0 || $[24] !== t10 || $[25] !== t4 || $[26] !== t5 || $[27] !== t6) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(T0, {
-			className: t4,
-			title: t5,
-			icon: t6,
-			children: t10
+	if ($[21] !== t10 || $[22] !== t3 || $[23] !== t8) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t3,
+			children: [t8, t10]
 		});
-		$[23] = T0;
-		$[24] = t10;
-		$[25] = t4;
-		$[26] = t5;
-		$[27] = t6;
-		$[28] = t11;
-	} else t11 = $[28];
-	return t11;
+		$[21] = t10;
+		$[22] = t3;
+		$[23] = t8;
+		$[24] = t11;
+	} else t11 = $[24];
+	let t12;
+	if ($[25] !== T0 || $[26] !== t11 || $[27] !== t4 || $[28] !== t5 || $[29] !== t6 || $[30] !== t7) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(T0, {
+			eventNodeId: t4,
+			className: t5,
+			title: t6,
+			icon: t7,
+			children: t11
+		});
+		$[25] = T0;
+		$[26] = t11;
+		$[27] = t4;
+		$[28] = t5;
+		$[29] = t6;
+		$[30] = t7;
+		$[31] = t12;
+	} else t12 = $[31];
+	return t12;
 };
 var ModelTokenTable_module_default = {
 	wrapper: "_wrapper_14pl5_1",
@@ -106697,11 +108707,6 @@ function _temp2$42(c_1) {
 //#endregion
 //#region ../../packages/inspect-components/src/usage/connectionHistory.ts
 var kAdaptiveDefaultMax = 100;
-var nullProtoRecord = (entries) => {
-	const record = Object.fromEntries(entries);
-	Object.setPrototypeOf(record, null);
-	return record;
-};
 var connectionWindow = (history, startedAt, completedAt) => {
 	if (!history || history.length === 0) return void 0;
 	let first = Infinity;
@@ -108390,46 +110395,43 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 //#endregion
 //#region ../../packages/inspect-components/src/usage/configsForUsage.ts
 var mergeDefined = (target, source) => {
-	for (const [k, v] of Object.entries(source)) if (v !== null && v !== void 0) target[k] = v;
-	return target;
+	for (const [k, v] of Object.entries(source)) if (v !== null && v !== void 0) target.set(k, v);
+};
+var addTo = (acc, key, dict) => {
+	if (!key || !dict) return;
+	const target = acc.get(key) ?? /* @__PURE__ */ new Map();
+	mergeDefined(target, dict);
+	acc.set(key, target);
 };
 var finalize = (acc) => {
-	const out = {};
-	for (const [k, v] of Object.entries(acc)) if (Object.keys(v).length > 0) out[k] = v;
-	return Object.keys(out).length > 0 ? out : void 0;
+	const out = /* @__PURE__ */ new Map();
+	for (const [k, v] of acc) if (v.size > 0) out.set(k, nullProtoRecord(v));
+	return out.size > 0 ? nullProtoRecord(out) : void 0;
 };
 var buildConfigsByModel = (evalSpec) => {
 	if (!evalSpec) return void 0;
-	const acc = {};
-	const add = (modelId, cfg) => {
-		if (!modelId || !cfg) return;
-		acc[modelId] = mergeDefined(acc[modelId] ?? {}, cfg);
-	};
-	add(evalSpec.model, evalSpec.model_generate_config);
-	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) add(rc.model, rc.config);
+	const acc = /* @__PURE__ */ new Map();
+	addTo(acc, evalSpec.model, evalSpec.model_generate_config);
+	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) addTo(acc, rc.model, rc.config);
 	return finalize(acc);
 };
 var buildConfigsByRole = (evalSpec) => {
 	if (!evalSpec?.model_roles) return void 0;
-	const acc = {};
-	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) if (rc.config) acc[role] = mergeDefined(acc[role] ?? {}, rc.config);
+	const acc = /* @__PURE__ */ new Map();
+	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) addTo(acc, role, rc.config);
 	return finalize(acc);
 };
 var buildArgsByModel = (evalSpec) => {
 	if (!evalSpec) return void 0;
-	const acc = {};
-	const add = (modelId, args) => {
-		if (!modelId || !args) return;
-		acc[modelId] = mergeDefined(acc[modelId] ?? {}, args);
-	};
-	add(evalSpec.model, evalSpec.model_args);
-	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) add(rc.model, rc.args);
+	const acc = /* @__PURE__ */ new Map();
+	addTo(acc, evalSpec.model, evalSpec.model_args);
+	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) addTo(acc, rc.model, rc.args);
 	return finalize(acc);
 };
 var buildArgsByRole = (evalSpec) => {
 	if (!evalSpec?.model_roles) return void 0;
-	const acc = {};
-	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) if (rc.args) acc[role] = mergeDefined(acc[role] ?? {}, rc.args);
+	const acc = /* @__PURE__ */ new Map();
+	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) addTo(acc, role, rc.args);
 	return finalize(acc);
 };
 //#endregion
@@ -112242,9 +114244,21 @@ var StateEventView_module_default = {
 	return changeList.join(", ");
 };
 var isPathContainer = (value) => typeof value === "object" && value !== null;
-var getChild = (container, key) => Array.isArray(container) ? container[Number(key)] : container[key];
+var getChild = (container, key) => {
+	if (Array.isArray(container)) {
+		const index = Number(key);
+		return Object.hasOwn(container, index) ? container[index] : void 0;
+	}
+	return Object.hasOwn(container, key) ? container[key] : void 0;
+};
 var setChild = (container, key, value) => {
 	if (Array.isArray(container)) container[Number(key)] = value;
+	else if (key === "__proto__") Object.defineProperty(container, key, {
+		value,
+		enumerable: true,
+		writable: true,
+		configurable: true
+	});
 	else container[key] = value;
 };
 var asArray$1 = (value) => Array.isArray(value) ? value : void 0;
@@ -114446,8 +116460,9 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 	} : void 0;
 	const toolLabels = (0, import_react.useMemo)(() => {
 		const messageLabels = context?.messageLabels;
+		const toolLabelMap = context?.toolLabels;
 		if (!messageLabels) return { show: false };
-		const label = (event.message_id ? messageLabels[event.message_id] : void 0) ?? context.toolLabels?.[event.id];
+		const label = (event.message_id ? getOwn(messageLabels, event.message_id) : void 0) ?? getOwn(toolLabelMap, event.id);
 		return { messageLabels: label ? { [event.id]: label } : {} };
 	}, [
 		context?.messageLabels,
@@ -114736,6 +116751,58 @@ var sanitizeStringify = (v) => {
 	}).filter((s) => s !== null).join("\n\n");
 };
 /**
+* Converts an array of events to a Markdown transcript suitable for reports
+* and other review artifacts. Sections use the viewer's event titles. Prose
+* fields (model output, messages, explanations) keep their Markdown, quoted
+* when multi-line; everything else — tool arguments and results, tracebacks,
+* JSON — is fenced or put in inline code so it renders verbatim.
+*/ var eventsToMarkdown = (events) => {
+	return events.map((event) => {
+		const fields = extractEventFields(event);
+		const title = (eventTitle(event) || titleCase(event.event)).replace(/\s+/g, " ");
+		if (fields.length === 0) return `## ${title}`;
+		return `## ${title}\n\n${fields.map(([key, value]) => {
+			const label = titleCase(key);
+			const prose = kProseFields.has(key);
+			if (value.includes("\n")) return `**${label}**\n\n${prose ? quoted(value) : fenced(value)}`;
+			if (!prose && looksLikeJson(value)) return `**${label}**\n\n${fenced(value)}`;
+			return `**${label}:** ${kCodeLikeFields.has(key) ? inlineCode(value) : value}`;
+		}).join("\n\n")}`;
+	}).join("\n\n---\n\n");
+};
+var titleCase = (value) => toTitleCase(value.replace(/_/g, " "));
+var kProseFields = /* @__PURE__ */ new Set([
+	"answer",
+	"explanation",
+	"message",
+	"output",
+	"title"
+]);
+var quoted = (value) => value.split("\n").map((line) => `> ${line}`).join("\n");
+var kCodeLikeFields = /* @__PURE__ */ new Set([
+	"arguments",
+	"cmd",
+	"file",
+	"filename",
+	"function",
+	"path"
+]);
+var longestBacktickRun = (value) => {
+	let longest = 0;
+	for (const run of value.matchAll(/`+/g)) longest = Math.max(longest, run[0].length);
+	return longest;
+};
+var inlineCode = (value) => {
+	const ticks = "`".repeat(longestBacktickRun(value) + 1);
+	const pad = value.startsWith("`") || value.endsWith("`") ? " " : "";
+	return `${ticks}${pad}${value}${pad}${ticks}`;
+};
+var looksLikeJson = (value) => /^\s*[[{]/.test(value) && /[\]}]\s*$/.test(value);
+var fenced = (value) => {
+	const fence = "`".repeat(Math.max(2, longestBacktickRun(value)) + 1);
+	return `${fence}\n${value}\n${fence}`;
+};
+/**
 * Extracts text strings from message content.
 */ var extractContentText = (content) => {
 	if (typeof content === "string") return [content];
@@ -114831,6 +116898,533 @@ var extractToolResultItemText = (item) => {
 	}
 	return result;
 }
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/retryOrdering.ts
+/**
+* Repair retry-inverted ModelEvent timestamps for display ordering.
+*
+* When `model.generate()` retries internally, each attempt emits its own
+* ModelEvent (failed attempts carry `error`, the final attempt is the
+* successful one). On the Python side, after retries complete, the
+* successful event's `timestamp` is rewritten to a value captured *before*
+* any retry — so that whole-call accounting (working_time) reflects the full
+* duration. The side effect is that the success event ends up with a
+* timestamp earlier than its preceding failed-retry siblings, and any sort
+* by timestamp places it ahead of attempts that actually preceded it.
+*
+* This helper detects the inversion and clones offending events with their
+* `timestamp` clamped so ModelEvents within a span are non-decreasing in
+* emission order. Other timing fields (`working_start`, `working_time`,
+* `completed`) are preserved so accounting stays intact.
+*/ var EPSILON_MS = 1;
+/**
+* Return `events` with retry-inverted ModelEvent timestamps repaired.
+*
+* Returns the input array reference unchanged when no inversion is
+* detected, so callers can safely memoize on the result.
+*
+* Comparisons are done in parsed epoch milliseconds so mixed input
+* formats (the backend emits `+00:00`; corrected outputs use `Z`) sort
+* correctly. The output timestamp is always normalized to ISO-Z via
+* `new Date(epoch).toISOString()`.
+*/ function correctRetryTimestamps(events) {
+	const lastModelTs = /* @__PURE__ */ new Map();
+	let result = null;
+	for (let i = 0; i < events.length; i++) {
+		const e = events[i];
+		if (e.event !== "model") continue;
+		if (!e.timestamp) continue;
+		const epoch = Date.parse(e.timestamp);
+		if (Number.isNaN(epoch)) continue;
+		const key = e.span_id ?? null;
+		const prev = lastModelTs.get(key);
+		if (prev != null && epoch < prev) {
+			const correctedEpoch = prev + EPSILON_MS;
+			const correctedIso = new Date(correctedEpoch).toISOString();
+			if (!result) result = events.slice();
+			result[i] = {
+				...e,
+				timestamp: correctedIso
+			};
+			lastModelTs.set(key, correctedEpoch);
+		} else lastModelTs.set(key, epoch);
+	}
+	return result ?? events;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/collapse.ts
+/**
+* Collapse policy for the transcript event tree: which nodes start collapsed
+* by default, and which nodes are collapsible at all (for bulk collapse).
+* Pure functions over EventNode trees; no React.
+*/ var collapseFilters = [
+	(event) => event.type === "solver" && event.name === "system_message",
+	(event) => {
+		if (event.event === "step" || event.event === "span_begin") return event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA" || event.name === "init" || event.name === "sample_init";
+		return false;
+	},
+	(event) => event.event === "tool" && !event.agent && !event.failed,
+	(event) => event.event === "subtask"
+];
+/**
+* Compute the node IDs that start collapsed by default (system messages,
+* init spans, successful non-agent tool calls, subtasks).
+*/ var computeDefaultCollapsedIds = (eventNodes) => {
+	const defaultCollapsedIds = {};
+	const findCollapsibleEvents = (nodes) => {
+		for (const node of nodes) {
+			const event = node.event;
+			if (isCollapsibleEvent(event) && collapseFilters.some((filter) => filter(event))) defaultCollapsedIds[node.id] = true;
+			findCollapsibleEvents(node.children);
+		}
+	};
+	findCollapsibleEvents(eventNodes);
+	return defaultCollapsedIds;
+};
+/**
+* Collect every collapsible node ID in the tree (tree-collapsible and
+* content-collapsible), for bulk collapse-all.
+*/ var collectAllCollapsibleIds = (nodes) => {
+	const result = {};
+	const traverse = (nodeList) => {
+		for (const node of nodeList) {
+			if (kCollapsibleEventTypes.includes(node.event.event) || kContentCollapsibleEventTypes.includes(node.event.event)) result[node.id] = true;
+			if (node.children.length > 0) traverse(node.children);
+		}
+	};
+	traverse(nodes);
+	return result;
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/transform.ts
+var transformTree = (roots) => {
+	const treeNodeTransformers = transformers();
+	const visitNode = (node) => {
+		let currentNodes = [node];
+		currentNodes = currentNodes.map((n) => {
+			n.children = n.children.flatMap(visitNode);
+			return n;
+		});
+		for (const transformer of treeNodeTransformers) {
+			const nextNodes = [];
+			for (const currentNode of currentNodes) if (transformer.matches(currentNode)) {
+				const result = transformer.process(currentNode);
+				if (Array.isArray(result)) nextNodes.push(...result);
+				else nextNodes.push(result);
+			} else nextNodes.push(currentNode);
+			currentNodes = nextNodes;
+		}
+		return (currentNodes.length === 1 ? currentNodes[0] : void 0) ?? currentNodes;
+	};
+	const processedRoots = roots.flatMap(visitNode);
+	const flushedNodes = [];
+	for (const transformer of treeNodeTransformers) if (transformer.flush) {
+		const flushResults = transformer.flush();
+		if (flushResults.length > 0) flushedNodes.push(...flushResults);
+	}
+	return [...processedRoots, ...flushedNodes];
+};
+var transformers = () => {
+	return [
+		{
+			name: "unwrap_main",
+			matches: (node) => node.event.event === "span_begin" && node.event.type === "main",
+			process: unwrapNode
+		},
+		{
+			name: "unwrap_tools",
+			matches: (node) => node.event.event === "span_begin" && node.event.type === "tool",
+			process: (node) => elevateChildNode(node, "tool") || node
+		},
+		{
+			name: "unwrap_subtasks",
+			matches: (node) => node.event.event === "span_begin" && node.event.type === "subtask",
+			process: (node) => elevateChildNode(node, "subtask") || node
+		},
+		{
+			name: "unwrap_agent_solver",
+			matches: (node) => node.event.event === "span_begin" && node.event["type"] === "solver" && node.children.length === 2 && node.children[0]?.event.event === "span_begin" && node.children[0].event.type === "agent" && node.children[1]?.event.event === "state",
+			process: (node) => skipFirstChildNode(node)
+		},
+		{
+			name: "unwrap_agent_solver w/store",
+			matches: (node) => node.event.event === "span_begin" && node.event["type"] === "solver" && node.children.length === 3 && node.children[0]?.event.event === "span_begin" && node.children[0].event.type === "agent" && node.children[1]?.event.event === "state" && node.children[2]?.event.event === "store",
+			process: (node) => skipFirstChildNode(node)
+		},
+		{
+			name: "unwrap_handoff",
+			matches: (node) => {
+				if (!(node.event.event === "span_begin" && node.event["type"] === "handoff")) return false;
+				if (node.children.length === 1) return node.children[0]?.event.event === "tool" && !!node.children[0].event.agent;
+				else return node.children.length === 2 && node.children[0]?.event.event === "tool" && node.children[1]?.event.event === "store" && node.children[0].children.length === 2 && node.children[0].children[0]?.event.event === "span_begin" && node.children[0].children[0].event.type === "agent";
+			},
+			process: (node) => skipThisNode(node)
+		},
+		{
+			name: "collapse_same_name_spans",
+			matches: (node) => isAgentOrSolverSpan(node) && node.children.some((child) => isSameNameSpanChild(node, child)),
+			process: (node) => collapseSameNameSpans(node)
+		},
+		{
+			name: "discard_solvers_span",
+			matches: (Node) => Node.event.event === "span_begin" && Node.event.type === "solvers",
+			process: (node) => {
+				return discardNode(node);
+			}
+		},
+		{
+			name: "discard_checkpoint_span",
+			matches: (node) => node.event.event === "span_begin" && node.event.type === "checkpoint",
+			process: (node) => discardNode(node)
+		}
+	];
+};
+/**
+* Process a span node by elevating a specific child node type and moving its siblings as children
+* @template T - Type of the event (either ToolEvent or SubtaskEvent)
+*/ var elevateChildNode = (node, childEventType) => {
+	const targetIndex = node.children.findIndex((child) => child.event.event === childEventType);
+	if (targetIndex === -1) return null;
+	const target = node.children[targetIndex];
+	if (!target) return null;
+	const targetNode = { ...target };
+	const remainingChildren = node.children.filter((_, i) => i !== targetIndex);
+	targetNode.depth = node.depth;
+	targetNode.children = setDepth(remainingChildren, node.depth + 1);
+	return targetNode;
+};
+var isAgentOrSolverSpan = (node) => node.event.event === "span_begin" && (node.event.type === "solver" || node.event.type === "agent");
+var unqualifiedSpanName = (name) => {
+	const slash = name.indexOf("/");
+	return slash === -1 ? name : name.slice(slash + 1);
+};
+var isSameNameSpanChild = (parent, child) => isAgentOrSolverSpan(child) && parent.event.event === "span_begin" && child.event.event === "span_begin" && unqualifiedSpanName(parent.event.name) === unqualifiedSpanName(child.event.name);
+var collapseSameNameSpans = (node) => {
+	node.children = node.children.flatMap((child) => isSameNameSpanChild(node, child) ? reduceDepth(child.children, 1) : [child]);
+	return node;
+};
+var unwrapNode = (node) => {
+	return node.children.map((child) => {
+		child.depth = node.depth;
+		return child;
+	});
+};
+var skipFirstChildNode = (node) => {
+	const agentSpan = node.children.splice(0, 1)[0];
+	node.children.unshift(...reduceDepth(agentSpan?.children || []));
+	return node;
+};
+var skipThisNode = (node) => {
+	const first = node.children[0];
+	if (!first) return node;
+	const newNode = { ...first };
+	newNode.depth = node.depth;
+	newNode.children = reduceDepth(newNode.children, 2);
+	return newNode;
+};
+var discardNode = (node) => {
+	return reduceDepth(node.children, 1);
+};
+var reduceDepth = (nodes, depth = 1) => {
+	return nodes.map((node) => {
+		if (node.children.length > 0) node.children = reduceDepth(node.children, 1);
+		node.depth = node.depth - depth;
+		return node;
+	});
+};
+var setDepth = (nodes, depth) => {
+	return nodes.map((node) => {
+		if (node.children.length > 0) node.children = setDepth(node.children, depth + 1);
+		node.depth = depth;
+		return node;
+	});
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/treeify.ts
+/**
+* Node ids are the event uuid. Logs that predate uuids fall back to
+* `fallbackIds` (keyed by event identity; see `eventFallbackIds`) so an id
+* survives filtering, and only then to the tree path.
+*/ function treeifyEvents(events, depth, fallbackIds) {
+	const useSpans = hasSpans(events);
+	events = injectScorersSpan(events);
+	const nodes = useSpans ? treeifyWithSpans(events, depth, fallbackIds) : treeifyWithSteps(events, depth, fallbackIds);
+	return useSpans ? transformTree(nodes) : nodes;
+}
+/**
+* Position-based ids for events without a uuid. Keyed by event identity, with
+* a (type, timestamp) signature as a second key for the pipeline steps that
+* clone events (lane suffix stripping, retry grouping). The signature is only
+* consulted when unique in `events` and never for span/step events: the
+* pipeline synthesizes those with a neighbour's timestamp, and a match would
+* hand two rows the same id.
+*/ var eventFallbackIds = (events) => {
+	const byIdentity = /* @__PURE__ */ new Map();
+	const bySignature = /* @__PURE__ */ new Map();
+	events.forEach((event, index) => {
+		if (event.uuid) return;
+		const id = `event_index_${index}`;
+		byIdentity.set(event, id);
+		if (isStructuralEvent(event)) return;
+		const signature = eventSignature(event);
+		bySignature.set(signature, bySignature.has(signature) ? null : id);
+	});
+	return { get: (event) => byIdentity.get(event) ?? (isStructuralEvent(event) ? void 0 : bySignature.get(eventSignature(event)) ?? void 0) };
+};
+var eventSignature = (event) => `${event.event}|${event.timestamp}`;
+var treeifyWithSpans = (events, depth, fallbackIds) => {
+	const { rootNodes, createNode } = createNodeFactory(depth, fallbackIds);
+	const spanNodes = /* @__PURE__ */ new Map();
+	const processEvent = (event, parentOverride) => {
+		if (event.event === "span_end") return;
+		if (event.event === "step" && event.action !== "begin") return;
+		const parentNode = (parentOverride !== void 0 ? parentOverride : resolveParentForEvent(event, spanNodes)) ?? null;
+		const node = createNode(event, parentNode);
+		if (event.event === "span_begin") spanNodes.set(event.id, node);
+	};
+	events.forEach((event) => processEvent(event));
+	return rootNodes;
+};
+var treeifyWithSteps = (events, depth, fallbackIds) => {
+	const { rootNodes, createNode } = createNodeFactory(depth, fallbackIds);
+	const stack = [];
+	const pushStack = (node) => {
+		stack.push(node);
+	};
+	const popStack = () => {
+		if (stack.length > 0) stack.pop();
+	};
+	const processEvent = (event) => {
+		const parent = stack.length > 0 ? stack[stack.length - 1] : null;
+		switch (event.event) {
+			case STEP:
+				if (event.action === "begin") {
+					const node = createNode(event, parent || null);
+					pushStack(node);
+				} else popStack();
+				break;
+			case SPAN_BEGIN: {
+				const node = createNode(event, parent || null);
+				pushStack(node);
+				break;
+			}
+			case SPAN_END:
+				popStack();
+				break;
+			default: createNode(event, parent || null);
+		}
+	};
+	events.forEach(processEvent);
+	return rootNodes;
+};
+var createNodeFactory = (depth, fallbackIds) => {
+	const rootNodes = [];
+	const childCounts = /* @__PURE__ */ new Map();
+	const pathByNode = /* @__PURE__ */ new Map();
+	const createNode = (event, parent) => {
+		const parentKey = parent ?? null;
+		const nextIndex = childCounts.get(parentKey) ?? 0;
+		childCounts.set(parentKey, nextIndex + 1);
+		const parentPath = parent ? pathByNode.get(parent) : void 0;
+		const path = parentPath !== void 0 ? `${parentPath}.${nextIndex}` : `${nextIndex}`;
+		const node = new EventNode(event.uuid || fallbackIds?.get(event) || `event_node_${path}`, event, parent ? parent.depth + 1 : depth);
+		pathByNode.set(node, path);
+		if (parent) parent.children.push(node);
+		else rootNodes.push(node);
+		return node;
+	};
+	return {
+		rootNodes,
+		createNode
+	};
+};
+var resolveParentForEvent = (event, spanNodes) => {
+	if (event.event === "span_begin") {
+		const parentId = event.parent_id;
+		if (parentId) return spanNodes.get(parentId) ?? null;
+		return null;
+	}
+	const spanId = getEventSpanId(event);
+	if (spanId !== null) return spanNodes.get(spanId) ?? null;
+	return null;
+};
+var getEventSpanId = (event) => {
+	return event.span_id ?? null;
+};
+var kBeginScorerId = "E617087FA405";
+var kEndScorerId = "C39922B09481";
+var kScorersSpanId = "C5A831026F2C";
+var injectScorersSpan = (events) => {
+	const results = [];
+	const collectedScorerEvents = [];
+	let hasCollectedScorers = false;
+	let collecting = null;
+	const flushCollected = () => {
+		if (collectedScorerEvents.length > 0) {
+			const beginSpan = {
+				name: "scorers",
+				id: kBeginScorerId,
+				span_id: kScorersSpanId,
+				event: SPAN_BEGIN,
+				type: TYPE_SCORERS,
+				timestamp: collectedScorerEvents[0]?.timestamp || "",
+				working_start: collectedScorerEvents[0]?.working_start || 0,
+				pending: false,
+				parent_id: null,
+				uuid: null,
+				metadata: null
+			};
+			const scoreEvents = collectedScorerEvents.map((event) => {
+				return {
+					...event,
+					parent_id: event.event === "span_begin" ? event.parent_id || kScorersSpanId : null
+				};
+			});
+			const endSpan = {
+				id: kEndScorerId,
+				span_id: kScorersSpanId,
+				event: SPAN_END,
+				pending: false,
+				working_start: collectedScorerEvents[collectedScorerEvents.length - 1]?.working_start || 0,
+				timestamp: collectedScorerEvents[collectedScorerEvents.length - 1]?.timestamp || "",
+				uuid: null,
+				metadata: null
+			};
+			collectedScorerEvents.length = 0;
+			hasCollectedScorers = true;
+			return [
+				beginSpan,
+				...scoreEvents,
+				endSpan
+			];
+		}
+		return [];
+	};
+	for (const event of events) {
+		if (event.event === "span_begin" && event.type === "scorers") return events;
+		if (event.event === "span_begin" && event.type === "scorer" && !hasCollectedScorers) collecting = event.span_id ?? null;
+		if (collecting) {
+			if (event.event === "span_end" && event.span_id === collecting) {
+				collecting = null;
+				results.push(...flushCollected());
+				results.push(event);
+			} else collectedScorerEvents.push(event);
+		} else results.push(event);
+	}
+	return results;
+};
+/**
+* Remove span/step nodes with no visible children (filtering recursively, in
+* place on each node's `children`). Nodes with an attached `sourceSpan`
+* (agent cards) and structural `fork_nav`/`empty_branch` spans are preserved
+* even when childless.
+*/ var filterEmptySpans = (eventNodes) => {
+	return eventNodes.filter((node) => {
+		if (node.children.length > 0) node.children = filterEmptySpans(node.children);
+		if (node.sourceSpan) return true;
+		if (node.event.event === "span_begin" && (node.event.type === "fork_nav" || node.event.type === "empty_branch")) return true;
+		return node.event.event !== "span_begin" && node.event.event !== "step" || node.children.length > 0;
+	});
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useEventNodes.ts
+/**
+* Shared hook that builds an EventNode tree from raw events.
+*
+* Handles fixup, treeification, empty-span filtering, source-span attachment
+* (for agent card rendering), and default-collapse computation.
+*/
+/**
+* Build an EventNode tree from raw events (pure core of `useEventNodes`).
+*
+* Exposed for headless consumers (tests, non-React derivations) that need
+* the exact production pipeline: retry ordering/grouping, fixups,
+* treeification, empty-span filtering, source-span attachment, and
+* default-collapse computation.
+*
+* `allEvents` is the unfiltered event list `events` was drawn from (defaults
+* to `events`): uuid-less events take position-based ids from it, so a node's
+* id is the same whether or not a type filter or lane selection is applied.
+*/ var buildEventNodes = (events, running, sourceSpans, allEvents = events) => {
+	const { events: groupedEvents, attempts: retryAttempts } = groupRetryAttempts(correctRetryTimestamps(events));
+	const rawEventTree = treeifyEvents(fixupEventStream(groupedEvents, !running), 0, eventFallbackIds(allEvents));
+	if (sourceSpans && sourceSpans.size > 0) attachSourceSpans(rawEventTree, sourceSpans);
+	const eventNodes = filterEmptySpans(rawEventTree);
+	return {
+		eventNodes,
+		defaultCollapsedIds: computeDefaultCollapsedIds(eventNodes),
+		retryAttempts
+	};
+};
+var useEventNodes = (events, running, sourceSpans, allEvents) => {
+	const $ = (0, import_compiler_runtime.c)(5);
+	let t0;
+	if ($[0] !== allEvents || $[1] !== events || $[2] !== running || $[3] !== sourceSpans) {
+		t0 = buildEventNodes(events, running, sourceSpans, allEvents);
+		$[0] = allEvents;
+		$[1] = events;
+		$[2] = running;
+		$[3] = sourceSpans;
+		$[4] = t0;
+	} else t0 = $[4];
+	return t0;
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/selection/transcriptSelection.ts
+var kClearIcon = TranscriptIcons.selection.clear;
+var isSelectableEvent = (event) => eventTypeValues.includes(event.event) && !isStructuralEvent(event);
+/**
+* Toggle `id`. With `extend` (shift-click) every id between the anchor and
+* `id` in `visibleIds` takes the clicked row's new state, so a range can be
+* selected or cleared in one gesture; without a usable anchor only `id` flips.
+*/ var toggleTranscriptSelection = (state, visibleIds, id, extend) => {
+	const next = new Set(state.selectedIds);
+	const select = !next.has(id);
+	const anchorIndex = extend && state.lastToggledId !== null ? visibleIds.indexOf(state.lastToggledId) : -1;
+	const targetIndex = visibleIds.indexOf(id);
+	const ids = anchorIndex !== -1 && targetIndex !== -1 ? visibleIds.slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1) : [id];
+	for (const rangeId of ids) if (select) next.add(rangeId);
+	else next.delete(rangeId);
+	return {
+		selectedIds: next,
+		lastToggledId: id
+	};
+};
+/** The selected, selectable nodes of `nodes` (a flattened tree), in order. */ var selectedEventNodes = (nodes, selectedIds) => selectedIds.size === 0 ? [] : nodes.filter((n) => selectedIds.has(n.id) && isSelectableEvent(n.event));
+/**
+* Id → event for every selectable event, in transcript order, built from the
+* full (unfiltered) list with the transcript's own pipeline so ids resolve
+* regardless of the filter or lane they were selected under. Values are the
+* original event objects wherever the id maps back to one (uuid or position
+* id); a tree-path id can only yield the pipeline's clone. A full tree build —
+* call it at export time, not per render.
+*/ var buildSelectableEventIndex = (events, running) => {
+	const fallbackIds = eventFallbackIds(events);
+	const originals = /* @__PURE__ */ new Map();
+	for (const event of events) {
+		const id = event.uuid || fallbackIds.get(event);
+		if (id) originals.set(id, event);
+	}
+	const { eventNodes } = buildEventNodes([...events], running);
+	const index = /* @__PURE__ */ new Map();
+	for (const node of flatTree(eventNodes, null)) if (isSelectableEvent(node.event)) index.set(node.id, originals.get(node.id) ?? node.event);
+	return index;
+};
+/** The selected events, in transcript order. */ var resolveSelectedEvents = (index, selectedIds) => {
+	if (selectedIds.size === 0) return [];
+	const events = [];
+	for (const [id, event] of index) if (selectedIds.has(id)) events.push(event);
+	return events;
+};
+/** The selected ids that resolve, in transcript order (e.g. for a print URL). */ var resolveSelectedIds = (index, selectedIds) => [...index.keys()].filter((id) => selectedIds.has(id));
+/** Heading and footer for a Copy/Download menu acting on a selection. */ var selectionMenuChrome = (count, onClear) => ({
+	heading: `Selected events (${count})`,
+	footer: {
+		label: "Clear selection",
+		icon: kClearIcon,
+		onClick: onClear
+	}
+});
 var TranscriptVirtualListComponent_module_default = {
 	node: "_node_t3xlr_1",
 	attached: "_attached_t3xlr_5",
@@ -115192,8 +117786,8 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 /**
 * Renders the Transcript component.
 */ var TranscriptVirtualListComponent = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(64);
-	const { id, listHandle, eventNodes, scrollRef, running, backfilling, scrollToTopOnFinish: t1, initialEventId, navOwned, followRequested, className, turnMap, relativeIndent, disableVirtualization, onNativeFindChanged, onAutoCollapse, renderAgentCard, eventCallbacks, eventNodeContext, visibleRangeRef } = t0;
+	const $ = (0, import_compiler_runtime.c)(57);
+	const { id, listHandle, eventNodes, scrollRef, running, backfilling, scrollToTopOnFinish: t1, initialEventId, navOwned, followRequested, className, turnMap, relativeIndent, disableVirtualization, onNativeFindChanged, onAutoCollapse, renderAgentCard, eventCallbacks, eventNodeContext, selection, visibleRangeRef } = t0;
 	const scrollToTopOnFinish = t1 === void 0 ? true : t1;
 	const useVirtualization = !disableVirtualization;
 	let t2;
@@ -115276,7 +117870,7 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 	const contextMap = map;
 	const eventLabels = eventNodeContext?.eventLabels;
 	let t8;
-	if ($[18] !== contextMap || $[19] !== eventCallbacks || $[20] !== eventLabels || $[21] !== eventNodes || $[22] !== onAutoCollapse || $[23] !== relativeIndent || $[24] !== renderAgentCard) {
+	if ($[18] !== contextMap || $[19] !== eventCallbacks || $[20] !== eventLabels || $[21] !== eventNodes || $[22] !== onAutoCollapse || $[23] !== relativeIndent || $[24] !== renderAgentCard || $[25] !== selection) {
 		t8 = (index, item) => {
 			const depth = relativeIndent ? item.depth - (eventNodes[0]?.depth ?? 0) : item.depth;
 			const previousIndex = index - 1;
@@ -115291,16 +117885,24 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 			const depthRootClass = depth === 0 ? TranscriptVirtualListComponent_module_default.depthRoot : void 0;
 			const context = contextMap.get(item.id);
 			const isLast = index === eventNodes.length - 1;
+			const selectableRowId = selection && isSelectableEvent(item.event) ? item.id : void 0;
+			const rowSelected = selection !== void 0 && selectableRowId !== void 0 && selection.selectedIds.has(item.id);
 			const renderedNode = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventLabelContext.Provider, {
-				value: eventLabels?.[item.id],
-				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedEventNode, {
-					node: item,
-					next,
-					className: clsx(attachedParentClass, attachedChildClass, depthRootClass),
-					context,
-					onAutoCollapse,
-					renderAgentCard,
-					eventCallbacks
+				value: getOwn(eventLabels, item.id),
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRowIdContext.Provider, {
+					value: selectableRowId,
+					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRowSelectedContext.Provider, {
+						value: rowSelected,
+						children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedEventNode, {
+							node: item,
+							next,
+							className: clsx(attachedParentClass, attachedChildClass, depthRootClass),
+							context,
+							onAutoCollapse,
+							renderAgentCard,
+							eventCallbacks
+						})
+					})
 				})
 			});
 			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
@@ -115320,127 +117922,103 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 		$[22] = onAutoCollapse;
 		$[23] = relativeIndent;
 		$[24] = renderAgentCard;
-		$[25] = t8;
-	} else t8 = $[25];
+		$[25] = selection;
+		$[26] = t8;
+	} else t8 = $[26];
 	const renderRow = t8;
 	const isBackfilling = backfilling === true;
 	let t9;
-	if ($[26] !== eventNodes || $[27] !== isBackfilling || $[28] !== running) {
+	if ($[27] !== eventNodes || $[28] !== isBackfilling || $[29] !== running) {
 		t9 = running === true && !isBackfilling && transcriptToolsRunning(eventNodes);
-		$[26] = eventNodes;
-		$[27] = isBackfilling;
-		$[28] = running;
-		$[29] = t9;
-	} else t9 = $[29];
+		$[27] = eventNodes;
+		$[28] = isBackfilling;
+		$[29] = running;
+		$[30] = t9;
+	} else t9 = $[30];
 	const toolsRunning = t9;
 	const showFooter = isBackfilling || toolsRunning;
 	let t10;
-	if ($[30] !== isBackfilling || $[31] !== toolsRunning) {
+	if ($[31] !== isBackfilling || $[32] !== toolsRunning) {
 		t10 = () => renderTranscriptFooter({
 			backfilling: isBackfilling,
 			toolsRunning
 		});
-		$[30] = isBackfilling;
-		$[31] = toolsRunning;
-		$[32] = t10;
-	} else t10 = $[32];
+		$[31] = isBackfilling;
+		$[32] = toolsRunning;
+		$[33] = t10;
+	} else t10 = $[33];
 	const Footer = t10;
 	let t11;
-	if ($[33] !== Footer) {
+	if ($[34] !== Footer) {
 		t11 = { Footer };
-		$[33] = Footer;
-		$[34] = t11;
-	} else t11 = $[34];
+		$[34] = Footer;
+		$[35] = t11;
+	} else t11 = $[35];
 	const components = t11;
-	if (useVirtualization) {
-		const t12 = running === true;
-		const t13 = running === true && !isBackfilling;
-		let t14;
-		if ($[35] !== visibleRangeRef) {
-			t14 = (range) => {
+	let t12;
+	if ($[36] !== className || $[37] !== components || $[38] !== eventNodes || $[39] !== followRequested || $[40] !== id || $[41] !== initialEventIndex || $[42] !== isBackfilling || $[43] !== listHandle || $[44] !== navOwned || $[45] !== renderRow || $[46] !== running || $[47] !== scrollRef || $[48] !== scrollToTopOnFinish || $[49] !== showFooter || $[50] !== toolsRunning || $[51] !== useVirtualization || $[52] !== visibleRangeRef) {
+		t12 = useVirtualization ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
+			ref: listHandle,
+			className,
+			persistenceKey: id,
+			scrollRef,
+			data: eventNodes,
+			initialIndex: initialEventIndex,
+			navOwned,
+			followRequested,
+			scrollPaddingStart: -20,
+			renderRow,
+			live: running === true,
+			smoothScroll: running === true && !isBackfilling,
+			scrollToTopOnFinish,
+			itemSearchText: eventSearchText,
+			findScope: "none",
+			showProgress: showFooter,
+			components,
+			onVisibleRangeChange: (range) => {
 				if (visibleRangeRef) visibleRangeRef.current = range;
-			};
-			$[35] = visibleRangeRef;
-			$[36] = t14;
-		} else t14 = $[36];
-		let t15;
-		if ($[37] !== className || $[38] !== components || $[39] !== eventNodes || $[40] !== followRequested || $[41] !== id || $[42] !== initialEventIndex || $[43] !== listHandle || $[44] !== navOwned || $[45] !== renderRow || $[46] !== scrollRef || $[47] !== scrollToTopOnFinish || $[48] !== showFooter || $[49] !== t12 || $[50] !== t13 || $[51] !== t14) {
-			t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
-				ref: listHandle,
-				className,
-				persistenceKey: id,
-				scrollRef,
-				data: eventNodes,
-				initialIndex: initialEventIndex,
-				navOwned,
-				followRequested,
-				scrollPaddingStart: -20,
-				renderRow,
-				live: t12,
-				smoothScroll: t13,
-				scrollToTopOnFinish,
-				itemSearchText: eventSearchText,
-				findScope: "none",
-				showProgress: showFooter,
-				components,
-				onVisibleRangeChange: t14
-			});
-			$[37] = className;
-			$[38] = components;
-			$[39] = eventNodes;
-			$[40] = followRequested;
-			$[41] = id;
-			$[42] = initialEventIndex;
-			$[43] = listHandle;
-			$[44] = navOwned;
-			$[45] = renderRow;
-			$[46] = scrollRef;
-			$[47] = scrollToTopOnFinish;
-			$[48] = showFooter;
-			$[49] = t12;
-			$[50] = t13;
-			$[51] = t14;
-			$[52] = t15;
-		} else t15 = $[52];
-		return t15;
-	} else {
-		let t12;
-		if ($[53] !== eventNodes || $[54] !== renderRow) {
-			let t13;
-			if ($[56] !== renderRow) {
-				t13 = (node_0, index_0) => {
-					return renderRow(index_0, node_0);
-				};
-				$[56] = renderRow;
-				$[57] = t13;
-			} else t13 = $[57];
-			t12 = eventNodes.map(t13);
-			$[53] = eventNodes;
-			$[54] = renderRow;
-			$[55] = t12;
-		} else t12 = $[55];
-		let t13;
-		if ($[58] !== isBackfilling || $[59] !== toolsRunning) {
-			t13 = renderTranscriptFooter({
+			}
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref: nonVirtualGridRef,
+			children: [eventNodes.map((node_0, index_0) => {
+				return renderRow(index_0, node_0);
+			}), renderTranscriptFooter({
 				backfilling: isBackfilling,
 				toolsRunning
-			});
-			$[58] = isBackfilling;
-			$[59] = toolsRunning;
-			$[60] = t13;
-		} else t13 = $[60];
-		let t14;
-		if ($[61] !== t12 || $[62] !== t13) {
-			t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-				ref: nonVirtualGridRef,
-				children: [t12, t13]
-			});
-			$[61] = t12;
-			$[62] = t13;
-			$[63] = t14;
-		} else t14 = $[63];
-		return t14;
-	}
+			})]
+		});
+		$[36] = className;
+		$[37] = components;
+		$[38] = eventNodes;
+		$[39] = followRequested;
+		$[40] = id;
+		$[41] = initialEventIndex;
+		$[42] = isBackfilling;
+		$[43] = listHandle;
+		$[44] = navOwned;
+		$[45] = renderRow;
+		$[46] = running;
+		$[47] = scrollRef;
+		$[48] = scrollToTopOnFinish;
+		$[49] = showFooter;
+		$[50] = toolsRunning;
+		$[51] = useVirtualization;
+		$[52] = visibleRangeRef;
+		$[53] = t12;
+	} else t12 = $[53];
+	const list = t12;
+	const t13 = selection?.onToggle;
+	let t14;
+	if ($[54] !== list || $[55] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptRowToggleContext.Provider, {
+			value: t13,
+			children: list
+		});
+		$[54] = list;
+		$[55] = t13;
+		$[56] = t14;
+	} else t14 = $[56];
+	return t14;
 };
 var TranscriptVirtualList = /*#__PURE__*/ (0, import_react.memo)(TranscriptVirtualListComponent);
 TranscriptVirtualList.displayName = "TranscriptVirtualList";
@@ -116198,311 +118776,78 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 		]
 	});
 };
+var TranscriptSelectTool_module_default = {
+	group: "_group_1cexi_1",
+	splitMain: "_splitMain_1cexi_6",
+	splitClear: "_splitClear_1cexi_13"
+};
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/transform.ts
-var transformTree = (roots) => {
-	const treeNodeTransformers = transformers();
-	const visitNode = (node) => {
-		let currentNodes = [node];
-		currentNodes = currentNodes.map((n) => {
-			n.children = n.children.flatMap(visitNode);
-			return n;
+//#region ../../packages/inspect-components/src/transcript/selection/TranscriptSelectTool.tsx
+/**
+* Toolbar toggle for transcript evidence selection: `Select` (off), a latched
+* `Select` (on, nothing selected) or a latched split `Select · N | ×`, where
+* × clears the selection and exits the mode in one press.
+*/ var TranscriptSelectTool = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(16);
+	const { active, count, onToggle, onClear, className } = t0;
+	const hasSelection = active && count > 0;
+	const title = !active ? "Select events" : count === 0 ? "Click events to select · click again to exit" : "Exit select mode";
+	let t1;
+	if ($[0] !== className) {
+		t1 = clsx(TranscriptSelectTool_module_default.group, className);
+		$[0] = className;
+		$[1] = t1;
+	} else t1 = $[1];
+	const t2 = hasSelection ? `Select · ${count}` : "Select";
+	const t3 = active ? TranscriptIcons.selection.selecting : TranscriptIcons.selection.select;
+	const t4 = hasSelection ? TranscriptSelectTool_module_default.splitMain : void 0;
+	let t5;
+	if ($[2] !== active || $[3] !== onToggle || $[4] !== t2 || $[5] !== t3 || $[6] !== t4 || $[7] !== title) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
+			label: t2,
+			icon: t3,
+			latched: active,
+			subtle: true,
+			className: t4,
+			title,
+			"aria-pressed": active,
+			onClick: onToggle
 		});
-		for (const transformer of treeNodeTransformers) {
-			const nextNodes = [];
-			for (const currentNode of currentNodes) if (transformer.matches(currentNode)) {
-				const result = transformer.process(currentNode);
-				if (Array.isArray(result)) nextNodes.push(...result);
-				else nextNodes.push(result);
-			} else nextNodes.push(currentNode);
-			currentNodes = nextNodes;
-		}
-		return (currentNodes.length === 1 ? currentNodes[0] : void 0) ?? currentNodes;
-	};
-	const processedRoots = roots.flatMap(visitNode);
-	const flushedNodes = [];
-	for (const transformer of treeNodeTransformers) if (transformer.flush) {
-		const flushResults = transformer.flush();
-		if (flushResults.length > 0) flushedNodes.push(...flushResults);
-	}
-	return [...processedRoots, ...flushedNodes];
-};
-var transformers = () => {
-	return [
-		{
-			name: "unwrap_main",
-			matches: (node) => node.event.event === "span_begin" && node.event.type === "main",
-			process: unwrapNode
-		},
-		{
-			name: "unwrap_tools",
-			matches: (node) => node.event.event === "span_begin" && node.event.type === "tool",
-			process: (node) => elevateChildNode(node, "tool") || node
-		},
-		{
-			name: "unwrap_subtasks",
-			matches: (node) => node.event.event === "span_begin" && node.event.type === "subtask",
-			process: (node) => elevateChildNode(node, "subtask") || node
-		},
-		{
-			name: "unwrap_agent_solver",
-			matches: (node) => node.event.event === "span_begin" && node.event["type"] === "solver" && node.children.length === 2 && node.children[0]?.event.event === "span_begin" && node.children[0].event.type === "agent" && node.children[1]?.event.event === "state",
-			process: (node) => skipFirstChildNode(node)
-		},
-		{
-			name: "unwrap_agent_solver w/store",
-			matches: (node) => node.event.event === "span_begin" && node.event["type"] === "solver" && node.children.length === 3 && node.children[0]?.event.event === "span_begin" && node.children[0].event.type === "agent" && node.children[1]?.event.event === "state" && node.children[2]?.event.event === "store",
-			process: (node) => skipFirstChildNode(node)
-		},
-		{
-			name: "unwrap_handoff",
-			matches: (node) => {
-				if (!(node.event.event === "span_begin" && node.event["type"] === "handoff")) return false;
-				if (node.children.length === 1) return node.children[0]?.event.event === "tool" && !!node.children[0].event.agent;
-				else return node.children.length === 2 && node.children[0]?.event.event === "tool" && node.children[1]?.event.event === "store" && node.children[0].children.length === 2 && node.children[0].children[0]?.event.event === "span_begin" && node.children[0].children[0].event.type === "agent";
-			},
-			process: (node) => skipThisNode(node)
-		},
-		{
-			name: "collapse_same_name_spans",
-			matches: (node) => isAgentOrSolverSpan(node) && node.children.some((child) => isSameNameSpanChild(node, child)),
-			process: (node) => collapseSameNameSpans(node)
-		},
-		{
-			name: "discard_solvers_span",
-			matches: (Node) => Node.event.event === "span_begin" && Node.event.type === "solvers",
-			process: (node) => {
-				return discardNode(node);
-			}
-		},
-		{
-			name: "discard_checkpoint_span",
-			matches: (node) => node.event.event === "span_begin" && node.event.type === "checkpoint",
-			process: (node) => discardNode(node)
-		}
-	];
-};
-/**
-* Process a span node by elevating a specific child node type and moving its siblings as children
-* @template T - Type of the event (either ToolEvent or SubtaskEvent)
-*/ var elevateChildNode = (node, childEventType) => {
-	const targetIndex = node.children.findIndex((child) => child.event.event === childEventType);
-	if (targetIndex === -1) return null;
-	const target = node.children[targetIndex];
-	if (!target) return null;
-	const targetNode = { ...target };
-	const remainingChildren = node.children.filter((_, i) => i !== targetIndex);
-	targetNode.depth = node.depth;
-	targetNode.children = setDepth(remainingChildren, node.depth + 1);
-	return targetNode;
-};
-var isAgentOrSolverSpan = (node) => node.event.event === "span_begin" && (node.event.type === "solver" || node.event.type === "agent");
-var unqualifiedSpanName = (name) => {
-	const slash = name.indexOf("/");
-	return slash === -1 ? name : name.slice(slash + 1);
-};
-var isSameNameSpanChild = (parent, child) => isAgentOrSolverSpan(child) && parent.event.event === "span_begin" && child.event.event === "span_begin" && unqualifiedSpanName(parent.event.name) === unqualifiedSpanName(child.event.name);
-var collapseSameNameSpans = (node) => {
-	node.children = node.children.flatMap((child) => isSameNameSpanChild(node, child) ? reduceDepth(child.children, 1) : [child]);
-	return node;
-};
-var unwrapNode = (node) => {
-	return node.children.map((child) => {
-		child.depth = node.depth;
-		return child;
-	});
-};
-var skipFirstChildNode = (node) => {
-	const agentSpan = node.children.splice(0, 1)[0];
-	node.children.unshift(...reduceDepth(agentSpan?.children || []));
-	return node;
-};
-var skipThisNode = (node) => {
-	const first = node.children[0];
-	if (!first) return node;
-	const newNode = { ...first };
-	newNode.depth = node.depth;
-	newNode.children = reduceDepth(newNode.children, 2);
-	return newNode;
-};
-var discardNode = (node) => {
-	return reduceDepth(node.children, 1);
-};
-var reduceDepth = (nodes, depth = 1) => {
-	return nodes.map((node) => {
-		if (node.children.length > 0) node.children = reduceDepth(node.children, 1);
-		node.depth = node.depth - depth;
-		return node;
-	});
-};
-var setDepth = (nodes, depth) => {
-	return nodes.map((node) => {
-		if (node.children.length > 0) node.children = setDepth(node.children, depth + 1);
-		node.depth = depth;
-		return node;
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/treeify.ts
-function treeifyEvents(events, depth) {
-	const useSpans = hasSpans(events);
-	events = injectScorersSpan(events);
-	const nodes = useSpans ? treeifyWithSpans(events, depth) : treeifyWithSteps(events, depth);
-	return useSpans ? transformTree(nodes) : nodes;
-}
-var treeifyWithSpans = (events, depth) => {
-	const { rootNodes, createNode } = createNodeFactory(depth);
-	const spanNodes = /* @__PURE__ */ new Map();
-	const processEvent = (event, parentOverride) => {
-		if (event.event === "span_end") return;
-		if (event.event === "step" && event.action !== "begin") return;
-		const parentNode = (parentOverride !== void 0 ? parentOverride : resolveParentForEvent(event, spanNodes)) ?? null;
-		const node = createNode(event, parentNode);
-		if (event.event === "span_begin") spanNodes.set(event.id, node);
-	};
-	events.forEach((event) => processEvent(event));
-	return rootNodes;
-};
-var treeifyWithSteps = (events, depth) => {
-	const { rootNodes, createNode } = createNodeFactory(depth);
-	const stack = [];
-	const pushStack = (node) => {
-		stack.push(node);
-	};
-	const popStack = () => {
-		if (stack.length > 0) stack.pop();
-	};
-	const processEvent = (event) => {
-		const parent = stack.length > 0 ? stack[stack.length - 1] : null;
-		switch (event.event) {
-			case STEP:
-				if (event.action === "begin") {
-					const node = createNode(event, parent || null);
-					pushStack(node);
-				} else popStack();
-				break;
-			case SPAN_BEGIN: {
-				const node = createNode(event, parent || null);
-				pushStack(node);
-				break;
-			}
-			case SPAN_END:
-				popStack();
-				break;
-			default: createNode(event, parent || null);
-		}
-	};
-	events.forEach(processEvent);
-	return rootNodes;
-};
-var createNodeFactory = (depth) => {
-	const rootNodes = [];
-	const childCounts = /* @__PURE__ */ new Map();
-	const pathByNode = /* @__PURE__ */ new Map();
-	const createNode = (event, parent) => {
-		const parentKey = parent ?? null;
-		const nextIndex = childCounts.get(parentKey) ?? 0;
-		childCounts.set(parentKey, nextIndex + 1);
-		const parentPath = parent ? pathByNode.get(parent) : void 0;
-		const path = parentPath !== void 0 ? `${parentPath}.${nextIndex}` : `${nextIndex}`;
-		const node = new EventNode(event.uuid || `event_node_${path}`, event, parent ? parent.depth + 1 : depth);
-		pathByNode.set(node, path);
-		if (parent) parent.children.push(node);
-		else rootNodes.push(node);
-		return node;
-	};
-	return {
-		rootNodes,
-		createNode
-	};
-};
-var resolveParentForEvent = (event, spanNodes) => {
-	if (event.event === "span_begin") {
-		const parentId = event.parent_id;
-		if (parentId) return spanNodes.get(parentId) ?? null;
-		return null;
-	}
-	const spanId = getEventSpanId(event);
-	if (spanId !== null) return spanNodes.get(spanId) ?? null;
-	return null;
-};
-var getEventSpanId = (event) => {
-	return event.span_id ?? null;
-};
-var kBeginScorerId = "E617087FA405";
-var kEndScorerId = "C39922B09481";
-var kScorersSpanId = "C5A831026F2C";
-var injectScorersSpan = (events) => {
-	const results = [];
-	const collectedScorerEvents = [];
-	let hasCollectedScorers = false;
-	let collecting = null;
-	const flushCollected = () => {
-		if (collectedScorerEvents.length > 0) {
-			const beginSpan = {
-				name: "scorers",
-				id: kBeginScorerId,
-				span_id: kScorersSpanId,
-				event: SPAN_BEGIN,
-				type: TYPE_SCORERS,
-				timestamp: collectedScorerEvents[0]?.timestamp || "",
-				working_start: collectedScorerEvents[0]?.working_start || 0,
-				pending: false,
-				parent_id: null,
-				uuid: null,
-				metadata: null
-			};
-			const scoreEvents = collectedScorerEvents.map((event) => {
-				return {
-					...event,
-					parent_id: event.event === "span_begin" ? event.parent_id || kScorersSpanId : null
-				};
-			});
-			const endSpan = {
-				id: kEndScorerId,
-				span_id: kScorersSpanId,
-				event: SPAN_END,
-				pending: false,
-				working_start: collectedScorerEvents[collectedScorerEvents.length - 1]?.working_start || 0,
-				timestamp: collectedScorerEvents[collectedScorerEvents.length - 1]?.timestamp || "",
-				uuid: null,
-				metadata: null
-			};
-			collectedScorerEvents.length = 0;
-			hasCollectedScorers = true;
-			return [
-				beginSpan,
-				...scoreEvents,
-				endSpan
-			];
-		}
-		return [];
-	};
-	for (const event of events) {
-		if (event.event === "span_begin" && event.type === "scorers") return events;
-		if (event.event === "span_begin" && event.type === "scorer" && !hasCollectedScorers) collecting = event.span_id ?? null;
-		if (collecting) {
-			if (event.event === "span_end" && event.span_id === collecting) {
-				collecting = null;
-				results.push(...flushCollected());
-				results.push(event);
-			} else collectedScorerEvents.push(event);
-		} else results.push(event);
-	}
-	return results;
-};
-/**
-* Remove span/step nodes with no visible children (filtering recursively, in
-* place on each node's `children`). Nodes with an attached `sourceSpan`
-* (agent cards) and structural `fork_nav`/`empty_branch` spans are preserved
-* even when childless.
-*/ var filterEmptySpans = (eventNodes) => {
-	return eventNodes.filter((node) => {
-		if (node.children.length > 0) node.children = filterEmptySpans(node.children);
-		if (node.sourceSpan) return true;
-		if (node.event.event === "span_begin" && (node.event.type === "fork_nav" || node.event.type === "empty_branch")) return true;
-		return node.event.event !== "span_begin" && node.event.event !== "step" || node.children.length > 0;
-	});
+		$[2] = active;
+		$[3] = onToggle;
+		$[4] = t2;
+		$[5] = t3;
+		$[6] = t4;
+		$[7] = title;
+		$[8] = t5;
+	} else t5 = $[8];
+	let t6;
+	if ($[9] !== hasSelection || $[10] !== onClear) {
+		t6 = hasSelection ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
+			icon: TranscriptIcons.selection.clear,
+			latched: true,
+			subtle: true,
+			className: TranscriptSelectTool_module_default.splitClear,
+			title: "Clear selection and exit",
+			"aria-label": "Clear selection and exit",
+			onClick: onClear
+		}) : null;
+		$[9] = hasSelection;
+		$[10] = onClear;
+		$[11] = t6;
+	} else t6 = $[11];
+	let t7;
+	if ($[12] !== t1 || $[13] !== t5 || $[14] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: t1,
+			children: [t5, t6]
+		});
+		$[12] = t1;
+		$[13] = t5;
+		$[14] = t6;
+		$[15] = t7;
+	} else t7 = $[15];
+	return t7;
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/resolveMessageToEvent.ts
@@ -117335,59 +119680,6 @@ var PRIORITY_MODEL_INPUT = 4;
 }
 function _temp$49(lane_1) {
 	return lane_1.firstAnchorId;
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/retryOrdering.ts
-/**
-* Repair retry-inverted ModelEvent timestamps for display ordering.
-*
-* When `model.generate()` retries internally, each attempt emits its own
-* ModelEvent (failed attempts carry `error`, the final attempt is the
-* successful one). On the Python side, after retries complete, the
-* successful event's `timestamp` is rewritten to a value captured *before*
-* any retry — so that whole-call accounting (working_time) reflects the full
-* duration. The side effect is that the success event ends up with a
-* timestamp earlier than its preceding failed-retry siblings, and any sort
-* by timestamp places it ahead of attempts that actually preceded it.
-*
-* This helper detects the inversion and clones offending events with their
-* `timestamp` clamped so ModelEvents within a span are non-decreasing in
-* emission order. Other timing fields (`working_start`, `working_time`,
-* `completed`) are preserved so accounting stays intact.
-*/ var EPSILON_MS = 1;
-/**
-* Return `events` with retry-inverted ModelEvent timestamps repaired.
-*
-* Returns the input array reference unchanged when no inversion is
-* detected, so callers can safely memoize on the result.
-*
-* Comparisons are done in parsed epoch milliseconds so mixed input
-* formats (the backend emits `+00:00`; corrected outputs use `Z`) sort
-* correctly. The output timestamp is always normalized to ISO-Z via
-* `new Date(epoch).toISOString()`.
-*/ function correctRetryTimestamps(events) {
-	const lastModelTs = /* @__PURE__ */ new Map();
-	let result = null;
-	for (let i = 0; i < events.length; i++) {
-		const e = events[i];
-		if (e.event !== "model") continue;
-		if (!e.timestamp) continue;
-		const epoch = Date.parse(e.timestamp);
-		if (Number.isNaN(epoch)) continue;
-		const key = e.span_id ?? null;
-		const prev = lastModelTs.get(key);
-		if (prev != null && epoch < prev) {
-			const correctedEpoch = prev + EPSILON_MS;
-			const correctedIso = new Date(correctedEpoch).toISOString();
-			if (!result) result = events.slice();
-			result[i] = {
-				...e,
-				timestamp: correctedIso
-			};
-			lastModelTs.set(key, correctedEpoch);
-		} else lastModelTs.set(key, epoch);
-	}
-	return result ?? events;
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/swimlaneLayout.ts
@@ -118329,14 +120621,13 @@ function useTimelineConfig(t0) {
 	return rootItems;
 }
 /**
-* Merge orphaned events into a host timeline's root, preserving time order.
+* Keep orphaned events visible without distorting server-authored timelines.
 *
 * When server-provided timelines don't reference every event (e.g. scorer
-* events), the unreferenced events are collected, wrapped in their minimal
-* parent span tree, and inserted into the host timeline's root content in
-* chronological order. The host is the first timeline whose root is not a
-* branch tree, falling back to the first timeline.
-*/ function attachOrphanedEvents(timelines, events) {
+* events), a single timeline receives the orphan set in chronological order.
+* With multiple timelines, the full built timeline is appended as an Overall
+* view so no authored timeline receives another timeline's events.
+*/ function attachOrphanedEvents(timelines, events, builtTimeline) {
 	if (timelines.length === 0 || events.length === 0) return timelines;
 	const referencedUuids = /* @__PURE__ */ new Set();
 	const referencedSpanIds = /* @__PURE__ */ new Set();
@@ -118352,6 +120643,11 @@ function useTimelineConfig(t0) {
 		if (uuid && !referencedUuids.has(uuid)) orphanEvents.push(event);
 	}
 	if (orphanEvents.length === 0) return timelines;
+	if (timelines.length > 1) return [...timelines, {
+		name: "Overall",
+		description: "Full sample transcript",
+		root: builtTimeline.root
+	}];
 	const orphanContent = buildOrphanContent(orphanEvents, buildSpanLookup(events), referencedSpanIds);
 	if (orphanContent.length === 0) return timelines;
 	const hostIndex = Math.max(0, timelines.findIndex((tl) => tl.root.branches.length === 0));
@@ -118377,7 +120673,7 @@ function useTimelineConfig(t0) {
 	} : tl);
 }
 function useTimelinesArray(events, serverTimelines, options) {
-	const $ = (0, import_compiler_runtime.c)(14);
+	const $ = (0, import_compiler_runtime.c)(15);
 	const showEmptyBranches = options?.showEmptyBranches ?? false;
 	let t0;
 	if ($[0] !== events) {
@@ -118395,28 +120691,29 @@ function useTimelinesArray(events, serverTimelines, options) {
 	} else t1 = $[4];
 	const convertedTimelines = t1;
 	let t2;
-	if ($[5] !== convertedTimelines || $[6] !== events) {
-		t2 = convertedTimelines ? attachOrphanedEvents(convertedTimelines, events) : null;
-		$[5] = convertedTimelines;
-		$[6] = events;
-		$[7] = t2;
-	} else t2 = $[7];
+	if ($[5] !== builtTimeline || $[6] !== convertedTimelines || $[7] !== events) {
+		t2 = convertedTimelines ? attachOrphanedEvents(convertedTimelines, events, builtTimeline) : null;
+		$[5] = builtTimeline;
+		$[6] = convertedTimelines;
+		$[7] = events;
+		$[8] = t2;
+	} else t2 = $[8];
 	const withOrphans = t2;
 	let t3;
-	if ($[8] !== builtTimeline || $[9] !== withOrphans) {
+	if ($[9] !== builtTimeline || $[10] !== withOrphans) {
 		t3 = withOrphans ?? [builtTimeline];
-		$[8] = builtTimeline;
-		$[9] = withOrphans;
-		$[10] = t3;
-	} else t3 = $[10];
+		$[9] = builtTimeline;
+		$[10] = withOrphans;
+		$[11] = t3;
+	} else t3 = $[11];
 	const resolved = t3;
 	let t4;
-	if ($[11] !== resolved || $[12] !== showEmptyBranches) {
+	if ($[12] !== resolved || $[13] !== showEmptyBranches) {
 		t4 = showEmptyBranches ? resolved : resolved.map(filterEmptyBranches);
-		$[11] = resolved;
-		$[12] = showEmptyBranches;
-		$[13] = t4;
-	} else t4 = $[13];
+		$[12] = resolved;
+		$[13] = showEmptyBranches;
+		$[14] = t4;
+	} else t4 = $[14];
 	return t4;
 }
 //#endregion
@@ -118433,7 +120730,7 @@ function useTimelinesArray(events, serverTimelines, options) {
 var emptySourceSpans = /* @__PURE__ */ new Map();
 var emptyHighlightedKeys = /* @__PURE__ */ new Map();
 function useTranscriptTimeline(options) {
-	const $ = (0, import_compiler_runtime.c)(96);
+	const $ = (0, import_compiler_runtime.c)(101);
 	const { events: rawEvents, markerConfig: t0, timelineOptions, serverTimelines, timelineProps, activeTimelineProps } = options;
 	const markerConfig = t0 === void 0 ? defaultMarkerConfig : t0;
 	let t1;
@@ -118454,30 +120751,47 @@ function useTranscriptTimeline(options) {
 		$[3] = t2;
 	} else t2 = $[3];
 	const timelines = useTimelinesArray(events, serverTimelines, t2);
-	const { active: activeTimeline, activeIndex: activeTimelineIndex, setActive: setActiveTimeline } = useActiveTimeline(timelines, activeTimelineProps);
-	const baseTimeline = activeTimeline;
+	const { active: activeTimeline, activeIndex: activeTimelineIndex, setActive: setActiveTimelineIndex } = useActiveTimeline(timelines, activeTimelineProps);
+	const onSelectTimeline = timelineProps?.onSelect;
 	let t3;
-	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = [];
-		$[4] = t3;
-	} else t3 = $[4];
-	const [viewStack, setViewStack] = (0, import_react.useState)(t3);
+	if ($[4] !== activeTimelineIndex || $[5] !== onSelectTimeline || $[6] !== setActiveTimelineIndex || $[7] !== timelines.length) {
+		t3 = (index, options_0) => {
+			if (index < 0 || index >= timelines.length) return;
+			if (index === activeTimelineIndex) return;
+			if (options_0) onSelectTimeline?.(null, options_0);
+			else onSelectTimeline?.(null);
+			setActiveTimelineIndex(index);
+		};
+		$[4] = activeTimelineIndex;
+		$[5] = onSelectTimeline;
+		$[6] = setActiveTimelineIndex;
+		$[7] = timelines.length;
+		$[8] = t3;
+	} else t3 = $[8];
+	const setActiveTimeline = t3;
+	const baseTimeline = activeTimeline;
+	let t4;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t4 = [];
+		$[9] = t4;
+	} else t4 = $[9];
+	const [viewStack, setViewStack] = (0, import_react.useState)(t4);
 	const [stackBase, setStackBase] = (0, import_react.useState)(baseTimeline);
 	if (stackBase !== baseTimeline) {
 		setStackBase(baseTimeline);
 		setViewStack([]);
 	}
-	let t4;
-	if ($[5] !== baseTimeline || $[6] !== viewStack) {
-		t4 = viewStack.at(-1)?.timeline ?? baseTimeline;
-		$[5] = baseTimeline;
-		$[6] = viewStack;
-		$[7] = t4;
-	} else t4 = $[7];
-	const timeline = t4;
 	let t5;
-	if ($[8] !== baseTimeline.root || $[9] !== timelineProps) {
-		t5 = (branch, label) => {
+	if ($[10] !== baseTimeline || $[11] !== viewStack) {
+		t5 = viewStack.at(-1)?.timeline ?? baseTimeline;
+		$[10] = baseTimeline;
+		$[11] = viewStack;
+		$[12] = t5;
+	} else t5 = $[12];
+	const timeline = t5;
+	let t6;
+	if ($[13] !== baseTimeline.root || $[14] !== timelineProps) {
+		t6 = (branch, label) => {
 			setViewStack((s) => [...s, {
 				label,
 				timeline: spliceToTimeline(baseTimeline.root, branch),
@@ -118485,75 +120799,75 @@ function useTranscriptTimeline(options) {
 			}]);
 			timelineProps?.onSelect(null);
 		};
-		$[8] = baseTimeline.root;
-		$[9] = timelineProps;
-		$[10] = t5;
-	} else t5 = $[10];
-	const pushView = t5;
-	let t6;
-	if ($[11] !== timelineProps || $[12] !== viewStack) {
-		t6 = () => {
+		$[13] = baseTimeline.root;
+		$[14] = timelineProps;
+		$[15] = t6;
+	} else t6 = $[15];
+	const pushView = t6;
+	let t7;
+	if ($[16] !== timelineProps || $[17] !== viewStack) {
+		t7 = () => {
 			const top = viewStack.at(-1);
 			if (!top) return;
 			setViewStack(_temp$48);
 			timelineProps?.onSelect(top.priorSelected);
 		};
-		$[11] = timelineProps;
-		$[12] = viewStack;
-		$[13] = t6;
-	} else t6 = $[13];
-	const popView = t6;
+		$[16] = timelineProps;
+		$[17] = viewStack;
+		$[18] = t7;
+	} else t7 = $[18];
+	const popView = t7;
 	const state = useTimeline(timeline, timelineOptions, timelineProps);
-	let t7;
-	if ($[14] !== state.rows) {
-		t7 = state.rows.filter(_temp2$35);
-		$[14] = state.rows;
-		$[15] = t7;
-	} else t7 = $[15];
-	const visibleRows = t7;
 	let t8;
-	if ($[16] !== state.node) {
-		t8 = computeTimeMapping(state.node);
-		$[16] = state.node;
-		$[17] = t8;
-	} else t8 = $[17];
-	const timeMapping = t8;
+	if ($[19] !== state.rows) {
+		t8 = state.rows.filter(_temp2$35);
+		$[19] = state.rows;
+		$[20] = t8;
+	} else t8 = $[20];
+	const visibleRows = t8;
 	let t9;
-	if ($[18] !== timeline.root) {
-		t9 = computeTimeMapping(timeline.root);
-		$[18] = timeline.root;
-		$[19] = t9;
-	} else t9 = $[19];
-	const rootTimeMapping = t9;
+	if ($[21] !== state.node) {
+		t9 = computeTimeMapping(state.node);
+		$[21] = state.node;
+		$[22] = t9;
+	} else t9 = $[22];
+	const timeMapping = t9;
 	let t10;
+	if ($[23] !== timeline.root) {
+		t10 = computeTimeMapping(timeline.root);
+		$[23] = timeline.root;
+		$[24] = t10;
+	} else t10 = $[24];
+	const rootTimeMapping = t10;
+	let t11;
 	bb0: {
 		if (!forkRelative || !showBranches) {
-			t10 = void 0;
+			t11 = void 0;
 			break bb0;
 		}
-		let t11;
-		if ($[20] !== timeMapping || $[21] !== visibleRows) {
-			t11 = computeBranchMappings(visibleRows, timeMapping);
-			$[20] = timeMapping;
-			$[21] = visibleRows;
-			$[22] = t11;
-		} else t11 = $[22];
-		t10 = t11;
+		let t12;
+		if ($[25] !== timeMapping || $[26] !== visibleRows) {
+			t12 = computeBranchMappings(visibleRows, timeMapping);
+			$[25] = timeMapping;
+			$[26] = visibleRows;
+			$[27] = t12;
+		} else t12 = $[27];
+		t11 = t12;
 	}
-	const branchMappings = t10;
-	let t11;
-	if ($[23] !== branchMappings || $[24] !== markerConfig.depth || $[25] !== markerConfig.kinds || $[26] !== timeMapping || $[27] !== visibleRows) {
-		t11 = computeRowLayouts(visibleRows, timeMapping, markerConfig.depth, markerConfig.kinds, branchMappings);
-		$[23] = branchMappings;
-		$[24] = markerConfig.depth;
-		$[25] = markerConfig.kinds;
-		$[26] = timeMapping;
-		$[27] = visibleRows;
-		$[28] = t11;
-	} else t11 = $[28];
-	const layouts = t11;
+	const branchMappings = t11;
 	let t12;
-	if ($[29] !== events || $[30] !== includeUtility || $[31] !== showBranches || $[32] !== state.rows || $[33] !== state.selected) {
+	if ($[28] !== branchMappings || $[29] !== markerConfig.depth || $[30] !== markerConfig.kinds || $[31] !== timeMapping || $[32] !== visibleRows) {
+		t12 = computeRowLayouts(visibleRows, timeMapping, markerConfig.depth, markerConfig.kinds, branchMappings);
+		$[28] = branchMappings;
+		$[29] = markerConfig.depth;
+		$[30] = markerConfig.kinds;
+		$[31] = timeMapping;
+		$[32] = visibleRows;
+		$[33] = t12;
+	} else t12 = $[33];
+	const layouts = t12;
+	let t13;
+	if ($[34] !== events || $[35] !== includeUtility || $[36] !== showBranches || $[37] !== state.rows || $[38] !== state.selected) {
 		bb1: {
 			let selection = state.selected;
 			let spans = getSelectedSpans(state.rows, selection);
@@ -118563,24 +120877,24 @@ function useTranscriptTimeline(options) {
 			}
 			const parsed = parseSelection(selection);
 			if (spans.length === 0) {
-				let t13;
-				if ($[35] !== events) {
-					t13 = {
+				let t14;
+				if ($[40] !== events) {
+					t14 = {
 						selectedEvents: events,
 						sourceSpans: emptySourceSpans,
 						branchScrollTarget: null
 					};
-					$[35] = events;
-					$[36] = t13;
-				} else t13 = $[36];
-				t12 = t13;
+					$[40] = events;
+					$[41] = t14;
+				} else t14 = $[41];
+				t13 = t14;
 				break bb1;
 			}
 			const rowKey = parsed?.rowKey ?? "";
 			const row_0 = state.rows.find((r) => r.key === rowKey);
 			if (spans.length === 1 && (row_0?.branch || (spans[0]?.branches.length ?? 0) > 0)) {
 				const collected = collectPathWithNavigators(state.rows, rowKey, events);
-				t12 = {
+				t13 = {
 					selectedEvents: collected.events,
 					sourceSpans: collected.sourceSpans,
 					branchScrollTarget: null
@@ -118593,37 +120907,37 @@ function useTranscriptTimeline(options) {
 				showBranches,
 				branchPrefix: getBranchPrefix(state.rows, selection)
 			});
-			let t13;
-			if ($[37] !== collected_0.events || $[38] !== collected_0.sourceSpans) {
-				t13 = {
+			let t14;
+			if ($[42] !== collected_0.events || $[43] !== collected_0.sourceSpans) {
+				t14 = {
 					selectedEvents: collected_0.events,
 					sourceSpans: collected_0.sourceSpans,
 					branchScrollTarget: null
 				};
-				$[37] = collected_0.events;
-				$[38] = collected_0.sourceSpans;
-				$[39] = t13;
-			} else t13 = $[39];
-			t12 = t13;
+				$[42] = collected_0.events;
+				$[43] = collected_0.sourceSpans;
+				$[44] = t14;
+			} else t14 = $[44];
+			t13 = t14;
 		}
-		$[29] = events;
-		$[30] = includeUtility;
-		$[31] = showBranches;
-		$[32] = state.rows;
-		$[33] = state.selected;
-		$[34] = t12;
-	} else t12 = $[34];
-	const { selectedEvents, sourceSpans, branchScrollTarget } = t12;
-	let t13;
-	if ($[40] !== state.rows || $[41] !== state.selected) {
-		t13 = computeMinimapSelection(state.rows, state.selected);
-		$[40] = state.rows;
-		$[41] = state.selected;
-		$[42] = t13;
-	} else t13 = $[42];
-	const minimapSelection = t13;
+		$[34] = events;
+		$[35] = includeUtility;
+		$[36] = showBranches;
+		$[37] = state.rows;
+		$[38] = state.selected;
+		$[39] = t13;
+	} else t13 = $[39];
+	const { selectedEvents, sourceSpans, branchScrollTarget } = t13;
+	let t14;
+	if ($[45] !== state.rows || $[46] !== state.selected) {
+		t14 = computeMinimapSelection(state.rows, state.selected);
+		$[45] = state.rows;
+		$[46] = state.selected;
+		$[47] = t14;
+	} else t14 = $[47];
+	const minimapSelection = t14;
 	let counts;
-	if ($[43] !== state.rows) {
+	if ($[48] !== state.rows) {
 		counts = /* @__PURE__ */ new Map();
 		for (const row_1 of state.rows) {
 			const firstSpan = row_1.spans[0];
@@ -118634,16 +120948,16 @@ function useTranscriptTimeline(options) {
 				if (compactionCount > 0) counts.set(row_1.key, compactionCount + 1);
 			}
 		}
-		$[43] = state.rows;
-		$[44] = counts;
-	} else counts = $[44];
+		$[48] = state.rows;
+		$[49] = counts;
+	} else counts = $[49];
 	const regionCounts = counts;
-	let t14;
-	if ($[45] !== layouts || $[46] !== state.rows || $[47] !== state.selected) {
+	let t15;
+	if ($[50] !== layouts || $[51] !== state.rows || $[52] !== state.selected) {
 		bb2: {
 			const rowKey_0 = parseSelection(state.selected)?.rowKey ?? "";
 			if (!state.rows.find((r_0) => r_0.key === rowKey_0)?.branch) {
-				t14 = emptyHighlightedKeys;
+				t15 = emptyHighlightedKeys;
 				break bb2;
 			}
 			const layoutByKey = /* @__PURE__ */ new Map();
@@ -118659,141 +120973,141 @@ function useTranscriptTimeline(options) {
 				keys.set(parentKey, forkMarker?.left ?? 100);
 				childKey = parentKey;
 			}
-			t14 = keys;
+			t15 = keys;
 		}
-		$[45] = layouts;
-		$[46] = state.rows;
-		$[47] = state.selected;
-		$[48] = t14;
-	} else t14 = $[48];
-	const highlightedKeys = t14;
-	let t15;
-	if ($[49] !== timeline.root.branches || $[50] !== timeline.root.content) {
-		t15 = timeline.root.content.length > 0 && (timeline.root.content.some(_temp3$29) || timeline.root.branches.length > 0);
-		$[49] = timeline.root.branches;
-		$[50] = timeline.root.content;
-		$[51] = t15;
-	} else t15 = $[51];
-	const hasTimeline = t15;
+		$[50] = layouts;
+		$[51] = state.rows;
+		$[52] = state.selected;
+		$[53] = t15;
+	} else t15 = $[53];
+	const highlightedKeys = t15;
 	let t16;
-	if ($[52] !== visibleRows) {
-		t16 = visibleRows.some(_temp4$24);
-		$[52] = visibleRows;
-		$[53] = t16;
-	} else t16 = $[53];
-	const hasAgentTimeline = t16;
+	if ($[54] !== timeline.root.branches || $[55] !== timeline.root.content) {
+		t16 = timeline.root.content.length > 0 && (timeline.root.content.some(_temp3$29) || timeline.root.branches.length > 0);
+		$[54] = timeline.root.branches;
+		$[55] = timeline.root.content;
+		$[56] = t16;
+	} else t16 = $[56];
+	const hasTimeline = t16;
 	let t17;
+	if ($[57] !== visibleRows) {
+		t17 = visibleRows.some(_temp4$24);
+		$[57] = visibleRows;
+		$[58] = t17;
+	} else t17 = $[58];
+	const hasAgentTimeline = t17;
+	let t18;
 	bb3: {
 		if (!state.selected) {
-			t17 = timeline.root.name;
+			t18 = timeline.root.name;
 			break bb3;
 		}
-		let t18;
-		if ($[54] !== state.selected) {
-			t18 = parseSelection(state.selected);
-			$[54] = state.selected;
-			$[55] = t18;
-		} else t18 = $[55];
-		const rowKey_1 = t18?.rowKey ?? state.selected;
 		let t19;
-		if ($[56] !== rowKey_1 || $[57] !== state.rows) {
-			let t20;
-			if ($[59] !== rowKey_1) {
-				t20 = (r_1) => r_1.key === rowKey_1;
-				$[59] = rowKey_1;
-				$[60] = t20;
-			} else t20 = $[60];
-			t19 = state.rows.find(t20);
-			$[56] = rowKey_1;
-			$[57] = state.rows;
-			$[58] = t19;
-		} else t19 = $[58];
-		t17 = t19?.name ?? timeline.root.name;
+		if ($[59] !== state.selected) {
+			t19 = parseSelection(state.selected);
+			$[59] = state.selected;
+			$[60] = t19;
+		} else t19 = $[60];
+		const rowKey_1 = t19?.rowKey ?? state.selected;
+		let t20;
+		if ($[61] !== rowKey_1 || $[62] !== state.rows) {
+			let t21;
+			if ($[64] !== rowKey_1) {
+				t21 = (r_1) => r_1.key === rowKey_1;
+				$[64] = rowKey_1;
+				$[65] = t21;
+			} else t21 = $[65];
+			t20 = state.rows.find(t21);
+			$[61] = rowKey_1;
+			$[62] = state.rows;
+			$[63] = t20;
+		} else t20 = $[63];
+		t18 = t20?.name ?? timeline.root.name;
 	}
-	const selectedRowName = t17;
-	let t18;
-	if ($[61] !== highlightedKeys || $[62] !== layouts || $[63] !== regionCounts || $[64] !== timeMapping) {
-		t18 = {
+	const selectedRowName = t18;
+	let t19;
+	if ($[66] !== highlightedKeys || $[67] !== layouts || $[68] !== regionCounts || $[69] !== timeMapping) {
+		t19 = {
 			layouts,
 			regionCounts,
 			highlightedKeys,
 			timeMapping
 		};
-		$[61] = highlightedKeys;
-		$[62] = layouts;
-		$[63] = regionCounts;
-		$[64] = timeMapping;
-		$[65] = t18;
-	} else t18 = $[65];
-	const swimlanes = t18;
-	let t19;
-	if ($[66] !== minimapSelection || $[67] !== rootTimeMapping) {
-		t19 = {
+		$[66] = highlightedKeys;
+		$[67] = layouts;
+		$[68] = regionCounts;
+		$[69] = timeMapping;
+		$[70] = t19;
+	} else t19 = $[70];
+	const swimlanes = t19;
+	let t20;
+	if ($[71] !== minimapSelection || $[72] !== rootTimeMapping) {
+		t20 = {
 			mapping: rootTimeMapping,
 			selection: minimapSelection
 		};
-		$[66] = minimapSelection;
-		$[67] = rootTimeMapping;
-		$[68] = t19;
-	} else t19 = $[68];
-	const minimap = t19;
-	let t20;
-	if ($[69] !== activeTimelineIndex || $[70] !== setActiveTimeline || $[71] !== timelines) {
-		t20 = {
+		$[71] = minimapSelection;
+		$[72] = rootTimeMapping;
+		$[73] = t20;
+	} else t20 = $[73];
+	const minimap = t20;
+	let t21;
+	if ($[74] !== activeTimelineIndex || $[75] !== setActiveTimeline || $[76] !== timelines) {
+		t21 = {
 			timelines,
 			activeIndex: activeTimelineIndex,
 			setActive: setActiveTimeline
 		};
-		$[69] = activeTimelineIndex;
-		$[70] = setActiveTimeline;
-		$[71] = timelines;
-		$[72] = t20;
-	} else t20 = $[72];
-	const multiTimeline = t20;
-	let t21;
-	if ($[73] !== pushView || $[74] !== state.rows) {
-		t21 = (rowKey_2, label_0) => {
+		$[74] = activeTimelineIndex;
+		$[75] = setActiveTimeline;
+		$[76] = timelines;
+		$[77] = t21;
+	} else t21 = $[77];
+	const multiTimeline = t21;
+	let t22;
+	if ($[78] !== pushView || $[79] !== state.rows) {
+		t22 = (rowKey_2, label_0) => {
 			const span_0 = state.rows.find((r_2) => r_2.key === rowKey_2)?.spans[0];
 			if (span_0 && "agent" in span_0) pushView(span_0.agent, label_0);
 		};
-		$[73] = pushView;
-		$[74] = state.rows;
-		$[75] = t21;
-	} else t21 = $[75];
-	const pushViewByRowKey = t21;
-	let t22;
-	if ($[76] !== popView || $[77] !== pushView || $[78] !== pushViewByRowKey || $[79] !== viewStack) {
-		t22 = {
+		$[78] = pushView;
+		$[79] = state.rows;
+		$[80] = t22;
+	} else t22 = $[80];
+	const pushViewByRowKey = t22;
+	let t23;
+	if ($[81] !== popView || $[82] !== pushView || $[83] !== pushViewByRowKey || $[84] !== viewStack) {
+		t23 = {
 			stack: viewStack,
 			push: pushView,
 			pushByRowKey: pushViewByRowKey,
 			pop: popView
 		};
-		$[76] = popView;
-		$[77] = pushView;
-		$[78] = pushViewByRowKey;
-		$[79] = viewStack;
-		$[80] = t22;
-	} else t22 = $[80];
-	const views = t22;
-	let t23;
-	if ($[81] !== branchScrollTarget || $[82] !== selectedEvents || $[83] !== selectedRowName || $[84] !== sourceSpans) {
-		t23 = {
+		$[81] = popView;
+		$[82] = pushView;
+		$[83] = pushViewByRowKey;
+		$[84] = viewStack;
+		$[85] = t23;
+	} else t23 = $[85];
+	const views = t23;
+	let t24;
+	if ($[86] !== branchScrollTarget || $[87] !== selectedEvents || $[88] !== selectedRowName || $[89] !== sourceSpans) {
+		t24 = {
 			events: selectedEvents,
 			sourceSpans,
 			branchScrollTarget,
 			rowName: selectedRowName
 		};
-		$[81] = branchScrollTarget;
-		$[82] = selectedEvents;
-		$[83] = selectedRowName;
-		$[84] = sourceSpans;
-		$[85] = t23;
-	} else t23 = $[85];
-	const selection_0 = t23;
-	let t24;
-	if ($[86] !== hasAgentTimeline || $[87] !== hasTimeline || $[88] !== minimap || $[89] !== multiTimeline || $[90] !== selection_0 || $[91] !== state || $[92] !== swimlanes || $[93] !== timeline || $[94] !== views) {
-		t24 = {
+		$[86] = branchScrollTarget;
+		$[87] = selectedEvents;
+		$[88] = selectedRowName;
+		$[89] = sourceSpans;
+		$[90] = t24;
+	} else t24 = $[90];
+	const selection_0 = t24;
+	let t25;
+	if ($[91] !== hasAgentTimeline || $[92] !== hasTimeline || $[93] !== minimap || $[94] !== multiTimeline || $[95] !== selection_0 || $[96] !== state || $[97] !== swimlanes || $[98] !== timeline || $[99] !== views) {
+		t25 = {
 			timeline,
 			state,
 			hasTimeline,
@@ -118804,18 +121118,18 @@ function useTranscriptTimeline(options) {
 			views,
 			selection: selection_0
 		};
-		$[86] = hasAgentTimeline;
-		$[87] = hasTimeline;
-		$[88] = minimap;
-		$[89] = multiTimeline;
-		$[90] = selection_0;
-		$[91] = state;
-		$[92] = swimlanes;
-		$[93] = timeline;
-		$[94] = views;
-		$[95] = t24;
-	} else t24 = $[95];
-	return t24;
+		$[91] = hasAgentTimeline;
+		$[92] = hasTimeline;
+		$[93] = minimap;
+		$[94] = multiTimeline;
+		$[95] = selection_0;
+		$[96] = state;
+		$[97] = swimlanes;
+		$[98] = timeline;
+		$[99] = views;
+		$[100] = t25;
+	} else t25 = $[100];
+	return t25;
 }
 function _temp4$24(row_3) {
 	if (row_3.depth < 1) return false;
@@ -121567,7 +123881,7 @@ function _temp$44() {}
 			if (deepLinkTimelineIndex < 0) return;
 			prevDeepLinkRef.current = key;
 			if (deepLinkTimelineIndex === activeTimelineIndex) return;
-			setActiveTimeline(deepLinkTimelineIndex);
+			setActiveTimeline(deepLinkTimelineIndex, { preserveDeepLink: true });
 		};
 		t9 = [
 			initialEventId,
@@ -121683,7 +123997,8 @@ function _temp$44() {}
 /**
 * Derivation of gutter label maps (message labels, tool labels) from the
 * event stream. Pure functions over Event[]; no React.
-*/ /**
+*/
+/**
 * Derive tool-event labels from message labels.
 *
 * A tool event inherits the label of the tool message it produced — matched
@@ -121693,11 +124008,11 @@ function _temp$44() {}
 	if (!messageLabels) return void 0;
 	const toolLabels = {};
 	for (const event of events) if (event.event === "tool") {
-		const label = event.message_id ? messageLabels[event.message_id] : void 0;
+		const label = event.message_id ? getOwn(messageLabels, event.message_id) : void 0;
 		if (label) toolLabels[event.id] = label;
 	} else if (event.event === "model") for (const message of event.input) {
 		if (message.role !== "tool" || !message.id) continue;
-		const label = messageLabels[message.id];
+		const label = getOwn(messageLabels, message.id);
 		if (label && message.tool_call_id) toolLabels[message.tool_call_id] = label;
 	}
 	return Object.keys(toolLabels).length > 0 ? toolLabels : void 0;
@@ -121720,95 +124035,13 @@ function _temp$44() {}
 	return Object.keys(scoped).length > 0 ? scoped : void 0;
 };
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/collapse.ts
-/**
-* Collapse policy for the transcript event tree: which nodes start collapsed
-* by default, and which nodes are collapsible at all (for bulk collapse).
-* Pure functions over EventNode trees; no React.
-*/ var collapseFilters = [
-	(event) => event.type === "solver" && event.name === "system_message",
-	(event) => {
-		if (event.event === "step" || event.event === "span_begin") return event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA" || event.name === "init" || event.name === "sample_init";
-		return false;
-	},
-	(event) => event.event === "tool" && !event.agent && !event.failed,
-	(event) => event.event === "subtask"
-];
-/**
-* Compute the node IDs that start collapsed by default (system messages,
-* init spans, successful non-agent tool calls, subtasks).
-*/ var computeDefaultCollapsedIds = (eventNodes) => {
-	const defaultCollapsedIds = {};
-	const findCollapsibleEvents = (nodes) => {
-		for (const node of nodes) {
-			const event = node.event;
-			if (isCollapsibleEvent(event) && collapseFilters.some((filter) => filter(event))) defaultCollapsedIds[node.id] = true;
-			findCollapsibleEvents(node.children);
-		}
-	};
-	findCollapsibleEvents(eventNodes);
-	return defaultCollapsedIds;
-};
-/**
-* Collect every collapsible node ID in the tree (tree-collapsible and
-* content-collapsible), for bulk collapse-all.
-*/ var collectAllCollapsibleIds = (nodes) => {
-	const result = {};
-	const traverse = (nodeList) => {
-		for (const node of nodeList) {
-			if (kCollapsibleEventTypes.includes(node.event.event) || kContentCollapsibleEventTypes.includes(node.event.event)) result[node.id] = true;
-			if (node.children.length > 0) traverse(node.children);
-		}
-	};
-	traverse(nodes);
-	return result;
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useEventNodes.ts
-/**
-* Shared hook that builds an EventNode tree from raw events.
-*
-* Handles fixup, treeification, empty-span filtering, source-span attachment
-* (for agent card rendering), and default-collapse computation.
-*/
-/**
-* Build an EventNode tree from raw events (pure core of `useEventNodes`).
-*
-* Exposed for headless consumers (tests, non-React derivations) that need
-* the exact production pipeline: retry ordering/grouping, fixups,
-* treeification, empty-span filtering, source-span attachment, and
-* default-collapse computation.
-*/ var buildEventNodes = (events, running, sourceSpans) => {
-	const { events: groupedEvents, attempts: retryAttempts } = groupRetryAttempts(correctRetryTimestamps(events));
-	const rawEventTree = treeifyEvents(fixupEventStream(groupedEvents, !running), 0);
-	if (sourceSpans && sourceSpans.size > 0) attachSourceSpans(rawEventTree, sourceSpans);
-	const eventNodes = filterEmptySpans(rawEventTree);
-	return {
-		eventNodes,
-		defaultCollapsedIds: computeDefaultCollapsedIds(eventNodes),
-		retryAttempts
-	};
-};
-var useEventNodes = (events, running, sourceSpans) => {
-	const $ = (0, import_compiler_runtime.c)(4);
-	let t0;
-	if ($[0] !== events || $[1] !== running || $[2] !== sourceSpans) {
-		t0 = buildEventNodes(events, running, sourceSpans);
-		$[0] = events;
-		$[1] = running;
-		$[2] = sourceSpans;
-		$[3] = t0;
-	} else t0 = $[3];
-	return t0;
-};
-//#endregion
 //#region ../../packages/inspect-components/src/transcript/hooks/useEventNodeData.ts
 /**
 * View-model hook producing the EventNode tree and its render context from an
 * EventNodeFeed (see useTimelinePipeline).
-*/ var useEventNodeData = (nodeFeed, running, extraContext) => {
+*/ var useEventNodeData = (nodeFeed, running, extraContext, allEvents) => {
 	const $ = (0, import_compiler_runtime.c)(15);
-	const { eventNodes, defaultCollapsedIds, retryAttempts } = useEventNodes(nodeFeed.events, running, nodeFeed.sourceSpans);
+	const { eventNodes, defaultCollapsedIds, retryAttempts } = useEventNodes(nodeFeed.events, running, nodeFeed.sourceSpans, allEvents);
 	let messageLabels;
 	let t0;
 	if ($[0] !== extraContext?.messageLabels || $[1] !== nodeFeed.events) {
@@ -123877,7 +126110,7 @@ var TranscriptLayout_module_default = {
 * collapse state, turn-map computation, keyboard navigation, and imperative
 * scroll-to-event/index. Apps provide collapse state via callback props.
 */ var escapeAttr = (id) => typeof CSS !== "undefined" && CSS.escape ? CSS.escape(id) : id.replace(/"/g, "\\\"");
-var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function TranscriptViewNodes({ id, eventNodes, defaultCollapsedIds, running, backfilling, scrollToTopOnFinish, scrollRef, initialEventId, initialMessageId, followRequested, offsetTop = 10, className, renderAgentCard, getEventUrl, linkingEnabled, getEventFocusUrl, onOpenEventFocus, collapsedTranscript, onCollapseTranscript, onExpandNodes, eventNodeContext, onProgrammaticScroll, onHeadroomSetHidden, onPrevAgent, onNextAgent, onNavigatedToEvent, keyboardNavDisabled }, ref) {
+var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function TranscriptViewNodes({ id, eventNodes, defaultCollapsedIds, running, backfilling, scrollToTopOnFinish, scrollRef, initialEventId, initialMessageId, followRequested, offsetTop = 10, className, renderAgentCard, getEventUrl, linkingEnabled, getEventFocusUrl, onOpenEventFocus, collapsedTranscript, onCollapseTranscript, onExpandNodes, eventNodeContext, onProgrammaticScroll, onHeadroomSetHidden, onPrevAgent, onNextAgent, onNavigatedToEvent, keyboardNavDisabled, selection }, ref) {
 	const listHandle = (0, import_react.useRef)(null);
 	const [navOwned] = (0, import_react.useState)(() => !!(initialEventId || initialMessageId));
 	const [transcriptFollow, setTranscriptFollow] = useProperty(id, "follow", { defaultValue: null });
@@ -123899,6 +126132,20 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 		...eventNodeContext,
 		toolApprovals
 	}), [eventNodeContext, toolApprovals]);
+	const selectionLatest = useLatestRef({
+		selection,
+		flattenedNodes
+	});
+	const onToggleSelected = (0, import_react.useCallback)((eventId, extend) => {
+		const { selection: current, flattenedNodes: rows } = selectionLatest.current;
+		if (!current) return;
+		const visibleIds = rows.filter((n) => isSelectableEvent(n.event)).map((n) => n.id);
+		current.onChange(toggleTranscriptSelection(current, visibleIds, eventId, extend));
+	}, [selectionLatest]);
+	const rowSelection = (0, import_react.useMemo)(() => selection ? {
+		selectedIds: selection.selectedIds,
+		onToggle: onToggleSelected
+	} : void 0, [selection, onToggleSelected]);
 	const { computedTurnMap, turnAnchorIds, anchorIdByTurn } = (0, import_react.useMemo)(() => {
 		const { turnMap: computed, anchorIds, anchorIdByTurn: byTurn } = computeTranscriptTurns(eventNodes, flattenedNodes, defaultCollapsedIds);
 		return {
@@ -124316,6 +126563,7 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			turnMap: computedTurnMap,
 			eventCallbacks,
 			eventNodeContext: mergedEventNodeContext,
+			selection: rowSelection,
 			visibleRangeRef
 		})] })
 	});
@@ -124341,8 +126589,8 @@ function renderAgentCard(node, agentCardClassName) {
 	});
 }
 var TranscriptLayout = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(234);
-	const { events, hiddenEventTypes, running: t1, backfilling: t2, scrollToTopOnFinish, scrollRef, offsetTop: t3, embedded: t4, timeline, deepLink, headroom, empty, listId, eventsListRef, getEventUrl, linkingEnabled, getEventFocusUrl, onOpenEventFocus, onNavigatedToEvent, keyboardNavDisabled, bulkCollapse, collapseState, outline, rightRail, eventNodeContext, className } = t0;
+	const $ = (0, import_compiler_runtime.c)(235);
+	const { events, hiddenEventTypes, running: t1, backfilling: t2, scrollToTopOnFinish, scrollRef, offsetTop: t3, embedded: t4, timeline, deepLink, headroom, empty, listId, eventsListRef, getEventUrl, linkingEnabled, getEventFocusUrl, onOpenEventFocus, onNavigatedToEvent, keyboardNavDisabled, selection, bulkCollapse, collapseState, outline, rightRail, eventNodeContext, className } = t0;
 	const running = t1 === void 0 ? false : t1;
 	const backfilling = t2 === void 0 ? false : t2;
 	const offsetTop = t3 === void 0 ? 0 : t3;
@@ -124404,7 +126652,7 @@ var TranscriptLayout = (t0) => {
 	const { layouts: timelineLayouts, regionCounts, highlightedKeys } = t12;
 	const { rowName: selectedRowName } = t13;
 	const { timelines, activeIndex: activeTimelineIndex } = multiTimeline;
-	const { eventNodes, defaultCollapsedIds, eventNodeContext: mergedEventNodeContext } = useEventNodeData(nodeFeed, running, eventNodeContext);
+	const { eventNodes, defaultCollapsedIds, eventNodeContext: mergedEventNodeContext } = useEventNodeData(nodeFeed, running, eventNodeContext, events);
 	const nullViewNodesRef = (0, import_react.useRef)(null);
 	const t14 = timelineSelection?.selected ?? null;
 	let t15;
@@ -124885,7 +127133,7 @@ var TranscriptLayout = (t0) => {
 		$[178] = t56;
 	} else t56 = $[178];
 	let t57;
-	if ($[179] !== backfilling || $[180] !== collapseState?.transcript || $[181] !== defaultCollapsedIds || $[182] !== effectiveInitialEventId || $[183] !== effectiveListId || $[184] !== effectiveOffsetTop || $[185] !== emptyBusy || $[186] !== emptyText || $[187] !== eventNodes || $[188] !== eventsListRef || $[189] !== getEventFocusUrl || $[190] !== getEventUrl || $[191] !== hasMatchingEvents || $[192] !== initialFollowRequested || $[193] !== initialMessageId || $[194] !== keyboardNavDisabled || $[195] !== linkingEnabled || $[196] !== mergedEventNodeContext || $[197] !== navLanes.lanes || $[198] !== onCollapseTranscript || $[199] !== onExpandNodes || $[200] !== onHeadroomResetAnchor || $[201] !== onHeadroomSetHidden || $[202] !== onLaneNext || $[203] !== onLanePrev || $[204] !== onNavigatedToEvent || $[205] !== onOpenEventFocus || $[206] !== running || $[207] !== scrollRef || $[208] !== scrollToTopOnFinish || $[209] !== showSwimlanes) {
+	if ($[179] !== backfilling || $[180] !== collapseState?.transcript || $[181] !== defaultCollapsedIds || $[182] !== effectiveInitialEventId || $[183] !== effectiveListId || $[184] !== effectiveOffsetTop || $[185] !== emptyBusy || $[186] !== emptyText || $[187] !== eventNodes || $[188] !== eventsListRef || $[189] !== getEventFocusUrl || $[190] !== getEventUrl || $[191] !== hasMatchingEvents || $[192] !== initialFollowRequested || $[193] !== initialMessageId || $[194] !== keyboardNavDisabled || $[195] !== linkingEnabled || $[196] !== mergedEventNodeContext || $[197] !== navLanes.lanes || $[198] !== onCollapseTranscript || $[199] !== onExpandNodes || $[200] !== onHeadroomResetAnchor || $[201] !== onHeadroomSetHidden || $[202] !== onLaneNext || $[203] !== onLanePrev || $[204] !== onNavigatedToEvent || $[205] !== onOpenEventFocus || $[206] !== running || $[207] !== scrollRef || $[208] !== scrollToTopOnFinish || $[209] !== selection || $[210] !== showSwimlanes) {
 		t57 = hasMatchingEvents ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptViewNodes, {
 			ref: eventsListRef,
 			id: effectiveListId,
@@ -124914,7 +127162,8 @@ var TranscriptLayout = (t0) => {
 			onPrevAgent: navLanes.lanes.length > 1 ? onLanePrev : void 0,
 			onNextAgent: navLanes.lanes.length > 1 ? onLaneNext : void 0,
 			onNavigatedToEvent,
-			keyboardNavDisabled
+			keyboardNavDisabled,
+			selection
 		}, effectiveListId) : emptyText !== null ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, {
 			text: emptyText,
 			busy: emptyBusy
@@ -124949,34 +127198,35 @@ var TranscriptLayout = (t0) => {
 		$[206] = running;
 		$[207] = scrollRef;
 		$[208] = scrollToTopOnFinish;
-		$[209] = showSwimlanes;
-		$[210] = t57;
-	} else t57 = $[210];
+		$[209] = selection;
+		$[210] = showSwimlanes;
+		$[211] = t57;
+	} else t57 = $[211];
 	let t58;
-	if ($[211] !== t52 || $[212] !== t55 || $[213] !== t56 || $[214] !== t57) {
+	if ($[212] !== t52 || $[213] !== t55 || $[214] !== t56 || $[215] !== t57) {
 		t58 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t52,
 			style: t55,
 			children: [t56, t57]
 		});
-		$[211] = t52;
-		$[212] = t55;
-		$[213] = t56;
-		$[214] = t57;
-		$[215] = t58;
-	} else t58 = $[215];
+		$[212] = t52;
+		$[213] = t55;
+		$[214] = t56;
+		$[215] = t57;
+		$[216] = t58;
+	} else t58 = $[216];
 	let t59;
-	if ($[216] !== t48 || $[217] !== t58) {
+	if ($[217] !== t48 || $[218] !== t58) {
 		t59 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: TranscriptLayout_module_default.main,
 			children: [t48, t58]
 		});
-		$[216] = t48;
-		$[217] = t58;
-		$[218] = t59;
-	} else t59 = $[218];
+		$[217] = t48;
+		$[218] = t58;
+		$[219] = t59;
+	} else t59 = $[219];
 	let t60;
-	if ($[219] !== offsetTop || $[220] !== rightRail || $[221] !== scrollRef || $[222] !== scrollerHeight) {
+	if ($[220] !== offsetTop || $[221] !== rightRail || $[222] !== scrollRef || $[223] !== scrollerHeight) {
 		t60 = rightRail && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RailDock, {
 			rail: rightRail.rail,
 			panel: rightRail.panel,
@@ -124991,43 +127241,43 @@ var TranscriptLayout = (t0) => {
 			panelMaxWidth: rightRail.panelMaxWidth,
 			label: rightRail.label
 		});
-		$[219] = offsetTop;
-		$[220] = rightRail;
-		$[221] = scrollRef;
-		$[222] = scrollerHeight;
-		$[223] = t60;
-	} else t60 = $[223];
+		$[220] = offsetTop;
+		$[221] = rightRail;
+		$[222] = scrollRef;
+		$[223] = scrollerHeight;
+		$[224] = t60;
+	} else t60 = $[224];
 	let t61;
-	if ($[224] !== t47 || $[225] !== t59 || $[226] !== t60) {
+	if ($[225] !== t47 || $[226] !== t59 || $[227] !== t60) {
 		t61 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t47,
 			children: [t59, t60]
 		});
-		$[224] = t47;
-		$[225] = t59;
-		$[226] = t60;
-		$[227] = t61;
-	} else t61 = $[227];
+		$[225] = t47;
+		$[226] = t59;
+		$[227] = t60;
+		$[228] = t61;
+	} else t61 = $[228];
 	let t62;
-	if ($[228] !== selectByRowKey || $[229] !== t61) {
+	if ($[229] !== selectByRowKey || $[230] !== t61) {
 		t62 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineRowSelectContext.Provider, {
 			value: selectByRowKey,
 			children: t61
 		});
-		$[228] = selectByRowKey;
-		$[229] = t61;
-		$[230] = t62;
-	} else t62 = $[230];
+		$[229] = selectByRowKey;
+		$[230] = t61;
+		$[231] = t62;
+	} else t62 = $[231];
 	let t63;
-	if ($[231] !== selectBySpanId || $[232] !== t62) {
+	if ($[232] !== selectBySpanId || $[233] !== t62) {
 		t63 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineSelectContext.Provider, {
 			value: selectBySpanId,
 			children: t62
 		});
-		$[231] = selectBySpanId;
-		$[232] = t62;
-		$[233] = t63;
-	} else t63 = $[233];
+		$[232] = selectBySpanId;
+		$[233] = t62;
+		$[234] = t63;
+	} else t63 = $[234];
 	return t63;
 };
 function _temp$41() {}
@@ -125047,6 +127297,108 @@ function _temp4$23(l_0) {
 * `--*` index signature, so a custom-property literal can't be written inline;
 * React passes these straight through to the DOM.
 */ var cssVars = (vars) => vars;
+/** Sealed find-messages pages, keyed by the POST body identity. Live pages
+*  (`complete: false`) are never stored. */ var FindPageCache = class {
+	capacity;
+	entries = /* @__PURE__ */ new Map();
+	constructor(capacity = 128) {
+		this.capacity = capacity;
+	}
+	get(key) {
+		const page = this.entries.get(key);
+		if (page === void 0) return void 0;
+		this.entries.delete(key);
+		this.entries.set(key, page);
+		return cloneFindPage(page);
+	}
+	set(key, page) {
+		if (!page.complete) return;
+		this.entries.delete(key);
+		this.entries.set(key, cloneFindPage(page));
+		if (this.entries.size > this.capacity) {
+			const oldest = this.entries.keys().next().value;
+			if (oldest !== void 0) this.entries.delete(oldest);
+		}
+	}
+	/** A live page means this sample is still being written: drop sealed
+	*  entries so a later poll cannot reuse them. */ dropSample(sample) {
+		for (const key of [...this.entries.keys()]) {
+			const parsed = JSON.parse(key);
+			if (Array.isArray(parsed) && parsed[0] === sample.logFile && parsed[1] === sample.id && parsed[2] === sample.epoch) this.entries.delete(key);
+		}
+	}
+	get size() {
+		return this.entries.size;
+	}
+	clear() {
+		this.entries.clear();
+	}
+};
+var defaultFindPageCache = new FindPageCache();
+function findPageCacheKey(sample, query, after) {
+	return JSON.stringify([
+		sample.logFile,
+		sample.id,
+		sample.epoch,
+		query.text,
+		after?.id ?? null,
+		[...query.projection.unlabeledRoles].sort(),
+		query.projection.toolCallStyle,
+		query.projection.displayMode
+	]);
+}
+function cloneFindPage(page) {
+	return {
+		rows: page.rows.map((row) => ({
+			...row,
+			anchor: { ...row.anchor },
+			texts: [...row.texts]
+		})),
+		atEnd: page.atEnd,
+		complete: page.complete
+	};
+}
+//#endregion
+//#region src/app/samples/messagesFind.ts
+/** The Messages tab's find source over `api.find_messages`, or undefined when
+*  the backend has none (the tab then registers no find surface). Sealed
+*  pages are LRU-cached so a backspace to a term already scanned does not
+*  POST again; live samples are not stored. */ var messagesFindSource = (api, sample, cache = defaultFindPageCache) => {
+	const find = api.find_messages;
+	if (!find) return void 0;
+	return {
+		scopeId: `messages:${sample.logFile}#${sample.id}#${sample.epoch}`,
+		find: async (query, after, signal) => {
+			const key = findPageCacheKey(sample, query, after);
+			const hit = cache.get(key);
+			if (hit) return hit;
+			const response = await find(sample.logFile, {
+				sample_id: sample.id,
+				epoch: sample.epoch,
+				text: query.text,
+				after: after?.id,
+				projection: {
+					unlabeled_roles: query.projection.unlabeledRoles,
+					tool_call_style: query.projection.toolCallStyle,
+					display_mode: query.projection.displayMode
+				}
+			}, signal);
+			const page = {
+				rows: response.rows.map((row) => ({
+					anchor: { id: row.anchor },
+					index: row.index,
+					count: row.count,
+					texts: row.texts
+				})),
+				atEnd: response.at_end,
+				complete: response.complete
+			};
+			if (!page.complete) cache.dropSample(sample);
+			else cache.set(key, page);
+			return page;
+		}
+	};
+};
 var SampleDisplay_module_default = {
 	tabControls: "_tabControls_fvnsu_1",
 	fullWidth: "_fullWidth_fvnsu_10",
@@ -125699,18 +128051,25 @@ var SampleRetriedErrors = (t0) => {
 //#endregion
 //#region src/utils/evalModel.ts
 /**
-* Resolve the model display string for an EvalSpec.
+* Format the primary model first, then the named roles.
 *
-* - If `model_roles` is populated, formats it as `role: model[; role: model]…`
-*   (`;` between roles, since a list-valued role already uses `,` between its
-*   models).
-* - Otherwise falls back to `eval.model`, ignoring the placeholder `none/none`.
-* - Returns `undefined` if neither source has anything meaningful.
+* Separate entries with `;` since list-valued roles already use `,`.
+* Omits the `none/none` placeholder and returns `undefined` if both are empty.
 */ var formatModelText = (evalSpec) => {
-	if (!evalSpec) return void 0;
-	const roles = evalSpec.model_roles;
-	if (roles && Object.keys(roles).length > 0) return Object.entries(roles).map(([role, data]) => `${role}: ${modelRoleModelNames(data)}`).join("; ");
-	if (evalSpec.model && evalSpec.model !== "none/none") return evalSpec.model;
+	const { model, roles } = modelDisplayParts(evalSpec);
+	return [model, roles].filter(Boolean).join("; ") || void 0;
+};
+/** Format the primary model followed by parenthesized roles for a title. */ var formatModelTitle = (evalSpec) => {
+	const { model, roles } = modelDisplayParts(evalSpec);
+	return [model, roles ? `(${roles})` : void 0].filter(Boolean).join(" ") || void 0;
+};
+var modelDisplayParts = (evalSpec) => {
+	const model = evalSpec?.model;
+	const roles = Object.entries(evalSpec?.model_roles ?? {}).map(([role, data]) => `${role}: ${modelRoleModelNames(data)}`).join("; ");
+	return {
+		model: model && model !== "none/none" ? model : void 0,
+		roles: roles || void 0
+	};
 };
 //#endregion
 //#region src/utils/markdown.ts
@@ -130778,26 +133137,30 @@ var TranscriptPreview = (t0) => {
 * Event previews render the event inline via a transcript view; message
 * previews render the message inline via a chat view. Messages can live
 * inside ModelEvent input/output, so those are harvested here too.
+*
+* A Map, not a plain object: ids are log-authored, and a reference id such
+* as "constructor" must resolve only to a message or event that really
+* carries that id.
 */ function buildScanReferencePreviews(events) {
-	if (!events || events.length === 0) return {};
-	const table = {};
+	const table = /* @__PURE__ */ new Map();
+	if (!events || events.length === 0) return table;
 	const addMessage = (msg) => {
-		if (!msg?.id || table[msg.id]) return;
+		if (!msg?.id || table.has(msg.id)) return;
 		const captured = msg;
-		table[msg.id] = () => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
+		table.set(msg.id, () => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
 			id: `ref-preview-${captured.id}`,
 			messages: [captured],
 			labels: { show: false },
 			tools: { collapseToolMessages: false }
-		});
+		}));
 	};
 	for (const event of events) {
-		if (event.uuid && !table[event.uuid]) {
+		if (event.uuid && !table.has(event.uuid)) {
 			const captured = event;
-			table[event.uuid] = () => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptPreview, {
+			table.set(event.uuid, () => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptPreview, {
 				id: `ref-preview-${captured.uuid}`,
 				events: [captured]
-			});
+			}));
 		}
 		if (event.event === "model") {
 			for (const msg of event.input) addMessage(msg);
@@ -130813,7 +133176,7 @@ function buildScoreMarkdownRefs(metadata, makeUrl, previewTable) {
 		id: ref.id,
 		cite: ref.cite,
 		citeUrl: makeUrl(ref.id, ref.type),
-		citePreview: previewTable?.[ref.id]
+		citePreview: previewTable?.get(ref.id)
 	}));
 }
 /**
@@ -132710,7 +135073,7 @@ var TranscriptFilterPopover = (t0) => {
 * Renders the Transcript Virtual List, with optional timeline swimlanes
 * when the sample provides timeline data.
 */ var TranscriptPanel = /*#__PURE__*/ (0, import_react.memo)((props) => {
-	const { id, scrollRef, onHeaderResetAnchor, onHeaderSetHidden, chromeNavOwnsRef, events, running, backfilling, scrollToTopOnFinish, initialEventId, initialMessageId, followRequested, offsetTop, timelines: serverTimelines, eventNodeContext, rightRail, defaultExcludeEvents: defaultExcludeEventsProp } = props;
+	const { id, scrollRef, onHeaderResetAnchor, onHeaderSetHidden, chromeNavOwnsRef, events, running, backfilling, scrollToTopOnFinish, initialEventId, initialMessageId, followRequested, offsetTop, timelines: serverTimelines, eventNodeContext, rightRail, defaultExcludeEvents: defaultExcludeEventsProp, selectionKey } = props;
 	const storedEventTypes = useStore((state) => state.sample.eventFilter.filteredTypes);
 	const defaultExcludeEvents = (0, import_react.useMemo)(() => defaultExcludeEventsProp ?? dynamicDefaultExcludeEvents(events), [defaultExcludeEventsProp, events]);
 	const filteredEventTypes = storedEventTypes ?? defaultExcludeEvents;
@@ -132761,6 +135124,17 @@ var TranscriptFilterPopover = (t0) => {
 		onCollapseOutline,
 		onSetTranscriptCollapsed,
 		onSetOutlineCollapsed
+	]);
+	const eventSelection = useStore((state) => state.sample.eventSelection);
+	const setEventSelection = useStore((state) => state.sampleActions.setEventSelection);
+	const selection = (0, import_react.useMemo)(() => eventSelection.active && eventSelection.key === selectionKey ? {
+		selectedIds: new Set(eventSelection.selectedIds),
+		lastToggledId: eventSelection.lastToggledId,
+		onChange: (next) => setEventSelection(selectionKey, [...next.selectedIds], next.lastToggledId)
+	} : void 0, [
+		eventSelection,
+		selectionKey,
+		setEventSelection
 	]);
 	const collapsedMode = useStore((state) => state.sample.collapsedMode);
 	const bulkCollapse = (0, import_react.useMemo)(() => {
@@ -132874,6 +135248,7 @@ var TranscriptFilterPopover = (t0) => {
 		onOpenEventFocus,
 		onNavigatedToEvent,
 		keyboardNavDisabled: showFind,
+		selection,
 		linkingEnabled: isHostedEnvironment(),
 		bulkCollapse,
 		collapseState,
@@ -132900,6 +135275,13 @@ TranscriptPanel.displayName = "TranscriptPanel";
 //#endregion
 //#region src/app/samples/SampleDisplay.tsx
 var kNoMessageRows = [];
+var kNoEventSelection = {
+	key: null,
+	active: false,
+	selectedIds: [],
+	lastToggledId: null
+};
+var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 /**
 * Component to display a sample with relevant context and visibility control.
 */ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
@@ -133015,14 +135397,30 @@ var kNoMessageRows = [];
 	const printLogPath = urlLogPath || selectedLogFile;
 	const printSampleId = urlSampleId || selectedSampleHandle?.id?.toString();
 	const printEpoch = urlEpoch || selectedSampleHandle?.epoch?.toString();
+	const isTranscriptTab = effectiveSelectedTab === kSampleTranscriptTabId;
+	const selectionKey = useVisitId(eventSelectionKey(visitHandle, effectiveSelectedTab));
+	const storedSelection = useStore((state_11) => state_11.sample.eventSelection);
+	const eventSelection = isTranscriptTab && storedSelection.key === selectionKey ? storedSelection : kNoEventSelection;
+	const setEventSelectionActive = useStore((state_12) => state_12.sampleActions.setEventSelectionActive);
+	const clearEventSelection = useStore((state_13) => state_13.sampleActions.clearEventSelection);
+	const resetEventSelection = useStore((state_14) => state_14.sampleActions.resetEventSelection);
+	const selectedIdSet = (0, import_react.useMemo)(() => new Set(eventSelection.selectedIds), [eventSelection.selectedIds]);
+	const selectionCount = eventSelection.active ? selectedIdSet.size : 0;
+	const resolveIndex = () => buildSelectableEventIndex(sampleEvents, running);
+	const hasSelection = isTranscriptTab && selectionCount > 0;
+	const canSelectEvents = isTranscriptTab && !isChunked && sampleEvents.length > 0;
 	const handlePrintClick = (0, import_react.useCallback)(() => {
-		if (printLogPath && printSampleId && printEpoch) openInNewTab(printSampleUrl(printLogPath, printSampleId, printEpoch, effectiveSelectedTab, prefix));
+		if (printLogPath && printSampleId && printEpoch) openInNewTab(printSampleUrl(printLogPath, printSampleId, printEpoch, effectiveSelectedTab, prefix, hasSelection ? withStoredFallback(resolveSelectedIds(buildSelectableEventIndex(sampleEvents, running), selectedIdSet), selectedIdSet) : void 0));
 	}, [
 		printLogPath,
 		printSampleId,
 		printEpoch,
 		effectiveSelectedTab,
-		prefix
+		prefix,
+		hasSelection,
+		selectedIdSet,
+		sampleEvents,
+		running
 	]);
 	(0, import_react.useEffect)(() => {
 		if (isVscode() || !printLogPath || !printSampleId || !printEpoch) return;
@@ -133049,8 +135447,8 @@ var kNoMessageRows = [];
 	const toggleDisplayMode = (0, import_react.useCallback)(() => {
 		setDisplayMode(displayMode === "rendered" ? "raw" : "rendered");
 	}, [displayMode, setDisplayMode]);
-	const collapsedMode = useStore((state_11) => state_11.sample.collapsedMode);
-	const setCollapsedMode = useStore((state_12) => state_12.sampleActions.setCollapsedMode);
+	const collapsedMode = useStore((state_15) => state_15.sample.collapsedMode);
+	const setCollapsedMode = useStore((state_16) => state_16.sampleActions.setCollapsedMode);
 	const isCollapsed = (mode) => {
 		return mode === "collapsed";
 	};
@@ -133059,12 +135457,28 @@ var kNoMessageRows = [];
 	}, [collapsedMode, setCollapsedMode]);
 	const { isDebugFilter, isDefaultFilter, isNoneFilter } = useTranscriptFilter(defaultExcludeEvents);
 	const api = getApi();
-	const downloadFiles = useStore((state_13) => state_13.capabilities.downloadFiles);
-	const [icon, setIcon] = (0, import_react.useState)(ApplicationIcons.copy);
-	const setPropertyValue = useStore((state_14) => state_14.appActions.setPropertyValue);
+	const downloadFiles = useStore((state_17) => state_17.capabilities.downloadFiles);
+	const findMessages = (0, import_react.useMemo)(() => selectedSampleHandle ? messagesFindSource(api, selectedSampleHandle) : void 0, [api, selectedSampleHandle]);
+	const { copied, copy: copyText } = useCopyToClipboard();
+	const icon = copied ? ApplicationIcons.confirm : ApplicationIcons.copy;
+	const downloadFile = (name, content) => {
+		api.download_file(name, content).catch((error) => {
+			console.error("Failed to download:", error);
+		});
+	};
+	const exportSelected = (action) => {
+		const events = resolveSelectedEvents(resolveIndex(), selectedIdSet);
+		if (events.length === 0) {
+			console.warn("Selected events are no longer in this sample.");
+			return;
+		}
+		action(events);
+	};
+	const selectionMenu = hasSelection ? selectionMenuChrome(selectionCount, clearEventSelection) : void 0;
+	const setPropertyValue = useStore((state_18) => state_18.appActions.setPropertyValue);
 	const dockKey = urlLogPath || "na";
-	const storedDock = useStore((state_15) => {
-		const value = state_15.app.propertyBags["rail-dock"]?.[dockKey];
+	const storedDock = useStore((state_19) => {
+		const value = state_19.app.propertyBags["rail-dock"]?.[dockKey];
 		return value === "none" || value === "search" || value === "scans" ? value : void 0;
 	});
 	const scans = useSampleScans({
@@ -133080,8 +135494,8 @@ var kNoMessageRows = [];
 	const canSearch = searchContext !== null && searchScope !== void 0;
 	const closeDock = (0, import_react.useCallback)(() => setRightDock("none"), [setRightDock]);
 	const onRailSelect = (0, import_react.useCallback)((id_2) => setRightDock(rightDock === id_2 ? "none" : id_2), [rightDock, setRightDock]);
-	const railPanelWidth = useStore((state_16) => {
-		const value_1 = state_16.app.propertyBags["sidebar-widths"]?.["rail-panel"];
+	const railPanelWidth = useStore((state_20) => {
+		const value_1 = state_20.app.propertyBags["sidebar-widths"]?.["rail-panel"];
 		return typeof value_1 === "number" ? value_1 : void 0;
 	});
 	const setRailPanelWidth = (0, import_react.useCallback)((value_2) => setPropertyValue("sidebar-widths", "rail-panel", value_2), [setPropertyValue]);
@@ -133119,39 +135533,34 @@ var kNoMessageRows = [];
 	tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SampleDisplay_module_default.toolSeparator,
 		"aria-hidden": "true"
-	}, "actions-separator"), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolDropdownButton, {
+	}, "actions-separator"));
+	if (canSelectEvents) tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptSelectTool, {
+		active: eventSelection.active,
+		count: selectionCount,
+		onToggle: () => setEventSelectionActive(selectionKey, !eventSelection.active),
+		onClear: resetEventSelection
+	}, "sample-select-events"));
+	tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolDropdownButton, {
 		label: "Copy",
 		icon,
 		subtle: true,
 		dropdownClassName: "text-size-smallest",
-		items: {
+		heading: selectionMenu?.heading,
+		footer: selectionMenu?.footer,
+		items: hasSelection ? {
+			Markdown: () => exportSelected((events_0) => copyText(eventsToMarkdown(events_0))),
+			Text: () => exportSelected((events_1) => copyText(eventsToStr(events_1)))
+		} : {
 			UUID: () => {
-				if (sample?.uuid) {
-					navigator.clipboard.writeText(sample.uuid);
-					setIcon(ApplicationIcons.confirm);
-					setTimeout(() => {
-						setIcon(ApplicationIcons.copy);
-					}, 1250);
-				}
+				if (sample?.uuid) copyText(sample.uuid);
 			},
 			...exportMessages ? { Messages: () => {
-				exportMessages().then((parts) => navigator.clipboard.writeText(parts.join(""))).then(() => {
-					setIcon(ApplicationIcons.confirm);
-					setTimeout(() => {
-						setIcon(ApplicationIcons.copy);
-					}, 1250);
-				}).catch((error) => {
-					console.error("Failed to copy messages:", error);
+				exportMessages().then((parts) => copyText(parts.join(""))).catch((error_0) => {
+					console.error("Failed to copy messages:", error_0);
 				});
 			} } : {},
 			Transcript: () => {
-				if (sampleEvents.length > 0) {
-					navigator.clipboard.writeText(eventsToStr(sampleEvents));
-					setIcon(ApplicationIcons.confirm);
-					setTimeout(() => {
-						setIcon(ApplicationIcons.copy);
-					}, 1250);
-				}
+				if (sampleEvents.length > 0) copyText(eventsToStr(sampleEvents));
 			}
 		}
 	}, "sample-copy"));
@@ -133162,23 +135571,30 @@ var kNoMessageRows = [];
 			icon: ApplicationIcons.downloadLog,
 			subtle: true,
 			dropdownClassName: "text-size-smallest",
-			items: {
+			heading: selectionMenu?.heading,
+			footer: selectionMenu?.footer,
+			items: hasSelection ? {
+				Markdown: () => exportSelected((events_2) => downloadFile(`${sampleId}-events.md`, eventsToMarkdown(events_2))),
+				Text: () => exportSelected((events_3) => downloadFile(`${sampleId}-events.txt`, eventsToStr(events_3))),
+				JSON: () => exportSelected((events_4) => downloadFile(`${sampleId}-events.json`, JSON.stringify(events_4, null, 2)))
+			} : {
 				"Sample JSON": () => {
-					api.download_file(`${sampleId}.json`, JSON.stringify(sample, null, 2));
+					downloadFile(`${sampleId}.json`, JSON.stringify(sample, null, 2));
 				},
 				...exportMessages ? { Messages: () => {
-					exportMessages().then((parts_0) => api.download_file(`${sampleId}-messages.txt`, new Blob(parts_0, { type: "text/plain" }))).catch((error_0) => {
-						console.error("Failed to download messages:", error_0);
+					exportMessages().then((parts_0) => downloadFile(`${sampleId}-messages.txt`, new Blob(parts_0, { type: "text/plain" }))).catch((error_1) => {
+						console.error("Failed to download messages:", error_1);
 					});
 				} } : {},
 				Transcript: () => {
-					if (sampleEvents.length > 0) api.download_file(`${sampleId}-transcript.txt`, eventsToStr(sampleEvents));
+					if (sampleEvents.length > 0) downloadFile(`${sampleId}-transcript.txt`, eventsToStr(sampleEvents));
 				}
 			}
 		}, "sample-download"));
 	}
 	if (!isVscode() && printLogPath && printSampleId && printEpoch) tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
-		label: "Print",
+		label: hasSelection ? `Print · ${selectionCount}` : "Print",
+		title: hasSelection ? `Print ${selectionCount} selected ${selectionCount === 1 ? "event" : "events"}` : void 0,
 		icon: ApplicationIcons.copy,
 		onClick: handlePrintClick,
 		subtle: true
@@ -133325,7 +135741,8 @@ var kNoMessageRows = [];
 									initialEventId: sampleDetailNavigation.event,
 									initialMessageId: sampleDetailNavigation.message,
 									followRequested: sampleDetailNavigation.follow,
-									rightRail: hasRail ? transcriptRail : void 0
+									rightRail: hasRail ? transcriptRail : void 0,
+									selectionKey
 								}, transcriptListId)
 							})]
 						}, kSampleTranscriptTabId),
@@ -133353,6 +135770,7 @@ var kNoMessageRows = [];
 									rows: sampleMessages.rows.data ?? kNoMessageRows,
 									hasMoreRows: sampleMessages.hasMore,
 									onLoadMoreRows: sampleMessages.loadMore,
+									findMessages,
 									initialMessageId: sampleDetailNavigation.message,
 									followRequested: sampleDetailNavigation.follow,
 									display: chatDisplay,
@@ -133736,66 +136154,57 @@ var isRunning = (sampleSummary, runningSampleData, status) => {
 	const showActivity = sampleData.status === "loading" || sampleData.status === "streaming";
 	const localScrollRef = (0, import_react.useRef)(null);
 	const scrollRef = externalScrollRef ?? localScrollRef;
-	const sampleTab = useStore(_temp$33);
+	const storeSampleTab = useStore(_temp$33);
+	const { sampleTabId } = useLogOrSampleRouteParams();
+	const sampleTab = sampleTabId || storeSampleTab;
 	const sampleDetailNavigation = useSampleDetailNavigation();
 	const isVirtualizedTab = sampleTab === kSampleTranscriptTabId || sampleTab === kSampleMessagesTabId;
 	const logFile = useStore(_temp2$26);
 	const sampleHandle = useStore(_temp3$21);
 	const visitId = useVisitId(`${logFile}-${sampleHandle?.id}-${sampleHandle?.epoch}`);
-	useStatefulScrollPosition(scrollRef, `inline-sample-scroller-${visitId}-${sampleTab}`, 1e3, !isVirtualizedTab);
-	const mountsAtDeepLink = !!(sampleDetailNavigation.event || sampleDetailNavigation.message);
-	const deepLinkRef = (0, import_react.useRef)(mountsAtDeepLink);
+	const deepLinkRef = useLatestRef(!!(sampleDetailNavigation.event || sampleDetailNavigation.message));
 	let t1;
-	let t2;
-	if ($[0] !== mountsAtDeepLink) {
+	if ($[0] !== deepLinkRef || $[1] !== isVirtualizedTab || $[2] !== scrollRef) {
 		t1 = () => {
-			deepLinkRef.current = mountsAtDeepLink;
-		};
-		t2 = [mountsAtDeepLink];
-		$[0] = mountsAtDeepLink;
-		$[1] = t1;
-		$[2] = t2;
-	} else {
-		t1 = $[1];
-		t2 = $[2];
-	}
-	(0, import_react.useEffect)(t1, t2);
-	let t3;
-	if ($[3] !== isVirtualizedTab || $[4] !== scrollRef) {
-		t3 = () => {
 			if (!deepLinkRef.current && !isVirtualizedTab) scrollRef.current?.scrollTo({ top: 0 });
 		};
-		$[3] = isVirtualizedTab;
-		$[4] = scrollRef;
-		$[5] = t3;
-	} else t3 = $[5];
-	let t4;
-	if ($[6] !== isVirtualizedTab || $[7] !== scrollRef || $[8] !== visitId) {
-		t4 = [
+		$[0] = deepLinkRef;
+		$[1] = isVirtualizedTab;
+		$[2] = scrollRef;
+		$[3] = t1;
+	} else t1 = $[3];
+	let t2;
+	if ($[4] !== deepLinkRef || $[5] !== isVirtualizedTab || $[6] !== sampleTab || $[7] !== scrollRef || $[8] !== visitId) {
+		t2 = [
 			visitId,
+			sampleTab,
+			isVirtualizedTab,
 			scrollRef,
-			isVirtualizedTab
+			deepLinkRef
 		];
-		$[6] = isVirtualizedTab;
+		$[4] = deepLinkRef;
+		$[5] = isVirtualizedTab;
+		$[6] = sampleTab;
 		$[7] = scrollRef;
 		$[8] = visitId;
-		$[9] = t4;
-	} else t4 = $[9];
-	(0, import_react.useEffect)(t3, t4);
-	let t5;
+		$[9] = t2;
+	} else t2 = $[9];
+	(0, import_react.useEffect)(t1, t2);
+	useStatefulScrollPosition(scrollRef, `inline-sample-scroller-${visitId}-${sampleTab}`, 1e3, !isVirtualizedTab);
+	let t3;
 	if ($[10] !== className) {
-		t5 = clsx(className, InlineSampleDisplay_module_default.container);
+		t3 = clsx(className, InlineSampleDisplay_module_default.container);
 		$[10] = className;
-		$[11] = t5;
-	} else t5 = $[11];
-	let t6;
+		$[11] = t3;
+	} else t3 = $[11];
+	let t4;
 	if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = clsx(InlineSampleDisplay_module_default.scroller);
-		$[12] = t6;
-	} else t6 = $[12];
-	let t7;
+		t4 = clsx(InlineSampleDisplay_module_default.scroller);
+		$[12] = t4;
+	} else t4 = $[12];
+	let t5;
 	if ($[13] !== sampleData.error || $[14] !== scrollRef || $[15] !== showActivity) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: sampleData.error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorPanel, {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: sampleData.error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorPanel, {
 			title: "Unable to load sample",
 			error: sampleData.error
 		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleDisplay, {
@@ -133806,30 +136215,30 @@ var isRunning = (sampleSummary, runningSampleData, status) => {
 		$[13] = sampleData.error;
 		$[14] = scrollRef;
 		$[15] = showActivity;
-		$[16] = t7;
-	} else t7 = $[16];
-	let t8;
-	if ($[17] !== scrollRef || $[18] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t6,
+		$[16] = t5;
+	} else t5 = $[16];
+	let t6;
+	if ($[17] !== scrollRef || $[18] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t4,
 			ref: scrollRef,
-			children: t7
+			children: t5
 		});
 		$[17] = scrollRef;
-		$[18] = t7;
-		$[19] = t8;
-	} else t8 = $[19];
-	let t9;
-	if ($[20] !== t5 || $[21] !== t8) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t5,
-			children: t8
+		$[18] = t5;
+		$[19] = t6;
+	} else t6 = $[19];
+	let t7;
+	if ($[20] !== t3 || $[21] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t3,
+			children: t6
 		});
-		$[20] = t5;
-		$[21] = t8;
-		$[22] = t9;
-	} else t9 = $[22];
-	return t9;
+		$[20] = t3;
+		$[21] = t6;
+		$[22] = t7;
+	} else t7 = $[22];
+	return t7;
 };
 function _temp$33(state) {
 	return state.app.tabs.sample;
@@ -134036,7 +136445,7 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 	} else t10 = $[22];
 	let t11;
 	if ($[23] !== t10 || $[24] !== t7) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExtendedFindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(FindTargetProvider, { children: [t7, t10] }) });
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExtendedFindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(FindTargetProvider, { children: [t7, t10] }) }) });
 		$[23] = t10;
 		$[24] = t7;
 		$[25] = t11;
@@ -135045,7 +137454,7 @@ var EditMetadataDialog = (t0) => {
 	const adding = t8;
 	let t9;
 	if ($[16] !== entries) {
-		t9 = entries.filter(_temp6$5).map(_temp7$5);
+		t9 = entries.filter(_temp6$6).map(_temp7$5);
 		$[16] = entries;
 		$[17] = t9;
 	} else t9 = $[17];
@@ -135675,7 +138084,7 @@ function _temp4$18(e_0) {
 function _temp5$9(e_1) {
 	return e_1.key;
 }
-function _temp6$5(e_2) {
+function _temp6$6(e_2) {
 	return e_2.dirty && !e_2.isNew;
 }
 function _temp7$5(e_3) {
@@ -135897,7 +138306,7 @@ var SolversDetailView = (t0) => {
 //#endregion
 //#region src/app/plan/PlanDetailView.tsx
 var PlanDetailView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(25);
+	const $ = (0, import_compiler_runtime.c)(22);
 	const { evaluation, plan, scores } = t0;
 	if (!evaluation) return null;
 	const steps = plan?.steps;
@@ -135929,49 +138338,41 @@ var PlanDetailView = (t0) => {
 			taskColumns.push(t2);
 		}
 		if (scores) {
-			let t2;
+			let scorers;
 			if ($[8] !== scores) {
-				t2 = scores.reduce(_temp$27, {});
-				$[8] = scores;
-				$[9] = t2;
-			} else t2 = $[9];
-			const scorers = t2;
-			if (Object.keys(scorers).length > 0) {
-				const label = Object.keys(scorers).length === 1 ? "Scorer" : "Scorers";
-				let t3;
-				if ($[10] !== scorers) {
-					t3 = Object.keys(scorers);
-					$[10] = scorers;
-					$[11] = t3;
-				} else t3 = $[11];
-				let t4;
-				if ($[12] !== scorers || $[13] !== t3) {
-					t4 = t3.map((key) => {
-						const scorer = scorers[key];
-						if (scorer === void 0) return null;
-						return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScorerDetailView, {
-							name: key,
-							scores: scorer.scores,
-							params: scorer.params
-						}, key);
+				scorers = /* @__PURE__ */ new Map();
+				for (const score of scores) {
+					const existing = scorers.get(score.scorer);
+					if (existing === void 0) scorers.set(score.scorer, {
+						scores: [score.name],
+						params: score.params
 					});
-					$[12] = scorers;
-					$[13] = t3;
-					$[14] = t4;
-				} else t4 = $[14];
-				const scorerPanels = t4;
-				let t5;
-				if ($[15] !== label || $[16] !== scorerPanels) {
-					t5 = {
+					else existing.scores.push(score.name);
+				}
+				$[8] = scores;
+				$[9] = scorers;
+			} else scorers = $[9];
+			if (scorers.size > 0) {
+				const label = scorers.size === 1 ? "Scorer" : "Scorers";
+				let t2;
+				if ($[10] !== scorers) {
+					t2 = [...scorers].map(_temp$27);
+					$[10] = scorers;
+					$[11] = t2;
+				} else t2 = $[11];
+				const scorerPanels = t2;
+				let t3;
+				if ($[12] !== label || $[13] !== scorerPanels) {
+					t3 = {
 						title: label,
 						className: PlanDetailView_module_default.floatingCol,
 						contents: scorerPanels
 					};
-					$[15] = label;
-					$[16] = scorerPanels;
-					$[17] = t5;
-				} else t5 = $[17];
-				taskColumns.push(t5);
+					$[12] = label;
+					$[13] = scorerPanels;
+					$[14] = t3;
+				} else t3 = $[14];
+				taskColumns.push(t3);
 			}
 		}
 		$[0] = evaluation.dataset;
@@ -135981,19 +138382,19 @@ var PlanDetailView = (t0) => {
 	} else taskColumns = $[3];
 	const t1 = `repeat(${taskColumns.length}, fit-content(50%))`;
 	let t2;
-	if ($[18] !== t1) {
+	if ($[15] !== t1) {
 		t2 = { gridTemplateColumns: t1 };
-		$[18] = t1;
-		$[19] = t2;
-	} else t2 = $[19];
+		$[15] = t1;
+		$[16] = t2;
+	} else t2 = $[16];
 	let t3;
-	if ($[20] !== taskColumns) {
+	if ($[17] !== taskColumns) {
 		t3 = taskColumns.map(_temp2$22);
-		$[20] = taskColumns;
-		$[21] = t3;
-	} else t3 = $[21];
+		$[17] = taskColumns;
+		$[18] = t3;
+	} else t3 = $[18];
 	let t4;
-	if ($[22] !== t2 || $[23] !== t3) {
+	if ($[19] !== t2 || $[20] !== t3) {
 		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: PlanDetailView_module_default.container,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
@@ -136002,10 +138403,10 @@ var PlanDetailView = (t0) => {
 				children: t3
 			})
 		});
-		$[22] = t2;
-		$[23] = t3;
-		$[24] = t4;
-	} else t4 = $[24];
+		$[19] = t2;
+		$[20] = t3;
+		$[21] = t4;
+	} else t4 = $[21];
 	return t4;
 };
 var PlanColumn = (t0) => {
@@ -136044,14 +138445,13 @@ var PlanColumn = (t0) => {
 	} else t4 = $[8];
 	return t4;
 };
-function _temp$27(accum, score) {
-	const existing = accum[score.scorer];
-	if (existing === void 0) accum[score.scorer] = {
-		scores: [score.name],
-		params: score.params
-	};
-	else existing.scores.push(score.name);
-	return accum;
+function _temp$27(t0) {
+	const [key, scorer] = t0;
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScorerDetailView, {
+		name: key,
+		scores: scorer.scores,
+		params: scorer.params
+	}, key);
 }
 function _temp2$22(col) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PlanColumn, {
@@ -138780,11 +141180,11 @@ var StringInput = class {
 };
 new NodeProp({ perNode: true });
 //#endregion
-//#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.3/node_modules/@marijn/find-cluster-break/src/index.js
+//#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.4/node_modules/@marijn/find-cluster-break/src/index.js
 var rangeFrom = [];
 var rangeTo = [];
 (() => {
-	let numbers = "lc,34,7n,7,7b,19,,,,2,,2,,,20,b,1c,l,g,,2t,7,2,6,2,2,,4,z,,u,r,2j,b,1m,9,9,,o,4,,9,,3,,5,17,3,3b,f,,w,1j,,,,4,8,4,,3,7,a,2,t,,1m,,,,2,4,8,,9,,a,2,q,,2,2,1l,,4,2,4,2,2,3,3,,u,2,3,,b,2,1l,,4,5,,2,4,,k,2,m,6,,,1m,,,2,,4,8,,7,3,a,2,u,,1n,,,,c,,9,,14,,3,,1l,3,5,3,,4,7,2,b,2,t,,1m,,2,,2,,3,,5,2,7,2,b,2,s,2,1l,2,,,2,4,8,,9,,a,2,t,,20,,4,,2,3,,,8,,29,,2,7,c,8,2q,,2,9,b,6,22,2,r,,,,,,1j,e,,5,,2,5,b,,10,9,,2u,4,,6,,2,2,2,p,2,4,3,g,4,d,,2,2,6,,f,,jj,3,qa,3,t,3,t,2,u,2,1s,2,,7,8,,2,b,9,,19,3,3b,2,y,,3a,3,4,2,9,,6,3,63,2,2,,1m,,,7,,,,,2,8,6,a,2,,1c,h,1r,4,1c,7,,,5,,14,9,c,2,w,4,2,2,,3,1k,,,2,3,,,3,1m,8,2,2,48,3,,d,,7,4,,6,,3,2,5i,1m,,5,ek,,5f,x,2da,3,3x,,2o,w,fe,6,2x,2,n9w,4,,a,w,2,28,2,7k,,3,,4,,p,2,5,,47,2,q,i,d,,12,8,p,b,1a,3,1c,,2,4,2,2,13,,1v,6,2,2,2,2,c,,8,,1b,,1f,,,3,2,2,5,2,,,16,2,8,,6m,,2,,4,,fn4,,kh,g,g,g,a6,2,gt,,6a,,45,5,1ae,3,,2,5,4,14,3,4,,4l,2,fx,4,ar,2,49,b,4w,,1i,f,1k,3,1d,4,2,2,1x,3,10,5,,8,1q,,c,2,1g,9,a,4,2,,2n,3,2,,,2,6,,4g,,3,8,l,2,1l,2,,,,,m,,e,7,3,5,5f,8,2,3,,,n,,29,,2,6,,,2,,,2,,2,6j,,2,4,6,2,,2,r,2,2d,8,2,,,2,2y,,,,2,6,,,2t,3,2,4,,5,77,9,,2,6t,,a,2,,,4,,40,4,2,2,4,,w,a,14,6,2,4,8,,9,6,2,3,1a,d,,2,ba,7,,6,,,2a,m,2,7,,2,,2,3e,6,3,,,2,,7,,,20,2,3,,,,9n,2,f0b,5,1n,7,t4,,1r,4,29,,f5k,2,43q,,,3,4,5,8,8,2,7,u,4,44,3,1iz,1j,4,1e,8,,e,,m,5,,f,11s,7,,h,2,7,,2,,5,79,7,c5,4,15s,7,31,7,240,5,gx7k,2o,3k,6o".split(",").map((s) => s ? parseInt(s, 36) : 1);
+	let numbers = "lc,34,7n,7,7b,19,,,,2,,2,,,20,b,1c,l,g,,2t,7,2,6,2,2,,4,z,,u,r,2j,b,1m,9,9,,o,4,,9,,3,,5,17,3,1n,9,16,o,,x,1i,3,,i,,7,a,2,t,3,1k,,,7,2,2,2,3,9,,a,2,q,,2,3,1k,,,5,4,2,2,3,3,,u,2,3,,b,3,1k,,,8,,3,,3,k,2,m,6,,3,1k,,,7,2,2,2,3,7,3,a,2,u,,1n,5,3,3,,4,9,,14,5,1j,,,7,,3,,4,7,2,b,2,t,3,1k,,,7,,3,,4,7,2,b,2,f,,c,4,1j,2,,7,,3,,4,9,,a,2,t,3,1y,,4,6,,,,8,i,2,1p,,,8,c,8,2q,,,a,b,7,21,2,r,,,,,,4,2,1d,k,,2,5,b,,10,9,,2u,b,,6,n,4,4,3,g,4,d,,,3,6,,f,,jj,3,qa,4,s,3,t,2,u,2,1s,w,9,,19,3,,,39,2,y,,3a,c,4,c,63,5,1l,a,,,,,2,o,2,,1c,1a,2,c,k,5,1b,h,12,9,c,3,u,d,1k,e,1c,k,48,3,,l,4,,6,,2,3,5i,1s,ek,,5f,x,2da,3,3x,,2o,w,fe,6,2x,2,n9w,4,,a,w,2,28,2,7k,,3,,4,,n,5,4,,2b,2,1e,i,q,i,d,,12,8,p,d,18,4,1b,e,10,,1v,e,c,,8,2,1a,,1f,,,3,2,2,5,2,,,15,5,5,2,6k,8,,2,fn4,,kh,g,g,g,a6,2,gt,,6a,,45,5,1ae,3,,2,5,4,14,3,4,,4l,2,fx,4,1t,5,8t,2,25,6,1y,b,1d,4,3e,3,1h,f,15,,2,2,a,4,19,b,7,,1p,3,10,e,g,2,18,,c,3,1c,e,8,4,,2,2k,c,6,,2,,4d,c,l,4,1j,2,,7,2,2,2,3,9,,a,2,2,7,3,5,1v,9,,,2,,,4,,5,,,e,2,2a,i,n,,29,k,6j,7,2,9,r,2,2a,h,2y,d,2t,3,2,a,74,f,6t,6,,2,2,4,,,,2,3x,7,2,7,3,,s,a,14,7,,4,8,,9,b,1a,g,5i,8,5j,8,,8,2a,m,,e,3e,6,3,,,2,,7,,,1u,5,,2,,5,9n,4,9,2,,,1c,7,3,5,n,,44l,,6,f,8ug,i,1xc,5,1n,7,t4,,,1j,7,4,29,,b,2,f57,2,3mp,1a,2,n,f2,5,3,6,8,8,2,7,u,4,44,3,1iz,1j,4,1e,8,,e,,m,5,,f,11s,7,,h,2,7,,2,,5,2s,,4g,7,af,,1p,4,e4,4,72,2,6r,,2,,7,2,5,,d6,7,31,7,240,5".split(",").map((s) => s ? parseInt(s, 36) : 1);
 	for (let i = 0, n = 0; i < numbers.length; i++) (i % 2 ? rangeTo : rangeFrom).push(n = n + numbers[i]);
 })();
 function isExtendingChar(code) {
@@ -138851,7 +141251,7 @@ function codePointSize$1(code) {
 	return code < 65536 ? 1 : 2;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+state@6.7.1/node_modules/@codemirror/state/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+state@6.7.2/node_modules/@codemirror/state/dist/index.js
 /**
 The data structure for documents. @nonabstract
 */
@@ -141557,7 +143957,7 @@ var Chunk = class Chunk {
 		this.maxPoint = maxPoint;
 	}
 	get length() {
-		return this.to[this.to.length - 1];
+		return last(this.to);
 	}
 	findIndex(pos, side, end, startAt = 0) {
 		let arr = end ? this.to : this.from;
@@ -141573,9 +143973,9 @@ var Chunk = class Chunk {
 	between(offset, from, to, f) {
 		for (let i = this.findIndex(from, -1e9, true), e = this.findIndex(to, 1e9, false, i); i < e; i++) if (f(this.from[i] + offset, this.to[i] + offset, this.value[i]) === false) return false;
 	}
-	map(offset, changes) {
+	map(offset, changes, basePos, baseSide, spill) {
 		let value = [], from = [], to = [], newPos = -1, maxPoint = -1;
-		for (let i = 0; i < this.value.length; i++) {
+		iter: for (let i = 0; i < this.value.length; i++) {
 			let val = this.value[i], curFrom = this.from[i] + offset, curTo = this.to[i] + offset, newFrom, newTo;
 			if (curFrom == curTo) {
 				let mapped = changes.mapPos(curFrom, val.startSide, val.mapMode);
@@ -141593,9 +143993,23 @@ var Chunk = class Chunk {
 			if ((newTo - newFrom || val.endSide - val.startSide) < 0) continue;
 			if (newPos < 0) newPos = newFrom;
 			if (val.point) maxPoint = Math.max(maxPoint, newTo - newFrom);
-			value.push(val);
-			from.push(newFrom - newPos);
-			to.push(newTo - newPos);
+			if ((newFrom - basePos || val.startSide - baseSide) >= 0) {
+				value.push(val);
+				from.push(newFrom - newPos);
+				to.push(newTo - newPos);
+				basePos = newTo;
+				baseSide = val.endSide;
+			} else {
+				if (newFrom == newTo) {
+					for (let i = value.length - 1; i > 0; i--) if ((newFrom - to[i - 1] || val.startSide - value[i - 1].endSide) <= 0) {
+						value.splice(i, 0, val);
+						from.splice(i, 0, newFrom);
+						to.splice(i, 0, newTo);
+						continue iter;
+					}
+				}
+				spill(newFrom, newTo, val);
+			}
 		}
 		return {
 			mapped: value.length ? new Chunk(from, to, value, maxPoint) : null,
@@ -141684,6 +144098,11 @@ var RangeSet = class RangeSet {
 	map(changes) {
 		if (changes.empty || this.isEmpty) return this;
 		let chunks = [], chunkPos = [], maxPoint = -1;
+		let spilled;
+		let spill = (from, to, value) => {
+			if (!spilled) spilled = new RangeSetBuilder();
+			spilled.add(from, to, value);
+		};
 		for (let i = 0; i < this.chunk.length; i++) {
 			let start = this.chunkPos[i], chunk = this.chunk[i];
 			let touch = changes.touchesRange(start, start + chunk.length);
@@ -141692,7 +144111,8 @@ var RangeSet = class RangeSet {
 				chunks.push(chunk);
 				chunkPos.push(changes.mapPos(start));
 			} else if (touch === true) {
-				let { mapped, pos } = chunk.map(start, changes);
+				let [prevPos, prevSide] = !chunks.length ? [-1, -1] : [last(chunkPos) + last(chunks).length, last(last(chunks).value).endSide];
+				let { mapped, pos } = chunk.map(start, changes, prevPos, prevSide, spill);
 				if (mapped) {
 					maxPoint = Math.max(maxPoint, mapped.maxPoint);
 					chunks.push(mapped);
@@ -141701,6 +144121,7 @@ var RangeSet = class RangeSet {
 			}
 		}
 		let next = this.nextLayer.map(changes);
+		if (spilled) next = spilled.finishInner(next);
 		return chunks.length == 0 ? next : new RangeSet(chunkPos, chunks, next || RangeSet.empty, maxPoint);
 	}
 	/**
@@ -141812,7 +144233,7 @@ var RangeSet = class RangeSet {
 	*/
 	static join(sets) {
 		if (!sets.length) return RangeSet.empty;
-		let result = sets[sets.length - 1];
+		let result = last(sets);
 		for (let i = sets.length - 2; i >= 0; i--) for (let layer = sets[i]; layer != RangeSet.empty; layer = layer.nextLayer) result = new RangeSet(layer.chunkPos, layer.chunk, result, Math.max(layer.maxPoint, result.maxPoint));
 		return result;
 	}
@@ -141821,6 +144242,9 @@ var RangeSet = class RangeSet {
 The empty set of ranges.
 */
 RangeSet.empty = /*@__PURE__*/ new RangeSet([], [], null, -1);
+function last(arr) {
+	return arr[arr.length - 1];
+}
 function lazySort(ranges) {
 	if (ranges.length > 1) for (let prev = ranges[0], i = 1; i < ranges.length; i++) {
 		let cur = ranges[i];
@@ -142447,7 +144871,7 @@ function add(elt, child) {
 	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.9/node_modules/@codemirror/view/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+view@6.43.10/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -147882,7 +150306,7 @@ var ViewState = class {
 		return height >= this.viewportLines[0].top && height <= this.viewportLines[this.viewportLines.length - 1].bottom && this.viewportLines.find((l) => l.top <= height && l.bottom >= height) || scaleBlock(this.heightMap.lineAt(this.scaler.fromDOM(height), QueryType.ByHeight, this.heightOracle, 0, 0), this.scaler);
 	}
 	getScrollOffset() {
-		return (this.scrollParent == this.view.scrollDOM ? this.scrollParent.scrollTop : (this.scrollParent ? this.scrollParent.getBoundingClientRect().top : 0) - this.view.contentDOM.getBoundingClientRect().top) * this.scaleY;
+		return this.scrollParent == this.view.scrollDOM ? this.scrollParent.scrollTop * this.scaleY : (this.scrollParent ? this.scrollParent.getBoundingClientRect().top : 0) - this.view.contentDOM.getBoundingClientRect().top;
 	}
 	scrollAnchorAt(scrollOffset) {
 		let block = this.lineBlockAtHeight(scrollOffset + 8);
@@ -148234,8 +150658,9 @@ var baseTheme$1$1 = /*@__PURE__*/ buildTheme("." + baseThemeID, {
 		userSelect: "none"
 	},
 	".cm-highlightSpace": {
-		backgroundImage: "radial-gradient(circle at 50% 55%, #aaa 20%, transparent 5%)",
-		backgroundPosition: "center"
+		background: "radial-gradient(circle at 50% 55%, #aaa 20%, transparent 0) no-repeat",
+		backgroundSize: ".4em",
+		backgroundPosition: "calc(min(50%, 0px)) center"
 	},
 	".cm-highlightTab": {
 		backgroundImage: `url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="20"><path stroke="%23888" stroke-width="1" fill="none" d="M1 10H196L190 5M190 15L196 10M197 4L197 16"/></svg>')`,
@@ -149127,7 +151552,7 @@ var EditorView = class EditorView {
 		if (flush) this.observer.forceFlush();
 		let updated = null;
 		let scroll = this.viewState.scrollParent, scrollOffset = this.viewState.getScrollOffset();
-		let { scrollAnchorPos, scrollAnchorHeight } = this.viewState;
+		let { scrollAnchorPos, scrollAnchorHeight, scaleY: scrollScale } = this.viewState;
 		if (Math.abs(scrollOffset - this.viewState.scrollOffset) > 1) scrollAnchorHeight = -1;
 		this.viewState.scrollAnchorHeight = -1;
 		try {
@@ -149135,12 +151560,13 @@ var EditorView = class EditorView {
 				if (scrollAnchorHeight < 0) {
 					if (isScrolledToBottom(scroll || this.win)) {
 						scrollAnchorPos = -1;
-						scrollAnchorHeight = this.viewState.heightMap.height;
+						scrollAnchorHeight = this.viewState.heightMap.height / this.viewState.scaleY;
 					} else {
 						let block = this.viewState.scrollAnchorAt(scrollOffset);
 						scrollAnchorPos = block.from;
 						scrollAnchorHeight = block.top;
 					}
+					scrollScale = this.viewState.scaleY;
 				}
 				this.updateState = 1;
 				let changed = this.viewState.measure();
@@ -149186,7 +151612,7 @@ var EditorView = class EditorView {
 							scrollAnchorHeight = -1;
 							continue;
 						} else {
-							let diff = ((scrollAnchorPos < 0 ? this.viewState.heightMap.height : this.viewState.lineBlockAt(scrollAnchorPos).top) - scrollAnchorHeight) / this.scaleY;
+							let diff = (scrollAnchorPos < 0 ? this.viewState.heightMap.height : this.viewState.lineBlockAt(scrollAnchorPos).top) / this.viewState.scaleY - scrollAnchorHeight / scrollScale;
 							if ((diff > 1 || diff < -1) && !(browser.ios && this.inputState.lastIOSMomentumScroll > Date.now() - 100) && (scroll == this.scrollDOM || this.hasFocus || Math.max(this.inputState.lastWheelEvent, this.inputState.lastTouchTime) > Date.now() - 100)) {
 								scrollOffset = scrollOffset + diff;
 								if (!scroll) this.win.scrollBy(0, diff);
@@ -155107,9 +157533,9 @@ var targetText = (row) => {
 			minSize: w - 4
 		};
 	};
-	const labelFor = (name) => scoreLabels?.[name] ?? name;
+	const labelFor = (name) => getOwn(scoreLabels, name) ?? name;
 	const cellStyleFor = (name, bounds) => {
-		const wire = scoreColorScales?.[name];
+		const wire = getOwn(scoreColorScales, name);
 		if (!wire) return void 0;
 		const resolved = resolveScale(wire, bounds);
 		if (!resolved) return void 0;
@@ -155164,19 +157590,23 @@ var targetText = (row) => {
 			};
 		});
 	}
-	const types = {};
-	const ranges = {};
+	const types = /* @__PURE__ */ new Map();
+	const ranges = /* @__PURE__ */ new Map();
 	for (const sample of samples ?? []) {
 		if (!sample.scores) continue;
 		for (const [name, score] of Object.entries(sample.scores)) {
-			if (!types[name]) types[name] = /* @__PURE__ */ new Set();
-			types[name].add(typeof score.value);
+			let nameTypes = types.get(name);
+			if (!nameTypes) {
+				nameTypes = /* @__PURE__ */ new Set();
+				types.set(name, nameTypes);
+			}
+			nameTypes.add(typeof score.value);
 			if (typeof score.value === "number" && Number.isFinite(score.value)) {
-				const r = ranges[name];
-				if (!r) ranges[name] = {
+				const r = ranges.get(name);
+				if (!r) ranges.set(name, {
 					min: score.value,
 					max: score.value
-				};
+				});
 				else {
 					if (score.value < r.min) r.min = score.value;
 					if (score.value > r.max) r.max = score.value;
@@ -155184,10 +157614,10 @@ var targetText = (row) => {
 			}
 		}
 	}
-	return Object.keys(types).sort((a, b) => a.localeCompare(b)).map((name) => {
-		const nameTypes = types[name];
+	return [...types.keys()].sort((a, b) => a.localeCompare(b)).map((name) => {
+		const nameTypes = types.get(name);
 		const isUniformNumber = nameTypes?.size === 1 && nameTypes.has("number");
-		const valueToStyle = cellStyleFor(name, ranges[name] ?? {});
+		const valueToStyle = cellStyleFor(name, ranges.get(name) ?? {});
 		return {
 			id: rawScoreFieldKey(name),
 			header: labelFor(name),
@@ -160325,7 +162755,7 @@ var SamplesTab = (t0) => {
 	const wireScoreColorScales = useSamplesViewScoreColorScales();
 	const scoreColorScales = useSamplesViewColorScalesEnabled() ? wireScoreColorScales : kNoScoreColorScales;
 	const filter = useStore(_temp5$7);
-	const setFilter = useStore(_temp6$4);
+	const setFilter = useStore(_temp6$5);
 	let t1;
 	if ($[0] !== samplesDescriptor?.evalDescriptor) {
 		t1 = () => buildSampleFilterSpecRegistry(samplesDescriptor?.evalDescriptor);
@@ -160716,7 +163146,7 @@ function _temp4$13(state_0) {
 function _temp5$7(state_1) {
 	return state_1.log.filter;
 }
-function _temp6$4(state_2) {
+function _temp6$5(state_2) {
 	return state_2.logActions.setFilter;
 }
 function _temp7$4(c, i) {
@@ -163210,7 +165640,7 @@ var TimelineChart = (t0) => {
 	const yTicks = _temp4$12;
 	const renderActive = (band_2) => {
 		const guideMax = samplesGuide.reduce(_temp5$6, 0);
-		const dataMax = activeSeries.reduce(_temp6$3, Math.max(guideMax, 1));
+		const dataMax = activeSeries.reduce(_temp6$4, Math.max(guideMax, 1));
 		const yMax = dataMax * 1.1;
 		const y = (v) => band_2.top + kPlotBottom - v / yMax * 50;
 		let path = "";
@@ -164236,7 +166666,7 @@ function _temp4$12(yOf, max) {
 function _temp5$6(m_0, s) {
 	return Math.max(m_0, s.value);
 }
-function _temp6$3(m_1, p) {
+function _temp6$4(m_1, p) {
 	return Math.max(m_1, p.value);
 }
 function _temp7$3(e) {
@@ -165886,7 +168316,7 @@ var ResultsPanel = (t0) => {
 				}
 				let showMore_0 = grouped.length > 1;
 				if (primaryResults.length > kMaxPrimaryScoreRows) {
-					const shorterResults = headlineDeclared && headlineGroup !== -1 ? void 0 : grouped.find(_temp6$2);
+					const shorterResults = headlineDeclared && headlineGroup !== -1 ? void 0 : grouped.find(_temp6$3);
 					if (shorterResults) primaryResults = shorterResults;
 					if (primaryResults.length > kMaxPrimaryScoreRows) {
 						primaryResults = primaryResults.slice(0, kMaxPrimaryScoreRows);
@@ -166125,7 +168555,7 @@ function _temp4$9(score_0) {
 function _temp5$4(group) {
 	return group.findIndex(_temp4$9);
 }
-function _temp6$2(g) {
+function _temp6$3(g) {
 	return g.length <= kMaxPrimaryScoreRows;
 }
 function _temp7$2(score_3) {
@@ -166162,7 +168592,7 @@ var CollapsedTitleBar = (t0) => {
 	const totalMetrics = t1;
 	let t2;
 	if ($[5] !== evalSpec) {
-		t2 = formatModelText(evalSpec);
+		t2 = formatModelTitle(evalSpec);
 		$[5] = evalSpec;
 		$[6] = t2;
 	} else t2 = $[6];
@@ -166199,15 +168629,11 @@ var CollapsedTitleBar = (t0) => {
 	} else t8 = $[12];
 	let t9;
 	if ($[13] !== modelText) {
-		t9 = modelText ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+		t9 = modelText ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			id: "task-model-collapsed",
 			className: clsx("task-model", "text-truncate", "text-size-small", CollapsedTitleBar_module_default.model),
 			title: modelText,
-			children: [
-				"(",
-				modelText,
-				")"
-			]
+			children: modelText
 		}) : null;
 		$[13] = modelText;
 		$[14] = t9;
@@ -167825,7 +170251,7 @@ var LogView = () => {
 	} else t8 = $[19];
 	let t9;
 	if ($[20] !== t5 || $[21] !== t6 || $[22] !== t7 || $[23] !== t8) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExtendedFindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindTargetProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExtendedFindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindTargetProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			ref: mainAppRef,
 			className: t5,
 			tabIndex: 0,
@@ -167834,7 +170260,7 @@ var LogView = () => {
 				t7,
 				t8
 			]
-		}) }) });
+		}) }) }) });
 		$[20] = t5;
 		$[21] = t6;
 		$[22] = t7;
@@ -168100,7 +170526,7 @@ var SampleEventView_module_default = {
 	const runningEvents = sampleData.running;
 	const isRunning = !sample && runningEvents.length > 0;
 	const scope = useFocusLaneScope(sample?.events ?? runningEvents, eventId, sample?.timelines ?? void 0);
-	const { eventNodes, defaultCollapsedIds } = useEventNodes(scope.laneEvents, isRunning);
+	const { eventNodes, defaultCollapsedIds } = useEventNodes(scope.laneEvents, isRunning, void 0, sample?.events ?? runningEvents);
 	const sampleNavigation = useLogSampleNavigationActions();
 	const setParams = useFocusSetParams(setSearchParams);
 	let t6;
@@ -168403,20 +170829,22 @@ var kSampleBagKeys = [
 * collapsed events, and the timeline selection. Keyed on the sample's identity
 * so re-selecting (or a running sample finalizing in place) doesn't reset.
 */ var SampleLoadController = () => {
-	const $ = (0, import_compiler_runtime.c)(7);
+	const $ = (0, import_compiler_runtime.c)(8);
 	const handle = useStore(_temp$6);
 	const identity = handle ? `${handle.logFile}:${handle.id}:${handle.epoch}` : void 0;
 	const removeBagsByPrefix = useStore(_temp2$4);
 	const clearCollapsedEvents = useStore(_temp3$3);
-	const setTimelineSelected = useStore(_temp4$3);
-	const setActiveTimelineIndex = useStore(_temp5$2);
+	const resetEventSelection = useStore(_temp4$3);
+	const setTimelineSelected = useStore(_temp5$2);
+	const setActiveTimelineIndex = useStore(_temp6$2);
 	let t0;
 	let t1;
-	if ($[0] !== clearCollapsedEvents || $[1] !== identity || $[2] !== removeBagsByPrefix || $[3] !== setActiveTimelineIndex || $[4] !== setTimelineSelected) {
+	if ($[0] !== clearCollapsedEvents || $[1] !== identity || $[2] !== removeBagsByPrefix || $[3] !== resetEventSelection || $[4] !== setActiveTimelineIndex || $[5] !== setTimelineSelected) {
 		t0 = () => {
 			if (identity === void 0) return;
 			for (const bag of kSampleBagKeys) removeBagsByPrefix(bag);
 			clearCollapsedEvents();
+			resetEventSelection();
 			setTimelineSelected(null);
 			setActiveTimelineIndex(0);
 		};
@@ -168424,19 +170852,21 @@ var kSampleBagKeys = [
 			identity,
 			removeBagsByPrefix,
 			clearCollapsedEvents,
+			resetEventSelection,
 			setTimelineSelected,
 			setActiveTimelineIndex
 		];
 		$[0] = clearCollapsedEvents;
 		$[1] = identity;
 		$[2] = removeBagsByPrefix;
-		$[3] = setActiveTimelineIndex;
-		$[4] = setTimelineSelected;
-		$[5] = t0;
-		$[6] = t1;
+		$[3] = resetEventSelection;
+		$[4] = setActiveTimelineIndex;
+		$[5] = setTimelineSelected;
+		$[6] = t0;
+		$[7] = t1;
 	} else {
-		t0 = $[5];
-		t1 = $[6];
+		t0 = $[6];
+		t1 = $[7];
 	}
 	(0, import_react.useEffect)(t0, t1);
 	return null;
@@ -168451,10 +170881,13 @@ function _temp3$3(state_1) {
 	return state_1.sampleActions.clearCollapsedEvents;
 }
 function _temp4$3(state_2) {
-	return state_2.sampleActions.setTimelineSelected;
+	return state_2.sampleActions.resetEventSelection;
 }
 function _temp5$2(state_3) {
-	return state_3.sampleActions.setActiveTimelineIndex;
+	return state_3.sampleActions.setTimelineSelected;
+}
+function _temp6$2(state_4) {
+	return state_4.sampleActions.setActiveTimelineIndex;
 }
 //#endregion
 //#region src/app/routing/loaders/LoaderHost.tsx
@@ -168650,8 +171083,11 @@ var SamplePrintView_module_default = {
 * Print route page component.
 * Renders sample content without virtualization for printing.
 * URL pattern: /logs/<logPath>/samples/sample/<id>/<epoch>/print?view=<tab>
+* Repeated `events=<node id>` params restrict a transcript print to those
+* events (ids as the transcript assigns them: the uuid, or the position-based
+* fallback for logs without uuids).
 */ var SamplePrintView = () => {
-	const $ = (0, import_compiler_runtime.c)(47);
+	const $ = (0, import_compiler_runtime.c)(57);
 	const { logPath, sampleId, epoch } = useLogRouteParams();
 	const [searchParams] = useSearchParams();
 	let t0;
@@ -168662,54 +171098,66 @@ var SamplePrintView_module_default = {
 	} else t0 = $[1];
 	const view = t0;
 	let t1;
+	if ($[2] !== searchParams) {
+		t1 = searchParams.has("events");
+		$[2] = searchParams;
+		$[3] = t1;
+	} else t1 = $[3];
+	const printingSelection = t1;
 	let t2;
-	if ($[2] !== epoch || $[3] !== logPath || $[4] !== sampleId) {
-		t1 = () => {
+	let t3;
+	if ($[4] !== epoch || $[5] !== logPath || $[6] !== sampleId) {
+		t2 = () => {
 			if (logPath && sampleId && epoch) {
 				selectLogFile(logPath);
 				const targetEpoch = parseInt(epoch, 10);
 				if (!isNaN(targetEpoch)) selectSample(sampleId, targetEpoch, logPath);
 			}
 		};
-		t2 = [
+		t3 = [
 			logPath,
 			sampleId,
 			epoch
 		];
-		$[2] = epoch;
-		$[3] = logPath;
-		$[4] = sampleId;
-		$[5] = t1;
-		$[6] = t2;
+		$[4] = epoch;
+		$[5] = logPath;
+		$[6] = sampleId;
+		$[7] = t2;
+		$[8] = t3;
 	} else {
-		t1 = $[5];
-		t2 = $[6];
+		t2 = $[7];
+		t3 = $[8];
 	}
-	(0, import_react.useEffect)(t1, t2);
+	(0, import_react.useEffect)(t2, t3);
 	const sample = useSelectedEvalSampleData().sample;
 	const evalSpec = useSelectedLogDetails()?.eval;
-	let t3;
-	if ($[7] !== sample?.events) {
-		t3 = sample?.events || [];
-		$[7] = sample?.events;
-		$[8] = t3;
-	} else t3 = $[8];
-	const { eventNodes } = useEventNodes(t3, false);
 	let t4;
-	if ($[9] !== eventNodes) {
-		t4 = flatTree(eventNodes, null);
-		$[9] = eventNodes;
+	if ($[9] !== sample?.events) {
+		t4 = sample?.events || [];
+		$[9] = sample?.events;
 		$[10] = t4;
 	} else t4 = $[10];
-	const flattenedNodes = t4;
+	const sampleEvents = t4;
+	const { eventNodes } = useEventNodes(sampleEvents, false);
+	let t5;
+	if ($[11] !== eventNodes || $[12] !== searchParams) {
+		const all = flatTree(eventNodes, null);
+		const ids = searchParams.getAll("events");
+		t5 = ids.length > 0 ? selectedEventNodes(all, new Set(ids)) : all;
+		$[11] = eventNodes;
+		$[12] = searchParams;
+		$[13] = t5;
+	} else t5 = $[13];
+	const flattenedNodes = t5;
+	const selectionNotFound = printingSelection && view === kSampleTranscriptTabId && sampleEvents.length > 0 && flattenedNodes.length === 0;
 	const listHandle = (0, import_react.useRef)(null);
 	const contentRef = (0, import_react.useRef)(null);
 	const hasPrinted = (0, import_react.useRef)(false);
-	let t5;
 	let t6;
-	if ($[11] !== sample) {
-		t5 = () => {
-			if (!sample || hasPrinted.current || !contentRef.current) return;
+	let t7;
+	if ($[14] !== sample || $[15] !== selectionNotFound) {
+		t6 = () => {
+			if (!sample || hasPrinted.current || !contentRef.current || selectionNotFound) return;
 			let timer;
 			const triggerPrint = () => {
 				if (hasPrinted.current) return;
@@ -168734,83 +171182,94 @@ var SamplePrintView_module_default = {
 				observer.disconnect();
 			};
 		};
-		t6 = [sample];
-		$[11] = sample;
-		$[12] = t5;
-		$[13] = t6;
+		t7 = [sample, selectionNotFound];
+		$[14] = sample;
+		$[15] = selectionNotFound;
+		$[16] = t6;
+		$[17] = t7;
 	} else {
-		t5 = $[12];
-		t6 = $[13];
+		t6 = $[16];
+		t7 = $[17];
 	}
-	(0, import_react.useEffect)(t5, t6);
+	(0, import_react.useEffect)(t6, t7);
 	if (!sample) {
-		let t7;
-		if ($[14] === Symbol.for("react.memo_cache_sentinel")) {
-			t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		let t8;
+		if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
+			t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				className: SamplePrintView_module_default.container,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: SamplePrintView_module_default.loading,
 					children: "Loading sample data..."
 				})
 			});
-			$[14] = t7;
-		} else t7 = $[14];
-		return t7;
+			$[18] = t8;
+		} else t8 = $[18];
+		return t8;
 	}
-	let t7;
-	if ($[15] !== sample.messages) {
-		t7 = sample.messages || [];
-		$[15] = sample.messages;
-		$[16] = t7;
-	} else t7 = $[16];
-	const sampleMessages = t7;
 	let t8;
-	if ($[17] !== evalSpec) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PrintHeading, { evalSpec });
-		$[17] = evalSpec;
-		$[18] = t8;
-	} else t8 = $[18];
+	if ($[19] !== sample.messages) {
+		t8 = sample.messages || [];
+		$[19] = sample.messages;
+		$[20] = t8;
+	} else t8 = $[20];
+	const sampleMessages = t8;
 	let t9;
-	if ($[19] !== epoch || $[20] !== sampleId) {
-		t9 = sampleId && epoch && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	if ($[21] !== evalSpec) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PrintHeading, { evalSpec });
+		$[21] = evalSpec;
+		$[22] = t9;
+	} else t9 = $[22];
+	let t10;
+	if ($[23] !== epoch || $[24] !== flattenedNodes || $[25] !== printingSelection || $[26] !== sampleId) {
+		t10 = sampleId && epoch && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SamplePrintView_module_default.sampleInfo,
 			children: [
 				"Sample ",
 				sampleId,
 				" (Epoch ",
 				epoch,
-				")"
+				")",
+				printingSelection ? ` · ${flattenedNodes.length} selected ${flattenedNodes.length === 1 ? "event" : "events"}` : null
 			]
 		});
-		$[19] = epoch;
-		$[20] = sampleId;
-		$[21] = t9;
-	} else t9 = $[21];
-	let t10;
-	if ($[22] !== t8 || $[23] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: SamplePrintView_module_default.header,
-			children: [t8, t9]
-		});
-		$[22] = t8;
-		$[23] = t9;
-		$[24] = t10;
-	} else t10 = $[24];
+		$[23] = epoch;
+		$[24] = flattenedNodes;
+		$[25] = printingSelection;
+		$[26] = sampleId;
+		$[27] = t10;
+	} else t10 = $[27];
 	let t11;
-	if ($[25] !== flattenedNodes || $[26] !== view) {
-		t11 = view === kSampleTranscriptTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptVirtualList, {
+	if ($[28] !== t10 || $[29] !== t9) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SamplePrintView_module_default.header,
+			children: [t9, t10]
+		});
+		$[28] = t10;
+		$[29] = t9;
+		$[30] = t11;
+	} else t11 = $[30];
+	let t12;
+	if ($[31] !== selectionNotFound) {
+		t12 = selectionNotFound && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "None of the selected events were found in this sample." });
+		$[31] = selectionNotFound;
+		$[32] = t12;
+	} else t12 = $[32];
+	let t13;
+	if ($[33] !== flattenedNodes || $[34] !== selectionNotFound || $[35] !== view) {
+		t13 = view === kSampleTranscriptTabId && !selectionNotFound && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptVirtualList, {
 			id: "print-transcript",
 			listHandle,
 			eventNodes: flattenedNodes,
 			disableVirtualization: true
 		});
-		$[25] = flattenedNodes;
-		$[26] = view;
-		$[27] = t11;
-	} else t11 = $[27];
-	let t12;
-	if ($[28] !== sampleMessages || $[29] !== view) {
-		t12 = view === kSampleMessagesTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
+		$[33] = flattenedNodes;
+		$[34] = selectionNotFound;
+		$[35] = view;
+		$[36] = t13;
+	} else t13 = $[36];
+	let t14;
+	if ($[37] !== sampleMessages || $[38] !== view) {
+		t14 = view === kSampleMessagesTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
 			id: "print-messages",
 			messages: sampleMessages,
 			display: {
@@ -168819,57 +171278,59 @@ var SamplePrintView_module_default = {
 				formatDateTime
 			}
 		});
-		$[28] = sampleMessages;
-		$[29] = view;
-		$[30] = t12;
-	} else t12 = $[30];
-	let t13;
-	if ($[31] !== sample || $[32] !== view) {
-		t13 = view === kSampleScoringTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleScoresView, {
+		$[37] = sampleMessages;
+		$[38] = view;
+		$[39] = t14;
+	} else t14 = $[39];
+	let t15;
+	if ($[40] !== sample || $[41] !== view) {
+		t15 = view === kSampleScoringTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleScoresView, {
 			sample,
 			scrollRef: contentRef
 		});
-		$[31] = sample;
-		$[32] = view;
-		$[33] = t13;
-	} else t13 = $[33];
-	let t14;
-	if ($[34] !== sample || $[35] !== view) {
-		t14 = view === kSampleMetdataTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PrintMetadata, { sample });
-		$[34] = sample;
-		$[35] = view;
-		$[36] = t14;
-	} else t14 = $[36];
-	let t15;
-	if ($[37] !== sample || $[38] !== view) {
-		t15 = view === kSampleJsonTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleJSONView, { sample });
-		$[37] = sample;
-		$[38] = view;
-		$[39] = t15;
-	} else t15 = $[39];
+		$[40] = sample;
+		$[41] = view;
+		$[42] = t15;
+	} else t15 = $[42];
 	let t16;
-	if ($[40] !== t10 || $[41] !== t11 || $[42] !== t12 || $[43] !== t13 || $[44] !== t14 || $[45] !== t15) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	if ($[43] !== sample || $[44] !== view) {
+		t16 = view === kSampleMetdataTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PrintMetadata, { sample });
+		$[43] = sample;
+		$[44] = view;
+		$[45] = t16;
+	} else t16 = $[45];
+	let t17;
+	if ($[46] !== sample || $[47] !== view) {
+		t17 = view === kSampleJsonTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleJSONView, { sample });
+		$[46] = sample;
+		$[47] = view;
+		$[48] = t17;
+	} else t17 = $[48];
+	let t18;
+	if ($[49] !== t11 || $[50] !== t12 || $[51] !== t13 || $[52] !== t14 || $[53] !== t15 || $[54] !== t16 || $[55] !== t17) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SamplePrintView_module_default.container,
 			ref: contentRef,
 			children: [
-				t10,
 				t11,
 				t12,
 				t13,
 				t14,
-				t15
+				t15,
+				t16,
+				t17
 			]
 		});
-		$[40] = t10;
-		$[41] = t11;
-		$[42] = t12;
-		$[43] = t13;
-		$[44] = t14;
-		$[45] = t15;
-		$[46] = t16;
-	} else t16 = $[46];
-	return t16;
+		$[49] = t11;
+		$[50] = t12;
+		$[51] = t13;
+		$[52] = t14;
+		$[53] = t15;
+		$[54] = t16;
+		$[55] = t17;
+		$[56] = t18;
+	} else t18 = $[56];
+	return t18;
 };
 /**
 * Renders sample metadata using MetadataGrid (non-virtualized)
@@ -170244,97 +172705,82 @@ var componentIcons = {
 * Renders the application content. Mounted below the config gate so it can
 * read the resolved app config.
 */ var AppContent = () => {
-	const $ = (0, import_compiler_runtime.c)(14);
-	let t0;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t0 = getApi();
-		$[0] = t0;
-	} else t0 = $[0];
-	const api = t0;
+	const $ = (0, import_compiler_runtime.c)(12);
 	const rehydrated = useStore(_temp5);
-	const logDir = useLogDir();
 	const setInitialState = useStore(_temp6);
-	let t1;
-	if ($[1] !== logDir || $[2] !== rehydrated || $[3] !== setInitialState) {
-		t1 = (e) => {
+	let t0;
+	if ($[0] !== rehydrated || $[1] !== setInitialState) {
+		t0 = (e) => {
 			bb6: switch (e.data.type) {
 				case "updateState":
 					if (e.data.url) {
-						const decodedUrl_0 = decodeURIComponent(e.data.url);
-						setLogRoot(resolveEmbeddedLogDir(decodedUrl_0));
-						if (!rehydrated) setInitialState(isUri(decodedUrl_0) ? basename(decodedUrl_0) : decodedUrl_0, e.data.sample_id, e.data.sample_epoch);
+						const decodedUrl = decodeURIComponent(e.data.url);
+						setLogRoot(resolveEmbeddedLogDir(decodedUrl));
+						if (!rehydrated) setInitialState(isUri(decodedUrl) ? basename(decodedUrl) : decodedUrl, e.data.sample_id, e.data.sample_epoch);
 					}
 					break bb6;
-				case "backgroundUpdate": {
-					const decodedUrl = decodeURIComponent(e.data.url);
-					const log_dir = e.data.log_dir;
-					if (!document.hasFocus()) {
-						if (log_dir === logDir) selectLogFile(decodedUrl);
-						else api.open_log_file(e.data.url, e.data.log_dir);
-					} else imperativeLogData.invalidateLogListing();
-				}
+				case "backgroundUpdate": imperativeLogData.invalidateLogListing();
 			}
 		};
-		$[1] = logDir;
-		$[2] = rehydrated;
-		$[3] = setInitialState;
-		$[4] = t1;
-	} else t1 = $[4];
-	const onMessage = t1;
+		$[0] = rehydrated;
+		$[1] = setInitialState;
+		$[2] = t0;
+	} else t0 = $[2];
+	const onMessage = t0;
+	let t1;
 	let t2;
-	let t3;
-	if ($[5] !== onMessage) {
-		t2 = () => {
+	if ($[3] !== onMessage) {
+		t1 = () => {
 			window.addEventListener("message", onMessage);
 			return () => {
 				window.removeEventListener("message", onMessage);
 			};
 		};
-		t3 = [onMessage];
-		$[5] = onMessage;
-		$[6] = t2;
-		$[7] = t3;
+		t2 = [onMessage];
+		$[3] = onMessage;
+		$[4] = t1;
+		$[5] = t2;
 	} else {
-		t2 = $[6];
-		t3 = $[7];
+		t1 = $[4];
+		t2 = $[5];
 	}
-	(0, import_react.useEffect)(t2, t3);
+	(0, import_react.useEffect)(t1, t2);
 	const embeddedDispatched = (0, import_react.useRef)(false);
+	let t3;
 	let t4;
-	let t5;
-	if ($[8] !== onMessage) {
-		t4 = () => {
+	if ($[6] !== onMessage) {
+		t3 = () => {
 			if (embeddedDispatched.current) return;
 			embeddedDispatched.current = true;
 			const embedded = readEmbeddedStartupState();
 			if (embedded) onMessage({ data: embedded });
 		};
-		t5 = [onMessage];
-		$[8] = onMessage;
-		$[9] = t4;
-		$[10] = t5;
+		t4 = [onMessage];
+		$[6] = onMessage;
+		$[7] = t3;
+		$[8] = t4;
 	} else {
-		t4 = $[9];
-		t5 = $[10];
+		t3 = $[7];
+		t4 = $[8];
 	}
-	(0, import_react.useEffect)(t4, t5);
+	(0, import_react.useEffect)(t3, t4);
 	useMountEffect(_temp7);
+	let t5;
 	let t6;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
+		$[9] = t5;
+		$[10] = t6;
+	} else {
+		t5 = $[9];
+		t6 = $[10];
+	}
 	let t7;
 	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
-		$[11] = t6;
-		$[12] = t7;
-	} else {
-		t6 = $[11];
-		t7 = $[12];
-	}
-	let t8;
-	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+			t5,
 			t6,
-			t7,
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentIconProvider, {
 				icons: componentIcons,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentStateProvider, {
@@ -170343,9 +172789,9 @@ var componentIcons = {
 				})
 			})
 		] });
-		$[13] = t8;
-	} else t8 = $[13];
-	return t8;
+		$[11] = t7;
+	} else t7 = $[11];
+	return t7;
 };
 var App = () => {
 	const $ = (0, import_compiler_runtime.c)(1);
