@@ -4,6 +4,7 @@ from typing import Any, TypeAlias
 
 import pydantic
 from google.genai import Client
+from google.genai.models import _GenerateContentResponse_from_mldev
 from google.genai.types import (
     Content,
     CreateBatchJobConfig,
@@ -163,7 +164,13 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
                 RuntimeError(f"{error_data.message} (code: {error_data.code})"),
             )
         else:
-            return key, GenerateContentResponse.model_validate(line_data["response"])
+            # Route through the SDK's REST->SDK converter (as the live path does)
+            # so unknown REST fields (e.g. usageMetadata.serviceTier) are dropped
+            # instead of failing extra=forbid validation.
+            return key, GenerateContentResponse._from_response(
+                response=_GenerateContentResponse_from_mldev(line_data["response"]),
+                kwargs={},
+            )
 
     @override
     def _uris_from_completion_info(
