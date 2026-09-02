@@ -378,9 +378,9 @@ def export_config_command(log_file: str, output: str | None, fmt: str) -> None:
     "--incomplete-max",
     type=float,
     default=None,
-    help="Safety threshold for --incomplete-action error (count, or proportion "
-    "of expected samples if < 1): refuse to recover when more than this many "
-    "samples are in progress.",
+    help="Safety threshold for --incomplete-action error (count if >= 1, or "
+    "proportion of expected samples if strictly less than 1): refuse to recover "
+    "when more than this many samples are in progress.",
 )
 @click.option(
     "--list",

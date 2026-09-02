@@ -200,7 +200,7 @@ For example, to bring a crashed eval with a few hung samples to a terminal state
 inspect log recover path/to/crashed.eval --incomplete-action error
 ```
 
-The `--incomplete-max` option guards against silently completing a systemic failure (e.g. a provider outage that left *most* samples in progress). Specify a count, or a proportion of expected samples if less than 1; when more samples are in progress than the threshold allows, manual recovery refuses without writing anything:
+The `--incomplete-max` option guards against silently completing a systemic failure (e.g. a provider outage that left *most* samples in progress). Specify a count (a value of 1 or more), or a proportion of expected samples (a value strictly less than 1, so `1.0` means one sample rather than 100%); when more samples are in progress than the threshold allows, manual recovery refuses without writing anything:
 
 ``` bash
 inspect log recover path/to/crashed.eval --incomplete-action error --incomplete-max 0.1

@@ -104,7 +104,8 @@ def recover_eval_log(
             recovered log is finalized with `status="success"` (nothing will
             retry it).
         incomplete_max: Safety threshold for `incomplete_action="error"`
-            (count, or proportion of expected samples if < 1): raise
+            (count if >= 1, or proportion of expected samples if strictly
+            less than 1, so `1.0` means one sample, not 100%): raise
             `RecoveryThresholdExceeded` — before writing anything — when more
             than this many samples are in progress. `None` = no guard.
 

@@ -319,7 +319,8 @@ def eval_set(
             final, the recovered log finalizes as `status="success"`, the
             task classifies as complete, and nothing re-runs.
         incomplete_max: Safety threshold for `incomplete_action="error"`
-            (count, or proportion of expected samples if < 1): when more
+            (count if >= 1, or proportion of expected samples if strictly
+            less than 1, so `1.0` means one sample, not 100%): when more
             than this many samples are in progress, fall back to the default
             recover-and-retry behavior.
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL

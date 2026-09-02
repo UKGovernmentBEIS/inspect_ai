@@ -144,7 +144,7 @@ CACHE_HELP = "Policy for caching of model generations. Specify --cache to cache 
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
 CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for the default (every 500k tokens), --checkpoint=token:N{k,m,b} / time:N{s,m,h,d} / turn:N / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
 INCOMPLETE_ACTION_HELP = "Disposition applied when recovering a crashed log, for samples that were in progress at crash: 'retry' (default) re-runs them; 'error' resolves them as operator terminations — if that leaves every expected sample final, the recovered log finalizes with status 'success' and is not re-run."
-INCOMPLETE_MAX_HELP = "Safety threshold for --incomplete-action error (count, or proportion of expected samples if < 1): when more than this many samples are in progress, fall back to the default recover-and-retry behavior."
+INCOMPLETE_MAX_HELP = "Safety threshold for --incomplete-action error (count if >= 1, or proportion of expected samples if strictly less than 1): when more than this many samples are in progress, fall back to the default recover-and-retry behavior."
 
 
 def _notification_callback(
