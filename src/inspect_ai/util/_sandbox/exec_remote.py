@@ -319,6 +319,8 @@ class ExecRemoteProcess:
             params["cwd"] = self._options.cwd
         if self._options.user:
             params["user"] = self._options.user
+        elif self._sandbox._tools_default_user:
+            params["run_as"] = self._sandbox._tools_default_user._asdict()
 
         result = await self._rpc("exec_remote_start", params, _StartResult)
         self._pid = result.pid

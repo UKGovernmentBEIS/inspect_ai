@@ -10,6 +10,7 @@ from typing import (
     Awaitable,
     Callable,
     Literal,
+    NamedTuple,
     Type,
     TypeVar,
     Union,
@@ -124,6 +125,15 @@ class SandboxConnection(BaseModel):
     """Optional container name (does not apply to all sandboxes)."""
 
 
+class SandboxDefaultUser(NamedTuple):
+    """Identity of the user `exec()` runs as when no `user` is given."""
+
+    uid: int
+    gid: int
+    groups: list[int]
+    home: str
+
+
 class SandboxEnvironment(abc.ABC):
     """Environment for executing arbitrary code from tools.
 
@@ -140,6 +150,7 @@ class SandboxEnvironment(abc.ABC):
         # probing root on every tool call. `_tools_user is None` alone cannot say
         # this because None also means "default user".
         self._tools_user_resolved: bool = False
+        self._tools_default_user: SandboxDefaultUser | None = None
 
     @abc.abstractmethod
     async def exec(

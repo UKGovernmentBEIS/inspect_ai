@@ -21,6 +21,7 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     _inject_container_tools_code,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
+from inspect_ai.util._sandbox.environment import SandboxDefaultUser
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
@@ -90,12 +91,18 @@ def _no_events_context() -> Iterator[None]:
     yield
 
 
+def _mock_sandbox() -> AsyncMock:
+    sandbox = AsyncMock()
+    sandbox._tools_default_user = None
+    return sandbox
+
+
 def _make_sandbox_mock(responses: list[str]) -> AsyncMock:
     """Create a mock SandboxEnvironment whose exec() returns canned responses.
 
     Each call to sandbox.exec() pops the next response from the list.
     """
-    sandbox = AsyncMock()
+    sandbox = _mock_sandbox()
     sandbox.default_polling_interval.return_value = 5
     sandbox.no_events = _no_events_context
 
@@ -117,7 +124,7 @@ def _make_never_completing_sandbox() -> AsyncMock:
 
     Useful for testing timeout and cancellation behavior.
     """
-    sandbox = AsyncMock()
+    sandbox = _mock_sandbox()
     sandbox.default_polling_interval.return_value = 5
     sandbox.no_events = _no_events_context
 
@@ -166,7 +173,7 @@ class TestSingleUseIterator:
 
 class TestPollRetryExhaustion:
     async def test_poll_retry_exhaustion_reraises_underlying_error(self) -> None:
-        sandbox = AsyncMock()
+        sandbox = _mock_sandbox()
         sandbox.default_polling_interval.return_value = 5
         sandbox.no_events = _no_events_context
         sandbox.exec = AsyncMock(
@@ -201,7 +208,7 @@ class TestKill:
         assert sandbox.exec.call_count == 2
 
     async def test_kill_before_start_is_noop(self) -> None:
-        sandbox = AsyncMock()
+        sandbox = _mock_sandbox()
         proc = ExecRemoteProcess(sandbox, ["cmd"], ExecRemoteCommonOptions(), 5)
 
         await proc.kill()
@@ -260,7 +267,7 @@ class TestKill:
         Callers (e.g. bridge.py) rely on kill() being safe to call in finally
         blocks without disrupting subsequent cleanup like cancel_scope.cancel().
         """
-        sandbox = AsyncMock()
+        sandbox = _mock_sandbox()
         sandbox.default_polling_interval.return_value = 5
 
         call_count = 0
@@ -376,7 +383,7 @@ class TestTimeout:
 
     async def test_timeout_kills_process(self) -> None:
         """On timeout, the process should be killed."""
-        sandbox = AsyncMock()
+        sandbox = _mock_sandbox()
         sandbox.default_polling_interval.return_value = 5
         sandbox.no_events = _no_events_context
 
@@ -443,6 +450,31 @@ class TestPidAccess:
         proc._iteration_started = True
         with pytest.raises(RuntimeError, match="not been submitted"):
             await proc.__anext__()
+
+
+class TestRunAsParam:
+    _DEFAULT_USER = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/h")
+
+    async def _start_params(
+        self, options: ExecRemoteStreamingOptions
+    ) -> dict[str, Any]:
+        sandbox = _make_sandbox_mock([_start_response()])
+        sandbox._tools_default_user = self._DEFAULT_USER
+        await exec_remote_streaming(sandbox, ["cmd"], 5, options)
+        params: dict[str, Any] = json.loads(sandbox.exec.call_args.kwargs["input"])[
+            "params"
+        ]
+        return params
+
+    async def test_default_user_sent_without_explicit_user(self) -> None:
+        params = await self._start_params(ExecRemoteStreamingOptions())
+        assert params["run_as"] == self._DEFAULT_USER._asdict()
+        assert "user" not in params
+
+    async def test_explicit_user_omits_run_as(self) -> None:
+        params = await self._start_params(ExecRemoteStreamingOptions(user="nobody"))
+        assert params["user"] == "nobody"
+        assert "run_as" not in params
 
 
 # ============================================================================

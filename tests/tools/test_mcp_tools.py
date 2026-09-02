@@ -5,7 +5,7 @@ import subprocess
 import sys
 import weakref
 from pathlib import Path
-from types import TracebackType
+from types import SimpleNamespace, TracebackType
 from typing import Any, AsyncIterator, Callable
 from uuid import uuid4
 
@@ -265,8 +265,8 @@ def _patch_sandbox_module(monkeypatch, exec_model_request_impl):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-    async def _fake_sandbox_with_injected_tools(*, sandbox_name: Any = None) -> None:
-        return None
+    async def _fake_sandbox_with_injected_tools(*, sandbox_name: Any = None) -> Any:
+        return SimpleNamespace(_tools_user=None, _tools_default_user=None)
 
     async def _fake_exec_scalar_request(*args: Any, **kwargs: Any) -> Any:
         if kwargs.get("method") == "mcp_launch_server":
@@ -381,8 +381,8 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-    async def _fake_sandbox_with_injected_tools(*, sandbox_name: Any = None) -> None:
-        return None
+    async def _fake_sandbox_with_injected_tools(*, sandbox_name: Any = None) -> Any:
+        return SimpleNamespace(_tools_user=None, _tools_default_user=None)
 
     async def _fake_exec_scalar_request(*args: Any, **kwargs: Any) -> Any:
         if kwargs.get("method") == "mcp_launch_server":
@@ -436,6 +436,43 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
     assert "notification dropped" in captured[0]
     assert "TimeoutError" in captured[0]
     assert "notify timeout" in captured[0]
+
+
+@skip_if_no_mcp_package
+async def test_sandbox_client_runs_cli_as_tools_user_and_sends_run_as(monkeypatch):
+    from mcp import StdioServerParameters
+
+    from inspect_ai.tool._mcp import _sandbox as sandbox_module
+    from inspect_ai.util._sandbox.environment import SandboxDefaultUser
+
+    default_user = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/h")
+    calls: list[dict[str, Any]] = []
+
+    async def _fake_sandbox_with_injected_tools(*, sandbox_name: Any = None) -> Any:
+        return SimpleNamespace(_tools_user="root", _tools_default_user=default_user)
+
+    async def _recording_exec_scalar_request(*args: Any, **kwargs: Any) -> Any:
+        calls.append(kwargs)
+        return 1
+
+    monkeypatch.setattr(
+        sandbox_module, "sandbox_with_injected_tools", _fake_sandbox_with_injected_tools
+    )
+    monkeypatch.setattr(sandbox_module, "SandboxJSONRPCTransport", lambda *a, **k: None)
+    monkeypatch.setattr(
+        sandbox_module, "exec_scalar_request", _recording_exec_scalar_request
+    )
+
+    async with sandbox_module.sandbox_client(StdioServerParameters(command="fake")) as (
+        _read_stream,
+        write_stream,
+    ):
+        await write_stream.aclose()
+
+    launch, kill = calls
+    assert launch["method"] == "mcp_launch_server"
+    assert launch["params"]["run_as"] == default_user._asdict()
+    assert [c["user"] for c in (launch, kill)] == ["root", "root"]
 
 
 @skip_if_no_mcp_package

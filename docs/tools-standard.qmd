@@ -204,7 +204,7 @@ Note that a separate bash process is created within the sandbox for each instanc
 
 ### Configuration
 
-Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd) for the execution of untrusted code.
+Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd) for the execution of untrusted code. Like `bash()`, the session runs as the sandbox's default user unless a `user` is specified.
 
 ### Task Setup
 
@@ -238,7 +238,7 @@ The `text_editor()` tool enables viewing, creating and editing text files. The t
 
 ### Configuration
 
-The text editor tools requires the use of a [Sandbox Environment](sandboxing.qmd).
+The text editor tools requires the use of a [Sandbox Environment](sandboxing.qmd). Like `bash()`, it runs as the sandbox's default user unless a `user` is specified.
 
 ### Task Setup
 

@@ -7,9 +7,16 @@ from typing import Literal, TextIO
 import psutil
 import pydantic
 
+from inspect_sandbox_tools._util.common_types import ToolException
 from inspect_sandbox_tools._util.process_tree import (
     process_group_members,
     terminate_process_tree,
+)
+from inspect_sandbox_tools._util.user_switch import (
+    RunAs,
+    get_home_dir,
+    is_current_user,
+    make_preexec,
 )
 
 from .jsonrpc_types import (
@@ -57,19 +64,33 @@ class MCPServerSession:
 
     @classmethod
     async def create(
-        cls, server_params: StdioServerParameters, errlog: TextIO = sys.stderr
+        cls,
+        server_params: StdioServerParameters,
+        errlog: TextIO = sys.stderr,
+        user: str | RunAs | None = None,
+        can_switch_user: bool = False,
     ) -> "MCPServerSession":
+        if user is not None and is_current_user(user):
+            user = None
+        if user is not None and not can_switch_user:
+            raise ToolException(
+                f"Cannot switch to user {user!r}: server is not running as root"
+            )
+        env = server_params.env
+        if user is not None:
+            env = {**(env or os.environ), "HOME": get_home_dir(user)}
         return cls(
             await asyncio.create_subprocess_exec(
                 server_params.command,
                 *server_params.args,
-                env=server_params.env,
+                env=env,
                 cwd=server_params.cwd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=errlog,
                 limit=_READLINE_LIMIT,
                 start_new_session=True,
+                preexec_fn=make_preexec(user),
             ),
             server_params.encoding,
             server_params.encoding_error_handler,

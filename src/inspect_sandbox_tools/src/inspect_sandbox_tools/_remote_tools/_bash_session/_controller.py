@@ -3,7 +3,7 @@ import pwd
 
 from ..._util.common_types import ToolException
 from ..._util.session_controller import SessionController
-from ..._util.user_switch import is_current_user
+from ..._util.user_switch import RunAs, is_current_user
 from ._session import Session
 from .tool_types import BashRestartResult, InteractResult
 
@@ -14,7 +14,7 @@ class Controller(SessionController[Session]):
     """BashSessionController provides support for isolated inspect subtask sessions."""
 
     async def new_session(
-        self, user: str | None = None, can_switch_user: bool = False
+        self, user: str | RunAs | None = None, can_switch_user: bool = False
     ) -> str:
         if user is not None and is_current_user(user):
             user = None
@@ -22,7 +22,7 @@ class Controller(SessionController[Session]):
             raise ToolException(
                 f"Cannot switch to user {user!r}: server is not running as root"
             )
-        if user is not None:
+        if isinstance(user, str):
             try:
                 pwd.getpwnam(user)
             except KeyError:

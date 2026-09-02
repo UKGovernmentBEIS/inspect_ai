@@ -8,7 +8,7 @@ import psutil
 from ..._util.process_tree import process_group_members, terminate_process_tree
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
 from ..._util.timeout_event import TimeoutEvent
-from ..._util.user_switch import get_home_dir, make_preexec
+from ..._util.user_switch import RunAs, get_home_dir, make_preexec
 from .tool_types import InteractResult
 
 # Keep accumulated PTY output bounded even if the command writes indefinitely.
@@ -17,7 +17,7 @@ _DEFAULT_MAX_BASH_SESSION_RESPONSE_BYTES = 10 * 1024**2
 
 class Process:
     @classmethod
-    async def create(cls, user: str | None = None) -> "Process":
+    async def create(cls, user: str | RunAs | None = None) -> "Process":
         pty = await PseudoTerminal.create()
 
         env = {**os.environ, "TERM": "dumb"}

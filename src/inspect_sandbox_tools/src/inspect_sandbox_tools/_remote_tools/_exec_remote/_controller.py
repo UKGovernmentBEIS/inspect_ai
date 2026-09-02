@@ -1,6 +1,7 @@
 import asyncio
 
 from inspect_sandbox_tools._util.common_types import ToolException
+from inspect_sandbox_tools._util.user_switch import RunAs
 
 from ._job import Job
 from .tool_types import CloseStdinResult, KillResult, PollResult, WriteStdinResult
@@ -24,7 +25,7 @@ class Controller:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
-        user: str | None = None,
+        user: str | RunAs | None = None,
         can_switch_user: bool = False,
     ) -> int:
         """Create a new job and return its PID.

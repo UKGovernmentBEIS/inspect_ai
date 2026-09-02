@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 
 import pytest
@@ -10,15 +11,21 @@ from test_helpers.utils import flaky_retry
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import (
+    ContentText,
     get_model,
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import (
+    Generate,
+    Solver,
+    TaskState,
     generate,
+    solver,
     use_tools,
 )
-from inspect_ai.tool import ToolCallError, bash_session, text_editor
+from inspect_ai.tool import ToolCallError, bash_session, mcp_server_sandbox, text_editor
+from inspect_ai.util import ExecRemoteAwaitableOptions, sandbox
 from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_DIR
 
 
@@ -189,6 +196,153 @@ def test_bash_session_non_root():
     assert "start nobody end" in response.content, (
         f"Unexpected output from whoami: {response.content}"
     )
+
+
+_ID_CMD = "id -u; id -g; id -G; echo $HOME"
+_CONTEXT = (Path(__file__).parent / ".." / "docker-compose-context").resolve()
+_ALPINE_COMPOSE = str(Path(__file__).parent / ".." / "test_sandbox_compose_alpine.yaml")
+
+# Minimal stdio MCP server (the image has no `mcp` package) with one tool that
+# reports the identity it runs as via the same command the other checks use.
+_MINI_MCP_SERVER = f"""
+import json, subprocess, sys
+for line in sys.stdin:
+    msg = json.loads(line)
+    mid, method = msg.get("id"), msg.get("method")
+    if mid is None:
+        continue
+    if method == "initialize":
+        result = {{"protocolVersion": msg["params"]["protocolVersion"],
+                  "capabilities": {{"tools": {{}}}},
+                  "serverInfo": {{"name": "mini", "version": "0"}}}}
+    elif method == "tools/list":
+        result = {{"tools": [{{"name": "whoami", "description": "identity",
+                              "inputSchema": {{"type": "object", "properties": {{}}}}}}]}}
+    elif method == "tools/call":
+        out = subprocess.run(["sh", "-c", {_ID_CMD!r}], capture_output=True, text=True)
+        result = {{"content": [{{"type": "text", "text": out.stdout}}], "isError": False}}
+    else:
+        result = {{}}
+    print(json.dumps({{"jsonrpc": "2.0", "id": mid, "result": result}}), flush=True)
+"""
+
+
+def _compose(
+    tmp_path: Path, user: str | None, group_add: str | None
+) -> tuple[str, str]:
+    extra = (f"    user: '{user}'\n" if user else "") + (
+        f"    group_add: ['{group_add}']\n" if group_add else ""
+    )
+    compose = tmp_path / "compose.yaml"
+    compose.write_text(
+        f"services:\n  default:\n    build: {_CONTEXT}\n    command: tail -f /dev/null\n"
+        f"{extra}    init: true\n    network_mode: none\n    stop_grace_period: 1s\n"
+    )
+    return ("docker", str(compose))
+
+
+@solver
+def _identity_parity() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        ref = (await sb.exec(["sh", "-c", _ID_CMD])).stdout
+        uid, gid = ref.split()[:2]
+        expected = " ".join(ref.split())
+        bash_id = f"({_ID_CMD}) | tr '\\n' ' '"
+
+        assert (await sb.exec_remote(["sh", "-c", _ID_CMD], stream=False)).stdout == ref
+
+        out = str(await bash_session()(action="type_submit", input=bash_id))
+        assert expected in out and "no job control" not in out, out
+        await bash_session()(action="restart")
+        await bash_session()(action="read")
+        out = str(await bash_session()(action="type_submit", input=bash_id))
+        assert expected in out, out
+
+        path = f"/tmp/{uuid.uuid4().hex}"
+        await text_editor()(command="create", path=path, file_text="x")
+        owner = (await sb.exec(["stat", "-c", "%u:%g", path])).stdout.strip()
+        assert owner == f"{uid}:{gid}", owner
+
+        await sb.write_file("/tmp/mini_mcp.py", _MINI_MCP_SERVER)
+        async with mcp_server_sandbox(
+            command="python3", args=["/tmp/mini_mcp.py"]
+        ) as srv:
+            [whoami] = await srv.tools()
+            result = await whoami()
+        assert isinstance(result, list) and isinstance(result[0], ContentText), result
+        assert " ".join(result[0].text.split()) == expected, result
+
+        # explicit user= still overrides the default
+        root = ExecRemoteAwaitableOptions(user="root")
+        assert (
+            await sb.exec_remote(["id", "-u"], options=root, stream=False)
+        ).stdout == "0\n"
+        out = str(
+            await bash_session(user="root", instance="root")(
+                action="type_submit", input='echo "R:$(id -u):E"'
+            )
+        )
+        assert "R:0:E" in out, out
+        await text_editor(user="root")(
+            command="create", path=f"{path}.r", file_text="x"
+        )
+        owner = (await sb.exec(["stat", "-c", "%u:%g", f"{path}.r"])).stdout.strip()
+        assert owner == "0:0", owner
+        return state
+
+    return solve
+
+
+# Every injected tool must run as the same identity as `sandbox().exec()` with no
+# user: uid, gid, supplementary groups and HOME, across the compose `user:` forms.
+@pytest.mark.parametrize(
+    "user,group_add",
+    [
+        (None, None),
+        ("nonroot", None),
+        ("1234:5678", None),
+        ("0:1000", None),
+        (None, "2000"),
+        ("nonroot", "2000"),
+    ],
+)
+@pytest.mark.slow
+def test_tools_match_default_exec_identity(
+    tmp_path: Path, user: str | None, group_add: str | None
+) -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_identity_parity(),
+        sandbox=_compose(tmp_path, user, group_add),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
+def _create_denied(path: str) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            await text_editor()(command="create", path=path, file_text="x")
+        except Exception as ex:
+            assert "Permission denied" in str(ex), ex
+        else:
+            raise AssertionError("create succeeded")
+        return state
+
+    return solve
+
+
+@pytest.mark.slow
+def test_text_editor_default_user_denied_root_path_alpine() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_create_denied("/etc/x.txt"),
+        sandbox=("docker", _ALPINE_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
 
 
 @pytest.mark.slow

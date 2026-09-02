@@ -12,6 +12,7 @@ from inspect_sandbox_tools._util.process_tree import (
     terminate_process_tree,
 )
 from inspect_sandbox_tools._util.user_switch import (
+    RunAs,
     get_home_dir,
     is_current_user,
     make_preexec,
@@ -51,7 +52,7 @@ class Job:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
-        user: str | None = None,
+        user: str | RunAs | None = None,
         can_switch_user: bool = False,
     ) -> "Job":
         """Create and start a new Job for the given command.
