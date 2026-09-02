@@ -295,6 +295,37 @@ async def test_creation_failure_is_not_reported_as_untrustworthy(
         parent.chmod(0o700)
 
 
+@pytest.mark.parametrize(
+    "arrange",
+    [
+        pytest.param(_chmod_after_mkdir(0o000), id="no-search-permission"),
+        pytest.param(lambda p: p.write_text(""), id="regular-file"),
+    ],
+)
+async def test_unenterable_parent_is_unavailable_not_violation(
+    local: LocalSandboxEnvironment,
+    parent: Path,
+    arrange: Callable[[Path], object],
+) -> None:
+    """A parent that cannot be entered is an environment problem: nothing to remove."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user (root can enter anything)")
+    blocked = parent / "blocked"
+    arrange(blocked)
+    try:
+        for op in (ensure_framework_directory, verify_framework_directory):
+            # dash reports only "can't cd to <dir>", so match our text, not errno's.
+            with pytest.raises(
+                FrameworkDirectoryUnavailableError,
+                match=f"cannot enter parent directory {blocked}",
+            ) as ei:
+                await op(local, str(blocked / "fw"), user=None)
+            assert "Remove the entry" not in str(ei.value)
+    finally:
+        if blocked.is_dir():
+            blocked.chmod(0o700)
+
+
 async def test_rejects_directory_owned_by_another_uid(
     local: LocalSandboxEnvironment,
 ) -> None:

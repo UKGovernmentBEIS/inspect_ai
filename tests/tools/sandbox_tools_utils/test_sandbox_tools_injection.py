@@ -8,6 +8,8 @@ from typing import AsyncIterator, BinaryIO, Callable, Literal, overload
 
 import pytest
 
+from inspect_ai.event._sandbox import SandboxEvent
+from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.tool._sandbox_tools_utils import sandbox as sandbox_tools
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox._framework_directory import (
@@ -23,6 +25,7 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
 )
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, SupportedContainerOSInfo
 from inspect_ai.util._subprocess import ExecResult
@@ -545,7 +548,7 @@ async def test_detector_falls_back_to_default_user_when_root_unavailable(
             ExecResult(
                 success=True,
                 returncode=0,
-                stdout="symbolic link\n",
+                stdout="a1ff\n",  # stat -c %f of a symlink
                 stderr=f"{_VERIFIED_MARKER}\n",
             ),
             id="launcher-is-symlink",
@@ -567,3 +570,19 @@ async def test_detector_treats_provider_exception_as_not_installed() -> None:
         raise ConnectionError("sandbox gone")
 
     assert await sandbox_tools._sandbox_tools_installed(FakeSandbox(raising)) is False
+
+
+async def test_detector_records_no_transcript_events() -> None:
+    """The per-tool-call probe must not add its script to the transcript each time."""
+    transcript = Transcript()
+    init_transcript(transcript)
+    inner = FakeSandbox(lambda cmd, user: REGULAR_FILE)
+    proxy = SandboxEnvironmentProxy(inner)
+
+    assert await sandbox_tools._sandbox_tools_installed(proxy) is True
+    assert inner.exec_calls, "the probe must still run"
+    assert [e for e in transcript.events if isinstance(e, SandboxEvent)] == []
+    # Event recording is back on for whatever the tool runs next.
+    await proxy.exec(["echo", "hi"])
+    [event] = [e for e in transcript.events if isinstance(e, SandboxEvent)]
+    assert event.cmd == "echo hi"

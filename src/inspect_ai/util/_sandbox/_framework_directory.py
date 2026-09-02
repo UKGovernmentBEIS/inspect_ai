@@ -125,8 +125,11 @@ if [ ! -e "$parent" ] && [ ! -L "$parent" ]; then
         missing "parent directory $parent does not exist"
     fi
 fi
-err=$(cd -P -- "$parent" 2>&1) || violation "cannot enter parent directory $parent: $err"
-cd -P -- "$parent" || violation "cannot enter parent directory $parent"
+# Not a violation: the parent is outside the contract (see module docstring), and
+# this is normally an environment problem (a root-owned 0700 parent seen by the
+# default user) with nothing at $dir to remove.
+err=$(cd -P -- "$parent" 2>&1) || unavailable "cannot enter parent directory $parent: $err"
+cd -P -- "$parent" || unavailable "cannot enter parent directory $parent"
 pstat=$(stat -c '%u %a' . 2>/dev/null) || unavailable "cannot stat parent directory $parent: $(stat -c '%u %a' . 2>&1 >/dev/null)"
 puid=${pstat% *}
 pmode=${pstat#* }
@@ -216,10 +219,12 @@ class FrameworkDirectoryNotFoundError(FrameworkDirectoryError):
 
 
 class FrameworkDirectoryUnavailableError(RuntimeError):
-    """The verification script ran but lacked a tool it needs (``stat`` or ``id``).
+    """The verification script ran but could not perform the check.
 
-    Distinct from :class:`FrameworkDirectoryError`: this says nothing about the
-    entry at the path, only that the sandbox cannot perform the check. Also distinct
+    Raised when the script lacked a tool it needs (``stat`` or ``id``) or could not
+    enter the parent directory (no search permission on it, or it is not a
+    directory). Distinct from :class:`FrameworkDirectoryError`: this says nothing
+    about the entry at the path, so there is nothing to remove. Also distinct
     from the plain ``RuntimeError`` raised when the script did not run at all (no
     ``sh``, or the provider refused the requested user), which callers may treat as
     "this user is not available" and try another.
@@ -390,7 +395,8 @@ async def ensure_framework_directory(
         FrameworkDirectoryUserError: The script ran as a uid other than
             ``expected_uid``; nothing was created.
         FrameworkDirectoryUnavailableError: The check itself could not be performed
-            (missing ``stat``/``id`` in the sandbox).
+            (missing ``stat``/``id`` in the sandbox, or the parent directory
+            cannot be entered).
         RuntimeError: The script could not run at all (no ``sh``, or the provider
             refused the requested user).
         ValueError: ``path`` is not an absolute, non-root path free of ``..``.
@@ -465,6 +471,12 @@ async def exec_in_framework_directory(
     whatever ``path`` names by the time the command starts. The directory is never
     created here; use :func:`ensure_framework_directory` first. ``cmd`` inherits the
     script's ``umask 077``, so anything it creates is private to the owner.
+
+    Keep ``cmd``'s stderr well under the sandbox output limit
+    (``SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE``). Providers keep the tail of
+    an over-limit stream, so a command that floods stderr pushes the verified marker
+    out of the capture and the call is misreported as "did not run" (a plain
+    ``RuntimeError``, which callers may read as "this user is unavailable").
 
     Args:
         sandbox: Sandbox to operate in.

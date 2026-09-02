@@ -5,7 +5,7 @@ import subprocess
 import sys
 import tempfile
 import warnings
-from contextlib import asynccontextmanager
+from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from importlib import resources
 from logging import getLogger
 from pathlib import Path
@@ -43,6 +43,7 @@ from inspect_ai.util._sandbox.context import (
     sandbox_with_injection,
 )
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
 from ._build_config import (
@@ -126,9 +127,15 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     at all (it refuses the user, or silently runs the command as someone else) is the
     default user's view consulted, and a trustworthy installation found there is
     adopted the same way, so the failing root probe is not repeated.
+
+    The probe records no transcript events: it repeats on every tool call and its
+    argv carries the whole verification script, so logging it would add kilobytes
+    of identical shell to the transcript per call (the injection itself, which runs
+    once per sandbox, is still recorded).
     """
     try:
-        return await _detect_sandbox_tools(sandbox)
+        with _without_sandbox_events(sandbox):
+            return await _detect_sandbox_tools(sandbox)
     except Exception as ex:
         # Broad catch is deliberate: detectors run against every candidate sandbox
         # and providers raise provider-specific types for an unusable one. Treat it
@@ -163,6 +170,19 @@ async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
     if installed:
         _set_tools_user(sandbox, "root")
     return installed
+
+
+def _without_sandbox_events(
+    sandbox: SandboxEnvironment,
+) -> AbstractContextManager[None]:
+    """Suppress transcript events for commands run on ``sandbox`` inside the block.
+
+    Only the event-recording proxy that wraps sample sandboxes emits events; any
+    other sandbox object (a provider used directly, or a test fake) needs nothing.
+    """
+    if isinstance(sandbox, SandboxEnvironmentProxy):
+        return sandbox.no_events()
+    return nullcontext()
 
 
 def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
