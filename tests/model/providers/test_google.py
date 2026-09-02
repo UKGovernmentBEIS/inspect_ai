@@ -1232,6 +1232,7 @@ def test_google_batch_result_line_tolerates_unknown_rest_fields() -> None:
     ``extra="forbid"`` rejected every result (issue #5100 follow-on).
     """
     from google.genai.types import GenerateContentResponse
+    from pydantic import JsonValue
 
     from inspect_ai.model._generate_config import BatchConfig
     from inspect_ai.model._providers._google_batch import GoogleBatcher
@@ -1245,7 +1246,7 @@ def test_google_batch_result_line_tolerates_unknown_rest_fields() -> None:
         ),
         model_name="gemini-2.5-flash-lite",
     )
-    line = {
+    line: dict[str, JsonValue] = {
         "key": "req-1",
         "response": {
             "candidates": [
