@@ -69,7 +69,7 @@ class RecoverableEvalLog:
     """Number of in-progress (unscored) samples in the buffer DB."""
 
     total_samples: int
-    """Total expected samples (dataset samples * epochs)."""
+    """Total expected samples (selected dataset samples * epochs)."""
 
     source: str = "database"
     """Recovery data source: "database" or "filestore"."""
@@ -281,6 +281,22 @@ async def recover_eval_log_async(
         recovery_data.buffer.cleanup()
 
     return recovered_log
+
+
+def cleanup_recovery_buffer(log: str, _db_dir: str | Path | None = None) -> None:
+    """Remove the sample buffer a crashed log was recovered from.
+
+    For callers that recover with `cleanup=False` so the buffer stays as a
+    safety net while the resolved samples re-run: once a recovery finalizes
+    (`status="success"`) the recovered file is the final log, nothing re-runs,
+    and the buffer would otherwise linger until the multi-day startup sweep.
+
+    Args:
+        log: Path to the crashed .eval file the buffer belongs to.
+    """
+    recovery_data = read_buffer_recovery_data(log, db_dir=_db_dir)
+    if recovery_data is not None and recovery_data.buffer is not None:
+        recovery_data.buffer.cleanup()
 
 
 def recoverable_eval_logs(

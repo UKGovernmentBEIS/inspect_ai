@@ -41,12 +41,16 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
 
 
-def _make_eval_spec(task: str = "test_task") -> EvalSpec:
+def _make_eval_spec(
+    task: str = "test_task",
+    samples: int = 4,
+    sample_ids: list[int] | None = None,
+) -> EvalSpec:
     return EvalSpec(
         created=datetime.now(timezone.utc).isoformat(),
         task=task,
         model="mockllm/model",
-        dataset=EvalDataset(name="test", samples=4),
+        dataset=EvalDataset(name="test", samples=samples, sample_ids=sample_ids),
         config=EvalConfig(),
     )
 
@@ -84,9 +88,10 @@ def _write_crashed_eval(
     path: str,
     samples: list[EvalSample] | None = None,
     task: str = "test_task",
+    eval_spec: EvalSpec | None = None,
 ) -> LogStart:
     """Write a synthetic crashed .eval ZIP file (no header.json)."""
-    eval_spec = _make_eval_spec(task)
+    eval_spec = eval_spec or _make_eval_spec(task)
     plan = EvalPlan()
     log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
 
@@ -320,6 +325,77 @@ async def test_recover_incomplete_max() -> None:
                 incomplete_max=2,
             )
             assert log.status == "success"
+
+
+async def test_recover_incomplete_action_error_finalizes_limited_eval() -> None:
+    """A limited eval is sized from its selected sample ids, not the dataset.
+
+    The dataset has 100 samples but the eval ran with a limit of 4 (recorded
+    as `sample_ids`), and all 4 are present after recovery — so the log
+    finalizes even though far fewer than `dataset.samples` were run.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(
+                eval_path,
+                samples=flushed,
+                eval_spec=_make_eval_spec(samples=100, sample_ids=[1, 2, 3, 4]),
+            )
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+            )
+
+            assert log.status == "success"
+            assert log.error is None
+            assert log.results is not None
+            assert log.results.total_samples == 4
+
+
+async def test_recover_incomplete_max_proportion_of_limited_eval() -> None:
+    """The proportion form of incomplete_max is relative to the selected samples.
+
+    2 of the 4 selected samples are in progress (50%). Against the unsliced
+    dataset size of 100 that would be 2%, so a guard of 0.4 must still refuse.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(
+                eval_path,
+                samples=flushed,
+                eval_spec=_make_eval_spec(samples=100, sample_ids=[1, 2, 3, 4]),
+            )
+            _create_buffer_db(
+                eval_path, completed_ids=[], in_progress_ids=[3, 4], db_dir=db_dir
+            )
+
+            with pytest.raises(RecoveryThresholdExceeded):
+                await recover_eval_log_async(
+                    eval_path,
+                    output=output_path,
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_action="error",
+                    incomplete_max=0.4,
+                )
+            assert not os.path.exists(output_path)
 
 
 async def test_recover_eval_log_preserves_completed_sample_metadata() -> None:

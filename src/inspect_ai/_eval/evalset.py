@@ -1086,7 +1086,12 @@ def eval_set(
                     if task_identifier(task, eval_set_args) in failed_task_identifiers
                 ]
                 failed_tasks = as_previous_tasks(
-                    failed_resolved_tasks, failed_logs, eval_set_args
+                    failed_resolved_tasks,
+                    failed_logs,
+                    eval_set_args,
+                    # a resolving disposition already attempted recovery in
+                    # list_latest_eval_logs
+                    recover_crashed=incomplete_action == "retry",
                 )
             combined_tasks: list[ResolvedTask | PreviousTask] = [
                 *pending_tasks,
@@ -1430,7 +1435,21 @@ def as_previous_tasks(
     tasks: list[ResolvedTask],
     failed_logs: list[Log],
     eval_set_args: EvalSetArgsInTaskIdentifier,
+    recover_crashed: bool = True,
 ) -> list[PreviousTask]:
+    """Pair resolved tasks with the logs they will resume from.
+
+    Args:
+        tasks: Tasks to re-run.
+        failed_logs: Latest log for each task (matched by task identifier).
+        eval_set_args: Eval-set arguments that participate in task identity.
+        recover_crashed: Opportunistically recover still-"started" logs first.
+            Pass `False` when the caller already attempted recovery (e.g.
+            `list_latest_eval_logs` with a resolving disposition), so a log
+            whose recovery failed isn't retried a second time with the same
+            outcome and a duplicate warning.
+    """
+
     def task_to_failed_log(task: ResolvedTask) -> Log:
         resolved_task_identifier = task_identifier(task, eval_set_args)
         return next(
@@ -1441,7 +1460,10 @@ def as_previous_tasks(
 
     previous_tasks: list[PreviousTask] = []
     for task, log in zip(tasks, map(task_to_failed_log, tasks)):
-        eval_log, log_info = _recover_crashed_log(log.header, log.info)
+        if recover_crashed:
+            eval_log, log_info = _recover_crashed_log(log.header, log.info)
+        else:
+            eval_log, log_info = log.header, log.info
         previous_tasks.append(
             PreviousTask(
                 id=eval_log.eval.task_id,
@@ -1486,6 +1508,7 @@ def _recover_crashed_log(
         from inspect_ai.log._recover import (
             RecoveryNotAvailable,
             RecoveryThresholdExceeded,
+            cleanup_recovery_buffer,
             recover_eval_log,
         )
 
@@ -1503,6 +1526,10 @@ def _recover_crashed_log(
                     f"falling back to recover-and-retry: {ex}"
                 )
                 recovered = recover_eval_log(eval_log.location, cleanup=False)
+            if recovered.status == "success":
+                # finalized: the recovered file is the final log and nothing
+                # re-runs, so the buffer no longer serves as a safety net
+                cleanup_recovery_buffer(eval_log.location)
             if recovered.location:
                 log_info = log_info.model_copy(update={"name": recovered.location})
             eval_log = recovered

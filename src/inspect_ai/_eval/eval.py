@@ -1622,6 +1622,7 @@ async def eval_retry_async(
             from inspect_ai.log._recover import (
                 RecoveryNotAvailable,
                 RecoveryThresholdExceeded,
+                cleanup_recovery_buffer,
                 recover_eval_log_async,
             )
 
@@ -1647,6 +1648,7 @@ async def eval_retry_async(
                     # the log — there is nothing left to retry (and the
                     # recovered file is the final log, so don't clean it up)
                     finalized_indexes.add(i)
+                    cleanup_recovery_buffer(eval_log.location)
                 elif recovered.location:
                     recovered_files[i] = recovered.location
             except RecoveryNotAvailable:

@@ -697,6 +697,8 @@ def test_eval_retry_incomplete_action_error_finalizes():
             resolved = next(s for s in recovered.samples if s.id == 2)
             assert resolved.error is not None
             assert "terminated by operator during recovery" in resolved.error.message
+            # the recovered file is the final log, so the buffer is swept
+            assert not buffer.db_path.exists()
         finally:
             buffer.cleanup()
 

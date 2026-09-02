@@ -45,8 +45,20 @@ class RecoveryStats:
 
 
 def expected_samples(eval: EvalSpec) -> int:
-    """Total samples the eval expected to run (dataset samples x epochs)."""
-    dataset_samples = (eval.dataset.samples or 0) if eval.dataset else 0
+    """Total samples the eval expected to run (selected samples x epochs).
+
+    `EvalDataset.sample_ids` is recorded after `limit` / `sample_id` slicing
+    (it is what the task logger sizes its own sample total from), whereas
+    `EvalDataset.samples` is the unsliced dataset size — so a limited eval
+    must be sized from the ids or it can never be complete. Logs written
+    before ids were recorded fall back to the dataset size.
+    """
+    if eval.dataset is None:
+        return 0
+    if eval.dataset.sample_ids is not None:
+        dataset_samples = len(eval.dataset.sample_ids)
+    else:
+        dataset_samples = eval.dataset.samples or 0
     return dataset_samples * (eval.config.epochs or 1)
 
 

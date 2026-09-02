@@ -2430,5 +2430,70 @@ def test_eval_set_incomplete_action_error_finalizes() -> None:
             resolved = next(s for s in recovered.samples if s.id == 2)
             assert resolved.error is not None
             assert "terminated by operator during recovery" in resolved.error.message
+            # the recovered file is the final log, so the buffer is swept
+            assert not buffer.db_path.exists()
         finally:
             buffer.cleanup()
+
+
+def test_eval_set_incomplete_action_error_recovers_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed recovery under a resolving disposition is attempted only once.
+
+    With incomplete_action='error' recovery runs before completeness
+    classification; when it fails the log is still classified as incomplete,
+    but the task must not be recovered again on the way to being re-run.
+    """
+    import inspect_ai.log._recover as recover_module
+
+    samples = [Sample(id=1, input="Say hello", target="hello")]
+    resume_task = Task(
+        dataset=samples,
+        solver=[identity_solver()],
+        name="incomplete_action_recovers_once",
+    )
+
+    attempts: list[str] = []
+
+    def failing_recover(log: str, *args: object, **kwargs: object) -> EvalLog:
+        attempts.append(log)
+        raise RuntimeError("simulated recovery failure")
+
+    monkeypatch.setattr(recover_module, "recover_eval_log", failing_recover)
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        started_log = eval(
+            resume_task,
+            model="mockllm/model",
+            log_dir=log_dir,
+            run_samples=False,
+        )[0]
+        with zipfile.ZipFile(local_path(started_log.location), "w") as zf:
+            zf.writestr(
+                "_journal/start.json",
+                to_json_str_safe(
+                    LogStart(
+                        version=started_log.version,
+                        eval=started_log.eval,
+                        plan=started_log.plan,
+                    )
+                ),
+            )
+
+        success, logs = eval_set(
+            tasks=resume_task,
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=1,
+            retry_immediate=True,
+            retry_cleanup=False,
+            incomplete_action="error",
+        )
+
+        assert [local_path(a) for a in attempts] == [local_path(started_log.location)]
+        # the task re-ran from scratch
+        assert success
+        assert len(logs) == 1
+        assert logs[0].status == "success"
+        assert "-recovered" not in (logs[0].location or "")

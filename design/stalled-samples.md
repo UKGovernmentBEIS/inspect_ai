@@ -116,7 +116,8 @@ inspect log recover <file> --incomplete-action error [--incomplete-max 10]
 Output states the resolution explicitly, e.g.:
 
 ```
-Recovered 493 samples to mylog-recovered.eval (status: success)
+Recovered 493 samples to mylog-recovered.eval
+  status: success
   7 in-progress samples resolved as errors (stalled at crash)
 ```
 
