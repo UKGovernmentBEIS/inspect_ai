@@ -38,7 +38,7 @@ VERIFIED = ExecResult(
 REGULAR_FILE = ExecResult(
     success=True,
     returncode=0,
-    stdout="regular file\n",
+    stdout="81ed\n",  # stat -c %f of a 0755 regular file
     stderr=f"{_VERIFIED_MARKER}\n",
 )
 """Helper result for the detector: verified, and the launcher is a regular file."""
@@ -450,7 +450,31 @@ async def test_detector_checks_as_known_tools_user() -> None:
     # Checked as the tools user, inside the verified directory, by relative name.
     [(cmd, user)] = sandbox.exec_calls
     assert user == "root"
-    assert wrapped_command(cmd) == ["stat", "-c", "%F", "inspect-sandbox-tools"]
+    assert wrapped_command(cmd) == ["stat", "-c", "%f", "inspect-sandbox-tools"]
+
+
+@pytest.mark.parametrize(
+    "stdout, expected",
+    [
+        pytest.param("81ed\n", True, id="regular-0755"),
+        pytest.param("8180\n", True, id="regular-0600"),
+        pytest.param("a1ff\n", False, id="symlink"),
+        pytest.param("41ed\n", False, id="directory"),
+        pytest.param("regular file\n", False, id="localized-%F-output"),
+        pytest.param("", False, id="empty"),
+    ],
+)
+async def test_detector_reads_launcher_type_from_raw_mode(
+    stdout: str, expected: bool
+) -> None:
+    """The launcher check uses the raw st_mode, not the locale-dependent %F text."""
+    sandbox = FakeSandbox(
+        lambda cmd, user: ExecResult(
+            success=True, returncode=0, stdout=stdout, stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    sandbox._tools_user = "root"
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is expected
 
 
 async def test_detector_adopts_existing_root_installation() -> None:

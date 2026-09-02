@@ -1,5 +1,6 @@
 import gzip
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -192,7 +193,7 @@ async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> 
         result = await exec_in_framework_directory(
             sandbox,
             SANDBOX_TOOLS_DIR,
-            ["stat", "-c", "%F", SANDBOX_TOOLS_BASE_NAME],
+            ["stat", "-c", "%f", SANDBOX_TOOLS_BASE_NAME],
             user=user,
             expected_uid=_expected_uid(user),
         )
@@ -201,7 +202,22 @@ async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> 
     except FrameworkDirectoryError as ex:
         trace_message(logger, TRACE_SANDBOX_TOOLS, f"tools dir not reusable: {ex}")
         return False
-    return result.success and result.stdout.strip() == "regular file"
+    return result.success and _is_regular_file_mode(result.stdout)
+
+
+def _is_regular_file_mode(stat_output: str) -> bool:
+    """Whether ``stat -c %f`` output (raw st_mode in hex) denotes a regular file.
+
+    The raw mode is used instead of ``%F`` because GNU ``stat`` localizes the
+    latter's type names, so a container with a non-C locale would never match
+    "regular file". ``stat`` does not follow symlinks, so a symlink at the launcher
+    path reports its own type and is rejected.
+    """
+    try:
+        mode = int(stat_output.strip(), 16)
+    except ValueError:
+        return False
+    return stat.S_ISREG(mode)
 
 
 async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
