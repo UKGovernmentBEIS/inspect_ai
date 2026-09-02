@@ -91,45 +91,53 @@ class MockLLM(ModelAPI):
             output = self.outputs(input, tools, tool_choice, config)
             if _inspect.isawaitable(output):
                 output = await output
-            model_call = ModelCall.create(request, {"content": output.completion})
-            return output, model_call
+        else:
+            try:
+                output = next(self.outputs)
+            except StopIteration:
+                raise ValueError("custom_outputs ran out of values")
 
-        try:
-            output = next(self.outputs)
-        except StopIteration:
-            raise ValueError("custom_outputs ran out of values")
+            if not isinstance(output, ModelOutput):
+                raise ValueError(
+                    f"output must be an instance of ModelOutput; got {type(output)}; content: {repr(output)}"
+                )
 
-        if not isinstance(output, ModelOutput):
-            raise ValueError(
-                f"output must be an instance of ModelOutput; got {type(output)}; content: {repr(output)}"
-            )
-        # For testing, we set token usage here only if not already specified.
+        await self._ensure_default_usage(output, input, tools)
+        model_call = ModelCall.create(request, {"content": output.completion})
+        return output, model_call
+
+    async def _ensure_default_usage(
+        self,
+        output: ModelOutput,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+    ) -> None:
+        # For testing, set token usage only if not already specified.
         # Uses count_tokens for consistency with the compaction baseline
         # tracking, which compares generate's input_tokens against count_tokens.
         # Includes tool tokens since real APIs (e.g. Anthropic) include them
         # in usage.input_tokens.
-        if output.usage is None:
-            input_tokens = await self.count_tokens(input)
-            # count tool tokens (same approach as Model.count_tool_tokens)
-            tool_json = ""
-            for t in tools:
-                tool_json += json.dumps(
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": json_schema_dump(t.parameters),
-                        },
-                    }
-                )
-            if tool_json:
-                input_tokens += await self.count_text_tokens(tool_json)
-            content_length = len(output.completion) if output.completion else 0
-            output.usage = ModelUsage(
-                input_tokens=input_tokens,
-                output_tokens=content_length,
-                total_tokens=input_tokens + content_length,
+        if output.usage is not None:
+            return
+        input_tokens = await self.count_tokens(input)
+        # count tool tokens (same approach as Model.count_tool_tokens)
+        tool_json = ""
+        for t in tools:
+            tool_json += json.dumps(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": json_schema_dump(t.parameters),
+                    },
+                }
             )
-        model_call = ModelCall.create(request, {"content": output.completion})
-        return output, model_call
+        if tool_json:
+            input_tokens += await self.count_text_tokens(tool_json)
+        content_length = len(output.completion) if output.completion else 0
+        output.usage = ModelUsage(
+            input_tokens=input_tokens,
+            output_tokens=content_length,
+            total_tokens=input_tokens + content_length,
+        )
