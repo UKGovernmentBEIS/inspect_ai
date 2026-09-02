@@ -36,6 +36,15 @@ def cascade(threshold: float = 1.0, **scorers: Scorer) -> Scorer:
     settling stage, or the last scored stage on fall-through); the sub-scorer's
     own `Score` object is not mutated.
 
+    The returned metadata also carries `cascade_values`, a mapping from each
+    stage that ran and produced a real score to its `value_to_float` verdict,
+    in run order. This preserves the verdicts of earlier stages that a later
+    stage overrode on fall-through, so a cheap stage disagreeing with the
+    deciding stage stays visible for offline auditing. Stages that declined
+    (`None`) or were unscored (`nan`) are omitted, and stages after the settling
+    one never ran, so they do not appear. When no stage scored (the unscored
+    fall-back), the `cascade_values` key is absent rather than empty.
+
     The cascade assumes earlier (cheaper) scorers do not produce false
     positives, so a `CORRECT` from exact match or symbolic equivalence can be
     trusted without running the grader model. That assumption is the caller's
@@ -58,6 +67,7 @@ def cascade(threshold: float = 1.0, **scorers: Scorer) -> Scorer:
 
     async def score(state: TaskState, target: Target) -> Score:
         last_scored: tuple[str, Score] | None = None
+        cascade_values: dict[str, float] = {}
         for name, sub_scorer in scorers.items():
             result = await sub_scorer(state, target)
             if result is None:
@@ -65,6 +75,7 @@ def cascade(threshold: float = 1.0, **scorers: Scorer) -> Scorer:
             value = to_float(result.value)
             if isnan(value):
                 continue
+            cascade_values[name] = value
             last_scored = (name, result)
             if value >= threshold:
                 break
@@ -74,7 +85,10 @@ def cascade(threshold: float = 1.0, **scorers: Scorer) -> Scorer:
 
         decided_by, result = last_scored
         return result.model_copy(
-            update={"metadata": (result.metadata or {}) | {"decided_by": decided_by}}
+            update={
+                "metadata": (result.metadata or {})
+                | {"decided_by": decided_by, "cascade_values": cascade_values}
+            }
         )
 
     return score

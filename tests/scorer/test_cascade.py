@@ -152,6 +152,62 @@ def test_sub_scorer_score_not_mutated():
     assert "decided_by" not in (original.metadata or {})
 
 
+def test_cascade_values_records_only_settling_stage_on_short_circuit():
+    calls: list[str] = []
+    fn = cascade(
+        exact=_stage("exact", Score(value=CORRECT), calls),
+        grader=_stage("grader", Score(value=CORRECT), calls),
+    )
+    result = _run(fn)
+    # grader never ran, so only exact's verdict is recorded
+    assert result.metadata["cascade_values"] == {"exact": 1.0}
+
+
+def test_cascade_values_preserves_fall_through_disagreement():
+    calls: list[str] = []
+    fn = cascade(
+        exact=_stage("exact", Score(value=INCORRECT), calls),
+        grader=_stage("grader", Score(value=CORRECT), calls),
+    )
+    result = _run(fn)
+    # the overridden cheap-stage verdict stays visible next to the decider
+    assert result.metadata["decided_by"] == "grader"
+    assert result.metadata["cascade_values"] == {"exact": 0.0, "grader": 1.0}
+
+
+def test_cascade_values_records_all_stages_when_none_settle():
+    calls: list[str] = []
+    fn = cascade(
+        a=_stage("a", Score(value=INCORRECT), calls),
+        b=_stage("b", Score(value=INCORRECT), calls),
+    )
+    result = _run(fn)
+    # nothing settles: last real score decides, every ran stage is recorded
+    assert result.metadata["decided_by"] == "b"
+    assert result.metadata["cascade_values"] == {"a": 0.0, "b": 0.0}
+
+
+def test_cascade_values_absent_when_nothing_scored():
+    calls: list[str] = []
+    fn = cascade(
+        a=_stage("a", None, calls),
+        b=_stage("b", Score.unscored(), calls),
+    )
+    result = _run(fn)
+    assert "cascade_values" not in (result.metadata or {})
+
+
+def test_cascade_values_omits_declined_and_unscored_stages():
+    calls: list[str] = []
+    fn = cascade(
+        declined=_stage("declined", None, calls),
+        unscored=_stage("unscored", Score.unscored(), calls),
+        grader=_stage("grader", Score(value=CORRECT), calls),
+    )
+    result = _run(fn)
+    assert result.metadata["cascade_values"] == {"grader": 1.0}
+
+
 @scorer(metrics=[accuracy(), stderr()])
 def _fixed(value):
     async def score(state: TaskState, target: Target) -> Score:
