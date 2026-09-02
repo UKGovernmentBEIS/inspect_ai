@@ -1519,18 +1519,24 @@ def test_anthropic_computer_use_tool_version(
         ("claude-fable-5-1", True),
         ("claude-mythos-5-1", True),
         ("anthropic.claude-fable-5-1", True),
+        ("claude-fable-5-1-20260901", True),
         # assume later point releases keep the 5.1 behavior
         ("claude-fable-5-2", True),
+        ("claude-fable-5-12", True),
         ("claude-fable-5.1", True),
         # base names and other models don't match
         ("claude-fable-5", False),
+        ("claude-fable-5-0", False),
         ("claude-mythos-5", False),
         ("claude-sonnet-5", False),
         ("claude-opus-5", False),
+        ("claude-opus-5-1", False),
         ("claude-saga-5-1", False),
         ("claude-haiku-4-5", False),
         ("claude-3-5-sonnet-latest", False),
-        # a hypothetical date-suffixed base snapshot is not a point release
+        # 1M-context style and date suffixes are not point releases
+        ("claude-fable-5-1m", False),
+        ("claude-fable-5-2026", False),
         ("claude-fable-5-20260609", False),
     ],
 )
@@ -1609,16 +1615,19 @@ def test_anthropic_fable_5_1_thinking_block_binding_merges_existing() -> None:
     }
 
 
-def test_anthropic_fable_5_1_no_binding_without_thinking_blocks() -> None:
-    """No thinking blocks in the history means no beta and no thinking param."""
+def test_anthropic_fable_5_1_binding_applies_without_thinking_blocks() -> None:
+    """The opt-in applies to every 5.1 request (uniform headers for batching)."""
     api = AnthropicAPI(model_name="claude-fable-5-1", api_key="test-key")
     request: dict[str, Any] = {
         "messages": [{"role": "user", "content": [{"type": "text", "text": "hi"}]}]
     }
     betas: list[str] = []
     api.apply_thinking_block_binding(request, betas)
-    assert betas == []
-    assert "thinking" not in request
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
 
 
 def test_anthropic_fable_5_no_binding_on_base_model() -> None:
@@ -1706,6 +1715,58 @@ async def test_anthropic_forced_tool_choice_request_wiring(
         }
     else:
         assert not (output.metadata or {}).get("tool_choice_degraded")
+
+
+@pytest.mark.anyio
+async def test_anthropic_forced_tool_choice_with_thinking_records_metadata() -> None:
+    """A forced choice dropped by the thinking gate is recorded as degraded.
+
+    With thinking active, tool_choice is omitted for all Claude models; the
+    degradation must still land in the output metadata.
+    """
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
+    captured: dict[str, Any] = {}
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    with patch.object(api, "_perform_request_and_continuations", fake_perform):
+        output, _call = await api.generate(
+            input=[ChatMessageUser(content="What is 1 + 1?")],
+            tools=[
+                ToolInfo(
+                    name="addition",
+                    description="Add two numbers.",
+                    parameters=ToolParams(
+                        properties={"x": ToolParam(type="integer")}, required=["x"]
+                    ),
+                )
+            ],
+            tool_choice="any",
+            config=GenerateConfig(max_tokens=64, reasoning_effort="high"),
+        )
+
+    assert "tool_choice" not in captured
+    assert isinstance(output, ModelOutput)
+    assert output.metadata is not None
+    assert output.metadata["tool_choice_degraded"] == {
+        "requested": {"type": "any"},
+        "used": {"type": "auto"},
+    }
 
 
 def _message_with_transformations(transformations: list[dict[str, Any]]) -> Any:

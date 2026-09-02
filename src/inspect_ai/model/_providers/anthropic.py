@@ -209,6 +209,7 @@ from ._anthropic_batch import AnthropicBatcher
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
+    is_claude_fable_5_1_model,
     model_base_url,
     normalize_stream_arg,
     require_azure_base_url,
@@ -535,10 +536,21 @@ class AnthropicAPI(ModelAPI):
                 request["system"] = system_param
             request["tools"] = tools_param
             tool_choice_degraded = False
-            if len(tools_param) > 0 and not self.is_using_thinking(config):
-                resolved_choice = self.resolved_tool_choice(tool_choice)
-                tool_choice_degraded = resolved_choice != tool_choice
-                request["tool_choice"] = message_tool_choice(resolved_choice, config)
+            if len(tools_param) > 0:
+                if not self.is_using_thinking(config):
+                    resolved_choice = self.resolved_tool_choice(tool_choice)
+                    tool_choice_degraded = resolved_choice != tool_choice
+                    request["tool_choice"] = message_tool_choice(
+                        resolved_choice, config
+                    )
+                else:
+                    # with thinking active the API rejects forced tool choice,
+                    # so tool_choice is omitted entirely (long-standing
+                    # behavior for all Claude models) — record a forced choice
+                    # as degraded here too so the eval log reflects it
+                    tool_choice_degraded = tool_choice == "any" or isinstance(
+                        tool_choice, ToolFunction
+                    )
 
             # additional options
             req, extra_body, headers, betas = self.completion_config(config)
@@ -554,7 +566,6 @@ class AnthropicAPI(ModelAPI):
             ):
                 betas.append("interleaved-thinking-2025-05-14")
 
-            # opt into dropping prefix-mismatched thinking blocks (Fable/Mythos 5.1)
             self.apply_thinking_block_binding(request, betas)
 
             # extra headers (for time tracker and computer use)
@@ -1236,36 +1247,29 @@ class AnthropicAPI(ModelAPI):
     ) -> None:
         """Opt into dropping prefix-mismatched thinking blocks on Fable/Mythos 5.1.
 
-        These models bind their thinking blocks to the exact request prefix
-        (system, tools, and earlier messages) that produced them: replaying a
-        block after any earlier-turn edit returns a 400 ("The block is bound
-        to a different conversation"). Solvers and agents legitimately edit
-        history (system prompt changes, tool availability changes, message
-        trimming), so opt into dropping unmatched blocks instead of failing
-        the request. First-party API only (like fallbacks and mid-conversation
-        system messages) — the beta is not documented for bedrock/vertex.
+        These models bind thinking blocks to the request prefix that produced
+        them; solvers legitimately edit history, and without drop_block such an
+        edit fails the replay with a 400. Applied to every request for these
+        models — not only those replaying thinking blocks — so the beta header
+        stays uniform across a task's requests (the batcher submits a single
+        header set per batch). First-party API only; the beta is not
+        documented for bedrock/vertex, where a history edit will still 400.
         """
-        if (
-            self.is_claude_fable_5_1_or_later()
-            and not (self.is_bedrock() or self.is_vertex())
-            and _messages_contain_thinking(request.get("messages", []))
+        if self.is_claude_fable_5_1_or_later() and not (
+            self.is_bedrock() or self.is_vertex()
         ):
             betas.append(_THINKING_BINDING_BETA)
-            # thinking is always on for these models, so an explicit adaptive
-            # config (the server default) is accepted even when
-            # completion_config omitted the thinking field
-            thinking_param = dict(request.get("thinking") or {"type": "adaptive"})
-            thinking_param["block_binding"] = {"prefix_mismatch_behavior": "drop_block"}
-            request["thinking"] = thinking_param
+            # thinking is always on for these models, so explicit adaptive
+            # (the server default) is accepted when the field was omitted
+            request.setdefault("thinking", {"type": "adaptive"})["block_binding"] = {
+                "prefix_mismatch_behavior": "drop_block"
+            }
 
     def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
-        """Degrade forced tool choice on models that reject it.
+        """Degrade forced tool choice to auto on models that reject it (400).
 
-        Fable/Mythos 5.1 return a 400 for tool_choice type "any" and "tool"
-        ('tool_choice: type "tool" and "any" are not supported for this
-        model'); "auto" and "none" are unchanged. Degrade to "auto" with a
-        warning rather than failing the request — strict tool use with auto
-        remains the schema-enforcement path on these models.
+        "auto" and "none" pass through unchanged; strict tool use with auto
+        remains the schema-enforcement path on Fable/Mythos 5.1.
         """
         if (
             tool_choice == "any" or isinstance(tool_choice, ToolFunction)
@@ -1352,21 +1356,7 @@ class AnthropicAPI(ModelAPI):
         return self.is_claude_5() and "opus" in self.model_family()
 
     def is_claude_fable_5_1_or_later(self) -> bool:
-        """Fable/Mythos 5.1 or a later point release of those codenames.
-
-        Fable and Mythos share the same underlying model, so the 5.1 API
-        changes (forced tool choice rejected with a 400; thinking blocks bound
-        to the conversation prefix that produced them) apply to both. Later
-        point releases (5-2, ...) are assumed to keep the 5.1 behavior. The
-        base names (claude-fable-5 / claude-mythos-5) do not match, nor do
-        hypothetical date-suffixed base snapshots (claude-fable-5-20260609).
-        """
-        return (
-            re.search(
-                r"claude-(?:fable|mythos)-5[-.](?!20\d{6})\d", self.model_family()
-            )
-            is not None
-        )
+        return is_claude_fable_5_1_model(self.model_family())
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (

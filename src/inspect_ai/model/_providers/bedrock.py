@@ -58,19 +58,13 @@ from .._stream import (
     report_model_stream_start,
 )
 from .util import (
+    is_claude_fable_5_1_model,
     model_base_url,
     normalize_stream_arg,
 )
 from .util.hooks import ConverseHooks
 
 logger = getLogger(__name__)
-
-# mirrors the same-named warning in the native anthropic provider
-_FORCED_TOOL_CHOICE_WARNING = (
-    "anthropic model '{model}' does not support forced tool choice "
-    "(tool_choice 'any' or a specific tool returns a 400 error); using "
-    "tool_choice 'auto' instead."
-)
 
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
@@ -627,32 +621,18 @@ class BedrockAPI(ModelAPI):
         return False
 
     def is_claude_fable_5_1_or_later(self) -> bool:
-        """Mirrors `is_claude_fable_5_1_or_later` in the native anthropic provider.
-
-        Fable/Mythos 5.1+ (e.g. anthropic.claude-fable-5-1) reject forced tool
-        choice with a 400; base names and date-suffixed base snapshots do not
-        match.
-        """
-        return (
-            self.is_claude()
-            and re.search(
-                r"claude-(?:fable|mythos)-5[-.](?!20\d{6})\d", self.model_family()
-            )
-            is not None
-        )
+        return self.is_claude() and is_claude_fable_5_1_model(self.model_family())
 
     def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
-        """Mirrors `resolved_tool_choice` in the native anthropic provider.
-
-        Fable/Mythos 5.1 reject forced tool choice with a 400 — degrade to
-        auto with a warning rather than failing the request.
-        """
+        """Mirrors `resolved_tool_choice` in the native anthropic provider."""
         if (
             tool_choice == "any" or isinstance(tool_choice, ToolFunction)
         ) and self.is_claude_fable_5_1_or_later():
             warn_once(
                 logger,
-                _FORCED_TOOL_CHOICE_WARNING.format(model=self.model_family()),
+                f"bedrock model '{self.model_name}' does not support forced "
+                "tool choice (tool_choice 'any' or a specific tool returns a "
+                "400 error); using tool_choice 'auto' instead.",
             )
             return "auto"
         return tool_choice
@@ -739,8 +719,11 @@ class BedrockAPI(ModelAPI):
             # Process the tools
             resolved_tools = converse_tools(tools)
             tool_config = None
+            tool_choice_degraded = False
             if resolved_tools is not None:
-                choice = converse_tool_choice(self.resolved_tool_choice(tool_choice))
+                resolved_choice = self.resolved_tool_choice(tool_choice)
+                tool_choice_degraded = resolved_choice != tool_choice
+                choice = converse_tool_choice(resolved_choice)
                 tool_config = ConverseToolConfig(
                     tools=resolved_tools, toolChoice=choice
                 )
@@ -902,6 +885,18 @@ class BedrockAPI(ModelAPI):
 
         # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)
+
+        # a degraded forced tool choice changes request semantics — record it
+        # per-request so the eval log reflects it (mirrors the native provider)
+        if tool_choice_degraded:
+            output.metadata = (output.metadata or {}) | {
+                "tool_choice_degraded": {
+                    "requested": {"type": "tool", "name": tool_choice.name}
+                    if isinstance(tool_choice, ToolFunction)
+                    else {"type": "any"},
+                    "used": {"type": "auto"},
+                }
+            }
 
         # return
         return output, model_call

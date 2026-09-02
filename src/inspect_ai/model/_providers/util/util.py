@@ -1,4 +1,5 @@
 import os
+import re
 from logging import getLogger
 from typing import Any, Tuple
 
@@ -133,3 +134,21 @@ def normalize_stream_arg(value: Any, arg_name: str = "stream") -> bool | None:
         f"Unrecognized value for the {arg_name} model arg: {value!r} "
         '(expected true, false, or "auto")'
     )
+
+
+# point releases match (5-1, 5.1, 5-2, ...) but not the base release (-5 or
+# -5-0), 1M-context style suffixes (-5-1m), or date suffixes (-5-20260901)
+_CLAUDE_FABLE_5_POINT_RELEASE = re.compile(
+    r"claude-(?:fable|mythos)-5[-.](?!0(?![0-9A-Za-z]))\d{1,2}(?![0-9A-Za-z])"
+)
+
+
+def is_claude_fable_5_1_model(model_name: str) -> bool:
+    """Fable/Mythos 5.1 or a later point release of those codenames.
+
+    Fable and Mythos share the same underlying model, so the 5.1 API changes
+    (forced tool choice rejected; thinking blocks bound to their originating
+    conversation prefix) apply to both, and are assumed to persist in later
+    point releases.
+    """
+    return _CLAUDE_FABLE_5_POINT_RELEASE.search(model_name) is not None
