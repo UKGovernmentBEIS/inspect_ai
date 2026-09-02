@@ -505,6 +505,8 @@ def recover_command(
                 f"  {stats.in_progress_count} in-progress samples resolved "
                 f"as errors (stalled at crash)"
             )
+        if stats.not_finalized_reason is not None:
+            print(f"  not finalized: {stats.not_finalized_reason}")
 
         if stats.failed_count > 0 and log.status == "error":
             print(f"\nTo re-run the {stats.failed_count} failed/cancelled samples:")

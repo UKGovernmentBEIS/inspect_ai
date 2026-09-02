@@ -42,6 +42,14 @@ class RecoveryStats:
     sample_count: int = 0
     failed_count: int = 0
     in_progress_count: int = 0
+    not_finalized_reason: str | None = None
+    """Why a resolving disposition left the log with status "error".
+
+    Set only when `incomplete_action="error"` did not finalize the log, so
+    callers can tell "expected samples are missing" (retryable by design)
+    apart from "metrics could not be recomputed" (nothing left to run, but
+    the log will still be retried).
+    """
 
 
 def expected_samples(eval: EvalSpec) -> int:
@@ -294,10 +302,38 @@ async def write_recovered_eval_log(
     expected_keys = expected_sample_keys(crashed.eval)
     if expected_keys is not None:
         complete = len(expected_keys) > 0 and written_keys == expected_keys
+        missing = len(expected_keys - written_keys)
     else:
         expected = expected_samples(crashed.eval)
         complete = expected > 0 and sample_count >= expected
+        missing = max(expected - sample_count, 0)
     finalized = incomplete_action == "error" and results is not None and complete
+
+    # Under a resolving disposition, say why the log was not finalized: the
+    # in-progress samples have already been rewritten as resolved either way,
+    # and a retry of the recovered log re-runs them, which is expected when
+    # samples are missing but surprising when only metrics failed.
+    not_finalized_reason: str | None = None
+    if incomplete_action == "error" and not finalized:
+        if not complete:
+            if missing > 0:
+                not_finalized_reason = (
+                    f"{missing} expected samples missing from the recovered log"
+                )
+            elif expected_keys is not None and len(expected_keys) > 0:
+                not_finalized_reason = (
+                    "written samples do not match the recorded sample ids"
+                )
+            else:
+                not_finalized_reason = "the log records no expected sample count"
+        else:
+            not_finalized_reason = "metrics could not be recomputed"
+            logger.warning(
+                "Recovered log not finalized: every expected sample is final "
+                "but metrics could not be recomputed, so the log keeps status "
+                "'error' and a retry will re-run the samples resolved during "
+                "recovery."
+            )
 
     status: EvalStatus
     if finalized:
@@ -315,6 +351,7 @@ async def write_recovered_eval_log(
         stats.sample_count = sample_count
         stats.failed_count = failed_count
         stats.in_progress_count = in_progress_count
+        stats.not_finalized_reason = not_finalized_reason
 
     return await recorder.log_finish(
         crashed.eval,

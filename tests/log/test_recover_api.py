@@ -30,7 +30,9 @@ from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import HEADER_JSON, LogStart
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._recover import (
+    IncompleteAction,
     RecoveryNotAvailable,
+    RecoveryStats,
     RecoveryThresholdExceeded,
     recover_eval_log_async,
     recoverable_eval_logs,
@@ -258,16 +260,21 @@ async def test_recover_incomplete_action_error_missing_samples_stays_error() -> 
                 eval_path, completed_ids=[], in_progress_ids=[3], db_dir=db_dir
             )
 
+            stats = RecoveryStats()
             log = await recover_eval_log_async(
                 eval_path,
                 output=output_path,
                 cleanup=False,
                 _db_dir=db_dir,
                 incomplete_action="error",
+                _stats=stats,
             )
 
             assert log.status == "error"
             assert log.error is not None
+            assert stats.not_finalized_reason == (
+                "1 expected samples missing from the recovered log"
+            )
 
             read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
@@ -275,6 +282,96 @@ async def test_recover_incomplete_action_error_missing_samples_stays_error() -> 
             resolved = next(s for s in read_log.samples if s.id == 3)
             assert resolved.error is not None
             assert "terminated by operator during recovery" in resolved.error.message
+
+
+async def test_recover_incomplete_action_error_metrics_failure_stays_error(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A metrics recompute failure blocks finalization and says so.
+
+    Every expected sample is final, but without recomputed results the log
+    would fail eval_set's completeness predicate, so it keeps status
+    'error'. Unlike the missing-samples case this leaves nothing to run, so
+    the reason is reported distinctly (stats + warning) rather than looking
+    like missing samples.
+    """
+    from inspect_ai._eval.task import results as task_results
+
+    def failing_eval_results(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("metric 'custom_metric' not found")
+
+    monkeypatch.setattr(task_results, "eval_results", failing_eval_results)
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(eval_path, samples=flushed)
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            stats = RecoveryStats()
+            with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+                log = await recover_eval_log_async(
+                    eval_path,
+                    output=output_path,
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_action="error",
+                    _stats=stats,
+                )
+
+            assert log.status == "error"
+            assert log.results is None
+            assert stats.sample_count == 4
+            assert stats.not_finalized_reason == "metrics could not be recomputed"
+            assert any(
+                "not finalized" in r.message
+                and "metrics could not be recomputed" in r.message
+                for r in caplog.records
+            )
+
+            # the in-progress sample was still resolved, so a retry re-runs it
+            read_log = await read_eval_log_async(output_path)
+            assert read_log.samples is not None
+            resolved = next(s for s in read_log.samples if s.id == 4)
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+
+
+async def test_recover_finalized_has_no_not_finalized_reason() -> None:
+    """A finalized recovery, and the default disposition, report no reason."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+
+            _write_crashed_eval(eval_path, samples=[_make_sample(1), _make_sample(2)])
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            cases: list[tuple[IncompleteAction, str]] = [
+                ("retry", "retry.eval"),
+                ("error", "err.eval"),
+            ]
+            for action, output_name in cases:
+                stats = RecoveryStats()
+                log = await recover_eval_log_async(
+                    eval_path,
+                    output=os.path.join(temp_dir, output_name),
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_action=action,
+                    _stats=stats,
+                )
+                assert stats.not_finalized_reason is None
+                assert log.status == ("success" if action == "error" else "error")
 
 
 async def test_recover_incomplete_max() -> None:
