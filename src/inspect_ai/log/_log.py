@@ -385,6 +385,9 @@ class EvalSampleSummary(BaseModel):
                     explanation=thin_text(score.explanation)
                     if score.explanation is not None
                     else None,
+                    reason=thin_text(score.reason)
+                    if isinstance(score.reason, str)
+                    else score.reason,
                     metadata=thin_metadata(score.metadata)
                     if score.metadata is not None
                     else None,
