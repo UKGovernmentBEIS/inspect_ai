@@ -8,7 +8,7 @@
 - Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
 - Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".
 - Anthropic: Support for Claude Fable 5.1 and Mythos 5.1 — forced tool choice degrades to auto on both, and history edits no longer fail Fable 5.1's replayed thinking blocks (first-party API).
-- Google: Added model info for Gemini 3.8 Flash and Gemini 3.7 Flash; `reasoning_effort="minimal"` now maps to `low` on these models (which reject minimal thinking) instead of failing the request.
+- Google: Added model info for Gemini 3.8 Flash and Gemini 3.7 Flash; `reasoning_effort="minimal"` now maps to `low` (with a warning) on models that reject minimal thinking rather than failing the request.
 - OpenAI: Chat Completions usage now preserves prompt-cache read and write tokens for accurate cache-aware costing.
 - Scoring: `model_graded_qa`/`model_graded_fact` no longer score a malformed multi-character verdict such as `GRADE: CI` as correct; such verdicts now leave the sample unscored with `grade_parse_failure` recorded.
 - OpenAI: Fixed background responses failing on transient connection and timeout errors.

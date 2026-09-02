@@ -16,7 +16,14 @@ from inspect_ai.model._providers.google import GoogleGenAIAPI
 
 
 def _api(model_name: str) -> GoogleGenAIAPI:
-    return GoogleGenAIAPI(model_name=model_name, base_url=None, api_key="test-key")
+    vertex = model_name.startswith("vertex/")
+    return GoogleGenAIAPI(
+        model_name=model_name,
+        base_url=None,
+        api_key="test-key",
+        project="test-project" if vertex else None,
+        location="us-central1" if vertex else None,
+    )
 
 
 # Known families and non-generative models must NOT be treated as latest.
@@ -79,12 +86,6 @@ def test_pro_codename_is_thinking_only() -> None:
     assert _api("orion-pro-preview").is_gemini_thinking_only() is True
 
 
-def test_flash_codename_follows_frontier_minimal_thinking() -> None:
-    # the current Flash frontier (3.7+) rejects MINIMAL, so a predeployment
-    # flash codename must not be sent it either
-    assert _api("nimbus-flash-preview").supports_minimal_thinking() is False
-
-
 @pytest.mark.parametrize(
     "model_name,expected",
     [
@@ -96,22 +97,22 @@ def test_flash_codename_follows_frontier_minimal_thinking() -> None:
         ("gemini-4-flash", False),
         ("gemini-3.1-flash-lite", True),
         ("gemini-3.5-flash-lite", True),
+        ("gemini-2.5-flash-lite", False),
         ("gemini-3-pro", False),
         ("gemini-3.1-pro-preview", False),
         ("gemini-2.5-flash", False),
         ("vertex/gemini-3.8-flash", False),
         ("vertex/gemini-3.6-flash", True),
+        # version-less names follow the frontier (3.7+ Flash rejects MINIMAL);
+        # the lite alias tracks the newest Flash-Lite, which accepts it
+        ("gemini-flash-latest", False),
+        ("gemini-flash-lite-latest", True),
+        ("nimbus-flash-preview", False),
+        ("satellite-flash-preview", False),
     ],
 )
 def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
-    api = GoogleGenAIAPI(
-        model_name=model_name,
-        base_url=None,
-        api_key="test-key",
-        project="test-project" if model_name.startswith("vertex/") else None,
-        location="us-central1" if model_name.startswith("vertex/") else None,
-    )
-    assert api.supports_minimal_thinking() is expected
+    assert _api(model_name).supports_minimal_thinking() is expected
 
 
 @pytest.mark.parametrize(
@@ -153,13 +154,7 @@ def test_future_gemini_version_aliases_to_frontier() -> None:
 def test_latest_scoped_to_dev_endpoint() -> None:
     # vertex custom endpoints/deployments have arbitrary names that say
     # nothing about the model behind them
-    api = GoogleGenAIAPI(
-        model_name="vertex/some-partner-endpoint",
-        base_url=None,
-        api_key="test-key",
-        project="test-project",
-        location="us-central1",
-    )
+    api = _api("vertex/some-partner-endpoint")
     assert api.is_latest() is False
     assert api.is_gemini() is False
 

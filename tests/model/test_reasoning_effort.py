@@ -16,9 +16,12 @@ Covers:
 - OpenRouter: `max` is remapped to `xhigh` (OpenRouter does not accept `max`).
 """
 
+import logging
+
 import pytest
 from google.genai.types import ThinkingLevel
 
+import inspect_ai._util.logger as _inspect_logger
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers.anthropic import AnthropicAPI
@@ -214,15 +217,19 @@ def test_google_gemini_2_5_reasoning_tokens_wins_over_effort():
         ("gemini-3.1-pro-preview", ThinkingLevel.LOW),
     ],
 )
-def test_google_gemini_3_minimal_effort(model_name, expected_level):
+def test_google_gemini_3_minimal_effort(model_name, expected_level, caplog):
     """Minimal maps to MINIMAL only where the API accepts it (3.7+ Flash rejects it)."""
+    _inspect_logger._warned.clear()
     api = _google_api(model_name)
-    thinking_config = api.chat_thinking_config(
-        GenerateConfig(reasoning_effort="minimal")
-    )
+    with caplog.at_level(logging.WARNING):
+        thinking_config = api.chat_thinking_config(
+            GenerateConfig(reasoning_effort="minimal")
+        )
     assert thinking_config is not None
     assert thinking_config.thinking_level == expected_level
     assert thinking_config.thinking_budget is None
+    downgraded = expected_level is ThinkingLevel.LOW
+    assert ("does not support minimal thinking" in caplog.text) is downgraded
 
 
 def test_google_gemini_3_uses_thinking_level_not_bridge():

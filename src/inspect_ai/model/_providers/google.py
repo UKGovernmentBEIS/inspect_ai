@@ -864,15 +864,15 @@ class GoogleGenAIAPI(ModelAPI):
         """Whether the model accepts thinking_level=MINIMAL.
 
         Gemini 3 Pro has never accepted it. Gemini 3 Flash accepted it through
-        3.6; Gemini 3.7 Flash and later reject it with a 400, so codename
-        models (treated as the current frontier) follow suit. Flash-Lite still
-        accepts it (it is that line's default).
+        3.6; Gemini 3.7 Flash and later reject it with a 400, so version-less
+        Flash names (codenames, rolling aliases) follow the frontier and are
+        not sent it. Gemini 3 Flash-Lite still accepts it.
         https://ai.google.dev/gemini-api/docs/thinking
         """
-        if not self.is_gemini_flash():
+        if not self.is_gemini_flash() or self.is_latest():
             return False
-        if "lite" in self.model_family():
-            return True
+        if "flash-lite" in self.model_family():
+            return self.is_gemini_3_plus()
         version = self.gemini_version()
         return version is not None and (3,) <= version < (3, 7)
 
