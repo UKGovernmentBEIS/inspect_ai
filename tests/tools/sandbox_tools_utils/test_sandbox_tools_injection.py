@@ -1,5 +1,7 @@
 """Tests for sandbox tools injection."""
 
+import os
+import sys
 from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import AsyncIterator, BinaryIO, Callable, Literal, overload
@@ -11,6 +13,7 @@ from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox._framework_directory import (
     _MISSING_MARKER,
     _UNAVAILABLE_MARKER,
+    _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
     FrameworkDirectoryError,
@@ -19,6 +22,7 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
 )
+from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, SupportedContainerOSInfo
 from inspect_ai.util._subprocess import ExecResult
 
@@ -67,6 +71,13 @@ NO_ROOT = ExecResult(
     stderr="unable to find user root: no matching entries in passwd file\n",
 )
 """A provider that reports an unusable user through the exit status."""
+NOT_ROOT = ExecResult(
+    success=False,
+    returncode=6,
+    stdout="",
+    stderr=f"{_USER_MISMATCH_MARKER}: running as uid 1000, expected uid 0\n",
+)
+"""A provider that accepted user="root" but ran the helper as someone else."""
 
 
 def is_framework_dir_call(cmd: list[str]) -> bool:
@@ -78,6 +89,13 @@ def wrapped_command(cmd: list[str]) -> list[str]:
     assert is_framework_dir_call(cmd)
     leaf = SANDBOX_TOOLS_DIR.rsplit("/", 1)[1]
     return cmd[cmd.index(leaf) + 1 :]
+
+
+def expected_uid_arg(cmd: list[str]) -> str:
+    """The uid a framework-directory call told the script to insist on."""
+    assert is_framework_dir_call(cmd)
+    leaf = SANDBOX_TOOLS_DIR.rsplit("/", 1)[1]
+    return cmd[cmd.index(leaf) - 3]
 
 
 Policy = Callable[[list[str], str | None], ExecResult[str]]
@@ -240,8 +258,52 @@ async def test_inject_uses_root_and_verifies_before_start(
     leaf = SANDBOX_TOOLS_DIR.rsplit("/", 1)[1]
     final_check = sandbox.exec_calls[start - 1][0]
     assert final_check[final_check.index(leaf) - 2] == "0"  # create flag off
+    # Every root-side check insists the script really ran as uid 0.
+    assert all(
+        expected_uid_arg(cmd) == "0"
+        for cmd, user in sandbox.exec_calls
+        if is_framework_dir_call(cmd) and user == "root"
+    )
     # No path-based chmod: the directory is created 0700 and verified, not repaired.
     assert not any(cmd[:1] == ["chmod"] for cmd, _ in sandbox.exec_calls)
+
+
+async def test_inject_falls_back_when_provider_runs_root_as_default_user(
+    stub_artifact: dict[str, object],
+) -> None:
+    """A provider that ignores `user` must yield a rootless install, not a fake root one."""
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if user == "root" and is_framework_dir_call(cmd):
+            return NOT_ROOT
+        return helper_ok(cmd, user)
+
+    sandbox = FakeSandbox(policy)
+    await sandbox_tools._inject_container_tools_code(sandbox)
+
+    assert sandbox._tools_user is None
+    assert sandbox._tools_user_resolved is True
+    assert stub_artifact["extracted_as"] is None
+    assert ([SANDBOX_CLI, "start-server"], None) in sandbox.exec_calls
+    # Default-user checks carry no uid expectation (the host cannot know it).
+    assert all(
+        expected_uid_arg(cmd) == ""
+        for cmd, user in sandbox.exec_calls
+        if is_framework_dir_call(cmd) and user is None
+    )
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="helper script needs GNU stat")
+async def test_root_probe_is_false_on_local_sandbox() -> None:
+    """LocalSandboxEnvironment ignores `user`, so it must not be recorded as root."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user")
+    local = LocalSandboxEnvironment()
+    try:
+        with pytest.warns(UserWarning, match="'user' parameter is ignored"):
+            assert await sandbox_tools._create_tools_dir_as_root(local) is False
+    finally:
+        local.directory.cleanup()
 
 
 @pytest.mark.parametrize(
@@ -403,6 +465,7 @@ async def test_detector_adopts_existing_root_installation() -> None:
             id="provider-raises",
         ),
         pytest.param(NO_ROOT, id="provider-fails-with-status"),
+        pytest.param(NOT_ROOT, id="provider-runs-as-another-uid"),
     ],
 )
 async def test_detector_falls_back_to_default_user_when_root_unavailable(

@@ -52,10 +52,13 @@ _MISSING_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_MISSING"
 _MISSING_EXIT = 4
 _UNAVAILABLE_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_UNAVAILABLE"
 _UNAVAILABLE_EXIT = 5
+_USER_MISMATCH_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_USER_MISMATCH"
+_USER_MISMATCH_EXIT = 6
 _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 
-# Arguments: $1 = create flag (1/0), $2 = parent path, $3 = leaf name, $4.. = command
-# to exec with the verified directory as cwd (optional). POSIX sh only (dash/BusyBox):
+# Arguments: $1 = expected uid (empty = no expectation), $2 = create flag (1/0),
+# $3 = parent path, $4 = leaf name, $5.. = command to exec with the verified
+# directory as cwd (optional). POSIX sh only (dash/BusyBox):
 # no arrays, no [[ ]], no local. `stat -c %u/%a` is common to GNU coreutils and
 # BusyBox. `umask 077` closes the window in BusyBox's non-atomic `mkdir -m`
 # (mkdir(0777) then chmod) and also applies to whatever the wrapped command creates.
@@ -70,8 +73,8 @@ umask 077
 unset CDPATH
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}
 export PATH
-create=$1 parent=$2 leaf=$3
-shift 3
+expect=$1 create=$2 parent=$3 leaf=$4
+shift 4
 case $parent in
     /) dir=/$leaf ;;
     *) dir=$parent/$leaf ;;
@@ -83,7 +86,11 @@ report() {
 violation() { report @VIOLATION@ "$*" @VIOLATION_EXIT@; }
 missing() { report @MISSING@ "$*" @MISSING_EXIT@; }
 unavailable() { report @UNAVAILABLE@ "$*" @UNAVAILABLE_EXIT@; }
+usermismatch() { report @USER_MISMATCH@ "$*" @USER_MISMATCH_EXIT@; }
 me=$(id -u 2>&1) || unavailable "cannot determine the current uid: $me"
+if [ -n "$expect" ] && [ "$me" != "$expect" ]; then
+    usermismatch "running as uid $me, expected uid $expect"
+fi
 if [ ! -e "$parent" ] && [ ! -L "$parent" ]; then
     if [ "$create" = 1 ]; then
         # Missing parents get the conventional 0755 (as `mkdir -p` under the
@@ -147,6 +154,8 @@ for _placeholder, _value in {
     "@MISSING_EXIT@": str(_MISSING_EXIT),
     "@UNAVAILABLE@": _UNAVAILABLE_MARKER,
     "@UNAVAILABLE_EXIT@": str(_UNAVAILABLE_EXIT),
+    "@USER_MISMATCH@": _USER_MISMATCH_MARKER,
+    "@USER_MISMATCH_EXIT@": str(_USER_MISMATCH_EXIT),
     "@VERIFIED@": _VERIFIED_MARKER,
 }.items():
     _SCRIPT = _SCRIPT.replace(_placeholder, _value)
@@ -174,6 +183,18 @@ class FrameworkDirectoryUnavailableError(RuntimeError):
     from the plain ``RuntimeError`` raised when the script did not run at all (no
     ``sh``, or the provider refused the requested user), which callers may treat as
     "this user is not available" and try another.
+    """
+
+
+class FrameworkDirectoryUserError(RuntimeError):
+    """The verification script ran as a different uid than the caller required.
+
+    Raised when ``expected_uid`` was given and ``id -u`` inside the sandbox reported
+    another uid: the provider ignored or downgraded the requested ``user``. Nothing
+    was checked or created, and this says nothing about the entry at the path. It
+    exists so a caller cannot mistake "verified, owned by whoever I ran as" for
+    "verified, owned by the user I asked for". Callers may treat it as "that user is
+    not available in this sandbox" and choose another.
     """
 
 
@@ -240,11 +261,13 @@ async def _run_verified(
     create: bool,
     cmd: list[str],
     user: str | None,
+    expected_uid: int | None,
     timeout: int | None,
 ) -> ExecResult[str]:
     parent, leaf = split_framework_path(path)
+    expect = "" if expected_uid is None else str(expected_uid)
     result = await sandbox.exec(
-        ["sh", "-c", _SCRIPT, "sh", "1" if create else "0", parent, leaf, *cmd],
+        ["sh", "-c", _SCRIPT, "sh", expect, "1" if create else "0", parent, leaf, *cmd],
         user=user,
         timeout=timeout,
     )
@@ -265,6 +288,11 @@ async def _run_verified(
         raise FrameworkDirectoryUnavailableError(
             f"Cannot verify sandbox framework directory {path}: {message}"
         )
+    if (message := _verdict(result, _USER_MISMATCH_MARKER)) is not None:
+        raise FrameworkDirectoryUserError(
+            f"Sandbox framework directory check for {path} did not run as the "
+            f"requested user{f' {user}' if user else ''}: {message}"
+        )
     raise RuntimeError(
         f"Sandbox framework directory check for {path} did not run"
         f"{f' as {user}' if user else ''}: "
@@ -277,6 +305,7 @@ async def ensure_framework_directory(
     path: str,
     *,
     user: str | None,
+    expected_uid: int | None = None,
     timeout: int | None = None,
 ) -> None:
     """Create or adopt ``path`` as a private framework directory owned by ``user``.
@@ -294,18 +323,32 @@ async def ensure_framework_directory(
         path: Absolute path of the directory.
         user: User to run as (as for ``sandbox.exec``). ``None`` runs as the
             sandbox default user, whose uid then becomes the expected owner.
+        expected_uid: If given, the uid the command must actually run as; the
+            check fails before touching anything when ``id -u`` disagrees. Pass
+            ``0`` with ``user="root"`` so a provider that ignores ``user`` cannot
+            pass off a default-user directory as root's.
         timeout: Optional timeout for the sandbox command.
 
     Raises:
         FrameworkDirectoryError: The entry violates the contract or could not be
             created or entered.
+        FrameworkDirectoryUserError: The script ran as a uid other than
+            ``expected_uid``; nothing was created.
         FrameworkDirectoryUnavailableError: The check itself could not be performed
             (missing ``stat``/``id`` in the sandbox).
         RuntimeError: The script could not run at all (no ``sh``, or the provider
             refused the requested user).
         ValueError: ``path`` is not an absolute, non-root path free of ``..``.
     """
-    await _run_verified(sandbox, path, create=True, cmd=[], user=user, timeout=timeout)
+    await _run_verified(
+        sandbox,
+        path,
+        create=True,
+        cmd=[],
+        user=user,
+        expected_uid=expected_uid,
+        timeout=timeout,
+    )
 
 
 async def verify_framework_directory(
@@ -313,6 +356,7 @@ async def verify_framework_directory(
     path: str,
     *,
     user: str | None,
+    expected_uid: int | None = None,
     timeout: int | None = None,
 ) -> None:
     """Check that ``path`` is an existing directory satisfying the contract.
@@ -325,16 +369,28 @@ async def verify_framework_directory(
         sandbox: Sandbox to operate in.
         path: Absolute path of the directory.
         user: User to run as (as for ``sandbox.exec``); also the expected owner.
+        expected_uid: If given, the uid the command must actually run as (see
+            :func:`ensure_framework_directory`).
         timeout: Optional timeout for the sandbox command.
 
     Raises:
         FrameworkDirectoryNotFoundError: Nothing exists at ``path``.
         FrameworkDirectoryError: The entry violates the contract.
+        FrameworkDirectoryUserError: The script ran as a uid other than
+            ``expected_uid``.
         FrameworkDirectoryUnavailableError: The check itself could not be performed.
         RuntimeError: The script could not run at all.
         ValueError: ``path`` is not an absolute, non-root path free of ``..``.
     """
-    await _run_verified(sandbox, path, create=False, cmd=[], user=user, timeout=timeout)
+    await _run_verified(
+        sandbox,
+        path,
+        create=False,
+        cmd=[],
+        user=user,
+        expected_uid=expected_uid,
+        timeout=timeout,
+    )
 
 
 async def exec_in_framework_directory(
@@ -343,6 +399,7 @@ async def exec_in_framework_directory(
     cmd: list[str],
     *,
     user: str | None,
+    expected_uid: int | None = None,
     timeout: int | None = None,
 ) -> ExecResult[str]:
     """Verify ``path`` and then run ``cmd`` with the verified directory as cwd.
@@ -359,6 +416,8 @@ async def exec_in_framework_directory(
         cmd: Command to run; ``cmd[0]`` is resolved via ``PATH`` unless it contains
             a slash (use ``./name`` for a program inside the directory).
         user: User to run as (as for ``sandbox.exec``); also the expected owner.
+        expected_uid: If given, the uid the command must actually run as (see
+            :func:`ensure_framework_directory`).
         timeout: Optional timeout for the sandbox command.
 
     Returns:
@@ -368,6 +427,8 @@ async def exec_in_framework_directory(
         FrameworkDirectoryNotFoundError: Nothing exists at ``path``.
         FrameworkDirectoryError: The directory violates the contract; ``cmd`` was
             not run.
+        FrameworkDirectoryUserError: The script ran as a uid other than
+            ``expected_uid``; ``cmd`` was not run.
         FrameworkDirectoryUnavailableError: The check itself could not be performed.
         RuntimeError: The script could not run at all (no ``sh``, or the provider
             refused the requested user); ``cmd`` was not run.
@@ -377,5 +438,11 @@ async def exec_in_framework_directory(
     if not cmd:
         raise ValueError("cmd must not be empty")
     return await _run_verified(
-        sandbox, path, create=False, cmd=cmd, user=user, timeout=timeout
+        sandbox,
+        path,
+        create=False,
+        cmd=cmd,
+        user=user,
+        expected_uid=expected_uid,
+        timeout=timeout,
     )

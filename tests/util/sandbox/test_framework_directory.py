@@ -23,11 +23,13 @@ from inspect_ai.util._sandbox._framework_directory import (
     _MISSING_MARKER,
     _SCRIPT,
     _UNAVAILABLE_MARKER,
+    _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
     FrameworkDirectoryError,
     FrameworkDirectoryNotFoundError,
     FrameworkDirectoryUnavailableError,
+    FrameworkDirectoryUserError,
     FrameworkPath,
     ensure_framework_directory,
     exec_in_framework_directory,
@@ -293,6 +295,43 @@ async def test_rejects_parent_owned_by_another_non_root_uid(
     with pytest.raises(FrameworkDirectoryError, match="its owner could replace"):
         await ensure_framework_directory(sandbox, str(target), user=None)
     assert not target.exists()
+
+
+async def test_rejects_running_as_a_uid_other_than_expected(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """LocalSandboxEnvironment ignores `user`; expected_uid=0 must expose that."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user")
+    target = parent / "fw"
+    with pytest.raises(FrameworkDirectoryUserError) as excinfo:
+        await ensure_framework_directory(
+            local, str(target), user="root", expected_uid=0
+        )
+    assert f"running as uid {os.getuid()}, expected uid 0" in str(excinfo.value)
+    assert "as the requested user root" in str(excinfo.value)
+    assert not isinstance(excinfo.value, FrameworkDirectoryError)
+    assert not target.exists()  # refused before creating anything
+
+    with pytest.raises(FrameworkDirectoryUserError):
+        await exec_in_framework_directory(
+            local, str(parent), ["touch", "ran"], user=None, expected_uid=0
+        )
+    assert not (parent / "ran").exists()
+
+
+async def test_accepts_matching_expected_uid(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(
+        local, str(target), user=None, expected_uid=os.getuid()
+    )
+    assert _mode(target) == 0o700
+    result = await exec_in_framework_directory(
+        local, str(target), ["id", "-u"], user=None, expected_uid=os.getuid()
+    )
+    assert result.stdout.strip() == str(os.getuid())
 
 
 async def test_rejects_parent_that_lets_others_replace_the_directory(
@@ -571,6 +610,39 @@ async def test_unavailable_verdict_is_not_a_contract_violation() -> None:
     )
     with pytest.raises(FrameworkDirectoryUnavailableError, match="stat: not found"):
         await ensure_framework_directory(sandbox, "/var/tmp/.x", user="root")
+
+
+async def test_user_mismatch_verdict_becomes_user_error() -> None:
+    sandbox = ScriptedSandbox(
+        ExecResult(
+            success=False,
+            returncode=6,
+            stdout="",
+            stderr=f"{_USER_MISMATCH_MARKER}: running as uid 1000, expected uid 0\n",
+        )
+    )
+    with pytest.raises(FrameworkDirectoryUserError, match="expected uid 0") as excinfo:
+        await ensure_framework_directory(
+            sandbox, "/var/tmp/.x", user="root", expected_uid=0
+        )
+    assert not isinstance(
+        excinfo.value, (FrameworkDirectoryError, FrameworkDirectoryUnavailableError)
+    )
+    # The expectation is passed to the script ahead of the create flag.
+    (cmd, user), *_ = sandbox.calls
+    assert user == "root"
+    assert cmd[-4:] == ["0", "1", "/var/tmp", ".x"]
+
+
+async def test_no_expected_uid_passes_an_empty_expectation() -> None:
+    sandbox = ScriptedSandbox(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await verify_framework_directory(sandbox, "/var/tmp/.x", user=None)
+    (cmd, _), *_ = sandbox.calls
+    assert cmd[-4:] == ["", "0", "/var/tmp", ".x"]
 
 
 async def test_failure_before_verification_is_a_plain_runtime_error() -> None:

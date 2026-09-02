@@ -32,6 +32,7 @@ from inspect_ai.util._sandbox._framework_directory import (
     FrameworkDirectoryError,
     FrameworkDirectoryNotFoundError,
     FrameworkDirectoryUnavailableError,
+    FrameworkDirectoryUserError,
     ensure_framework_directory,
     exec_in_framework_directory,
     verify_framework_directory,
@@ -121,8 +122,9 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     check runs as root first, because a root-owned 0700 tree cannot even be entered
     by the default user; a trustworthy root installation found that way is adopted
     by recording root as the tools user. Only when the sandbox cannot exec as root
-    at all is the default user's view consulted, and a trustworthy installation found
-    there is adopted the same way, so the failing root probe is not repeated.
+    at all (it refuses the user, or silently runs the command as someone else) is the
+    default user's view consulted, and a trustworthy installation found there is
+    adopted the same way, so the failing root probe is not repeated.
     """
     try:
         return await _detect_sandbox_tools(sandbox)
@@ -146,6 +148,8 @@ async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
         # Broad catch is deliberate: providers signal "cannot exec as root" by
         # raising provider-specific exception types or by a failing exit status
         # (which the helper reports as a RuntimeError when its check never ran).
+        # FrameworkDirectoryUserError (the provider ran us as someone other than
+        # root) lands here too, by design.
         trace_message(
             logger,
             TRACE_SANDBOX_TOOLS,
@@ -166,6 +170,16 @@ def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
     sandbox._tools_user_resolved = True
 
 
+def _expected_uid(user: str | None) -> int | None:
+    """The uid the helper must actually run as for ``user``.
+
+    Only root has a uid known to the host. Pinning it makes a provider that ignores
+    or downgrades ``user`` (``LocalSandboxEnvironment`` does) fail the root probe
+    instead of passing off the default user's directory as root's.
+    """
+    return 0 if user == "root" else None
+
+
 async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> bool:
     """Check for a trustworthy installation from ``user``'s point of view.
 
@@ -180,6 +194,7 @@ async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> 
             SANDBOX_TOOLS_DIR,
             ["stat", "-c", "%F", SANDBOX_TOOLS_BASE_NAME],
             user=user,
+            expected_uid=_expected_uid(user),
         )
     except FrameworkDirectoryNotFoundError:
         return False
@@ -215,7 +230,10 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         # authority. Extraction targets the verified directory object, so this
         # only fails if the entry at the path was swapped or removed in between.
         await verify_framework_directory(
-            sandbox, SANDBOX_TOOLS_DIR, user=sandbox._tools_user
+            sandbox,
+            SANDBOX_TOOLS_DIR,
+            user=sandbox._tools_user,
+            expected_uid=_expected_uid(sandbox._tools_user),
         )
 
         # Start the server as root so it can setuid to any user for exec_remote.
@@ -235,16 +253,31 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     """Prepare the tools dir as root; False if the sandbox cannot exec as root.
 
+    "Cannot exec as root" includes a provider that accepts ``user="root"`` but runs
+    the command as someone else (``LocalSandboxEnvironment`` ignores ``user``): the
+    helper is told to expect uid 0 and reports the mismatch before creating
+    anything, so the rootless path is taken and the tools user is recorded
+    truthfully.
+
     A contract violation reported by the helper (the entry exists but is a symlink,
     is owned by another uid, has the wrong mode, ...) is re-raised rather than
     treated as "no root": falling back to the default user there would let whoever
     planted the entry decide which user the tools run as.
     """
     try:
-        await ensure_framework_directory(sandbox, SANDBOX_TOOLS_DIR, user="root")
+        await ensure_framework_directory(
+            sandbox, SANDBOX_TOOLS_DIR, user="root", expected_uid=0
+        )
         return True
     except (FrameworkDirectoryError, FrameworkDirectoryUnavailableError):
         raise
+    except FrameworkDirectoryUserError as ex:
+        trace_message(
+            logger,
+            TRACE_SANDBOX_TOOLS,
+            f"sandbox does not run commands as root; using default user: {ex}",
+        )
+        return False
     except Exception as ex:
         # Broad catch is deliberate: providers signal "cannot exec as root" by
         # raising provider-specific exception types (or a failing exit status), so
@@ -277,7 +310,11 @@ async def _extract_tools_tree(
     gz_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tgz"
     await sandbox.write_file(gz_tmp, gz_bytes)
     result = await exec_in_framework_directory(
-        sandbox, SANDBOX_TOOLS_DIR, ["tar", "xzf", gz_tmp], user=user
+        sandbox,
+        SANDBOX_TOOLS_DIR,
+        ["tar", "xzf", gz_tmp],
+        user=user,
+        expected_uid=_expected_uid(user),
     )
     await sandbox.exec(["rm", "-f", gz_tmp], user=user)
     if result.success:
@@ -292,7 +329,11 @@ async def _extract_tools_tree(
     tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
     await sandbox.write_file(tar_tmp, _uncompressed_tar_bytes(name, gz_bytes))
     result = await exec_in_framework_directory(
-        sandbox, SANDBOX_TOOLS_DIR, ["tar", "xf", tar_tmp], user=user
+        sandbox,
+        SANDBOX_TOOLS_DIR,
+        ["tar", "xf", tar_tmp],
+        user=user,
+        expected_uid=_expected_uid(user),
     )
     await sandbox.exec(["rm", "-f", tar_tmp], user=user)
     if not result.success:
