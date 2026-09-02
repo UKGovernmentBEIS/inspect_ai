@@ -125,8 +125,16 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     by the default user; a trustworthy root installation found that way is adopted
     by recording root as the tools user. Only when the sandbox cannot exec as root
     at all (it refuses the user, or silently runs the command as someone else) is the
-    default user's view consulted, and a trustworthy installation found there is
-    adopted the same way, so the failing root probe is not repeated.
+    default user's view consulted. A trustworthy installation found there is used for
+    this call, but the default user is recorded as the tools user only when the root
+    failure was definitive: the helper's uid-mismatch verdict, which says the provider
+    ran the command as someone else and will keep doing so. A provider exception or a
+    failing exit status may be transient on a root-capable sandbox, and pinning on it
+    would let a tree the agent planted under its own uid be adopted for the rest of
+    the sample; instead the next call probes root again, root sees the planted tree as
+    a violation, and injection fails loud. The cost falls only on providers that
+    refuse root by exception: one failing root exec per tool call until injection
+    runs on this object and records the tools user itself.
 
     The probe records no transcript events: it repeats on every tool call and its
     argv carries the whole verification script, so logging it would add kilobytes
@@ -156,15 +164,16 @@ async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
         # Broad catch is deliberate: providers signal "cannot exec as root" by
         # raising provider-specific exception types or by a failing exit status
         # (which the helper reports as a RuntimeError when its check never ran).
-        # FrameworkDirectoryUserError (the provider ran us as someone other than
-        # root) lands here too, by design.
+        # Only the uid-mismatch verdict is a definitive "this sandbox has no root";
+        # anything else may be transient, so it must not pin the tools user (see
+        # the docstring above).
         trace_message(
             logger,
             TRACE_SANDBOX_TOOLS,
             f"root tools detection failed; checking as default user: {ex}",
         )
         installed = await _tools_installed_as(sandbox, None)
-        if installed:
+        if installed and isinstance(ex, FrameworkDirectoryUserError):
             _set_tools_user(sandbox, None)
         return installed
     if installed:

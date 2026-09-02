@@ -520,26 +520,11 @@ async def test_detector_adopts_existing_root_installation() -> None:
     assert sandbox._tools_user == "root"
 
 
-@pytest.mark.parametrize(
-    "root_failure",
-    [
-        pytest.param(
-            RuntimeError("runuser: may not be used by non-root users"),
-            id="provider-raises",
-        ),
-        pytest.param(NO_ROOT, id="provider-fails-with-status"),
-        pytest.param(NOT_ROOT, id="provider-runs-as-another-uid"),
-    ],
-)
-async def test_detector_falls_back_to_default_user_when_root_unavailable(
-    root_failure: Exception | ExecResult[str],
-) -> None:
+async def test_detector_pins_default_user_after_definitive_uid_mismatch() -> None:
+    """A provider that ran us as non-root will keep doing so: remember it."""
+
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if user == "root":
-            if isinstance(root_failure, Exception):
-                raise root_failure
-            return root_failure
-        return REGULAR_FILE
+        return NOT_ROOT if user == "root" else REGULAR_FILE
 
     sandbox = FakeSandbox(policy)
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
@@ -550,6 +535,75 @@ async def test_detector_falls_back_to_default_user_when_root_unavailable(
     # The adopted rootless install is remembered: no repeated root probe.
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
     assert [user for _, user in sandbox.exec_calls] == ["root", None, None]
+
+
+@pytest.mark.parametrize(
+    "root_failure",
+    [
+        pytest.param(
+            RuntimeError("runuser: may not be used by non-root users"),
+            id="provider-raises",
+        ),
+        pytest.param(NO_ROOT, id="provider-fails-with-status"),
+    ],
+)
+async def test_detector_does_not_pin_default_user_after_ambiguous_root_failure(
+    root_failure: Exception | ExecResult[str],
+) -> None:
+    """An exception or exit status may be transient: use the install, don't pin it."""
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if user == "root":
+            if isinstance(root_failure, Exception):
+                raise root_failure
+            return root_failure
+        return REGULAR_FILE
+
+    sandbox = FakeSandbox(policy)
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
+    assert sandbox._tools_user is None
+    assert sandbox._tools_user_resolved is False
+    assert [user for _, user in sandbox.exec_calls] == ["root", None]
+
+    # Next call probes root again rather than trusting the earlier fallback.
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
+    assert [user for _, user in sandbox.exec_calls] == ["root", None, "root", None]
+
+
+async def test_transient_root_failure_cannot_pin_a_planted_tree(
+    stub_artifact: dict[str, object],
+) -> None:
+    """A planted tree survives one transient root failure, not the sample.
+
+    Root-capable sandbox: the agent plants a 0700 tree under its own uid and the
+    first root probe fails transiently. The planted tree serves that one call, but
+    the next call's root probe sees it as a violation and injection fails loud
+    instead of the tree being adopted for the rest of the sample.
+    """
+    calls = {"root": 0}
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if user == "root" and is_framework_dir_call(cmd):
+            calls["root"] += 1
+            if calls["root"] == 1:
+                raise RuntimeError("docker exec: transient failure")
+            return violation(
+                f"{SANDBOX_TOOLS_DIR} is owned by uid 1111, expected uid 0"
+            )
+        return REGULAR_FILE if is_framework_dir_call(cmd) else OK
+
+    sandbox = FakeSandbox(policy)
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
+    assert sandbox._tools_user_resolved is False
+
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is False
+    with pytest.raises(
+        sandbox_tools.SandboxInjectionError, match="owned by uid 1111, expected uid 0"
+    ):
+        await sandbox_tools._inject_container_tools_code(sandbox)
+    assert stub_artifact["extracted"] is False
+    assert sandbox._tools_user is None
+    assert not any(cmd[:1] == [SANDBOX_CLI] for cmd, _ in sandbox.exec_calls)
 
 
 @pytest.mark.parametrize(
