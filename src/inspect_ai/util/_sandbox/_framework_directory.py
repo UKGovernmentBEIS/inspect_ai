@@ -86,7 +86,10 @@ unavailable() { report @UNAVAILABLE@ "$*" @UNAVAILABLE_EXIT@; }
 me=$(id -u 2>&1) || unavailable "cannot determine the current uid: $me"
 if [ ! -e "$parent" ] && [ ! -L "$parent" ]; then
     if [ "$create" = 1 ]; then
-        err=$(mkdir -p -- "$parent" 2>&1) || [ -e "$parent" ] || violation "could not create parent directory $parent: $err"
+        # Missing parents get the conventional 0755 (as `mkdir -p` under the
+        # default umask would give), not the 0700 our umask would produce: a
+        # root-only /var/tmp would lock the default user out of it.
+        err=$(umask 022 && mkdir -p -- "$parent" 2>&1) || [ -e "$parent" ] || violation "could not create parent directory $parent: $err"
     else
         missing "parent directory $parent does not exist"
     fi
@@ -278,8 +281,9 @@ async def ensure_framework_directory(
 ) -> None:
     """Create or adopt ``path`` as a private framework directory owned by ``user``.
 
-    A missing directory is created with mode ``0700``. An existing entry is adopted
-    only if it already satisfies the contract described in the module docstring:
+    A missing directory is created with mode ``0700``; missing parent components are
+    created with the conventional ``0755``. An existing entry is adopted only if it
+    already satisfies the contract described in the module docstring:
     a real directory owned by the uid the command runs as, mode ``0700``, in a parent
     other principals cannot use to replace it. Concurrent creation by another
     instance of this helper is tolerated (the survivor is verified like any other

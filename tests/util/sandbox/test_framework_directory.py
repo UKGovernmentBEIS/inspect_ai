@@ -172,9 +172,12 @@ async def test_creates_missing_directory_with_mode_0700(
 async def test_creates_missing_parent_chain(
     local: LocalSandboxEnvironment, parent: Path
 ) -> None:
+    """Auto-created parents get the conventional 0755, not the leaf's 0700."""
     target = parent / "a" / "b" / "fw"
     await ensure_framework_directory(local, str(target), user=None)
     assert _mode(target) == 0o700
+    assert _mode(parent / "a") == 0o755
+    assert _mode(parent / "a" / "b") == 0o755
 
 
 async def test_creates_directory_whose_name_starts_with_a_dash(
