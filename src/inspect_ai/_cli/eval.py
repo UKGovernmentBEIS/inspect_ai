@@ -44,6 +44,7 @@ from inspect_ai._util.generate_config_args import (
     config_from_locals,
 )
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
+from inspect_ai.log import IncompleteAction
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
@@ -1398,7 +1399,7 @@ def eval_set_command(
     retry_wait: int | None,
     retry_connections: float | None,
     no_retry_cleanup: bool | None,
-    incomplete_action: Literal["retry", "error"],
+    incomplete_action: IncompleteAction,
     incomplete_max: float | None,
     solver: str | None,
     trace: bool | None,
@@ -1951,7 +1952,7 @@ def eval_exec(
     retry_wait: int | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
-    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_action: IncompleteAction = "retry",
     incomplete_max: float | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
@@ -2619,7 +2620,7 @@ def eval_retry_command(
     stream_idle_timeout: int | None,
     log_level_transcript: str,
     checkpoint: str | None,
-    incomplete_action: Literal["retry", "error"],
+    incomplete_action: IncompleteAction,
     incomplete_max: float | None,
     scanner: str | None,
     scanner_arg: tuple[str, ...] | None,

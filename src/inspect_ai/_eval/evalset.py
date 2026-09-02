@@ -66,7 +66,7 @@ from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
-from inspect_ai.log import EvalLog
+from inspect_ai.log import EvalLog, IncompleteAction
 from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -231,7 +231,7 @@ def eval_set(
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
     retry_immediate: bool | None = None,
-    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
@@ -1482,7 +1482,7 @@ def as_previous_tasks(
 def _recover_crashed_log(
     eval_log: EvalLog,
     log_info: EvalLogInfo,
-    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
 ) -> tuple[EvalLog, EvalLogInfo]:
     """Opportunistically recover a still-"started" log before retrying it.
@@ -1747,7 +1747,7 @@ def list_latest_eval_logs(
     limit: int | tuple[int, int] | None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None,
     cleanup_older: bool,
-    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
 ) -> tuple[list[Log], list[Log]]:
     latest_logs = latest_completed_task_eval_logs(

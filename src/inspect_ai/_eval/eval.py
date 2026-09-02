@@ -67,7 +67,7 @@ from inspect_ai.approval._policy import (
     approval_policies_from_config,
     config_from_approval_policies,
 )
-from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo
+from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, IncompleteAction
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._recorders import create_recorder_for_format
 from inspect_ai.log._recorders.buffer import cleanup_sample_buffers
@@ -1298,7 +1298,7 @@ def eval_retry(
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
-    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
@@ -1510,7 +1510,7 @@ async def eval_retry_async(
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
-    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.

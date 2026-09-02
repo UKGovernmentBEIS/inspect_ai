@@ -12,7 +12,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
 from inspect_ai._cli.util import int_or_bool_flag_callback
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai.log import EvalStatus, list_eval_logs
+from inspect_ai.log import EvalStatus, IncompleteAction, list_eval_logs
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._file import (
     eval_log_json_str,
@@ -405,7 +405,7 @@ def recover_command(
     overwrite: bool,
     no_cleanup: bool,
     no_events: bool,
-    incomplete_action: Literal["retry", "error"],
+    incomplete_action: IncompleteAction,
     incomplete_max: float | None,
     list_mode: bool,
     json_output: bool,
