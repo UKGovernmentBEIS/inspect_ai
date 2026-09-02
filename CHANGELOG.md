@@ -39,7 +39,7 @@
 - Agent bridge: An invalid response schema or mistyped request field in a bridged OpenAI, Anthropic, or Google request is now rejected with a 400 instead of escaping as a status-less internal error.
 - Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
 - Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
-- Sandbox Tools: Injection now fails with a clear error, instead of proceeding, when the tools directory (on the host for the `local` sandbox) already exists as a symlink, is owned by another user, or is root-owned with a mode other than 0700 (remove that entry to recover), when its parent is world-writable but not sticky, when the sandbox lacks `/bin/sh`, `stat`, or `id`, or when a third-party sandbox provider does not return stderr separately from stdout; a directory left by an earlier rootless install is tightened to mode 0700 and reused.
+- Sandbox Tools: Injection now fails with a clear error instead of proceeding when the tools directory already exists but is not a private directory owned by the tools user; a directory left by an earlier rootless install is tightened to mode 0700 and reused.
 - Agent bridge: Fixed a tool-approval bypass where a sandboxed agent could run approval-gated `bridged_tools` by calling the bridge service directly; unapproved host tool calls are now denied.
 - Bugfix: Approval policies set on a `Task` are now recorded in the eval log.
 - OpenAI: Responses API requests now omit the `id` key on synthesized message and reasoning items rather than sending an explicit null, which backends like vLLM reject.

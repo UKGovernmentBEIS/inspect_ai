@@ -271,7 +271,7 @@ async def test_rejects_nonconforming_entry_and_leaves_it_alone(
     assert (after.st_ino, after.st_mode) == (before.st_ino, before.st_mode)
 
 
-@pytest.mark.parametrize("mode", [0o755, 0o770, 0o2700], ids=oct)
+@pytest.mark.parametrize("mode", [0o755, 0o770, 0o2700, 0o4755, 0o1700], ids=oct)
 async def test_repair_mode_tightens_owned_directory_and_keeps_contents(
     local: LocalSandboxEnvironment, parent: Path, mode: int
 ) -> None:

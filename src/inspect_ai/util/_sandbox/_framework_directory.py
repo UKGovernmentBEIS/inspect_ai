@@ -175,7 +175,8 @@ if [ "$mode" != 700 ]; then
         # Either we just created it (a setgid parent may have added bits; a numeric
         # chmod alone does not clear setgid on a directory) or the caller asked for
         # an owned directory to be tightened. `.` is the verified object we own.
-        chmod u=rwx,g=,o=,g-s . || violation "could not set mode of $dir"
+        # `u=rwx` leaves a directory's set-id bits alone, so name them explicitly.
+        chmod u=rwx,g=,o=,u-s,g-s . || violation "could not set mode of $dir"
         mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
     fi
 fi
