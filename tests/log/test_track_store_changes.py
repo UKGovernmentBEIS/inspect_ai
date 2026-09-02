@@ -1,28 +1,23 @@
 """Tests for :func:`inspect_ai.log._transcript.track_store_changes`.
 
-We compare the existing implementation:
-
-    before = store_jsonable(store())
-    ...
-    after = store_jsonable(store())
-
-with a proposed optimisation that snapshots the store via:
-
-    before = dict_jsonable(store()._data)
-    ...
-    after = dict_jsonable(store()._data)
-
-We exercise a range of Python and Pydantic value types (mirroring how the
-Store is used in practice) and assert that the emitted
-``StoreEvent(changes=...)`` sequences are identical under both strategies.
+``track_store_changes`` defers the "before" snapshot of the store until the
+store is first written or hands out a mutable value, so spans that never touch
+the store serialise nothing. These tests check that the emitted
+``StoreEvent(changes=...)`` sequences are identical to a reference
+implementation that eagerly snapshots the store at span begin and end, across
+the range of Python and Pydantic value types (and mutation styles, including
+in-place mutation of values obtained via ``store.get()``) that the Store sees
+in practice.
 """
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Callable, ContextManager
 
+import pytest
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.json import JsonChange
@@ -57,6 +52,218 @@ def test_dict_jsonable_independent_copy() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Lazy snapshot: untouched spans serialise nothing
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def jsonable_calls(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Count calls to ``dict_jsonable`` (the store serialisation primitive)."""
+    import inspect_ai.util._store as store_module
+
+    calls: list[int] = []
+    original = store_module.dict_jsonable
+
+    def counting(data: dict[str, Any]) -> dict[str, Any]:
+        calls.append(1)
+        return original(data)
+
+    monkeypatch.setattr(store_module, "dict_jsonable", counting)
+    return calls
+
+
+def test_untouched_span_does_not_serialise(jsonable_calls: list[int]) -> None:
+    store = Store()
+    store.set("payload", {"big": "x" * 1000})
+
+    events = _run_span_with(track_store_changes, store, lambda s: None)
+
+    assert events == []
+    assert jsonable_calls == []
+
+
+def test_scalar_read_does_not_serialise(jsonable_calls: list[int]) -> None:
+    store = Store()
+    store.set("answer", 42)
+    store.set("name", "abc")
+
+    def read(s: Store) -> None:
+        assert s.get("answer") == 42
+        assert s.get("name") == "abc"
+        assert s.get("missing") is None
+        assert "answer" in s
+        assert list(s.keys()) == ["answer", "name"]
+
+    events = _run_span_with(track_store_changes, store, read)
+
+    assert events == []
+    assert jsonable_calls == []
+
+
+def test_set_emits_expected_patch(jsonable_calls: list[int]) -> None:
+    store = Store()
+    store.set("count", 1)
+
+    def mutate(s: Store) -> None:
+        s.set("count", 2)
+        s.set("added", "x")
+
+    events = _run_span_with(track_store_changes, store, mutate)
+
+    store_events = [e for e in events if isinstance(e, StoreEvent)]
+    assert len(store_events) == 1
+    assert sorted(store_events[0].changes, key=lambda c: c.path) == [
+        JsonChange(op="add", path="/added", value="x"),
+        JsonChange(op="replace", path="/count", value=2, replaced=1),
+    ]
+    # exactly one before and one after snapshot
+    assert len(jsonable_calls) == 2
+
+
+def test_delete_emits_expected_patch() -> None:
+    store = Store()
+    store.set("gone", {"a": 1})
+
+    events = _run_span_with(track_store_changes, store, lambda s: s.delete("gone"))
+
+    assert [e.changes for e in events if isinstance(e, StoreEvent)] == [
+        [JsonChange(op="remove", path="/gone")]
+    ]
+
+
+def test_in_place_mutation_via_get_is_detected() -> None:
+    store = Store()
+    store.set("items", [1, 2])
+
+    events = _run_span_with(
+        track_store_changes, store, lambda s: s.get("items").append(3)
+    )
+
+    assert [e.changes for e in events if isinstance(e, StoreEvent)] == [
+        [JsonChange(op="add", path="/items/2", value=3)]
+    ]
+
+
+def test_get_with_default_inserts_and_is_detected() -> None:
+    store = Store()
+
+    def mutate(s: Store) -> None:
+        history: list[str] = s.get("history", [])
+        history.append("first")
+
+    events = _run_span_with(track_store_changes, store, mutate)
+
+    assert [e.changes for e in events if isinstance(e, StoreEvent)] == [
+        [JsonChange(op="add", path="/history", value=["first"])]
+    ]
+
+
+def test_nested_spans_only_inner_writes() -> None:
+    store = Store()
+    store.set("value", 0)
+    init_subtask_store(store)
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    with track_store_changes():
+        with track_store_changes():
+            store.set("value", 1)
+
+    store_events = [e for e in transcript.events if isinstance(e, StoreEvent)]
+    expected = [JsonChange(op="replace", path="/value", value=1, replaced=0)]
+    # inner span emits first, then the enclosing span reports the same change
+    assert [e.changes for e in store_events] == [expected, expected]
+
+
+def test_untouched_span_after_touched_span_does_not_serialise(
+    jsonable_calls: list[int],
+) -> None:
+    store = Store()
+    init_subtask_store(store)
+    init_transcript(Transcript())
+
+    with track_store_changes():
+        store.set("a", 1)
+    assert len(jsonable_calls) == 2
+
+    with track_store_changes():
+        pass
+    assert len(jsonable_calls) == 2
+
+
+def test_store_model_attribute_write_and_in_place_mutation() -> None:
+    class _Agent(StoreModel):
+        turns: int = 0
+        notes: list[str] = Field(default_factory=list)
+
+    store = Store()
+    _Agent(store=store)  # populate defaults
+
+    def mutate(s: Store) -> None:
+        model = _Agent(store=s)
+        model.turns = 1
+        model.notes.append("hello")
+
+    events = _run_span_with(track_store_changes, store, mutate)
+
+    store_events = [e for e in events if isinstance(e, StoreEvent)]
+    assert len(store_events) == 1
+    # jsonpatch does not order operations deterministically
+    assert sorted(store_events[0].changes, key=lambda c: c.path) == [
+        JsonChange(op="add", path="/_Agent:notes/0", value="hello"),
+        JsonChange(op="replace", path="/_Agent:turns", value=1, replaced=0),
+    ]
+
+
+def test_concurrent_spans_share_snapshot_semantics() -> None:
+    """A write in one task is visible to a concurrently open span in another.
+
+    This matches the eager-snapshot behaviour: every open span diffs the whole
+    store, whichever task performed the write.
+    """
+    store = Store()
+    store.set("value", 0)
+    init_subtask_store(store)
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    async def main() -> None:
+        writer_done = asyncio.Event()
+        reader_open = asyncio.Event()
+
+        async def reader() -> None:
+            with track_store_changes():
+                reader_open.set()
+                await writer_done.wait()
+
+        async def writer() -> None:
+            await reader_open.wait()
+            with track_store_changes():
+                store.set("value", 1)
+            writer_done.set()
+
+        await asyncio.gather(reader(), writer())
+
+    asyncio.run(main())
+
+    store_events = [e for e in transcript.events if isinstance(e, StoreEvent)]
+    expected = [JsonChange(op="replace", path="/value", value=1, replaced=0)]
+    assert [e.changes for e in store_events] == [expected, expected]
+
+
+def test_tracker_removed_when_span_raises() -> None:
+    store = Store()
+    init_subtask_store(store)
+    init_transcript(Transcript())
+
+    with pytest.raises(RuntimeError):
+        with track_store_changes():
+            raise RuntimeError("boom")
+
+    assert store._trackers == []
+
+
+# ---------------------------------------------------------------------------
 # Equivalence tests for different store shapes / mutations
 # ---------------------------------------------------------------------------
 
@@ -66,9 +273,7 @@ def test_track_store_changes_no_changes_produces_no_event() -> None:
     store = Store()
     store.set("value", 1)
 
-    baseline_events = _run_span_with(
-        _track_store_changes_with_store_jsonable, store, lambda s: None
-    )
+    baseline_events = _run_span_with(_track_store_changes_eager, store, lambda s: None)
     opt_events = _run_span_with(track_store_changes, store, lambda s: None)
 
     assert baseline_events == opt_events == []
@@ -84,11 +289,11 @@ def test_track_store_changes_scalars_and_nested_dicts() -> None:
         return s
 
     def mutate(store: Store) -> None:
-        data = store._data
-        data["new_key"] = "value"  # add
-        data["count"] = 6  # scalar replace
-        data["config"]["b"]["c"] = 10  # nested replace
-        del data["config"]["a"]  # delete
+        store.set("new_key", "value")  # add
+        store.set("count", 6)  # scalar replace
+        config = store.get("config")
+        config["b"]["c"] = 10  # nested replace
+        del config["a"]  # delete
 
     _assert_store_events_equal(build_store, mutate)
 
@@ -109,7 +314,7 @@ def test_track_store_changes_lists_of_dicts() -> None:
         return s
 
     def mutate(store: Store) -> None:
-        items: list[dict[str, object]] = store._data["items"]
+        items: list[dict[str, object]] = store.get("items")
         items.insert(1, {"id": 99, "name": "x"})  # insert
         items[0] = {"id": 100, "name": "replaced"}  # replace
         items.pop()  # remove
@@ -127,12 +332,11 @@ def test_track_store_changes_top_level_keys() -> None:
         return s
 
     def mutate(store: Store) -> None:
-        data = store._data
         # Delete a whole top-level subtree
-        del data["root"]
+        store.delete("root")
         # Re-add with a different shape and add a brand new root key
-        data["root"] = {"a": 2, "c": 3}
-        data["new_root"] = {"y": 4}
+        store.set("root", {"a": 2, "c": 3})
+        store.set("new_root", {"y": 4})
 
     _assert_store_events_equal(build_store, mutate)
 
@@ -178,21 +382,19 @@ def test_track_store_changes_message_like_store() -> None:
         return s
 
     def mutate(store: Store) -> None:
-        data = store._data
-
         # Toggle metadata flags
-        flags = data["metadata"]["flags"]
+        flags = store.get("metadata")["flags"]
         flags["debug"] = not flags["debug"]
         flags["retry"] = not flags["retry"]
 
         # Append/remove events
-        events: list[dict[str, object]] = data["events"]
+        events: list[dict[str, object]] = store.get("events")
         events.append({"type": "extra", "payload": "x"})
         if events:
             events.pop(0)
 
         # Modify nested metadata on real ChatMessage types
-        user_messages: list[ChatMessageUser] = data["user_messages"]
+        user_messages: list[ChatMessageUser] = store.get("user_messages")
         if user_messages:
             m0 = user_messages[0]
             meta = m0.metadata or {}
@@ -201,7 +403,7 @@ def test_track_store_changes_message_like_store() -> None:
             m0.metadata = meta
 
         # Add another score record
-        scores: list[_ScoreRecord] = data["scores"]
+        scores: list[_ScoreRecord] = store.get("scores")
         scores.append(_ScoreRecord(score=0.9, feedback="better"))
 
     _assert_store_events_equal(build_store, mutate)
@@ -275,14 +477,8 @@ def _run_nested_spans(
 
 
 @contextmanager
-def _track_store_changes_with_store_jsonable():
-    """Reference implementation using the *prior* ``store_jsonable`` semantics.
-
-    Historically, ``store_jsonable`` wrapped ``dict_jsonable(store._data)`` in an
-    additional ``deepcopy``. We keep that behaviour here explicitly so that the
-    tests continue to compare the new implementation against the original
-    snapshot strategy, even though ``store_jsonable`` itself is now lighter.
-    """
+def _track_store_changes_eager():
+    """Reference implementation: eagerly deep-copy the whole store at begin and end."""
     from inspect_ai.log._transcript import transcript
     from inspect_ai.util._store import store
 
@@ -298,14 +494,10 @@ def _assert_store_events_equal(
     build_store: Callable[[], Store],
     mutate: Callable[[Store], None],
 ) -> None:
-    """Compare StoreEvent.changes between baseline and optimised spans."""
-    # Baseline: reference implementation using store_jsonable(store())
+    """Compare StoreEvent.changes between the eager reference and track_store_changes."""
     baseline_store = build_store()
-    baseline_events = _run_span_with(
-        _track_store_changes_with_store_jsonable, baseline_store, mutate
-    )
+    baseline_events = _run_span_with(_track_store_changes_eager, baseline_store, mutate)
 
-    # Optimised using dict_jsonable(store()._data)
     opt_store = build_store()
     opt_events = _run_span_with(track_store_changes, opt_store, mutate)
 
@@ -317,7 +509,47 @@ def _assert_store_events_equal(
 
 def test_track_store_changes_nested_spans() -> None:
     """Compare behaviour for nested spans (outer span containing an inner span)."""
-    baseline_nested = _run_nested_spans(_track_store_changes_with_store_jsonable)
+    baseline_nested = _run_nested_spans(_track_store_changes_eager)
     opt_nested = _run_nested_spans(track_store_changes)
 
     assert baseline_nested == opt_nested
+
+
+# ---------------------------------------------------------------------------
+# deepcopy (used by fork()) does not carry open trackers over to the copy
+# ---------------------------------------------------------------------------
+
+
+def test_deepcopy_drops_open_trackers() -> None:
+    """A deep-copied Store has no trackers and independent data.
+
+    `fork()` deep-copies the TaskState (and so its Store) inside a running
+    span. Trackers open on the original must not be copied: a phantom tracker
+    on the copy would never be ended, so every first write to the copy would
+    serialise it and retain the snapshot for the copy's lifetime.
+    """
+    from inspect_ai.util._store import StoreChangeTracker
+
+    original = Store({"items": [1, 2]})
+    tracker = StoreChangeTracker(original)
+    tracker.begin()
+    try:
+        assert len(original._trackers) == 1
+
+        copied = deepcopy(original)
+
+        assert copied._trackers == []
+        assert len(original._trackers) == 1
+        assert copied.get("items") == [1, 2]
+
+        # a write to the copy neither reaches the original's data nor
+        # snapshots the original's tracker
+        copied.get("items").append(3)
+        assert original._data["items"] == [1, 2]
+        assert tracker._before is None
+
+        # and a write to the original does not reach the copy
+        original.set("other", "x")
+        assert "other" not in copied
+    finally:
+        tracker.end()

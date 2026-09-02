@@ -3,9 +3,12 @@ import inspect
 from collections.abc import Awaitable, Callable, Iterator
 from contextvars import ContextVar, Token
 from logging import getLogger
-from typing import Any, AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 from shortuuid import uuid as shortuuid
+
+if TYPE_CHECKING:
+    from inspect_ai.util._store import StoreChangeTracker
 
 logger = getLogger(__name__)
 
@@ -172,7 +175,7 @@ class SpanRotationScope:
         self._token: Token[str | _SpanCell | None] | None = None
         self._parent_id: str | None = None
         self._span_open = False
-        self._store_before: dict[str, Any] = {}
+        self._tracker: StoreChangeTracker | None = None
 
     @property
     def is_open(self) -> bool:
@@ -246,16 +249,20 @@ class SpanRotationScope:
         )
 
     def _snapshot_store(self) -> None:
-        from inspect_ai.util._store import store, store_jsonable
+        from inspect_ai.util._store import StoreChangeTracker, store
 
-        self._store_before = store_jsonable(store())
+        assert self._tracker is None, "store tracker already open"
+        self._tracker = StoreChangeTracker(store())
+        self._tracker.begin()
 
     def _emit_store_changes(self) -> None:
         from inspect_ai.event._store import StoreEvent
         from inspect_ai.log._transcript import transcript
-        from inspect_ai.util._store import store, store_changes, store_jsonable
 
-        changes = store_changes(self._store_before, store_jsonable(store()))
+        assert self._tracker is not None, "store tracker not open"
+        self._tracker.end()
+        changes = self._tracker.changes()
+        self._tracker = None
         if changes:
             transcript()._event(StoreEvent(changes=changes))
 
