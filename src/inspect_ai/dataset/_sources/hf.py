@@ -264,7 +264,7 @@ def hf_dataset(
         if shuffle:
             dataset = dataset.shuffle(seed=seed)
         if limit is not None:
-            dataset = dataset.select(range(limit))
+            dataset = dataset.select(range(min(limit, len(dataset))))
         records = dataset.to_list()
         if recover_ids:
             # pop the tag so it can't leak into sample metadata

@@ -285,7 +285,9 @@ def _install_fake_datasets_full(monkeypatch, tmp_path, load_dataset, load_from_d
     )
 
 
-@pytest.mark.parametrize("limit,expected", [(None, 2), (0, 0), (1, 1)])
+@pytest.mark.parametrize(
+    "limit,expected", [(None, 2), (0, 0), (1, 1), (5, 2), (100, 2)]
+)
 def test_hf_dataset_limit(limit, expected, tmp_path, monkeypatch) -> None:
     records = [{"input": "a", "target": "1"}, {"input": "b", "target": "2"}]
 
