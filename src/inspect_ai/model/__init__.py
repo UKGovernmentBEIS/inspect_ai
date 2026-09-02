@@ -67,6 +67,7 @@ from ._model import (
     ModelName,
     ModelRoles,
     RetryDecision,
+    compute_model_cost,
     get_model,
     model_roles,
 )
@@ -164,6 +165,7 @@ __all__ = [
     "Model",
     "ModelAPI",
     "ModelName",
+    "compute_model_cost",
     "ModelRole",
     "ModelRoles",
     "RetryDecision",

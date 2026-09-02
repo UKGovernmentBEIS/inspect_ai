@@ -285,6 +285,45 @@ def test_mixed_reasoning_blocks_filtering():
     assert ids == {"r1", "r2", "r3", "r4", "r5"}
 
 
+def test_items_without_real_ids_omit_id_key():
+    """Test that synthesized items omit 'id' rather than sending an explicit null."""
+    # No MESSAGE_ID internal and no reasoning signature -> no real ids available
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(text="Synthesized text"),
+            ContentReasoning(reasoning="Some reasoning"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert len(message_items) == 1
+    assert len(reasoning_items) == 1
+    assert "id" not in message_items[0]
+    assert "id" not in reasoning_items[0]
+
+    # replayed items with real ids keep them
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(text="Replayed text", internal={MESSAGE_ID: "msg_1"}),
+            ContentReasoning(reasoning="Some reasoning", signature="rs_1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert message_items[0]["id"] == "msg_1"
+    assert reasoning_items[0]["id"] == "rs_1"
+
+
 async def test_responses_api_invalid_prompt_content_filter():
     """Test that invalid_prompt error in responses API returns content_filter."""
     from openai.types.responses import Response, ResponseError

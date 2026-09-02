@@ -79,7 +79,12 @@ from inspect_ai.log import (
     EvalStats,
     HeadlineMetric,
 )
-from inspect_ai.log._condense import condense_sample, resolve_events_attachments
+from inspect_ai.log._condense import (
+    SampleSerializationError,
+    condense_sample,
+    is_log_serializable,
+    resolve_events_attachments,
+)
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,
@@ -130,7 +135,7 @@ from inspect_ai.model._model import (
     sample_model_usage,
     sample_role_usage,
 )
-from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -211,7 +216,14 @@ from .scan import (
     scan_eval_sample,
     scanned_transcripts_for_resume,
 )
-from .scheduler import SampleRequeue, SampleScheduler
+from .scheduler import (
+    DISCARDED,
+    Discarded,
+    SampleQueueHooks,
+    SampleRequeue,
+    SampleScheduler,
+    _SampleRun,
+)
 from .store import DiskSampleStore, maybe_page_to_disk
 from .task_source import TaskSource
 from .util import sample_id_filter, sample_limit_count, sample_messages, slice_dataset
@@ -301,10 +313,13 @@ SampleIndexEpoch: TypeAlias = tuple[SampleIndex, int]
 SampleIdEpoch: TypeAlias = tuple[int | str, int]
 
 # What running one sample yields for results aggregation: scores when the run
-# was scored (even if it errored), an EarlyStop marker, or None (scoreless
-# success, unscored error, operator cancel). Terminal disposition is reported
-# separately via `SampleTerminalReporter` — see `SampleTerminalOutcome`.
-SampleRunResult: TypeAlias = ScoresByScorer | EarlyStop | None
+# was scored (even if it errored), an EarlyStop marker, None (scoreless
+# success, unscored error, operator cancel), or the DISCARDED sentinel (an
+# abandoned run — queued-sample cancel or task-cancel drain — whose result
+# the scheduler must not write; see `scheduler.DISCARDED`). Terminal
+# disposition is reported separately via `SampleTerminalReporter` — see
+# `SampleTerminalOutcome`.
+SampleRunResult: TypeAlias = ScoresByScorer | EarlyStop | Discarded | None
 
 
 class _SampleUsage(NamedTuple):
@@ -441,6 +456,19 @@ class SampleTerminalReporter:
         self._record_and_release(
             record_sample_cancelled, "cancelled", started=started, usage=usage
         )
+
+    def discarded(self) -> None:
+        """The run was discarded after its cancel was already counted.
+
+        A queued-sample cancel counts the sample terminally cancelled at
+        accept time (``design/ctl/queued-sample-cancel.md``), so the parked
+        coroutine's later discard releases the injected-sample slot without
+        recording a second terminal outcome.
+        """
+        assert not self._reported, "sample run already reported a terminal outcome"
+        self._reported = True
+        if self._sample_terminal is not None:
+            self._sample_terminal("cancelled")
 
     async def _report(
         self,
@@ -1139,8 +1167,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 async def run_sample(
                     sample_index: int,
                     epoch: int,
-                    requeue_prior: EvalSample | None = None,
+                    entry: _SampleRun,
                 ) -> SampleRunResult:
+                    # a re-run withdrawn (un-requeued) before it first ran:
+                    # discard before any seeding side effect (see
+                    # design/ctl/queued-sample-cancel.md)
+                    if entry.cancelled:
+                        return DISCARDED
+                    requeue_prior = entry.prior
+
                     # the run's terminal bookkeeping, shared by the reuse
                     # short-circuit below and every terminal path inside
                     # task_run_sample
@@ -1165,6 +1200,24 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # check for cached result from previous eval (before
                     # materialization to avoid unnecessary deepcopy + image I/O)
                     sample_id = get_sample(sample_index).id
+
+                    # queue-lifecycle hooks (design/ctl/queued-sample-cancel.md):
+                    # arrival stamps immediately before the semaphore park,
+                    # departure (plus the cancelled-while-parked discard
+                    # check) at queue exit — pre-bound here where the key is
+                    # known, and forwarded through the retry_on_error
+                    # recursion so a re-parked sample reads as at-the-queue
+                    queue_hooks = (
+                        SampleQueueHooks(
+                            requeue=sample_requeue,
+                            sample_id=sample_id,
+                            epoch=epoch,
+                            run=entry,
+                        )
+                        if sample_id is not None
+                        else None
+                    )
+
                     resume_checkpoint: ResumeCheckpoint | None = None
                     # prior task-attempt errors to seed this re-run's
                     # error_retries (empty unless the sample source reports a
@@ -1363,6 +1416,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         time_limit=config.time_limit,
                         working_limit=config.working_limit,
                         semaphore=gated_sample_semaphore,
+                        queue_hooks=queue_hooks,
                         eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
@@ -1563,29 +1617,45 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # live run (design/ctl/sample-requeue.md) — including a
                 # SampleSource-driven run, whose feeder runs inside the
                 # same fanout
-                def on_requeue_accept(sample_id: int | str, epoch: int) -> None:
+                def on_requeue_accept(
+                    sample_id: int | str, epoch: int
+                ) -> ScoresByScorer | None:
                     # un-tick the prior terminal outcome's progress and drop
                     # its superseded score from the live results so the bar
                     # and metrics reflect the re-opened work (a re-run that
                     # scores re-adds it via sample_complete; a re-run that
                     # ends unscored — e.g. a task cancel — must not leave the
                     # stale score in the metrics display or the cancellation
-                    # path's partial eval_results)
+                    # path's partial eval_results). The popped score is
+                    # returned so the handle can stash it for a possible
+                    # withdraw (un-requeue).
                     progress(-SAMPLE_TOTAL_PROGRESS_UNITS)
-                    progress_results.pop((sample_id, epoch), None)
+                    return progress_results.pop((sample_id, epoch), None)
+
+                def on_requeue_withdrawn(
+                    sample_id: int | str,
+                    epoch: int,
+                    popped_score: ScoresByScorer | None,
+                ) -> None:
+                    # restore what on_requeue_accept retracted: the withdrawn
+                    # re-run never runs, so the prior outcome's progress tick
+                    # and score (present only when the prior scored, e.g.
+                    # score_on_error) stand again
+                    progress(SAMPLE_TOTAL_PROGRESS_UNITS)
+                    if popped_score is not None:
+                        progress_results[(sample_id, epoch)] = popped_score
 
                 sample_scheduler = SampleScheduler()
-                set_sample_requeue(
-                    logger.eval.eval_id,
-                    SampleRequeue(
-                        eval_id=logger.eval.eval_id,
-                        scheduler=sample_scheduler,
-                        sample_error=sample_error_handler,
-                        sample_indexes=sample_indexes,
-                        checkpoints_dir=requeue_checkpoints_dir,
-                        on_accept=on_requeue_accept,
-                    ),
+                sample_requeue = SampleRequeue(
+                    eval_id=logger.eval.eval_id,
+                    scheduler=sample_scheduler,
+                    sample_error=sample_error_handler,
+                    sample_indexes=sample_indexes,
+                    checkpoints_dir=requeue_checkpoints_dir,
+                    on_accept=on_requeue_accept,
+                    on_withdraw=on_requeue_withdrawn,
                 )
+                set_sample_requeue(logger.eval.eval_id, sample_requeue)
                 seed_plan = [
                     (sample_index, epoch)
                     for epoch in range(1, epochs + 1)
@@ -1966,6 +2036,7 @@ async def task_run_sample(
     run_id: str,
     task_id: str,
     scan_id: str | None = None,
+    queue_hooks: SampleQueueHooks | None = None,
 ) -> SampleRunResult:
     """Run one sample run as a loop of error-retry attempts.
 
@@ -2018,6 +2089,10 @@ async def task_run_sample(
             run_id=run_id,
             task_id=task_id,
             scan_id=scan_id,
+            # forward the queue-lifecycle hooks: a retry re-park re-stamps
+            # arrival, so the re-parked sample reads as at-the-queue
+            # (cancellable) rather than permanently departed
+            queue_hooks=queue_hooks,
         )
         if isinstance(result, _SampleRetry):
             attempt = attempt.advance(result)
@@ -2065,6 +2140,7 @@ async def _task_run_sample_attempt(
     run_id: str,
     task_id: str,
     scan_id: str | None = None,
+    queue_hooks: SampleQueueHooks | None = None,
 ) -> SampleRunResult | _SampleRetry:
     from inspect_ai.event import Event
     from inspect_ai.hooks._hooks import (
@@ -2079,15 +2155,37 @@ async def _task_run_sample_attempt(
         start_sample_event_emitter,
     )
 
+    # stamp queue arrival immediately before the park: the accept side of a
+    # queued-sample cancel requires the key to be exactly *at the queue*
+    # (design/ctl/queued-sample-cancel.md)
+    if queue_hooks is not None:
+        queue_hooks.enter()
+
     # execute under sample semaphore
     async with semaphore:
+        # queued-sample cancel: stamp departure (every run — the accept-side
+        # at-the-queue gate reads it) and discard a run cancelled while
+        # parked. Ordered before the task-cancel drain check below: the
+        # cancel accept already counted the sample, so the drain's own
+        # record_sample_cancelled would double-count it.
+        if queue_hooks is not None and queue_hooks.exit():
+            reporter.discarded()
+            return DISCARDED
+
         # a task cancel with a graceful sample resolution (score/error) is in
         # flight: this sample never started, so it is abandoned rather than
         # resolved — terminal 'cancelled' for the eval's counters, absent from
-        # the log (matching an abort's treatment of still-queued samples)
+        # the log (matching an abort's treatment of still-queued samples).
+        # DISCARDED (not None) so an abandoned re-run can't clobber its prior
+        # attempt's keyed score dict in the results.
         if task_cancel is not None and task_cancel.cancel_type in ("score", "error"):
+            # mark the key cancelled so the outcome is readable (the listing,
+            # and the cancel resolver's idempotent no-op — without it a
+            # departed key with no record reads "initializing" forever)
+            if queue_hooks is not None:
+                queue_hooks.abandon()
             reporter.cancelled()
-            return None
+            return DISCARDED
 
         # materialize sample+state lazily (deferred until semaphore acquired)
         sample, state = await create_sample_state(attempt.sample_uuid)
@@ -2842,6 +2940,7 @@ async def _task_run_sample_attempt(
                                 log_images=log_images,
                                 from_memory=log_from_memory,
                             )
+                            results = scores_as_logged(results, eval_sample)
                         else:
                             eval_sample = make_eval_sample()
                         await scan_eval_sample(
@@ -2912,8 +3011,16 @@ async def _task_run_sample_attempt(
         if logger is not None:
             logger.remove_sample(state.sample_id, state.epoch)
 
+        # mark the key cancelled: this attempt was never logged, so without
+        # the stamp no read surface would ever see the outcome (the departed
+        # key would read "initializing" forever)
+        if queue_hooks is not None:
+            queue_hooks.abandon()
         reporter.cancelled(started=_sample_started(), usage=_sample_usage(state))
-        return None
+        # DISCARDED (not None): the attempt was never logged, so a re-run
+        # abandoned here must not clobber its prior attempt's keyed score
+        # dict in the results
+        return DISCARDED
 
     # re-raise cancellation after logging to preserve structured concurrency
     elif cancelled_error is not None:
@@ -3048,33 +3155,153 @@ async def log_sample(
     *,
     from_memory: bool,
 ) -> EvalSample:
-    # No realtime buffer DB, or the full history is still resident in memory:
-    # log directly from the in-memory sample (which carries its events). This
-    # avoids the open_sample_history -> materialize_streaming_sample round-trip
-    # (read every event back out of SQLite + re-validate). `complete_sample`
-    # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
-    # buffer exists it stays consistent for live viewing.
-    if logger.buffer_db is None or from_memory:
-        await logger.complete_sample(
-            condense_sample(eval_sample, log_images), flush=True
-        )
-        return eval_sample
+    try:
+        # No realtime buffer DB, or the full history is still resident in memory:
+        # log directly from the in-memory sample (which carries its events). This
+        # avoids the open_sample_history -> materialize_streaming_sample round-trip
+        # (read every event back out of SQLite + re-validate). `complete_sample`
+        # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
+        # buffer exists it stays consistent for live viewing.
+        if logger.buffer_db is None or from_memory:
+            await logger.complete_sample(
+                condense_sample(eval_sample, log_images), flush=True
+            )
+            return eval_sample
 
-    # Events were bounded-evicted from memory: stream them back from the buffer
-    # DB (the only place the full history still lives) without re-materializing
-    # the whole sample in memory at once.
-    logging_sample = condense_sample(
-        eval_sample.model_copy(update={"events": [], "events_data": None}),
-        log_images,
-    )
-    with logger.buffer_db.open_sample_history(
-        eval_sample.id, eval_sample.epoch
-    ) as sample_history:
-        materialized_sample = materialize_streaming_sample(eval_sample, sample_history)
-        await logger.complete_sample_streaming(
-            logging_sample, sample_history, flush=True
+        # Events were bounded-evicted from memory: stream them back from the buffer
+        # DB (the only place the full history still lives) without re-materializing
+        # the whole sample in memory at once.
+        logging_sample = condense_sample(
+            eval_sample.model_copy(update={"events": [], "events_data": None}),
+            log_images,
         )
-    return materialized_sample
+        with logger.buffer_db.open_sample_history(
+            eval_sample.id, eval_sample.epoch
+        ) as sample_history:
+            materialized_sample = materialize_streaming_sample(
+                eval_sample, sample_history
+            )
+            await logger.complete_sample_streaming(
+                logging_sample, sample_history, flush=True
+            )
+        return materialized_sample
+    except SampleSerializationError as ex:
+        # A sample whose content defeats condensation/serialization (e.g.
+        # structures nested beyond pydantic-core's serialization depth limit)
+        # must not abort the whole eval: this code runs after the
+        # fail_on_error decision, so an escaping exception here would tear
+        # down the scheduler task group (cancelling in-flight sibling
+        # samples) and lose this sample's record entirely. Degrade instead:
+        # strip the sample content and log an error record in its place.
+        # Only the condensation error is caught: any other failure here — in
+        # particular a transient recorder/flush I/O error on a healthy sample —
+        # must propagate to normal error handling rather than silently strip
+        # the sample's content.
+        py_logger.warning(
+            f"Unable to serialize sample for logging "
+            f"(id: {eval_sample.id}, epoch: {eval_sample.epoch}): {ex}. "
+            f"Logging the sample with its content removed."
+        )
+        fallback_sample = sample_serialization_fallback(eval_sample, ex)
+        await logger.complete_sample(
+            condense_sample(fallback_sample, log_images), flush=True
+        )
+        return fallback_sample
+
+
+def sample_serialization_fallback(eval_sample: EvalSample, ex: Exception) -> EvalSample:
+    """Copy of `eval_sample` with content fields stripped so it can be logged.
+
+    Used when condensing/serializing the full sample for logging fails.
+    Framework-generated scalar fields (ids, timing, usage, limits) are
+    retained, and so are the scores whenever the stripped record still
+    serializes with them: the headline results were already computed from
+    them, so dropping them would leave the sample's record disagreeing with
+    `log.results`. When the scores are what defeats serialization, only their
+    `metadata` — the one score field of unbounded shape — is removed first, so
+    the values, answers and explanations survive; the scores are dropped
+    altogether only if the record still cannot be written. The remaining
+    content that may have defeated serialization (messages, output, events,
+    store, metadata) is removed. The removal is always recorded in the
+    sample's error — appended to the existing error's message when the sample
+    already has one — so a reader of the log can tell why the record is empty.
+
+    The caller must carry any change to the scores over to the sample's
+    results (see `scores_as_logged`): the same `Score` objects are written
+    again as reductions at log finish, where the removed content would fail
+    serialization a second time.
+    """
+    stripped = eval_sample.model_copy(
+        update=dict(
+            metadata={},
+            messages=[],
+            output=ModelOutput(model=eval_sample.output.model),
+            store={},
+            events=[],
+            events_data=None,
+            attachments={},
+            error_retries=[
+                retry.model_copy(update=dict(events=None))
+                for retry in eval_sample.error_retries
+            ]
+            if eval_sample.error_retries is not None
+            else None,
+        )
+    )
+    removed = ["messages", "output", "events", "store", "metadata"]
+    if stripped.scores is not None and not is_log_serializable(stripped):
+        stripped = stripped.model_copy(
+            update=dict(
+                scores={
+                    name: score.model_copy(update=dict(metadata=None))
+                    for name, score in stripped.scores.items()
+                }
+            )
+        )
+        removed.append("score metadata")
+        if not is_log_serializable(stripped):
+            stripped = stripped.model_copy(update=dict(scores=None))
+            removed.append("scores")
+    note = (
+        f"Sample content ({', '.join(removed)}) was removed from the eval log "
+        f"because it could not be serialized: {ex}"
+    )
+    if eval_sample.error is not None:
+        error = eval_sample.error.model_copy(
+            update=dict(message=f"{eval_sample.error.message}\n\n{note}")
+        )
+    else:
+        error = eval_error(ex, type(ex), ex, ex.__traceback__).model_copy(
+            update=dict(message=note)
+        )
+    return stripped.model_copy(update=dict(error=error))
+
+
+def scores_as_logged(
+    results: ScoresByScorer, eval_sample: EvalSample
+) -> ScoresByScorer:
+    """`results` with each score replaced by the one logged in `eval_sample`.
+
+    The logged scores are normally the very `Score` objects in `results`, so
+    this is a no-op. They differ only when the sample was written through
+    `sample_serialization_fallback`, which may have removed score metadata or
+    the scores altogether because they could not be serialized. The results
+    feed the metrics, early stopping and the reductions written at log finish,
+    so they must follow the record: the reductions would otherwise fail on the
+    same content the sample record already refused (aborting the eval at
+    finish, after every sample was logged) and `log.results` would disagree
+    with the sample's own record.
+    """
+    logged = eval_sample.scores or {}
+    return {
+        name: (
+            sample_score
+            if sample_score.score is logged[name]
+            else sample_score.model_copy(update=dict(score=logged[name]))
+        )
+        for name, sample_score in results.items()
+        if name in logged
+    }
 
 
 async def _resume_if_checkpointed(
