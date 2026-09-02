@@ -24,6 +24,15 @@ ungated call site (construction itself can only be gated where it happens).
 Without `on_stream` only the heartbeat/token progress channel runs —
 partial-output snapshots included, since they are built from the delta
 stream.
+
+Providers differ deliberately in how a stream that ends without usage is
+handled, following each provider's contract and response type rather than a
+single house rule. Bedrock raises: ConverseStream guarantees a trailing
+metadata event, so its absence means a truncated stream. Groq, Mistral and
+Azure warn once and return the response, because their servers may
+legitimately omit usage. Of those, Groq and Azure report no usage at all
+(their response types make it optional); Mistral's requires a usage object,
+so it fabricates zeros. Don't unify these.
 """
 
 import contextlib
