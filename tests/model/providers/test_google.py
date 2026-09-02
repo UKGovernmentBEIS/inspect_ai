@@ -1223,6 +1223,31 @@ def _make_batcher_and_batch(job_state: JobState) -> tuple:
     batch = Batch(id="batch-123", requests={"req-1": req})
     return batcher, batch
 
+def test_batch_request_dict_wraps_system_instruction() -> None:
+    from google.genai.types import Content, GenerateContentConfig, Part
+
+    from inspect_ai.model._providers._google_batch import batch_request_dict
+
+    config = GenerateContentConfig(system_instruction=["You are helpful.", "Be concise."])
+    request = batch_request_dict(config, [Content(role="user", parts=[Part.from_text(text="hi")])])
+
+    assert request["system_instruction"] == {
+        "parts": [{"text": "You are helpful."}, {"text": "Be concise."}],
+    }
+    assert request["contents"] == [
+        {"role": "user", "parts": [{"text": "hi"}]},
+    ]
+
+    config_parts = GenerateContentConfig(
+        system_instruction=[Part.from_text(text="You are helpful.")]
+    )
+    request_parts = batch_request_dict(
+        config_parts, [Content(role="user", parts=[Part.from_text(text="hi")])]
+    )
+    assert request_parts["system_instruction"] == {
+        "parts": [{"text": "You are helpful."}],
+    }
+
 
 @pytest.mark.parametrize(
     "state,expect_completed,expect_failed,expect_completion_info",

@@ -46,6 +46,35 @@ _SDK_ONLY_FIELDS = {
 }
 
 
+def _normalize_system_instruction_for_batch(
+    system_instruction: Any,
+) -> dict[str, Any] | None:
+    """Wrap system_instruction in REST Content shape for batch JSONL.
+
+    GenerateContentConfig accepts bare strings, parts, or lists thereof, but the
+    batch REST schema requires a Content object with a ``parts`` array.
+    """
+    if system_instruction is None:
+        return None
+    if isinstance(system_instruction, dict):
+        if "parts" in system_instruction:
+            return system_instruction
+        return {"parts": [system_instruction]}
+    if isinstance(system_instruction, str):
+        return {"parts": [{"text": system_instruction}]}
+    if isinstance(system_instruction, list):
+        parts: list[dict[str, Any]] = []
+        for item in system_instruction:
+            if isinstance(item, str):
+                parts.append({"text": item})
+            elif isinstance(item, dict):
+                parts.append(item)
+            else:
+                raise TypeError(f"Unexpected system_instruction part: {item!r}")
+        return {"parts": parts}
+    raise TypeError(f"Unexpected system_instruction type: {type(system_instruction)}")
+
+
 def batch_request_dict(
     config: GenerateContentConfig, contents: list[Content]
 ) -> dict[str, Any]:
@@ -60,6 +89,10 @@ def batch_request_dict(
     # see _REQUEST_TOP_LEVEL_FIELDS.
     params = config.model_dump(exclude_none=True)
     top_level = {k: v for k, v in params.items() if k in _REQUEST_TOP_LEVEL_FIELDS}
+    if "system_instruction" in top_level:
+        top_level["system_instruction"] = _normalize_system_instruction_for_batch(
+            top_level["system_instruction"]
+        )
     generation_config = {
         k: v
         for k, v in params.items()
