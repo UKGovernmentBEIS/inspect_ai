@@ -86,7 +86,12 @@ from inspect_ai.log import (
     EvalStats,
     HeadlineMetric,
 )
-from inspect_ai.log._condense import condense_sample, resolve_events_attachments
+from inspect_ai.log._condense import (
+    SampleSerializationError,
+    condense_sample,
+    is_log_serializable,
+    resolve_events_attachments,
+)
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,
@@ -137,7 +142,7 @@ from inspect_ai.model._model import (
     sample_model_usage,
     sample_role_usage,
 )
-from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -3054,6 +3059,7 @@ async def _task_run_sample_attempt(
                                 log_images=log_images,
                                 from_memory=log_from_memory,
                             )
+                            results = scores_as_logged(results, eval_sample)
                         else:
                             eval_sample = make_eval_sample()
                         await scan_eval_sample(
@@ -3268,33 +3274,153 @@ async def log_sample(
     *,
     from_memory: bool,
 ) -> EvalSample:
-    # No realtime buffer DB, or the full history is still resident in memory:
-    # log directly from the in-memory sample (which carries its events). This
-    # avoids the open_sample_history -> materialize_streaming_sample round-trip
-    # (read every event back out of SQLite + re-validate). `complete_sample`
-    # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
-    # buffer exists it stays consistent for live viewing.
-    if logger.buffer_db is None or from_memory:
-        await logger.complete_sample(
-            condense_sample(eval_sample, log_images), flush=True
-        )
-        return eval_sample
+    try:
+        # No realtime buffer DB, or the full history is still resident in memory:
+        # log directly from the in-memory sample (which carries its events). This
+        # avoids the open_sample_history -> materialize_streaming_sample round-trip
+        # (read every event back out of SQLite + re-validate). `complete_sample`
+        # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
+        # buffer exists it stays consistent for live viewing.
+        if logger.buffer_db is None or from_memory:
+            await logger.complete_sample(
+                condense_sample(eval_sample, log_images), flush=True
+            )
+            return eval_sample
 
-    # Events were bounded-evicted from memory: stream them back from the buffer
-    # DB (the only place the full history still lives) without re-materializing
-    # the whole sample in memory at once.
-    logging_sample = condense_sample(
-        eval_sample.model_copy(update={"events": [], "events_data": None}),
-        log_images,
-    )
-    with logger.buffer_db.open_sample_history(
-        eval_sample.id, eval_sample.epoch
-    ) as sample_history:
-        materialized_sample = materialize_streaming_sample(eval_sample, sample_history)
-        await logger.complete_sample_streaming(
-            logging_sample, sample_history, flush=True
+        # Events were bounded-evicted from memory: stream them back from the buffer
+        # DB (the only place the full history still lives) without re-materializing
+        # the whole sample in memory at once.
+        logging_sample = condense_sample(
+            eval_sample.model_copy(update={"events": [], "events_data": None}),
+            log_images,
         )
-    return materialized_sample
+        with logger.buffer_db.open_sample_history(
+            eval_sample.id, eval_sample.epoch
+        ) as sample_history:
+            materialized_sample = materialize_streaming_sample(
+                eval_sample, sample_history
+            )
+            await logger.complete_sample_streaming(
+                logging_sample, sample_history, flush=True
+            )
+        return materialized_sample
+    except SampleSerializationError as ex:
+        # A sample whose content defeats condensation/serialization (e.g.
+        # structures nested beyond pydantic-core's serialization depth limit)
+        # must not abort the whole eval: this code runs after the
+        # fail_on_error decision, so an escaping exception here would tear
+        # down the scheduler task group (cancelling in-flight sibling
+        # samples) and lose this sample's record entirely. Degrade instead:
+        # strip the sample content and log an error record in its place.
+        # Only the condensation error is caught: any other failure here — in
+        # particular a transient recorder/flush I/O error on a healthy sample —
+        # must propagate to normal error handling rather than silently strip
+        # the sample's content.
+        py_logger.warning(
+            f"Unable to serialize sample for logging "
+            f"(id: {eval_sample.id}, epoch: {eval_sample.epoch}): {ex}. "
+            f"Logging the sample with its content removed."
+        )
+        fallback_sample = sample_serialization_fallback(eval_sample, ex)
+        await logger.complete_sample(
+            condense_sample(fallback_sample, log_images), flush=True
+        )
+        return fallback_sample
+
+
+def sample_serialization_fallback(eval_sample: EvalSample, ex: Exception) -> EvalSample:
+    """Copy of `eval_sample` with content fields stripped so it can be logged.
+
+    Used when condensing/serializing the full sample for logging fails.
+    Framework-generated scalar fields (ids, timing, usage, limits) are
+    retained, and so are the scores whenever the stripped record still
+    serializes with them: the headline results were already computed from
+    them, so dropping them would leave the sample's record disagreeing with
+    `log.results`. When the scores are what defeats serialization, only their
+    `metadata` — the one score field of unbounded shape — is removed first, so
+    the values, answers and explanations survive; the scores are dropped
+    altogether only if the record still cannot be written. The remaining
+    content that may have defeated serialization (messages, output, events,
+    store, metadata) is removed. The removal is always recorded in the
+    sample's error — appended to the existing error's message when the sample
+    already has one — so a reader of the log can tell why the record is empty.
+
+    The caller must carry any change to the scores over to the sample's
+    results (see `scores_as_logged`): the same `Score` objects are written
+    again as reductions at log finish, where the removed content would fail
+    serialization a second time.
+    """
+    stripped = eval_sample.model_copy(
+        update=dict(
+            metadata={},
+            messages=[],
+            output=ModelOutput(model=eval_sample.output.model),
+            store={},
+            events=[],
+            events_data=None,
+            attachments={},
+            error_retries=[
+                retry.model_copy(update=dict(events=None))
+                for retry in eval_sample.error_retries
+            ]
+            if eval_sample.error_retries is not None
+            else None,
+        )
+    )
+    removed = ["messages", "output", "events", "store", "metadata"]
+    if stripped.scores is not None and not is_log_serializable(stripped):
+        stripped = stripped.model_copy(
+            update=dict(
+                scores={
+                    name: score.model_copy(update=dict(metadata=None))
+                    for name, score in stripped.scores.items()
+                }
+            )
+        )
+        removed.append("score metadata")
+        if not is_log_serializable(stripped):
+            stripped = stripped.model_copy(update=dict(scores=None))
+            removed.append("scores")
+    note = (
+        f"Sample content ({', '.join(removed)}) was removed from the eval log "
+        f"because it could not be serialized: {ex}"
+    )
+    if eval_sample.error is not None:
+        error = eval_sample.error.model_copy(
+            update=dict(message=f"{eval_sample.error.message}\n\n{note}")
+        )
+    else:
+        error = eval_error(ex, type(ex), ex, ex.__traceback__).model_copy(
+            update=dict(message=note)
+        )
+    return stripped.model_copy(update=dict(error=error))
+
+
+def scores_as_logged(
+    results: ScoresByScorer, eval_sample: EvalSample
+) -> ScoresByScorer:
+    """`results` with each score replaced by the one logged in `eval_sample`.
+
+    The logged scores are normally the very `Score` objects in `results`, so
+    this is a no-op. They differ only when the sample was written through
+    `sample_serialization_fallback`, which may have removed score metadata or
+    the scores altogether because they could not be serialized. The results
+    feed the metrics, early stopping and the reductions written at log finish,
+    so they must follow the record: the reductions would otherwise fail on the
+    same content the sample record already refused (aborting the eval at
+    finish, after every sample was logged) and `log.results` would disagree
+    with the sample's own record.
+    """
+    logged = eval_sample.scores or {}
+    return {
+        name: (
+            sample_score
+            if sample_score.score is logged[name]
+            else sample_score.model_copy(update=dict(score=logged[name]))
+        )
+        for name, sample_score in results.items()
+        if name in logged
+    }
 
 
 async def _resume_if_checkpointed(

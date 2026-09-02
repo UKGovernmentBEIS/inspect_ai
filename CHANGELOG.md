@@ -4,6 +4,7 @@
 - Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)
 - Concurrency: `max_sandboxes` and `max_subprocesses` now default off the processors the eval may actually use, so an eval in a CPU-limited container no longer oversubscribes its quota.
 - Tools: The `grep` tool now supports extended regex via a new `extended_regexp` option (patterns remain basic regex by default).
+- Tools: Tool call arguments nested deeper than 100 levels are now rejected with a parse error echoed back to the model (previously depths up to ~254 executed and deeper crashed eval logging, aborting the whole run).
 - Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
 - Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".
 - OpenAI: Chat Completions usage now preserves prompt-cache read and write tokens for accurate cache-aware costing.
@@ -23,6 +24,8 @@
 - Bugfix: Sustained rate limiting no longer pins the adaptive connection limit after a single reduction; it keeps adapting up and down as conditions change.
 - Eval Log: Resolving a log's attachments no longer discards model call payloads, which previously became unreadable when attachments were resolved.
 - Eval Log: Fixed trio evals crashing with `ValueError: seek of closed file` when writing a `.eval` log smaller than 8MB to S3.
+- Eval Log: Writing a sample whose content cannot be serialized (e.g. score metadata nested beyond pydantic's depth limit) no longer aborts the eval at flush or finish; the sample is logged with the offending content removed and the removal recorded in its error.
+- Eval Log: JSON values in logged events nested deeper than 240 levels are now truncated with a placeholder marker (previously depths up to ~254 were preserved and deeper crashed the eval).
 - Inspect CTL: New `inspect ctl sample score` interim-scores a single running sample's work-so-far on demand (briefly held while scored; the sample keeps running).
 - Score: `inspect score` now reports samples that errored or were stopped early, so a re-scored partial run is no longer displayed as if it were complete.
 - Scorers: New `cascade()` scorer runs scorers in order and reports the first that settles a sample, so an expensive grader only runs on samples cheaper scorers left unsettled.
@@ -32,8 +35,10 @@
 - Agent bridge: An invalid generation parameter in a bridged request (e.g. `stop_sequences: 5`) is now rejected with a 400 instead of being recorded into an event that cannot be read back, which made the whole sample transcript unreadable.
 - Agent bridge: A bridged Gemini response's `candidatesTokenCount` no longer double-counts thinking tokens alongside `thoughtsTokenCount`.
 - Agent bridge: A bridged structured-output request whose JSON Schema uses keywords Inspect does not model (e.g. `$ref`) now warns, instead of silently constraining the model more weakly than asked.
+- Agent bridge: An invalid response schema or mistyped request field in a bridged OpenAI, Anthropic, or Google request is now rejected with a 400 instead of escaping as a status-less internal error.
 - Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
 - Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
+- Agent bridge: Fixed a tool-approval bypass where a sandboxed agent could run approval-gated `bridged_tools` by calling the bridge service directly; unapproved host tool calls are now denied.
 - Bugfix: Approval policies set on a `Task` are now recorded in the eval log.
 - OpenAI: Responses API requests now omit the `id` key on synthesized message and reasoning items rather than sending an explicit null, which backends like vLLM reject.
 - Hooks: Fixed hooks published by extension packages silently not loading when another hook was already registered at startup.
@@ -48,6 +53,10 @@
 - Control Channel: `inspect ctl task cancel` of a task between retry attempts (including one still writing its errored attempt's final log) now abandons the queued retry (the task ends with its last attempt's error log) instead of asking to re-issue once the retry starts.
 - Control Channel: `inspect ctl task list` rows now report a pending graceful resolution (`resolving`: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as `pending`.
 - Moonshot: Sampling parameters (`temperature`, `top_p`, penalties) set on Kimi models with thinking disabled are now warned about and ignored instead of causing a 400 error.
+- Model API: New `stream_idle_timeout` option (also retunable live via `inspect ctl config`) abandons and retries a model call whose streaming response stalls, instead of waiting out the whole-attempt timeout.
+- Together: Logprobs requests no longer fail with a 400 on newer models, and `top_logprobs` is now honored instead of being silently capped at 1.
+- Models: `on_stream` now delivers stream events from the Bedrock, Groq, Mistral (completions API), and Azure AI providers.
+- Moonshot: Forcing a tool (or `tool_choice="any"`) on Kimi models other than K3 no longer fails with a 400 — the request falls back to `"auto"` with a warning.
 
 ## 0.3.260 (21 August 2026)
 

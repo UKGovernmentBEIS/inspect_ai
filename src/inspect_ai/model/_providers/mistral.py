@@ -2,7 +2,8 @@ import functools
 import inspect
 import json
 import os
-from typing import Any, Literal
+from logging import getLogger
+from typing import Any, AsyncIterator, Literal, NamedTuple
 
 from mistralai.client import Mistral
 from mistralai.client.errors import SDKError
@@ -13,6 +14,9 @@ from mistralai.client.models import (
     ChatCompletionChoice as MistralChatCompletionChoice,
 )
 from mistralai.client.models import (
+    CompletionChunk,
+    CompletionEvent,
+    CompletionResponseStreamChoiceFinishReason,
     ContentChunk,
     DocumentURLChunk,
     FileChunk,
@@ -23,6 +27,7 @@ from mistralai.client.models import (
     ReferenceChunk,
     TextChunk,
     ThinkChunk,
+    UsageInfo,
 )
 from mistralai.client.models import Function as MistralFunction
 from mistralai.client.models import (
@@ -54,6 +59,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import inline_media_data_uri, provider_image_data_uri
+from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -75,6 +81,15 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
+from .._stream import (
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 from .mistral_conversation import (
     mistral_conversation_generate,
     mistral_reasoning_effort,
@@ -82,11 +97,14 @@ from .mistral_conversation import (
 from .util import (
     environment_prerequisite_error,
     model_base_url,
+    normalize_stream_arg,
     require_azure_base_url,
     resolve_api_key,
     sample_cache_affinity_key,
 )
 from .util.hooks import HttpxHooks
+
+logger = getLogger(__name__)
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
@@ -116,6 +134,7 @@ class MistralAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         conversation_api: bool | None = None,
+        streaming: bool | Literal["auto"] = "auto",
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -144,6 +163,11 @@ class MistralAPI(ModelAPI):
             self.conversation_api = False
         else:
             self.conversation_api = True
+
+        # record streaming preference (unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides).
+        # only the chat-completions path streams — see resolve_streaming
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
 
         # resolve api_key
         if not self.api_key:
@@ -198,8 +222,17 @@ class MistralAPI(ModelAPI):
             # create time tracker
             http_hooks = HttpxHooks(client.sdk_configuration.async_client, api=self)
 
-            # use the conversation api if requested
+            # use the conversation api if requested (this path does not yet
+            # support streaming — an on_stream caller degrades gracefully to
+            # no events; set conversation_api=false to stream)
             if self.conversation_api:
+                if self.streaming is True:
+                    warn_once(
+                        logger,
+                        f"mistral model '{self.model_name}': streaming=true has "
+                        "no effect on the Conversation API (it does not support "
+                        "streaming); pass -M conversation_api=false to stream.",
+                    )
                 return await mistral_conversation_generate(
                     client=client,
                     http_hooks=http_hooks,
@@ -251,6 +284,12 @@ class MistralAPI(ModelAPI):
                     ),
                 )
 
+            # resolve streaming and mutate the request accordingly before the
+            # ModelCall snapshot, so the logged request matches the wire request
+            streaming = self.resolve_streaming(config)
+            if streaming:
+                request["stream"] = True
+
             # prepare request for inclusion in model call
             req = request.copy()
             req.update(messages=[message.model_dump() for message in req["messages"]])
@@ -261,7 +300,16 @@ class MistralAPI(ModelAPI):
 
             # send request
             try:
-                completion = await client.chat.complete_async(**request)
+                if streaming:
+                    async with await client.chat.stream_async(**request) as events:
+                        completion = await mistral_completion_from_stream(events)
+                else:
+                    completion = await client.chat.complete_async(**request)
+
+                if completion is None:
+                    raise RuntimeError(
+                        "Mistral model did not return a response from generate."
+                    )
 
                 model_call.set_response(
                     completion.model_dump(), http_hooks.end_request(request_id)
@@ -275,27 +323,38 @@ class MistralAPI(ModelAPI):
                 else:
                     raise ex
 
-            if completion is None:
-                raise RuntimeError(
-                    "Mistral model did not return a response from generate."
-                )
-
             # return model output (w/ tool calls if they exist)
             choices = await completion_choices_from_response(completion, tools)
             return ModelOutput(
                 model=completion.model,
                 choices=choices,
                 usage=ModelUsage(
-                    input_tokens=completion.usage.prompt_tokens,
+                    input_tokens=completion.usage.prompt_tokens or 0,
                     output_tokens=(
                         completion.usage.completion_tokens
                         if completion.usage.completion_tokens
-                        else completion.usage.total_tokens
-                        - completion.usage.prompt_tokens
+                        else (completion.usage.total_tokens or 0)
+                        - (completion.usage.prompt_tokens or 0)
                     ),
-                    total_tokens=completion.usage.total_tokens,
+                    total_tokens=completion.usage.total_tokens or 0,
                 ),
             ), model_call
+
+    def resolve_streaming(self, config: GenerateConfig) -> bool:
+        """Whether to use the streaming API for this generate call.
+
+        Applies only to the chat-completions path (the conversation API path
+        never streams). An explicit `streaming` model arg wins; when unset
+        ("auto"), stream when the caller passed `on_stream` to
+        `Model.generate()`. Auto mode declines to stream requests carrying a
+        `response_schema`: structured output under streaming is unverified
+        for Mistral, and a display-only `on_stream` request must not risk
+        degrading results (an explicit `streaming=true` opt-in still
+        streams).
+        """
+        if self.streaming is not None:
+            return self.streaming
+        return model_stream_requested() and config.response_schema is None
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -345,6 +404,218 @@ class MistralAPI(ModelAPI):
             )
         else:
             return ex
+
+
+class _StreamToolCall(NamedTuple):
+    """Accumulated state for one streamed tool call."""
+
+    id: str | None
+    function: str | None
+    arguments: list[str]
+
+
+class _StreamChoice:
+    """Accumulated state for one streamed choice."""
+
+    def __init__(self) -> None:
+        self.content: list[str | ContentChunk] = []
+        self.tool_calls: dict[int, _StreamToolCall] = {}
+        self.finish_reason: CompletionResponseStreamChoiceFinishReason | None = None
+
+
+async def mistral_completion_from_stream(
+    events: AsyncIterator[CompletionEvent],
+) -> MistralChatCompletionResponse:
+    """Consume a Mistral chat-completions event stream into a final completion.
+
+    Reports each chunk once to the model layer's stream observer
+    (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
+    callback and the pending event's progress record. Accumulates all
+    choices, but reports content deltas from the first choice only —
+    interleaving multiple choices' fragments into the single delta stream
+    would corrupt accumulating consumers. Content deltas are gated on
+    `model_stream_requested()` (see `report_model_stream_delta`); the
+    usage/heartbeat progress channel runs regardless.
+    """
+    report_model_stream_start()
+    completion_id: str | None = None
+    created: int | None = None
+    model: str | None = None
+    usage: UsageInfo | None = None
+    choices: dict[int, _StreamChoice] = {}
+
+    async for event in events:
+        chunk: CompletionChunk = event.data
+        completion_id = completion_id or chunk.id
+        created = created if created is not None else chunk.created
+        model = model or chunk.model
+        if chunk.usage is not None:
+            usage = chunk.usage
+            report_model_stream_progress(chunk.usage.completion_tokens)
+
+        # report deltas from the first choice only, and only when an
+        # on_stream consumer is present (see report_model_stream_delta) —
+        # accumulation into the completion always runs
+        deltas_requested = model_stream_requested()
+        reported = False
+        for chunk_choice in chunk.choices:
+            choice = choices.setdefault(chunk_choice.index, _StreamChoice())
+            if isinstance(chunk_choice.finish_reason, str):
+                choice.finish_reason = chunk_choice.finish_reason
+            delta = chunk_choice.delta
+            report = chunk_choice.index == 0 and deltas_requested
+            content = delta.content
+            if isinstance(content, str) and content:
+                choice.content.append(content)
+                if report:
+                    await report_model_stream_delta(StreamTextEvent(text=content))
+                    reported = True
+            elif isinstance(content, list):
+                for piece in content:
+                    choice.content.append(piece)
+                    if not report:
+                        continue
+                    if isinstance(piece, TextChunk) and piece.text:
+                        await report_model_stream_delta(
+                            StreamTextEvent(text=piece.text)
+                        )
+                        reported = True
+                    elif isinstance(piece, ThinkChunk):
+                        reasoning = "".join(
+                            t.text for t in piece.thinking if isinstance(t, TextChunk)
+                        )
+                        if reasoning:
+                            await report_model_stream_delta(
+                                StreamReasoningEvent(reasoning=reasoning)
+                            )
+                            reported = True
+            for tool_call in delta.tool_calls or []:
+                arguments = tool_call.function.arguments
+                fragment = (
+                    arguments
+                    if isinstance(arguments, str)
+                    else json.dumps(arguments)
+                    if arguments
+                    else ""
+                )
+                # id/function may arrive only on a call's first fragment;
+                # remember them by slot so continuation fragments are
+                # attributed (the SDK defaults an absent id to "null")
+                tool_call_id = (
+                    tool_call.id if tool_call.id and tool_call.id != "null" else None
+                )
+                # the SDK defaults an absent index to 0, so only a
+                # server-provided index keys the slot; without one an id
+                # starts a new call and bare fragments extend the latest
+                if "index" in tool_call.model_fields_set and isinstance(
+                    tool_call.index, int
+                ):
+                    index = tool_call.index
+                elif tool_call_id is not None or not choice.tool_calls:
+                    index = max(choice.tool_calls) + 1 if choice.tool_calls else 0
+                else:
+                    index = max(choice.tool_calls)
+                info = choice.tool_calls.get(index, _StreamToolCall(None, None, []))
+                info = _StreamToolCall(
+                    id=tool_call_id or info.id,
+                    function=tool_call.function.name or info.function,
+                    arguments=info.arguments,
+                )
+                if fragment:
+                    info.arguments.append(fragment)
+                choice.tool_calls[index] = info
+                if report:
+                    await report_model_stream_delta(
+                        StreamToolCallEvent(
+                            id=info.id, function=info.function, arguments=fragment
+                        )
+                    )
+                    reported = True
+        if not reported and chunk.usage is None:
+            report_model_stream_progress()
+
+    if completion_id is None or model is None:
+        raise RuntimeError("Streaming response ended without delivering any chunks.")
+
+    # a streamed response may end without a usage chunk; usage is a required
+    # response field so fabricate zeros, but warn rather than under-count
+    # silently
+    if usage is None:
+        warn_once(
+            logger,
+            f"mistral model '{model}' reported no token usage for a streamed "
+            "response; pass -M streaming=false if you require usage reporting.",
+        )
+        usage = UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+
+    return MistralChatCompletionResponse(
+        id=completion_id,
+        object="chat.completion",
+        model=model,
+        usage=usage,
+        created=created or 0,
+        choices=[
+            MistralChatCompletionChoice(
+                index=index,
+                message=MistralAssistantMessage(
+                    content=_merge_stream_content(choice.content),
+                    tool_calls=[
+                        MistralToolCall(
+                            id=tool_call.id,
+                            type="function",
+                            index=call_index,
+                            function=FunctionCall(
+                                name=tool_call.function or "",
+                                arguments="".join(tool_call.arguments),
+                            ),
+                        )
+                        for call_index, tool_call in sorted(choice.tool_calls.items())
+                    ]
+                    or None,
+                ),
+                finish_reason=choice.finish_reason or "stop",
+            )
+            for index, choice in sorted(choices.items())
+        ],
+    )
+
+
+def _merge_stream_content(
+    pieces: list[str | ContentChunk],
+) -> str | list[ContentChunk] | None:
+    """Join accumulated content fragments into non-streaming response shape.
+
+    All-string fragments join into one string (the common case). Otherwise
+    strings become `TextChunk`s and consecutive same-type text/think chunk
+    fragments merge into a single chunk, matching how a non-streamed response
+    represents each contiguous run of content.
+    """
+    if not pieces:
+        return None
+    if all(isinstance(piece, str) for piece in pieces):
+        return "".join(piece for piece in pieces if isinstance(piece, str))
+    merged: list[ContentChunk] = []
+    for piece in pieces:
+        chunk: ContentChunk = TextChunk(text=piece) if isinstance(piece, str) else piece
+        last = merged[-1] if merged else None
+        if isinstance(chunk, TextChunk) and isinstance(last, TextChunk):
+            merged[-1] = TextChunk(text=last.text + chunk.text)
+        elif isinstance(chunk, ThinkChunk) and isinstance(last, ThinkChunk):
+            merged[-1] = ThinkChunk(
+                thinking=[
+                    TextChunk(
+                        text="".join(
+                            t.text
+                            for think in (last, chunk)
+                            for t in think.thinking
+                            if isinstance(t, TextChunk)
+                        )
+                    )
+                ]
+            )
+        else:
+            merged.append(chunk)
+    return merged
 
 
 def mistral_model_call(

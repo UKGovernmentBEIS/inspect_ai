@@ -1,6 +1,24 @@
+from typing import Any, Callable
+
+import pytest
 from pydantic import JsonValue
 
-from inspect_ai.log._condense import WalkContext, walk_json_value, walk_tool_call
+from inspect_ai._util.json import to_json_safe
+from inspect_ai.log._condense import (
+    ATTACHMENT_PROTOCOL,
+    JSON_VALUE_MAX_DEPTH_EXCEEDED,
+    MAX_JSON_VALUE_DEPTH,
+    MAX_SAMPLE_DUMP_DEPTH,
+    SampleSerializationError,
+    WalkContext,
+    attachment_refs_from_value,
+    condense_sample,
+    walk_json_value,
+    walk_tool_call,
+)
+from inspect_ai.log._file import eval_log_json
+from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSample, EvalSpec
+from inspect_ai.model import ChatMessageAssistant
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent
 
 
@@ -82,3 +100,153 @@ def test_walk_json_value_copies_only_changed_json_path() -> None:
     assert isinstance(walked["changed"], list)
     assert walked["changed"][0] is not changed_dict
     assert walked["changed"][0] == {"text": "changed"}
+
+
+def test_walk_json_value_truncates_pathologically_deep_values() -> None:
+    # model-emitted structures can nest arbitrarily deep; the walk must not
+    # exhaust the interpreter stack, and content beyond MAX_JSON_VALUE_DEPTH
+    # is replaced with a marker (pydantic-core would refuse to serialize it)
+    deep: JsonValue = "leaf"
+    for _ in range(10_000):
+        deep = {"a": deep}
+
+    walked = walk_json_value(deep, lambda content: content, walk_context())
+
+    depth = 0
+    while isinstance(walked, dict):
+        walked = walked["a"]
+        depth += 1
+    assert depth == MAX_JSON_VALUE_DEPTH
+    assert walked == JSON_VALUE_MAX_DEPTH_EXCEEDED
+
+
+def test_walk_json_value_preserves_values_within_depth_cap() -> None:
+    value: JsonValue = "leaf"
+    for _ in range(MAX_JSON_VALUE_DEPTH - 1):
+        value = {"a": value}
+
+    walked = walk_json_value(value, lambda content: content, walk_context())
+
+    assert walked is value
+
+
+def test_walked_value_at_depth_cap_serializes_within_sample() -> None:
+    # the cap must leave room for the nesting a value's position within the
+    # sample adds: a value the walk preserves (depth <= MAX_JSON_VALUE_DEPTH)
+    # must still be serializable by the log writer once wrapped in the sample's
+    # own structure (here messages -> tool_calls -> arguments)
+    deep: JsonValue = "leaf"
+    for _ in range(MAX_JSON_VALUE_DEPTH - 1):
+        deep = {"a": deep}
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="question",
+        target="answer",
+        messages=[
+            ChatMessageAssistant(
+                content="calling tool",
+                tool_calls=[ToolCall(id="1", function="f", arguments={"arg": deep})],
+            )
+        ],
+    )
+
+    condensed = condense_sample(sample)
+
+    message = condensed.messages[0]
+    assert isinstance(message, ChatMessageAssistant)
+    assert message.tool_calls is not None
+    assert message.tool_calls[0].arguments == {"arg": deep}
+    to_json_safe(condensed, indent=None)
+
+
+def test_attachment_refs_from_value_handles_pathologically_deep_values() -> None:
+    deep: JsonValue = {"ref": f"{ATTACHMENT_PROTOCOL}abc123"}
+    for _ in range(10_000):
+        deep = {"a": [deep]}
+
+    assert attachment_refs_from_value(deep) == {"abc123"}
+
+
+def _sample_with_nested_store(depth: int) -> EvalSample:
+    deep: dict[str, object] = {"a": 1}
+    for _ in range(depth):
+        deep = {"a": deep}
+    return EvalSample(
+        id="sample", epoch=1, input="question", target="answer", store={"deep": deep}
+    )
+
+
+def test_condense_sample_rejects_unserializable_depth() -> None:
+    # content in un-walked Any-typed fields (e.g. store) nested beyond what
+    # pydantic-core can serialize must be rejected by condense_sample (raising
+    # inside the sample-logging path, which degrades gracefully) rather than
+    # detonating later at log flush time, outside any per-sample handling
+    with pytest.raises(SampleSerializationError):
+        condense_sample(_sample_with_nested_store(1000))
+
+
+def test_condense_sample_rejects_unserializable_frozenset_depth() -> None:
+    # pydantic-core serializes frozensets recursively but the python-mode dump
+    # leaves them as-is, so the depth guard must traverse them too — otherwise
+    # a deep frozenset chain slips past condensation and detonates at flush
+    deep: frozenset[object] = frozenset(["leaf"])
+    for _ in range(1000):
+        deep = frozenset([deep])
+    sample = EvalSample(
+        id="sample", epoch=1, input="question", target="answer", store={"deep": deep}
+    )
+
+    with pytest.raises(SampleSerializationError):
+        condense_sample(sample)
+
+
+def _serializes(serialize: Callable[[Any], bytes], value: Any) -> bool:
+    try:
+        serialize(value)
+        return True
+    except Exception:
+        return False
+
+
+def test_condense_sample_rejects_content_only_json_log_cannot_write() -> None:
+    # the .json recorder writes the whole EvalLog at finish, nesting each sample
+    # two containers deeper (EvalLog -> samples -> sample) than the .eval
+    # recorder, which writes the sample at the JSON root. A sample that
+    # serializes alone can therefore still lose the entire log with
+    # --log-format json; the guard must reject those too, and must keep
+    # accepting whatever the deeper writer can in fact write
+    spec = EvalSpec(
+        created="2026-05-18T00:00:00+00:00",
+        task="condense_test",
+        model="mockllm/model",
+        dataset=EvalDataset(),
+        config=EvalConfig(),
+    )
+    gap_depths: list[int] = []
+    for depth in range(MAX_SAMPLE_DUMP_DEPTH - 5, MAX_SAMPLE_DUMP_DEPTH + 5):
+        sample = _sample_with_nested_store(depth)
+        alone = _serializes(to_json_safe, sample)
+        in_log = _serializes(eval_log_json, EvalLog(eval=spec, samples=[sample]))
+        if in_log:
+            assert condense_sample(sample).store == sample.store
+        else:
+            with pytest.raises(SampleSerializationError):
+                condense_sample(sample)
+            if alone:
+                gap_depths.append(depth)
+    # the sweep must actually cover the .eval/.json gap for the test to mean
+    # anything: on pydantic-core 2.46 it spans two depths
+    assert gap_depths
+
+
+def test_condense_sample_keeps_deep_but_serializable_content() -> None:
+    # the depth check only selects candidates for the serialization check —
+    # content nested past it that pydantic can still write must be logged
+    # unchanged, so offline paths (convert / recover / log rewrite) don't start
+    # failing on samples they previously handled
+    sample = _sample_with_nested_store(MAX_SAMPLE_DUMP_DEPTH - 1)
+
+    condensed = condense_sample(sample)
+
+    assert condensed.store == sample.store
