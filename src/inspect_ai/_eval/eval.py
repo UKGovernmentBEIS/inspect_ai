@@ -128,7 +128,12 @@ def eval(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver
+    | SolverSpec
+    | Agent
+    | list[Solver]
+    | tuple[Solver, ...]
+    | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -423,7 +428,12 @@ async def eval_async(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver
+    | SolverSpec
+    | Agent
+    | list[Solver]
+    | tuple[Solver, ...]
+    | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -692,7 +702,12 @@ async def _eval_async_inner(
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver
+    | SolverSpec
+    | Agent
+    | list[Solver]
+    | tuple[Solver, ...]
+    | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -870,7 +885,7 @@ async def _eval_async_inner(
             )
 
         # resolve solver
-        if isinstance(solver, list):
+        if isinstance(solver, (list, tuple)):
             solver = chain(solver)
         elif is_agent(solver):
             solver = as_solver(solver)

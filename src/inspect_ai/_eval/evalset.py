@@ -159,7 +159,9 @@ class Log(NamedTuple):
 @dataclass
 class EvalSetArgsInTaskIdentifier:
     config: GenerateConfig
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None
+    solver: Solver | SolverSpec | Agent | list[Solver] | tuple[Solver, ...] | None = (
+        None
+    )
     message_limit: int | None = None
     token_limit: int | TokenLimit | None = None
     turn_limit: int | None = None
@@ -244,7 +246,12 @@ def eval_set(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver
+    | SolverSpec
+    | Agent
+    | list[Solver]
+    | tuple[Solver, ...]
+    | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -1972,10 +1979,10 @@ GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
 
 
 def resolve_solver(
-    solver: Solver | SolverSpec | Agent | list[Solver] | None,
+    solver: Solver | SolverSpec | Agent | list[Solver] | tuple[Solver, ...] | None,
 ) -> Solver | None:
     # resolve solver
-    if isinstance(solver, list):
+    if isinstance(solver, (list, tuple)):
         return chain(solver)
     elif is_agent(solver):
         return as_solver(solver)
