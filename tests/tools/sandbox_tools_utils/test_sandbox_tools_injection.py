@@ -4,9 +4,10 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from io import BytesIO
-from typing import AsyncIterator, BinaryIO, Callable, Literal, NamedTuple, overload
+from typing import AsyncIterator, BinaryIO, NamedTuple
 
 import pytest
+from test_helpers.sandbox import CannedSandbox
 
 from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
@@ -21,10 +22,7 @@ from inspect_ai.util._sandbox._framework_directory import (
     _VIOLATION_MARKER,
     FrameworkDirectoryError,
 )
-from inspect_ai.util._sandbox.environment import (
-    SandboxEnvironment,
-    SandboxEnvironmentConfigType,
-)
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, SupportedContainerOSInfo
@@ -109,58 +107,9 @@ def helper_flags(cmd: list[str]) -> HelperFlags:
     return HelperFlags(*cmd[cmd.index(leaf) - 4 : cmd.index(leaf) - 1])
 
 
-Policy = Callable[[list[str], str | None], ExecResult[str]]
-
-
 def helper_ok(cmd: list[str], user: str | None) -> ExecResult[str]:
     """Every helper call verifies; every other command succeeds."""
     return VERIFIED if is_framework_dir_call(cmd) else OK
-
-
-class FakeSandbox(SandboxEnvironment):
-    """Sandbox whose exec results are decided by a per-test policy."""
-
-    def __init__(self, policy: Policy) -> None:
-        super().__init__()
-        self.policy = policy
-        self.exec_calls: list[tuple[list[str], str | None]] = []
-        self.written: list[str] = []
-
-    async def exec(
-        self,
-        cmd: list[str],
-        input: str | bytes | None = None,
-        cwd: str | None = None,
-        env: dict[str, str] | None = None,
-        user: str | None = None,
-        timeout: int | None = None,
-        timeout_retry: bool = True,
-        concurrency: bool = True,
-    ) -> ExecResult[str]:
-        self.exec_calls.append((cmd, user))
-        return self.policy(cmd, user)
-
-    async def write_file(self, file: str, contents: str | bytes) -> None:
-        self.written.append(file)
-
-    @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
-
-    @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
-
-    async def read_file(self, file: str, text: bool = True) -> str | bytes:
-        raise NotImplementedError
-
-    @classmethod
-    async def sample_cleanup(
-        cls,
-        task_name: str,
-        config: SandboxEnvironmentConfigType | None,
-        environments: dict[str, SandboxEnvironment],
-        interrupted: bool,
-    ) -> None:
-        pass
 
 
 @pytest.fixture
@@ -205,7 +154,7 @@ async def test_inject_falls_back_to_default_user_when_root_probe_raises(
             raise RuntimeError("runuser: may not be used by non-root users")
         return helper_ok(cmd, user)
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     await sandbox_tools._inject_container_tools_code(sandbox)
 
     assert sandbox._tools_user is None
@@ -226,7 +175,7 @@ async def test_detector_skips_root_probe_after_rootless_injection(
             raise RuntimeError("runuser: may not be used by non-root users")
         return REGULAR_FILE if is_framework_dir_call(cmd) else OK
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     await sandbox_tools._inject_container_tools_code(sandbox)
     assert sandbox._tools_user is None
 
@@ -241,7 +190,7 @@ async def test_inject_falls_back_when_root_exec_fails_without_verdict(
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
         return NO_ROOT if user == "root" else helper_ok(cmd, user)
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     await sandbox_tools._inject_container_tools_code(sandbox)
 
     assert sandbox._tools_user is None
@@ -251,7 +200,7 @@ async def test_inject_falls_back_when_root_exec_fails_without_verdict(
 async def test_inject_uses_root_and_verifies_before_start(
     stub_artifact: dict[str, object],
 ) -> None:
-    sandbox = FakeSandbox(helper_ok)
+    sandbox = CannedSandbox(helper_ok)
     await sandbox_tools._inject_container_tools_code(sandbox)
 
     assert sandbox._tools_user == "root"
@@ -290,7 +239,7 @@ async def test_inject_falls_back_when_provider_runs_root_as_default_user(
             return NOT_ROOT
         return helper_ok(cmd, user)
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     await sandbox_tools._inject_container_tools_code(sandbox)
 
     assert sandbox._tools_user is None
@@ -342,7 +291,7 @@ async def test_inject_aborts_on_root_verdict_without_downgrading(
             return result
         return helper_ok(cmd, user)
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     with pytest.raises(sandbox_tools.SandboxInjectionError) as excinfo:
         await sandbox_tools._inject_container_tools_code(sandbox)
 
@@ -364,7 +313,7 @@ async def test_inject_aborts_on_rootless_contract_violation(
             return violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
         return OK
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     with pytest.raises(sandbox_tools.SandboxInjectionError, match="symbolic link"):
         await sandbox_tools._inject_container_tools_code(sandbox)
 
@@ -396,7 +345,7 @@ async def test_inject_aborts_when_reverification_before_start_fails(
             return VERIFIED
         return OK
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     with pytest.raises(sandbox_tools.SandboxInjectionError, match=expected):
         await sandbox_tools._inject_container_tools_code(sandbox)
 
@@ -405,7 +354,7 @@ async def test_inject_aborts_when_reverification_before_start_fails(
 
 
 async def test_extract_runs_tar_inside_verified_directory() -> None:
-    sandbox = FakeSandbox(helper_ok)
+    sandbox = CannedSandbox(helper_ok)
     await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
 
     (tar_cmd, user), (rm_cmd, rm_user) = sandbox.exec_calls
@@ -434,7 +383,7 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
             )
         return helper_ok(cmd, user)
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", None)
 
     tar_calls = [
@@ -454,7 +403,7 @@ async def test_extract_propagates_tar_failure_and_removes_archive() -> None:
             return violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
         return helper_ok(cmd, user)
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
         await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
     # The staged archive is not left behind in the world-writable parent.
@@ -468,7 +417,7 @@ async def test_extract_propagates_tar_failure_and_removes_archive() -> None:
 
 async def test_extract_cleanup_verdict_does_not_mask_original_error() -> None:
     """If the directory is untrusted, the rm is skipped rather than raising over tar's error."""
-    sandbox = FakeSandbox(
+    sandbox = CannedSandbox(
         lambda cmd, user: violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
     )
     with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
@@ -477,7 +426,7 @@ async def test_extract_cleanup_verdict_does_not_mask_original_error() -> None:
 
 
 async def test_detector_checks_as_known_tools_user() -> None:
-    sandbox = FakeSandbox(lambda cmd, user: REGULAR_FILE)
+    sandbox = CannedSandbox(lambda cmd, user: REGULAR_FILE)
     sandbox._tools_user = "root"
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
     # Checked as the tools user, inside the verified directory, by relative name.
@@ -501,7 +450,7 @@ async def test_detector_reads_launcher_type_from_raw_mode(
     stdout: str, expected: bool
 ) -> None:
     """The launcher check uses the raw st_mode, not the locale-dependent %F text."""
-    sandbox = FakeSandbox(
+    sandbox = CannedSandbox(
         lambda cmd, user: ExecResult(
             success=True, returncode=0, stdout=stdout, stderr=f"{_VERIFIED_MARKER}\n"
         )
@@ -515,7 +464,7 @@ async def test_detector_adopts_existing_root_installation() -> None:
         assert user == "root", "default user must not be consulted when root works"
         return REGULAR_FILE
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
     assert sandbox._tools_user == "root"
 
@@ -526,7 +475,7 @@ async def test_detector_pins_default_user_after_definitive_uid_mismatch() -> Non
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
         return NOT_ROOT if user == "root" else REGULAR_FILE
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
     assert sandbox._tools_user is None
     assert sandbox._tools_user_resolved is True
@@ -559,7 +508,7 @@ async def test_detector_does_not_pin_default_user_after_ambiguous_root_failure(
             return root_failure
         return REGULAR_FILE
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
     assert sandbox._tools_user is None
     assert sandbox._tools_user_resolved is False
@@ -592,7 +541,7 @@ async def test_transient_root_failure_cannot_pin_a_planted_tree(
             )
         return REGULAR_FILE if is_framework_dir_call(cmd) else OK
 
-    sandbox = FakeSandbox(policy)
+    sandbox = CannedSandbox(policy)
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
     assert sandbox._tools_user_resolved is False
 
@@ -642,7 +591,7 @@ async def test_transient_root_failure_cannot_pin_a_planted_tree(
 async def test_detector_reports_not_installed_and_does_not_downgrade(
     result: ExecResult[str],
 ) -> None:
-    sandbox = FakeSandbox(lambda cmd, user: result)
+    sandbox = CannedSandbox(lambda cmd, user: result)
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is False
     # Root worked (the check ran), so the default user's view is irrelevant.
     assert [user for _, user in sandbox.exec_calls] == ["root"]
@@ -653,14 +602,14 @@ async def test_detector_treats_provider_exception_as_not_installed() -> None:
     def raising(cmd: list[str], user: str | None) -> ExecResult[str]:
         raise ConnectionError("sandbox gone")
 
-    assert await sandbox_tools._sandbox_tools_installed(FakeSandbox(raising)) is False
+    assert await sandbox_tools._sandbox_tools_installed(CannedSandbox(raising)) is False
 
 
 async def test_detector_records_no_transcript_events() -> None:
     """The per-tool-call probe must not add its script to the transcript each time."""
     transcript = Transcript()
     init_transcript(transcript)
-    inner = FakeSandbox(lambda cmd, user: REGULAR_FILE)
+    inner = CannedSandbox(lambda cmd, user: REGULAR_FILE)
     proxy = SandboxEnvironmentProxy(inner)
 
     assert await sandbox_tools._sandbox_tools_installed(proxy) is True

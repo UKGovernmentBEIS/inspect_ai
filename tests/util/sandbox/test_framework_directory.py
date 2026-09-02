@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Callable, Iterator, Literal, overload
 
 import pytest
+from test_helpers.sandbox import CannedSandbox
 
 from inspect_ai.util._sandbox._framework_directory import (
     _CREATE_FAILED_MARKER,
@@ -659,7 +660,7 @@ async def test_inherited_path_is_not_consulted(
 
 
 async def test_exec_forwards_input_to_the_provider() -> None:
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
         )
@@ -674,13 +675,13 @@ async def test_exec_forwards_input_to_the_provider() -> None:
 
 async def test_verifier_is_launched_by_absolute_shell_path() -> None:
     """The provider resolves the shell through the image PATH; give it no choice."""
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
         )
     )
     await verify_framework_directory(sandbox, "/var/tmp/.x", user="root")
-    (cmd, _), *_ = sandbox.calls
+    (cmd, _), *_ = sandbox.exec_calls
     assert cmd[0] == _SHELL == "/bin/sh"
 
 
@@ -791,55 +792,8 @@ def test_script_is_valid_posix_sh() -> None:
     subprocess.run(["sh", "-n", "-c", _SCRIPT], check=True)
 
 
-class ScriptedSandbox(SandboxEnvironment):
-    """Returns a canned ExecResult and records the calls it receives."""
-
-    def __init__(self, result: ExecResult[str]) -> None:
-        super().__init__()
-        self.result = result
-        self.calls: list[tuple[list[str], str | None]] = []
-        self.inputs: list[str | bytes | None] = []
-
-    async def exec(
-        self,
-        cmd: list[str],
-        input: str | bytes | None = None,
-        cwd: str | None = None,
-        env: dict[str, str] | None = None,
-        user: str | None = None,
-        timeout: int | None = None,
-        timeout_retry: bool = True,
-        concurrency: bool = True,
-    ) -> ExecResult[str]:
-        self.calls.append((cmd, user))
-        self.inputs.append(input)
-        return self.result
-
-    async def write_file(self, file: str, contents: str | bytes) -> None:
-        raise NotImplementedError
-
-    @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
-
-    @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
-
-    async def read_file(self, file: str, text: bool = True) -> str | bytes:
-        raise NotImplementedError
-
-    @classmethod
-    async def sample_cleanup(
-        cls,
-        task_name: str,
-        config: SandboxEnvironmentConfigType | None,
-        environments: dict[str, SandboxEnvironment],
-        interrupted: bool,
-    ) -> None:
-        pass
-
-
 async def test_violation_verdict_becomes_framework_directory_error() -> None:
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=False,
             returncode=3,
@@ -853,7 +807,7 @@ async def test_violation_verdict_becomes_framework_directory_error() -> None:
     assert "owned by uid 1111, expected uid 0" in str(excinfo.value)
     assert "/var/tmp/.x" in str(excinfo.value)
     # The request ran as the intended owner, via sh, with parent and leaf split.
-    (cmd, user), *_ = sandbox.calls
+    (cmd, user), *_ = sandbox.exec_calls
     assert user == "root"
     assert cmd[:2] == [_SHELL, "-c"]
     assert cmd[-2:] == ["/var/tmp", ".x"]
@@ -861,7 +815,7 @@ async def test_violation_verdict_becomes_framework_directory_error() -> None:
 
 async def test_verdict_is_honoured_when_exit_status_is_not_propagated() -> None:
     """A provider that flattens exit statuses must not turn a violation into 'did not run'."""
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=True,
             returncode=0,
@@ -875,7 +829,7 @@ async def test_verdict_is_honoured_when_exit_status_is_not_propagated() -> None:
 
 
 async def test_unavailable_verdict_is_not_a_contract_violation() -> None:
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=False,
             returncode=5,
@@ -888,7 +842,7 @@ async def test_unavailable_verdict_is_not_a_contract_violation() -> None:
 
 
 async def test_user_mismatch_verdict_becomes_user_error() -> None:
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=False,
             returncode=6,
@@ -904,24 +858,24 @@ async def test_user_mismatch_verdict_becomes_user_error() -> None:
         excinfo.value, (FrameworkDirectoryError, FrameworkDirectoryUnavailableError)
     )
     # The expectation is passed to the script ahead of the create and repair flags.
-    (cmd, user), *_ = sandbox.calls
+    (cmd, user), *_ = sandbox.exec_calls
     assert user == "root"
     assert cmd[-5:] == ["0", "1", "0", "/var/tmp", ".x"]
 
 
 async def test_no_expected_uid_passes_an_empty_expectation() -> None:
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
         )
     )
     await verify_framework_directory(sandbox, "/var/tmp/.x", user=None)
-    (cmd, _), *_ = sandbox.calls
+    (cmd, _), *_ = sandbox.exec_calls
     assert cmd[-5:] == ["", "0", "0", "/var/tmp", ".x"]
 
 
 async def test_repair_mode_is_passed_to_the_script() -> None:
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
         )
@@ -929,13 +883,13 @@ async def test_repair_mode_is_passed_to_the_script() -> None:
     await ensure_framework_directory(
         sandbox, "/var/tmp/.x", user=None, repair_mode=True
     )
-    (cmd, _), *_ = sandbox.calls
+    (cmd, _), *_ = sandbox.exec_calls
     assert cmd[-5:] == ["", "1", "1", "/var/tmp", ".x"]
 
 
 async def test_failure_before_verification_is_a_plain_runtime_error() -> None:
     """A provider refusing the user (or no sh) is neither a verdict nor a result."""
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=False,
             returncode=126,
@@ -953,7 +907,7 @@ async def test_failure_before_verification_is_a_plain_runtime_error() -> None:
 
 
 async def test_exec_success_passes_result_through() -> None:
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=True,
             returncode=0,
@@ -966,13 +920,13 @@ async def test_exec_success_passes_result_through() -> None:
     )
     assert result.stdout == "regular file\n"
     assert result.stderr == ""
-    (cmd, user), *_ = sandbox.calls
+    (cmd, user), *_ = sandbox.exec_calls
     assert user is None
     assert cmd[-8:] == ["0", "0", "/var/tmp", ".x", "stat", "-c", "%F", "launcher"]
 
 
 async def test_verdict_after_verification_belongs_to_the_command() -> None:
-    sandbox = ScriptedSandbox(
+    sandbox = CannedSandbox.returning(
         ExecResult(
             success=False,
             returncode=3,

@@ -45,6 +45,13 @@ Provider requirement: the script's verdicts travel on stderr, so the sandbox's
 A provider that merges the streams or drops stderr makes every call here fail as
 "did not run", and callers then treat the user as unavailable.
 
+Image requirement: the script runs under ``/bin/sh`` with ``PATH`` fixed to
+``/usr/sbin:/usr/bin:/sbin:/bin``, so ``stat``, ``id``, ``mkdir``, ``chmod``, and
+any command a caller wraps must live in one of those four directories. An image
+whose coreutils live elsewhere (a Nix-style store, or only under ``/usr/local``)
+fails with :class:`FrameworkDirectoryUnavailableError` naming the missing tool
+rather than picking up whatever the inherited ``PATH`` offers.
+
 Rootless sandboxes: when the command cannot run as root, the intended owner is the
 sandbox's default uid. The contract still holds for that uid, but it does not
 establish a boundary between the agent and the tools, because both run as the same
