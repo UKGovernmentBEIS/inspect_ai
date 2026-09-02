@@ -29,6 +29,7 @@
 - Inspect CTL: New `inspect ctl sample score` interim-scores a single running sample's work-so-far on demand (briefly held while scored; the sample keeps running).
 - Score: `inspect score` now reports samples that errored or were stopped early, so a re-scored partial run is no longer displayed as if it were complete.
 - Scorers: New `cascade()` scorer runs scorers in order and reports the first that settles a sample, so an expensive grader only runs on samples cheaper scorers left unsettled.
+- Scorers: New `filter_scorer()` runs a scorer only on samples a predicate selects; skipped samples are left unscored by it and excluded from its metrics.
 - Agent bridge: Anthropic responses now report thinking tokens in `usage.output_tokens_details`, so bridged clients can distinguish a reasoning response from a plain one.
 - Agent bridge: A bridged request asking for Anthropic `output_config.format`, OpenAI `text.verbosity`, or any of Gemini's `thinkingConfig.thinkingBudget`, `presencePenalty`, `frequencyPenalty`, `responseLogprobs` and `logprobs` now gets it, instead of silently receiving the model default.
 - Agent bridge: A bridged Gemini response now reports `thoughtsTokenCount`, so a client can see how many thinking tokens a request used.

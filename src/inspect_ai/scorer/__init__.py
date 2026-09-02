@@ -4,6 +4,7 @@ from ._answer import AnswerPattern, answer
 from ._cascade import cascade
 from ._choice import choice
 from ._classification import exact, f1
+from ._filter import filter_scorer
 from ._match import includes, match
 from ._math import math
 from ._metric import (
@@ -89,6 +90,7 @@ __all__ = [
     "collect_score",
     "exact",
     "f1",
+    "filter_scorer",
     "frequency",
     "grouped",
     "includes",

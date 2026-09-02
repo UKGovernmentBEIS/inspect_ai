@@ -218,6 +218,41 @@ A stage settles the sample when `value_to_float()` of its score is at least `thr
 
 A cascade trusts a settling verdict from an earlier stage, so earlier scorers should not be prone to false positives (exact match qualifies; a lenient heuristic does not).
 
+## Filtering Scorers
+
+Some samples do not need a given scorer at all: a transcript the solver marked as degenerate does not need a grader model to tell you it failed, and a dataset that mixes kinds of samples may need a different scorer for each kind. `filter_scorer()` wraps a scorer with a predicate so the scorer only runs on the samples the predicate selects. The point is to not spend grader calls on samples that do not need them; the predicate-false samples simply have no score from that scorer.
+
+For example, to skip the model-graded scorer for samples a solver flagged in `state.metadata`:
+
+``` python
+from inspect_ai.scorer import filter_scorer, match, model_graded_qa
+
+def not_degenerate(state: TaskState, target: Target) -> bool:
+    return not state.metadata.get("degenerate", False)
+
+Task(
+    dataset=dataset,
+    solver=[generate(), flag_degenerate()],
+    scorer=[
+        match(),
+        filter_scorer(model_graded_qa(), not_degenerate),
+    ],
+)
+```
+
+Or to route two kinds of samples to different scorers in one task:
+
+``` python
+scorer=[
+    filter_scorer(math(), lambda state, target: state.metadata["kind"] == "numeric"),
+    filter_scorer(model_graded_fact(), lambda state, target: state.metadata["kind"] == "free_text"),
+]
+```
+
+The predicate receives the sample's `TaskState` and `Target` and may be `async`. The filtered scorer keeps the inner scorer's name, options and metrics, so it appears in the log as `model_graded_qa` (not `filter_scorer`) and its metrics are computed over the samples it scored — skipped samples are excluded from that scorer's metrics rather than counted as zero. The scorer's metadata in the log header records the predicate's name under `filter` (a named function gives a readable entry; a lambda records as `<lambda>`).
+
+The predicate is not stored in the log, so re-scoring with `inspect score` re-creates the inner scorer from its recorded name and options and runs it on every sample, including ones the filter skipped at eval time.
+
 ## Sandbox Access
 
 If your Solver is an [Agent](agents.qmd) with tool use, you might want to inspect the contents of the tool sandbox to score the task.

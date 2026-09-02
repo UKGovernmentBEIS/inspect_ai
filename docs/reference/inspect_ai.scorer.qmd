@@ -19,6 +19,7 @@ description: Task scoring and metrics.
 ### target_perplexity
 ### multi_scorer
 ### cascade
+### filter_scorer
 ### precomputed_scores
 
 ## Metrics
