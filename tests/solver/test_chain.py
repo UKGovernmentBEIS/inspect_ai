@@ -5,6 +5,8 @@ from typing import cast
 import pytest
 from test_helpers.utils import simple_task_state
 
+from inspect_ai import Task
+from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageUser
 from inspect_ai.solver import (
     Generate,
@@ -14,6 +16,7 @@ from inspect_ai.solver import (
     chain,
     solver,
 )
+from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._task_state import sample_state, set_sample_state
 
 
@@ -53,6 +56,24 @@ async def test_chain_unroll_tuples():
     state = simple_task_state()
     res = await c1(state, cast(Generate, None))
     assert res is state
+
+
+def test_task_accepts_a_tuple_of_solvers():
+    task = Task(dataset=[Sample(input="test")], solver=(identity(), identity()))
+    assert isinstance(task.solver, Chain)
+    assert len(task.solver) == 2
+
+
+def test_plan_normalizes_a_tuple_of_steps_to_a_list():
+    plan = Plan(steps=(identity(), identity()), internal=True)
+    assert isinstance(plan.steps, list)
+    # run.py resolve_plan does exactly this when a task has a setup solver
+    assert len(unroll(identity()) + plan.steps) == 3
+
+
+def test_plan_keeps_a_caller_supplied_list_by_identity():
+    steps = [identity(), identity()]
+    assert Plan(steps=steps, internal=True).steps is steps
 
 
 @solver
