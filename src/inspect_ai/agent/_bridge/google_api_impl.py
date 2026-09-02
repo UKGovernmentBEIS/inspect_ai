@@ -45,7 +45,6 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     web_search,
 )
-from inspect_ai.util._json import JSONSchema
 
 from ._errors import BridgePolicyError
 from .types import AgentBridge
@@ -53,10 +52,13 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    client_json_schema,
+    client_request_object,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
     validate_bridge_media,
+    validate_client_config,
     withheld_bridge_tool,
 )
 
@@ -82,7 +84,8 @@ async def inspect_google_api_request_impl(
     tool_config: dict[str, Any] | None = json_data.get(
         "toolConfig", json_data.get("tool_config")
     )
-    generation_config: dict[str, Any] = json_data.get(
+    # client-controlled; validated by generate_config_from_google below
+    generation_config: Any = json_data.get(
         "generationConfig", json_data.get("generation_config", {})
     )
 
@@ -117,6 +120,7 @@ async def inspect_google_api_request_impl(
     config = generate_config_from_google(generation_config)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    validate_client_config(config)
 
     # try to maintain id stability
     apply_message_ids(bridge, messages)
@@ -151,7 +155,13 @@ def debug_log(caption: str, o: Any) -> None:
     pass
 
 
-def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateConfig:
+def generate_config_from_google(generation_config: Any) -> GenerateConfig:
+    # guard here rather than at the extraction site so the sole consumer of the
+    # client-controlled container is self-defending (and `generationConfig: null`
+    # falls back to defaults instead of raising)
+    generation_config = (
+        client_request_object(generation_config, "generationConfig") or {}
+    )
     config = GenerateConfig()
     config.temperature = generation_config.get("temperature")
     config.max_tokens = generation_config.get("maxOutputTokens")
@@ -161,18 +171,69 @@ def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateCo
         "stopSequences", generation_config.get("stop_sequences")
     )
 
-    # structured output: responseJsonSchema is standard JSON Schema; responseSchema
-    # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize.
-    schema = generation_config.get("responseJsonSchema") or generation_config.get(
-        "responseSchema"
+    # The provider sends all of these, but nothing read them off the request,
+    # so a client setting any of them silently got the model default.
+    #
+    # `candidateCount` is deliberately NOT forwarded: `google_response_from_output`
+    # emits exactly one candidate, so forwarding it would make Gemini generate
+    # (and bill for) N candidates while the client still sees one. Forwarding it
+    # needs the response builder to surface `output.choices` first.
+    config.presence_penalty = generation_config.get(
+        "presencePenalty", generation_config.get("presence_penalty")
     )
-    if schema:
+    config.frequency_penalty = generation_config.get(
+        "frequencyPenalty", generation_config.get("frequency_penalty")
+    )
+    config.logprobs = generation_config.get(
+        "responseLogprobs", generation_config.get("response_logprobs")
+    )
+    config.top_logprobs = generation_config.get("logprobs")
+
+    # structured output: responseJsonSchema is standard JSON Schema; responseSchema
+    # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize. For
+    # responseSchema the dropped-keyword warning skips the dialect's own keywords
+    # (they were never modelled, so warning would misread routine Gemini requests
+    # as degraded) but still fires for shared constraints like `minItems`.
+    if json_schema := generation_config.get("responseJsonSchema"):
         config.response_schema = ResponseSchema(
             name="response",
-            json_schema=JSONSchema.model_validate(
-                _google_schema_to_json_schema(schema)
+            json_schema=client_json_schema(
+                _google_schema_to_json_schema(json_schema), "responseJsonSchema"
             ),
         )
+    elif openapi_schema := generation_config.get("responseSchema"):
+        config.response_schema = ResponseSchema(
+            name="response",
+            json_schema=client_json_schema(
+                _google_schema_to_json_schema(openapi_schema),
+                "responseSchema",
+                dialect_keywords=_GEMINI_SCHEMA_KEYWORDS,
+            ),
+        )
+
+    # thinkingConfig carries Gemini's reasoning budget. The provider already
+    # rebuilds a `ThinkingConfig` from `config.reasoning_tokens` (and sets
+    # include_thoughts), so the budget only needs mapping onto it -- without this
+    # the field has no extraction site at all and a client asking for a thinking
+    # budget silently gets the model default. Same defect the Anthropic path had
+    # for `output_config.effort`.
+    thinking_config = generation_config.get(
+        "thinkingConfig", generation_config.get("thinking_config")
+    )
+    if isinstance(thinking_config, dict):
+        budget = thinking_config.get(
+            "thinkingBudget", thinking_config.get("thinking_budget")
+        )
+        if budget is not None:
+            config.reasoning_tokens = budget
+        # KNOWN GAP: `includeThoughts` is not honoured. Forwarding the budget above
+        # makes the Google provider build a ThinkingConfig, and it hardcodes
+        # `include_thoughts=True` (see model/_providers/google.py), so a client
+        # sending `includeThoughts: false` alongside a budget still gets thought
+        # parts. Not a regression -- the whole `thinkingConfig` was ignored before
+        # this change -- and not closed here because `GenerateConfig` has no slot for
+        # it, so honouring it means adding a core config field rather than mapping an
+        # existing one, which is a separate change with its own justification.
 
     # NOTE: We deliberately do NOT set config.system_message from system_instruction here.
     # The system_instruction is already converted to ChatMessageSystem messages in
@@ -663,11 +724,27 @@ def gemini_usage_metadata(usage: ModelUsage | None) -> dict[str, int]:
             "candidatesTokenCount": 0,
             "totalTokenCount": 0,
         }
-    return {
+    # Gemini's `candidatesTokenCount` EXCLUDES thinking tokens, while Inspect's
+    # `ModelUsage.output_tokens` INCLUDES them and reports the subset separately in
+    # `reasoning_tokens` (see model/_providers/google.py). Mapping output_tokens
+    # straight across is therefore only correct while nothing reveals the subset --
+    # emitting `thoughtsTokenCount` below does reveal it, so subtract here or the
+    # two fields sum past `totalTokenCount` and a client reading Gemini's own
+    # arithmetic sees an impossible response.
+    reasoning = usage.reasoning_tokens or 0
+    metadata = {
         "promptTokenCount": usage.input_tokens,
-        "candidatesTokenCount": usage.output_tokens,
+        "candidatesTokenCount": max(usage.output_tokens - reasoning, 0),
         "totalTokenCount": usage.total_tokens,
     }
+    # The provider already parses Gemini's `thoughts_token_count` into
+    # `reasoning_tokens`; without emitting it here a bridged client cannot see
+    # thinking tokens at all, which is the metric reasoning-extraction work
+    # measures. Omitted rather than zeroed when absent, so "no thinking" and
+    # "not reported" stay distinguishable.
+    if usage.reasoning_tokens is not None:
+        metadata["thoughtsTokenCount"] = usage.reasoning_tokens
+    return metadata
 
 
 def _convert_google_enums(obj: Any) -> Any:
@@ -684,6 +761,13 @@ def _convert_google_enums(obj: Any) -> Any:
     elif hasattr(obj, "value"):  # Enum-like object
         return str(obj.value).lower()
     return obj
+
+
+# keywords specific to Gemini's OpenAPI-style Schema dialect (as opposed to
+# constraints it shares with JSON Schema, like `minItems`, whose loss should
+# still be warned about). `example` is the dialect's singular counterpart of
+# JSON Schema's `examples`.
+_GEMINI_SCHEMA_KEYWORDS = frozenset({"nullable", "propertyOrdering", "example"})
 
 
 def _google_schema_to_json_schema(schema: Any) -> Any:

@@ -59,6 +59,29 @@ def test_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     check_eval_with_cache(True)
 
 
+def test_cache_key_excludes_stream_idle_timeout():
+    def entry(config: GenerateConfig) -> CacheEntry:
+        return CacheEntry(
+            base_url=None,
+            config=config,
+            input=[ChatMessageUser(content="Hello")],
+            model="mockllm/model",
+            policy=CachePolicy(),
+            tool_choice=None,
+            tools=[],
+        )
+
+    # stream_idle_timeout doesn't affect model output, so toggling it (or
+    # setting it at all — keys written before the field existed must still
+    # match) must not bust warm caches
+    base_key = entry(GenerateConfig()).key
+    assert entry(GenerateConfig(stream_idle_timeout=30)).key == base_key
+    assert entry(GenerateConfig(stream_idle_timeout=60)).key == base_key
+
+    # confirm the key is sensitive to output-affecting config
+    assert entry(GenerateConfig(temperature=0.7)).key != base_key
+
+
 def test_cache_skips_content_filter(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
 

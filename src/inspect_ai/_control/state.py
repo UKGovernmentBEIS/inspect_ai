@@ -45,6 +45,7 @@ from inspect_ai._util.file import local_path
 if TYPE_CHECKING:
     from inspect_ai._control.cancel import PendingToolCall
     from inspect_ai._control.eval_state import EvalState
+    from inspect_ai._eval.task.scheduler import SampleKey
     from inspect_ai.log._log import EvalSampleSummary
     from inspect_ai.log._samples import ActiveSample
 
@@ -383,6 +384,16 @@ async def current_sample_summaries(
             continue
         _merge(summary)
 
+    # Cancelled before start (design/ctl/queued-sample-cancel.md): terminal
+    # in the counters but absent from the log, so synthesize the rows here.
+    # Runs before (and independently of) the pending synthesis — the
+    # cancelled keys must keep rendering after `sample_ids` clears (the
+    # last-outstanding-work carve-out), so this is not keyed off the
+    # planned ids. Skipped under the errors filter like the pending rows
+    # (a cancelled-before-start sample carries no error and no retries).
+    if sample_filter != "errors":
+        _add_cancelled_samples(eval_id, by_key)
+
     # Pending: planned samples not yet running or done. No live source
     # holds these, so synthesize them from the registered planned ids.
     # Skipped for an errors-filtered read (see the docstring).
@@ -513,7 +524,7 @@ def _add_pending_samples(
                 by_key[key] = _pending_summary(sample_id, epoch)
 
 
-def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
+def _pending_requeue_keys(eval_id: str) -> frozenset[SampleKey]:
     """The eval's requeue-pending ``(sample_id, epoch)`` keys (str-keyed).
 
     Non-empty only while a requeue directive has been accepted and its
@@ -525,6 +536,61 @@ def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
     if state is None or state.sample_requeue is None:
         return frozenset()
     return state.sample_requeue.pending_keys()
+
+
+def _cancelled_before_start_keys(eval_id: str) -> frozenset[SampleKey]:
+    """The eval's cancelled-before-start ``(sample_id, epoch)`` keys (str-keyed).
+
+    Non-empty once a queued-sample cancel has been accepted for a
+    never-started sample (``design/ctl/queued-sample-cancel.md``). A key
+    persists after its parked coroutine discards — the sample is terminally
+    cancelled with no record, so the row keeps rendering ``cancelled``.
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None or state.sample_requeue is None:
+        return frozenset()
+    return state.sample_requeue.cancelled_keys()
+
+
+def _add_cancelled_samples(
+    eval_id: str, by_key: dict[tuple[Any, int], dict[str, Any]]
+) -> None:
+    """Synthesized ``cancelled`` rows for the cancelled-before-start keys."""
+    keys = _cancelled_before_start_keys(eval_id)
+    if not keys:
+        return
+    # the dataset-typed id (captured at queue arrival) keys the row — and
+    # dedupes it against the pending synthesis — like the planned rows; the
+    # capture survives `sample_ids` clearing at completed_at, so a row's id
+    # can't flip int → str when the cancel finished the eval
+    for sample_id, epoch in keys:
+        typed = _queued_typed_id(eval_id, sample_id, epoch)
+        key = (typed, epoch)
+        if key not in by_key:
+            by_key[key] = _cancelled_before_start_summary(typed, epoch)
+
+
+def _queued_typed_id(eval_id: str, sample_id: str, epoch: int) -> Any:
+    """The dataset-typed id for a queued/cancelled route-string key.
+
+    Every read surface echoes dataset-typed ids (int vs str); the queued
+    rows have no record to read one from, so the requeue handle's capture
+    (at queue arrival / requeue accept) serves. Falls back to the string
+    form when no handle is attached.
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None or state.sample_requeue is None:
+        return sample_id
+    return state.sample_requeue.sample_view(sample_id, epoch).typed_id
+
+
+def _cancelled_before_start_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
+    """A cancelled-before-start sample: terminal status, no record to show."""
+    return {**_pending_summary(sample_id, epoch), "status": "cancelled"}
 
 
 def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
@@ -787,6 +853,16 @@ async def sample_error_detail(
         exclude_fields={"messages", "events", "store", "attachments", "output"},
     )
     if sample is None:
+        # a cancelled-before-start sample has no record: mirror the listing's
+        # synthesized terminal row (design/ctl/queued-sample-cancel.md),
+        # dataset-typed id included
+        if (sample_id, epoch) in _cancelled_before_start_keys(eval_id):
+            return {
+                **_cancelled_before_start_summary(
+                    _queued_typed_id(eval_id, sample_id, epoch), epoch
+                ),
+                "error_retries": [],
+            }
         return None
 
     # The sample's summary row supplies the summary fields (timing / tokens /

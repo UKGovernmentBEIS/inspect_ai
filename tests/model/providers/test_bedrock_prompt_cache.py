@@ -131,6 +131,7 @@ def _make_api(model_name: str) -> tuple[BedrockAPI, _FakeClient]:
     api.model_name = model_name
     api.base_url = None
     api.model_args = {}
+    api.streaming = None
     api.read_timeout = 60
     api.connect_timeout = 60
     client = _FakeClient()

@@ -223,6 +223,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
 
     _render_override_knob("timeout", "timeout", "s")
     _render_override_knob("attempt_timeout", "attempt timeout", "s")
+    _render_override_knob("stream_idle_timeout", "stream idle timeout", "s")
     _render_override_knob("max_retries", "max retries", "")
 
     # The per-sample limit overrides — task-scoped, so a process-level view

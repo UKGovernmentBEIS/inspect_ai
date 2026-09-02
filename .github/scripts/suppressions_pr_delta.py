@@ -10,6 +10,7 @@ import html
 import json
 import sys
 from pathlib import Path
+from typing import TypeGuard
 
 # Sibling-script import: resolves because sys.path[0] is this script's
 # directory when invoked by path (as the workflow does); the test suite
@@ -19,12 +20,37 @@ from check_suppressions import Delta, Ledger, diff_ledgers, totals
 MARKER = "<!-- suppressions-delta -->"
 
 
-def _load(path: str) -> Ledger:
+def _is_ledger(data: object) -> TypeGuard[Ledger]:
+    """Whether data has the shape flatten/totals rely on (see Ledger).
+
+    `type(...) is int`, not isinstance: bool subclasses int, and a JSON
+    boolean is not a count.
+    """
+    return isinstance(data, dict) and all(
+        isinstance(rules, dict)
+        and all(
+            isinstance(tally, dict)
+            and "count" in tally
+            and all(type(value) is int for value in tally.values())
+            for tally in rules.values()
+        )
+        for rules in data.values()
+    )
+
+
+def _load(path: str) -> Ledger | None:
+    """The ledger at path, or None when unreadable or not ledger-shaped.
+
+    The PR side is author-controlled data, so a broken ledger must degrade
+    into a reportable value rather than crash the comment job. ValueError
+    covers json.JSONDecodeError and the UnicodeDecodeError of a non-UTF-8
+    file; RecursionError is json.loads on pathologically deep nesting.
+    """
     try:
-        ledger: Ledger = json.loads(Path(path).read_text())
-        return ledger
-    except (OSError, json.JSONDecodeError):
-        return {}
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    return data if _is_ledger(data) else None
 
 
 def _cell(value: str) -> str:
@@ -100,9 +126,31 @@ def render(base: Ledger, head: Ledger) -> str | None:
     )
 
 
+def body_for(base: Ledger | None, head: Ledger | None) -> str | None:
+    """The comment body for the two loaded ledgers (None = malformed).
+
+    A malformed ledger is reported rather than treated as empty: an
+    empty-ledger stand-in would render a false "all suppressions removed"
+    delta for the reviewer to approve.
+    """
+    if head is None:
+        return (
+            f"{MARKER}\n⚠️ This PR's `suppressions.json` is not a valid "
+            "suppression ledger, so the delta cannot be computed. "
+            "Regenerate it with `make suppressions-update`."
+        )
+    if base is None:
+        return (
+            f"{MARKER}\n⚠️ The base `suppressions.json` (at the merge-base) "
+            "is not a valid suppression ledger, so the delta cannot be "
+            "computed. Update the branch once the base ledger is fixed."
+        )
+    return render(base, head)
+
+
 def main() -> int:
     base_path, head_path = sys.argv[1:3]
-    body = render(_load(base_path), _load(head_path))
+    body = body_for(_load(base_path), _load(head_path))
     if body is not None:
         print(body)
     return 0
