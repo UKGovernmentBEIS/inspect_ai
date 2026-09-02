@@ -127,7 +127,7 @@ def _tool_dir(tmp_path: Path, tools: list[str], shims: dict[str, str]) -> Path:
     return bindir
 
 
-_SCRIPT_PATH_LINE = "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+_SCRIPT_PATH_LINE = "PATH=/usr/sbin:/usr/bin:/sbin:/bin"
 
 
 def _script_with_path(bindir: Path) -> str:
@@ -603,6 +603,23 @@ async def test_wrapped_command_fails_cleanly_when_leaf_is_removed(
         await verify_framework_directory(local, str(target), user=None)
 
 
+async def test_exec_passes_stdin_to_the_wrapped_command(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """The script reads nothing from stdin, so `input` reaches the command whole."""
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    result = await exec_in_framework_directory(
+        local,
+        str(target),
+        ["sh", "-c", "cat > ./from-stdin"],
+        user=None,
+        input="streamed\ncontent\n",
+    )
+    assert result.success, result.stderr
+    assert (target / "from-stdin").read_text() == "streamed\ncontent\n"
+
+
 async def test_exec_ignores_cdpath(
     local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
 ) -> None:
@@ -639,6 +656,20 @@ async def test_inherited_path_is_not_consulted(
     assert not result.success
     assert "not found" in result.stderr
     assert not (target / "ran-shim").exists()
+
+
+async def test_exec_forwards_input_to_the_provider() -> None:
+    sandbox = ScriptedSandbox(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await exec_in_framework_directory(
+        sandbox, "/var/tmp/.x", ["tar", "xzf", "-"], user="root", input=b"archive"
+    )
+    assert sandbox.inputs == [b"archive"]
+    await verify_framework_directory(sandbox, "/var/tmp/.x", user="root")
+    assert sandbox.inputs[-1] is None
 
 
 async def test_verifier_is_launched_by_absolute_shell_path() -> None:
@@ -767,6 +798,7 @@ class ScriptedSandbox(SandboxEnvironment):
         super().__init__()
         self.result = result
         self.calls: list[tuple[list[str], str | None]] = []
+        self.inputs: list[str | bytes | None] = []
 
     async def exec(
         self,
@@ -780,6 +812,7 @@ class ScriptedSandbox(SandboxEnvironment):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         self.calls.append((cmd, user))
+        self.inputs.append(input)
         return self.result
 
     async def write_file(self, file: str, contents: str | bytes) -> None:

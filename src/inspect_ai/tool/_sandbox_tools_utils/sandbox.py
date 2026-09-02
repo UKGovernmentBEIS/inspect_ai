@@ -359,7 +359,7 @@ async def _extract_tools_tree(
             expected_uid=_expected_uid(user),
         )
     finally:
-        await sandbox.exec(["rm", "-f", gz_tmp], user=user)
+        await _remove_staged_archive(sandbox, gz_tmp, user)
     if result.success:
         return
 
@@ -380,9 +380,47 @@ async def _extract_tools_tree(
             expected_uid=_expected_uid(user),
         )
     finally:
-        await sandbox.exec(["rm", "-f", tar_tmp], user=user)
+        await _remove_staged_archive(sandbox, tar_tmp, user)
     if not result.success:
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
+
+
+async def _remove_staged_archive(
+    sandbox: SandboxEnvironment, path: str, user: str | None
+) -> None:
+    """Best-effort removal of a staged archive, as the extraction user.
+
+    Runs through the framework-directory helper rather than as a bare-name ``rm``
+    so the command resolves through the helper's pinned ``PATH``, not the image's
+    (this runs as root in a root-capable sandbox, and in a ``finally``, so it would
+    otherwise run even right after verification refused a planted entry). A helper
+    verdict here means the tools directory is gone or untrusted; the archive is then
+    left behind rather than masking the exception that is already propagating.
+    """
+    try:
+        result = await exec_in_framework_directory(
+            sandbox,
+            SANDBOX_TOOLS_DIR,
+            ["rm", "-f", path],
+            user=user,
+            expected_uid=_expected_uid(user),
+        )
+    except (
+        FrameworkDirectoryError,
+        FrameworkDirectoryUnavailableError,
+        FrameworkDirectoryUserError,
+        RuntimeError,
+    ) as ex:
+        trace_message(
+            logger, TRACE_SANDBOX_TOOLS, f"staged archive {path} not removed: {ex}"
+        )
+        return
+    if not result.success:
+        trace_message(
+            logger,
+            TRACE_SANDBOX_TOOLS,
+            f"staged archive {path} not removed: {result.stderr.strip()}",
+        )
 
 
 def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:

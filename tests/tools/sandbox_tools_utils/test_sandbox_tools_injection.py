@@ -408,11 +408,13 @@ async def test_extract_runs_tar_inside_verified_directory() -> None:
     sandbox = FakeSandbox(helper_ok)
     await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
 
-    (tar_cmd, user), (rm_cmd, _) = sandbox.exec_calls
+    (tar_cmd, user), (rm_cmd, rm_user) = sandbox.exec_calls
     assert user == "root"
     assert wrapped_command(tar_cmd) == ["tar", "xzf", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"]
     assert "-C" not in tar_cmd
-    assert rm_cmd == ["rm", "-f", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"]
+    # Cleanup also goes through the helper (pinned PATH), never a bare-name rm as root.
+    assert rm_user == "root"
+    assert wrapped_command(rm_cmd) == ["rm", "-f", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"]
 
 
 async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
@@ -438,7 +440,7 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
     tar_calls = [
         wrapped_command(cmd)
         for cmd, _ in sandbox.exec_calls
-        if is_framework_dir_call(cmd)
+        if is_framework_dir_call(cmd) and wrapped_command(cmd)[:1] == ["tar"]
     ]
     assert tar_calls == [
         ["tar", "xzf", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"],
@@ -446,17 +448,32 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
     ]
 
 
-async def test_extract_propagates_contract_violation_and_removes_archive() -> None:
+async def test_extract_propagates_tar_failure_and_removes_archive() -> None:
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if is_framework_dir_call(cmd):
+        if is_framework_dir_call(cmd) and wrapped_command(cmd)[:1] == ["tar"]:
             return violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
-        return OK
+        return helper_ok(cmd, user)
 
     sandbox = FakeSandbox(policy)
     with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
         await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
     # The staged archive is not left behind in the world-writable parent.
-    assert (["rm", "-f", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"], "root") in sandbox.exec_calls
+    assert [
+        wrapped_command(cmd)
+        for cmd, user in sandbox.exec_calls
+        if is_framework_dir_call(cmd) and user == "root"
+    ][-1] == ["rm", "-f", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"]
+    assert not any(cmd[:1] == ["rm"] for cmd, _ in sandbox.exec_calls)
+
+
+async def test_extract_cleanup_verdict_does_not_mask_original_error() -> None:
+    """If the directory is untrusted, the rm is skipped rather than raising over tar's error."""
+    sandbox = FakeSandbox(
+        lambda cmd, user: violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
+    )
+    with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
+        await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
+    assert not any(cmd[:1] == ["rm"] for cmd, _ in sandbox.exec_calls)
 
 
 async def test_detector_checks_as_known_tools_user() -> None:

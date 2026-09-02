@@ -88,18 +88,22 @@ _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 # (root's `tar` preserves them). Inside a 0700 directory used by one uid this changes
 # nothing observable. Tool output is captured with stderr discarded so a warning
 # cannot be folded into a value; the error path re-runs the tool for its message.
-# PATH is replaced outright with the system directories: the inherited value is
-# not consulted at all, so a user-owned directory an image puts on PATH cannot
-# supply `stat`/`id`/`mkdir` (or the wrapped command), a utility missing from the
-# system directories fails rather than falling through, and an empty component
+# PATH is replaced outright with the four base system directories: the inherited
+# value is not consulted at all, so a user-owned directory an image puts on PATH
+# cannot supply `stat`/`id`/`mkdir` (or the wrapped command), a utility missing from
+# those directories fails rather than falling through, and an empty component
 # (which shells resolve from the cwd, here the possibly world-writable parent)
-# cannot appear. The shell itself is resolved by the provider before this runs,
-# through the image's PATH, which is why the host launches it as `_SHELL`.
+# cannot appear. `/usr/local/{bin,sbin}` are deliberately excluded: Dockerfiles
+# routinely hand them to the non-root user (`chown -R user /usr/local` for
+# `npm install -g` or venv-less `pip install`), and nothing the script or the
+# sandbox tools need lives there. The shell itself is resolved by the provider
+# before this runs, through the image's PATH, which is why the host launches it
+# as `_SHELL`.
 _SCRIPT = """
 set -u
 umask 077
 unset CDPATH
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 expect=$1 create=$2 repair=$3 parent=$4 leaf=$5
 shift 5
@@ -175,8 +179,10 @@ if [ "$mode" != 700 ]; then
         # Either we just created it (a setgid parent may have added bits; a numeric
         # chmod alone does not clear setgid on a directory) or the caller asked for
         # an owned directory to be tightened. `.` is the verified object we own.
-        # `u=rwx` leaves a directory's set-id bits alone, so name them explicitly.
-        chmod u=rwx,g=,o=,u-s,g-s . || violation "could not set mode of $dir"
+        # `u=rwx` leaves a directory's set-id bits alone, so name them explicitly;
+        # BusyBox `o=` also leaves the sticky bit (and its `o-t` is a no-op), so
+        # clear that with the bare `-t` both implementations honour.
+        chmod u=rwx,g=,o=,u-s,g-s,-t . || violation "could not set mode of $dir"
         mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
     fi
 fi
@@ -320,6 +326,7 @@ async def _run_verified(
     user: str | None,
     expected_uid: int | None,
     timeout: int | None,
+    input: str | bytes | None = None,
 ) -> ExecResult[str]:
     parent, leaf = split_framework_path(path)
     expect = "" if expected_uid is None else str(expected_uid)
@@ -337,6 +344,7 @@ async def _run_verified(
             *cmd,
         ],
         user=user,
+        input=input,
         timeout=timeout,
     )
     if _VERIFIED_MARKER in result.stderr.splitlines():
@@ -486,6 +494,7 @@ async def exec_in_framework_directory(
     *,
     user: str | None,
     expected_uid: int | None = None,
+    input: str | bytes | None = None,
     timeout: int | None = None,
 ) -> ExecResult[str]:
     """Verify ``path`` and then run ``cmd`` with the verified directory as cwd.
@@ -512,6 +521,10 @@ async def exec_in_framework_directory(
         user: User to run as (as for ``sandbox.exec``); also the expected owner.
         expected_uid: If given, the uid the command must actually run as (see
             :func:`ensure_framework_directory`).
+        input: Standard input for ``cmd`` (as for ``sandbox.exec``). The
+            verification script reads nothing from stdin, so ``cmd`` receives it
+            whole; this lets a caller stream content (an archive for ``tar``)
+            into the verified directory without staging a file first.
         timeout: Optional timeout for the sandbox command.
 
     Returns:
@@ -538,5 +551,6 @@ async def exec_in_framework_directory(
         cmd=cmd,
         user=user,
         expected_uid=expected_uid,
+        input=input,
         timeout=timeout,
     )
