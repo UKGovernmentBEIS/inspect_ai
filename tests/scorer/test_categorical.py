@@ -99,6 +99,37 @@ def test_frequency_rejects_string_categories() -> None:
         frequency(categories="yes")
 
 
+def test_frequency_skips_unscored_nan() -> None:
+    unscored = SampleScore(score=Score.unscored(reason="refusal"))
+    nan_score = SampleScore(score=Score(value=float("nan")))
+    scores = [ss("yes"), ss("no"), unscored, nan_score]
+
+    # observed only: unscored samples excluded, no "nan" category
+    assert call(frequency(), scores) == {"yes": 0.5, "no": 0.5}
+
+    # explicit categories: unscored samples excluded, declared categories preserved
+    assert call(frequency(categories=Verdict), scores) == {
+        "yes": 0.5,
+        "no": 0.5,
+        "unsure": 0.0,
+    }
+
+    # raw counts (normalize=False)
+    assert call(frequency(categories=Verdict, normalize=False), scores) == {
+        "yes": 1.0,
+        "no": 1.0,
+        "unsure": 0.0,
+    }
+
+    # all unscored
+    assert call(frequency(), [unscored, nan_score]) == {}
+    assert call(frequency(categories=Verdict), [unscored, nan_score]) == {
+        "yes": 0.0,
+        "no": 0.0,
+        "unsure": 0.0,
+    }
+
+
 def test_categorical_resolves_enum_to_list() -> None:
     from inspect_ai._util.registry import registry_params
 

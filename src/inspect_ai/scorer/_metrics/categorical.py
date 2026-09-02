@@ -1,3 +1,4 @@
+import math
 from collections import Counter
 from typing import Mapping, Sequence
 
@@ -39,7 +40,8 @@ def _frequencies(
     categories: list[str] | None,
     normalize: bool,
 ) -> dict[str, float]:
-    counts: Counter[str] = Counter(str(v) for v in values)
+    scored_values = [v for v in values if not (isinstance(v, float) and math.isnan(v))]
+    counts: Counter[str] = Counter(str(v) for v in scored_values)
     keys = list(dict.fromkeys((*(categories or ()), *counts)))
     total = sum(counts.values())
     denom = float(total) if (normalize and total > 0) else 1.0
