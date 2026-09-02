@@ -364,6 +364,50 @@ async def test_recover_incomplete_action_error_finalizes_limited_eval() -> None:
             assert log.results.total_samples == 4
 
 
+async def test_recover_incomplete_action_error_unexpected_sample_stays_error() -> None:
+    """Finalization is by sample identity, not by count.
+
+    The log records `sample_ids=[1, 2, 3]` but sample 4 was also written (a
+    dynamic `sample_source` records only its seed ids while produced samples
+    carry their own). Four samples are present — enough by count — yet a
+    written id outside the recorded set means produced samples may still be
+    unstarted, so the log keeps status 'error' and stays retryable.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(
+                eval_path,
+                samples=flushed,
+                eval_spec=_make_eval_spec(samples=3, sample_ids=[1, 2, 3]),
+            )
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+            )
+
+            assert log.status == "error"
+            assert log.error is not None
+
+            read_log = await read_eval_log_async(output_path)
+            assert read_log.samples is not None
+            assert len(read_log.samples) == 4
+            resolved = next(s for s in read_log.samples if s.id == 4)
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+
+
 async def test_recover_incomplete_max_proportion_of_limited_eval() -> None:
     """The proportion form of incomplete_max is relative to the selected samples.
 

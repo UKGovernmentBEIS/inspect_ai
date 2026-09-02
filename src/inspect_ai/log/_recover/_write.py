@@ -62,6 +62,22 @@ def expected_samples(eval: EvalSpec) -> int:
     return dataset_samples * (eval.config.epochs or 1)
 
 
+def expected_sample_keys(eval: EvalSpec) -> set[str] | None:
+    """Sample entry keys (`_sample_filename`) the eval expected to write.
+
+    One key per `(sample_id, epoch)` in `sample_ids x epochs`, or `None` for
+    logs written before ids were recorded (callers fall back to counting).
+    """
+    if eval.dataset is None or eval.dataset.sample_ids is None:
+        return None
+    epochs = eval.config.epochs or 1
+    return {
+        _sample_filename(id, epoch)
+        for id in eval.dataset.sample_ids
+        for epoch in range(1, epochs + 1)
+    }
+
+
 async def write_recovered_eval_log(
     crashed: CrashedEvalLog,
     buffer_samples: Iterator[tuple[EvalSample, bool]],
@@ -125,6 +141,7 @@ async def write_recovered_eval_log(
     sample_count = 0
     failed_count = 0
     in_progress_count = 0
+    written_keys: set[str] = set()
     stats_acc = _StatsAccumulator(crashed)
     scores_acc: list[dict[str, SampleScore]] = []
 
@@ -132,6 +149,7 @@ async def write_recovered_eval_log(
         nonlocal sample_count, failed_count, in_progress_count
         if in_progress:
             in_progress_count += 1
+        written_keys.add(_sample_filename(sample.id, sample.epoch))
         stats_acc.add_sample(sample)
         if sample.scores:
             scores_acc.append(
@@ -199,6 +217,7 @@ async def write_recovered_eval_log(
                     incomplete_action=incomplete_action,
                     include_events=not no_events,
                 )
+                written_keys.add(entry)
                 stats_acc.add_summary(written_summary)
                 if is_in_progress or written_summary.error is not None:
                     failed_count += 1
@@ -261,18 +280,24 @@ async def write_recovered_eval_log(
     # completeness predicate is satisfied and nothing will retry it. If
     # expected samples are missing entirely (never started, or lost between
     # flush and crash), the log keeps status "error" and stays retryable.
+    # The check is by identity, not count: the written (id, epoch) keys must
+    # be exactly the recorded `sample_ids x epochs`. A dynamic `sample_source`
+    # records only its seed ids while produced samples are written under
+    # their own, so a count could be satisfied with produced samples still
+    # unstarted; a written id outside the recorded set keeps the log
+    # retryable instead. Logs without recorded ids fall back to counting.
     # `fail_on_error` is deliberately not applied: the operator explicitly
     # chose to complete the eval; recording the resolved samples as errors
     # is for analysis honesty, not for status computation. Finalization also
     # requires recomputed results — without them the log would fail the
     # completeness predicate and be re-run despite its "success" status.
-    expected = expected_samples(crashed.eval)
-    finalized = (
-        incomplete_action == "error"
-        and results is not None
-        and expected > 0
-        and sample_count >= expected
-    )
+    expected_keys = expected_sample_keys(crashed.eval)
+    if expected_keys is not None:
+        complete = len(expected_keys) > 0 and written_keys == expected_keys
+    else:
+        expected = expected_samples(crashed.eval)
+        complete = expected > 0 and sample_count >= expected
+    finalized = incomplete_action == "error" and results is not None and complete
 
     status: EvalStatus
     if finalized:

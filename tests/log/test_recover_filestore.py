@@ -355,13 +355,14 @@ def _write_crashed_eval(
     path: str,
     task: str = "test_task",
     sandbox: SandboxEnvironmentSpec | None = None,
+    sample_ids: list[str] | None = None,
 ) -> None:
     """Write a minimal crashed .eval file (no header.json)."""
     eval_spec = EvalSpec(
         created=datetime.now(timezone.utc).isoformat(),
         task=task,
         model="mockllm/model",
-        dataset=EvalDataset(name="test", samples=1),
+        dataset=EvalDataset(name="test", samples=1, sample_ids=sample_ids),
         config=EvalConfig(),
         sandbox=sandbox,
     )
@@ -406,16 +407,16 @@ async def test_recover_from_filestore_end_to_end() -> None:
 async def test_recover_from_filestore_incomplete_action_error_finalizes() -> None:
     """Streaming (filestore) recovery honors incomplete_action='error'.
 
-    The single expected sample is in progress; resolving it as an error
-    leaves every expected sample final, so the recovered log finalizes with
-    status 'success'.
+    The single expected sample (recorded by its string id) is in progress;
+    resolving it as an error leaves every expected sample final, so the
+    recovered log finalizes with status 'success'.
     """
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path, _ = _create_filestore_fixture(
                 temp_dir, num_segments=3, completed=False
             )
-            _write_crashed_eval(eval_path)
+            _write_crashed_eval(eval_path, sample_ids=["sample1"])
             db_dir = os.path.join(temp_dir, "empty_db_dir")
             output_path = os.path.join(temp_dir, "test-recovered.eval")
 
