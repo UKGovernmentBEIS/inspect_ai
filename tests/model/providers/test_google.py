@@ -1223,13 +1223,18 @@ def _make_batcher_and_batch(job_state: JobState) -> tuple:
     batch = Batch(id="batch-123", requests={"req-1": req})
     return batcher, batch
 
+
 def test_batch_request_dict_wraps_system_instruction() -> None:
     from google.genai.types import Content, GenerateContentConfig, Part
 
     from inspect_ai.model._providers._google_batch import batch_request_dict
 
-    config = GenerateContentConfig(system_instruction=["You are helpful.", "Be concise."])
-    request = batch_request_dict(config, [Content(role="user", parts=[Part.from_text(text="hi")])])
+    config = GenerateContentConfig(
+        system_instruction=["You are helpful.", "Be concise."]
+    )
+    request = batch_request_dict(
+        config, [Content(role="user", parts=[Part.from_text(text="hi")])]
+    )
 
     assert request["system_instruction"] == {
         "parts": [{"text": "You are helpful."}, {"text": "Be concise."}],
