@@ -96,7 +96,7 @@ anthropic:
     claude-fable-5-1:
       display_name: Claude Fable 5.1
       release_date: 2026-09-01
-      knowledge_cutoff_date: 2026-01-01
+      knowledge_cutoff_date: 2026-06-01
       context_length: 1000000
       output_tokens: 128000
       reasoning: True
@@ -128,7 +128,7 @@ anthropic:
     claude-mythos-5-1:
       display_name: Claude Mythos 5.1
       release_date: 2026-09-01
-      knowledge_cutoff_date: 2026-01-01
+      knowledge_cutoff_date: 2026-06-01
       context_length: 1000000
       output_tokens: 128000
       reasoning: True

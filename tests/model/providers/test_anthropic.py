@@ -1644,6 +1644,7 @@ def test_anthropic_fable_5_no_binding_on_base_model() -> None:
     "model_name",
     [
         "bedrock/anthropic.claude-fable-5-1",
+        "vertex/claude-fable-5-1",
         "azure/claude-fable-5-1",
     ],
 )
@@ -1652,8 +1653,20 @@ def test_anthropic_fable_5_1_no_binding_off_first_party(model_name: str) -> None
     setenv_if_unset("AWS_REGION", "us-east-1")
     setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
     setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
     setenv_if_unset("AZUREAI_ANTHROPIC_BASE_URL", "https://fake-azure.example.com")
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == []
+    assert "thinking" not in request
+
+
+def test_anthropic_mythos_5_1_no_binding() -> None:
+    """Mythos 5.1 does not run the binding check, so no opt-in is sent."""
+    api = AnthropicAPI(model_name="claude-mythos-5-1", api_key="test-key")
     request = _request_with_thinking_history()
     betas: list[str] = []
     api.apply_thinking_block_binding(request, betas)

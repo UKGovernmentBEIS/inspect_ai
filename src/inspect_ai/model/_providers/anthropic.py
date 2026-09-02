@@ -537,23 +537,16 @@ class AnthropicAPI(ModelAPI):
             if system_param is not None:
                 request["system"] = system_param
             request["tools"] = tools_param
+            # with thinking active, tool_choice is omitted entirely (the API
+            # rejects forced tool choice with thinking; long-standing behavior
+            # for all Claude models)
             tool_choice_degraded = False
             if len(tools_param) > 0:
+                resolved_choice = self.resolved_tool_choice(tool_choice)
+                tool_choice_degraded = resolved_choice != tool_choice
                 if not self.is_using_thinking(config):
-                    resolved_choice = self.resolved_tool_choice(tool_choice)
-                    tool_choice_degraded = resolved_choice != tool_choice
                     request["tool_choice"] = message_tool_choice(
                         resolved_choice, config
-                    )
-                else:
-                    # with thinking active the API rejects forced tool choice,
-                    # so tool_choice is omitted entirely (long-standing
-                    # behavior for all Claude models). On Fable/Mythos 5.1 —
-                    # where forcing is never honored in any mode — record it
-                    # as degraded; other models keep their existing log shape.
-                    tool_choice_degraded = (
-                        is_forced_tool_choice(tool_choice)
-                        and self.is_claude_fable_5_1_or_later()
                     )
 
             # additional options
@@ -676,10 +669,6 @@ class AnthropicAPI(ModelAPI):
 
             _warn_refusal_without_fallback(self, config, output)
 
-            # a degraded forced tool choice changes request semantics (the
-            # model may answer with plain text instead of the required tool
-            # call), so record it per-request in the output metadata — an
-            # auditable fact in the eval log, not just a log warning
             if tool_choice_degraded:
                 output.metadata = (
                     output.metadata or {}
@@ -1244,20 +1233,23 @@ class AnthropicAPI(ModelAPI):
     def apply_thinking_block_binding(
         self, request: dict[str, Any], betas: list[str]
     ) -> None:
-        """Opt into dropping prefix-mismatched thinking blocks on Fable/Mythos 5.1.
+        """Opt into dropping prefix-mismatched thinking blocks on Fable 5.1.
 
-        These models bind thinking blocks to the request prefix that produced
+        Fable 5.1 binds thinking blocks to the request prefix that produced
         them; solvers legitimately edit history, and without drop_block such an
-        edit fails the replay with a 400. Applied to every request for these
-        models — not only those replaying thinking blocks — so the beta header
-        stays uniform across a task's requests (the batcher submits a single
-        header set per batch). First-party API only; the beta is not
-        documented for bedrock/vertex/azure, where a history edit will still
-        400. A caller-supplied `extra_body.thinking` shallow-merges over the
-        request body and replaces this binding config.
+        edit fails the replay with a 400. Applied to every Fable 5.1 request —
+        not only those replaying thinking blocks — so the beta header stays
+        uniform across a task's requests (the batcher submits a single header
+        set per batch). Mythos 5.1 does not run the binding check, so it is
+        excluded. First-party API only; the beta is not documented for
+        bedrock/vertex/azure, where a history edit will still 400. A
+        caller-supplied `extra_body.thinking` shallow-merges over the request
+        body and replaces this binding config.
         """
-        if self.is_claude_fable_5_1_or_later() and not (
-            self.is_bedrock() or self.is_vertex() or self.is_azure()
+        if (
+            self.is_claude_fable_5_1_or_later()
+            and "mythos" not in self.model_family()
+            and not (self.is_bedrock() or self.is_vertex() or self.is_azure())
         ):
             betas.append(_THINKING_BINDING_BETA)
             # thinking is always on for these models, so explicit adaptive

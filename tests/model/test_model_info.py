@@ -446,12 +446,13 @@ class TestGetModelInputTokens:
         model = get_model("anthropic/claude-fable-5-1")
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
-        # the snapshot proves the explicit 5.1 registration resolved (a fuzzy
-        # match of the fable-5 base entry would report the same input tokens
-        # but carry the base snapshot)
+        # the snapshot and cutoff prove the explicit 5.1 registration resolved
+        # (a fuzzy match of the fable-5 base entry would report the same input
+        # tokens but carry the base snapshot and its older cutoff)
         info = get_model_info("anthropic/claude-fable-5-1")
         assert info is not None
         assert info.snapshot == "20260901"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
 
     def test_claude_mythos_5_1(self):
         """Test that Claude Mythos 5.1 reports 1MM input tokens."""
@@ -461,6 +462,7 @@ class TestGetModelInputTokens:
         info = get_model_info("anthropic/claude-mythos-5-1")
         assert info is not None
         assert info.snapshot == "20260901"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
 
     def test_claude_latest_defaults_to_1m(self):
         """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""

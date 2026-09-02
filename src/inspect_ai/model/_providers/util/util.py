@@ -161,7 +161,13 @@ def is_forced_tool_choice(tool_choice: ToolChoice) -> bool:
 
 
 def forced_tool_choice_degraded_metadata(tool_choice: ToolChoice) -> dict[str, Any]:
-    """ModelOutput metadata recording a forced tool choice degraded to auto."""
+    """ModelOutput metadata recording a forced tool choice degraded to auto.
+
+    A degraded forced tool choice changes request semantics (the model may
+    answer with plain text instead of the required tool call), so providers
+    record it per-request in the output metadata — an auditable fact in the
+    eval log, not just a log warning.
+    """
     return {
         "tool_choice_degraded": {
             "requested": {"type": "tool", "name": tool_choice.name}

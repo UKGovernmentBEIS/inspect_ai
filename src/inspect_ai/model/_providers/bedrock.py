@@ -623,7 +623,7 @@ class BedrockAPI(ModelAPI):
         return False
 
     def is_claude_fable_5_1_or_later(self) -> bool:
-        return self.is_claude() and is_claude_fable_5_1_model(self.model_family())
+        return is_claude_fable_5_1_model(self.model_family())
 
     def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
         """Mirrors `resolved_tool_choice` in the native anthropic provider."""
@@ -886,8 +886,6 @@ class BedrockAPI(ModelAPI):
         # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)
 
-        # a degraded forced tool choice changes request semantics — record it
-        # per-request so the eval log reflects it (mirrors the native provider)
         if tool_choice_degraded:
             output.metadata = (
                 output.metadata or {}
