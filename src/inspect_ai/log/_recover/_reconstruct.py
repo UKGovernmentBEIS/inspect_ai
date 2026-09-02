@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from logging import getLogger
-from typing import Any, cast, get_args
+from typing import Any, Literal, cast, get_args
 
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid as _shortuuid
@@ -39,6 +39,39 @@ from inspect_ai.model._model_output import ModelOutput
 logger = getLogger(__name__)
 
 _CHAT_MESSAGES_ADAPTER: TypeAdapter[list[ChatMessage]] = TypeAdapter(list[ChatMessage])
+
+IncompleteAction = Literal["retry", "error"]
+"""Disposition for samples that were in progress when the eval crashed.
+
+`"retry"` marks them as cancelled errors that a later retry re-runs (the
+historical behavior); `"error"` records that the operator terminated them
+during recovery, allowing the recovered log to finalize as `"success"` when
+every expected sample is final (see `write_recovered_eval_log`).
+"""
+
+
+def in_progress_sample_error(incomplete_action: IncompleteAction) -> EvalError:
+    """The error recorded on an in-progress sample, per the recovery disposition.
+
+    Shared by both recovery paths (streaming filestore and buffer DB) so a
+    recovered sample's error doesn't depend on which one ran.
+    """
+    if incomplete_action == "error":
+        message = (
+            "Sample terminated by operator during recovery "
+            "(in progress when the eval process was terminated)"
+        )
+        traceback = (
+            "Sample was in progress when the eval process was terminated; "
+            "resolved as an error by recovery (incomplete_action='error').\n"
+        )
+        return EvalError(message=message, traceback=traceback, traceback_ansi=traceback)
+    else:
+        return EvalError(
+            message="CancelledError()",
+            traceback="CancelledError: recovered from crashed eval\n",
+            traceback_ansi="CancelledError: recovered from crashed eval\n",
+        )
 
 
 def _summary_with_uuid_fallback(summary: EvalSampleSummary) -> EvalSampleSummary:
@@ -142,6 +175,7 @@ def reconstruct_eval_sample(
     *,
     sample_metadata: dict[str, Any] | None = None,
     cancelled: bool = False,
+    incomplete_action: IncompleteAction = "retry",
     include_events: bool = True,
 ) -> EvalSample:
     """Reconstruct an EvalSample from buffer DB data.
@@ -150,8 +184,10 @@ def reconstruct_eval_sample(
         summary: Sample summary from the buffer DB samples table.
         sample_data: Events and attachments from buffer.get_sample_data().
         sample_metadata: Full metadata stored separately from the thinned summary.
-        cancelled: If True, synthesize a cancellation EvalError
+        cancelled: If True, synthesize an EvalError per `incomplete_action`
             (for in-progress samples interrupted by a crash).
+        incomplete_action: Disposition for in-progress samples (see
+            `in_progress_sample_error`). Only used when `cancelled` is True.
         include_events: If False, return an empty events list and no
             timelines. Events are still deserialized internally to
             extract messages and output.
@@ -189,15 +225,12 @@ def reconstruct_eval_sample(
         attachment.hash: attachment.content for attachment in sample_data.attachments
     }
 
-    # Set error: synthesize cancellation for in-progress samples,
-    # or preserve existing error from completed-but-errored samples
+    # Set error: synthesize an error for in-progress samples (per the
+    # recovery disposition), or preserve existing error from
+    # completed-but-errored samples
     error: EvalError | None = None
     if cancelled:
-        error = EvalError(
-            message="CancelledError()",
-            traceback="CancelledError: recovered from crashed eval\n",
-            traceback_ansi="CancelledError: recovered from crashed eval\n",
-        )
+        error = in_progress_sample_error(incomplete_action)
     elif summary.error is not None:
         error = EvalError(
             message=summary.error,
