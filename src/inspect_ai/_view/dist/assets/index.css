@@ -1336,7 +1336,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   grid-column: span 3;
   width: 100%;
 }
-._findBand_oh7be_1 {
+._findBand_zozvs_1 {
   position: absolute;
   top: 0;
   right: 0;
@@ -1346,7 +1346,8 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   background-color: var(--inspect-find-background);
   font-size: 0.9rem;
   display: grid;
-  grid-template-columns: auto auto auto auto auto;
+  /* Count column stays reserved empty↔first-letter so the band does not grow. */
+  grid-template-columns: auto minmax(11ch, max-content) auto auto auto;
   column-gap: 0.2em;
   padding: 0.2rem;
   border-bottom: solid 1px var(--bs-light-border-subtle);
@@ -1355,7 +1356,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   box-shadow: var(--bs-box-shadow);
 }
 
-._findBand_oh7be_1 input {
+._findBand_zozvs_1 input {
   height: 2em;
   font-size: 0.9em;
   margin: 0.1rem;
@@ -1365,7 +1366,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   background: var(--inspect-input-background);
 }
 
-._matchCount_oh7be_30 {
+._matchCount_zozvs_31 {
   font-size: 0.85em;
   margin-top: auto;
   margin-bottom: auto;
@@ -1375,22 +1376,37 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   opacity: 0.7;
 }
 
-._noResults_oh7be_40 {
+._noResults_zozvs_41 {
   opacity: 1;
   color: var(--bs-danger, #dc3545);
+}
+
+/* A second row under the controls. width: 0 keeps it out of the grid's
+   intrinsic sizing (the input must not move); min-width stretches it back
+   to the band's width. */
+._error_zozvs_49 {
+  grid-column: 1 / -1;
+  width: 0;
+  min-width: 100%;
+  font-size: 0.8em;
+  color: var(--bs-danger, #dc3545);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 0.1rem 0.1rem;
 }
 
 /* `.btn` stays global (bootstrap); keep it in the compound selector so
    specificity still beats bootstrap's `.btn:hover` etc. regardless of
    stylesheet order. */
-._findBand_oh7be_1 ._next_oh7be_48.btn,
-._findBand_oh7be_1 ._prev_oh7be_49.btn {
+._findBand_zozvs_1 ._next_zozvs_64.btn,
+._findBand_zozvs_1 ._prev_zozvs_65.btn {
   padding: 0;
   border: none;
   background: none;
 }
 
-._findBand_oh7be_1 ._close_oh7be_55.btn {
+._findBand_zozvs_1 ._close_zozvs_71.btn {
   padding: 0;
   border: none;
   background: none;
@@ -2878,6 +2894,50 @@ a._citationLink_1gzkd_9:hover {
 ._searchingElapsed_1sdtt_271 {
   color: var(--bs-secondary-color);
   font-variant-numeric: tabular-nums;
+}
+._gate_fvpnz_1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  padding: 1rem;
+}
+
+._card_fvpnz_10 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 32rem;
+  color: var(--vscode-foreground);
+}
+
+._title_fvpnz_18 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+._body_fvpnz_25 {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+}
+
+._location_fvpnz_30 {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  background: var(--vscode-textCodeBlock-background);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+._actions_fvpnz_40 {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
 }
 /*!
  * Bootstrap Icons v1.13.1 (https://icons.getbootstrap.com/)
@@ -17972,6 +18032,12 @@ pre[class*="language-"] {
   --inspect-tool-block-output-bg: var(--bs-body-bg);
   --inspect-tool-block-ink: var(--bs-secondary-color);
   --inspect-turn-prose-edge: 1px solid var(--bs-light-border-subtle);
+
+  /* Find-in-page highlights (CSS Custom Highlight API) + the flash
+     fallback. Match = every occurrence; active = the one the user is on. */
+  --inspect-find-match-bg: rgba(255, 210, 0, 0.4);
+  --inspect-find-active-bg: #ff9632;
+  --inspect-find-active-fg: #1f2328;
 }
 
 :root[data-bs-theme="dark"] {
@@ -17993,6 +18059,39 @@ pre[class*="language-"] {
   --inspect-readable-system-bg: #0a0b0d;
   --inspect-readable-system-border: #67696f;
   --inspect-readable-body-color: #e6e8ea;
+
+  --inspect-find-match-bg: rgba(255, 196, 0, 0.28);
+  --inspect-find-active-bg: #b36b00;
+  --inspect-find-active-fg: #ffffff;
+}
+
+/* Find-in-page: rows register Ranges under these highlight names via the
+   shared registry in @tsmono/react/find. */
+::highlight(find-match) {
+  background-color: var(--inspect-find-match-bg);
+}
+
+::highlight(find-active) {
+  background-color: var(--inspect-find-active-bg);
+  color: var(--inspect-find-active-fg);
+}
+
+/* Never-silent-jump fallback (flash the revealed row): applied by
+   flashElement() when Custom Highlights are unsupported or the active
+   occurrence isn't in the row's rendered text. */
+@keyframes inspect-find-flash {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+  25%,
+  75% {
+    background-color: var(--inspect-find-match-bg);
+  }
+}
+
+.find-flash {
+  animation: inspect-find-flash 0.9s ease-in-out;
 }
 
 /* Readable variant: trade design consistency for transcript scannability —
@@ -18078,21 +18177,6 @@ body:not([class^="vscode-"]) button {
   --bs-nav-pills-link-active-bg: #e3eaf1;
   --bs-nav-pills-link-active-color: black;
   --bs-nav-link-color: black;
-}
-
-/* AG Grid Theming */
-body {
-  --ag-background-color: var(--bs-body-bg);
-  --ag-foreground-color: var(--bs-body-color);
-  --ag-header-background-color: var(--bs-light-bg-subtle);
-  --ag-header-font-size: var(--inspect-font-size-small);
-  --ag-header-font-weight: 500;
-  --ag-header-text-color: var(--bs-secondary);
-  --ag-font-family: var(--bs-body-font-family);
-  --ag-wrapper-border: none;
-  --ag-row-hover-color: var(--bs-secondary-bg-subtle);
-  --ag-selected-row-background-color: var(--bs-secondary-bg-subtle);
-  --ag-border-radius: var(--bs-border-radius);
 }
 
 #app {

@@ -682,3 +682,129 @@ def test_convert_chunked_cli_hidden():
     command = log_command.get_command(None, "convert-chunked")
     assert command is not None
     assert command.hidden
+
+
+def _round_trip_log() -> EvalLog:
+    """One sample with tool calls, text long enough to become attachments, and events."""
+    from inspect_ai.event import ModelEvent, ToolEvent
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalSpec
+    from inspect_ai.model import (
+        ChatMessage,
+        ChatMessageAssistant,
+        ChatMessageSystem,
+        ChatMessageTool,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelOutput,
+    )
+    from inspect_ai.tool import ToolCall
+
+    call = ToolCall(id="c1", function="bash", arguments={"cmd": "ls"})
+    long_question = "question " * 30
+    long_output = "output line\n" * 30
+    long_answer = "answer " * 30
+    system = ChatMessageSystem(id="s1", content="be terse")
+    user = ChatMessageUser(id="u1", content=long_question)
+    calling = ChatMessageAssistant(id="a1", content="", tool_calls=[call])
+    tool = ChatMessageTool(
+        id="t1", tool_call_id="c1", function="bash", content=long_output
+    )
+    answer = ChatMessageAssistant(id="a2", content=long_answer)
+    messages: list[ChatMessage] = [system, user, calling, tool, answer]
+
+    def model_event(
+        input: list[ChatMessage], output: ChatMessageAssistant
+    ) -> ModelEvent:
+        return ModelEvent(
+            model="mockllm/model",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_message(output),
+        )
+
+    return EvalLog(
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="task",
+            task_id="task_id",
+            dataset=EvalDataset(),
+            model="model",
+            config=EvalConfig(),
+        ),
+        samples=[
+            EvalSample(
+                id="s",
+                epoch=1,
+                input=[system, user],
+                target="",
+                messages=messages,
+                store={"k": "v"},
+                metadata={"m": 1},
+                events=[
+                    model_event([system, user], calling),
+                    ToolEvent(
+                        id="c1",
+                        function="bash",
+                        arguments={"cmd": "ls"},
+                        result=long_output,
+                    ),
+                    model_event(messages[:4], answer),
+                ],
+            )
+        ],
+    )
+
+
+@pytest.fixture
+def monolith_and_chunked(tmp_path: pathlib.Path) -> tuple[pathlib.Path, pathlib.Path]:
+    """The round-trip sample written as a monolith and converted to chunks."""
+    monolith = tmp_path / "log.eval"
+    write_eval_log(_round_trip_log(), str(monolith), "eval")
+    convert_eval_logs_to_chunked(str(monolith), str(tmp_path / "chunked"), chunk_size=2)
+    return monolith, tmp_path / "chunked" / "log.eval"
+
+
+@pytest.mark.parametrize("resolve_attachments", ["full", "core", False])
+async def test_read_eval_log_sample_reads_chunked_shape(
+    monolith_and_chunked: tuple[pathlib.Path, pathlib.Path],
+    resolve_attachments: Literal["full", "core", False],
+) -> None:
+    """A chunked sample reads back exactly as its monolith does."""
+    from inspect_ai.log._file import read_eval_log_sample_async
+
+    monolith, chunked = monolith_and_chunked
+    expected = await read_eval_log_sample_async(
+        str(monolith), "s", 1, resolve_attachments=resolve_attachments
+    )
+    actual = await read_eval_log_sample_async(
+        str(chunked), "s", 1, resolve_attachments=resolve_attachments
+    )
+    assert actual == expected
+    if resolve_attachments is False:
+        # the converter did extract the long turns; the read put them back
+        assert len(expected.attachments) >= 3
+        assert expected.messages[1].text.startswith("question ")
+
+    partial = await read_eval_log_sample_async(
+        str(chunked), "s", 1, exclude_fields={"events", "store"}
+    )
+    assert partial.events == [] and partial.store == {}
+    assert (
+        partial.messages
+        == (await read_eval_log_sample_async(str(monolith), "s", 1)).messages
+    )
+    with pytest.raises(IndexError):
+        await read_eval_log_sample_async(str(chunked), "missing", 1)
+
+
+def test_chunked_index_ref_regex_matches_whole_strings_only() -> None:
+    """`attachment://<n>` is rewritten only as a whole JSON string value."""
+    from inspect_ai.log._recorders.chunked.read import _INDEX_REF
+
+    data = b'{"a": "attachment://0", "b": "attachment://0abc", "c": "see attachment://0 here"}'
+    assert _INDEX_REF.sub(b"REF", data) == (
+        b'{"a": "REF", "b": "attachment://0abc", "c": "see attachment://0 here"}'
+    )
