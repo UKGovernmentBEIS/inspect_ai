@@ -1868,6 +1868,7 @@ GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
     "max_retries",
     "timeout",
     "attempt_timeout",
+    "stream_idle_timeout",
     "max_connections",
     "adaptive_connections",
     "batch",
@@ -1890,9 +1891,13 @@ def resolve_solver(
         return cast(Solver | None, solver)
 
 
-# Version of the task_identifier computation. Bump this when the task_identifier
-# logic changes, so that persisted identifiers (e.g. in inspect_flow) can be
-# recomputed.
+# Version of the task_identifier computation. Bump this only when the computed
+# identifier values change, so that persisted identifiers (e.g. in inspect_flow)
+# can be recomputed. A logic change that provably preserves every identifier
+# (e.g. excluding a newly added GenerateConfig field that no prior config could
+# set) does not warrant a bump — prove it by exercising the new field in
+# tests/test_task_identifier_version.py against the current version's pinned
+# hash.
 TASK_IDENTIFIER_VERSION = 3
 
 
