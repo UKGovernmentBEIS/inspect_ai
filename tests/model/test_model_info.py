@@ -468,7 +468,7 @@ class TestGetModelInputTokens:
         "model_name,release_date",
         [("gemini-3.8-flash", "2026-09-02"), ("gemini-3.7-flash", "2026-08-13")],
     )
-    def test_gemini_3_7_plus_flash(self, model_name: str, release_date: str):
+    def test_gemini_3_7_plus_flash(self, model_name: str, release_date: str) -> None:
         """Gemini 3.7/3.8 Flash resolve to their own entries (1M context)."""
         model = get_model(f"google/{model_name}", api_key="test-key")
         assert get_model_input_tokens(model) == 1_048_576

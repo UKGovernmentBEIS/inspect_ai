@@ -217,8 +217,11 @@ def test_google_gemini_2_5_reasoning_tokens_wins_over_effort():
     ],
 )
 def test_google_gemini_3_minimal_effort(
-    model_name, expected_level, caplog, monkeypatch
-):
+    model_name: str,
+    expected_level: ThinkingLevel,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Minimal maps to MINIMAL only where the API accepts it (3.7+ Flash rejects it)."""
     monkeypatch.setattr("inspect_ai._util.logger._warned", [])
     api = _google_api(model_name)

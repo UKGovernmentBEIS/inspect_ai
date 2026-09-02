@@ -116,6 +116,7 @@ from inspect_ai.model._providers._google_computer_use import (
     tool_call_from_gemini_computer_action,
 )
 from inspect_ai.model._reasoning import (
+    clamp_reasoning_effort_to_minimal_low_medium_high,
     effort_to_reasoning_tokens,
     reasoning_to_think_tag,
 )
@@ -875,10 +876,10 @@ class GoogleGenAIAPI(ModelAPI):
         rather than risk a 400. https://ai.google.dev/gemini-api/docs/thinking
         """
         version = self.gemini_version()
-        if version is None or not self.is_gemini_flash():
+        name = self.model_family().rsplit("/", 1)[-1]
+        if version is None or "flash" not in name:
             return False
-        lite = "flash-lite" in self.model_family()
-        low, high = ((3, 1), (3, 6)) if lite else ((3,), (3, 7))
+        low, high = ((3, 1), (3, 6)) if "flash-lite" in name else ((3,), (3, 7))
         return low <= version < high
 
     def is_gemini_3_plus(self) -> bool:
@@ -1069,27 +1070,19 @@ class GoogleGenAIAPI(ModelAPI):
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
             # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
             elif config.reasoning_effort is not None and self.is_gemini_3_plus():
-                match config.reasoning_effort:
-                    case "minimal":
-                        if self.supports_minimal_thinking():
-                            thinking_level = ThinkingLevel.MINIMAL
-                        else:
-                            warn_once(
-                                logger,
-                                f"Model {self.service_model_name()} does not "
-                                "support minimal thinking; using low instead.",
-                            )
-                            thinking_level = ThinkingLevel.LOW
-                    case "low":
-                        thinking_level = ThinkingLevel.LOW
-                    case "medium":
-                        thinking_level = ThinkingLevel.MEDIUM
-                    case "high" | "xhigh" | "max":
-                        thinking_level = ThinkingLevel.HIGH
-                    case _:
-                        thinking_level = None  # can't happen, keep mypy happy
+                tier = clamp_reasoning_effort_to_minimal_low_medium_high(
+                    config.reasoning_effort
+                )
+                if tier == "minimal" and not self.supports_minimal_thinking():
+                    warn_once(
+                        logger,
+                        f"Model {self.service_model_name()} does not "
+                        "support minimal thinking; using low instead.",
+                    )
+                    tier = "low"
                 return ThinkingConfig(
-                    include_thoughts=True, thinking_level=thinking_level
+                    include_thoughts=True,
+                    thinking_level=ThinkingLevel(tier.upper()) if tier else None,
                 )
 
             # enable thinking_budget if specified

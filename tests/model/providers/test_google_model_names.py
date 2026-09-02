@@ -123,6 +123,14 @@ def test_pro_codename_is_thinking_only() -> None:
             "vertex/projects/gemini-3-research/locations/us-central1/publishers/google/models/gemini-3.6-flash",
             True,
         ),
+        (
+            "vertex/projects/my-flash-experiments/locations/us-central1/publishers/google/models/gemini-3-pro",
+            False,
+        ),
+        (
+            "vertex/projects/flash-lite-team/locations/us-central1/publishers/google/models/gemini-3.6-flash",
+            True,
+        ),
     ],
 )
 def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
