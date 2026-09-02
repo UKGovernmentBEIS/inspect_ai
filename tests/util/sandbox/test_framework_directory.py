@@ -418,6 +418,65 @@ async def test_exec_runs_with_verified_directory_as_cwd(
     assert _VERIFIED_MARKER not in result.stderr
 
 
+async def test_wrapped_command_stays_in_verified_directory_after_leaf_swap(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    """A hostile swap of the leaf after verification must not redirect writes.
+
+    The command itself plays the attacker: from inside the verified cwd it renames
+    the directory away and plants a symlink to a decoy at the original pathname,
+    then writes through a relative path. The write must land in the directory that
+    was verified (now under its new name), never in the decoy.
+    """
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    decoy = tmp_path / "decoy"
+    decoy.mkdir(mode=0o700)
+    moved = parent / "moved"
+
+    result = await exec_in_framework_directory(
+        local,
+        str(target),
+        [
+            "sh",
+            "-c",
+            'mv -- "$1" "$2" && ln -s -- "$3" "$1" && touch ./marker && pwd -P',
+            "sh",
+            str(target),
+            str(moved),
+            str(decoy),
+        ],
+        user=None,
+    )
+    assert result.success, result.stderr
+    assert result.stdout.strip() == str(moved.resolve())
+    assert (moved / "marker").exists()
+    assert not (decoy / "marker").exists()
+    assert target.is_symlink()
+    # The pathname now names the attacker's symlink; a fresh check refuses it.
+    with pytest.raises(FrameworkDirectoryError, match="symbolic link"):
+        await verify_framework_directory(local, str(target), user=None)
+
+
+async def test_wrapped_command_fails_cleanly_when_leaf_is_removed(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """Removing the verified directory from under the command makes writes fail."""
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    result = await exec_in_framework_directory(
+        local,
+        str(target),
+        ["sh", "-c", 'rmdir -- "$1" && touch ./marker', "sh", str(target)],
+        user=None,
+    )
+    assert not result.success
+    assert not target.exists()
+    assert not (parent / "marker").exists()
+    with pytest.raises(FrameworkDirectoryNotFoundError):
+        await verify_framework_directory(local, str(target), user=None)
+
+
 async def test_exec_ignores_cdpath(
     local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
 ) -> None:
