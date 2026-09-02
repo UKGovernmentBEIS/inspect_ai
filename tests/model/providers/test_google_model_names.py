@@ -30,6 +30,8 @@ KNOWN_MODELS = [
     "gemini-3.5-flash",
     "gemini-3.5-flash-lite",
     "gemini-3.6-flash",
+    "gemini-3.7-flash",
+    "gemini-3.8-flash",
 ]
 
 NON_GENERATIVE_MODELS = [
@@ -70,22 +72,67 @@ def test_codename_models_are_latest(model_name: str) -> None:
     assert api.is_gemini_thinking() is True
     # codename has no "-pro"/"flash" substring
     assert api.is_gemini_thinking_only() is False
-    assert api.is_gemini_3_flash() is False
+    assert api.supports_minimal_thinking() is False
 
 
 def test_pro_codename_is_thinking_only() -> None:
     assert _api("orion-pro-preview").is_gemini_thinking_only() is True
 
 
-def test_flash_codename_supports_minimal_thinking() -> None:
-    assert _api("nimbus-flash-preview").is_gemini_3_flash() is True
+def test_flash_codename_follows_frontier_minimal_thinking() -> None:
+    # the current Flash frontier (3.7+) rejects MINIMAL, so a predeployment
+    # flash codename must not be sent it either
+    assert _api("nimbus-flash-preview").supports_minimal_thinking() is False
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gemini-3-flash-preview", True),
+        ("gemini-3.5-flash", True),
+        ("gemini-3.6-flash", True),
+        ("gemini-3.7-flash", False),
+        ("gemini-3.8-flash", False),
+        ("gemini-4-flash", False),
+        ("gemini-3.1-flash-lite", True),
+        ("gemini-3.5-flash-lite", True),
+        ("gemini-3-pro", False),
+        ("gemini-3.1-pro-preview", False),
+        ("gemini-2.5-flash", False),
+        ("vertex/gemini-3.8-flash", False),
+        ("vertex/gemini-3.6-flash", True),
+    ],
+)
+def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
+    api = GoogleGenAIAPI(
+        model_name=model_name,
+        base_url=None,
+        api_key="test-key",
+        project="test-project" if model_name.startswith("vertex/") else None,
+        location="us-central1" if model_name.startswith("vertex/") else None,
+    )
+    assert api.supports_minimal_thinking() is expected
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gemini-3.8-flash", (3, 8)),
+        ("gemini-3-pro", (3,)),
+        ("gemini-2.5-flash-lite", (2, 5)),
+        ("gemini-3.1-pro-preview", (3, 1)),
+        ("nimbus-flash-preview", None),
+    ],
+)
+def test_gemini_version(model_name: str, expected: tuple[int, ...] | None) -> None:
+    assert _api(model_name).gemini_version() == expected
 
 
 @pytest.mark.parametrize("model_name", CODENAME_MODELS)
 def test_codename_aliases_to_frontier_context_window(model_name: str) -> None:
     # input_tokens_name() aliases to the current frontier so the context window
     # resolves correctly instead of falling back to the 128K default.
-    assert _api(model_name).input_tokens_name() == "google/gemini-3.6-flash"
+    assert _api(model_name).input_tokens_name() == "google/gemini-3.8-flash"
 
 
 @pytest.mark.parametrize("model_name", KNOWN_MODELS)
@@ -100,7 +147,7 @@ def test_future_gemini_version_aliases_to_frontier() -> None:
     api = _api("gemini-4-pro")
     assert api.is_latest() is False
     assert api.is_gemini_3_plus() is True
-    assert api.input_tokens_name() == "google/gemini-3.6-flash"
+    assert api.input_tokens_name() == "google/gemini-3.8-flash"
 
 
 def test_latest_scoped_to_dev_endpoint() -> None:

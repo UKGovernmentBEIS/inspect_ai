@@ -4,6 +4,7 @@ import functools
 import hashlib
 import json
 import os
+import re
 from copy import copy
 from io import BytesIO
 from logging import getLogger
@@ -815,7 +816,7 @@ class GoogleGenAIAPI(ModelAPI):
         # context window / compaction match. Bump when a newer frontier ships.
         # Mirrors OpenAI's and Anthropic's input_tokens_name() aliasing.
         if self.is_gemini() and _get_model_info_direct(self.canonical_name()) is None:
-            return "google/gemini-3.6-flash"
+            return "google/gemini-3.8-flash"
         return super().input_tokens_name()
 
     def is_latest(self) -> bool:
@@ -852,8 +853,28 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini_3(self) -> bool:
         return "gemini-3" in self.model_family()
 
-    def is_gemini_3_flash(self) -> bool:
-        return (self.is_gemini_3() or self.is_latest()) and self.is_gemini_flash()
+    def gemini_version(self) -> tuple[int, ...] | None:
+        """Numeric version parsed from a gemini-N[.N] model name (None if absent)."""
+        match = re.search(r"gemini-(\d+(?:\.\d+)*)", self.model_family())
+        if match is None:
+            return None
+        return tuple(int(part) for part in match.group(1).split("."))
+
+    def supports_minimal_thinking(self) -> bool:
+        """Whether the model accepts thinking_level=MINIMAL.
+
+        Gemini 3 Pro has never accepted it. Gemini 3 Flash accepted it through
+        3.6; Gemini 3.7 Flash and later reject it with a 400, so codename
+        models (treated as the current frontier) follow suit. Flash-Lite still
+        accepts it (it is that line's default).
+        https://ai.google.dev/gemini-api/docs/thinking
+        """
+        if not self.is_gemini_flash():
+            return False
+        if "lite" in self.model_family():
+            return True
+        version = self.gemini_version()
+        return version is not None and (3,) <= version < (3, 7)
 
     def is_gemini_3_plus(self) -> bool:
         return (
@@ -1043,13 +1064,17 @@ class GoogleGenAIAPI(ModelAPI):
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
             # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
             elif config.reasoning_effort is not None and self.is_gemini_3_plus():
-                # note: minimal currently only supported by flash model
-                is_flash = self.is_gemini_3_flash()
                 match config.reasoning_effort:
                     case "minimal":
-                        thinking_level = (
-                            ThinkingLevel.MINIMAL if is_flash else ThinkingLevel.LOW
-                        )
+                        if self.supports_minimal_thinking():
+                            thinking_level = ThinkingLevel.MINIMAL
+                        else:
+                            warn_once(
+                                logger,
+                                f"Model {self.service_model_name()} does not "
+                                "support minimal thinking; using low instead.",
+                            )
+                            thinking_level = ThinkingLevel.LOW
                     case "low":
                         thinking_level = ThinkingLevel.LOW
                     case "medium":

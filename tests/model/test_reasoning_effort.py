@@ -17,6 +17,7 @@ Covers:
 """
 
 import pytest
+from google.genai.types import ThinkingLevel
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._generate_config import GenerateConfig
@@ -201,6 +202,27 @@ def test_google_gemini_2_5_reasoning_tokens_wins_over_effort():
     thinking_config = api.chat_thinking_config(cfg)
     assert thinking_config is not None
     assert thinking_config.thinking_budget == 1024
+
+
+@pytest.mark.parametrize(
+    "model_name,expected_level",
+    [
+        ("gemini-3.6-flash", ThinkingLevel.MINIMAL),
+        ("gemini-3.5-flash-lite", ThinkingLevel.MINIMAL),
+        ("gemini-3.7-flash", ThinkingLevel.LOW),
+        ("gemini-3.8-flash", ThinkingLevel.LOW),
+        ("gemini-3.1-pro-preview", ThinkingLevel.LOW),
+    ],
+)
+def test_google_gemini_3_minimal_effort(model_name, expected_level):
+    """Minimal maps to MINIMAL only where the API accepts it (3.7+ Flash rejects it)."""
+    api = _google_api(model_name)
+    thinking_config = api.chat_thinking_config(
+        GenerateConfig(reasoning_effort="minimal")
+    )
+    assert thinking_config is not None
+    assert thinking_config.thinking_level == expected_level
+    assert thinking_config.thinking_budget is None
 
 
 def test_google_gemini_3_uses_thinking_level_not_bridge():
