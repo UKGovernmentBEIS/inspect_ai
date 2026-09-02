@@ -53,6 +53,7 @@
 - Together: Logprobs requests no longer fail with a 400 on newer models, and `top_logprobs` is now honored instead of being silently capped at 1.
 - Models: `on_stream` now delivers stream events from the Bedrock, Groq, Mistral (completions API), and Azure AI providers.
 - Moonshot: Forcing a tool (or `tool_choice="any"`) on Kimi models other than K3 no longer fails with a 400 — the request falls back to `"auto"` with a warning.
+- Elicitation: string properties with `format: "multiline"` now render as a multi-line field in the console and Textual displays, so `ask_user` can collect pasted command output, logs or stack traces.
 
 ## 0.3.260 (21 August 2026)
 
