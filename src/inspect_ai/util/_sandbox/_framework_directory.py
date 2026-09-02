@@ -16,6 +16,15 @@ The contract for a private framework directory is:
   group/others or is sticky, so no other principal can rename or unlink the
   directory out from under a verified path.
 
+The contract stops at the immediate parent. Ancestors above it are not checked,
+so callers must choose paths whose ancestors are root-owned and not writable by
+others (``/var/tmp/<name>`` qualifies: ``/var`` and ``/`` are root-owned ``0755``).
+A path beneath a directory another principal controls (a home directory, a
+project checkout) gets no guarantee from this helper: that principal can swap
+the whole subtree between calls, and a later call verifying the same pathname
+would be looking at a different object. Extending the walk to every ancestor is
+a deliberate non-goal for now; revisit when a call site needs it.
+
 Any pre-existing entry that does not satisfy the contract makes the operation fail
 with :class:`FrameworkDirectoryError`. Nothing is silently repaired or replaced: a
 wrong-mode or wrong-owner directory may already contain planted content, so the
@@ -341,7 +350,8 @@ async def ensure_framework_directory(
     created with the conventional ``0755``. An existing entry is adopted only if it
     already satisfies the contract described in the module docstring:
     a real directory owned by the uid the command runs as, mode ``0700``, in a parent
-    other principals cannot use to replace it. Concurrent creation by another
+    other principals cannot use to replace it. Only the immediate parent is checked;
+    ``path`` must sit under root-owned ancestors (see the module docstring). Concurrent creation by another
     instance of this helper is tolerated (the survivor is verified like any other
     existing entry).
 
