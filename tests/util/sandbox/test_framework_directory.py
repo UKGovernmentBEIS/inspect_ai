@@ -124,7 +124,7 @@ def _tool_dir(tmp_path: Path, tools: list[str], shims: dict[str, str]) -> Path:
 
 
 _SCRIPT_PATH_LINE = (
-    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 )
 
 
@@ -280,6 +280,8 @@ async def test_rejects_parent_owned_by_another_non_root_uid(
     local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
 ) -> None:
     """Pretend to be uid 4242: the test-user-owned parent is then someone else's."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user (a root-owned parent is accepted)")
     bindir = _tool_dir(
         tmp_path, ["sh", "stat", "mkdir", "chmod", "pwd"], {"id": "echo 4242"}
     )
@@ -351,6 +353,22 @@ async def test_exec_ignores_cdpath(
         sandbox, str(target), ["pwd", "-P"], user=None
     )
     assert result.stdout.strip() == str(target.resolve())
+
+
+async def test_path_has_no_empty_entry_when_inherited_path_is_unset(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """An empty PATH entry means cwd, which is the parent while it is being checked."""
+    script = _SCRIPT.replace(_SCRIPT_PATH_LINE, f"unset PATH\n{_SCRIPT_PATH_LINE}")
+    sandbox = _ScriptOverrideSandbox(local, script)
+    target = parent / "fw"
+    await ensure_framework_directory(sandbox, str(target), user=None)
+    result = await exec_in_framework_directory(
+        sandbox, str(target), ["sh", "-c", 'printf %s "$PATH"'], user=None
+    )
+    assert result.success
+    entries = result.stdout.split(":")
+    assert entries and "" not in entries
 
 
 async def test_exec_does_not_create_and_does_not_run_command_on_violation(
@@ -522,6 +540,21 @@ async def test_violation_verdict_becomes_framework_directory_error() -> None:
     assert user == "root"
     assert cmd[:2] == ["sh", "-c"]
     assert cmd[-2:] == ["/var/tmp", ".x"]
+
+
+async def test_verdict_is_honoured_when_exit_status_is_not_propagated() -> None:
+    """A provider that flattens exit statuses must not turn a violation into 'did not run'."""
+    sandbox = ScriptedSandbox(
+        ExecResult(
+            success=True,
+            returncode=0,
+            stdout="",
+            stderr=f"{_VIOLATION_MARKER}: /var/tmp/.x is a symbolic link\n",
+        )
+    )
+    with pytest.raises(FrameworkDirectoryError, match="symbolic link") as excinfo:
+        await ensure_framework_directory(sandbox, "/var/tmp/.x", user="root")
+    assert not isinstance(excinfo.value, FrameworkDirectoryNotFoundError)
 
 
 async def test_unavailable_verdict_is_not_a_contract_violation() -> None:

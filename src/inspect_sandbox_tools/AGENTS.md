@@ -38,13 +38,24 @@ Linux executables are built via PyInstaller `--onedir` and packaged as a gzipped
 When a tool needs to run in a container, the system automatically injects the appropriate executable:
 
 1. Tool requests a sandbox via `sandbox_with_injected_tools()`
-2. System checks if `/var/tmp/.da7be258e003d428/inspect-sandbox-tools` exists in the container
+2. System checks for a trustworthy existing installation: `/var/tmp/.da7be258e003d428`
+   must be a real directory owned by the tools user with mode 0700, in a parent that
+   other users cannot use to replace it, and must hold `inspect-sandbox-tools` as a
+   regular file. The check runs as root and falls back to the default user only when
+   the sandbox cannot exec as root; whichever user the tools are found (or installed)
+   under becomes the tools user. A merely readable launcher is not enough.
 3. If missing, the injection process:
    - Detects container architecture (amd64/arm64) and libc (glibc/musl)
    - Selects the matching pre-built artifact from local binaries, S3, or a local Docker build
-   - Writes the gzipped onedir tar into the container and extracts it into `/var/tmp/.da7be258e003d428`
-   - Restricts the extracted tree to root when Inspect can run commands as root. A
-     root-owned 0700 tree prevents access by other, non-root users in the sandbox;
+   - Creates `/var/tmp/.da7be258e003d428` with mode 0700 as the tools user through the
+     verified framework-directory helper (`inspect_ai/util/_sandbox/_framework_directory.py`).
+     A pre-existing entry that is a symlink, not a directory, owned by another uid, or
+     not mode 0700 fails injection with an error naming the path and the reason; it is
+     never adopted or repaired.
+   - Writes the gzipped onedir tar into the container and extracts it with the verified
+     directory as the working directory, then re-verifies the directory immediately
+     before starting the server from it.
+   - A root-owned 0700 tree prevents access by other, non-root users in the sandbox;
      it is not a boundary against a process running in the sandbox as root.
 
 The system includes fallback mechanisms to download executables from S3 or build them locally if needed.

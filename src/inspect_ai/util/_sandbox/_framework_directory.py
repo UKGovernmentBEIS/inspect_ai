@@ -41,10 +41,11 @@ from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
 
-# The script reports a verdict with a marker line on stderr plus a matching exit
-# status, and announces successful verification with a marker line just before it
-# execs the wrapped command. A verdict is only honoured when verification did not
-# complete, so the wrapped command's own stderr and exit status cannot forge one.
+# The script reports a verdict with a marker line on stderr and announces successful
+# verification with a marker line just before it execs the wrapped command. A
+# verdict is only honoured when verification did not complete, so the wrapped
+# command's own stderr cannot forge one. Each verdict also has its own exit status
+# for anyone reading a log, but the host does not rely on it (see `_verdict`).
 _VIOLATION_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VIOLATION"
 _VIOLATION_EXIT = 3
 _MISSING_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_MISSING"
@@ -61,11 +62,13 @@ _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 # System directories are put ahead of the inherited PATH so that a user-owned
 # directory an image prepends to PATH cannot supply the `stat`/`id`/`mkdir` the
 # checks (or the wrapped command) rely on; `sh` itself is resolved by the provider.
+# An unset PATH must not leave a trailing empty entry, which shells resolve from
+# the cwd (the parent directory, which may be world-writable).
 _SCRIPT = """
 set -u
 umask 077
 unset CDPATH
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}
 export PATH
 create=$1 parent=$2 leaf=$3
 shift 3
@@ -197,10 +200,15 @@ def split_framework_path(path: str) -> FrameworkPath:
     return FrameworkPath(parent=str(pure.parent), leaf=pure.name)
 
 
-def _verdict(result: ExecResult[str], marker: str, exit_code: int) -> str | None:
-    """Return the script's message if it reported ``marker`` with ``exit_code``."""
-    if result.returncode != exit_code:
-        return None
+def _verdict(result: ExecResult[str], marker: str) -> str | None:
+    """Return the script's message if it reported ``marker``.
+
+    The exit status is deliberately not consulted. With the verified marker absent,
+    only the script (or the provider) wrote to stderr, so the marker alone is
+    authoritative; requiring the status as well would let a provider that does not
+    propagate exit codes turn a violation into a "did not run" result, which callers
+    may legitimately treat as "this user is unavailable" and downgrade.
+    """
     for line in result.stderr.splitlines():
         if line.startswith(marker + ":"):
             return line[len(marker) + 1 :].strip()
@@ -241,18 +249,16 @@ async def _run_verified(
         # Verification completed; whatever follows is the wrapped command's own
         # outcome (so any verdict-shaped line it printed is not ours).
         return _strip_verified_marker(result)
-    if (message := _verdict(result, _MISSING_MARKER, _MISSING_EXIT)) is not None:
+    if (message := _verdict(result, _MISSING_MARKER)) is not None:
         raise FrameworkDirectoryNotFoundError(
             f"Sandbox framework directory {path} does not exist: {message}"
         )
-    if (message := _verdict(result, _VIOLATION_MARKER, _VIOLATION_EXIT)) is not None:
+    if (message := _verdict(result, _VIOLATION_MARKER)) is not None:
         raise FrameworkDirectoryError(
             f"Sandbox framework directory {path} cannot be trusted: {message}. "
             "Remove the entry (or correct its ownership and permissions) and retry."
         )
-    if (
-        message := _verdict(result, _UNAVAILABLE_MARKER, _UNAVAILABLE_EXIT)
-    ) is not None:
+    if (message := _verdict(result, _UNAVAILABLE_MARKER)) is not None:
         raise FrameworkDirectoryUnavailableError(
             f"Cannot verify sandbox framework directory {path}: {message}"
         )

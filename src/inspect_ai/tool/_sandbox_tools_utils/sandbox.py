@@ -115,12 +115,13 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     regular file. A merely readable launcher is not enough: a tree owned by another
     principal could substitute its own launcher.
 
-    The tools user is root once a root-capable injection has run on this sandbox
-    object. Before that (a fresh object attached to a sandbox that may already hold
-    an installation) the check runs as root first, because a root-owned 0700 tree
-    cannot even be entered by the default user; a trustworthy root installation
-    found that way is adopted by recording root as the tools user. Only when the
-    sandbox cannot exec as root at all is the default user's view consulted.
+    The tools user is known once an injection has run on this sandbox object (root
+    when the sandbox can exec as root, otherwise the default user). Before that (a
+    fresh object attached to a sandbox that may already hold an installation) the
+    check runs as root first, because a root-owned 0700 tree cannot even be entered
+    by the default user; a trustworthy root installation found that way is adopted
+    by recording root as the tools user. Only when the sandbox cannot exec as root
+    at all is the default user's view consulted.
     """
     try:
         return await _detect_sandbox_tools(sandbox)
@@ -133,7 +134,7 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
 
 
 async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
-    if sandbox._tools_user is not None:
+    if sandbox._tools_user_resolved or sandbox._tools_user is not None:
         return await _tools_installed_as(sandbox, sandbox._tools_user)
 
     try:
@@ -151,8 +152,14 @@ async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
         )
         return await _tools_installed_as(sandbox, None)
     if installed:
-        sandbox._tools_user = "root"
+        _set_tools_user(sandbox, "root")
     return installed
+
+
+def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
+    """Record which user the sandbox tools run as (``None`` = default user)."""
+    sandbox._tools_user = user
+    sandbox._tools_user_resolved = True
 
 
 async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> bool:
@@ -193,9 +200,10 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         # extracted into it. A root-owned 0700 tree prevents access by other,
         # non-root users, but not by a process running in the sandbox as root.
         if await _create_tools_dir_as_root(sandbox):
-            sandbox._tools_user = "root"
+            _set_tools_user(sandbox, "root")
         else:
             await ensure_framework_directory(sandbox, SANDBOX_TOOLS_DIR, user=None)
+            _set_tools_user(sandbox, None)
 
         await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)
 

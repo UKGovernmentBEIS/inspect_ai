@@ -187,6 +187,25 @@ async def test_inject_falls_back_to_default_user_when_root_probe_raises(
     assert ([SANDBOX_CLI, "start-server"], None) in sandbox.exec_calls
 
 
+async def test_detector_skips_root_probe_after_rootless_injection(
+    stub_artifact: dict[str, object],
+) -> None:
+    """Once a rootless install has run, later tool calls do not re-probe root."""
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if user == "root":
+            raise RuntimeError("runuser: may not be used by non-root users")
+        return REGULAR_FILE if is_framework_dir_call(cmd) else OK
+
+    sandbox = FakeSandbox(policy)
+    await sandbox_tools._inject_container_tools_code(sandbox)
+    assert sandbox._tools_user is None
+
+    sandbox.exec_calls.clear()
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
+    assert [user for _, user in sandbox.exec_calls] == [None]
+
+
 async def test_inject_falls_back_when_root_exec_fails_without_verdict(
     stub_artifact: dict[str, object],
 ) -> None:
