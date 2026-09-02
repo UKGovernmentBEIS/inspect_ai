@@ -194,6 +194,8 @@ The `--incomplete-action` option resolves this by letting you choose the disposi
 - `retry` (the default) marks them as cancelled errors that a later retry re-runs.
 - `error` resolves them as operator terminations. When every expected sample is then final, the recovered log is finalized with status `"success"` and full results — nothing will retry it. If expected samples are missing entirely (never started), the log keeps status `"error"` and stays retryable.
 
+Note that finalization freezes *every* errored sample in the recovered log, not only the ones resolved during recovery: samples that had already failed before the crash (within the eval's `fail_on_error` tolerance, or with `fail_on_error=False`) are recorded as errors in the finalized log rather than re-run — the same outcome the eval would have reached had it not crashed. An explicit `inspect eval-retry` on the finalized log can still re-run its errored samples later.
+
 For example, to bring a crashed eval with a few hung samples to a terminal state:
 
 ``` bash

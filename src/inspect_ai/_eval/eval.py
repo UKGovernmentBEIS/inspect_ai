@@ -1640,7 +1640,7 @@ async def eval_retry_async(
                         incomplete_max=incomplete_max,
                     )
                 except RecoveryThresholdExceeded as ex:
-                    logging.getLogger(__name__).warning(
+                    log.warning(
                         f"Recovery for {eval_log.location} exceeded "
                         f"incomplete_max; falling back to recover-and-retry: {ex}"
                     )
@@ -1658,9 +1658,7 @@ async def eval_retry_async(
             except RecoveryNotAvailable:
                 pass  # no recovery data available — proceed with flushed samples
             except Exception as ex:
-                logging.getLogger(__name__).warning(
-                    f"Recovery failed for {eval_log.location}: {ex}"
-                )
+                log.warning(f"Recovery failed for {eval_log.location}: {ex}")
 
     # eval them in turn
     eval_logs: list[EvalLog] = []
@@ -1856,7 +1854,7 @@ async def eval_retry_async(
         )
 
         # run the eval
-        log = (
+        retried_log = (
             await eval_async(
                 tasks=PreviousTask(
                     id=task_id,
@@ -1919,7 +1917,7 @@ async def eval_retry_async(
         )[0]
 
         # add it to our results
-        eval_logs.append(log)
+        eval_logs.append(retried_log)
 
     # Clean up recovered files only for retries that succeeded. On failure,
     # the recovered file serves as a safety net with samples that would
