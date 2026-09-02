@@ -3066,9 +3066,7 @@ var i = o$1(((exports) => {
 					case u:
 						var _ = e.slice(t, v);
 						m.warning(`attribute "` + _ + `" missed quot(")!!`), h(g, _, t);
-					case d:
-						y = f;
-						break;
+					case d: y = f;
 				}
 				else switch (y) {
 					case c:

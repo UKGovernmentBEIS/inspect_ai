@@ -6,6 +6,8 @@
 - Scoring: `match()`, `includes()`, `exact()`, `f1()`, `pattern()` and `answer()` now record `reason="no_response"` when the raw model completion is empty or whitespace only, so a model that returned nothing is distinguishable from one that answered wrong. Score values are unchanged. (#5376)
 - Grok: Non-streaming requests cut off by `attempt_timeout` are now retried, and ones cut off by a sample `time_limit` are recorded as that limit, instead of failing with a bare cancellation.
 - Bugfix: Samples whose solver is cut off by a cancellation that inspect did not issue are now recorded as sample errors instead of being scored as completed.
+- Inspect View: Find on the Messages tab now searches the whole sample (including running ones) case- and accent-insensitively, paging through matches beyond the loaded rows.
+- Logs: `read_eval_log_sample()` now reads samples stored in the chunked per-sample layout (previously raised `IndexError` for them).
 
 ## 0.3.268 (22 September 2026)
 
