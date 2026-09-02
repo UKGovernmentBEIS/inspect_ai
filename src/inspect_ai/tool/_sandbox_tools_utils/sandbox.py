@@ -134,7 +134,9 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     the sample; instead the next call probes root again, root sees the planted tree as
     a violation, and injection fails loud. The cost falls only on providers that
     refuse root by exception: one failing root exec per tool call until injection
-    runs on this object and records the tools user itself.
+    runs on this object and records the tools user itself. When the default user's
+    view finds an existing installation, injection never runs on this object, so
+    the extra exec repeats for the object's lifetime.
 
     The probe records no transcript events: it repeats on every tool call and its
     argv carries the whole verification script, so logging it would add kilobytes
@@ -414,12 +416,9 @@ async def _remove_staged_archive(
             user=user,
             expected_uid=_expected_uid(user),
         )
-    except (
-        FrameworkDirectoryError,
-        FrameworkDirectoryUnavailableError,
-        FrameworkDirectoryUserError,
-        RuntimeError,
-    ) as ex:
+    except RuntimeError as ex:
+        # Covers every helper verdict (all subclass RuntimeError) as well as the
+        # helper's own "check never ran" failure; anything else propagates.
         trace_message(
             logger, TRACE_SANDBOX_TOOLS, f"staged archive {path} not removed: {ex}"
         )
