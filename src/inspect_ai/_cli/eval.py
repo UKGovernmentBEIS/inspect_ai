@@ -1354,7 +1354,7 @@ def _eval_command_impl(
 )
 @click.option(
     "--incomplete-max",
-    type=float,
+    type=click.FloatRange(min=0),
     default=None,
     help=INCOMPLETE_MAX_HELP,
     envvar="INSPECT_EVAL_INCOMPLETE_MAX",
@@ -2578,7 +2578,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 )
 @click.option(
     "--incomplete-max",
-    type=float,
+    type=click.FloatRange(min=0),
     default=None,
     help=INCOMPLETE_MAX_HELP,
     envvar="INSPECT_EVAL_INCOMPLETE_MAX",

@@ -376,7 +376,7 @@ def export_config_command(log_file: str, output: str | None, fmt: str) -> None:
 )
 @click.option(
     "--incomplete-max",
-    type=float,
+    type=click.FloatRange(min=0),
     default=None,
     help="Safety threshold for --incomplete-action error (count if >= 1, or "
     "proportion of expected samples if strictly less than 1): refuse to recover "

@@ -328,6 +328,47 @@ async def test_recover_incomplete_max() -> None:
             assert log.status == "success"
 
 
+async def test_recover_incomplete_max_rejects_negative() -> None:
+    """A negative incomplete_max is a configuration error, not a silent refusal.
+
+    Zero stays valid (resolve only when nothing was in progress); the check
+    runs before recovery so nothing is read or written.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            _write_crashed_eval(eval_path, samples=[_make_sample(1), _make_sample(2)])
+            _create_buffer_db(
+                eval_path, completed_ids=[3, 4], in_progress_ids=[], db_dir=db_dir
+            )
+
+            for incomplete_action in ("error", "retry"):
+                with pytest.raises(ValueError, match="incomplete_max must be >= 0"):
+                    await recover_eval_log_async(
+                        eval_path,
+                        output=output_path,
+                        cleanup=False,
+                        _db_dir=db_dir,
+                        incomplete_action=incomplete_action,
+                        incomplete_max=-1,
+                    )
+            assert not os.path.exists(output_path)
+
+            # zero is a valid threshold: nothing in progress, so it finalizes
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+                incomplete_max=0,
+            )
+            assert log.status == "success"
+
+
 async def test_recover_incomplete_max_inert_under_retry(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

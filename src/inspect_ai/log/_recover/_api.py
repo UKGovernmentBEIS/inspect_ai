@@ -55,14 +55,27 @@ class RecoveryThresholdExceeded(Exception):
 def resolve_incomplete_max(
     incomplete_action: IncompleteAction, incomplete_max: int | float | None
 ) -> int | float | None:
-    """Drop (with a warning) an `incomplete_max` that cannot apply.
+    """Validate `incomplete_max`, dropping (with a warning) one that cannot apply.
+
+    A negative threshold is rejected: it can never be satisfied, so every
+    resolving recovery would refuse (or silently fall back to retry) with no
+    hint that the value was the cause. `0` is valid and means "resolve only
+    when nothing was in progress".
 
     The guard only governs a resolving disposition; under `"retry"` nothing is
     resolved, so a threshold is inert. Warn rather than fail so a threshold
     baked into the environment as standing policy (`INSPECT_EVAL_INCOMPLETE_MAX`)
     does not break runs that keep the default disposition, and return `None` so
     callers can forward the result without warning a second time downstream.
+
+    Raises:
+        ValueError: `incomplete_max` is negative.
     """
+    if incomplete_max is not None and incomplete_max < 0:
+        raise ValueError(
+            f"incomplete_max must be >= 0 (a count if >= 1, or a proportion of "
+            f"expected samples if strictly less than 1), got {incomplete_max}."
+        )
     if incomplete_action == "retry" and incomplete_max is not None:
         logger.warning(
             f"incomplete_max={incomplete_max} has no effect with "
@@ -143,6 +156,7 @@ def recover_eval_log(
         RecoveryNotAvailable: There is nothing to recover.
         RecoveryThresholdExceeded: More samples were in progress than
             `incomplete_max` allows.
+        ValueError: `incomplete_max` is negative.
     """
     return run_coroutine(
         recover_eval_log_async(
@@ -238,7 +252,7 @@ async def recover_eval_log_async(
             )
 
     # Step 3: Determine recovery path and write
-    buffer = recovery_data.buffer if recovery_data else None
+    buffer = recovery_data.buffer
     streaming_buffer: SampleBufferFilestore | None = None
     streaming_summaries: list[tuple[EvalSampleSummary, bool]] | None = None
 
@@ -254,12 +268,8 @@ async def recover_eval_log_async(
         if buffer is None or isinstance(buffer, SampleBufferFilestore):
             return
 
-        all_summaries = [
-            (summary, False)
-            for summary in recovery_data.completed  # type: ignore[union-attr]
-        ] + [
-            (summary, True)
-            for summary in recovery_data.in_progress  # type: ignore[union-attr]
+        all_summaries = [(summary, False) for summary in recovery_data.completed] + [
+            (summary, True) for summary in recovery_data.in_progress
         ]
 
         for summary, is_in_progress in all_summaries:
