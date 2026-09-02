@@ -5271,6 +5271,153 @@
         "title": "EventsData",
         "type": "object"
       },
+      "FindMessagesProjection": {
+        "description": "How the viewer currently shows the rows; a host sends only what it changed.",
+        "properties": {
+          "display_mode": {
+            "default": "rendered",
+            "enum": [
+              "rendered",
+              "raw"
+            ],
+            "title": "Display Mode",
+            "type": "string"
+          },
+          "tool_call_style": {
+            "default": "complete",
+            "enum": [
+              "complete",
+              "compact",
+              "omit"
+            ],
+            "title": "Tool Call Style",
+            "type": "string"
+          },
+          "unlabeled_roles": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Unlabeled Roles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "unlabeled_roles",
+          "tool_call_style",
+          "display_mode"
+        ],
+        "title": "FindMessagesProjection",
+        "type": "object"
+      },
+      "FindMessagesRequest": {
+        "properties": {
+          "after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "epoch": {
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "projection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FindMessagesProjection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sample_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Sample Id"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample_id",
+          "epoch",
+          "text"
+        ],
+        "title": "FindMessagesRequest",
+        "type": "object"
+      },
+      "FindMessagesResponse": {
+        "properties": {
+          "at_end": {
+            "title": "At End",
+            "type": "boolean"
+          },
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/FindMessagesRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows",
+          "at_end",
+          "complete"
+        ],
+        "title": "FindMessagesResponse",
+        "type": "object"
+      },
+      "FindMessagesRow": {
+        "properties": {
+          "anchor": {
+            "title": "Anchor",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "texts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Texts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "anchor",
+          "index",
+          "count",
+          "texts"
+        ],
+        "title": "FindMessagesRow",
+        "type": "object"
+      },
       "GenerateConfig": {
         "description": "Model generation options.",
         "properties": {
@@ -11698,6 +11845,45 @@
           }
         },
         "summary": "Api Events"
+      }
+    },
+    "/find-messages/{log}": {
+      "post": {
+        "operationId": "api_find_messages_find_messages__log__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindMessagesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindMessagesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Find Messages"
       }
     },
     "/flow": {

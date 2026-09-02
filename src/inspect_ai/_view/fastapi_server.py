@@ -64,6 +64,7 @@ from .common import (
     read_eval_set_info_async,
     stream_log_bytes,
 )
+from .find import FindMessagesRequest, FindMessagesResponse, find_messages
 from .network import (
     BrowserOriginMiddleware,
     HostValidationMiddleware,
@@ -578,6 +579,17 @@ def view_server_app(
         if body is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
         return body
+
+    @app.post("/find-messages/{log:path}", response_model=FindMessagesResponse)
+    async def api_find_messages(
+        request: Request, log: str, find: FindMessagesRequest
+    ) -> FindMessagesResponse | Response:
+        file = normalize_uri(log)
+        await _validate_read(request, file)
+        response = await find_messages(await _map_file(request, file), find)
+        if response is None:
+            return Response(status_code=HTTP_404_NOT_FOUND)
+        return response
 
     @app.get("/app-config", response_model=AppConfig)
     async def api_app_config() -> AppConfig:

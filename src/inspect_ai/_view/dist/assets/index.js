@@ -11320,7 +11320,7 @@ function toString$2(v) {
 ({ ...functions });
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/util/error.js
-function error$8(message, cause) {
+function error$9(message, cause) {
 	throw Error(message, { cause });
 }
 //#endregion
@@ -11883,7 +11883,7 @@ var windowFunctions = {
 	ntile: {
 		create(num) {
 			num = +num;
-			if (!(num > 0)) error$8("ntile num must be greater than zero.");
+			if (!(num > 0)) error$9("ntile num must be greater than zero.");
 			const { init, value } = cume_dist.create();
 			return {
 				init,
@@ -11944,7 +11944,7 @@ var windowFunctions = {
 	nth_value: {
 		create(nth) {
 			nth = +nth;
-			if (!(nth > 0)) error$8("nth_value nth must be greater than zero.");
+			if (!(nth > 0)) error$9("nth_value nth must be greater than zero.");
 			return {
 				init: noop$1,
 				value: (w, f) => {
@@ -36995,7 +36995,7 @@ var usePrismHighlight = (containerRef, contentLength) => {
 				highlightCodeBlocks(container);
 			});
 			const observer = new MutationObserver((mutations) => {
-				if (mutations.some(_temp2$61)) highlightCodeBlocks(container);
+				if (mutations.some(_temp2$62)) highlightCodeBlocks(container);
 			});
 			observer.observe(container, {
 				childList: true,
@@ -37016,12 +37016,12 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useEffect)(t0, t1);
 };
-function _temp$105(node) {
+function _temp$107(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$61(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$105);
+function _temp2$62(mutation) {
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$107);
 	return false;
 }
 //#endregion
@@ -37566,7 +37566,7 @@ function useRevokableUrls() {
 	let t3;
 	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = () => () => {
-			urlsRef.current.forEach(_temp$104);
+			urlsRef.current.forEach(_temp$106);
 			urlsRef.current = [];
 		};
 		t3 = [];
@@ -37579,7 +37579,7 @@ function useRevokableUrls() {
 	(0, import_react.useEffect)(t2, t3);
 	return createRevokableUrl;
 }
-function _temp$104(url_0) {
+function _temp$106(url_0) {
 	return URL.revokeObjectURL(url_0);
 }
 //#endregion
@@ -37689,7 +37689,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$103));
+				replaceMeasurementItems(testElement, segments.map(_temp$105));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -37715,7 +37715,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$60),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$61),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -37753,10 +37753,10 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$103(segment) {
+function _temp$105(segment) {
 	return segment.text;
 }
-function _temp2$60(segment_0) {
+function _temp2$61(segment_0) {
 	return segment_0.text;
 }
 //#endregion
@@ -38113,6 +38113,1070 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 		t1 = $[2];
 	}
 	(0, import_react.useEffect)(t0, t1);
+}
+//#endregion
+//#region ../../packages/react/src/hooks/useOnChange.ts
+/**
+* Runs `onChange` after a commit in which `value` differs (by `Object.is`)
+* from the previous commit's; not on mount. Always calls the latest
+* `onChange`, so it can close over current state without dependency plumbing.
+*/ function useOnChange(value, onChange) {
+	const $ = (0, import_compiler_runtime.c)(4);
+	const onChangeRef = useLatestRef(onChange);
+	const previousRef = (0, import_react.useRef)(value);
+	let t0;
+	let t1;
+	if ($[0] !== onChangeRef || $[1] !== value) {
+		t0 = () => {
+			const previous = previousRef.current;
+			if (Object.is(previous, value)) return;
+			previousRef.current = value;
+			onChangeRef.current(value, previous);
+		};
+		t1 = [value, onChangeRef];
+		$[0] = onChangeRef;
+		$[1] = value;
+		$[2] = t0;
+		$[3] = t1;
+	} else {
+		t0 = $[2];
+		t1 = $[3];
+	}
+	(0, import_react.useEffect)(t0, t1);
+}
+//#endregion
+//#region ../../packages/react/src/find/findClip.ts
+/** Whether `range` sits below a collapsed clip of height `foldPx`. */ function rangeExceedsFold(clip, range, foldPx) {
+	if (typeof range.getClientRects !== "function") return false;
+	const box = range.getClientRects()[0];
+	if (box === void 0) return false;
+	return box.bottom > clip.getBoundingClientRect().top + foldPx + 1;
+}
+//#endregion
+//#region ../../packages/react/src/find/findStore.ts
+var FIND_IDLE_STATE = {
+	term: "",
+	rows: [],
+	activeRow: null,
+	activeOccurrence: null,
+	activeOrdinal: null,
+	count: null,
+	exact: false,
+	noResults: false,
+	error: null,
+	scopeId: null
+};
+/**
+* The registered FindSurface plus the query, matching rows and navigation.
+*
+* A term scans the source forward from the top, one page after another,
+* and keeps every matching row, so "N of M" is a position in that list and
+* M grows page by page (M+ until the scan walks off a sealed source).
+* Stepping is local; a step past the known rows waits for the next page
+* (steps accumulate as a signed count meanwhile) and past the end of a
+* finished scan it wraps. A data or source change, or a same-scope
+* re-register, re-scans while the old rows stay on screen, then puts the
+* user back on their row by anchor without scrolling (else on the nearest
+* row by index, scrolled to). Only an activation (first hit, step, wrap,
+* that fallback) reveals: it asks the surface to bring the row in and holds
+* one reveal for the row's highlighter to claim. Inside a row the step
+* count is its DOM match count while it is mounted and has reported, the
+* source's count otherwise; a row rendering none of its matches is skipped.
+*/ var FindStore = class {
+	state = FIND_IDLE_STATE;
+	listeners = /* @__PURE__ */ new Set();
+	surface = null;
+	term = "";
+	rows = [];
+	scanDone = false;
+	sealed = false;
+	error = null;
+	active = null;
+	scan = null;
+	/** Kept across an unregister so a same-scope re-register (a tab switch)
+	*  lands back on the row; a different scope discards it. */ lastActive = null;
+	mounted = /* @__PURE__ */ new Set();
+	domCounts = /* @__PURE__ */ new Map();
+	revealAbort = null;
+	/** The last activation's reveal, until its row claims it. */ pendingReveal = null;
+	/** Steps waiting for rows the scan has not delivered: +1 forward, -1 back. */ pending = 0;
+	subscribe = (listener) => {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
+	};
+	getState = () => this.state;
+	publish() {
+		const next = {
+			term: this.term,
+			rows: this.rows,
+			activeRow: this.active?.row ?? null,
+			activeOccurrence: this.active?.occurrence ?? null,
+			activeOrdinal: this.ordinal(),
+			count: this.count(),
+			exact: this.scanDone && this.sealed,
+			noResults: this.scanDone && this.rows.length === 0,
+			error: this.error,
+			scopeId: this.surface?.scopeId ?? null
+		};
+		if (this.state.term === next.term && this.state.rows === next.rows && this.state.activeRow === next.activeRow && this.state.activeOccurrence === next.activeOccurrence && this.state.activeOrdinal === next.activeOrdinal && this.state.count === next.count && this.state.exact === next.exact && this.state.noResults === next.noResults && this.state.error === next.error && this.state.scopeId === next.scopeId) return;
+		this.state = next;
+		for (const l of this.listeners) l();
+	}
+	/** Matches found so far; null until the first page has landed. */ count() {
+		if (this.rows.length === 0 && !this.scanDone) return null;
+		let occurrences = 0;
+		for (const row of this.rows) occurrences += row.count;
+		return occurrences;
+	}
+	stepCount(row) {
+		return this.domCounts.get(row.anchor.id) ?? row.count;
+	}
+	/** The active occurrence's position in source counts; null while the
+	*  active row renders no match (it flashes instead). */ ordinal() {
+		const active = this.active;
+		if (!active) return null;
+		const activeRow = this.rows[active.row];
+		if (this.stepCount(activeRow) === 0) return null;
+		let before = 0;
+		for (let i = 0; i < active.row; i++) before += this.rows[i].count;
+		const within = Math.min(active.occurrence, Math.max(activeRow.count - 1, 0));
+		return before + within;
+	}
+	registerSurface(surface) {
+		this.setSurface(surface);
+		return () => {
+			if (this.surface === surface) this.setSurface(null);
+		};
+	}
+	updateSource(scopeId, source) {
+		const surface = this.surface;
+		if (!surface || surface.scopeId !== scopeId || surface.source === source) return;
+		surface.source = source;
+		if (this.term) this.startScan(this.relocation());
+	}
+	invalidate(scopeId) {
+		if (this.surface?.scopeId !== scopeId || !this.term) return;
+		this.startScan(this.relocation());
+	}
+	/** Where a re-scan should put the user: the active row, or the row a
+	*  re-scan already in flight is still looking for. */ relocation() {
+		return this.position() ?? this.scan?.relocate ?? null;
+	}
+	attachRow(anchorId) {
+		this.mounted.add(anchorId);
+		return () => {
+			this.mounted.delete(anchorId);
+			this.forgetRowCount(anchorId);
+		};
+	}
+	reportRowCount(anchorId, count) {
+		if (!this.mounted.has(anchorId)) return;
+		if (count === null) {
+			this.forgetRowCount(anchorId);
+			return;
+		}
+		if (this.domCounts.get(anchorId) === count) return;
+		this.domCounts.set(anchorId, count);
+		this.clampActive(anchorId, count);
+		this.publish();
+	}
+	/** Back to the source count: clamp the active occurrence to it. */ forgetRowCount(anchorId) {
+		if (!this.domCounts.delete(anchorId)) return;
+		const active = this.active;
+		if (active) this.clampActive(anchorId, this.rows[active.row].count);
+		this.publish();
+	}
+	clampActive(anchorId, count) {
+		const active = this.active;
+		if (active && this.rows[active.row].anchor.id === anchorId && active.occurrence >= count) active.occurrence = Math.max(count - 1, 0);
+	}
+	setSurface(surface) {
+		const previous = this.relocation() ?? this.lastActive;
+		const relocate = surface && previous?.scopeId !== surface.scopeId ? null : previous;
+		const reveal = this.pendingReveal;
+		this.surface = surface;
+		this.reset();
+		this.lastActive = surface === null ? previous : null;
+		if (reveal !== null && reveal.anchorId === relocate?.anchorId) this.pendingReveal = reveal;
+		this.publish();
+		if (surface && this.term) this.startScan(relocate);
+	}
+	claimReveal(anchorId) {
+		const reveal = this.pendingReveal;
+		if (reveal === null || reveal.anchorId !== anchorId) return null;
+		this.pendingReveal = null;
+		return reveal.kind;
+	}
+	setTerm(term) {
+		if (term === this.term) return;
+		this.reset();
+		this.lastActive = null;
+		this.term = term;
+		this.publish();
+		if (term && this.surface) this.startScan(null);
+	}
+	next() {
+		this.step("forward");
+	}
+	previous() {
+		this.step("backward");
+	}
+	/** Run the current term again (Enter after a failed page). */ refresh() {
+		if (this.term && this.surface) this.startScan(this.relocation());
+	}
+	close() {
+		this.reset();
+		this.lastActive = null;
+		this.term = "";
+		this.publish();
+	}
+	dispose() {
+		this.abortAll();
+		this.listeners.clear();
+	}
+	position() {
+		const active = this.active;
+		const scopeId = this.surface?.scopeId;
+		if (!active || scopeId === void 0) return null;
+		const row = this.rows[active.row];
+		return {
+			scopeId,
+			anchorId: row.anchor.id,
+			index: row.index,
+			occurrence: active.occurrence
+		};
+	}
+	abortAll() {
+		this.scan?.ac.abort();
+		this.scan = null;
+		this.revealAbort?.abort();
+		this.revealAbort = null;
+		this.pending = 0;
+	}
+	reset() {
+		this.abortAll();
+		this.rows = [];
+		this.scanDone = false;
+		this.sealed = false;
+		this.error = null;
+		this.active = null;
+		this.pendingReveal = null;
+		this.domCounts.clear();
+	}
+	/** Walk the source from the top. With `relocate`, the rows on screen stay
+	*  until the scan reaches that row (by anchor, or past its index), then
+	*  the user is put back there; without it the first page replaces them. */ startScan(relocate) {
+		this.scan?.ac.abort();
+		this.scan = {
+			ac: new AbortController(),
+			rows: [],
+			done: false,
+			sealed: false,
+			relocate
+		};
+		this.error = null;
+		if (!relocate) {
+			this.rows = [];
+			this.scanDone = false;
+			this.active = null;
+		}
+		this.publish();
+		this.fetchPage(this.scan, void 0);
+	}
+	fetchPage(scan, after) {
+		const surface = this.surface;
+		if (!surface) return;
+		surface.source.find({ text: this.term }, after, scan.ac.signal).then((page) => {
+			if (this.scan !== scan) return;
+			this.onPage(scan, page);
+		}, (error) => {
+			if (this.scan !== scan) return;
+			this.error = error instanceof Error ? error.message : String(error);
+			this.scan = null;
+			this.pending = 0;
+			if (scan.rows.length > 0) {
+				scan.done = true;
+				scan.sealed = false;
+				this.commit(scan);
+			}
+			this.publish();
+		});
+	}
+	onPage(scan, page) {
+		const known = scan.rows[scan.rows.length - 1];
+		const first = page.rows[0];
+		const stuck = known !== void 0 && first !== void 0 && first.index <= known.index;
+		scan.rows = stuck ? scan.rows : scan.rows.concat(page.rows);
+		scan.sealed = page.complete;
+		scan.done = page.atEnd || stuck;
+		if (scan.done) this.scan = null;
+		this.commit(scan);
+		this.drain();
+		this.publish();
+		if (!scan.done) {
+			const last = scan.rows[scan.rows.length - 1];
+			if (last) this.fetchPage(scan, last.anchor);
+			else this.fetchPage(scan, void 0);
+		}
+	}
+	/** Publish the scan's rows: right away when nothing on screen is kept,
+	*  else once the scan has reached the user's row (or ended). */ commit(scan) {
+		const previous = scan.relocate && (this.position() ?? scan.relocate);
+		if (previous) {
+			const at = scan.rows.findIndex((r) => r.anchor.id === previous.anchorId);
+			const last = scan.rows[scan.rows.length - 1];
+			const passed = last !== void 0 && last.index >= previous.index;
+			if (at === -1 && !passed && !scan.done) return;
+			scan.relocate = null;
+			this.rows = scan.rows;
+			this.scanDone = scan.done;
+			this.sealed = scan.sealed;
+			if (at !== -1) {
+				const max = Math.max(this.stepCount(this.rows[at]) - 1, 0);
+				this.active = {
+					row: at,
+					occurrence: Math.min(previous.occurrence, max)
+				};
+			} else {
+				this.active = null;
+				const nearest = this.nearestByIndex(previous.index);
+				if (nearest !== null) this.activateRow(nearest, "forward");
+			}
+			return;
+		}
+		this.rows = scan.rows;
+		this.scanDone = scan.done;
+		this.sealed = scan.sealed;
+		if (this.active === null && this.pending === 0) {
+			const first = this.nextRow(-1, "forward");
+			if (first !== null) this.activateRow(first, "forward");
+		}
+	}
+	nearestByIndex(index) {
+		let best = null;
+		let distance = Infinity;
+		this.rows.forEach((row, i) => {
+			const d = Math.abs(row.index - index);
+			if (d < distance && this.stepCount(row) > 0) {
+				best = i;
+				distance = d;
+			}
+		});
+		return best;
+	}
+	step(direction) {
+		if (!this.term || !this.surface) return;
+		this.pending += direction === "forward" ? 1 : -1;
+		this.drain();
+		this.publish();
+	}
+	/** Apply pending steps until none remain or one needs rows not yet
+	*  scanned; those stay pending for the next page. */ drain() {
+		while (this.pending !== 0) {
+			if (this.scanDone && this.rows.length === 0) {
+				this.pending = 0;
+				return;
+			}
+			const direction = this.pending > 0 ? "forward" : "backward";
+			if (!this.tryStep(direction)) return;
+			this.pending -= this.pending > 0 ? 1 : -1;
+		}
+	}
+	/** The nearest row past `from` in `direction` that still has matches to
+	*  step through, or null at the edge of the known rows. */ nextRow(from, direction) {
+		const step = direction === "forward" ? 1 : -1;
+		for (let i = from + step; i >= 0 && i < this.rows.length; i += step) if (this.stepCount(this.rows[i]) > 0) return i;
+		return null;
+	}
+	/** One step; false when it needs rows the scan has not delivered yet. */ tryStep(direction) {
+		const active = this.active;
+		const forward = direction === "forward";
+		if (active) {
+			const count = this.stepCount(this.rows[active.row]);
+			if (forward && active.occurrence + 1 < count) {
+				this.activate(active.row, active.occurrence + 1);
+				return true;
+			}
+			if (!forward && active.occurrence > 0 && count > 0) {
+				this.activate(active.row, Math.min(active.occurrence - 1, count - 1));
+				return true;
+			}
+		}
+		if (!active && !forward && (!this.scanDone || this.scan !== null)) return false;
+		const from = active ? active.row : forward ? -1 : this.rows.length;
+		const row = this.nextRow(from, direction);
+		if (row !== null) {
+			this.activateRow(row, direction);
+			return true;
+		}
+		if (!this.scanDone || this.scan !== null) return false;
+		const wrapped = this.nextRow(forward ? -1 : this.rows.length, direction);
+		if (wrapped !== null) this.activateRow(wrapped, direction);
+		return true;
+	}
+	/** Enter a row from the direction of travel: its first occurrence going
+	*  forward, its last going backward. */ activateRow(row, direction) {
+		const count = this.stepCount(this.rows[row]);
+		this.activate(row, direction === "forward" ? 0 : Math.max(count - 1, 0));
+	}
+	activate(row, occurrence) {
+		const target = this.rows[row];
+		if (!target || !this.surface) return;
+		this.active = {
+			row,
+			occurrence: Math.max(occurrence, 0)
+		};
+		this.pendingReveal = {
+			anchorId: target.anchor.id,
+			kind: this.mounted.has(target.anchor.id) ? "mounted" : "jumped"
+		};
+		this.publish();
+		this.revealAbort?.abort();
+		this.revealAbort = new AbortController();
+		this.surface.reveal(target, this.revealAbort.signal);
+	}
+};
+//#endregion
+//#region ../../packages/react/src/find/FindCoordinatorContext.tsx
+var FindCoordinatorContext = /*#__PURE__*/ (0, import_react.createContext)(null);
+/** The find coordinator: a registry of per-scope FindSurfaces plus the
+*  query/match-window store FindBand and the per-row highlighter consume. */ var FindProvider = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(5);
+	const { children } = t0;
+	const [store] = (0, import_react.useState)(_temp$104);
+	let t1;
+	if ($[0] !== store) {
+		t1 = () => store.dispose();
+		$[0] = store;
+		$[1] = t1;
+	} else t1 = $[1];
+	useUnmount(t1);
+	let t2;
+	if ($[2] !== children || $[3] !== store) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindCoordinatorContext.Provider, {
+			value: store,
+			children
+		});
+		$[2] = children;
+		$[3] = store;
+		$[4] = t2;
+	} else t2 = $[4];
+	return t2;
+};
+/** Null outside a FindProvider, for surfaces that integrate with find when
+*  available but must not require it. */ var useFindCoordinatorOptional = () => {
+	return (0, import_react.useContext)(FindCoordinatorContext);
+};
+var noopSubscribe = () => () => {};
+/** Live find state; the idle state outside a FindProvider. */ var useFindState = () => {
+	const $ = (0, import_compiler_runtime.c)(2);
+	const store = (0, import_react.useContext)(FindCoordinatorContext);
+	let t0;
+	if ($[0] !== store) {
+		t0 = store ? store.getState : _temp2$60;
+		$[0] = store;
+		$[1] = t0;
+	} else t0 = $[1];
+	return (0, import_react.useSyncExternalStore)(store ? store.subscribe : noopSubscribe, t0);
+};
+function _temp$104() {
+	return new FindStore();
+}
+function _temp2$60() {
+	return FIND_IDLE_STATE;
+}
+//#endregion
+//#region ../../packages/react/src/find/highlightRegistry.ts
+var FIND_MATCH_HIGHLIGHT = "find-match";
+var FIND_ACTIVE_HIGHLIGHT = "find-active";
+var contributions = /* @__PURE__ */ new Map();
+function supportsCustomHighlights() {
+	return typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined";
+}
+var matchRanges$1 = (c) => c.active === null ? c.matches : c.matches.filter((r) => r !== c.active);
+var activeRanges = (c) => c.active === null ? [] : [c.active];
+/** Re-register the named Highlight from every contribution. A registered
+*  Highlight is re-processed by Firefox on each add/delete (about 1 ms per
+*  range, 40 s for the ten rows a wrap to the last hit mounts on the
+*  million-hit log), so the set is built detached and swapped in once. */ function publish(name, pick, previous, next) {
+	const highlight = new Highlight();
+	for (const c of contributions.values()) {
+		if (c === previous) continue;
+		for (const range of pick(c)) highlight.add(range);
+	}
+	if (next) for (const range of pick(next)) highlight.add(range);
+	if (highlight.size === 0) CSS.highlights.delete(name);
+	else CSS.highlights.set(name, highlight);
+}
+function replaceContribution(id, next) {
+	const previous = contributions.get(id);
+	if (!previous && !next) return;
+	if (supportsCustomHighlights()) {
+		publish(FIND_MATCH_HIGHLIGHT, matchRanges$1, previous, next);
+		publish(FIND_ACTIVE_HIGHLIGHT, activeRanges, previous, next);
+	}
+	if (next) contributions.set(id, next);
+	else contributions.delete(id);
+}
+function setHighlightContribution(id, matches, active) {
+	replaceContribution(id, matches.length === 0 && active === null ? void 0 : {
+		matches,
+		active
+	});
+}
+function clearHighlightContribution(id) {
+	replaceContribution(id, void 0);
+}
+var FLASH_CLASS = "find-flash";
+/** Briefly flash an element (the never-silent-jump fallback): used when
+*  Custom Highlights are unsupported, or when the active occurrence isn't in
+*  the row's rendered text. The `.find-flash` rule in the shared theme
+*  stylesheet owns the animation; the class comes off when it ends. */ function flashElement(el) {
+	if (el.classList.contains(FLASH_CLASS)) {
+		for (const animation of el.getAnimations()) {
+			animation.cancel();
+			animation.play();
+		}
+		return;
+	}
+	el.classList.add(FLASH_CLASS);
+	el.addEventListener("animationend", () => el.classList.remove(FLASH_CLASS), { once: true });
+}
+//#endregion
+//#region ../../packages/react/src/find/rangeScroll.ts
+/**
+* Finds the nearest scrollable ancestor with enough overflow to benefit from
+* programmatic scrolling.
+*/ function findScrollableParent(element, options) {
+	const minBuffer = options?.minScrollBuffer ?? 100;
+	let current = element instanceof HTMLElement ? element : element?.parentElement;
+	while (current && current !== document.body) {
+		const style = getComputedStyle(current);
+		if ((style.overflowY === "auto" || style.overflowY === "scroll") && current.scrollHeight > current.clientHeight + minBuffer) return current;
+		current = current.parentElement;
+	}
+	return null;
+}
+/**
+* Centers the selected text range rather than its containing element, which
+* keeps matches in large elements such as code blocks correctly positioned.
+*/ function scrollRangeToCenter(range, options) {
+	const { behavior = "auto", fallbackToScrollIntoView = true } = options ?? {};
+	const rects = range.getClientRects();
+	if (rects.length === 0) return;
+	const selectionRect = rects[0];
+	if (selectionRect === void 0) return;
+	const scrollableParent = findScrollableParent(range.startContainer.parentElement);
+	if (scrollableParent) {
+		const parentRect = scrollableParent.getBoundingClientRect();
+		const targetScrollTop = selectionRect.top - parentRect.top + scrollableParent.scrollTop - scrollableParent.clientHeight / 2;
+		scrollableParent.scrollTo({
+			top: Math.max(0, targetScrollTop),
+			behavior
+		});
+	} else if (fallbackToScrollIntoView) range.startContainer.parentElement?.scrollIntoView({
+		behavior,
+		block: "center"
+	});
+}
+//#endregion
+//#region ../../packages/react/src/virtual/VirtualScrollerContext.tsx
+var VirtualScrollerContext = /*#__PURE__*/ (0, import_react.createContext)(null);
+/** The enclosing VirtualList's scroller, or null outside one. */ var useVirtualScroller = () => {
+	return (0, import_react.useContext)(VirtualScrollerContext);
+};
+//#endregion
+//#region ../../packages/react/src/hooks/useFindHighlights.ts
+var ROW_HIGHLIGHT_CAP = 1e3;
+var SKIPPED_SUBTREES = `[data-unsearchable], [data-find-chrome]`;
+var MARKDOWN_PENDING = "[data-markdown-pending]";
+var RowHandle = class {
+	range = null;
+	listeners = /* @__PURE__ */ new Set();
+	activeRange = () => this.range;
+	subscribe = (listener) => {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
+	};
+	publish(range) {
+		if (range === null && this.range === null) return;
+		this.range = range;
+		for (const listener of this.listeners) listener();
+	}
+};
+var FindRowContext = (0, import_react.createContext)(null);
+/** Wrap the row's children so collapsed panels can ask the row where its
+*  active occurrence is instead of scanning the row themselves. */ var FindRowProvider = FindRowContext.Provider;
+/** The enclosing find row, or null outside one (the legacy window.find
+*  path). */ var useFindRow = () => {
+	return (0, import_react.useContext)(FindRowContext);
+};
+/**
+* Per-row highlighting over the CSS Custom Highlight API: every DOM
+* occurrence of the texts the source matched in this row, plus the active one
+* when this row is active. While mounted the row is attached to the
+* coordinator and reports its DOM match count once its markdown has
+* rendered; that count drives stepping inside it. A row that renders none of
+* its matches flashes instead (a jump is never silent), as does every row
+* where the API is missing. The active occurrence is shown only for the
+* reveal the row claims from the coordinator (one per activation; a
+* relocation onto the row requests none), once its range has a box: inside
+* a VirtualList through the virtualizer, re-run after the list measures the
+* row and, while the target was clamped short at the list end, after the
+* row itself grows.
+*/ function useFindHighlights(ref, anchorId) {
+	const $ = (0, import_compiler_runtime.c)(24);
+	const { rows, activeRow, activeOccurrence } = useFindState();
+	const coordinator = useFindCoordinatorOptional();
+	const scroller = useVirtualScroller();
+	const [handle] = (0, import_react.useState)(_temp$103);
+	let active;
+	let row;
+	let t0;
+	if ($[0] !== activeOccurrence || $[1] !== activeRow || $[2] !== anchorId || $[3] !== rows) {
+		row = anchorId === null || anchorId === void 0 ? void 0 : rows.find((r) => r.anchor.id === anchorId);
+		active = row && activeRow !== null && rows[activeRow] === row ? activeOccurrence : null;
+		t0 = row ? textsKeyOf(row.texts) : "";
+		$[0] = activeOccurrence;
+		$[1] = activeRow;
+		$[2] = anchorId;
+		$[3] = rows;
+		$[4] = active;
+		$[5] = row;
+		$[6] = t0;
+	} else {
+		active = $[4];
+		row = $[5];
+		t0 = $[6];
+	}
+	const textsKey = t0;
+	let t1;
+	if ($[7] !== textsKey) {
+		t1 = textsKey ? variantsPattern(textsOfKey(textsKey)) : null;
+		$[7] = textsKey;
+		$[8] = t1;
+	} else t1 = $[8];
+	const pattern = t1;
+	const inWindow = row !== void 0;
+	const contributionId = (0, import_react.useId)();
+	const reveal = (0, import_react.useRef)(null);
+	const measured = (0, import_react.useRef)(false);
+	let t2;
+	let t3;
+	if ($[9] !== anchorId || $[10] !== coordinator) {
+		t2 = () => {
+			if (!coordinator || anchorId === null || anchorId === void 0) return;
+			return coordinator.attachRow(anchorId);
+		};
+		t3 = [coordinator, anchorId];
+		$[9] = anchorId;
+		$[10] = coordinator;
+		$[11] = t2;
+		$[12] = t3;
+	} else {
+		t2 = $[11];
+		t3 = $[12];
+	}
+	(0, import_react.useLayoutEffect)(t2, t3);
+	let t4;
+	let t5;
+	if ($[13] !== active || $[14] !== anchorId || $[15] !== contributionId || $[16] !== coordinator || $[17] !== handle || $[18] !== inWindow || $[19] !== pattern || $[20] !== ref || $[21] !== scroller) {
+		t4 = () => {
+			const root = ref.current;
+			if (!root || anchorId === null || anchorId === void 0 || !inWindow) {
+				clearHighlightContribution(contributionId);
+				handle.publish(null);
+				return;
+			}
+			if (active === null) reveal.current = null;
+			else reveal.current = coordinator?.claimReveal(anchorId) ?? reveal.current;
+			let flashed = false;
+			let rowJump = reveal.current === "jumped" ? "landed" : "none";
+			let markdownWasPending = false;
+			let published = null;
+			let disposed = false;
+			if (!scroller) measured.current = true;
+			const apply = () => {
+				if (disposed) return;
+				const markdownPending = root.querySelector(MARKDOWN_PENDING) !== null;
+				if (markdownPending) markdownWasPending = true;
+				else if (markdownWasPending) {
+					markdownWasPending = false;
+					flashed = false;
+				}
+				const { ranges, activeRange, count } = computeRowRanges(root, pattern, active);
+				handle.publish(activeRange);
+				coordinator?.reportRowCount(anchorId, markdownPending ? null : count);
+				const settled = active !== null && !markdownPending;
+				if (!supportsCustomHighlights()) {
+					if (settled && reveal.current !== null) {
+						reveal.current = null;
+						flashElement(root);
+					}
+					return;
+				}
+				if (settled && reveal.current !== null) {
+					if (activeRange !== null) {
+						const force = reveal.current === "jumped";
+						if (rowJump !== "pending" && (measured.current || !force)) {
+							openEnclosingDetails(activeRange, root);
+							const outcome = revealRange(activeRange, root, scroller, force, rowJump === "landed");
+							if (outcome === "shown") reveal.current = null;
+							else if (outcome === "needs-row" && scroller) {
+								rowJump = "pending";
+								const landed = () => {
+									rowJump = "landed";
+									apply();
+								};
+								const node = activeRange.startContainer.parentElement ?? root;
+								if (!scroller.scrollToRow(node, landed)) landed();
+							}
+						}
+					} else if (!flashed) {
+						flashed = true;
+						flashElement(root);
+					}
+				}
+				if (!sameRanges(ranges, activeRange, published)) {
+					published = {
+						ranges,
+						active: activeRange
+					};
+					setHighlightContribution(contributionId, ranges, activeRange);
+				}
+			};
+			apply();
+			const unsubscribeMeasure = scroller?.onRowMeasured((node_0) => {
+				if (!node_0.contains(root)) return;
+				measured.current = true;
+				apply();
+			});
+			const observer = new MutationObserver(apply);
+			observer.observe(root, {
+				childList: true,
+				subtree: true,
+				characterData: true,
+				attributes: true,
+				attributeFilter: ["data-markdown-pending"]
+			});
+			const resizeObserver = active === null ? null : new ResizeObserver(() => {
+				if (reveal.current !== null) apply();
+			});
+			resizeObserver?.observe(root);
+			return () => {
+				disposed = true;
+				resizeObserver?.disconnect();
+				observer.disconnect();
+				unsubscribeMeasure?.();
+				clearHighlightContribution(contributionId);
+			};
+		};
+		t5 = [
+			ref,
+			anchorId,
+			inWindow,
+			pattern,
+			active,
+			scroller,
+			coordinator,
+			contributionId,
+			handle
+		];
+		$[13] = active;
+		$[14] = anchorId;
+		$[15] = contributionId;
+		$[16] = coordinator;
+		$[17] = handle;
+		$[18] = inWindow;
+		$[19] = pattern;
+		$[20] = ref;
+		$[21] = scroller;
+		$[22] = t4;
+		$[23] = t5;
+	} else {
+		t4 = $[22];
+		t5 = $[23];
+	}
+	(0, import_react.useLayoutEffect)(t4, t5);
+	return handle;
+}
+function _temp$103() {
+	return new RowHandle();
+}
+/** One string per distinct text set; any character may appear in a text. */ var textsKeyOf = (texts) => [...new Set(texts)].map(encodeURIComponent).join(",");
+var textsOfKey = (key) => key.split(",").map(decodeURIComponent);
+var escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Alternation of the matched texts, longest first so a variant that is a
+*  prefix of another cannot shadow it. Exact code points, no folding: the
+*  source already chose the substrings. */ function variantsPattern(texts) {
+	const sorted = [...texts].sort((a, b) => b.length - a.length);
+	return new RegExp(sorted.map(escapeRegExp).join("|"), "gu");
+}
+/** The row's text nodes outside skipped subtrees, in document order, each
+*  with its offset into their plain concatenation. */ function collectRowSegments(root) {
+	const segments = [];
+	let text = "";
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (node) => node.parentElement?.closest(SKIPPED_SUBTREES) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+	for (let node; node = walker.nextNode();) {
+		segments.push({
+			node,
+			start: text.length
+		});
+		text += node.nodeValue ?? "";
+	}
+	return {
+		segments,
+		text
+	};
+}
+/** Occurrences of the pattern in the row's rendered text as DOM Ranges (may
+*  span element boundaries). */ function computeRowRanges(root, pattern, activeOccurrence) {
+	const { segments, text } = collectRowSegments(root);
+	if (!pattern || segments.length === 0) return {
+		ranges: [],
+		activeRange: null,
+		count: 0
+	};
+	const toRange = (start, end) => {
+		const range = document.createRange();
+		const startSeg = segmentAt(segments, start);
+		range.setStart(startSeg.node, start - startSeg.start);
+		const endSeg = segmentAt(segments, end - 1);
+		range.setEnd(endSeg.node, end - endSeg.start);
+		return range;
+	};
+	const ranges = [];
+	let activeRange = null;
+	let count = 0;
+	for (const found of text.matchAll(pattern)) {
+		const start = found.index;
+		const end = start + found[0].length;
+		if (count < ROW_HIGHLIGHT_CAP) ranges.push(toRange(start, end));
+		if (count === activeOccurrence) activeRange = ranges[count] ?? toRange(start, end);
+		count++;
+	}
+	return {
+		ranges,
+		activeRange,
+		count
+	};
+}
+/** A closed `<details>` lays out none of its content, so a match inside one
+*  has no box to centre (and would neither scroll nor flash): open every
+*  closed one between the range and the row. */ function openEnclosingDetails(range, root) {
+	for (let el = range.startContainer.parentElement; el && el !== root; el = el.parentElement) if (el instanceof HTMLDetailsElement && !el.open) el.open = true;
+}
+var sameRange = (a, b) => a.startContainer === b.startContainer && a.startOffset === b.startOffset && a.endContainer === b.endContainer && a.endOffset === b.endOffset;
+function sameRanges(ranges, active, published) {
+	if (published === null || published.ranges.length !== ranges.length) return false;
+	if (active === null !== (published.active === null)) return false;
+	if (active && published.active && !sameRange(active, published.active)) return false;
+	return ranges.every((r, i) => sameRange(r, published.ranges[i]));
+}
+/** Whether the range's box lies below the bottom edge of an ancestor that
+*  clips its overflow (a collapsed ExpandablePanel): the text has a layout
+*  position there but nothing shows at it, and in a virtual list that
+*  position is where later rows are laid out, so centring on it scrolls the
+*  row itself out of the mounted band. The panel opens for the active
+*  occurrence on the same publish; the row's resize re-runs the reveal. */ function isClippedByAncestor(rect, range, root) {
+	for (let el = range.startContainer.parentElement; el && el !== root; el = el.parentElement) {
+		const overflow = getComputedStyle(el).overflowY;
+		if (overflow !== "hidden" && overflow !== "clip") continue;
+		if (rect.top >= el.getBoundingClientRect().bottom - 1) return true;
+	}
+	return false;
+}
+/** The range's first box with area: a range starting at a line wrap reports
+*  an empty box at the previous line's end first. */ function firstBox(range) {
+	for (const rect of range.getClientRects()) if (rect.width > 0 && rect.height > 0) return rect;
+}
+/** Whether a range's box is wholly inside `viewport` and not covered by
+*  something outside its row (a sticky header or tab bar inside the scroller
+*  hides a match that is geometrically within the viewport). */ function isRangeVisible(rect, viewport, root) {
+	if (rect.top < viewport.top || rect.bottom > viewport.bottom) return false;
+	const x = rect.left + 1;
+	const hitsRow = (y) => {
+		if (x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight) return true;
+		const hit = document.elementFromPoint(x, y);
+		return hit !== null && root.contains(hit);
+	};
+	return hitsRow(rect.top + 1) && hitsRow(rect.bottom - 1);
+}
+/** Show the active occurrence. "waiting" when there is nothing to show yet:
+*  no box (unmeasured, not laid out, still inside a collapsed clip), or the
+*  scroll left the box out of view (a target past the list end while later
+*  rows sit at estimated sizes is clamped), so the caller retries on the
+*  next change. In a virtual list the row comes first: "needs-row" asks the
+*  caller to have the list bring the row in by index (the virtualizer
+*  re-aims that as rows measure); centring inside the row (a row taller
+*  than the viewport) follows once `rowLanded`, with `force` centring even
+*  an occurrence already in view (a row the list jumped to is edge-aligned). */ function revealRange(range, root, scroller, force, rowLanded) {
+	const rect = firstBox(range);
+	if (rect === void 0 || isClippedByAncestor(rect, range, root)) return "waiting";
+	if (scroller) {
+		const viewport = scroller.viewportRect();
+		if (!force && isRangeVisible(rect, viewport, root)) return "shown";
+		if (!rowLanded) return "needs-row";
+		const node = range.startContainer.parentElement ?? root;
+		const landing = {};
+		scroller.centreInRow(node, rect, () => {
+			const settled = firstBox(range);
+			if (settled !== void 0 && landing.box !== void 0 && settled.top !== landing.box.top && !isRangeVisible(settled, scroller.viewportRect(), root)) scroller.centreInRow(node, settled);
+		});
+		const after = firstBox(range);
+		landing.box = after;
+		return after !== void 0 && isRangeVisible(after, scroller.viewportRect(), root) ? "shown" : "waiting";
+	}
+	const parent = findScrollableParent(range.startContainer.parentElement);
+	const viewport = parent ? parent.getBoundingClientRect() : new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+	if (force || !isRangeVisible(rect, viewport, root)) scrollRangeToCenter(range);
+	return "shown";
+}
+function segmentAt(segments, pos) {
+	let lo = 0;
+	let hi = segments.length - 1;
+	while (lo < hi) {
+		const mid = lo + hi + 1 >> 1;
+		if (segments[mid].start <= pos) lo = mid;
+		else hi = mid - 1;
+	}
+	return segments[lo];
+}
+//#endregion
+//#region ../../packages/react/src/hooks/useExpandWhenFindBelowFold.ts
+/** `maxHeight: ${lines}rem` resolves against the root font size, not the
+*  panel's own. */ var rootFontSizePx = () => parseFloat(getComputedStyle(document.documentElement).fontSize);
+/**
+* Expand a collapsed panel only when the active Find occurrence sits below
+* its fold. Matching the typed letter anywhere in the subtree grew every
+* assistant message on the first keystroke.
+*
+* Inside a find row the row says where its active occurrence is (the panel
+* decides in its own layout effect and again after every row scan, so a
+* markdown render that moves the occurrence is followed). Panels outside a
+* find row still use a substring check so the legacy window.find path can
+* open a clipped hit.
+*/ function useExpandWhenFindBelowFold(contentRef, lines, fallbackTerm) {
+	const $ = (0, import_compiler_runtime.c)(6);
+	const row = useFindRow();
+	const [expand, setExpand] = (0, import_react.useState)(false);
+	let t0;
+	let t1;
+	if ($[0] !== contentRef || $[1] !== fallbackTerm || $[2] !== lines || $[3] !== row) {
+		t0 = () => {
+			if (row) {
+				const decide = () => {
+					const root = contentRef.current;
+					const range = row.activeRange();
+					setExpand(root !== null && range !== null && root.contains(range.startContainer) && rangeExceedsFold(root, range, lines * rootFontSizePx()));
+				};
+				decide();
+				return row.subscribe(decide);
+			}
+			const scan = () => {
+				const root_0 = contentRef.current;
+				if (!root_0 || !fallbackTerm) {
+					setExpand(false);
+					return;
+				}
+				const text = root_0.textContent || "";
+				setExpand(text.toLowerCase().includes(fallbackTerm.toLowerCase()));
+			};
+			scan();
+			const root_1 = contentRef.current;
+			if (!root_1) return;
+			const observer = new MutationObserver(scan);
+			observer.observe(root_1, {
+				subtree: true,
+				childList: true,
+				characterData: true,
+				attributes: true,
+				attributeFilter: ["data-markdown-pending"]
+			});
+			return () => observer.disconnect();
+		};
+		t1 = [
+			row,
+			lines,
+			fallbackTerm,
+			contentRef
+		];
+		$[0] = contentRef;
+		$[1] = fallbackTerm;
+		$[2] = lines;
+		$[3] = row;
+		$[4] = t0;
+		$[5] = t1;
+	} else {
+		t0 = $[4];
+		t1 = $[5];
+	}
+	(0, import_react.useLayoutEffect)(t0, t1);
+	return expand;
+}
+//#endregion
+//#region ../../packages/react/src/hooks/usePendingFindReveal.ts
+/**
+* A surface's `reveal` over a host that may hold only a loaded prefix of its
+* rows: a row the host has (`revealLoaded` true) is shown at once; a row past
+* the prefix (`row.index >= loadedCount`) is paged in through the host's
+* load-more and shown once its rows arrive; on a host whose rows still grow
+* on their own (`mayGrow`, a running sample polled from a buffer the source
+* may be ahead of) it waits for them. A row the host should have but does
+* not (its index is loaded, or nothing more can arrive) is an anchor
+* mismatch between source and surface: it is dropped and logged rather than
+* guessed at by index.
+*/ function usePendingFindReveal(revealLoaded, loadedCount, hasMoreRows, onLoadMoreRows, t0) {
+	const $ = (0, import_compiler_runtime.c)(11);
+	const mayGrow = t0 === void 0 ? false : t0;
+	const pending = (0, import_react.useRef)(null);
+	let t1;
+	if ($[0] !== hasMoreRows || $[1] !== loadedCount || $[2] !== mayGrow || $[3] !== onLoadMoreRows || $[4] !== revealLoaded) {
+		t1 = (row, signal) => {
+			if (signal.aborted || revealLoaded(row)) return true;
+			if (row.index < loadedCount || !hasMoreRows && !mayGrow) {
+				console.warn(`find: row ${row.anchor.id} (index ${row.index}) is not among the ${loadedCount} loaded rows`);
+				return true;
+			}
+			if (hasMoreRows) onLoadMoreRows?.();
+			return false;
+		};
+		$[0] = hasMoreRows;
+		$[1] = loadedCount;
+		$[2] = mayGrow;
+		$[3] = onLoadMoreRows;
+		$[4] = revealLoaded;
+		$[5] = t1;
+	} else t1 = $[5];
+	const attempt = t1;
+	let t2;
+	let t3;
+	if ($[6] !== attempt) {
+		t2 = () => {
+			const p = pending.current;
+			if (p && attempt(p.row, p.signal)) pending.current = null;
+		};
+		t3 = [attempt];
+		$[6] = attempt;
+		$[7] = t2;
+		$[8] = t3;
+	} else {
+		t2 = $[7];
+		t3 = $[8];
+	}
+	(0, import_react.useEffect)(t2, t3);
+	let t4;
+	if ($[9] !== attempt) {
+		t4 = (row_0, signal_0) => {
+			pending.current = attempt(row_0, signal_0) ? null : {
+				row: row_0,
+				signal: signal_0
+			};
+		};
+		$[9] = attempt;
+		$[10] = t4;
+	} else t4 = $[10];
+	return t4;
 }
 var AsyncGate_module_default = { gate: "_gate_111wv_1" };
 //#endregion
@@ -53858,7 +54922,7 @@ var stringFromCharCode = String.fromCharCode;
 * @param {String} type The error type.
 * @returns {Error} Throws a `RangeError` with the applicable error message.
 */
-function error$7(type) {
+function error$8(type) {
 	throw new RangeError(errors[type]);
 }
 /**
@@ -53992,26 +55056,26 @@ var decode = function(input) {
 	let basic = input.lastIndexOf(delimiter);
 	if (basic < 0) basic = 0;
 	for (let j = 0; j < basic; ++j) {
-		if (input.charCodeAt(j) >= 128) error$7("not-basic");
+		if (input.charCodeAt(j) >= 128) error$8("not-basic");
 		output.push(input.charCodeAt(j));
 	}
 	for (let index = basic > 0 ? basic + 1 : 0; index < inputLength;) {
 		const oldi = i;
 		for (let w = 1, k = base$1;; k += base$1) {
-			if (index >= inputLength) error$7("invalid-input");
+			if (index >= inputLength) error$8("invalid-input");
 			const digit = basicToDigit(input.charCodeAt(index++));
-			if (digit >= base$1) error$7("invalid-input");
-			if (digit > floor((maxInt - i) / w)) error$7("overflow");
+			if (digit >= base$1) error$8("invalid-input");
+			if (digit > floor((maxInt - i) / w)) error$8("overflow");
 			i += digit * w;
 			const t = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
 			if (digit < t) break;
 			const baseMinusT = base$1 - t;
-			if (w > floor(maxInt / baseMinusT)) error$7("overflow");
+			if (w > floor(maxInt / baseMinusT)) error$8("overflow");
 			w *= baseMinusT;
 		}
 		const out = output.length + 1;
 		bias = adapt(i - oldi, out, oldi == 0);
-		if (floor(i / out) > maxInt - n) error$7("overflow");
+		if (floor(i / out) > maxInt - n) error$8("overflow");
 		n += floor(i / out);
 		i %= out;
 		output.splice(i++, 0, n);
@@ -54040,11 +55104,11 @@ var encode = function(input) {
 		let m = maxInt;
 		for (const currentValue of input) if (currentValue >= n && currentValue < m) m = currentValue;
 		const handledCPCountPlusOne = handledCPCount + 1;
-		if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) error$7("overflow");
+		if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) error$8("overflow");
 		delta += (m - n) * handledCPCountPlusOne;
 		n = m;
 		for (const currentValue of input) {
-			if (currentValue < n && ++delta > maxInt) error$7("overflow");
+			if (currentValue < n && ++delta > maxInt) error$8("overflow");
 			if (currentValue === n) {
 				let q = delta;
 				for (let k = base$1;; k += base$1) {
@@ -60665,7 +61729,7 @@ var sanitizeMarkdown = (md) => {
 	return escapeHtmlCharacters$1(md).replace(/\n/g, "<br/>");
 };
 var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
-	const $ = (0, import_compiler_runtime.c)(25);
+	const $ = (0, import_compiler_runtime.c)(27);
 	const { markdown, renderer, style, className, postProcess, onClick } = t0;
 	const rendererName = renderer ?? "full";
 	const cacheKey = `${rendererName}:${markdown}`;
@@ -60687,29 +61751,39 @@ var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) 
 	} else t2 = $[3];
 	const applyPostProcess = t2;
 	let t3;
-	if ($[4] !== applyPostProcess || $[5] !== cachedHtml || $[6] !== markdown) {
-		t3 = () => {
-			if (cachedHtml) return applyPostProcess(cachedHtml);
-			return sanitizeMarkdown(markdown);
+	if ($[4] !== applyPostProcess || $[5] !== cacheKey || $[6] !== cachedHtml || $[7] !== markdown) {
+		t3 = () => cachedHtml ? {
+			html: applyPostProcess(cachedHtml),
+			key: cacheKey
+		} : {
+			html: sanitizeMarkdown(markdown),
+			key: null
 		};
 		$[4] = applyPostProcess;
-		$[5] = cachedHtml;
-		$[6] = markdown;
-		$[7] = t3;
-	} else t3 = $[7];
-	const [renderedHtml, setRenderedHtml] = (0, import_react.useState)(t3);
+		$[5] = cacheKey;
+		$[6] = cachedHtml;
+		$[7] = markdown;
+		$[8] = t3;
+	} else t3 = $[8];
+	const [rendered, setRendered] = (0, import_react.useState)(t3);
 	let t4;
 	let t5;
-	if ($[8] !== applyPostProcess || $[9] !== cacheKey || $[10] !== cachedHtml || $[11] !== markdown || $[12] !== rendererName) {
+	if ($[9] !== applyPostProcess || $[10] !== cacheKey || $[11] !== cachedHtml || $[12] !== markdown || $[13] !== rendererName) {
 		t4 = () => {
 			if (cachedHtml) {
 				const finalHtml = applyPostProcess(cachedHtml);
 				(0, import_react.startTransition)(() => {
-					setRenderedHtml((prev) => prev === finalHtml ? prev : finalHtml);
+					setRendered((prev) => prev.html === finalHtml && prev.key === cacheKey ? prev : {
+						html: finalHtml,
+						key: cacheKey
+					});
 				});
 				return;
 			}
-			setRenderedHtml(sanitizeMarkdown(markdown));
+			setRendered({
+				html: sanitizeMarkdown(markdown),
+				key: null
+			});
 			const { promise, cancel } = renderQueue.enqueue(() => renderMarkdown(markdown, rendererName));
 			promise.then((result) => {
 				if (renderCache.size >= MAX_CACHE_SIZE) {
@@ -60719,7 +61793,10 @@ var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) 
 				const sanitizedResult = sanitizeRenderedHtml(result);
 				renderCache.set(cacheKey, sanitizedResult);
 				(0, import_react.startTransition)(() => {
-					setRenderedHtml(applyPostProcess(sanitizedResult));
+					setRendered({
+						html: applyPostProcess(sanitizedResult),
+						key: cacheKey
+					});
 				});
 			}).catch(_temp$101);
 			return () => {
@@ -60733,47 +61810,50 @@ var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) 
 			cacheKey,
 			applyPostProcess
 		];
-		$[8] = applyPostProcess;
-		$[9] = cacheKey;
-		$[10] = cachedHtml;
-		$[11] = markdown;
-		$[12] = rendererName;
-		$[13] = t4;
-		$[14] = t5;
+		$[9] = applyPostProcess;
+		$[10] = cacheKey;
+		$[11] = cachedHtml;
+		$[12] = markdown;
+		$[13] = rendererName;
+		$[14] = t4;
+		$[15] = t5;
 	} else {
-		t4 = $[13];
-		t5 = $[14];
+		t4 = $[14];
+		t5 = $[15];
 	}
 	(0, import_react.useEffect)(t4, t5);
-	let t6;
-	if ($[15] !== renderedHtml) {
-		t6 = { __html: renderedHtml };
-		$[15] = renderedHtml;
-		$[16] = t6;
-	} else t6 = $[16];
+	const t6 = rendered.key !== cacheKey ? true : void 0;
 	let t7;
-	if ($[17] !== className) {
-		t7 = clsx(className, "markdown-content");
-		$[17] = className;
-		$[18] = t7;
-	} else t7 = $[18];
+	if ($[16] !== rendered.html) {
+		t7 = { __html: rendered.html };
+		$[16] = rendered.html;
+		$[17] = t7;
+	} else t7 = $[17];
 	let t8;
-	if ($[19] !== onClick || $[20] !== ref || $[21] !== style || $[22] !== t6 || $[23] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[18] !== className) {
+		t8 = clsx(className, "markdown-content");
+		$[18] = className;
+		$[19] = t8;
+	} else t8 = $[19];
+	let t9;
+	if ($[20] !== onClick || $[21] !== ref || $[22] !== style || $[23] !== t6 || $[24] !== t7 || $[25] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			ref,
-			dangerouslySetInnerHTML: t6,
+			"data-markdown-pending": t6,
+			dangerouslySetInnerHTML: t7,
 			style,
-			className: t7,
+			className: t8,
 			onClick
 		});
-		$[19] = onClick;
-		$[20] = ref;
-		$[21] = style;
-		$[22] = t6;
-		$[23] = t7;
-		$[24] = t8;
-	} else t8 = $[24];
-	return t8;
+		$[20] = onClick;
+		$[21] = ref;
+		$[22] = style;
+		$[23] = t6;
+		$[24] = t7;
+		$[25] = t8;
+		$[26] = t9;
+	} else t9 = $[26];
+	return t9;
 });
 MarkdownDivComponent.displayName = "MarkdownDivComponent";
 var MarkdownDiv = /*#__PURE__*/ (0, import_react.memo)(MarkdownDivComponent);
@@ -64456,7 +65536,7 @@ function _temp$99() {}
 //#endregion
 //#region ../../packages/react/src/components/ExpandablePanel.tsx
 var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
-	const $ = (0, import_compiler_runtime.c)(46);
+	const $ = (0, import_compiler_runtime.c)(41);
 	const { id, collapse, border, lines: t1, children, className, togglePosition: t2 } = t0;
 	const lines = t1 === void 0 ? 15 : t1;
 	const layout = t2 === void 0 ? "inline-right" : t2;
@@ -64480,50 +65560,22 @@ var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 		$[1] = t3;
 	} else t3 = $[1];
 	const contentRef = useResizeObserver(t3);
-	const findTarget = useFindTarget();
+	const effectiveCollapsed = useExpandWhenFindBelowFold(contentRef, lines, useFindTarget()?.term) ? false : collapsed;
 	let t4;
-	if ($[2] !== findTarget) {
-		t4 = () => findTarget !== null;
-		$[2] = findTarget;
-		$[3] = t4;
-	} else t4 = $[3];
-	const [containsFindTarget, setContainsFindTarget] = (0, import_react.useState)(t4);
-	let t5;
-	if ($[4] !== contentRef || $[5] !== findTarget) {
-		t5 = () => {
-			if (!findTarget) {
-				setContainsFindTarget(false);
-				return;
-			}
-			const root = contentRef.current;
-			if (!root) {
-				setContainsFindTarget(false);
-				return;
-			}
-			const text = (root.textContent ?? "").toLowerCase();
-			setContainsFindTarget(text.includes(findTarget.term.toLowerCase()));
-		};
-		$[4] = contentRef;
-		$[5] = findTarget;
-		$[6] = t5;
-	} else t5 = $[6];
-	(0, import_react.useEffect)(t5);
-	const effectiveCollapsed = containsFindTarget ? false : collapsed;
-	let t6;
-	if ($[7] !== effectiveCollapsed || $[8] !== lines) {
-		t6 = effectiveCollapsed ? {
+	if ($[2] !== effectiveCollapsed || $[3] !== lines) {
+		t4 = effectiveCollapsed ? {
 			overflow: "hidden",
 			maxHeight: `${lines}rem`,
 			contain: "layout paint"
 		} : {};
-		$[7] = effectiveCollapsed;
-		$[8] = lines;
-		$[9] = t6;
-	} else t6 = $[9];
-	const contentStyles = t6;
-	let t7;
-	if ($[10] !== collapsed || $[11] !== contentRef || $[12] !== setCollapsed) {
-		t7 = () => {
+		$[2] = effectiveCollapsed;
+		$[3] = lines;
+		$[4] = t4;
+	} else t4 = $[4];
+	const contentStyles = t4;
+	let t5;
+	if ($[5] !== collapsed || $[6] !== contentRef || $[7] !== setCollapsed) {
+		t5 = () => {
 			const tallerThanViewport = !collapsed && !!contentRef.current && contentRef.current.getBoundingClientRect().height > window.innerHeight;
 			setCollapsed(!collapsed);
 			if (tallerThanViewport) requestAnimationFrame(() => {
@@ -64533,107 +65585,107 @@ var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 				});
 			});
 		};
-		$[10] = collapsed;
-		$[11] = contentRef;
-		$[12] = setCollapsed;
-		$[13] = t7;
-	} else t7 = $[13];
-	const handleToggle = t7;
+		$[5] = collapsed;
+		$[6] = contentRef;
+		$[7] = setCollapsed;
+		$[8] = t5;
+	} else t5 = $[8];
+	const handleToggle = t5;
+	let t6;
+	if ($[9] !== className) {
+		t6 = clsx(ExpandablePanel_module_default.outer, className);
+		$[9] = className;
+		$[10] = t6;
+	} else t6 = $[10];
+	const t7 = border ? ExpandablePanel_module_default.expandableBordered : void 0;
 	let t8;
-	if ($[14] !== className) {
-		t8 = clsx(ExpandablePanel_module_default.outer, className);
-		$[14] = className;
-		$[15] = t8;
-	} else t8 = $[15];
-	const t9 = border ? ExpandablePanel_module_default.expandableBordered : void 0;
+	if ($[11] !== className || $[12] !== t7) {
+		t8 = clsx(ExpandablePanel_module_default.expandablePanel, t7, className);
+		$[11] = className;
+		$[12] = t7;
+		$[13] = t8;
+	} else t8 = $[13];
+	const t9 = effectiveCollapsed && showToggle ? ExpandablePanel_module_default.expandableTruncated : void 0;
 	let t10;
-	if ($[16] !== className || $[17] !== t9) {
-		t10 = clsx(ExpandablePanel_module_default.expandablePanel, t9, className);
-		$[16] = className;
-		$[17] = t9;
-		$[18] = t10;
-	} else t10 = $[18];
-	const t11 = effectiveCollapsed && showToggle ? ExpandablePanel_module_default.expandableTruncated : void 0;
-	let t12;
-	if ($[19] !== t11) {
-		t12 = clsx(t11);
-		$[19] = t11;
-		$[20] = t12;
-	} else t12 = $[20];
-	let t13;
-	if ($[21] !== children || $[22] !== contentRef || $[23] !== contentStyles || $[24] !== t12) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[14] !== t9) {
+		t10 = clsx(t9);
+		$[14] = t9;
+		$[15] = t10;
+	} else t10 = $[15];
+	let t11;
+	if ($[16] !== children || $[17] !== contentRef || $[18] !== contentStyles || $[19] !== t10) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			ref: contentRef,
 			style: contentStyles,
-			className: t12,
+			className: t10,
 			children
 		});
-		$[21] = children;
-		$[22] = contentRef;
-		$[23] = contentStyles;
-		$[24] = t12;
-		$[25] = t13;
-	} else t13 = $[25];
-	let t14;
-	if ($[26] !== border || $[27] !== collapsed || $[28] !== handleToggle || $[29] !== layout || $[30] !== showToggle) {
-		t14 = showToggle && layout === "inline-right" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[16] = children;
+		$[17] = contentRef;
+		$[18] = contentStyles;
+		$[19] = t10;
+		$[20] = t11;
+	} else t11 = $[20];
+	let t12;
+	if ($[21] !== border || $[22] !== effectiveCollapsed || $[23] !== handleToggle || $[24] !== layout || $[25] !== showToggle) {
+		t12 = showToggle && layout === "inline-right" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ExpandablePanel_module_default.inlineToggleHolder,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				className: ExpandablePanel_module_default.inlineToggleSticky,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MoreToggle, {
-					collapsed,
+					collapsed: effectiveCollapsed,
 					onToggle: handleToggle,
 					border: !border,
 					position: "inline-right"
 				})
 			})
 		});
-		$[26] = border;
-		$[27] = collapsed;
-		$[28] = handleToggle;
-		$[29] = layout;
-		$[30] = showToggle;
-		$[31] = t14;
-	} else t14 = $[31];
-	let t15;
-	if ($[32] !== t10 || $[33] !== t13 || $[34] !== t14) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[21] = border;
+		$[22] = effectiveCollapsed;
+		$[23] = handleToggle;
+		$[24] = layout;
+		$[25] = showToggle;
+		$[26] = t12;
+	} else t12 = $[26];
+	let t13;
+	if ($[27] !== t11 || $[28] !== t12 || $[29] !== t8) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-expandable-panel": "true",
-			className: t10,
-			children: [t13, t14]
+			className: t8,
+			children: [t11, t12]
 		});
-		$[32] = t10;
-		$[33] = t13;
-		$[34] = t14;
-		$[35] = t15;
-	} else t15 = $[35];
-	let t16;
-	if ($[36] !== border || $[37] !== collapsed || $[38] !== handleToggle || $[39] !== layout || $[40] !== showToggle) {
-		t16 = showToggle && layout === "block-left" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MoreToggle, {
-			collapsed,
+		$[27] = t11;
+		$[28] = t12;
+		$[29] = t8;
+		$[30] = t13;
+	} else t13 = $[30];
+	let t14;
+	if ($[31] !== border || $[32] !== effectiveCollapsed || $[33] !== handleToggle || $[34] !== layout || $[35] !== showToggle) {
+		t14 = showToggle && layout === "block-left" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MoreToggle, {
+			collapsed: effectiveCollapsed,
 			onToggle: handleToggle,
 			border: !border,
 			position: "block-left"
 		});
-		$[36] = border;
-		$[37] = collapsed;
-		$[38] = handleToggle;
-		$[39] = layout;
-		$[40] = showToggle;
-		$[41] = t16;
-	} else t16 = $[41];
-	let t17;
-	if ($[42] !== t15 || $[43] !== t16 || $[44] !== t8) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t8,
-			children: [t15, t16]
+		$[31] = border;
+		$[32] = effectiveCollapsed;
+		$[33] = handleToggle;
+		$[34] = layout;
+		$[35] = showToggle;
+		$[36] = t14;
+	} else t14 = $[36];
+	let t15;
+	if ($[37] !== t13 || $[38] !== t14 || $[39] !== t6) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t6,
+			children: [t13, t14]
 		});
-		$[42] = t15;
-		$[43] = t16;
-		$[44] = t8;
-		$[45] = t17;
-	} else t17 = $[45];
-	return t17;
+		$[37] = t13;
+		$[38] = t14;
+		$[39] = t6;
+		$[40] = t15;
+	} else t15 = $[40];
+	return t15;
 });
 var MoreToggle = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(11);
@@ -64670,6 +65722,7 @@ var MoreToggle = (t0) => {
 		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: t3,
 			style,
+			"data-find-chrome": true,
 			children: t5
 		});
 		$[7] = style;
@@ -65130,56 +66183,111 @@ var useComponentNavigation = () => {
 	return navigation;
 };
 //#endregion
-//#region ../../packages/react/src/components/findBandDom.ts
-/**
-* Finds the nearest scrollable ancestor with enough overflow to benefit from
-* programmatic scrolling.
-*/ function findScrollableParent(element, options) {
-	const minBuffer = options?.minScrollBuffer ?? 100;
-	let current = element instanceof HTMLElement ? element : element?.parentElement;
-	while (current && current !== document.body) {
-		const style = getComputedStyle(current);
-		if ((style.overflowY === "auto" || style.overflowY === "scroll") && current.scrollHeight > current.clientHeight + minBuffer) return current;
-		current = current.parentElement;
+//#region ../../packages/react/src/hooks/useFindSurface.ts
+/** Register a surface for as long as the component is mounted (no-op
+*  outside a FindProvider). Registration is per scope; a new source identity
+*  is swapped in place and a change of `dataKey` (the surface's data changed
+*  under the same source) re-surveys, both keeping the window on screen.
+*  reveal() is read through a ref: it closes over fast-moving view state
+*  (selection, scroll handles). */ var useFindSurface = (surface, dataKey) => {
+	const $ = (0, import_compiler_runtime.c)(18);
+	const store = useFindCoordinatorOptional();
+	const latest = useLatestRef(surface);
+	const lastDataKey = (0, import_react.useRef)(dataKey);
+	const scopeId = surface?.scopeId;
+	const source = surface?.source;
+	let t0;
+	if ($[0] !== latest.current || $[1] !== scopeId || $[2] !== store) {
+		t0 = () => {
+			const current = latest.current;
+			if (!store || scopeId === void 0 || !current) return;
+			return store.registerSurface({
+				scopeId,
+				source: current.source,
+				reveal: (match, signal) => {
+					latest.current?.reveal(match, signal);
+				}
+			});
+		};
+		$[0] = latest.current;
+		$[1] = scopeId;
+		$[2] = store;
+		$[3] = t0;
+	} else t0 = $[3];
+	let t1;
+	if ($[4] !== latest || $[5] !== scopeId || $[6] !== store) {
+		t1 = [
+			store,
+			scopeId,
+			latest
+		];
+		$[4] = latest;
+		$[5] = scopeId;
+		$[6] = store;
+		$[7] = t1;
+	} else t1 = $[7];
+	(0, import_react.useEffect)(t0, t1);
+	let t2;
+	let t3;
+	if ($[8] !== scopeId || $[9] !== source || $[10] !== store) {
+		t2 = () => {
+			if (store && scopeId !== void 0 && source) store.updateSource(scopeId, source);
+		};
+		t3 = [
+			store,
+			scopeId,
+			source
+		];
+		$[8] = scopeId;
+		$[9] = source;
+		$[10] = store;
+		$[11] = t2;
+		$[12] = t3;
+	} else {
+		t2 = $[11];
+		t3 = $[12];
 	}
-	return null;
-}
-/**
-* Centers the selected text range rather than its containing element, which
-* keeps matches in large elements such as code blocks correctly positioned.
-*/ function scrollRangeToCenter(range, options) {
-	const { behavior = "auto", fallbackToScrollIntoView = true } = options ?? {};
-	const rects = range.getClientRects();
-	if (rects.length === 0) return;
-	const selectionRect = rects[0];
-	if (selectionRect === void 0) return;
-	const scrollableParent = findScrollableParent(range.startContainer.parentElement);
-	if (scrollableParent) {
-		const parentRect = scrollableParent.getBoundingClientRect();
-		const targetScrollTop = selectionRect.top - parentRect.top + scrollableParent.scrollTop - scrollableParent.clientHeight / 2;
-		scrollableParent.scrollTo({
-			top: Math.max(0, targetScrollTop),
-			behavior
-		});
-	} else if (fallbackToScrollIntoView) range.startContainer.parentElement?.scrollIntoView({
-		behavior,
-		block: "center"
-	});
-}
+	(0, import_react.useEffect)(t2, t3);
+	let t4;
+	let t5;
+	if ($[13] !== dataKey || $[14] !== scopeId || $[15] !== store) {
+		t4 = () => {
+			if (lastDataKey.current === dataKey) return;
+			lastDataKey.current = dataKey;
+			if (store && scopeId !== void 0) store.invalidate(scopeId);
+		};
+		t5 = [
+			store,
+			scopeId,
+			dataKey
+		];
+		$[13] = dataKey;
+		$[14] = scopeId;
+		$[15] = store;
+		$[16] = t4;
+		$[17] = t5;
+	} else {
+		t4 = $[16];
+		t5 = $[17];
+	}
+	(0, import_react.useEffect)(t4, t5);
+};
 var FindBandUI_module_default = {
-	findBand: "_findBand_oh7be_1",
-	matchCount: "_matchCount_oh7be_30",
-	noResults: "_noResults_oh7be_40",
-	next: "_next_oh7be_48",
-	prev: "_prev_oh7be_49",
-	close: "_close_oh7be_55"
+	findBand: "_findBand_zozvs_1",
+	matchCount: "_matchCount_zozvs_31",
+	noResults: "_noResults_zozvs_41",
+	error: "_error_zozvs_49",
+	next: "_next_zozvs_64",
+	prev: "_prev_zozvs_65",
+	close: "_close_zozvs_71"
 };
 //#endregion
 //#region ../../packages/react/src/components/FindBandUI.tsx
 var FindBandUI = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(43);
-	const { onClose, onNext, onPrevious, onKeyDown, onChange, onBeforeInput, value, matchCount, matchIndex, noResults: t1, disableNav, inputRef: externalRef } = t0;
-	const noResults = t1 === void 0 ? false : t1;
+	const $ = (0, import_compiler_runtime.c)(56);
+	const { onClose, onNext, onPrevious, onKeyDown, onChange, onBeforeInput, value, matchCount, matchIndex, countIsLowerBound: t1, noResults: t2, error, disableNav, inputRef: externalRef } = t0;
+	const countIsLowerBound = t1 === void 0 ? false : t1;
+	const noResults = t2 === void 0 ? false : t2;
 	const icons = useComponentIcons();
 	const internalRef = (0, import_react.useRef)(null);
 	const inputRef = externalRef ?? internalRef;
@@ -65199,150 +66307,182 @@ var FindBandUI = (t0) => {
 		$[3] = value;
 		$[4] = inputProps;
 	} else inputProps = $[4];
-	const hasCount = matchCount !== void 0 && matchIndex !== void 0;
-	const showStatus = noResults || hasCount && matchCount > 0;
-	const statusText = !noResults && hasCount && matchCount > 0 ? `${matchIndex + 1} of ${matchCount}` : "No results";
-	let t2;
-	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = clsx(FindBandUI_module_default.findBand, "findBand");
-		$[5] = t2;
-	} else t2 = $[5];
+	const hasCount = matchCount !== void 0 && matchCount > 0;
+	const showStatus = noResults || hasCount || error !== void 0;
 	let t3;
-	if ($[6] !== inputProps || $[7] !== inputRef) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
+	if ($[5] !== countIsLowerBound || $[6] !== hasCount || $[7] !== matchCount) {
+		t3 = hasCount ? `${matchCount.toLocaleString()}${countIsLowerBound ? "+" : ""}` : "";
+		$[5] = countIsLowerBound;
+		$[6] = hasCount;
+		$[7] = matchCount;
+		$[8] = t3;
+	} else t3 = $[8];
+	const total = t3;
+	let t4;
+	if ($[9] !== error || $[10] !== hasCount || $[11] !== matchIndex || $[12] !== noResults || $[13] !== total) {
+		t4 = noResults ? "No results" : error !== void 0 && !hasCount ? "Error" : matchIndex === void 0 ? total : `${(matchIndex + 1).toLocaleString()} of ${total}`;
+		$[9] = error;
+		$[10] = hasCount;
+		$[11] = matchIndex;
+		$[12] = noResults;
+		$[13] = total;
+		$[14] = t4;
+	} else t4 = $[14];
+	const statusText = t4;
+	let t5;
+	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = clsx(FindBandUI_module_default.findBand, "findBand");
+		$[15] = t5;
+	} else t5 = $[15];
+	let t6;
+	if ($[16] !== inputProps || $[17] !== inputRef) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 			ref: inputRef,
 			...inputProps
 		});
-		$[6] = inputProps;
-		$[7] = inputRef;
-		$[8] = t3;
-	} else t3 = $[8];
-	const t4 = noResults && FindBandUI_module_default.noResults;
-	let t5;
-	if ($[9] !== t4) {
-		t5 = clsx(FindBandUI_module_default.matchCount, t4);
-		$[9] = t4;
-		$[10] = t5;
-	} else t5 = $[10];
-	const t6 = showStatus ? "visible" : "hidden";
-	let t7;
-	if ($[11] !== t6) {
-		t7 = { visibility: t6 };
-		$[11] = t6;
-		$[12] = t7;
-	} else t7 = $[12];
+		$[16] = inputProps;
+		$[17] = inputRef;
+		$[18] = t6;
+	} else t6 = $[18];
+	const t7 = (noResults || error !== void 0 && !hasCount) && FindBandUI_module_default.noResults;
 	let t8;
-	if ($[13] !== statusText || $[14] !== t5 || $[15] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	if ($[19] !== t7) {
+		t8 = clsx(FindBandUI_module_default.matchCount, t7);
+		$[19] = t7;
+		$[20] = t8;
+	} else t8 = $[20];
+	const t9 = showStatus ? "visible" : "hidden";
+	let t10;
+	if ($[21] !== t9) {
+		t10 = { visibility: t9 };
+		$[21] = t9;
+		$[22] = t10;
+	} else t10 = $[22];
+	let t11;
+	if ($[23] !== statusText || $[24] !== t10 || $[25] !== t8) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			"data-testid": "find-band-match-count",
-			className: t5,
-			style: t7,
+			className: t8,
+			style: t10,
 			children: statusText
 		});
-		$[13] = statusText;
-		$[14] = t5;
-		$[15] = t7;
-		$[16] = t8;
-	} else t8 = $[16];
-	let t9;
-	if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = clsx("btn", FindBandUI_module_default.prev);
-		$[17] = t9;
-	} else t9 = $[17];
-	let t10;
-	if ($[18] !== icons.arrowUp) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.arrowUp });
-		$[18] = icons.arrowUp;
-		$[19] = t10;
-	} else t10 = $[19];
-	let t11;
-	if ($[20] !== disableNav || $[21] !== onPrevious || $[22] !== t10) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[23] = statusText;
+		$[24] = t10;
+		$[25] = t8;
+		$[26] = t11;
+	} else t11 = $[26];
+	let t12;
+	if ($[27] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = clsx("btn", FindBandUI_module_default.prev);
+		$[27] = t12;
+	} else t12 = $[27];
+	let t13;
+	if ($[28] !== icons.arrowUp) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.arrowUp });
+		$[28] = icons.arrowUp;
+		$[29] = t13;
+	} else t13 = $[29];
+	let t14;
+	if ($[30] !== disableNav || $[31] !== onPrevious || $[32] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			title: "Previous match",
 			"data-testid": "find-band-prev",
-			className: t9,
-			onClick: onPrevious,
-			disabled: disableNav,
-			children: t10
-		});
-		$[20] = disableNav;
-		$[21] = onPrevious;
-		$[22] = t10;
-		$[23] = t11;
-	} else t11 = $[23];
-	let t12;
-	if ($[24] === Symbol.for("react.memo_cache_sentinel")) {
-		t12 = clsx("btn", FindBandUI_module_default.next);
-		$[24] = t12;
-	} else t12 = $[24];
-	let t13;
-	if ($[25] !== icons.arrowDown) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.arrowDown });
-		$[25] = icons.arrowDown;
-		$[26] = t13;
-	} else t13 = $[26];
-	let t14;
-	if ($[27] !== disableNav || $[28] !== onNext || $[29] !== t13) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-			type: "button",
-			title: "Next match",
-			"data-testid": "find-band-next",
 			className: t12,
-			onClick: onNext,
+			onClick: onPrevious,
 			disabled: disableNav,
 			children: t13
 		});
-		$[27] = disableNav;
-		$[28] = onNext;
-		$[29] = t13;
-		$[30] = t14;
-	} else t14 = $[30];
+		$[30] = disableNav;
+		$[31] = onPrevious;
+		$[32] = t13;
+		$[33] = t14;
+	} else t14 = $[33];
 	let t15;
-	if ($[31] === Symbol.for("react.memo_cache_sentinel")) {
-		t15 = clsx("btn", FindBandUI_module_default.close);
-		$[31] = t15;
-	} else t15 = $[31];
+	if ($[34] === Symbol.for("react.memo_cache_sentinel")) {
+		t15 = clsx("btn", FindBandUI_module_default.next);
+		$[34] = t15;
+	} else t15 = $[34];
 	let t16;
-	if ($[32] !== icons.close) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.close });
-		$[32] = icons.close;
-		$[33] = t16;
-	} else t16 = $[33];
+	if ($[35] !== icons.arrowDown) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.arrowDown });
+		$[35] = icons.arrowDown;
+		$[36] = t16;
+	} else t16 = $[36];
 	let t17;
-	if ($[34] !== onClose || $[35] !== t16) {
+	if ($[37] !== disableNav || $[38] !== onNext || $[39] !== t16) {
 		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
-			title: "Close",
+			title: "Next match",
+			"data-testid": "find-band-next",
 			className: t15,
-			onClick: onClose,
+			onClick: onNext,
+			disabled: disableNav,
 			children: t16
 		});
-		$[34] = onClose;
-		$[35] = t16;
-		$[36] = t17;
-	} else t17 = $[36];
+		$[37] = disableNav;
+		$[38] = onNext;
+		$[39] = t16;
+		$[40] = t17;
+	} else t17 = $[40];
 	let t18;
-	if ($[37] !== t11 || $[38] !== t14 || $[39] !== t17 || $[40] !== t3 || $[41] !== t8) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	if ($[41] === Symbol.for("react.memo_cache_sentinel")) {
+		t18 = clsx("btn", FindBandUI_module_default.close);
+		$[41] = t18;
+	} else t18 = $[41];
+	let t19;
+	if ($[42] !== icons.close) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icons.close });
+		$[42] = icons.close;
+		$[43] = t19;
+	} else t19 = $[43];
+	let t20;
+	if ($[44] !== onClose || $[45] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			title: "Close",
+			className: t18,
+			onClick: onClose,
+			children: t19
+		});
+		$[44] = onClose;
+		$[45] = t19;
+		$[46] = t20;
+	} else t20 = $[46];
+	let t21;
+	if ($[47] !== error) {
+		t21 = error !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			"data-testid": "find-band-error",
+			className: FindBandUI_module_default.error,
+			title: error,
+			children: error
+		}) : null;
+		$[47] = error;
+		$[48] = t21;
+	} else t21 = $[48];
+	let t22;
+	if ($[49] !== t11 || $[50] !== t14 || $[51] !== t17 || $[52] !== t20 || $[53] !== t21 || $[54] !== t6) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-unsearchable": "true",
-			className: t2,
+			className: t5,
 			children: [
-				t3,
-				t8,
+				t6,
 				t11,
 				t14,
-				t17
+				t17,
+				t20,
+				t21
 			]
 		});
-		$[37] = t11;
-		$[38] = t14;
-		$[39] = t17;
-		$[40] = t3;
-		$[41] = t8;
-		$[42] = t18;
-	} else t18 = $[42];
-	return t18;
+		$[49] = t11;
+		$[50] = t14;
+		$[51] = t17;
+		$[52] = t20;
+		$[53] = t21;
+		$[54] = t6;
+		$[55] = t22;
+	} else t22 = $[55];
+	return t22;
 };
 //#endregion
 //#region ../../packages/react/src/components/findShortcuts.ts
@@ -65361,9 +66501,13 @@ var findConfig = {
 	searchInFrames: false,
 	showDialog: false
 };
-var FindBand = ({ onClose, debounceMs = 100 }) => {
+var FIRST_LETTER_DEBOUNCE_MS = 500;
+var FindBand = ({ onClose, debounceMs = 300 }) => {
 	const searchBoxRef = (0, import_react.useRef)(null);
 	const { extendedFindTerm, countAllMatches, getMatchCountersVersion } = useExtendedFind();
+	const coordinator = useFindCoordinatorOptional();
+	const findState = useFindState();
+	const hasSurface = coordinator !== null && findState.scopeId !== null;
 	const setFindTarget = useFindTargetSetter();
 	const lastFoundItem = (0, import_react.useRef)(null);
 	const currentSearchTerm = (0, import_react.useRef)("");
@@ -65371,6 +66515,7 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 	const scrollTimeoutRef = (0, import_react.useRef)(null);
 	const focusTimeoutRef = (0, import_react.useRef)(null);
 	const searchIdRef = (0, import_react.useRef)(0);
+	const typingTimerRef = (0, import_react.useRef)(null);
 	const cachedCount = (0, import_react.useRef)({
 		term: "",
 		version: -1,
@@ -65380,14 +66525,47 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 	const [matchCount, setMatchCount] = (0, import_react.useState)(null);
 	const [currentMatchIndex, setCurrentMatchIndex] = (0, import_react.useState)(0);
 	const [noResults, setNoResults] = (0, import_react.useState)(false);
+	const [legacyStateForSurface, setLegacyStateForSurface] = (0, import_react.useState)(hasSurface);
+	if (legacyStateForSurface !== hasSurface) {
+		setLegacyStateForSurface(hasSurface);
+		setMatchCount(null);
+		setCurrentMatchIndex(0);
+		setNoResults(false);
+	}
+	const searchCoordinator = (0, import_react.useCallback)((searchTerm, back, typing) => {
+		if (!coordinator) return;
+		if (typing || searchTerm !== findState.term) {
+			setFindTarget({
+				term: searchTerm,
+				eventId: ""
+			});
+			coordinator.setTerm(searchTerm);
+		} else if (findState.error !== null) coordinator.refresh();
+		else if (back) coordinator.previous();
+		else coordinator.next();
+	}, [
+		coordinator,
+		findState.term,
+		findState.error,
+		setFindTarget
+	]);
 	const handleSearch = (0, import_react.useCallback)(async (back = false, skipKnownMiss = false) => {
+		if (typingTimerRef.current !== null) {
+			window.clearTimeout(typingTimerRef.current);
+			typingTimerRef.current = null;
+		}
 		const thisSearchId = ++searchIdRef.current;
 		const searchTerm = searchBoxRef.current?.value ?? "";
 		if (!searchTerm) {
+			coordinator?.setTerm("");
 			setMatchCount(null);
 			setCurrentMatchIndex(0);
 			setNoResults(false);
 			setFindTarget(null);
+			return;
+		}
+		if (hasSurface) {
+			searchCoordinator(searchTerm, back, skipKnownMiss);
 			return;
 		}
 		const countersVersion = getMatchCountersVersion();
@@ -65419,7 +66597,7 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 		if (selection && selection.rangeCount > 0) savedRange = selection.getRangeAt(0).cloneRange();
 		const savedScrollParent = savedRange ? findScrollableParent(savedRange.startContainer.parentElement) : null;
 		const savedScrollTop = savedScrollParent?.scrollTop ?? 0;
-		const result = await findExtendedInDOM(searchTerm, back, lastFoundItem.current, extendedFindTerm);
+		const result = await findExtendedInDOM(searchTerm, back, lastFoundItem.current, extendedFindTerm, () => searchIdRef.current !== thisSearchId);
 		if (searchIdRef.current !== thisSearchId) return;
 		setNoResults(!result);
 		lastNoResult.current = result ? null : {
@@ -65464,8 +66642,26 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 		setFindTarget,
 		extendedFindTerm,
 		countAllMatches,
-		getMatchCountersVersion
+		getMatchCountersVersion,
+		coordinator,
+		hasSurface,
+		searchCoordinator
 	]);
+	useUnmount(() => coordinator?.close());
+	useOnChange(hasSurface, (surfaceNow) => {
+		if (surfaceNow && coordinator) {
+			searchIdRef.current++;
+			const term = searchBoxRef.current?.value ?? "";
+			if (term) setFindTarget({
+				term,
+				eventId: ""
+			});
+			coordinator.setTerm(term);
+		} else {
+			lastFoundItem.current = null;
+			currentSearchTerm.current = "";
+		}
+	});
 	(0, import_react.useEffect)(() => {
 		focusTimeoutRef.current = window.setTimeout(() => {
 			searchBoxRef.current?.focus();
@@ -65474,6 +66670,7 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 		const focusTimeout = focusTimeoutRef.current;
 		return () => {
 			if (scrollTimeoutRef.current !== null) window.clearTimeout(scrollTimeoutRef.current);
+			if (typingTimerRef.current !== null) window.clearTimeout(typingTimerRef.current);
 			if (focusTimeout !== null) window.clearTimeout(focusTimeout);
 			setFindTarget(null);
 		};
@@ -65504,11 +66701,27 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 			input.setSelectionRange(len, len);
 		}
 	}, []);
-	const handleInputChange = useDebouncedCallback((0, import_react.useCallback)(async () => {
+	const runDebouncedSearch = (0, import_react.useCallback)(async () => {
 		if (!searchBoxRef.current) return;
 		await handleSearch(false, true);
-		needsCursorRestoreRef.current = true;
-	}, [handleSearch]), debounceMs);
+		if (!hasSurface) needsCursorRestoreRef.current = true;
+	}, [handleSearch, hasSurface]);
+	const handleInputChange = (0, import_react.useCallback)(() => {
+		if (typingTimerRef.current !== null) {
+			window.clearTimeout(typingTimerRef.current);
+			typingTimerRef.current = null;
+		}
+		const len = searchBoxRef.current?.value.length ?? 0;
+		if (len === 0) {
+			runDebouncedSearch().catch((error) => console.error(error));
+			return;
+		}
+		const delay = len === 1 ? FIRST_LETTER_DEBOUNCE_MS : debounceMs;
+		typingTimerRef.current = window.setTimeout(() => {
+			typingTimerRef.current = null;
+			runDebouncedSearch().catch((error) => console.error(error));
+		}, delay);
+	}, [debounceMs, runDebouncedSearch]);
 	const restoreCursorIfNeeded = (0, import_react.useCallback)(() => {
 		const input = searchBoxRef.current;
 		if (!input) return;
@@ -65565,11 +66778,16 @@ var FindBand = ({ onClose, debounceMs = 100 }) => {
 		onKeyDown: handleKeyDown,
 		onBeforeInput: handleBeforeInput,
 		onChange: handleInputChange,
-		noResults,
-		matchCount: matchCount ?? void 0,
-		matchIndex: matchCount !== null && matchCount > 0 ? currentMatchIndex - 1 : void 0
+		noResults: hasSurface ? findState.noResults : noResults,
+		error: hasSurface ? findState.error ?? void 0 : void 0,
+		matchCount: hasSurface ? coordinatorCount(findState) : matchCount ?? void 0,
+		matchIndex: hasSurface ? findState.activeOrdinal ?? void 0 : matchCount !== null && matchCount > 0 ? currentMatchIndex - 1 : void 0,
+		countIsLowerBound: hasSurface && !findState.exact
 	});
 };
+function coordinatorCount({ count }) {
+	return count !== null && count > 0 ? count : void 0;
+}
 function windowFind(searchTerm, back) {
 	return window.find?.(searchTerm, findConfig.caseSensitive, back, findConfig.wrapAround, findConfig.wholeWord, findConfig.searchInFrames, findConfig.showDialog) ?? false;
 }
@@ -65584,12 +66802,13 @@ function positionSelectionForWrap(back) {
 		sel.addRange(range);
 	}
 }
-async function findExtendedInDOM(searchTerm, back, lastFoundItem, extendedFindTerm) {
+async function findExtendedInDOM(searchTerm, back, lastFoundItem, extendedFindTerm, superseded) {
 	let result = false;
 	let hasTriedExtendedSearch = false;
 	let extendedSearchSucceeded = false;
 	const maxAttempts = 25;
 	for (let attempts = 0; attempts < maxAttempts; attempts++) {
+		if (superseded()) return false;
 		result = windowFind(searchTerm, back);
 		if (result) {
 			const selection = window.getSelection();
@@ -65602,7 +66821,9 @@ async function findExtendedInDOM(searchTerm, back, lastFoundItem, extendedFindTe
 					if (!hasTriedExtendedSearch) {
 						hasTriedExtendedSearch = true;
 						window.getSelection()?.removeAllRanges();
-						if (await extendedFindTerm(searchTerm, back ? "backward" : "forward")) {
+						const foundInVirtual = await extendedFindTerm(searchTerm, back ? "backward" : "forward");
+						if (superseded()) return false;
+						if (foundInVirtual) {
 							extendedSearchSucceeded = true;
 							await waitForTextInDOM(searchTerm);
 							continue;
@@ -65628,7 +66849,9 @@ async function findExtendedInDOM(searchTerm, back, lastFoundItem, extendedFindTe
 		} else if (!hasTriedExtendedSearch) {
 			hasTriedExtendedSearch = true;
 			window.getSelection()?.removeAllRanges();
-			if (await extendedFindTerm(searchTerm, back ? "backward" : "forward")) {
+			const foundInVirtual = await extendedFindTerm(searchTerm, back ? "backward" : "forward");
+			if (superseded()) return false;
+			if (foundInVirtual) {
 				extendedSearchSucceeded = true;
 				await waitForTextInDOM(searchTerm);
 				continue;
@@ -70010,7 +71233,7 @@ var collectRefs = (value, into) => {
 		this.onRow = onRow;
 	}
 	next(message, index) {
-		const resolved = message.id === void 0 ? {
+		const resolved = message.id === void 0 || message.id === null ? {
 			...message,
 			id: `msg-${index}`
 		} : message;
@@ -70091,6 +71314,22 @@ var resolveMessages = (messages) => {
 * data layer's target drain must agree on this, so it lives with the row
 * type.
 */ var rowContainsMessage = (row, messageId) => row.resolved.message.id === messageId || row.resolved.toolMessages.some((tm) => tm.id === messageId);
+/**
+* Find anchor ids for the rows, index-aligned, mirrored by the server: a
+* row's anchor is its head message id verbatim (the fold mints `msg-{index}`
+* for a missing id; "" stays "" and is a legal anchor) unless a prior row was
+* assigned that string, in which case `#rowIndex` is appended, again while
+* the result is already assigned. Only prior rows' anchors collide (never
+* folded tool message ids or later rows), so anchors are stable under append.
+*/ var messageRowAnchorIds = (rows) => {
+	const assigned = /* @__PURE__ */ new Set();
+	return rows.map((row, index) => {
+		let anchor = row.resolved.message.id ?? "";
+		while (assigned.has(anchor)) anchor += `#${index}`;
+		assigned.add(anchor);
+		return anchor;
+	});
+};
 /**
 * Fold options from a view's tool options — the one place the fold
 * defaults ("complete", collapse on) are defined. Data-layer folds and
@@ -72152,9 +73391,6 @@ function computeScale(contentTotal, safeMax) {
 function toContent(spacerScroll, s) {
 	return spacerScroll * s;
 }
-function toSpacer(contentScroll, s) {
-	return contentScroll / s;
-}
 //#endregion
 //#region ../../packages/react/src/virtual/use-scaled-virtualizer.ts
 function useScaledVirtualizer(opts) {
@@ -72162,16 +73398,23 @@ function useScaledVirtualizer(opts) {
 	const scaledObserveElementOffset = (0, import_react.useMemo)(() => (instance, cb) => {
 		const el = instance.scrollElement;
 		if (!el) return;
-		const onScroll = () => {
-			cb(el.scrollTop * scaleRef.current, true);
-		};
+		const supportsScrollend = "onscrollend" in window;
+		let settleTimer;
 		const onScrollEnd = () => {
 			cb(el.scrollTop * scaleRef.current, false);
 		};
-		cb(el.scrollTop * scaleRef.current, false);
+		const onScroll = () => {
+			if (!supportsScrollend) {
+				clearTimeout(settleTimer);
+				settleTimer = setTimeout(onScrollEnd, instance.options.isScrollingResetDelay);
+			}
+			cb(el.scrollTop * scaleRef.current, true);
+		};
+		onScrollEnd();
 		el.addEventListener("scroll", onScroll, { passive: true });
-		el.addEventListener("scrollend", onScrollEnd, { passive: true });
+		if (supportsScrollend) el.addEventListener("scrollend", onScrollEnd, { passive: true });
 		return () => {
+			clearTimeout(settleTimer);
 			el.removeEventListener("scroll", onScroll);
 			el.removeEventListener("scrollend", onScrollEnd);
 		};
@@ -72184,6 +73427,7 @@ function useScaledVirtualizer(opts) {
 			top: adjusted / scaleRef.current,
 			behavior
 		});
+		if (behavior !== "smooth" && adjustments === void 0) instance.scrollOffset = el.scrollTop * scaleRef.current;
 	}, []);
 	const virtualizer = useVirtualizer({
 		count: opts.count,
@@ -72196,20 +73440,17 @@ function useScaledVirtualizer(opts) {
 		scrollToFn: scaledScrollToFn
 	});
 	virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => item.end <= (instance.scrollOffset ?? 0);
-	const contentTotal = virtualizer.getTotalSize();
-	const scale = computeScale(contentTotal, SAFE_MAX_SPACER);
+	const scale = computeScale(virtualizer.getTotalSize(), SAFE_MAX_SPACER);
 	scaleRef.current = scale;
 	return {
 		virtualizer,
 		scale,
-		spacerHeight: scale === 1 ? contentTotal : SAFE_MAX_SPACER,
-		toContentScroll: (0, import_react.useCallback)((spacerScroll) => toContent(spacerScroll, scaleRef.current), []),
-		toSpacerScroll: (0, import_react.useCallback)((contentScroll) => toSpacer(contentScroll, scaleRef.current), [])
+		toContentScroll: (0, import_react.useCallback)((spacerScroll) => toContent(spacerScroll, scaleRef.current), [])
 	};
 }
 //#endregion
 //#region ../../packages/react/src/virtual/use-virtual-list-state.ts
-var CURRENT_VERSION = 1;
+var CURRENT_VERSION = 2;
 function useVirtualListState(persistenceKey) {
 	const $ = (0, import_compiler_runtime.c)(8);
 	let t0;
@@ -72221,8 +73462,7 @@ function useVirtualListState(persistenceKey) {
 	let t1;
 	if ($[1] !== stored) {
 		t1 = () => {
-			if (!stored) return;
-			if (stored.version !== CURRENT_VERSION) return;
+			if (!stored || stored.version !== CURRENT_VERSION) return;
 			return stored;
 		};
 		$[1] = stored;
@@ -72300,21 +73540,18 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	const internalScrollRef = (0, import_react.useRef)(null);
 	const wrapperRef = (0, import_react.useRef)(null);
 	const [scrollParent, setScrollParent] = (0, import_react.useState)(null);
-	const [scrollMargin, setScrollMargin] = (0, import_react.useState)(0);
+	const [listOffset, setListOffset] = (0, import_react.useState)(0);
+	const scrollMargin = embedded ? listOffset : 0;
 	const measureScrollMargin = (0, import_react.useCallback)(() => {
 		const wrapper = wrapperRef.current;
-		const parent = embedded ? externalScrollEl ?? scrollParent : null;
-		let margin = 0;
+		const parent = externalScrollEl ?? scrollParent;
+		let offset = 0;
 		if (wrapper && parent && parent !== wrapper) {
 			const parentRect = parent.getBoundingClientRect();
-			if (parentRect.width > 0 || parentRect.height > 0) margin = Math.max(0, Math.round(wrapper.getBoundingClientRect().top - parentRect.top + parent.scrollTop));
+			if (parentRect.width > 0 || parentRect.height > 0) offset = Math.max(0, Math.round(wrapper.getBoundingClientRect().top - parentRect.top + parent.scrollTop));
 		}
-		setScrollMargin((prev) => prev === margin ? prev : margin);
-	}, [
-		embedded,
-		externalScrollEl,
-		scrollParent
-	]);
+		setListOffset((prev) => prev === offset ? prev : offset);
+	}, [externalScrollEl, scrollParent]);
 	(0, import_react.useLayoutEffect)(measureScrollMargin);
 	(0, import_react.useEffect)(() => {
 		if (externalScrollRef === null) return;
@@ -72333,7 +73570,7 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		return () => observer.disconnect();
 	}, [externalScrollRef, measureScrollMargin]);
 	const getScrollElement = (0, import_react.useCallback)(() => externalScrollEl ?? scrollParent ?? internalScrollRef.current, [externalScrollEl, scrollParent]);
-	const { virtualizer, scale, toContentScroll, toSpacerScroll } = useScaledVirtualizer({
+	const { virtualizer, scale, toContentScroll } = useScaledVirtualizer({
 		count: data.length,
 		estimateSize: () => estimatedItemHeight,
 		getScrollElement,
@@ -72341,6 +73578,25 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		scrollPaddingStart: scrollPaddingStart ?? 0,
 		scrollMargin
 	});
+	const measureListeners = (0, import_react.useRef)(/* @__PURE__ */ new Set());
+	const pendingMeasure = (0, import_react.useRef)([]);
+	const bandRef = (0, import_react.useRef)(null);
+	const measureRow = (0, import_react.useCallback)((node) => {
+		const pending = pendingMeasure.current;
+		pending.push(node);
+		if (pending.length > 1) return;
+		queueMicrotask(() => {
+			const nodes = pending.splice(0);
+			for (const node_0 of nodes) {
+				if (node_0 && !node_0.isConnected) continue;
+				virtualizer.measureElement(node_0);
+			}
+			for (const node_1 of nodes) {
+				if (!node_1?.isConnected) continue;
+				for (const listener of measureListeners.current) listener(node_1);
+			}
+		});
+	}, [virtualizer]);
 	const { getRestoreSnapshot, recordSnapshot } = useVirtualListState(persistenceKey);
 	const [storedFollow, setFollowOutput] = useProperty(persistenceKey, "follow", { defaultValue: null });
 	const isAutoScrollingRef = (0, import_react.useRef)(false);
@@ -72510,132 +73766,195 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	]);
 	const hasInitialScrolledRef = (0, import_react.useRef)(false);
 	const userScrolledRef = (0, import_react.useRef)(false);
+	const mountPositionedRef = (0, import_react.useRef)(false);
 	const lastAutoScrollTopRef = (0, import_react.useRef)(null);
-	const settleFrameRef = (0, import_react.useRef)(0);
+	const lastInitialKeyRef = (0, import_react.useRef)(null);
+	const buildSnapshot = (0, import_react.useCallback)((el_4) => {
+		const containerOffset = el_4 ? toContentScroll(el_4.scrollTop) : 0;
+		const itemOffset = containerOffset - listOffset + scrollMargin;
+		const anchor = virtualizer.getVirtualItemForOffset(itemOffset);
+		const snapshot = {
+			version: 2,
+			index: anchor?.index ?? 0,
+			offsetInRow: anchor ? itemOffset - anchor.start : 0,
+			totalCount: data.length
+		};
+		if (containerOffset < listOffset) snapshot.containerOffset = containerOffset;
+		return snapshot;
+	}, [
+		toContentScroll,
+		virtualizer,
+		data.length,
+		listOffset,
+		scrollMargin
+	]);
+	const pendingSnapshotRef = (0, import_react.useRef)(null);
+	const settleLandingRef = useLatestRef((el_5, persist) => {
+		if (pendingSnapshotRef.current) pendingSnapshotRef.current = buildSnapshot(el_5);
+		if (persist) recordSnapshot(buildSnapshot(el_5));
+	});
+	const landingRef = (0, import_react.useRef)(null);
 	const releaseFrameRef = (0, import_react.useRef)(0);
-	const settleScrollToIndex = (0, import_react.useCallback)((index, align, onDone) => {
-		const jump = () => virtualizer.scrollToIndex(index, {
-			align,
-			behavior: "auto"
-		});
+	const pendingScrollRef = (0, import_react.useRef)(null);
+	const programmaticScroll = (0, import_react.useCallback)((run, onDone, persist_0 = false) => {
+		if (!getScrollElement()) {
+			pendingScrollRef.current = {
+				run,
+				onDone,
+				persist: persist_0
+			};
+			return;
+		}
+		pendingScrollRef.current = null;
+		hasInitialScrolledRef.current = true;
+		mountPositionedRef.current = true;
 		isAutoScrollingRef.current = true;
 		cancelAnimationFrame(releaseFrameRef.current);
-		const finish = () => {
-			const elNow = getScrollElement();
-			if (elNow) lastAutoScrollTopRef.current = elNow.scrollTop;
-			releaseFrameRef.current = requestAnimationFrame(() => {
-				isAutoScrollingRef.current = false;
-			});
+		landingRef.current = persist_0 ? { snapshot: null } : null;
+		run();
+		const release = () => {
+			const userTookOver = userInteractingRef.current;
+			if (virtualizer.isScrolling && !userTookOver) {
+				releaseFrameRef.current = requestAnimationFrame(release);
+				return;
+			}
+			const el_6 = getScrollElement();
+			if (el_6) {
+				if (!userTookOver) lastAutoScrollTopRef.current = el_6.scrollTop;
+				settleLandingRef.current(el_6, persist_0 && !userTookOver && lastInitialKeyRef.current === persistenceKey);
+			}
+			landingRef.current = null;
+			isAutoScrollingRef.current = false;
 			onDone?.();
 		};
-		jump();
-		const el_4 = getScrollElement();
-		if (!el_4) {
-			finish();
-			return;
-		}
-		cancelAnimationFrame(settleFrameRef.current);
-		let frames = 0;
-		let stable = 0;
-		let lastTop = el_4.scrollTop;
-		const settle = () => {
-			if (userInteractingRef.current) {
-				finish();
-				return;
-			}
-			jump();
-			stable = Math.abs(el_4.scrollTop - lastTop) <= 1 ? stable + 1 : 0;
-			lastTop = el_4.scrollTop;
-			if (stable < 3 && (frames += 1) < 30) settleFrameRef.current = requestAnimationFrame(settle);
-			else finish();
-		};
-		settleFrameRef.current = requestAnimationFrame(settle);
-	}, [virtualizer, getScrollElement]);
+		releaseFrameRef.current = requestAnimationFrame(release);
+	}, [
+		virtualizer,
+		getScrollElement,
+		persistenceKey,
+		settleLandingRef
+	]);
 	useUnmount(() => {
-		cancelAnimationFrame(settleFrameRef.current);
 		cancelAnimationFrame(releaseFrameRef.current);
 	});
-	const lastInitialKeyRef = (0, import_react.useRef)(null);
-	const settleRestoreScroll = (0, import_react.useCallback)((getTargetSpacerTop) => {
-		isAutoScrollingRef.current = true;
-		cancelAnimationFrame(releaseFrameRef.current);
-		cancelAnimationFrame(settleFrameRef.current);
-		const el_5 = getScrollElement();
-		const keyAtStart = lastInitialKeyRef.current;
-		const finish_0 = () => {
-			if (el_5) lastAutoScrollTopRef.current = el_5.scrollTop;
-			releaseFrameRef.current = requestAnimationFrame(() => {
-				isAutoScrollingRef.current = false;
-			});
-		};
-		if (!el_5) {
-			finish_0();
-			return;
+	const jumpToIndex = (0, import_react.useCallback)((index, align, behavior, onDone_0) => {
+		if (live && followOutputRef.current) {
+			followUserActedRef.current = true;
+			setFollowOutput(false);
 		}
-		el_5.scrollTop = getTargetSpacerTop();
-		let frames_0 = 0;
-		let stable_0 = 0;
-		let lastTop_0 = el_5.scrollTop;
-		const settle_0 = () => {
-			if (userInteractingRef.current || lastInitialKeyRef.current !== keyAtStart) {
-				finish_0();
-				return;
-			}
-			const preTop = el_5.scrollTop;
-			el_5.scrollTop = getTargetSpacerTop();
-			const postTop = el_5.scrollTop;
-			stable_0 = Math.abs(preTop - lastTop_0) > 1 || Math.abs(postTop - lastTop_0) > 1 ? 0 : stable_0 + 1;
-			lastTop_0 = postTop;
-			if (stable_0 < 3 && (frames_0 += 1) < 30) settleFrameRef.current = requestAnimationFrame(settle_0);
-			else finish_0();
-		};
-		settleFrameRef.current = requestAnimationFrame(settle_0);
-	}, [getScrollElement]);
+		programmaticScroll(() => virtualizer.scrollToIndex(index, {
+			align,
+			behavior: scale > SMOOTH_SCROLL_MAX_S ? "auto" : behavior
+		}), onDone_0, true);
+	}, [
+		live,
+		programmaticScroll,
+		virtualizer,
+		scale,
+		setFollowOutput
+	]);
+	const rowIndexOf = (0, import_react.useCallback)((node_2) => {
+		const band = bandRef.current;
+		let row = node_2;
+		while (row && row.parentElement !== band) row = row.parentElement;
+		const index_0 = row instanceof HTMLElement ? Number(row.dataset.index) : NaN;
+		return row && Number.isInteger(index_0) ? index_0 : null;
+	}, []);
+	const scroller = (0, import_react.useMemo)(() => ({
+		viewportRect: () => getScrollElement()?.getBoundingClientRect() ?? new DOMRect(),
+		scrollToRow: (node_3, onDone_1) => {
+			const index_1 = rowIndexOf(node_3);
+			if (index_1 === null) return false;
+			jumpToIndex(index_1, "start", "auto", onDone_1);
+			return true;
+		},
+		centreInRow: (node_4, box, onDone_2) => {
+			const index_2 = rowIndexOf(node_4);
+			if (index_2 === null) return false;
+			const rowRect = node_4.closest(`[data-index="${index_2}"]`)?.getBoundingClientRect() ?? box;
+			virtualizer.resizeItem(index_2, Math.round(rowRect.height));
+			virtualizer.getVirtualItems();
+			const start = virtualizer.measurementsCache[index_2]?.start ?? scrollMargin;
+			const viewportHeight = getScrollElement()?.clientHeight ?? 0;
+			const target = start + (box.top - rowRect.top) - (viewportHeight - box.height) / 2;
+			programmaticScroll(() => virtualizer.scrollToOffset(target), onDone_2, true);
+			return true;
+		},
+		onRowMeasured: (listener_0) => {
+			measureListeners.current.add(listener_0);
+			return () => measureListeners.current.delete(listener_0);
+		}
+	}), [
+		getScrollElement,
+		virtualizer,
+		programmaticScroll,
+		scrollMargin,
+		rowIndexOf,
+		jumpToIndex
+	]);
 	const lastInitialIndexRef = (0, import_react.useRef)(void 0);
 	const hasResetTopRef = (0, import_react.useRef)(false);
 	(0, import_react.useEffect)(() => {
 		if (lastInitialKeyRef.current !== persistenceKey || lastInitialIndexRef.current !== initialIndex) {
 			hasInitialScrolledRef.current = false;
 			userScrolledRef.current = false;
+			mountPositionedRef.current = false;
 			hasResetTopRef.current = false;
 			lastInitialKeyRef.current = persistenceKey;
 			lastInitialIndexRef.current = initialIndex ?? void 0;
 		}
+		const el_7 = getScrollElement();
+		if (!el_7) return;
+		const pending_0 = pendingScrollRef.current;
+		if (pending_0) {
+			programmaticScroll(pending_0.run, pending_0.onDone, pending_0.persist);
+			return;
+		}
 		if (hasInitialScrolledRef.current) return;
-		const el_6 = getScrollElement();
-		if (!el_6) return;
-		const snapshot = getRestoreSnapshot();
+		const snapshot_0 = getRestoreSnapshot();
 		let releaseFrame_0 = 0;
 		const frame_0 = requestAnimationFrame(() => {
-			isAutoScrollingRef.current = true;
-			const release = () => {
-				lastAutoScrollTopRef.current = el_6.scrollTop;
+			if (hasInitialScrolledRef.current) return;
+			mountPositionedRef.current = true;
+			if (initialIndex != null) {
+				hasInitialScrolledRef.current = true;
+				programmaticScroll(() => virtualizer.scrollToIndex(initialIndex, {
+					align: "start",
+					behavior: "auto"
+				}));
+			} else if (followOutput && live) hasInitialScrolledRef.current = true;
+			else if (snapshot_0) {
+				hasInitialScrolledRef.current = true;
+				if (!userScrolledRef.current) {
+					const anchorIndex = Math.min(snapshot_0.index, data.length - 1);
+					const anchorMeasurement = () => {
+						virtualizer.getVirtualItems();
+						return virtualizer.measurementsCache[anchorIndex];
+					};
+					const anchorTarget = () => {
+						if (snapshot_0.containerOffset !== void 0) return snapshot_0.containerOffset;
+						return (anchorMeasurement()?.start ?? scrollMargin) + snapshot_0.offsetInRow + listOffset - scrollMargin;
+					};
+					const maxScrollOffset = () => toContentScroll(el_7.scrollHeight - el_7.clientHeight);
+					const anchorFits = () => snapshot_0.offsetInRow <= (anchorMeasurement()?.size ?? 0);
+					if (anchorFits() && anchorTarget() <= maxScrollOffset()) programmaticScroll(() => virtualizer.scrollToOffset(anchorTarget()));
+					else programmaticScroll(() => virtualizer.scrollToIndex(anchorIndex, {
+						align: "start",
+						behavior: "auto"
+					}), () => {
+						if (lastInitialKeyRef.current !== persistenceKey || userInteractingRef.current || !anchorFits() || anchorTarget() > maxScrollOffset()) return;
+						programmaticScroll(() => virtualizer.scrollToOffset(anchorTarget()));
+					});
+				}
+			} else if (!userScrolledRef.current && !hasResetTopRef.current && resetScrollOnMount) {
+				isAutoScrollingRef.current = true;
+				el_7.scrollTop = 0;
+				hasResetTopRef.current = true;
+				lastAutoScrollTopRef.current = el_7.scrollTop;
 				releaseFrame_0 = requestAnimationFrame(() => {
 					isAutoScrollingRef.current = false;
 				});
-			};
-			if (initialIndex != null) {
-				hasInitialScrolledRef.current = true;
-				settleScrollToIndex(initialIndex, "start");
-			} else if (followOutput && live) {
-				hasInitialScrolledRef.current = true;
-				release();
-			} else if (snapshot) {
-				hasInitialScrolledRef.current = true;
-				if (!userScrolledRef.current) {
-					const clampToMax = snapshot.totalCount !== data.length;
-					settleRestoreScroll(() => {
-						const target = toSpacerScroll(snapshot.scrollOffset);
-						if (!clampToMax) return target;
-						const maxSpacerTop = Math.max(0, toSpacerScroll(virtualizer.getTotalSize()) + scrollMargin - el_6.clientHeight);
-						return Math.min(target, maxSpacerTop);
-					});
-				} else release();
-			} else if (!userScrolledRef.current && !hasResetTopRef.current && resetScrollOnMount) {
-				el_6.scrollTop = 0;
-				hasResetTopRef.current = true;
-				release();
-			} else release();
+			}
 		});
 		return () => {
 			cancelAnimationFrame(frame_0);
@@ -72647,46 +73966,46 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	}, [
 		persistenceKey,
 		initialIndex,
-		settleScrollToIndex,
-		settleRestoreScroll,
+		programmaticScroll,
 		contentTotal,
 		data.length,
 		followOutput,
 		live,
 		getRestoreSnapshot,
 		getScrollElement,
-		toSpacerScroll,
+		toContentScroll,
 		virtualizer,
 		scrollMargin,
+		listOffset,
 		resetScrollOnMount
 	]);
-	const buildSnapshot = (0, import_react.useCallback)((el_7) => ({
-		version: 1,
-		scrollOffset: toContentScroll(el_7.scrollTop),
-		totalCount: data.length
-	}), [toContentScroll, data.length]);
 	const persistTimerRef = (0, import_react.useRef)(null);
-	const pendingSnapshotRef = (0, import_react.useRef)(null);
 	const persistOnScroll = useRafThrottle(() => {
-		if (isAutoScrollingRef.current) return;
-		const elNow_0 = getScrollElement();
-		if (elNow_0 && lastAutoScrollTopRef.current !== null && Math.abs(elNow_0.scrollTop - lastAutoScrollTopRef.current) <= 2) return;
+		if (!wrapperRef.current?.isConnected) return;
+		const elNow = getScrollElement();
+		if (isAutoScrollingRef.current) {
+			const landing = landingRef.current;
+			if (landing && elNow) landing.snapshot = buildSnapshot(elNow);
+			return;
+		}
+		const userInput = userInteractingRef.current || pointerDownRef.current;
+		if (elNow && !userInput && lastAutoScrollTopRef.current !== null && Math.abs(elNow.scrollTop - lastAutoScrollTopRef.current) <= 2) return;
+		if (!mountPositionedRef.current && !userInput) return;
 		userScrolledRef.current = true;
-		if (elNow_0) pendingSnapshotRef.current = buildSnapshot(elNow_0);
+		if (elNow) pendingSnapshotRef.current = buildSnapshot(elNow);
 		if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
 		persistTimerRef.current = setTimeout(() => {
 			persistTimerRef.current = null;
+			const snapshot_1 = pendingSnapshotRef.current;
 			pendingSnapshotRef.current = null;
-			const el_8 = getScrollElement();
-			if (!el_8) return;
-			recordSnapshot(buildSnapshot(el_8));
+			if (snapshot_1) recordSnapshot(snapshot_1);
 		}, PERSIST_DEBOUNCE_MS);
 	});
 	(0, import_react.useEffect)(() => {
-		const el_9 = getScrollElement();
-		if (!el_9) return;
-		el_9.addEventListener("scroll", persistOnScroll);
-		return () => el_9.removeEventListener("scroll", persistOnScroll);
+		const el_8 = getScrollElement();
+		if (!el_8) return;
+		el_8.addEventListener("scroll", persistOnScroll);
+		return () => el_8.removeEventListener("scroll", persistOnScroll);
 	}, [getScrollElement, persistOnScroll]);
 	(0, import_react.useEffect)(() => () => {
 		if (persistTimerRef.current) {
@@ -72695,6 +74014,9 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 			if (pendingSnapshotRef.current) recordSnapshot(pendingSnapshotRef.current);
 		}
 		pendingSnapshotRef.current = null;
+		const landing_0 = landingRef.current?.snapshot;
+		if (landing_0) recordSnapshot(landing_0);
+		landingRef.current = null;
 	}, [recordSnapshot]);
 	useUnmount(() => {
 		if (interactTimerRef.current) {
@@ -72723,50 +74045,34 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	]);
 	(0, import_react.useImperativeHandle)(ref, () => ({
 		scrollToIndex(opts) {
-			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
-			if (behavior === "auto") {
-				settleScrollToIndex(opts.index, opts.align, opts.onDone);
-				return;
-			}
-			virtualizer.scrollToIndex(opts.index, {
-				align: opts.align,
-				behavior
-			});
-			opts.onDone?.();
+			jumpToIndex(opts.index, opts.align, opts.behavior ?? (smoothScroll ? "smooth" : "auto"), opts.onDone);
 		},
 		scrollTo(opts_0) {
-			const el_10 = getScrollElement();
-			if (!el_10) return;
+			const el_9 = getScrollElement();
+			if (!el_9) return;
 			const behavior_0 = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts_0.behavior ?? (smoothScroll ? "smooth" : "auto");
-			el_10.scrollTo({
+			el_9.scrollTo({
 				top: opts_0.top,
 				behavior: behavior_0
 			});
 		},
 		getState(callback) {
-			const el_11 = getScrollElement();
-			callback({
-				version: 1,
-				scrollOffset: el_11 ? toContentScroll(el_11.scrollTop) : 0,
-				totalCount: data.length
-			});
+			callback(buildSnapshot(getScrollElement()));
 		},
 		jumpToStart() {
-			const el_12 = getScrollElement();
-			if (el_12) el_12.scrollTop = 0;
+			const el_10 = getScrollElement();
+			if (el_10) el_10.scrollTop = 0;
 		},
 		jumpToEnd() {
-			const el_13 = getScrollElement();
-			if (el_13) el_13.scrollTop = el_13.scrollHeight;
+			const el_11 = getScrollElement();
+			if (el_11) el_11.scrollTop = el_11.scrollHeight;
 		}
 	}), [
-		virtualizer,
 		scale,
-		settleScrollToIndex,
 		smoothScroll,
 		getScrollElement,
-		toContentScroll,
-		data.length
+		buildSnapshot,
+		jumpToIndex
 	]);
 	const extendedFind = useExtendedFindOptional();
 	const findContext = findScope === "none" ? null : extendedFind;
@@ -72778,8 +74084,8 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		const current = isForward ? range_0.endIndex : range_0.startIndex;
 		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
 		const prepared = prepareSearchTerm(term);
-		for (let offset = 1; offset < len; offset++) {
-			const i = isForward ? (current + offset) % len : (current - offset + len) % len;
+		for (let offset_0 = 1; offset_0 < len; offset_0++) {
+			const i = isForward ? (current + offset_0) % len : (current - offset_0 + len) % len;
 			const item_0 = data[i];
 			if (item_0 === void 0) continue;
 			const texts = getText(item_0);
@@ -72790,7 +74096,10 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 				if (prepared.jsonEscaped && lower.includes(prepared.jsonEscaped)) return true;
 				return false;
 			})) {
-				settleScrollToIndex(i, "center");
+				programmaticScroll(() => virtualizer.scrollToIndex(i, {
+					align: "center",
+					behavior: "auto"
+				}), void 0, true);
 				setTimeout(onContentReady, 200);
 				return Promise.resolve(true);
 			}
@@ -72799,7 +74108,8 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	}, [
 		data,
 		itemSearchText,
-		settleScrollToIndex
+		programmaticScroll,
+		virtualizer
 	]);
 	const precomputedSearchTexts = (0, import_react.useMemo)(() => {
 		if (!findContext) return [];
@@ -72842,11 +74152,11 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	const bottomPaddingSpacer = (lastItem ? Math.max(0, virtualizer.getTotalSize() + scrollMargin - (lastItem.start + lastItem.size)) : virtualizer.getTotalSize()) / scale;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		id,
-		ref: (el_14) => {
-			wrapperRef.current = el_14;
+		ref: (el_12) => {
+			wrapperRef.current = el_12;
 			if (!ownsScroll) return;
-			internalScrollRef.current = el_14;
-			setScrollParent((prev_1) => prev_1 === el_14 ? prev_1 : el_14);
+			internalScrollRef.current = el_12;
+			setScrollParent((prev_1) => prev_1 === el_12 ? prev_1 : el_12);
 		},
 		className: clsx(VirtualList_module_default.scroller, className),
 		style: ownsScroll ? {
@@ -72859,46 +74169,50 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 				height: topPaddingSpacer,
 				prefix: "top"
 			}),
-			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-				style: {
-					position: "relative",
-					height: renderedBandHeight
-				},
-				children: items.map((vItem) => {
-					const item_3 = data[vItem.index];
-					if (item_3 === void 0) return null;
-					const top = vItem.start - bandStart;
-					const child = renderRow(vItem.index, item_3);
-					if (ItemSlot) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-						ref: virtualizer.measureElement,
-						"data-index": vItem.index,
-						style: {
-							position: "absolute",
-							top,
-							left: 0,
-							right: 0
-						},
-						children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ItemSlot, {
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualScrollerContext.Provider, {
+				value: scroller,
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					ref: bandRef,
+					style: {
+						position: "relative",
+						height: renderedBandHeight
+					},
+					children: items.map((vItem) => {
+						const item_3 = data[vItem.index];
+						if (item_3 === void 0) return null;
+						const top = vItem.start - bandStart;
+						const child = renderRow(vItem.index, item_3);
+						if (ItemSlot) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+							ref: measureRow,
+							"data-index": vItem.index,
+							style: {
+								position: "absolute",
+								top,
+								left: 0,
+								right: 0
+							},
+							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ItemSlot, {
+								"data-index": vItem.index,
+								"data-item-index": vItem.index,
+								"data-known-size": vItem.size,
+								style: {},
+								children: child
+							})
+						}, vItem.key);
+						return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+							ref: measureRow,
 							"data-index": vItem.index,
 							"data-item-index": vItem.index,
 							"data-known-size": vItem.size,
-							style: {},
+							style: {
+								position: "absolute",
+								top,
+								left: 0,
+								right: 0
+							},
 							children: child
-						})
-					}, vItem.key);
-					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-						ref: virtualizer.measureElement,
-						"data-index": vItem.index,
-						"data-item-index": vItem.index,
-						"data-known-size": vItem.size,
-						style: {
-							position: "absolute",
-							top,
-							left: 0,
-							right: 0
-						},
-						children: child
-					}, vItem.key);
+						}, vItem.key);
+					})
 				})
 			}),
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(PaddingChunks, {
@@ -76588,6 +77902,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 				children: [message.timestamp && formatDateTime && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 					className: ChatMessage_module_default.timestamp,
 					title: message.timestamp,
+					"data-find-chrome": true,
 					children: formatDateTime(new Date(message.timestamp))
 				}), label]
 			}) : null]
@@ -76606,14 +77921,17 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const roleHeader = t4;
 	let t5;
 	if ($[25] !== id || $[26] !== message.metadata) {
-		t5 = message.metadata && Object.keys(message.metadata).length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LabeledValue, {
-			label: "Metadata",
-			className: clsx(ChatMessage_module_default.metadataLabel, "text-size-smaller"),
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
-				record: message.metadata,
-				id: `${id}-metadata`,
-				defaultExpandLevel: 0,
-				copyButton: true
+		t5 = message.metadata && Object.keys(message.metadata).length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			"data-find-chrome": true,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LabeledValue, {
+				label: "Metadata",
+				className: clsx(ChatMessage_module_default.metadataLabel, "text-size-smaller"),
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
+					record: message.metadata,
+					id: `${id}-metadata`,
+					defaultExpandLevel: 0,
+					copyButton: true
+				})
 			})
 		}) : null;
 		$[25] = id;
@@ -76899,6 +78217,7 @@ var MessageLabel_module_default = {
 		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: classes,
 			title,
+			"data-find-chrome": true,
 			children: text
 		});
 		$[12] = classes;
@@ -77531,6 +78850,49 @@ var ChatItem = (t0) => {
 	return t4;
 };
 var chatComponents = { Item: ChatItem };
+var FindAnchorRow = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const { anchorId, mounted, children } = t0;
+	const ref = (0, import_react.useRef)(null);
+	const row = useFindHighlights(ref, anchorId);
+	let t1;
+	if ($[0] !== anchorId || $[1] !== mounted) {
+		t1 = (el) => {
+			ref.current = el;
+			mounted.add(anchorId);
+			return () => {
+				mounted.delete(anchorId);
+			};
+		};
+		$[0] = anchorId;
+		$[1] = mounted;
+		$[2] = t1;
+	} else t1 = $[2];
+	const track = t1;
+	let t2;
+	if ($[3] !== anchorId || $[4] !== children || $[5] !== track) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			ref: track,
+			"data-find-anchor": anchorId,
+			children
+		});
+		$[3] = anchorId;
+		$[4] = children;
+		$[5] = track;
+		$[6] = t2;
+	} else t2 = $[6];
+	let t3;
+	if ($[7] !== row || $[8] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindRowProvider, {
+			value: row,
+			children: t2
+		});
+		$[7] = row;
+		$[8] = t2;
+		$[9] = t3;
+	} else t3 = $[9];
+	return t3;
+};
 var kChatScrollPaddingStart = -15;
 var kLoadMoreMarginRows = 20;
 /**
@@ -77538,8 +78900,8 @@ var kLoadMoreMarginRows = 20;
 * layer render through this; the message-array wrapper below covers callers
 * that still hold raw messages.
 */ var ChatViewRowsVirtualList = /*#__PURE__*/ (0, import_react.memo)(function ChatViewRowsVirtualList(t0) {
-	const $ = (0, import_compiler_runtime.c)(49);
-	const { id, rows, hasMoreRows, onLoadMoreRows, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish: t1, onNativeFindChanged, display, labels, linking, tools } = t0;
+	const $ = (0, import_compiler_runtime.c)(67);
+	const { id, rows, hasMoreRows, onLoadMoreRows, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish: t1, onNativeFindChanged, display, labels, linking, tools, findMessages } = t0;
 	const scrollToTopOnFinish = t1 === void 0 ? true : t1;
 	const listHandle = (0, import_react.useRef)(null);
 	let t2;
@@ -77624,17 +78986,78 @@ var kLoadMoreMarginRows = 20;
 		$[20] = t9;
 	} else t9 = $[20];
 	const maxLabelLength = t9;
-	const lastIndex = rows.length - 1;
 	let t10;
-	if ($[21] !== backfilling || $[22] !== display || $[23] !== id || $[24] !== labels || $[25] !== lastIndex || $[26] !== linking || $[27] !== maxLabelLength || $[28] !== running || $[29] !== tools) {
-		t10 = (index_0, item) => {
-			if (running && index_0 === lastIndex && isLivePlaceholderMessage(item.resolved.message)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[21] !== rows) {
+		t10 = messageRowAnchorIds(rows);
+		$[21] = rows;
+		$[22] = t10;
+	} else t10 = $[22];
+	const anchorIds = t10;
+	const unlabeledRoles = display?.unlabeledRoles;
+	const toolCallStyle = tools?.callStyle ?? "complete";
+	const displayMode = useDisplayMode();
+	let t11;
+	if ($[23] !== displayMode || $[24] !== findMessages || $[25] !== toolCallStyle || $[26] !== unlabeledRoles) {
+		t11 = findMessages === void 0 ? null : { find: (query, after, signal) => findMessages.find({
+			text: query.text,
+			projection: {
+				unlabeledRoles: unlabeledRoles ?? [],
+				toolCallStyle,
+				displayMode
+			}
+		}, after, signal) };
+		$[23] = displayMode;
+		$[24] = findMessages;
+		$[25] = toolCallStyle;
+		$[26] = unlabeledRoles;
+		$[27] = t11;
+	} else t11 = $[27];
+	const findSource = t11;
+	let t12;
+	if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = /* @__PURE__ */ new Set();
+		$[28] = t12;
+	} else t12 = $[28];
+	const mountedAnchors = (0, import_react.useRef)(t12).current;
+	let t13;
+	if ($[29] !== anchorIds) {
+		t13 = (row_0) => {
+			const index_0 = anchorIds.indexOf(row_0.anchor.id);
+			if (index_0 === -1) return false;
+			if (!mountedAnchors.has(row_0.anchor.id)) listHandle.current?.scrollToIndex({
+				index: index_0,
+				align: "auto"
+			});
+			return true;
+		};
+		$[29] = anchorIds;
+		$[30] = t13;
+	} else t13 = $[30];
+	const reveal = usePendingFindReveal(t13, rows.length, hasMoreRows, onLoadMoreRows, running);
+	let t14;
+	if ($[31] !== findMessages || $[32] !== findSource || $[33] !== reveal) {
+		t14 = findSource !== null && findMessages !== void 0 ? {
+			scopeId: findMessages.scopeId,
+			source: findSource,
+			reveal
+		} : null;
+		$[31] = findMessages;
+		$[32] = findSource;
+		$[33] = reveal;
+		$[34] = t14;
+	} else t14 = $[34];
+	useFindSurface(t14, running ? rows : void 0);
+	const lastIndex = rows.length - 1;
+	let t15;
+	if ($[35] !== anchorIds || $[36] !== backfilling || $[37] !== display || $[38] !== findMessages || $[39] !== id || $[40] !== labels || $[41] !== lastIndex || $[42] !== linking || $[43] !== maxLabelLength || $[44] !== running || $[45] !== tools) {
+		t15 = (index_1, item) => {
+			if (running && index_1 === lastIndex && isLivePlaceholderMessage(item.resolved.message)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				className: ChatViewVirtualList_module_default.generatingRow,
 				children: backfilling ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GeneratingIndicator, {})
 			});
-			const toolExecuting = running && index_0 === lastIndex && isToolExecutingMessage(item.resolved.message, item.resolved.toolMessages.length);
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatMessageRow, {
-				index: index_0,
+			const toolExecuting = running && index_1 === lastIndex && isToolExecutingMessage(item.resolved.message, item.resolved.toolMessages.length);
+			const row_1 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatMessageRow, {
+				index: index_1,
 				parentName: id || "chat-virtual-list",
 				resolvedMessage: item.resolved,
 				display,
@@ -77645,55 +79068,65 @@ var kLoadMoreMarginRows = 20;
 				startNumber: item.startNumber
 			}), toolExecuting ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				className: ChatViewVirtualList_module_default.generatingRow,
+				"data-find-chrome": "true",
 				children: backfilling ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GeneratingIndicator, { label: "running" })
 			}) : null] });
+			return findMessages === void 0 ? row_1 : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindAnchorRow, {
+				anchorId: anchorIds[index_1],
+				mounted: mountedAnchors,
+				children: row_1
+			});
 		};
-		$[21] = backfilling;
-		$[22] = display;
-		$[23] = id;
-		$[24] = labels;
-		$[25] = lastIndex;
-		$[26] = linking;
-		$[27] = maxLabelLength;
-		$[28] = running;
-		$[29] = tools;
-		$[30] = t10;
-	} else t10 = $[30];
-	const renderRow = t10;
+		$[35] = anchorIds;
+		$[36] = backfilling;
+		$[37] = display;
+		$[38] = findMessages;
+		$[39] = id;
+		$[40] = labels;
+		$[41] = lastIndex;
+		$[42] = linking;
+		$[43] = maxLabelLength;
+		$[44] = running;
+		$[45] = tools;
+		$[46] = t15;
+	} else t15 = $[46];
+	const renderRow = t15;
 	const rowSearchText = _temp$82;
 	if (rows.length === 0) {
 		if (backfilling) {
-			let t11;
-			if ($[31] === Symbol.for("react.memo_cache_sentinel")) {
-				t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" });
-				$[31] = t11;
-			} else t11 = $[31];
-			return t11;
+			let t16;
+			if ($[47] === Symbol.for("react.memo_cache_sentinel")) {
+				t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" });
+				$[47] = t16;
+			} else t16 = $[47];
+			return t16;
 		}
-		let t11;
-		if ($[32] !== running) {
-			t11 = running ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, {
+		let t16;
+		if ($[48] !== running) {
+			t16 = running ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, {
 				text: "Waiting for messages",
 				busy: true
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "No messages" });
-			$[32] = running;
-			$[33] = t11;
-		} else t11 = $[33];
-		return t11;
+			$[48] = running;
+			$[49] = t16;
+		} else t16 = $[49];
+		return t16;
 	}
-	const t11 = `chat-${id}`;
-	let t12;
-	if ($[34] !== className) {
-		t12 = clsx(ChatViewVirtualList_module_default.list, className);
-		$[34] = className;
-		$[35] = t12;
-	} else t12 = $[35];
-	let t13;
-	if ($[36] !== followRequested || $[37] !== handleVisibleRangeChange || $[38] !== hasMoreRows || $[39] !== initialMessageIndex || $[40] !== navOwned || $[41] !== renderRow || $[42] !== rows || $[43] !== running || $[44] !== scrollRef || $[45] !== scrollToTopOnFinish || $[46] !== t11 || $[47] !== t12) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
-			persistenceKey: t11,
+	const t16 = `chat-${id}`;
+	let t17;
+	if ($[50] !== className) {
+		t17 = clsx(ChatViewVirtualList_module_default.list, className);
+		$[50] = className;
+		$[51] = t17;
+	} else t17 = $[51];
+	const t18 = findMessages === void 0 ? rowSearchText : void 0;
+	const t19 = findMessages === void 0 ? "local" : "none";
+	let t20;
+	if ($[52] !== followRequested || $[53] !== handleVisibleRangeChange || $[54] !== hasMoreRows || $[55] !== initialMessageIndex || $[56] !== navOwned || $[57] !== renderRow || $[58] !== rows || $[59] !== running || $[60] !== scrollRef || $[61] !== scrollToTopOnFinish || $[62] !== t16 || $[63] !== t17 || $[64] !== t18 || $[65] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
+			persistenceKey: t16,
 			ref: listHandle,
-			className: t12,
+			className: t17,
 			scrollRef,
 			data: rows,
 			renderRow,
@@ -77705,25 +79138,28 @@ var kLoadMoreMarginRows = 20;
 			scrollToTopOnFinish,
 			components: chatComponents,
 			smoothScroll: false,
-			itemSearchText: rowSearchText,
+			itemSearchText: t18,
+			findScope: t19,
 			showProgress: hasMoreRows,
 			onVisibleRangeChange: handleVisibleRangeChange
 		});
-		$[36] = followRequested;
-		$[37] = handleVisibleRangeChange;
-		$[38] = hasMoreRows;
-		$[39] = initialMessageIndex;
-		$[40] = navOwned;
-		$[41] = renderRow;
-		$[42] = rows;
-		$[43] = running;
-		$[44] = scrollRef;
-		$[45] = scrollToTopOnFinish;
-		$[46] = t11;
-		$[47] = t12;
-		$[48] = t13;
-	} else t13 = $[48];
-	return t13;
+		$[52] = followRequested;
+		$[53] = handleVisibleRangeChange;
+		$[54] = hasMoreRows;
+		$[55] = initialMessageIndex;
+		$[56] = navOwned;
+		$[57] = renderRow;
+		$[58] = rows;
+		$[59] = running;
+		$[60] = scrollRef;
+		$[61] = scrollToTopOnFinish;
+		$[62] = t16;
+		$[63] = t17;
+		$[64] = t18;
+		$[65] = t19;
+		$[66] = t20;
+	} else t20 = $[66];
+	return t20;
 });
 function _temp$82(item_0) {
 	return messageSearchText(item_0.resolved);
@@ -83670,7 +85106,7 @@ function serverRequestApi(baseUrl, getHeaders, customFetch) {
 			raw: text
 		};
 	};
-	const fetchString = async (method, path, headers, body) => {
+	const fetchString = async (method, path, headers, body, signal) => {
 		const url = buildApiUrl(path);
 		const requestHeaders = {
 			Accept: "application/json",
@@ -83689,6 +85125,7 @@ function serverRequestApi(baseUrl, getHeaders, customFetch) {
 			method,
 			headers: requestHeaders,
 			body,
+			signal,
 			credentials: isApiCrossOrigin() ? "include" : "same-origin"
 		});
 		if (response.ok) {
@@ -84100,7 +85537,8 @@ var isEvalFile = (file) => {
 		}) : void 0,
 		list_searches: api.list_searches ? middleware("list_searches", (search_type, count) => api.list_searches(search_type, count)) : void 0,
 		post_search: api.post_search ? middleware("post_search", (transcriptDir, transcriptId, request) => api.post_search(transcriptDir, transcriptId, request)) : void 0,
-		get_search_result: api.get_search_result ? middleware("get_search_result", (transcriptDir, transcriptId, search_id, scope) => api.get_search_result(transcriptDir, transcriptId, search_id, scope)) : void 0
+		get_search_result: api.get_search_result ? middleware("get_search_result", (transcriptDir, transcriptId, search_id, scope) => api.get_search_result(transcriptDir, transcriptId, search_id, scope)) : void 0,
+		find_messages: api.find_messages ? middleware("find_messages", (log_file, request, signal) => api.find_messages(log_file, request, signal)) : void 0
 	};
 };
 var debugMiddleware = (name, _fn, args, result) => {
@@ -84617,6 +86055,9 @@ async function fetchViewServerLogRoot(transport = {}, logDir) {
 			throw error;
 		}
 	};
+	const find_messages = async (log_file, request, signal) => {
+		return asResponse((await requestApi.fetchString("POST", `/find-messages/${encodeURIComponent(log_file)}`, { "Content-Type": "application/json" }, JSON.stringify(request), signal)).parsed);
+	};
 	const download_log = (log_file) => {
 		const url = `${apiBaseUrl || "/api"}/log-download/${encodeURIComponent(log_file)}`;
 		const link = document.createElement("a");
@@ -84648,7 +86089,8 @@ async function fetchViewServerLogRoot(transport = {}, logDir) {
 		get_app_config,
 		list_searches,
 		post_search,
-		get_search_result
+		get_search_result,
+		find_messages
 	};
 }
 //#endregion
@@ -112242,9 +113684,21 @@ var StateEventView_module_default = {
 	return changeList.join(", ");
 };
 var isPathContainer = (value) => typeof value === "object" && value !== null;
-var getChild = (container, key) => Array.isArray(container) ? container[Number(key)] : container[key];
+var getChild = (container, key) => {
+	if (Array.isArray(container)) {
+		const index = Number(key);
+		return Object.hasOwn(container, index) ? container[index] : void 0;
+	}
+	return Object.hasOwn(container, key) ? container[key] : void 0;
+};
 var setChild = (container, key, value) => {
 	if (Array.isArray(container)) container[Number(key)] = value;
+	else if (key === "__proto__") Object.defineProperty(container, key, {
+		value,
+		enumerable: true,
+		writable: true,
+		configurable: true
+	});
 	else container[key] = value;
 };
 var asArray$1 = (value) => Array.isArray(value) ? value : void 0;
@@ -125047,6 +126501,108 @@ function _temp4$23(l_0) {
 * `--*` index signature, so a custom-property literal can't be written inline;
 * React passes these straight through to the DOM.
 */ var cssVars = (vars) => vars;
+/** Sealed find-messages pages, keyed by the POST body identity. Live pages
+*  (`complete: false`) are never stored. */ var FindPageCache = class {
+	capacity;
+	entries = /* @__PURE__ */ new Map();
+	constructor(capacity = 128) {
+		this.capacity = capacity;
+	}
+	get(key) {
+		const page = this.entries.get(key);
+		if (page === void 0) return void 0;
+		this.entries.delete(key);
+		this.entries.set(key, page);
+		return cloneFindPage(page);
+	}
+	set(key, page) {
+		if (!page.complete) return;
+		this.entries.delete(key);
+		this.entries.set(key, cloneFindPage(page));
+		if (this.entries.size > this.capacity) {
+			const oldest = this.entries.keys().next().value;
+			if (oldest !== void 0) this.entries.delete(oldest);
+		}
+	}
+	/** A live page means this sample is still being written: drop sealed
+	*  entries so a later poll cannot reuse them. */ dropSample(sample) {
+		for (const key of [...this.entries.keys()]) {
+			const parsed = JSON.parse(key);
+			if (Array.isArray(parsed) && parsed[0] === sample.logFile && parsed[1] === sample.id && parsed[2] === sample.epoch) this.entries.delete(key);
+		}
+	}
+	get size() {
+		return this.entries.size;
+	}
+	clear() {
+		this.entries.clear();
+	}
+};
+var defaultFindPageCache = new FindPageCache();
+function findPageCacheKey(sample, query, after) {
+	return JSON.stringify([
+		sample.logFile,
+		sample.id,
+		sample.epoch,
+		query.text,
+		after?.id ?? null,
+		[...query.projection.unlabeledRoles].sort(),
+		query.projection.toolCallStyle,
+		query.projection.displayMode
+	]);
+}
+function cloneFindPage(page) {
+	return {
+		rows: page.rows.map((row) => ({
+			...row,
+			anchor: { ...row.anchor },
+			texts: [...row.texts]
+		})),
+		atEnd: page.atEnd,
+		complete: page.complete
+	};
+}
+//#endregion
+//#region src/app/samples/messagesFind.ts
+/** The Messages tab's find source over `api.find_messages`, or undefined when
+*  the backend has none (the tab then registers no find surface). Sealed
+*  pages are LRU-cached so a backspace to a term already scanned does not
+*  POST again; live samples are not stored. */ var messagesFindSource = (api, sample, cache = defaultFindPageCache) => {
+	const find = api.find_messages;
+	if (!find) return void 0;
+	return {
+		scopeId: `messages:${sample.logFile}#${sample.id}#${sample.epoch}`,
+		find: async (query, after, signal) => {
+			const key = findPageCacheKey(sample, query, after);
+			const hit = cache.get(key);
+			if (hit) return hit;
+			const response = await find(sample.logFile, {
+				sample_id: sample.id,
+				epoch: sample.epoch,
+				text: query.text,
+				after: after?.id,
+				projection: {
+					unlabeled_roles: query.projection.unlabeledRoles,
+					tool_call_style: query.projection.toolCallStyle,
+					display_mode: query.projection.displayMode
+				}
+			}, signal);
+			const page = {
+				rows: response.rows.map((row) => ({
+					anchor: { id: row.anchor },
+					index: row.index,
+					count: row.count,
+					texts: row.texts
+				})),
+				atEnd: response.at_end,
+				complete: response.complete
+			};
+			if (!page.complete) cache.dropSample(sample);
+			else cache.set(key, page);
+			return page;
+		}
+	};
+};
 var SampleDisplay_module_default = {
 	tabControls: "_tabControls_fvnsu_1",
 	fullWidth: "_fullWidth_fvnsu_10",
@@ -133060,6 +134616,7 @@ var kNoMessageRows = [];
 	const { isDebugFilter, isDefaultFilter, isNoneFilter } = useTranscriptFilter(defaultExcludeEvents);
 	const api = getApi();
 	const downloadFiles = useStore((state_13) => state_13.capabilities.downloadFiles);
+	const findMessages = (0, import_react.useMemo)(() => selectedSampleHandle ? messagesFindSource(api, selectedSampleHandle) : void 0, [api, selectedSampleHandle]);
 	const [icon, setIcon] = (0, import_react.useState)(ApplicationIcons.copy);
 	const setPropertyValue = useStore((state_14) => state_14.appActions.setPropertyValue);
 	const dockKey = urlLogPath || "na";
@@ -133353,6 +134910,7 @@ var kNoMessageRows = [];
 									rows: sampleMessages.rows.data ?? kNoMessageRows,
 									hasMoreRows: sampleMessages.hasMore,
 									onLoadMoreRows: sampleMessages.loadMore,
+									findMessages,
 									initialMessageId: sampleDetailNavigation.message,
 									followRequested: sampleDetailNavigation.follow,
 									display: chatDisplay,
@@ -133736,66 +135294,57 @@ var isRunning = (sampleSummary, runningSampleData, status) => {
 	const showActivity = sampleData.status === "loading" || sampleData.status === "streaming";
 	const localScrollRef = (0, import_react.useRef)(null);
 	const scrollRef = externalScrollRef ?? localScrollRef;
-	const sampleTab = useStore(_temp$33);
+	const storeSampleTab = useStore(_temp$33);
+	const { sampleTabId } = useLogOrSampleRouteParams();
+	const sampleTab = sampleTabId || storeSampleTab;
 	const sampleDetailNavigation = useSampleDetailNavigation();
 	const isVirtualizedTab = sampleTab === kSampleTranscriptTabId || sampleTab === kSampleMessagesTabId;
 	const logFile = useStore(_temp2$26);
 	const sampleHandle = useStore(_temp3$21);
 	const visitId = useVisitId(`${logFile}-${sampleHandle?.id}-${sampleHandle?.epoch}`);
-	useStatefulScrollPosition(scrollRef, `inline-sample-scroller-${visitId}-${sampleTab}`, 1e3, !isVirtualizedTab);
-	const mountsAtDeepLink = !!(sampleDetailNavigation.event || sampleDetailNavigation.message);
-	const deepLinkRef = (0, import_react.useRef)(mountsAtDeepLink);
+	const deepLinkRef = useLatestRef(!!(sampleDetailNavigation.event || sampleDetailNavigation.message));
 	let t1;
-	let t2;
-	if ($[0] !== mountsAtDeepLink) {
+	if ($[0] !== deepLinkRef || $[1] !== isVirtualizedTab || $[2] !== scrollRef) {
 		t1 = () => {
-			deepLinkRef.current = mountsAtDeepLink;
-		};
-		t2 = [mountsAtDeepLink];
-		$[0] = mountsAtDeepLink;
-		$[1] = t1;
-		$[2] = t2;
-	} else {
-		t1 = $[1];
-		t2 = $[2];
-	}
-	(0, import_react.useEffect)(t1, t2);
-	let t3;
-	if ($[3] !== isVirtualizedTab || $[4] !== scrollRef) {
-		t3 = () => {
 			if (!deepLinkRef.current && !isVirtualizedTab) scrollRef.current?.scrollTo({ top: 0 });
 		};
-		$[3] = isVirtualizedTab;
-		$[4] = scrollRef;
-		$[5] = t3;
-	} else t3 = $[5];
-	let t4;
-	if ($[6] !== isVirtualizedTab || $[7] !== scrollRef || $[8] !== visitId) {
-		t4 = [
+		$[0] = deepLinkRef;
+		$[1] = isVirtualizedTab;
+		$[2] = scrollRef;
+		$[3] = t1;
+	} else t1 = $[3];
+	let t2;
+	if ($[4] !== deepLinkRef || $[5] !== isVirtualizedTab || $[6] !== sampleTab || $[7] !== scrollRef || $[8] !== visitId) {
+		t2 = [
 			visitId,
+			sampleTab,
+			isVirtualizedTab,
 			scrollRef,
-			isVirtualizedTab
+			deepLinkRef
 		];
-		$[6] = isVirtualizedTab;
+		$[4] = deepLinkRef;
+		$[5] = isVirtualizedTab;
+		$[6] = sampleTab;
 		$[7] = scrollRef;
 		$[8] = visitId;
-		$[9] = t4;
-	} else t4 = $[9];
-	(0, import_react.useEffect)(t3, t4);
-	let t5;
+		$[9] = t2;
+	} else t2 = $[9];
+	(0, import_react.useEffect)(t1, t2);
+	useStatefulScrollPosition(scrollRef, `inline-sample-scroller-${visitId}-${sampleTab}`, 1e3, !isVirtualizedTab);
+	let t3;
 	if ($[10] !== className) {
-		t5 = clsx(className, InlineSampleDisplay_module_default.container);
+		t3 = clsx(className, InlineSampleDisplay_module_default.container);
 		$[10] = className;
-		$[11] = t5;
-	} else t5 = $[11];
-	let t6;
+		$[11] = t3;
+	} else t3 = $[11];
+	let t4;
 	if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = clsx(InlineSampleDisplay_module_default.scroller);
-		$[12] = t6;
-	} else t6 = $[12];
-	let t7;
+		t4 = clsx(InlineSampleDisplay_module_default.scroller);
+		$[12] = t4;
+	} else t4 = $[12];
+	let t5;
 	if ($[13] !== sampleData.error || $[14] !== scrollRef || $[15] !== showActivity) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: sampleData.error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorPanel, {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: sampleData.error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorPanel, {
 			title: "Unable to load sample",
 			error: sampleData.error
 		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleDisplay, {
@@ -133806,30 +135355,30 @@ var isRunning = (sampleSummary, runningSampleData, status) => {
 		$[13] = sampleData.error;
 		$[14] = scrollRef;
 		$[15] = showActivity;
-		$[16] = t7;
-	} else t7 = $[16];
-	let t8;
-	if ($[17] !== scrollRef || $[18] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t6,
+		$[16] = t5;
+	} else t5 = $[16];
+	let t6;
+	if ($[17] !== scrollRef || $[18] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t4,
 			ref: scrollRef,
-			children: t7
+			children: t5
 		});
 		$[17] = scrollRef;
-		$[18] = t7;
-		$[19] = t8;
-	} else t8 = $[19];
-	let t9;
-	if ($[20] !== t5 || $[21] !== t8) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t5,
-			children: t8
+		$[18] = t5;
+		$[19] = t6;
+	} else t6 = $[19];
+	let t7;
+	if ($[20] !== t3 || $[21] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t3,
+			children: t6
 		});
-		$[20] = t5;
-		$[21] = t8;
-		$[22] = t9;
-	} else t9 = $[22];
-	return t9;
+		$[20] = t3;
+		$[21] = t6;
+		$[22] = t7;
+	} else t7 = $[22];
+	return t7;
 };
 function _temp$33(state) {
 	return state.app.tabs.sample;
@@ -134036,7 +135585,7 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 	} else t10 = $[22];
 	let t11;
 	if ($[23] !== t10 || $[24] !== t7) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExtendedFindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(FindTargetProvider, { children: [t7, t10] }) });
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExtendedFindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(FindTargetProvider, { children: [t7, t10] }) }) });
 		$[23] = t10;
 		$[24] = t7;
 		$[25] = t11;
@@ -167825,7 +169374,7 @@ var LogView = () => {
 	} else t8 = $[19];
 	let t9;
 	if ($[20] !== t5 || $[21] !== t6 || $[22] !== t7 || $[23] !== t8) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExtendedFindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindTargetProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExtendedFindProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindTargetProvider, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			ref: mainAppRef,
 			className: t5,
 			tabIndex: 0,
@@ -167834,7 +169383,7 @@ var LogView = () => {
 				t7,
 				t8
 			]
-		}) }) });
+		}) }) }) });
 		$[20] = t5;
 		$[21] = t6;
 		$[22] = t7;
@@ -170244,97 +171793,82 @@ var componentIcons = {
 * Renders the application content. Mounted below the config gate so it can
 * read the resolved app config.
 */ var AppContent = () => {
-	const $ = (0, import_compiler_runtime.c)(14);
-	let t0;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t0 = getApi();
-		$[0] = t0;
-	} else t0 = $[0];
-	const api = t0;
+	const $ = (0, import_compiler_runtime.c)(12);
 	const rehydrated = useStore(_temp5);
-	const logDir = useLogDir();
 	const setInitialState = useStore(_temp6);
-	let t1;
-	if ($[1] !== logDir || $[2] !== rehydrated || $[3] !== setInitialState) {
-		t1 = (e) => {
+	let t0;
+	if ($[0] !== rehydrated || $[1] !== setInitialState) {
+		t0 = (e) => {
 			bb6: switch (e.data.type) {
 				case "updateState":
 					if (e.data.url) {
-						const decodedUrl_0 = decodeURIComponent(e.data.url);
-						setLogRoot(resolveEmbeddedLogDir(decodedUrl_0));
-						if (!rehydrated) setInitialState(isUri(decodedUrl_0) ? basename(decodedUrl_0) : decodedUrl_0, e.data.sample_id, e.data.sample_epoch);
+						const decodedUrl = decodeURIComponent(e.data.url);
+						setLogRoot(resolveEmbeddedLogDir(decodedUrl));
+						if (!rehydrated) setInitialState(isUri(decodedUrl) ? basename(decodedUrl) : decodedUrl, e.data.sample_id, e.data.sample_epoch);
 					}
 					break bb6;
-				case "backgroundUpdate": {
-					const decodedUrl = decodeURIComponent(e.data.url);
-					const log_dir = e.data.log_dir;
-					if (!document.hasFocus()) {
-						if (log_dir === logDir) selectLogFile(decodedUrl);
-						else api.open_log_file(e.data.url, e.data.log_dir);
-					} else imperativeLogData.invalidateLogListing();
-				}
+				case "backgroundUpdate": imperativeLogData.invalidateLogListing();
 			}
 		};
-		$[1] = logDir;
-		$[2] = rehydrated;
-		$[3] = setInitialState;
-		$[4] = t1;
-	} else t1 = $[4];
-	const onMessage = t1;
+		$[0] = rehydrated;
+		$[1] = setInitialState;
+		$[2] = t0;
+	} else t0 = $[2];
+	const onMessage = t0;
+	let t1;
 	let t2;
-	let t3;
-	if ($[5] !== onMessage) {
-		t2 = () => {
+	if ($[3] !== onMessage) {
+		t1 = () => {
 			window.addEventListener("message", onMessage);
 			return () => {
 				window.removeEventListener("message", onMessage);
 			};
 		};
-		t3 = [onMessage];
-		$[5] = onMessage;
-		$[6] = t2;
-		$[7] = t3;
+		t2 = [onMessage];
+		$[3] = onMessage;
+		$[4] = t1;
+		$[5] = t2;
 	} else {
-		t2 = $[6];
-		t3 = $[7];
+		t1 = $[4];
+		t2 = $[5];
 	}
-	(0, import_react.useEffect)(t2, t3);
+	(0, import_react.useEffect)(t1, t2);
 	const embeddedDispatched = (0, import_react.useRef)(false);
+	let t3;
 	let t4;
-	let t5;
-	if ($[8] !== onMessage) {
-		t4 = () => {
+	if ($[6] !== onMessage) {
+		t3 = () => {
 			if (embeddedDispatched.current) return;
 			embeddedDispatched.current = true;
 			const embedded = readEmbeddedStartupState();
 			if (embedded) onMessage({ data: embedded });
 		};
-		t5 = [onMessage];
-		$[8] = onMessage;
-		$[9] = t4;
-		$[10] = t5;
+		t4 = [onMessage];
+		$[6] = onMessage;
+		$[7] = t3;
+		$[8] = t4;
 	} else {
-		t4 = $[9];
-		t5 = $[10];
+		t3 = $[7];
+		t4 = $[8];
 	}
-	(0, import_react.useEffect)(t4, t5);
+	(0, import_react.useEffect)(t3, t4);
 	useMountEffect(_temp7);
+	let t5;
 	let t6;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
+		$[9] = t5;
+		$[10] = t6;
+	} else {
+		t5 = $[9];
+		t6 = $[10];
+	}
 	let t7;
 	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
-		$[11] = t6;
-		$[12] = t7;
-	} else {
-		t6 = $[11];
-		t7 = $[12];
-	}
-	let t8;
-	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+			t5,
 			t6,
-			t7,
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentIconProvider, {
 				icons: componentIcons,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentStateProvider, {
@@ -170343,9 +171877,9 @@ var componentIcons = {
 				})
 			})
 		] });
-		$[13] = t8;
-	} else t8 = $[13];
-	return t8;
+		$[11] = t7;
+	} else t7 = $[11];
+	return t7;
 };
 var App = () => {
 	const $ = (0, import_compiler_runtime.c)(1);
