@@ -8,6 +8,7 @@ optional-dependencies.dev = { file = ["requirements-dev.txt"] }
 optional-dependencies.doc = { file = ["requirements-doc.txt"] }
 optional-dependencies.dist = { file = ["requirements-dist.txt"] }
 optional-dependencies.math = { file = ["requirements-math.txt"] }
+optional-dependencies.code-mode = { file = ["requirements-code-mode.txt"] }
 
 [tool.setuptools_scm]
 git_describe_command = [
@@ -195,7 +196,7 @@ retuned = "retuned"
 BRE = "BRE"
 
 [dependency-groups]
-dev = ["inspect_ai[dev]"]
+dev = ["inspect_ai[dev,code-mode]"]
 
 [tool.uv]
 cache-keys = [{ git = { commit = true } }, { file = "pyproject.toml" }]

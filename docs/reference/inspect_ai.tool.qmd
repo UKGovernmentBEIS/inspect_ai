@@ -12,6 +12,7 @@ description: Built-in and custom tool functions.
 ### text_editor
 ### computer
 ### code_execution
+### run_code
 ### web_browser
 ### read_file
 ### list_files
@@ -68,4 +69,3 @@ description: Built-in and custom tool functions.
 ## Decorator
 
 ### tool
-

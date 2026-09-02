@@ -6,6 +6,7 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 -   [Text Editor](tools-standard.qmd#sec-text-editor) which enables viewing, creating and editing text files (requires a [sandbox](sandboxing.qmd)).
 -   [Computer](tools-standard.qmd#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction (requires a [sandbox](sandboxing.qmd)).
 -   [Code Execution](tools-standard.qmd#sec-code-execution), which gives models a Python code execution environment hosted within the model provider's infrastructure rather than an Inspect sandbox.
+-   [Code Mode](tools-standard.qmd#sec-code-mode), which lets a model use sandboxed Python to orchestrate an explicit set of Inspect tools in one model turn.
 -   [Web Browser](tools-standard.qmd#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](sandboxing.qmd)).
 
 Agentic tools include:

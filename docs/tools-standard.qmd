@@ -504,6 +504,49 @@ code_interpreter(
 
 When falling back to the `python()` provider you should ensure that your `Task` has a `sandbox` with access to Python enabled.
 
+## Code Mode {#sec-code-mode}
+
+The `run_code()` tool lets a model orchestrate other Inspect tools from Python. This can replace several model round trips with one turn: the model can loop over inputs, branch on results, aggregate values, and call tools that declare `parallel=True` concurrently with `asyncio.gather()`.
+
+Code runs in [Pydantic Monty](https://github.com/pydantic/monty), a restricted Python interpreter. It has no access to the host filesystem, environment, network, or operating system unless one of the explicitly wrapped tools provides that capability. Each `run_code()` call starts with fresh interpreter state and is bounded by execution-time, memory, and nested-tool-call limits.
+
+Install the optional dependency before using code mode:
+
+``` bash
+pip install "inspect-ai[code-mode]"
+```
+
+Pass the tools that code is allowed to call to `run_code()` and give the model only the returned meta-tool:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.agent import react
+from inspect_ai.dataset import Sample
+from inspect_ai.tool import Tool, run_code, tool
+
+@tool(parallel=True)
+def lookup() -> Tool:
+    async def execute(key: str) -> str:
+        """Look up a value.
+
+        Args:
+            key: Value key.
+        """
+        ...
+    return execute
+
+@task
+def code_mode_task():
+    return Task(
+        dataset=[Sample("Look up A and B, then compare them")],
+        solver=react(tools=[run_code([lookup()])]),
+    )
+```
+
+Wrapped tools retain their normal Inspect behavior. Input validation, approval policies, output limits, errors, and transcript `ToolEvent`s still apply to every nested call. All wrapped tools are async functions inside code mode and must be awaited. Their existing `parallel` declaration still controls scheduling: parallel-safe tools can run concurrently, while the default serial tools act as ordering barriers.
+
+`run_code()` accepts `max_tool_calls`, `max_duration_secs`, and `max_memory` to tighten its default limits. Monty supports a subset of Python and selected standard-library modules; the generated tool description gives the model typed signatures for the available functions and identifies which are parallel-safe.
+
 ## Web Browser {#sec-web-browser}
 
 The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
