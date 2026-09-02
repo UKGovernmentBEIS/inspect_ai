@@ -24,8 +24,9 @@ from acp.schema import (
     TitledMultiSelectItems,
 )
 from test_helpers.utils import skip_if_trio
+from textual import events
 from textual.app import App, ComposeResult
-from textual.widgets import Checkbox, Input, Select, SelectionList
+from textual.widgets import Checkbox, Input, Select, SelectionList, TextArea
 
 from inspect_ai._util.textual.form import ElicitationForm
 from inspect_ai.util import InputRequest, InputResult
@@ -404,6 +405,94 @@ async def test_form_required_boolean_uses_checkbox() -> None:
         values, errors = form.collect()
         assert errors == {}
         assert values == {"flag": False}
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_form_multiline_string_renders_text_area() -> None:
+    """Only ``format: "multiline"`` gets a TextArea; other strings keep Input."""
+    schema = ElicitationSchema(
+        properties={
+            "notes": ElicitationStringPropertySchema(
+                type="string", title="Notes", format="multiline"
+            ),
+            "email": ElicitationStringPropertySchema(
+                type="string", title="Email", format="email"
+            ),
+            "plain": ElicitationStringPropertySchema(type="string", title="Plain"),
+            "color": ElicitationStringPropertySchema(
+                type="string", title="Color", enum=["red", "blue"], format="multiline"
+            ),
+        },
+        required=["notes"],
+    )
+
+    class FormApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield ElicitationForm(schema)
+
+    app = FormApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(ElicitationForm)
+        assert len(form.query(TextArea)) == 1
+        assert len(form.query(Input)) == 2
+        assert len(form.query(Select)) == 1  # enum wins over format
+        text_area = form.query_one(TextArea)
+        assert text_area.tab_behavior == "focus"
+
+        form.focus_first()
+        await pilot.pause()
+        assert app.focused is text_area
+
+        # Required and blank → error; is_empty_required drives Enter-advance.
+        values, errors = form.collect()
+        assert values is None
+        assert "notes" in errors
+
+        # A terminal paste arrives at the App, which forwards it to the focused
+        # widget. The whole text survives, unstripped (Input keeps line 1 only).
+        pasted = "  line one\n\nline three\n"
+        app.post_message(events.Paste(pasted))
+        await pilot.pause()
+        values, errors = form.collect()
+        assert errors == {}
+        assert values == {"notes": pasted}
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_form_multiline_enter_inserts_newline_without_submit() -> None:
+    """Enter in a TextArea adds a line and emits no ``Input.Submitted``."""
+    schema = ElicitationSchema(
+        properties={
+            "notes": ElicitationStringPropertySchema(
+                type="string", title="Notes", format="multiline", default="a"
+            ),
+        },
+        required=["notes"],
+    )
+    submitted: list[Input.Submitted] = []
+
+    class FormApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield ElicitationForm(schema)
+
+        def on_input_submitted(self, event: Input.Submitted) -> None:
+            submitted.append(event)
+
+    app = FormApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(ElicitationForm)
+        form.focus_first()
+        await pilot.pause()
+        await pilot.press("end", "enter", "b")
+        await pilot.pause()
+        values, errors = form.collect()
+        assert errors == {}
+        assert values == {"notes": "a\nb"}
+        assert submitted == []
 
 
 # ---------------------------------------------------------------------------

@@ -26,12 +26,20 @@ from textual.content import Content
 from textual.strip import Strip
 from textual.style import Style
 from textual.widget import Widget
-from textual.widgets import Checkbox, Input, Select, SelectionList, Static
+from textual.widgets import (
+    Checkbox,
+    Input,
+    Select,
+    SelectionList,
+    Static,
+    TextArea,
+)
 from textual.widgets.selection_list import Selection
 from typing_extensions import override
 
 from inspect_ai.util._input._validate import (
     PropertySchema,
+    is_multiline,
     known_property,
     multiselect_options,
     string_choice_labels,
@@ -154,6 +162,19 @@ class ElicitationForm(VerticalScroll):
     }
     ElicitationForm FieldRow Input {
         width: 1fr;
+    }
+    /* TextArea (multiline strings) sizes to content up to a cap, like the
+       ACP composer; the cursor-line tint is dropped so it reads like the
+       Input next to it. */
+    ElicitationForm FieldRow TextArea {
+        width: 1fr;
+        height: auto;
+        min-height: 3;
+        max-height: 8;
+        scrollbar-size-vertical: 1;
+    }
+    ElicitationForm FieldRow TextArea .text-area--cursor-line {
+        background: transparent;
     }
     /* SelectionList toggle: paint the inner X success-green when selected.
        The off state is handled in `_CleanSelectionList.render_line` (which
@@ -310,6 +331,10 @@ class FieldRow(Vertical):
                     [(title, const) for const, title in labels],
                     **select_kwargs,
                 )
+            elif is_multiline(prop):
+                # Plain TextArea keeps tab_behavior="focus" so Tab still
+                # leaves the field; TextArea.code_editor() would indent.
+                yield TextArea(prop.default or "")
             else:
                 placeholder = prop.format or ""
                 yield Input(
@@ -340,7 +365,7 @@ class FieldRow(Vertical):
 
     def focus_control(self) -> None:
         for child in self.children:
-            if isinstance(child, (Input, Checkbox, Select, SelectionList)):
+            if isinstance(child, (Input, TextArea, Checkbox, Select, SelectionList)):
                 child.focus()
                 return
 
@@ -392,8 +417,11 @@ class FieldRow(Vertical):
                 return _OMIT, None
             return select.value, None
 
-        input_widget = self.query_one(Input)
-        raw = input_widget.value
+        # Not stripped: leading whitespace is meaningful in pasted output.
+        if is_multiline(prop):
+            raw = self.query_one(TextArea).text
+        else:
+            raw = self.query_one(Input).value
         if not raw:
             if self._required:
                 return None, _REQUIRED_ERROR

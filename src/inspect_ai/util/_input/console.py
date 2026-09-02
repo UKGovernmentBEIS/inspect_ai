@@ -12,13 +12,16 @@ from acp.schema import (
     ElicitationStringPropertySchema,
 )
 from rich.console import Console
+from rich.markup import escape
 from rich.prompt import Prompt
 
 from inspect_ai.util._console import input_screen
 
 from ._types import InputRequest, InputResult
 from ._validate import (
+    MULTILINE_FORMAT,
     PropertySchema,
+    is_multiline,
     known_property,
     multiselect_options,
     string_choice_labels,
@@ -30,6 +33,7 @@ from ._validate import (
 )
 
 DECLINE_TOKEN = ":decline"
+MULTILINE_END_TOKEN = "."
 
 
 class _Declined(Exception):
@@ -124,7 +128,11 @@ def _ask_string(
     required: bool,
     console: Console,
 ) -> Any:
-    if prop.format:
+    if is_multiline(prop):
+        return _ask_multiline(label, prop, required, console)
+
+    # An enum/one_of string with format "multiline" is still a single choice.
+    if prop.format and prop.format != MULTILINE_FORMAT:
         console.print(f"[dim](format: {prop.format})[/dim]")
 
     # Print options for bounded-choice strings; we deliberately do NOT pass
@@ -148,6 +156,58 @@ def _ask_string(
             show_default=prop.default is not None,
         )
         _check_decline(value)
+
+        if not value:
+            if required:
+                console.print(f"[red]{label} is required.[/red]")
+                continue
+            return _OMIT
+
+        accepted, error = validate_string(prop, value)
+        if error is not None:
+            console.print(f"[red]{error}[/red]")
+            continue
+        return accepted
+
+
+def _ask_multiline(
+    label: str,
+    prop: ElicitationStringPropertySchema,
+    required: bool,
+    console: Console,
+) -> Any:
+    # A multi-line paste through input() only returns the first line; the
+    # rest is consumed by the next prompt. Bracketed paste isn't an option
+    # either (uv's CPython links libedit), so read line by line to a sentinel.
+    console.print(
+        f"[dim](Multi-line: end with a line containing only "
+        f"'{MULTILINE_END_TOKEN}', or Ctrl-D.)[/dim]"
+    )
+    while True:
+        default_hint = (
+            f" [dim](default: {escape(prop.default)})[/dim]" if prop.default else ""
+        )
+        console.print(f"[prompt]{label}[/prompt]{default_hint}:")
+        lines: list[str] = []
+        while True:
+            try:
+                line = console.input()
+            except EOFError:
+                # Ctrl-D with nothing typed, or stdin closed: EOF from a
+                # pipe is sticky and re-prompting would spin forever, so
+                # propagate like Prompt.ask does.
+                if not lines:
+                    raise
+                break
+            if not lines:
+                # Only the first line can decline; pasted content can't.
+                _check_decline(line)
+            if line.strip() == MULTILINE_END_TOKEN:
+                break
+            lines.append(line)
+        value = "\n".join(lines)
+        if not value and prop.default is not None:
+            value = prop.default
 
         if not value:
             if required:
