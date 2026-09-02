@@ -534,10 +534,11 @@ class AnthropicAPI(ModelAPI):
             if system_param is not None:
                 request["system"] = system_param
             request["tools"] = tools_param
+            tool_choice_degraded = False
             if len(tools_param) > 0 and not self.is_using_thinking(config):
-                request["tool_choice"] = message_tool_choice(
-                    self.resolved_tool_choice(tool_choice), config
-                )
+                resolved_choice = self.resolved_tool_choice(tool_choice)
+                tool_choice_degraded = resolved_choice != tool_choice
+                request["tool_choice"] = message_tool_choice(resolved_choice, config)
 
             # additional options
             req, extra_body, headers, betas = self.completion_config(config)
@@ -659,6 +660,20 @@ class AnthropicAPI(ModelAPI):
             model_call.set_response(response, self._http_hooks.end_request(request_id))
 
             _warn_refusal_without_fallback(self, config, output)
+
+            # a degraded forced tool choice changes request semantics (the
+            # model may answer with plain text instead of the required tool
+            # call), so record it per-request in the output metadata — an
+            # auditable fact in the eval log, not just a log warning
+            if tool_choice_degraded:
+                output.metadata = (output.metadata or {}) | {
+                    "tool_choice_degraded": {
+                        "requested": {"type": "tool", "name": tool_choice.name}
+                        if isinstance(tool_choice, ToolFunction)
+                        else {"type": "any"},
+                        "used": {"type": "auto"},
+                    }
+                }
 
             return output, model_call
 

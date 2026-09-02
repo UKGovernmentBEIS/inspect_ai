@@ -1679,7 +1679,7 @@ async def test_anthropic_forced_tool_choice_request_wiring(
         )
 
     with patch.object(api, "_perform_request_and_continuations", fake_perform):
-        await api.generate(
+        output, _call = await api.generate(
             input=[ChatMessageUser(content="What is 1 + 1?")],
             tools=[
                 ToolInfo(
@@ -1695,6 +1695,17 @@ async def test_anthropic_forced_tool_choice_request_wiring(
         )
 
     assert captured["tool_choice"]["type"] == expected_type
+    # a degradation is recorded per-request in output metadata; an honored
+    # forced tool choice leaves no such marker
+    assert isinstance(output, ModelOutput)
+    if expected_type == "auto":
+        assert output.metadata is not None
+        assert output.metadata["tool_choice_degraded"] == {
+            "requested": {"type": "tool", "name": "addition"},
+            "used": {"type": "auto"},
+        }
+    else:
+        assert not (output.metadata or {}).get("tool_choice_degraded")
 
 
 def _message_with_transformations(transformations: list[dict[str, Any]]) -> Any:
