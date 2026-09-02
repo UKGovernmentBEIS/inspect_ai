@@ -38,7 +38,7 @@ from inspect_ai.log._condense import (
 )
 from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.util._store import store, store_changes, store_jsonable
+from inspect_ai.util._store import StoreChangeTracker, store
 
 if TYPE_CHECKING:
     from inspect_ai.log._recorders.buffer.types import TranscriptEventSink
@@ -1020,11 +1020,23 @@ def record_interrupt_event(
 
 @contextlib.contextmanager
 def track_store_changes() -> Iterator[None]:
-    before = store_jsonable(store())
-    yield
-    after = store_jsonable(store())
+    """Emit a `StoreEvent` for changes made to the current store in the body.
 
-    changes = store_changes(before, after)
+    Changes are detected by comparing a snapshot of the store taken on its
+    first access inside the body against the store at exit. A container
+    obtained from the store before this body began and mutated inside it,
+    with no other store access in the body, is attributed to the nearest
+    enclosing span that did touch the store, and is not recorded at all if
+    there is none.
+    """
+    tracker = StoreChangeTracker(store())
+    tracker.begin()
+    try:
+        yield
+    finally:
+        tracker.end()
+
+    changes = tracker.changes()
     if changes:
         transcript()._event(StoreEvent(changes=changes))
 
