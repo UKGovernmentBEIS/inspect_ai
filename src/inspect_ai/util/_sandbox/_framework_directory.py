@@ -37,6 +37,11 @@ re-resolving a pathname that could be swapped underneath them. The symlink test 
 a ``pwd -P`` comparison after the ``cd``, which catches a symlink placed at the
 leaf even if it appeared after the earlier ``test -L``.
 
+Provider requirement: the script's verdicts travel on stderr, so the sandbox's
+``exec`` must return stderr separately from stdout (as the built-in providers do).
+A provider that merges the streams or drops stderr makes every call here fail as
+"did not run", and callers then treat the user as unavailable.
+
 Rootless sandboxes: when the command cannot run as root, the intended owner is the
 sandbox's default uid. The contract still holds for that uid, but it does not
 establish a boundary between the agent and the tools, because both run as the same
@@ -63,6 +68,8 @@ _UNAVAILABLE_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_UNAVAILABLE"
 _UNAVAILABLE_EXIT = 5
 _USER_MISMATCH_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_USER_MISMATCH"
 _USER_MISMATCH_EXIT = 6
+_CREATE_FAILED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_CREATE_FAILED"
+_CREATE_FAILED_EXIT = 7
 _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 
 # Arguments: $1 = expected uid (empty = no expectation), $2 = create flag (1/0),
@@ -102,6 +109,7 @@ violation() { report @VIOLATION@ "$*" @VIOLATION_EXIT@; }
 missing() { report @MISSING@ "$*" @MISSING_EXIT@; }
 unavailable() { report @UNAVAILABLE@ "$*" @UNAVAILABLE_EXIT@; }
 usermismatch() { report @USER_MISMATCH@ "$*" @USER_MISMATCH_EXIT@; }
+createfailed() { report @CREATE_FAILED@ "$*" @CREATE_FAILED_EXIT@; }
 me=$(id -u 2>/dev/null) || unavailable "cannot determine the current uid: $(id -u 2>&1 >/dev/null)"
 case $me in ''|*[!0-9]*) unavailable "unexpected output from id -u: $me" ;; esac
 if [ -n "$expect" ] && [ "$me" != "$expect" ]; then
@@ -112,7 +120,7 @@ if [ ! -e "$parent" ] && [ ! -L "$parent" ]; then
         # Missing parents get the conventional 0755 (as `mkdir -p` under the
         # default umask would give), not the 0700 our umask would produce: a
         # root-only /var/tmp would lock the default user out of it.
-        err=$(umask 022 && mkdir -p -- "$parent" 2>&1) || [ -e "$parent" ] || violation "could not create parent directory $parent: $err"
+        err=$(umask 022 && mkdir -p -- "$parent" 2>&1) || [ -e "$parent" ] || createfailed "parent directory $parent: $err"
     else
         missing "parent directory $parent does not exist"
     fi
@@ -139,7 +147,7 @@ if [ "$create" = 1 ] && [ ! -e "$leaf" ] && [ ! -L "$leaf" ]; then
     if err=$(mkdir -m 0700 -- "$leaf" 2>&1); then
         created=1
     else
-        [ -e "$leaf" ] || [ -L "$leaf" ] || violation "could not create $dir: $err"
+        [ -e "$leaf" ] || [ -L "$leaf" ] || createfailed "$err"
     fi
 fi
 if [ -L "$leaf" ]; then violation "$dir is a symbolic link"; fi
@@ -173,6 +181,8 @@ for _placeholder, _value in {
     "@UNAVAILABLE_EXIT@": str(_UNAVAILABLE_EXIT),
     "@USER_MISMATCH@": _USER_MISMATCH_MARKER,
     "@USER_MISMATCH_EXIT@": str(_USER_MISMATCH_EXIT),
+    "@CREATE_FAILED@": _CREATE_FAILED_MARKER,
+    "@CREATE_FAILED_EXIT@": str(_CREATE_FAILED_EXIT),
     "@VERIFIED@": _VERIFIED_MARKER,
 }.items():
     _SCRIPT = _SCRIPT.replace(_placeholder, _value)
@@ -194,6 +204,10 @@ class FrameworkDirectoryError(RuntimeError):
     uid, has a mode other than ``0700``, sits in a parent that lets other principals
     replace it, or could not be created or entered. Callers must not fall back to a
     weaker owner or continue privileged work when this is raised.
+
+    The message distinguishes an untrustworthy entry (which the user should remove)
+    from a plain creation failure such as a read-only filesystem or an unwritable
+    parent, where there is nothing to remove.
     """
 
 
@@ -319,6 +333,10 @@ async def _run_verified(
         raise FrameworkDirectoryError(
             f"Sandbox framework directory {path} cannot be trusted: {message}. "
             "Remove the entry (or correct its ownership and permissions) and retry."
+        )
+    if (message := _verdict(result, _CREATE_FAILED_MARKER)) is not None:
+        raise FrameworkDirectoryError(
+            f"Cannot create sandbox framework directory {path}: {message}"
         )
     if (message := _verdict(result, _UNAVAILABLE_MARKER)) is not None:
         raise FrameworkDirectoryUnavailableError(

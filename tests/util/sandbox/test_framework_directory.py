@@ -21,6 +21,7 @@ from typing import Callable, Iterator, Literal, overload
 import pytest
 
 from inspect_ai.util._sandbox._framework_directory import (
+    _CREATE_FAILED_MARKER,
     _MISSING_MARKER,
     _SCRIPT,
     _SHELL,
@@ -268,6 +269,30 @@ async def test_rejects_nonconforming_entry_and_leaves_it_alone(
 
     after = os.lstat(target)
     assert (after.st_ino, after.st_mode) == (before.st_ino, before.st_mode)
+
+
+async def test_creation_failure_is_not_reported_as_untrustworthy(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """An unwritable parent (or read-only filesystem) leaves nothing to remove."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user (root can write anywhere)")
+    parent.chmod(0o500)
+    try:
+        for target in (parent / "fw", parent / "missing" / "fw"):
+            with pytest.raises(
+                FrameworkDirectoryError, match="Permission denied"
+            ) as ei:
+                await ensure_framework_directory(local, str(target), user=None)
+            assert not isinstance(ei.value, FrameworkDirectoryNotFoundError)
+            assert str(ei.value).startswith(
+                f"Cannot create sandbox framework directory {target}: "
+            )
+            assert "cannot be trusted" not in str(ei.value)
+            assert "Remove the entry" not in str(ei.value)
+        assert list(parent.iterdir()) == []
+    finally:
+        parent.chmod(0o700)
 
 
 async def test_rejects_directory_owned_by_another_uid(
@@ -570,6 +595,8 @@ async def test_command_cannot_forge_a_verdict(
         (_VIOLATION_MARKER, 3),
         (_MISSING_MARKER, 4),
         (_UNAVAILABLE_MARKER, 5),
+        (_USER_MISMATCH_MARKER, 6),
+        (_CREATE_FAILED_MARKER, 7),
     ):
         # Same marker line *and* the same exit status the script would use.
         result = await exec_in_framework_directory(
