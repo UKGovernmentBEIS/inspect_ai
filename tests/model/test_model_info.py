@@ -464,6 +464,20 @@ class TestGetModelInputTokens:
         assert info.snapshot == "20260901"
         assert str(info.knowledge_cutoff_date) == "2026-06-01"
 
+    @pytest.mark.parametrize(
+        "model_name,release_date",
+        [("gemini-3.8-flash", "2026-09-02"), ("gemini-3.7-flash", "2026-08-13")],
+    )
+    def test_gemini_3_7_plus_flash(self, model_name: str, release_date: str) -> None:
+        """Gemini 3.7/3.8 Flash resolve to their own entries (1M context)."""
+        model = get_model(f"google/{model_name}", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info(f"google/{model_name}")
+        assert info is not None
+        assert str(info.release_date) == release_date
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.reasoning_effort_default == "medium"
+
     def test_claude_latest_defaults_to_1m(self):
         """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""
         # Use a hypothetical future model name that triggers is_claude_latest()
