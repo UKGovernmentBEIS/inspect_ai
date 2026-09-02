@@ -8,6 +8,7 @@
 - Tools: Tool call arguments nested deeper than 100 levels are now rejected with a parse error echoed back to the model (previously depths up to ~254 executed and deeper crashed eval logging, aborting the whole run).
 - Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
 - Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".
+- Anthropic: Support for Claude Fable 5.1 and Mythos 5.1 — forced tool choice degrades to auto on both, and history edits no longer fail Fable 5.1's replayed thinking blocks (first-party API).
 - OpenAI: Chat Completions usage now preserves prompt-cache read and write tokens for accurate cache-aware costing.
 - Scoring: `model_graded_qa`/`model_graded_fact` no longer score a malformed multi-character verdict such as `GRADE: CI` as correct; such verdicts now leave the sample unscored with `grade_parse_failure` recorded.
 - OpenAI: Fixed background responses failing on transient connection and timeout errors.
@@ -39,6 +40,7 @@
 - Agent bridge: An invalid response schema or mistyped request field in a bridged OpenAI, Anthropic, or Google request is now rejected with a 400 instead of escaping as a status-less internal error.
 - Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
 - Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
+- Agent bridge: Fixed a tool-approval bypass where a sandboxed agent could run approval-gated `bridged_tools` by calling the bridge service directly; unapproved host tool calls are now denied.
 - Bugfix: Approval policies set on a `Task` are now recorded in the eval log.
 - OpenAI: Responses API requests now omit the `id` key on synthesized message and reasoning items rather than sending an explicit null, which backends like vLLM reject.
 - Hooks: Fixed hooks published by extension packages silently not loading when another hook was already registered at startup.

@@ -550,6 +550,124 @@ def test_sandbox_bridge_rejection_hides_the_call_from_the_agent() -> None:
 
 @skip_if_no_docker
 @pytest.mark.slow
+def test_sandbox_bridge_rejects_forged_host_tool_call() -> None:
+    """Calling host MCP directly cannot skip configured approval."""
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+
+    call_log: list[dict] = []
+    seen: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+                bridged_tools=[
+                    BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
+                ],
+            ) as bridge:
+                seen.append(
+                    await call_mcp_tool(
+                        bridge.mcp_server_configs[0],
+                        "calculator_add",
+                        {"x": 5, "y": 3},
+                    )
+                )
+            return state
+
+        return solve
+
+    eval_bridged_tools_task(test_solver())
+
+    assert call_log == []
+    assert "was not approved for execution" in seen[0]["error"]["message"]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_executes_approved_host_tool_call_once() -> None:
+    """An approved model call grants one matching MCP execution."""
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+    from inspect_ai.tool._tool_call import ToolCall
+
+    call_log: list[dict] = []
+    responses: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+                bridged_tools=[
+                    BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
+                ],
+            ) as bridge:
+                await post_completions(
+                    bridge.port,
+                    {
+                        "model": "inspect",
+                        "messages": [{"role": "user", "content": "Add the numbers."}],
+                        "tools": [
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": "calculator_add",
+                                    "description": "Add two numbers.",
+                                    "parameters": {
+                                        "type": "object",
+                                        "properties": {
+                                            "x": {"type": "integer"},
+                                            "y": {"type": "integer"},
+                                        },
+                                        "required": ["x", "y"],
+                                    },
+                                },
+                            }
+                        ],
+                    },
+                )
+                config = bridge.mcp_server_configs[0]
+                responses.append(
+                    await call_mcp_tool(config, "calculator_add", {"y": 3, "x": 5})
+                )
+                responses.append(
+                    await call_mcp_tool(config, "calculator_add", {"x": 5, "y": 3})
+                )
+            return state
+
+        return solve
+
+    approved = ToolCall(
+        id="approved",
+        function="calculator_add",
+        arguments={"x": 5, "y": 3},
+    )
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="", tool_calls=[approved]),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    log = eval(
+        bridged_tools_task(test_solver()),
+        model=get_model("mockllm/model", custom_outputs=[output]),
+    )[0]
+
+    assert log.status == "success"
+    assert responses[0]["result"]["content"][0]["text"] == "8"
+    assert "was not approved for execution" in responses[1]["error"]["message"]
+    assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
 def test_sandbox_bridge_terminate_ends_the_sample() -> None:
     """`terminate` must reach the sample runner from the sandbox service task.
 
