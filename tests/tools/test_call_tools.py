@@ -10,7 +10,7 @@ from typing_extensions import TypedDict
 from inspect_ai._util.content import ContentDocument, ContentText
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import MAX_TOOL_CALL_ARGUMENTS_DEPTH, execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
@@ -182,6 +182,25 @@ async def test_incr_simple_positive():
 
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].content == "1"
+
+
+async def test_deeply_nested_dict_arguments_rejected_as_parse_error():
+    # providers that construct ToolCall from an already-parsed dict never go
+    # through parse_tool_call, so the argument nesting bound must also be
+    # enforced at execution time, surfacing as the same parsing error
+    deep: dict[str, Any] = {"a": 1}
+    for _ in range(MAX_TOOL_CALL_ARGUMENTS_DEPTH + 50):
+        deep = {"a": deep}
+    call = make_call("incr", {"x": deep})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [ToolDef(incr())]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "parsing"
+    assert "nesting depth" in messages[-1].error.message
 
 
 async def test_complex_tool_all_params():

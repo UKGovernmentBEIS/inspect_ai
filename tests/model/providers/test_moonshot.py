@@ -157,7 +157,7 @@ def test_moonshot_thinking_disabled_preserves_forced_tool_choice(mock_moonshot_e
     from inspect_ai.model._providers.moonshot import MoonshotAPI
     from inspect_ai.tool import ToolFunction
 
-    api = MoonshotAPI(model_name="kimi-k2.5")
+    api = MoonshotAPI(model_name="kimi-k2.6")
     _, tool_choice, _ = api.resolve_tools(
         tools=[],
         tool_choice=ToolFunction(name="addition"),
@@ -174,11 +174,11 @@ def test_moonshot_forwards_model_args(mock_moonshot_env):
     assert api.client.default_headers.get("X-Test") == "yes"
 
 
-def test_moonshot_kimi_k2_5_drops_fixed_sampling_params(mock_moonshot_env):
-    """All Kimi thinking models use fixed sampling by default, not just K3."""
+def test_moonshot_kimi_k2_6_drops_fixed_sampling_params(mock_moonshot_env):
+    """All Kimi thinking models use fixed sampling, not just K3."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
-    api = MoonshotAPI(model_name="kimi-k2.5")
+    api = MoonshotAPI(model_name="kimi-k2.6")
     params = api.completion_params(
         config=GenerateConfig(temperature=0.7, top_p=0.9),
         tools=False,
@@ -187,18 +187,18 @@ def test_moonshot_kimi_k2_5_drops_fixed_sampling_params(mock_moonshot_env):
     assert "top_p" not in params
 
 
-def test_moonshot_thinking_disabled_preserves_sampling_params(mock_moonshot_env):
-    """Disabling thinking via extra_body lifts the fixed-sampling restriction."""
+def test_moonshot_thinking_disabled_still_drops_sampling_params(mock_moonshot_env):
+    """Fixed sampling applies even with thinking disabled (only the pinned value changes)."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
-    api = MoonshotAPI(model_name="kimi-k2.5")
+    api = MoonshotAPI(model_name="kimi-k2.6")
     params = api.completion_params(
         config=GenerateConfig(
             temperature=0.7, extra_body={"thinking": {"type": "disabled"}}
         ),
         tools=False,
     )
-    assert params["temperature"] == 0.7
+    assert "temperature" not in params
 
 
 def test_moonshot_legacy_model_preserves_sampling_params(mock_moonshot_env):
