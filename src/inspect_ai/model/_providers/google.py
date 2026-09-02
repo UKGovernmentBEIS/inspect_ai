@@ -863,18 +863,24 @@ class GoogleGenAIAPI(ModelAPI):
     def supports_minimal_thinking(self) -> bool:
         """Whether the model accepts thinking_level=MINIMAL.
 
-        Gemini 3 Pro has never accepted it. Gemini 3 Flash accepted it through
-        3.6; Gemini 3.7 Flash and later reject it with a 400, so version-less
-        Flash names (codenames, rolling aliases) follow the frontier and are
-        not sent it. Gemini 3 Flash-Lite still accepts it.
+        Only the Gemini 3 releases documented to accept it return True: Flash
+        3.0-3.6 and Flash-Lite 3.1-3.5. Gemini 3 Pro never has, and 3.7 Flash
+        and later reject it with a 400, so unknown future versions are not
+        sent it either (a downgrade to LOW is recoverable, a 400 is not).
+        Version-less names (codenames, rolling aliases such as
+        gemini-flash-latest) track the newest release of their line: Flash
+        does not accept it, Flash-Lite does.
         https://ai.google.dev/gemini-api/docs/thinking
         """
-        if not self.is_gemini_flash() or self.is_latest():
+        if not self.is_gemini() or not self.is_gemini_flash():
             return False
-        if "flash-lite" in self.model_family():
-            return self.is_gemini_3_plus()
+        lite = "flash-lite" in self.model_family()
         version = self.gemini_version()
-        return version is not None and (3,) <= version < (3, 7)
+        if version is None:
+            return lite
+        if lite:
+            return (3,) <= version < (3, 6)
+        return (3,) <= version < (3, 7)
 
     def is_gemini_3_plus(self) -> bool:
         return (

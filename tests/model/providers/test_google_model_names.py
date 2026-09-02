@@ -96,19 +96,22 @@ def test_pro_codename_is_thinking_only() -> None:
         ("gemini-3.8-flash", False),
         ("gemini-4-flash", False),
         ("gemini-3.1-flash-lite", True),
+        ("gemini-3.1-flash-lite-preview", True),
         ("gemini-3.5-flash-lite", True),
         ("gemini-2.5-flash-lite", False),
+        ("gemini-4-flash-lite", False),
         ("gemini-3-pro", False),
         ("gemini-3.1-pro-preview", False),
         ("gemini-2.5-flash", False),
         ("vertex/gemini-3.8-flash", False),
         ("vertex/gemini-3.6-flash", True),
-        # version-less names follow the frontier (3.7+ Flash rejects MINIMAL);
-        # the lite alias tracks the newest Flash-Lite, which accepts it
+        # version-less names track the newest release of their line
         ("gemini-flash-latest", False),
         ("gemini-flash-lite-latest", True),
         ("nimbus-flash-preview", False),
+        ("nimbus-flash-lite-preview", True),
         ("satellite-flash-preview", False),
+        ("vertex/some-flash-lite-endpoint", False),
     ],
 )
 def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
