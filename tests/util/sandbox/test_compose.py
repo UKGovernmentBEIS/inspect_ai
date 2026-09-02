@@ -361,11 +361,13 @@ services:
     pids_limit: 512
     read_only: true
     cgroup: host
+    stop_grace_period: 1m30s
 """)
     config = parse_compose_yaml(str(compose_file))
     assert config.services["default"].pids_limit == 512
     assert config.services["default"].read_only is True
     assert config.services["default"].cgroup == "host"
+    assert config.services["default"].stop_grace_period == "1m30s"
 
 
 def test_parse_compose_yaml_accepts_interpolated_pids_limit(tmp_path):
@@ -382,7 +384,7 @@ services:
     assert config.services["default"].pids_limit == "${PIDS_LIMIT}"
 
 
-def test_parse_compose_yaml_accepts_build_no_cache(tmp_path):
+def test_parse_compose_yaml_accepts_build_no_cache_and_pull(tmp_path):
     compose_file = tmp_path / "compose.yaml"
     compose_file.write_text("""
 services:
@@ -390,11 +392,13 @@ services:
     build:
       context: .
       no_cache: true
+      pull: true
 """)
     config = parse_compose_yaml(str(compose_file))
     build = config.services["default"].build
     assert build is not None and not isinstance(build, str)
     assert build.no_cache is True
+    assert build.pull is True
 
 
 def test_parse_compose_yaml_rejects_unknown_field(tmp_path):

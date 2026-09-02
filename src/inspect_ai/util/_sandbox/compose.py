@@ -159,6 +159,9 @@ class ComposeBuild(ComposeModel):
     no_cache: bool | None = Field(default=None)
     """Disable image builder cache for this service's build."""
 
+    pull: bool | None = Field(default=None)
+    """Always attempt to pull a newer version of the base image."""
+
 
 class ComposeBindOptions(ComposeModel):
     """Bind options for a long syntax volume mount."""
@@ -367,6 +370,9 @@ class ComposeService(ComposeModel):
 
     cgroup: str | None = Field(default=None)
     """Cgroup namespace to join (``host`` or ``private``)."""
+
+    stop_grace_period: str | None = Field(default=None)
+    """Time to wait after SIGTERM before killing the container (e.g. ``120s``, ``1m30s``)."""
 
     depends_on: list[str] | dict[str, Any] | None = Field(default=None)
     """Service startup dependencies. Short (list) or long (dict) form per Compose spec."""
