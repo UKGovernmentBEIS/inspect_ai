@@ -121,7 +121,8 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     check runs as root first, because a root-owned 0700 tree cannot even be entered
     by the default user; a trustworthy root installation found that way is adopted
     by recording root as the tools user. Only when the sandbox cannot exec as root
-    at all is the default user's view consulted.
+    at all is the default user's view consulted, and a trustworthy installation found
+    there is adopted the same way, so the failing root probe is not repeated.
     """
     try:
         return await _detect_sandbox_tools(sandbox)
@@ -150,7 +151,10 @@ async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
             TRACE_SANDBOX_TOOLS,
             f"root tools detection failed; checking as default user: {ex}",
         )
-        return await _tools_installed_as(sandbox, None)
+        installed = await _tools_installed_as(sandbox, None)
+        if installed:
+            _set_tools_user(sandbox, None)
+        return installed
     if installed:
         _set_tools_user(sandbox, "root")
     return installed

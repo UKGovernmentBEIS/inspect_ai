@@ -418,7 +418,12 @@ async def test_detector_falls_back_to_default_user_when_root_unavailable(
     sandbox = FakeSandbox(policy)
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
     assert sandbox._tools_user is None
+    assert sandbox._tools_user_resolved is True
     assert [user for _, user in sandbox.exec_calls] == ["root", None]
+
+    # The adopted rootless install is remembered: no repeated root probe.
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
+    assert [user for _, user in sandbox.exec_calls] == ["root", None, None]
 
 
 @pytest.mark.parametrize(
