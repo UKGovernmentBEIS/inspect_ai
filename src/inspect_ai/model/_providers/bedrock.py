@@ -58,6 +58,9 @@ from .._stream import (
     report_model_stream_start,
 )
 from .util import (
+    forced_tool_choice_degraded_metadata,
+    is_claude_fable_5_1_model,
+    is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
 )
@@ -619,6 +622,21 @@ class BedrockAPI(ModelAPI):
                 return True
         return False
 
+    def is_claude_fable_5_1_or_later(self) -> bool:
+        return is_claude_fable_5_1_model(self.model_family())
+
+    def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
+        """Mirrors `resolved_tool_choice` in the native anthropic provider."""
+        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
+            warn_once(
+                logger,
+                f"bedrock model '{self.model_name}' does not support forced "
+                "tool choice (tool_choice 'any' or a specific tool returns a "
+                "400 error); using tool_choice 'auto' instead.",
+            )
+            return "auto"
+        return tool_choice
+
     def is_thinking_model(self) -> bool:
         """Mirrors the native anthropic provider — claude-3 / claude-3.5 don't think."""
         return self.is_claude() and not self.is_claude_3() and not self.is_claude_3_5()
@@ -701,8 +719,11 @@ class BedrockAPI(ModelAPI):
             # Process the tools
             resolved_tools = converse_tools(tools)
             tool_config = None
+            tool_choice_degraded = False
             if resolved_tools is not None:
-                choice = converse_tool_choice(tool_choice)
+                resolved_choice = self.resolved_tool_choice(tool_choice)
+                tool_choice_degraded = resolved_choice != tool_choice
+                choice = converse_tool_choice(resolved_choice)
                 tool_config = ConverseToolConfig(
                     tools=resolved_tools, toolChoice=choice
                 )
@@ -864,6 +885,11 @@ class BedrockAPI(ModelAPI):
 
         # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)
+
+        if tool_choice_degraded:
+            output.metadata = (
+                output.metadata or {}
+            ) | forced_tool_choice_degraded_metadata(tool_choice)
 
         # return
         return output, model_call
