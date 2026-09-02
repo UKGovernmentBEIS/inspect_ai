@@ -66,16 +66,18 @@ _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 # (root's `tar` preserves them). Inside a 0700 directory used by one uid this changes
 # nothing observable. Tool output is captured with stderr discarded so a warning
 # cannot be folded into a value; the error path re-runs the tool for its message.
-# System directories are put ahead of the inherited PATH so that a user-owned
-# directory an image prepends to PATH cannot supply the `stat`/`id`/`mkdir` the
-# checks (or the wrapped command) rely on; `sh` itself is resolved by the provider.
-# An unset PATH must not leave a trailing empty entry, which shells resolve from
-# the cwd (the parent directory, which may be world-writable).
+# PATH is replaced outright with the system directories: the inherited value is
+# not consulted at all, so a user-owned directory an image puts on PATH cannot
+# supply `stat`/`id`/`mkdir` (or the wrapped command), a utility missing from the
+# system directories fails rather than falling through, and an empty component
+# (which shells resolve from the cwd, here the possibly world-writable parent)
+# cannot appear. The shell itself is resolved by the provider before this runs,
+# through the image's PATH, which is why the host launches it as `_SHELL`.
 _SCRIPT = """
 set -u
 umask 077
 unset CDPATH
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 expect=$1 create=$2 parent=$3 leaf=$4
 shift 4
@@ -165,6 +167,15 @@ for _placeholder, _value in {
     "@VERIFIED@": _VERIFIED_MARKER,
 }.items():
     _SCRIPT = _SCRIPT.replace(_placeholder, _value)
+
+
+_SHELL = "/bin/sh"
+"""Absolute path of the shell that runs the verification script.
+
+A bare ``sh`` would be resolved by the provider through the image's PATH before the
+script can pin its own, so an image with a default-user-writable directory ahead of
+``/bin`` would let the agent supply the shell that root runs.
+"""
 
 
 class FrameworkDirectoryError(RuntimeError):
@@ -273,7 +284,17 @@ async def _run_verified(
     parent, leaf = split_framework_path(path)
     expect = "" if expected_uid is None else str(expected_uid)
     result = await sandbox.exec(
-        ["sh", "-c", _SCRIPT, "sh", expect, "1" if create else "0", parent, leaf, *cmd],
+        [
+            _SHELL,
+            "-c",
+            _SCRIPT,
+            "sh",
+            expect,
+            "1" if create else "0",
+            parent,
+            leaf,
+            *cmd,
+        ],
         user=user,
         timeout=timeout,
     )
@@ -420,8 +441,9 @@ async def exec_in_framework_directory(
     Args:
         sandbox: Sandbox to operate in.
         path: Absolute path of the directory.
-        cmd: Command to run; ``cmd[0]`` is resolved via ``PATH`` unless it contains
-            a slash (use ``./name`` for a program inside the directory).
+        cmd: Command to run; ``cmd[0]`` is resolved via the script's fixed
+            system-directory ``PATH`` (never the sandbox's inherited one) unless it
+            contains a slash (use ``./name`` for a program inside the directory).
         user: User to run as (as for ``sandbox.exec``); also the expected owner.
         expected_uid: If given, the uid the command must actually run as (see
             :func:`ensure_framework_directory`).

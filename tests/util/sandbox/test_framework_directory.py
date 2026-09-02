@@ -23,6 +23,7 @@ import pytest
 from inspect_ai.util._sandbox._framework_directory import (
     _MISSING_MARKER,
     _SCRIPT,
+    _SHELL,
     _UNAVAILABLE_MARKER,
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
@@ -125,16 +126,14 @@ def _tool_dir(tmp_path: Path, tools: list[str], shims: dict[str, str]) -> Path:
     return bindir
 
 
-_SCRIPT_PATH_LINE = (
-    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
-)
+_SCRIPT_PATH_LINE = "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 
 def _script_with_path(bindir: Path) -> str:
     """The verification script with its PATH pinned to ``bindir`` only.
 
-    The real script puts the system directories first, so a tool can only be
-    shimmed (or hidden) by replacing that line for the test.
+    The real script uses the system directories and nothing else, so a tool can
+    only be shimmed (or hidden) by replacing that line for the test.
     """
     assert _SCRIPT_PATH_LINE in _SCRIPT
     return _SCRIPT.replace(_SCRIPT_PATH_LINE, f"PATH={bindir}")
@@ -158,8 +157,8 @@ class _ScriptOverrideSandbox(_EnvSandbox):
         timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        assert cmd[:3] == ["sh", "-c", _SCRIPT]
-        return await self.inner.exec(["sh", "-c", self.script, *cmd[3:]], input, cwd)
+        assert cmd[:3] == [_SHELL, "-c", _SCRIPT]
+        return await self.inner.exec([_SHELL, "-c", self.script, *cmd[3:]], input, cwd)
 
 
 async def test_creates_missing_directory_with_mode_0700(
@@ -433,20 +432,40 @@ async def test_exec_ignores_cdpath(
     assert result.stdout.strip() == str(target.resolve())
 
 
-async def test_path_has_no_empty_entry_when_inherited_path_is_unset(
-    local: LocalSandboxEnvironment, parent: Path
+async def test_inherited_path_is_not_consulted(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
 ) -> None:
-    """An empty PATH entry means cwd, which is the parent while it is being checked."""
-    script = _SCRIPT.replace(_SCRIPT_PATH_LINE, f"unset PATH\n{_SCRIPT_PATH_LINE}")
-    sandbox = _ScriptOverrideSandbox(local, script)
+    """A utility that exists only on the sandbox's PATH must not be found.
+
+    The inherited PATH here also carries an empty component (cwd, the parent while
+    it is being checked) to show neither it nor the shim directory survives.
+    """
+    bindir = _tool_dir(tmp_path, [], {"frobnicate": 'touch "$PWD/ran-shim"'})
+    sandbox = _EnvSandbox(local, {"PATH": f"{bindir}::{os.environ['PATH']}"})
     target = parent / "fw"
     await ensure_framework_directory(sandbox, str(target), user=None)
     result = await exec_in_framework_directory(
         sandbox, str(target), ["sh", "-c", 'printf %s "$PATH"'], user=None
     )
-    assert result.success
-    entries = result.stdout.split(":")
-    assert entries and "" not in entries
+    assert result.stdout == _SCRIPT_PATH_LINE.removeprefix("PATH=")
+    result = await exec_in_framework_directory(
+        sandbox, str(target), ["frobnicate"], user=None
+    )
+    assert not result.success
+    assert "not found" in result.stderr
+    assert not (target / "ran-shim").exists()
+
+
+async def test_verifier_is_launched_by_absolute_shell_path() -> None:
+    """The provider resolves the shell through the image PATH; give it no choice."""
+    sandbox = ScriptedSandbox(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await verify_framework_directory(sandbox, "/var/tmp/.x", user="root")
+    (cmd, _), *_ = sandbox.calls
+    assert cmd[0] == _SHELL == "/bin/sh"
 
 
 async def test_exec_does_not_create_and_does_not_run_command_on_violation(
@@ -616,7 +635,7 @@ async def test_violation_verdict_becomes_framework_directory_error() -> None:
     # The request ran as the intended owner, via sh, with parent and leaf split.
     (cmd, user), *_ = sandbox.calls
     assert user == "root"
-    assert cmd[:2] == ["sh", "-c"]
+    assert cmd[:2] == [_SHELL, "-c"]
     assert cmd[-2:] == ["/var/tmp", ".x"]
 
 

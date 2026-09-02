@@ -12,6 +12,7 @@ from inspect_ai.tool._sandbox_tools_utils import sandbox as sandbox_tools
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox._framework_directory import (
     _MISSING_MARKER,
+    _SHELL,
     _UNAVAILABLE_MARKER,
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
@@ -81,7 +82,7 @@ NOT_ROOT = ExecResult(
 
 
 def is_framework_dir_call(cmd: list[str]) -> bool:
-    return cmd[:2] == ["sh", "-c"] and SANDBOX_TOOLS_DIR.rsplit("/", 1)[1] in cmd
+    return cmd[:2] == [_SHELL, "-c"] and SANDBOX_TOOLS_DIR.rsplit("/", 1)[1] in cmd
 
 
 def wrapped_command(cmd: list[str]) -> list[str]:
