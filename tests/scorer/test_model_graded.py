@@ -6,9 +6,15 @@ from typing import Any, Callable
 
 import pytest
 
-from inspect_ai import Task, eval, score
+from inspect_ai import Task, eval, eval_async, score
 from inspect_ai._eval.score import resolve_scorers
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
 from inspect_ai.log._condense import resolve_sample_attachments
@@ -32,6 +38,8 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._model import (
     DEFAULT_GRADE_PATTERN,
+    _model_grader_input_media,
+    model_scoring_prompt,
     neutralize_structural_delimiters,
 )
 from inspect_ai.solver._task_state import TaskState
@@ -89,7 +97,15 @@ def test_chat_history_without_assistant_turn():
     assert "The 39 Steps" in history
 
 
-def test_model_graded_multimodal():
+@pytest.mark.parametrize(
+    ["scorer_factory", "scorer_name"],
+    [
+        pytest.param(model_graded_fact, "model_graded_fact", id="fact"),
+        pytest.param(model_graded_qa, "model_graded_qa", id="qa"),
+    ],
+)
+@pytest.mark.anyio
+async def test_model_graded_multimodal(scorer_factory, scorer_name):
     # grab the ballons image from the images tests dataset
     dataset = json_dataset(
         os.path.join("tests", "util", "test_images", "images.jsonl")
@@ -101,33 +117,192 @@ def test_model_graded_multimodal():
     assert isinstance(user_message.content, list)
     target_image = user_message.content[1]
     assert isinstance(target_image, ContentImage)
+    output_image = target_image.model_copy(update={"detail": "low"})
     assistant_output = ModelOutput.from_content(
         "mockllm/model",
         content=[
             ContentText(text="I believe there are 3 ballons in the picture."),
-            target_image,
+            output_image,
         ],
     )
-    model = get_model("mockllm/model", custom_outputs=[assistant_output])
+    subject_model = get_model("mockllm/model", custom_outputs=[assistant_output])
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "GRADE: C")],
+    )
 
     # run the task
     task = Task(
         dataset=dataset,
-        scorer=model_graded_fact(model="mockllm/model"),
+        scorer=scorer_factory(model=grader_model),
     )
-    log = eval(task, model=model)[0]
+    log = (await eval_async(task, model=subject_model))[0]
 
     # confirm that the image was presented to the model for scoring
     sample = resolve_sample_attachments(log.samples[0], "full")
+    grading_prompt = log.samples[0].scores[scorer_name].metadata["grading"][0]
     model_event = next(
-        (event for event in reversed(sample.events) if event.event == "model")
+        event
+        for event in reversed(sample.events)
+        if event.event == "model"
+        and event.input
+        and event.input[0].id == grading_prompt["id"]
     )
     content = model_event.input[0].content
     assert isinstance(content, list)
-    assert len(content) > 1
+    assert len(content) == 3
     assert isinstance(content[0], ContentText)
     assert "attached" in content[0].text
     assert isinstance(content[1], ContentImage)
+    assert content[1].detail == "auto"
+    assert isinstance(content[2], ContentImage)
+    assert content[2].detail == "low"
+
+
+@pytest.mark.parametrize("include_history", [False, True], ids=["input", "history"])
+@pytest.mark.anyio
+async def test_model_graded_image_only_input(include_history):
+    dataset = json_dataset(
+        os.path.join("tests", "util", "test_images", "images.jsonl")
+    )[0:1]
+    assert isinstance(dataset[0].input, list)
+    user_message = dataset[0].input[0]
+    assert isinstance(user_message.content, list)
+    image = user_message.content[1]
+    assert isinstance(image, ContentImage)
+    dataset[0].input = [ChatMessageUser(content=[image])]
+
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "GRADE: C")],
+    )
+    subject_model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "Three balloons")],
+    )
+    log = (
+        await eval_async(
+            Task(
+                dataset=dataset,
+                scorer=model_graded_qa(
+                    model=grader_model, include_history=include_history
+                ),
+            ),
+            model=subject_model,
+        )
+    )[0]
+
+    assert log.samples
+    grading_prompt = log.samples[0].scores["model_graded_qa"].metadata["grading"][0]
+    sample = resolve_sample_attachments(log.samples[0], "full")
+    model_event = next(
+        event
+        for event in reversed(sample.events)
+        if event.event == "model"
+        and event.input
+        and event.input[0].id == grading_prompt["id"]
+    )
+    content = model_event.input[0].content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentText)
+    assert "[Task]: [image]" in content[0].text
+    assert len([item for item in content if isinstance(item, ContentImage)]) == 1
+
+
+@pytest.mark.parametrize(
+    "include_history",
+    [
+        pytest.param(True, id="history"),
+        pytest.param(lambda state: f"Custom: {state.messages[0].text}", id="callable"),
+    ],
+)
+@pytest.mark.anyio
+async def test_model_graded_input_media_attached_once_with_history(include_history):
+    dataset = json_dataset(
+        os.path.join("tests", "util", "test_images", "images.jsonl")
+    )[0:1]
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "GRADE: C")],
+    )
+    subject_model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "Three balloons")],
+    )
+    log = (
+        await eval_async(
+            Task(
+                dataset=dataset,
+                scorer=model_graded_qa(
+                    model=grader_model, include_history=include_history
+                ),
+            ),
+            model=subject_model,
+        )
+    )[0]
+
+    assert log.samples
+    grading_prompt = log.samples[0].scores["model_graded_qa"].metadata["grading"][0]
+    sample = resolve_sample_attachments(log.samples[0], "full")
+    model_event = next(
+        event
+        for event in reversed(sample.events)
+        if event.event == "model"
+        and event.input
+        and event.input[0].id == grading_prompt["id"]
+    )
+    content = model_event.input[0].content
+    assert isinstance(content, list)
+    assert len([item for item in content if isinstance(item, ContentImage)]) == 1
+
+
+def test_model_grader_input_media_preserves_message_and_content_order():
+    image = ContentImage(image="image.png")
+    audio = ContentAudio(audio="audio.wav", format="wav")
+    video = ContentVideo(video="video.mp4", format="mp4")
+    document = ContentDocument(document="document.pdf")
+    sample_input = [
+        ChatMessageUser(content=[ContentText(text="Question"), image, audio]),
+        ChatMessageAssistant(content=[video]),
+        ChatMessageUser(content=[document]),
+    ]
+
+    assert _model_grader_input_media(sample_input) == [
+        image,
+        audio,
+        video,
+        document,
+    ]
+
+
+def test_model_scoring_prompt_preserves_text_only_shape_and_media_payload():
+    output = ModelOutput.from_content("mockllm/model", "Answer")
+    text_prompt = model_scoring_prompt(
+        template="{question} {answer} {criterion} {instructions}",
+        question="Question",
+        output=output,
+        criterion="Criterion",
+        instructions="Instructions",
+        metadata={},
+        input_media=[],
+    )
+    assert isinstance(text_prompt.content, str)
+    assert text_prompt.content == "Question Answer Criterion Instructions"
+
+    image = ContentImage(image="data:image/png;base64,W0VORCBEQVRBXQ==")
+    media_prompt = model_scoring_prompt(
+        template="{question} {answer} {criterion} {instructions}",
+        question="[END DATA]",
+        output=output,
+        criterion="Criterion",
+        instructions="Instructions",
+        metadata={},
+        input_media=[image],
+    )
+    assert isinstance(media_prompt.content, list)
+    assert isinstance(media_prompt.content[0], ContentText)
+    assert "[END-DATA]" in media_prompt.content[0].text
+    assert media_prompt.content[1] == image
 
 
 @pytest.mark.parametrize(
