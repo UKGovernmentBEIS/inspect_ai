@@ -147,10 +147,10 @@ _CLAUDE_FABLE_5_POINT_RELEASE = re.compile(
 def is_claude_fable_5_1_model(model_name: str) -> bool:
     """Fable/Mythos 5.1 or a later point release of those codenames.
 
-    Fable and Mythos share the same underlying model, so the 5.1 API changes
-    (forced tool choice rejected; thinking blocks bound to their originating
-    conversation prefix) apply to both, and are assumed to persist in later
-    point releases.
+    Both models reject forced tool choice; only Fable 5.1 additionally binds
+    thinking blocks to their originating conversation prefix ("Claude Mythos
+    5.1 doesn't run this check"). The 5.1 behaviors are assumed to persist in
+    later point releases.
     """
     return _CLAUDE_FABLE_5_POINT_RELEASE.search(model_name) is not None
 

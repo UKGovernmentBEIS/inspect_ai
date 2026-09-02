@@ -1241,10 +1241,12 @@ class AnthropicAPI(ModelAPI):
         not only those replaying thinking blocks — so the beta header stays
         uniform across a task's requests (the batcher submits a single header
         set per batch). Mythos 5.1 does not run the binding check, so it is
-        excluded. First-party API only; the beta is not documented for
-        bedrock/vertex/azure, where a history edit will still 400. A
-        caller-supplied `extra_body.thinking` shallow-merges over the request
-        body and replaces this binding config.
+        excluded. First-party API only for now: the binding-controls beta
+        arrives per model on bedrock/vertex (the header is rejected until
+        then) and is not offered on foundry — until those platforms enable it,
+        a history edit there will still 400. A caller-supplied
+        `extra_body.thinking` shallow-merges over the request body and
+        replaces this binding config.
         """
         if (
             self.is_claude_fable_5_1_or_later()
@@ -3589,7 +3591,7 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
-    # thinking block binding (Fable/Mythos 5.1): with the thinking-binding
+    # thinking block binding (Fable 5.1): with the thinking-binding
     # beta, replayed thinking blocks the server dropped (e.g. after a history
     # edit) are reported via input_transformations. Warn so callers know
     # reasoning context was lost; the raw entries (including the message path
