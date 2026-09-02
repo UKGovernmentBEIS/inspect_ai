@@ -10,7 +10,7 @@ from typing_extensions import TypedDict
 from inspect_ai._util.content import ContentDocument, ContentText
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import MAX_TOOL_CALL_ARGUMENTS_DEPTH, execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
@@ -19,7 +19,7 @@ from inspect_ai.tool import tool
 from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._sandbox import SandboxTimeoutError
+from inspect_ai.util._sandbox import SandboxTimeoutError, SandboxUnavailableError
 
 # --- Helpers ---------------------------------------------------------------
 
@@ -182,6 +182,25 @@ async def test_incr_simple_positive():
 
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].content == "1"
+
+
+async def test_deeply_nested_dict_arguments_rejected_as_parse_error():
+    # providers that construct ToolCall from an already-parsed dict never go
+    # through parse_tool_call, so the argument nesting bound must also be
+    # enforced at execution time, surfacing as the same parsing error
+    deep: dict[str, Any] = {"a": 1}
+    for _ in range(MAX_TOOL_CALL_ARGUMENTS_DEPTH + 50):
+        deep = {"a": deep}
+    call = make_call("incr", {"x": deep})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [ToolDef(incr())]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "parsing"
+    assert "nesting depth" in messages[-1].error.message
 
 
 async def test_complex_tool_all_params():
@@ -395,6 +414,32 @@ async def test_sandbox_timeout_partial_output_returned_as_tool_result():
     assert messages[-1].error is not None
     assert messages[-1].error.type == "timeout"
     assert messages[-1].error.message == "Command timed out before completing."
+
+
+@tool
+def sandbox_unavailable_tool():
+    async def execute() -> str:
+        """Raise SandboxUnavailableError as a dead sandbox provider would."""
+        raise SandboxUnavailableError(
+            'The sandbox is not running and cannot execute: service "default" is not running'
+        )
+
+    return execute
+
+
+async def test_sandbox_unavailable_surfaces_as_typed_tool_error():
+    """A dead sandbox is recorded with its own error type, filterable in logs."""
+    tool_def = ToolDef(sandbox_unavailable_tool())
+    call = make_call("sandbox_unavailable_tool", {})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "sandbox_unavailable"
+    assert "is not running" in messages[-1].error.message
 
 
 @tool

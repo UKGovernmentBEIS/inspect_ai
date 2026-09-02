@@ -1,5 +1,6 @@
 import inspect
 import json
+import string
 import types
 import typing
 from copy import copy, deepcopy
@@ -49,6 +50,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.json import exceeds_max_depth
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
@@ -69,6 +71,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError, apply_limits
+from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
@@ -212,6 +215,12 @@ async def _execute_tools_impl(
                     )
                 else:
                     raise
+            except SandboxUnavailableError as ex:
+                # Preserve the tool loop's existing non-terminal behavior while
+                # surfacing sandbox unavailability as a failed tool call. Evals
+                # that need it to be terminal can enforce that policy in their
+                # agent logic.
+                tool_error = ToolCallError("sandbox_unavailable", str(ex))
             except PermissionError as ex:
                 err = f"{ex.strerror or str(ex)}."
                 if isinstance(ex.filename, str):
@@ -286,7 +295,9 @@ async def _execute_tools_impl(
 
                 # truncate if necessary
                 truncated_output = truncate_tool_output(
-                    call.function, content, max_output
+                    call.function,
+                    content,
+                    _tool_max_output(tdefs, call.function, max_output),
                 )
                 if truncated_output:
                     content = truncated_output.output
@@ -632,6 +643,13 @@ async def call_tool(
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
 
+    # providers that deliver arguments as an already-parsed dict never go
+    # through parse_tool_call, so the nesting bound is enforced here as well
+    if _exceeds_max_depth(call.arguments):
+        raise await record_tool_parsing_error(
+            f"Error parsing tool call arguments: {_max_depth_parse_error()}"
+        )
+
     # find the tool
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
@@ -902,6 +920,7 @@ async def prepare_tools(
                 parallel=fields.parallel,
                 viewer=fields.viewer,
                 model_input=fields.model_input,
+                max_output=fields.max_output,
                 options=fields.options,
             )
             tdefs.append(tdef)
@@ -1125,6 +1144,29 @@ def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | 
         return None
 
 
+def _tool_max_output(
+    tdefs: list[ToolDef], tool_name: str, max_output: int | None
+) -> int | None:
+    """Resolve the output limit for a tool call.
+
+    A tool that declares its own `max_output` is making a claim about its
+    result (e.g. `submit()`, whose result becomes the agent's completion, and
+    the deep agent's `agent()`, whose result is a subagent's report), so that
+    declaration wins over the caller/generate config value.
+
+    Args:
+        tdefs: Tool definitions in scope for this execution.
+        tool_name: Name of the called tool (unresolved names fall back to
+            `max_output`).
+        max_output: Limit passed to `execute_tools()` (None defers to the
+            active `GenerateConfig`).
+    """
+    tdef = next((tdef for tdef in tdefs if tdef.name == tool_name), None)
+    if tdef is not None and tdef.max_output is not None:
+        return tdef.max_output
+    return max_output
+
+
 class TruncatedToolOutput(NamedTuple):
     output: str
     raw_bytes: int
@@ -1170,6 +1212,62 @@ def tool_parse_error_message(arguments: str | None, ex: Exception) -> str:
     return f"Error parsing the following tool call arguments:\n\n{shown}\n\nError details: {ex}"
 
 
+MAX_TOOL_CALL_ARGUMENTS_DEPTH = 100
+"""Maximum nesting depth accepted for model-emitted tool call arguments.
+
+Deeper structures are rejected with a tool parsing error (echoed back to
+the model) rather than admitted: downstream consumers of arguments only
+tolerate bounded nesting (pydantic-core validates and serializes to a hard
+depth limit of ~255, and log condensation walks values recursively), so
+unbounded depth would crash sample logging rather than the sample itself.
+
+Enforced in `parse_tool_call` for providers that deliver arguments as a
+string (recorded as `ToolCall.parse_error`) and again in `call_tool` for
+every provider, including those that construct `ToolCall` from an
+already-parsed dict and so never reach `parse_tool_call`.
+"""
+
+
+def _exceeds_max_depth(value: object) -> bool:
+    return exceeds_max_depth(value, MAX_TOOL_CALL_ARGUMENTS_DEPTH)
+
+
+def _max_depth_parse_error() -> ValueError:
+    return ValueError(
+        f"arguments exceed the maximum supported nesting depth of "
+        f"{MAX_TOOL_CALL_ARGUMENTS_DEPTH}"
+    )
+
+
+def _object_with_trailing_quotes(arguments: str) -> dict[str, Any] | None:
+    """Recover a complete JSON object trailed only by stray double quotes.
+
+    Models generating a call to a tool whose parameters are empty or all
+    optional sometimes emit the empty body plus loose quotes (e.g. `{}""`),
+    which fails `json.loads`. The arguments arrive verbatim from the provider,
+    so the recovery has to happen here. Only double quotes are treated as
+    stray, since that's the artifact actually observed; a single quote in the
+    trailing text is left to still surface as a parse error.
+
+    Args:
+        arguments: Tool call arguments that failed to parse as JSON.
+
+    Returns:
+        The leading object, or None if the trailing text is anything other
+        than double quotes and whitespace, so that truncated or doubled
+        payloads (e.g. `{"a": 1}{"a": 2}`) still surface as parse errors.
+    """
+    try:
+        value, index = json.JSONDecoder().raw_decode(arguments)
+    except (json.JSONDecodeError, RecursionError):
+        return None
+    if not isinstance(value, dict):
+        return None
+    if set(arguments[index:]) - {'"'} - set(string.whitespace):
+        return None
+    return cast(dict[str, Any], value)
+
+
 def parse_tool_call(
     id: str,
     function: str,
@@ -1195,10 +1293,28 @@ def parse_tool_call(
     # if the arguments is a dict, then handle it with a plain json.loads
     arguments = (arguments or "").strip()
     if arguments.startswith("{"):
+        parsed: dict[str, Any] | None = None
         try:
-            arguments_dict = json.loads(arguments)
+            parsed = json.loads(arguments)
+        except RecursionError:
+            # nested beyond even what json.loads tolerates
+            report_parse_error(_max_depth_parse_error())
         except json.JSONDecodeError as ex:
-            report_parse_error(ex)
+            parsed = _object_with_trailing_quotes(arguments)
+            if parsed is not None:
+                truncated = truncate_string_to_bytes(arguments, 256)
+                shown = truncated.output if truncated else arguments
+                logger.info(
+                    f"Recovered arguments for tool call '{function}' from a "
+                    f"complete JSON object trailed by stray quote characters: {shown}"
+                )
+            else:
+                report_parse_error(ex)
+        if parsed is not None:
+            if _exceeds_max_depth(parsed):
+                report_parse_error(_max_depth_parse_error())
+            else:
+                arguments_dict = parsed
 
     # otherwise parse it as yaml (which will pickup unquoted strings, numbers, and true/false)
     # and then create a dict that maps it to the first function argument
@@ -1213,12 +1329,20 @@ def parse_tool_call(
         )
         if tool_info:
             param_names = list(tool_info.parameters.properties.keys())
+            value: Any = None
             try:
                 value = yaml.safe_load(arguments)
-                arguments_dict[param_names[0]] = value
             except yaml.error.YAMLError:
                 # If the yaml parser fails, we treat it as a string argument.
-                arguments_dict[param_names[0]] = arguments
+                value = arguments
+            except RecursionError:
+                # nested beyond even what yaml.safe_load tolerates
+                report_parse_error(_max_depth_parse_error())
+            if error is None:
+                if _exceeds_max_depth(value):
+                    report_parse_error(_max_depth_parse_error())
+                else:
+                    arguments_dict[param_names[0]] = value
 
     # return ToolCall with error payload
     return ToolCall(

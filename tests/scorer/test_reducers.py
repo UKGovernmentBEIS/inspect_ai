@@ -19,6 +19,7 @@ from inspect_ai.scorer import (
     ValueToFloat,
     at_least,
     collect_score,
+    majority_score,
     match,
     max_score,
     mean_score,
@@ -34,6 +35,7 @@ from inspect_ai.scorer._reducer.registry import reducer_log_name
 avg_reducer = mean_score()
 median_reducer = median_score()
 mode_reducer = mode_score()
+majority_reducer = majority_score()
 max_reducer = max_score()
 at_least_3_reducer = at_least(3)
 at_least_4_reducer = at_least(4)
@@ -357,25 +359,46 @@ def test_reducer_preserve_metadata() -> None:
     simple_scores = [
         # first five scores are identical
         Score(
-            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+            value=1,
+            answer="1",
+            explanation="An explanation",
+            reason="no_response",
+            metadata={"foo": "bar"},
         ),
         Score(
-            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+            value=1,
+            answer="1",
+            explanation="An explanation",
+            reason="no_response",
+            metadata={"foo": "bar"},
         ),
         Score(
-            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+            value=1,
+            answer="1",
+            explanation="An explanation",
+            reason="no_response",
+            metadata={"foo": "bar"},
         ),
         Score(
-            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+            value=1,
+            answer="1",
+            explanation="An explanation",
+            reason="no_response",
+            metadata={"foo": "bar"},
         ),
         Score(
-            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+            value=1,
+            answer="1",
+            explanation="An explanation",
+            reason="no_response",
+            metadata={"foo": "bar"},
         ),
         # last score is different
         Score(
             value=2,
             answer="2",
             explanation="Different explanation",
+            reason="refusal",
             metadata={"foo": "BAZ"},
         ),
     ]
@@ -396,11 +419,13 @@ def test_reducer_preserve_metadata() -> None:
         reduced = reducer(simple_scores)
         assert reduced.answer is None
         assert reduced.explanation is None
+        assert reduced.reason is None
         assert reduced.metadata == simple_scores[0].metadata
         # reduce all scores _except_ the last one
         reduced = reducer(simple_scores[:-1])
         assert reduced.answer == simple_scores[0].answer
         assert reduced.explanation == simple_scores[0].explanation
+        assert reduced.reason == simple_scores[0].reason
         assert reduced.metadata == simple_scores[0].metadata
 
     # verify that other fields are preserved for a single epoch
@@ -408,7 +433,46 @@ def test_reducer_preserve_metadata() -> None:
         reduced = reducer([simple_scores[0]])
         assert reduced.answer == simple_scores[0].answer
         assert reduced.explanation == simple_scores[0].explanation
+        assert reduced.reason == simple_scores[0].reason
         assert reduced.metadata == simple_scores[0].metadata
+
+
+def test_reducer_preserve_reason_all_nan() -> None:
+    """Reason retention across epochs when all scores are unscored (NaN).
+
+    The `_nan_score` path (all epochs unscored) should follow the same
+    "retain only if equal across all Scores" rule for `reason` as the
+    ordinary reduce path.
+    """
+    same_reason_scores = [
+        Score.unscored(reason="no_response"),
+        Score.unscored(reason="no_response"),
+        Score.unscored(reason="no_response"),
+    ]
+    different_reason_scores = [
+        Score.unscored(reason="no_response"),
+        Score.unscored(reason="refusal"),
+        Score.unscored(reason="no_response"),
+    ]
+
+    reducers = [
+        avg_reducer,
+        median_reducer,
+        mode_reducer,
+        max_reducer,
+        at_least_3_reducer,
+        pass_at_2_no_threshhold,
+        pass_k_2_no_threshold,
+    ]
+
+    for reducer in reducers:
+        reduced = reducer(same_reason_scores)
+        assert _is_nan(reduced.value)
+        assert reduced.reason == "no_response"
+
+        reduced = reducer(different_reason_scores)
+        assert _is_nan(reduced.value)
+        assert reduced.reason is None
 
 
 @dataclass
@@ -562,6 +626,126 @@ def test_max_reducer_dict_per_key_nan_order_independent() -> None:
     all_nan = [Score(value={"x": float("nan")}), Score(value={"x": float("nan")})]
     reduced = max_reducer(all_nan).value
     assert isinstance(reduced, dict) and _is_nan(reduced["x"])
+
+
+def test_majority_reducer_requires_more_than_half() -> None:
+    correct = Score(value="C")
+    incorrect = Score(value="I")
+    partial = Score(value="P")
+
+    # 2 of 3 is a majority, 1 of 3 (three-way split) is not
+    assert majority_reducer([correct, correct, incorrect]).value == "C"
+    assert _is_nan(majority_reducer([correct, incorrect, partial]).value)
+
+    # an even panel that splits evenly has no majority, in either order
+    assert _is_nan(majority_reducer([correct, incorrect]).value)
+    assert _is_nan(majority_reducer([incorrect, correct]).value)
+
+
+def test_majority_reducer_unscored_withholds_a_vote() -> None:
+    # An unscored member takes its vote out of the panel without lowering the
+    # bar for the rest: 2 of 3 still wins, 1 of 3 no longer does. `mode`
+    # filters the unscored score out entirely, so the survivors tie and
+    # Counter.most_common breaks that tie by insertion order.
+    unscored = Score.unscored(metadata=dict(unscored_reason="grade_parse_failure"))
+    correct = Score(value="C")
+    incorrect = Score(value="I")
+
+    assert majority_reducer([correct, unscored, correct]).value == "C"
+    assert _is_nan(majority_reducer([correct, unscored, incorrect]).value)
+    assert _is_nan(majority_reducer([incorrect, unscored, correct]).value)
+
+    # the legacy reducer is unchanged, order-dependence included
+    assert mode_reducer([correct, unscored, incorrect]).value == "C"
+    assert mode_reducer([incorrect, unscored, correct]).value == "I"
+
+
+def test_majority_reducer_records_votes_in_metadata() -> None:
+    scores = [
+        Score(value="C", metadata=dict(grader="a")),
+        Score.unscored(
+            explanation="Grade not found in model output: nope",
+            metadata=dict(unscored_reason="grade_parse_failure"),
+        ),
+        Score(value="C"),
+    ]
+    reduced = majority_reducer(scores)
+
+    assert reduced.value == "C"
+    assert reduced.metadata is not None
+    assert reduced.metadata["panel"] == dict(
+        votes=["C", None, "C"],
+        size=3,
+        failures=[
+            dict(
+                index=1,
+                reason="grade_parse_failure",
+                explanation="Grade not found in model output: nope",
+            )
+        ],
+    )
+    # metadata carried over from the first score survives alongside it, and
+    # annotating the reduced score doesn't reach back into the scores reduced
+    assert reduced.metadata["grader"] == "a"
+    assert scores[0].metadata == dict(grader="a")
+
+
+def test_majority_reducer_dict_and_list_values() -> None:
+    dict_scores = [
+        Score(value={"cool": 1, "spicy": 1}),
+        Score(value={"cool": 1, "spicy": 2}),
+        Score(value={"cool": 2, "spicy": 3}),
+    ]
+    reduced = majority_reducer(dict_scores).value
+    assert isinstance(reduced, dict)
+    assert reduced["cool"] == 1  # 2 of 3
+    assert _is_nan(reduced["spicy"])  # three-way split
+
+    list_scores = [Score(value=[1, 1]), Score(value=[1, 2]), Score(value=[2, 3])]
+    reduced_list = majority_reducer(list_scores).value
+    assert isinstance(reduced_list, list)
+    assert reduced_list[0] == 1
+    assert _is_nan(reduced_list[1])
+
+
+def test_majority_reducer_dict_unscored_counts_against_every_key() -> None:
+    # The threshold is per key, but the total is the number of scores reduced:
+    # a NaN under one key withholds a vote for that key, and a NaN at the root
+    # withholds one for every key.
+    scores = [
+        Score(value={"a": 1, "b": 1}),
+        Score(value={"a": 1, "b": float("nan")}),
+        Score(value=float("nan")),
+    ]
+    reduced = majority_reducer(scores).value
+    assert isinstance(reduced, dict)
+    assert reduced["a"] == 1  # 2 of 3
+    assert _is_nan(reduced["b"])  # 1 of 3
+
+
+def test_majority_reducer_votes_do_not_alias_reduced_scores() -> None:
+    # The recorded votes are an audit trail, so mutating one must not reach
+    # back into the score it came from (and vice versa).
+    scores = [Score(value={"a": 1}), Score(value={"a": 1}), Score(value={"a": 2})]
+    reduced = majority_reducer(scores)
+    assert reduced.metadata is not None
+    votes = reduced.metadata["panel"]["votes"]
+
+    votes[0]["a"] = 999
+    assert scores[0].value == {"a": 1}
+
+    score_value = scores[1].value
+    assert isinstance(score_value, dict)
+    score_value["a"] = 999
+    assert votes[1] == {"a": 1}
+
+
+def test_majority_reducer_all_unscored() -> None:
+    scores = [Score.unscored(), Score.unscored()]
+    reduced = majority_reducer(scores)
+    assert _is_nan(reduced.value)
+    assert reduced.metadata is not None
+    assert reduced.metadata["panel"]["votes"] == [None, None]
 
 
 def test_pass_at_k_insufficient_scored_epochs() -> None:
