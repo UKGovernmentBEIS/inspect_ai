@@ -28,7 +28,10 @@ a deliberate non-goal for now; revisit when a call site needs it.
 Any pre-existing entry that does not satisfy the contract makes the operation fail
 with :class:`FrameworkDirectoryError`. Nothing is silently repaired or replaced: a
 wrong-mode or wrong-owner directory may already contain planted content, so the
-caller (and ultimately the user) must decide what to do with it.
+caller (and ultimately the user) must decide what to do with it. The one exception
+is opt-in: ``ensure_framework_directory(..., repair_mode=True)`` tightens the mode
+of a directory the current uid already owns (every other check still applies). It
+exists for rootless sandboxes, below.
 
 Verification runs inside a single POSIX ``sh`` invocation in the sandbox. The script
 ``cd -P``s into the directory and performs every check on ``.``, so the checks and
@@ -45,7 +48,10 @@ A provider that merges the streams or drops stderr makes every call here fail as
 Rootless sandboxes: when the command cannot run as root, the intended owner is the
 sandbox's default uid. The contract still holds for that uid, but it does not
 establish a boundary between the agent and the tools, because both run as the same
-user.
+user. A wider mode on a directory that uid owns therefore never exposed anything the
+agent could not already reach, which is why ``repair_mode`` is safe there: it lets a
+directory left by an older install (which created it ``0755``) be reused instead of
+refused.
 """
 
 from pathlib import PurePosixPath
@@ -73,8 +79,8 @@ _CREATE_FAILED_EXIT = 7
 _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 
 # Arguments: $1 = expected uid (empty = no expectation), $2 = create flag (1/0),
-# $3 = parent path, $4 = leaf name, $5.. = command to exec with the verified
-# directory as cwd (optional). POSIX sh only (dash/BusyBox):
+# $3 = repair-mode flag (1/0), $4 = parent path, $5 = leaf name, $6.. = command to
+# exec with the verified directory as cwd (optional). POSIX sh only (dash/BusyBox):
 # no arrays, no [[ ]], no local. `stat -c %u/%a` is common to GNU coreutils and
 # BusyBox. `umask 077` closes the window in BusyBox's non-atomic `mkdir -m`
 # (mkdir(0777) then chmod) and also applies to whatever the wrapped command creates:
@@ -95,8 +101,8 @@ umask 077
 unset CDPATH
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
-expect=$1 create=$2 parent=$3 leaf=$4
-shift 4
+expect=$1 create=$2 repair=$3 parent=$4 leaf=$5
+shift 5
 case $parent in
     /) dir=/$leaf ;;
     *) dir=$parent/$leaf ;;
@@ -164,11 +170,14 @@ dstat=$(stat -c '%u %a' . 2>/dev/null) || unavailable "cannot stat $dir: $(stat 
 uid=${dstat% *}
 mode=${dstat#* }
 [ "$uid" = "$me" ] || violation "$dir is owned by uid $uid, expected uid $me"
-if [ "$created" = 1 ] && [ "$mode" != 700 ]; then
-    # We just created it and own it; a setgid parent may have added bits to it
-    # (a numeric chmod alone does not clear setgid on a directory).
-    chmod u=rwx,g=,o=,g-s . || violation "could not set mode of $dir"
-    mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
+if [ "$mode" != 700 ]; then
+    if [ "$created" = 1 ] || [ "$repair" = 1 ]; then
+        # Either we just created it (a setgid parent may have added bits; a numeric
+        # chmod alone does not clear setgid on a directory) or the caller asked for
+        # an owned directory to be tightened. `.` is the verified object we own.
+        chmod u=rwx,g=,o=,g-s . || violation "could not set mode of $dir"
+        mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
+    fi
 fi
 [ "$mode" = 700 ] || violation "$dir has mode $mode, expected 700"
 printf '%s\\n' @VERIFIED@ >&2
@@ -204,9 +213,10 @@ class FrameworkDirectoryError(RuntimeError):
     """A framework directory cannot be trusted or used.
 
     Raised when the entry at the path is a symlink, not a directory, owned by another
-    uid, has a mode other than ``0700``, sits in a parent that lets other principals
-    replace it, or could not be created or entered. Callers must not fall back to a
-    weaker owner or continue privileged work when this is raised.
+    uid, has a mode other than ``0700`` (and repair was not requested), sits in a
+    parent that lets other principals replace it, or could not be created or
+    entered. Callers must not fall back to a weaker owner or continue privileged
+    work when this is raised.
 
     The message distinguishes an untrustworthy entry (which the user should remove)
     from a plain creation failure such as a read-only filesystem or an unwritable
@@ -304,6 +314,7 @@ async def _run_verified(
     path: str,
     *,
     create: bool,
+    repair_mode: bool = False,
     cmd: list[str],
     user: str | None,
     expected_uid: int | None,
@@ -319,6 +330,7 @@ async def _run_verified(
             "sh",
             expect,
             "1" if create else "0",
+            "1" if repair_mode else "0",
             parent,
             leaf,
             *cmd,
@@ -365,6 +377,7 @@ async def ensure_framework_directory(
     *,
     user: str | None,
     expected_uid: int | None = None,
+    repair_mode: bool = False,
     timeout: int | None = None,
 ) -> None:
     """Create or adopt ``path`` as a private framework directory owned by ``user``.
@@ -374,9 +387,9 @@ async def ensure_framework_directory(
     already satisfies the contract described in the module docstring:
     a real directory owned by the uid the command runs as, mode ``0700``, in a parent
     other principals cannot use to replace it. Only the immediate parent is checked;
-    ``path`` must sit under root-owned ancestors (see the module docstring). Concurrent creation by another
-    instance of this helper is tolerated (the survivor is verified like any other
-    existing entry).
+    ``path`` must sit under root-owned ancestors (see the module docstring).
+    Concurrent creation by another instance of this helper is tolerated (the
+    survivor is verified like any other existing entry).
 
     Args:
         sandbox: Sandbox to operate in.
@@ -387,6 +400,16 @@ async def ensure_framework_directory(
             check fails before touching anything when ``id -u`` disagrees. Pass
             ``0`` with ``user="root"`` so a provider that ignores ``user`` cannot
             pass off a default-user directory as root's.
+        repair_mode: Also accept an existing directory the command's uid owns but
+            whose mode is not ``0700``, tightening it to ``0700`` in place and
+            keeping its contents. The ``chmod`` runs on the verified directory
+            object after the owner check, so it can only touch something that uid
+            already owns; the symlink, type, owner, and parent checks still apply.
+            Use this only where the owner shares its uid with every other
+            principal in the sandbox (a rootless install), so a wider mode never
+            protected anything. Leave it off for a privileged owner such as root:
+            a root-owned directory in an unexpected mode may hold content other
+            users placed there, and must be refused.
         timeout: Optional timeout for the sandbox command.
 
     Raises:
@@ -405,6 +428,7 @@ async def ensure_framework_directory(
         sandbox,
         path,
         create=True,
+        repair_mode=repair_mode,
         cmd=[],
         user=user,
         expected_uid=expected_uid,

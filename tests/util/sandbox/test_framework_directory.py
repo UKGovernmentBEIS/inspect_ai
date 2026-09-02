@@ -271,6 +271,76 @@ async def test_rejects_nonconforming_entry_and_leaves_it_alone(
     assert (after.st_ino, after.st_mode) == (before.st_ino, before.st_mode)
 
 
+@pytest.mark.parametrize("mode", [0o755, 0o770, 0o2700], ids=oct)
+async def test_repair_mode_tightens_owned_directory_and_keeps_contents(
+    local: LocalSandboxEnvironment, parent: Path, mode: int
+) -> None:
+    """The shape an older rootless install left behind is reused, not refused."""
+    target = parent / "fw"
+    target.mkdir()
+    target.chmod(mode)
+    (target / "keep").write_text("x")
+    before = os.lstat(target)
+
+    await ensure_framework_directory(local, str(target), user=None, repair_mode=True)
+
+    assert _mode(target) == 0o700
+    assert os.lstat(target).st_ino == before.st_ino
+    assert (target / "keep").read_text() == "x"
+    # Once repaired, the plain (non-repairing) checks accept it.
+    await verify_framework_directory(local, str(target), user=None)
+
+
+@pytest.mark.parametrize(
+    "arrange, expected_fragment",
+    [
+        pytest.param(
+            lambda t: os.symlink(t.parent, t), "is a symbolic link", id="symlink"
+        ),
+        pytest.param(lambda t: t.write_text(""), "is not a directory", id="file"),
+    ],
+)
+async def test_repair_mode_only_relaxes_the_mode_check(
+    local: LocalSandboxEnvironment,
+    parent: Path,
+    arrange: Callable[[Path], object],
+    expected_fragment: str,
+) -> None:
+    target = parent / "fw"
+    arrange(target)
+    before = os.lstat(target)
+    with pytest.raises(FrameworkDirectoryError, match=expected_fragment):
+        await ensure_framework_directory(
+            local, str(target), user=None, repair_mode=True
+        )
+    after = os.lstat(target)
+    assert (after.st_ino, after.st_mode) == (before.st_ino, before.st_mode)
+
+
+async def test_repair_mode_does_not_touch_directory_owned_by_another_uid(
+    local: LocalSandboxEnvironment, tmp_path: Path
+) -> None:
+    """Pretend to be uid 4242 under root-owned /var/tmp: the directory is not ours."""
+    bindir = _tool_dir(
+        tmp_path, ["sh", "stat", "mkdir", "chmod", "pwd"], {"id": "echo 4242"}
+    )
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    target = Path("/var/tmp") / f".inspect-fw-test-{uuid.uuid4().hex}"
+    target.mkdir()
+    target.chmod(0o755)
+    try:
+        with pytest.raises(
+            FrameworkDirectoryError,
+            match=f"owned by uid {os.getuid()}, expected uid 4242",
+        ):
+            await ensure_framework_directory(
+                sandbox, str(target), user=None, repair_mode=True
+            )
+        assert _mode(target) == 0o755
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+
+
 async def test_creation_failure_is_not_reported_as_untrustworthy(
     local: LocalSandboxEnvironment, parent: Path
 ) -> None:
@@ -800,10 +870,10 @@ async def test_user_mismatch_verdict_becomes_user_error() -> None:
     assert not isinstance(
         excinfo.value, (FrameworkDirectoryError, FrameworkDirectoryUnavailableError)
     )
-    # The expectation is passed to the script ahead of the create flag.
+    # The expectation is passed to the script ahead of the create and repair flags.
     (cmd, user), *_ = sandbox.calls
     assert user == "root"
-    assert cmd[-4:] == ["0", "1", "/var/tmp", ".x"]
+    assert cmd[-5:] == ["0", "1", "0", "/var/tmp", ".x"]
 
 
 async def test_no_expected_uid_passes_an_empty_expectation() -> None:
@@ -814,7 +884,20 @@ async def test_no_expected_uid_passes_an_empty_expectation() -> None:
     )
     await verify_framework_directory(sandbox, "/var/tmp/.x", user=None)
     (cmd, _), *_ = sandbox.calls
-    assert cmd[-4:] == ["", "0", "/var/tmp", ".x"]
+    assert cmd[-5:] == ["", "0", "0", "/var/tmp", ".x"]
+
+
+async def test_repair_mode_is_passed_to_the_script() -> None:
+    sandbox = ScriptedSandbox(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await ensure_framework_directory(
+        sandbox, "/var/tmp/.x", user=None, repair_mode=True
+    )
+    (cmd, _), *_ = sandbox.calls
+    assert cmd[-5:] == ["", "1", "1", "/var/tmp", ".x"]
 
 
 async def test_failure_before_verification_is_a_plain_runtime_error() -> None:
@@ -852,7 +935,7 @@ async def test_exec_success_passes_result_through() -> None:
     assert result.stderr == ""
     (cmd, user), *_ = sandbox.calls
     assert user is None
-    assert cmd[-7:] == ["0", "/var/tmp", ".x", "stat", "-c", "%F", "launcher"]
+    assert cmd[-8:] == ["0", "0", "/var/tmp", ".x", "stat", "-c", "%F", "launcher"]
 
 
 async def test_verdict_after_verification_belongs_to_the_command() -> None:

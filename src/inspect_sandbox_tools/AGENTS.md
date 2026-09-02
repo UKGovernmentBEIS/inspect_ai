@@ -50,9 +50,12 @@ When a tool needs to run in a container, the system automatically injects the ap
    - Selects the matching pre-built artifact from local binaries, S3, or a local Docker build
    - Creates `/var/tmp/.da7be258e003d428` with mode 0700 as the tools user through the
      verified framework-directory helper (`inspect_ai/util/_sandbox/_framework_directory.py`).
-     A pre-existing entry that is a symlink, not a directory, owned by another uid, or
-     not mode 0700 fails injection with an error naming the path and the reason; it is
-     never adopted or repaired.
+     A pre-existing entry that is a symlink, not a directory, or owned by another uid
+     fails injection with an error naming the path and the reason; it is never adopted
+     or repaired. A root-owned directory whose mode is not 0700 fails the same way. In
+     a rootless sandbox (tools user = default user, so the agent shares its uid) a
+     directory that user owns is tightened to 0700 and reused instead, which is the
+     shape older releases left behind (including on the host for the `local` sandbox).
    - Writes the gzipped onedir tar into the container and extracts it with the verified
      directory as the working directory, then re-verifies the directory immediately
      before starting the server from it.

@@ -253,11 +253,16 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         # auto-detected by the server). Either way the directory is verified to be a
         # real directory owned by that user with mode 0700 before anything is
         # extracted into it. A root-owned 0700 tree prevents access by other,
-        # non-root users, but not by a process running in the sandbox as root.
+        # non-root users, but not by a process running in the sandbox as root. In a
+        # rootless sandbox the agent shares the tools user's uid, so a directory that
+        # uid owns is tightened to 0700 rather than refused: older releases left
+        # rootless installs at 0755 (on the host, for the `local` sandbox).
         if await _create_tools_dir_as_root(sandbox):
             _set_tools_user(sandbox, "root")
         else:
-            await ensure_framework_directory(sandbox, SANDBOX_TOOLS_DIR, user=None)
+            await ensure_framework_directory(
+                sandbox, SANDBOX_TOOLS_DIR, user=None, repair_mode=True
+            )
             _set_tools_user(sandbox, None)
 
         await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)

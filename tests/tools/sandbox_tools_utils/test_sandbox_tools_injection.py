@@ -4,7 +4,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from io import BytesIO
-from typing import AsyncIterator, BinaryIO, Callable, Literal, overload
+from typing import AsyncIterator, BinaryIO, Callable, Literal, NamedTuple, overload
 
 import pytest
 
@@ -95,11 +95,18 @@ def wrapped_command(cmd: list[str]) -> list[str]:
     return cmd[cmd.index(leaf) + 1 :]
 
 
-def expected_uid_arg(cmd: list[str]) -> str:
-    """The uid a framework-directory call told the script to insist on."""
+class HelperFlags(NamedTuple):
+    """The fixed arguments a framework-directory call passes ahead of the path."""
+
+    expected_uid: str
+    create: str
+    repair: str
+
+
+def helper_flags(cmd: list[str]) -> HelperFlags:
     assert is_framework_dir_call(cmd)
     leaf = SANDBOX_TOOLS_DIR.rsplit("/", 1)[1]
-    return cmd[cmd.index(leaf) - 3]
+    return HelperFlags(*cmd[cmd.index(leaf) - 4 : cmd.index(leaf) - 1])
 
 
 Policy = Callable[[list[str], str | None], ExecResult[str]]
@@ -259,15 +266,16 @@ async def test_inject_uses_root_and_verifies_before_start(
     ]
     assert len(verifications) >= 2
     assert verifications[-1] == start - 1
-    leaf = SANDBOX_TOOLS_DIR.rsplit("/", 1)[1]
-    final_check = sandbox.exec_calls[start - 1][0]
-    assert final_check[final_check.index(leaf) - 2] == "0"  # create flag off
-    # Every root-side check insists the script really ran as uid 0.
-    assert all(
-        expected_uid_arg(cmd) == "0"
+    assert helper_flags(sandbox.exec_calls[start - 1][0]).create == "0"
+    # Every root-side check insists the script really ran as uid 0, and none asks
+    # for a wrong-mode root-owned directory to be repaired.
+    root_flags = [
+        helper_flags(cmd)
         for cmd, user in sandbox.exec_calls
         if is_framework_dir_call(cmd) and user == "root"
-    )
+    ]
+    assert all(flags.expected_uid == "0" for flags in root_flags)
+    assert all(flags.repair == "0" for flags in root_flags)
     # No path-based chmod: the directory is created 0700 and verified, not repaired.
     assert not any(cmd[:1] == ["chmod"] for cmd, _ in sandbox.exec_calls)
 
@@ -289,12 +297,17 @@ async def test_inject_falls_back_when_provider_runs_root_as_default_user(
     assert sandbox._tools_user_resolved is True
     assert stub_artifact["extracted_as"] is None
     assert ([SANDBOX_CLI, "start-server"], None) in sandbox.exec_calls
-    # Default-user checks carry no uid expectation (the host cannot know it).
-    assert all(
-        expected_uid_arg(cmd) == ""
+    # Default-user checks carry no uid expectation (the host cannot know it). Only
+    # the install step repairs a wrong-mode directory the default user owns; the
+    # detector and the pre-launch re-check never do.
+    default_flags = [
+        helper_flags(cmd)
         for cmd, user in sandbox.exec_calls
         if is_framework_dir_call(cmd) and user is None
-    )
+    ]
+    assert all(flags.expected_uid == "" for flags in default_flags)
+    assert [flags.repair for flags in default_flags if flags.create == "1"] == ["1"]
+    assert all(flags.repair == "0" for flags in default_flags if flags.create == "0")
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="helper script needs GNU stat")
