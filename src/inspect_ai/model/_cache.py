@@ -146,6 +146,7 @@ def _cache_key(entry: CacheEntry) -> str:
                     "adaptive_connections",
                     "max_retries",
                     "timeout",
+                    "stream_idle_timeout",
                     "cache",
                     "batch",
                 ]

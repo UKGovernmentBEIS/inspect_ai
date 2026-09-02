@@ -1060,6 +1060,7 @@ async def _eval_async_inner(
                         recorder=recorder,
                         header_only=log_header_only,
                         epochs_reducer=epochs_reducer,
+                        approval=approval,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1293,6 +1294,7 @@ def eval_retry(
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
+    stream_idle_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
@@ -1372,6 +1374,8 @@ def eval_retry(
             Request timeout (in seconds)
         attempt_timeout:
             Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
+        stream_idle_timeout:
+            Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries).
         max_connections:
             Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections:
@@ -1431,6 +1435,7 @@ def eval_retry(
             max_retries=max_retries,
             timeout=timeout,
             attempt_timeout=attempt_timeout,
+            stream_idle_timeout=stream_idle_timeout,
             max_connections=max_connections,
             adaptive_connections=adaptive_connections,
             checkpoint=checkpoint,
@@ -1484,6 +1489,7 @@ async def eval_retry_async(
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
+    stream_idle_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
@@ -1552,6 +1558,7 @@ async def eval_retry_async(
         max_retries: Maximum number of times to retry request.
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
+        stream_idle_timeout: Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
         checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
@@ -1771,6 +1778,7 @@ async def eval_retry_async(
         )
         config.timeout = timeout or config.timeout
         config.attempt_timeout = attempt_timeout or config.attempt_timeout
+        config.stream_idle_timeout = stream_idle_timeout or config.stream_idle_timeout
         config.max_connections = max_connections or config.max_connections
         if adaptive_connections is not None:
             config.adaptive_connections = adaptive_connections

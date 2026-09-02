@@ -83,10 +83,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import (
-    GenerateConfig,
-    ResponseSchema,
-)
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
@@ -176,6 +173,9 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    client_json_schema,
+    client_request_object,
+    client_response_schema,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
@@ -677,16 +677,19 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
     config.top_p = json_data.get("top_p", None)
 
     # response format
-    text: dict[str, Any] | None = json_data.get("text", None)
+    text = client_request_object(json_data.get("text", None), "text")
     if text is not None:
-        format: dict[str, Any] | None = text.get("format", None)
+        format = client_request_object(text.get("format", None), "text.format")
         if format is not None:
             if format.get("type", None) == "json_schema":
-                config.response_schema = ResponseSchema(
+                config.response_schema = client_response_schema(
                     name=format.get("name", "schema"),
                     description=format.get("description", None),
-                    json_schema=JSONSchema.model_validate(format.get("schema", {})),
+                    json_schema=client_json_schema(
+                        format.get("schema", {}), "text.format.schema"
+                    ),
                     strict=format.get("strict", None),
+                    dialect_field="text.format",
                 )
 
         # `text.verbosity` has a GenerateConfig slot and the provider already
