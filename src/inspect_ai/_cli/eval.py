@@ -44,6 +44,7 @@ from inspect_ai._util.generate_config_args import (
     config_from_locals,
 )
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
+from inspect_ai.log import IncompleteAction
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
@@ -140,9 +141,12 @@ MAX_RETRIES_HELP = (
 )
 TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
 ATTEMPT_TIMEOUT_HELP = "Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."
+STREAM_IDLE_TIMEOUT_HELP = "Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries). Setting it requests streaming; it has no effect on calls that do not stream."
 CACHE_HELP = "Policy for caching of model generations. Specify --cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full `CachePolicy` configuration."
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
 CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for the default (every 500k tokens), --checkpoint=token:N{k,m,b} / time:N{s,m,h,d} / turn:N / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
+INCOMPLETE_ACTION_HELP = "Disposition applied when recovering a crashed log, for samples that were in progress at crash: 'retry' (default) re-runs them; 'error' resolves them as operator terminations — if that leaves every expected sample final, the recovered log finalizes with status 'success' and is not re-run."
+INCOMPLETE_MAX_HELP = "Safety threshold for --incomplete-action error (count if >= 1, or proportion of expected samples if strictly less than 1): when more than this many samples are in progress, fall back to the default recover-and-retry behavior. Has no effect (a warning is logged) with --incomplete-action retry."
 
 
 def _notification_callback(
@@ -543,6 +547,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=int,
         help=ATTEMPT_TIMEOUT_HELP,
         envvar="INSPECT_EVAL_ATTEMPT_TIMEOUT",
+    )
+    @click.option(
+        "--stream-idle-timeout",
+        type=int,
+        help=STREAM_IDLE_TIMEOUT_HELP,
+        envvar="INSPECT_EVAL_STREAM_IDLE_TIMEOUT",
     )
     @click.option(
         "--max-samples",
@@ -1119,6 +1129,7 @@ def _eval_command_impl(
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
+    stream_idle_timeout: int | None,
     max_connections: int | None,
     adaptive_connections: str | None,
     max_tokens: int | None,
@@ -1335,6 +1346,20 @@ def _eval_command_impl(
     envvar="INSPECT_EVAL_NO_RETRY_CLEANUP",
 )
 @click.option(
+    "--incomplete-action",
+    type=click.Choice(["retry", "error"]),
+    default="retry",
+    help=INCOMPLETE_ACTION_HELP,
+    envvar="INSPECT_EVAL_INCOMPLETE_ACTION",
+)
+@click.option(
+    "--incomplete-max",
+    type=click.FloatRange(min=0),
+    default=None,
+    help=INCOMPLETE_MAX_HELP,
+    envvar="INSPECT_EVAL_INCOMPLETE_MAX",
+)
+@click.option(
     "--bundle-dir",
     type=str,
     is_flag=False,
@@ -1374,6 +1399,8 @@ def eval_set_command(
     retry_wait: int | None,
     retry_connections: float | None,
     no_retry_cleanup: bool | None,
+    incomplete_action: IncompleteAction,
+    incomplete_max: float | None,
     solver: str | None,
     trace: bool | None,
     approval: str | None,
@@ -1420,6 +1447,7 @@ def eval_set_command(
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
+    stream_idle_timeout: int | None,
     max_connections: int | None,
     adaptive_connections: str | None,
     max_tokens: int | None,
@@ -1601,6 +1629,8 @@ def eval_set_command(
             retry_wait=retry_wait,
             retry_connections=retry_connections,
             retry_cleanup=not no_retry_cleanup,
+            incomplete_action=incomplete_action,
+            incomplete_max=incomplete_max,
             bundle_dir=bundle_dir,
             bundle_overwrite=True if bundle_overwrite else False,
             embed_viewer=True if embed_viewer else False,
@@ -1922,6 +1952,8 @@ def eval_exec(
     retry_wait: int | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
+    incomplete_action: IncompleteAction = "retry",
+    incomplete_max: float | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     embed_viewer: bool = False,
@@ -2110,6 +2142,8 @@ def eval_exec(
         params["retry_wait"] = retry_wait
         params["retry_connections"] = retry_connections
         params["retry_cleanup"] = retry_cleanup
+        params["incomplete_action"] = incomplete_action
+        params["incomplete_max"] = incomplete_max
         params["bundle_dir"] = bundle_dir
         params["bundle_overwrite"] = bundle_overwrite
         params["embed_viewer"] = embed_viewer
@@ -2511,6 +2545,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_ATTEMPT_TIMEOUT",
 )
 @click.option(
+    "--stream-idle-timeout",
+    type=int,
+    help=STREAM_IDLE_TIMEOUT_HELP,
+    envvar="INSPECT_EVAL_STREAM_IDLE_TIMEOUT",
+)
+@click.option(
     "--log-level-transcript",
     type=click.Choice(
         [level.lower() for level in ALL_LOG_LEVELS],
@@ -2528,6 +2568,20 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=CHECKPOINT_HELP
     + " For resume to find checkpoint files, pass the same `--checkpoint` value used on the original eval.",
     envvar="INSPECT_EVAL_CHECKPOINT",
+)
+@click.option(
+    "--incomplete-action",
+    type=click.Choice(["retry", "error"]),
+    default="retry",
+    help=INCOMPLETE_ACTION_HELP,
+    envvar="INSPECT_EVAL_INCOMPLETE_ACTION",
+)
+@click.option(
+    "--incomplete-max",
+    type=click.FloatRange(min=0),
+    default=None,
+    help=INCOMPLETE_MAX_HELP,
+    envvar="INSPECT_EVAL_INCOMPLETE_MAX",
 )
 @scanner_options
 @common_options
@@ -2563,8 +2617,11 @@ def eval_retry_command(
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
+    stream_idle_timeout: int | None,
     log_level_transcript: str,
     checkpoint: str | None,
+    incomplete_action: IncompleteAction,
+    incomplete_max: float | None,
     scanner: str | None,
     scanner_arg: tuple[str, ...] | None,
     scans: str | None,
@@ -2709,9 +2766,12 @@ def eval_retry_command(
                 max_retries=max_retries,
                 timeout=timeout,
                 attempt_timeout=attempt_timeout,
+                stream_idle_timeout=stream_idle_timeout,
                 max_connections=max_connections,
                 adaptive_connections=adaptive_connections_value,
                 checkpoint=parse_checkpoint(checkpoint),
+                incomplete_action=incomplete_action,
+                incomplete_max=incomplete_max,
             )
 
         if json_output:
