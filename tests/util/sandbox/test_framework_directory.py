@@ -2,9 +2,10 @@
 
 The helper's verification is a POSIX ``sh`` script run inside the sandbox, so most
 tests here run it for real through ``LocalSandboxEnvironment`` against a temporary
-parent directory on the host (Linux only: the script relies on ``stat -c``). Tests
-that need another uid, a missing tool, or a lost ``mkdir`` race arrange it with a
-``PATH`` shim. A few tests use a scripted fake sandbox to cover the Python-side
+parent directory on the host (Linux only, via the ``local`` fixture: the script
+relies on ``stat -c``). Tests that need another uid, a missing tool, or a lost
+``mkdir`` race arrange it with a ``PATH`` shim. The remaining tests run anywhere:
+path splitting, script syntax, and a scripted fake sandbox covering the Python-side
 classification of results a provider might return.
 """
 
@@ -43,10 +44,6 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._subprocess import ExecResult
 
-pytestmark = pytest.mark.skipif(
-    sys.platform != "linux", reason="verification script requires GNU/BusyBox stat"
-)
-
 
 @pytest.fixture
 def parent(tmp_path: Path) -> Path:
@@ -58,6 +55,9 @@ def parent(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def local() -> Iterator[LocalSandboxEnvironment]:
+    """A real local sandbox for running the verification script (Linux only)."""
+    if sys.platform != "linux":
+        pytest.skip("verification script requires GNU/BusyBox stat")
     sandbox = LocalSandboxEnvironment()
     yield sandbox
     sandbox.directory.cleanup()
@@ -332,6 +332,42 @@ async def test_accepts_matching_expected_uid(
         local, str(target), ["id", "-u"], user=None, expected_uid=os.getuid()
     )
     assert result.stdout.strip() == str(os.getuid())
+
+
+async def test_tool_warnings_on_stderr_do_not_corrupt_values(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    """`id`/`stat` stderr must not be folded into the uid or mode being compared."""
+    real_id = shutil.which("id")
+    real_stat = shutil.which("stat")
+    assert real_id and real_stat
+    bindir = _tool_dir(
+        tmp_path,
+        ["sh", "mkdir", "chmod", "pwd"],
+        {
+            "id": f'echo "id: spurious warning" >&2; exec {real_id} "$@"',
+            "stat": f'echo "stat: spurious warning" >&2; exec {real_stat} "$@"',
+        },
+    )
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    target = parent / "fw"
+    await ensure_framework_directory(
+        sandbox, str(target), user=None, expected_uid=os.getuid()
+    )
+    assert _mode(target) == 0o700
+
+
+async def test_garbage_from_id_is_unavailable_not_violation(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    bindir = _tool_dir(
+        tmp_path, ["sh", "stat", "mkdir", "chmod", "pwd"], {"id": "echo not-a-uid"}
+    )
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    target = parent / "fw"
+    with pytest.raises(FrameworkDirectoryUnavailableError, match="not-a-uid"):
+        await ensure_framework_directory(sandbox, str(target), user=None)
+    assert not target.exists()
 
 
 async def test_rejects_parent_that_lets_others_replace_the_directory(

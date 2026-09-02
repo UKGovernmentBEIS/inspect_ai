@@ -61,7 +61,11 @@ _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 # directory as cwd (optional). POSIX sh only (dash/BusyBox):
 # no arrays, no [[ ]], no local. `stat -c %u/%a` is common to GNU coreutils and
 # BusyBox. `umask 077` closes the window in BusyBox's non-atomic `mkdir -m`
-# (mkdir(0777) then chmod) and also applies to whatever the wrapped command creates.
+# (mkdir(0777) then chmod) and also applies to whatever the wrapped command creates:
+# a non-root `tar` extracts entries at 0700/0600 instead of the archive's modes
+# (root's `tar` preserves them). Inside a 0700 directory used by one uid this changes
+# nothing observable. Tool output is captured with stderr discarded so a warning
+# cannot be folded into a value; the error path re-runs the tool for its message.
 # System directories are put ahead of the inherited PATH so that a user-owned
 # directory an image prepends to PATH cannot supply the `stat`/`id`/`mkdir` the
 # checks (or the wrapped command) rely on; `sh` itself is resolved by the provider.
@@ -87,7 +91,8 @@ violation() { report @VIOLATION@ "$*" @VIOLATION_EXIT@; }
 missing() { report @MISSING@ "$*" @MISSING_EXIT@; }
 unavailable() { report @UNAVAILABLE@ "$*" @UNAVAILABLE_EXIT@; }
 usermismatch() { report @USER_MISMATCH@ "$*" @USER_MISMATCH_EXIT@; }
-me=$(id -u 2>&1) || unavailable "cannot determine the current uid: $me"
+me=$(id -u 2>/dev/null) || unavailable "cannot determine the current uid: $(id -u 2>&1 >/dev/null)"
+case $me in ''|*[!0-9]*) unavailable "unexpected output from id -u: $me" ;; esac
 if [ -n "$expect" ] && [ "$me" != "$expect" ]; then
     usermismatch "running as uid $me, expected uid $expect"
 fi
@@ -103,7 +108,7 @@ if [ ! -e "$parent" ] && [ ! -L "$parent" ]; then
 fi
 err=$(cd -P -- "$parent" 2>&1) || violation "cannot enter parent directory $parent: $err"
 cd -P -- "$parent" || violation "cannot enter parent directory $parent"
-pstat=$(stat -c '%u %a' . 2>&1) || unavailable "cannot stat parent directory $parent: $pstat"
+pstat=$(stat -c '%u %a' . 2>/dev/null) || unavailable "cannot stat parent directory $parent: $(stat -c '%u %a' . 2>&1 >/dev/null)"
 puid=${pstat% *}
 pmode=${pstat#* }
 if [ "$puid" != "$me" ] && [ "$puid" != 0 ]; then
@@ -133,14 +138,15 @@ err=$(cd -P -- "$leaf" 2>&1) || violation "cannot enter $dir: $err"
 cd -P -- "$leaf" || violation "cannot enter $dir"
 now=$(pwd -P)
 [ "$now" = "$expected" ] || violation "$dir resolves to $now through a symbolic link"
-dstat=$(stat -c '%u %a' . 2>&1) || unavailable "cannot stat $dir: $dstat"
+dstat=$(stat -c '%u %a' . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c '%u %a' . 2>&1 >/dev/null)"
 uid=${dstat% *}
 mode=${dstat#* }
 [ "$uid" = "$me" ] || violation "$dir is owned by uid $uid, expected uid $me"
 if [ "$created" = 1 ] && [ "$mode" != 700 ]; then
     # We just created it and own it; a setgid parent may have added bits to it
     # (a numeric chmod alone does not clear setgid on a directory).
-    chmod u=rwx,g=,o=,g-s . && mode=$(stat -c %a .) || violation "could not set mode of $dir"
+    chmod u=rwx,g=,o=,g-s . || violation "could not set mode of $dir"
+    mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
 fi
 [ "$mode" = 700 ] || violation "$dir has mode $mode, expected 700"
 printf '%s\\n' @VERIFIED@ >&2
@@ -408,7 +414,8 @@ async def exec_in_framework_directory(
     ``cd``s into the directory, checks it, and ``exec``s ``cmd`` from there. Relative
     paths in ``cmd`` therefore refer to the verified directory object itself, not to
     whatever ``path`` names by the time the command starts. The directory is never
-    created here; use :func:`ensure_framework_directory` first.
+    created here; use :func:`ensure_framework_directory` first. ``cmd`` inherits the
+    script's ``umask 077``, so anything it creates is private to the owner.
 
     Args:
         sandbox: Sandbox to operate in.

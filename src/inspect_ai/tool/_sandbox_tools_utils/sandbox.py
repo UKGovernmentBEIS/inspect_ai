@@ -309,14 +309,16 @@ async def _extract_tools_tree(
     """
     gz_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tgz"
     await sandbox.write_file(gz_tmp, gz_bytes)
-    result = await exec_in_framework_directory(
-        sandbox,
-        SANDBOX_TOOLS_DIR,
-        ["tar", "xzf", gz_tmp],
-        user=user,
-        expected_uid=_expected_uid(user),
-    )
-    await sandbox.exec(["rm", "-f", gz_tmp], user=user)
+    try:
+        result = await exec_in_framework_directory(
+            sandbox,
+            SANDBOX_TOOLS_DIR,
+            ["tar", "xzf", gz_tmp],
+            user=user,
+            expected_uid=_expected_uid(user),
+        )
+    finally:
+        await sandbox.exec(["rm", "-f", gz_tmp], user=user)
     if result.success:
         return
 
@@ -328,14 +330,16 @@ async def _extract_tools_tree(
     )
     tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
     await sandbox.write_file(tar_tmp, _uncompressed_tar_bytes(name, gz_bytes))
-    result = await exec_in_framework_directory(
-        sandbox,
-        SANDBOX_TOOLS_DIR,
-        ["tar", "xf", tar_tmp],
-        user=user,
-        expected_uid=_expected_uid(user),
-    )
-    await sandbox.exec(["rm", "-f", tar_tmp], user=user)
+    try:
+        result = await exec_in_framework_directory(
+            sandbox,
+            SANDBOX_TOOLS_DIR,
+            ["tar", "xf", tar_tmp],
+            user=user,
+            expected_uid=_expected_uid(user),
+        )
+    finally:
+        await sandbox.exec(["rm", "-f", tar_tmp], user=user)
     if not result.success:
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
 

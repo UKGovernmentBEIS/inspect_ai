@@ -429,12 +429,17 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
     ]
 
 
-async def test_extract_propagates_contract_violation() -> None:
-    sandbox = FakeSandbox(
-        lambda cmd, user: violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
-    )
+async def test_extract_propagates_contract_violation_and_removes_archive() -> None:
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_framework_dir_call(cmd):
+            return violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
+        return OK
+
+    sandbox = FakeSandbox(policy)
     with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
         await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
+    # The staged archive is not left behind in the world-writable parent.
+    assert (["rm", "-f", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"], "root") in sandbox.exec_calls
 
 
 async def test_detector_checks_as_known_tools_user() -> None:
