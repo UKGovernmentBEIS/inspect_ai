@@ -212,6 +212,18 @@ response = await model.generate("Say hello", on_stream=show)
 
 Events include text deltas (`type="text"`), reasoning deltas (`type="reasoning"`), tool-call argument deltas (`type="tool_call"`), and retry boundaries (`type="retry"`). A retry boundary signals that the call is being retried after a failed attempt: deltas received so far belong to that failed attempt and should be discarded, since the final `ModelOutput` comes entirely from the attempt that succeeds.
 
+### Stream Idle Timeout
+
+Streaming responses occasionally stall: the provider stops delivering chunks but nothing closes the connection, so the call sits until a coarse timeout fires. The `stream_idle_timeout` generation config option (`--stream-idle-timeout` on the CLI) abandons and retries an attempt when a *streaming* response delivers no chunk for the specified number of seconds — a much sharper signal than `timeout` or `attempt_timeout`, which must be set above the slowest healthy call:
+
+``` bash
+inspect eval ctf.py --stream-idle-timeout 30 --attempt-timeout 600
+```
+
+An expired attempt is retried exactly like an `attempt_timeout` expiry (per `max_retries`, within the `timeout` budget). Setting the option requests streaming, in the same way that passing `on_stream` does (a provider-level streaming opt-out still wins, in which case the option is inert). It has no effect on calls that do not stream, and it only protects providers whose streaming loops report chunks: currently Anthropic, Google, OpenAI, OpenAI-compatible (including Together), Grok, and SageMaker. On other providers the option is silently inert, and it never covers a hang before the response stream opens — use `attempt_timeout` as the coarse whole-attempt backstop in both cases (the two options compose).
+
+Choose a value above the provider's longest legitimate inter-chunk gap — for example, time-to-first-token after the stream opens can reach tens of seconds for reasoning models when providers don't surface keepalive pings. Provider-internal continuation requests count against the idle window too: when a provider issues a follow-up HTTP request mid-attempt (such as Anthropic `pause_turn` or server-tool continuations), the connect and time-to-first-byte of that new request is inter-chunk silence from this option's perspective, so size the value to accommodate it. The silence clock likewise runs until the provider call returns rather than until the response stream ends, so once armed it also ticks through a provider SDK's own internal retry backoff (its sleep and reconnect are silence too) — keep the value above those backoff windows.
+
 ## Model Roles
 
 Model roles enable you to create aliases for the various models used in your tasks, and then dynamically vary those roles when running an evaluation. For example, you might have a "critic" or "monitor" role, or perhaps "red_team" and "blue_team" roles. Roles are included in the log and displayed in model events within the transcript.
