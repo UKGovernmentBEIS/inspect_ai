@@ -380,7 +380,8 @@ def export_config_command(log_file: str, output: str | None, fmt: str) -> None:
     default=None,
     help="Safety threshold for --incomplete-action error (count if >= 1, or "
     "proportion of expected samples if strictly less than 1): refuse to recover "
-    "when more than this many samples are in progress.",
+    "when more than this many samples are in progress. Has no effect (a warning "
+    "is logged) with --incomplete-action retry.",
 )
 @click.option(
     "--list",

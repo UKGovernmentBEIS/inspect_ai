@@ -52,6 +52,27 @@ class RecoveryThresholdExceeded(Exception):
     """
 
 
+def resolve_incomplete_max(
+    incomplete_action: IncompleteAction, incomplete_max: int | float | None
+) -> int | float | None:
+    """Drop (with a warning) an `incomplete_max` that cannot apply.
+
+    The guard only governs a resolving disposition; under `"retry"` nothing is
+    resolved, so a threshold is inert. Warn rather than fail so a threshold
+    baked into the environment as standing policy (`INSPECT_EVAL_INCOMPLETE_MAX`)
+    does not break runs that keep the default disposition, and return `None` so
+    callers can forward the result without warning a second time downstream.
+    """
+    if incomplete_action == "retry" and incomplete_max is not None:
+        logger.warning(
+            f"incomplete_max={incomplete_max} has no effect with "
+            "incomplete_action='retry': the threshold only guards a resolving "
+            "disposition (e.g. incomplete_action='error')."
+        )
+        return None
+    return incomplete_max
+
+
 @dataclass
 class RecoverableEvalLog:
     """A crashed eval log that can be recovered."""
@@ -112,7 +133,8 @@ def recover_eval_log(
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): raise
             `RecoveryThresholdExceeded` — before writing anything — when more
-            than this many samples are in progress. `None` = no guard.
+            than this many samples are in progress. `None` = no guard. Has no
+            effect (a warning is logged) with `incomplete_action="retry"`.
 
     Returns:
         The recovered EvalLog.
@@ -148,6 +170,8 @@ async def recover_eval_log_async(
     _stats: RecoveryStats | None = None,
 ) -> EvalLog:
     """Async implementation of recover_eval_log."""
+    incomplete_max = resolve_incomplete_max(incomplete_action, incomplete_max)
+
     # Step 1: Read the crashed .eval file metadata
     try:
         crashed = await read_crashed_eval_log(log)

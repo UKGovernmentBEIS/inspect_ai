@@ -1,6 +1,7 @@
 """End-to-end tests for the recovery API."""
 
 import json
+import logging
 import os
 import tempfile
 from datetime import datetime, timezone
@@ -325,6 +326,40 @@ async def test_recover_incomplete_max() -> None:
                 incomplete_max=2,
             )
             assert log.status == "success"
+
+
+async def test_recover_incomplete_max_inert_under_retry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """incomplete_max has no effect (but warns) with incomplete_action='retry'."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            _write_crashed_eval(eval_path, samples=[_make_sample(1), _make_sample(2)])
+            _create_buffer_db(
+                eval_path, completed_ids=[], in_progress_ids=[3, 4], db_dir=db_dir
+            )
+
+            # 2 in-progress > 1 would be refused under "error", but under the
+            # default disposition the guard does not apply
+            with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+                log = await recover_eval_log_async(
+                    eval_path,
+                    output=output_path,
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_max=1,
+                )
+            assert log.status == "error"
+            assert os.path.exists(output_path)
+            warnings = [
+                r.message for r in caplog.records if "incomplete_max=1" in r.message
+            ]
+            assert len(warnings) == 1
+            assert "no effect" in warnings[0]
 
 
 async def test_recover_incomplete_action_error_finalizes_limited_eval() -> None:

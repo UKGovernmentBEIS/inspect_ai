@@ -1406,7 +1406,8 @@ def eval_retry(
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
             than this many samples are in progress, fall back to the default
-            recover-and-retry behavior.
+            recover-and-retry behavior. Has no effect (a warning is logged)
+            with `incomplete_action="retry"`.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1593,7 +1594,8 @@ async def eval_retry_async(
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
             than this many samples are in progress, fall back to the default
-            recover-and-retry behavior.
+            recover-and-retry behavior. Has no effect (a warning is logged)
+            with `incomplete_action="retry"`.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1619,16 +1621,18 @@ async def eval_retry_async(
     ]
 
     # opportunistically recover crashed logs before retrying
+    from inspect_ai.log._recover import (
+        RecoveryNotAvailable,
+        RecoveryThresholdExceeded,
+        recover_eval_log_async,
+        resolve_incomplete_max,
+    )
+
+    incomplete_max = resolve_incomplete_max(incomplete_action, incomplete_max)
     recovered_files: dict[int, str] = {}
     finalized_indexes: set[int] = set()
     for i, eval_log in enumerate(retry_eval_logs):
         if eval_log.status == "started" and eval_log.location:
-            from inspect_ai.log._recover import (
-                RecoveryNotAvailable,
-                RecoveryThresholdExceeded,
-                recover_eval_log_async,
-            )
-
             try:
                 try:
                     # the buffer stays as a safety net while resolved samples

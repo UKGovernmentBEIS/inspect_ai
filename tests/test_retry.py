@@ -1,3 +1,4 @@
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -699,6 +700,33 @@ def test_eval_retry_incomplete_action_error_finalizes():
             assert "terminated by operator during recovery" in resolved.error.message
             # the recovered file is the final log, so the buffer is swept
             assert not buffer.db_path.exists()
+        finally:
+            buffer.cleanup()
+
+
+def test_eval_retry_incomplete_max_inert_under_retry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """incomplete_max without a resolving disposition warns once and is ignored.
+
+    The guard only applies to incomplete_action='error'; under the default
+    disposition the in-progress sample is recovered as retryable and re-run,
+    and a single warning makes the inert setting visible.
+    """
+    with tempfile.TemporaryDirectory() as log_dir:
+        started_log, buffer = _setup_crashed_retry_log(log_dir)
+        try:
+            with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+                logs = eval_retry(
+                    started_log.location, log_dir=log_dir, incomplete_max=0
+                )
+            assert len(logs) == 1
+            final = logs[0]
+            assert final.status == "success"
+            assert final.location is not None
+            assert "-recovered" not in final.location
+            warnings = [r for r in caplog.records if "incomplete_max=0" in r.message]
+            assert len(warnings) == 1
         finally:
             buffer.cleanup()
 

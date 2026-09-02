@@ -322,7 +322,8 @@ def eval_set(
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
             than this many samples are in progress, fall back to the default
-            recover-and-retry behavior.
+            recover-and-retry behavior. Has no effect (a warning is logged)
+            with `incomplete_action="retry"`.
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -913,6 +914,9 @@ def eval_set(
     eval_set_id = eval_set_id_for_log_dir(log_dir, eval_set_id=eval_set_id)
 
     # resolve some parameters
+    from inspect_ai.log._recover import resolve_incomplete_max
+
+    incomplete_max = resolve_incomplete_max(incomplete_action, incomplete_max)
     retry_connections = retry_connections or 1.0
     retry_cleanup = retry_cleanup is not False
     # adaptive_connections subsumes retry_connections — the controller manages

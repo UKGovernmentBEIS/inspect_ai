@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 import os
 import shutil
@@ -2452,6 +2453,36 @@ def test_eval_set_incomplete_action_error_finalizes() -> None:
             assert sorted(os.listdir(log_dir)) == log_files_before
         finally:
             buffer.cleanup()
+
+
+def test_eval_set_incomplete_max_inert_under_retry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """incomplete_max without a resolving disposition warns once and is ignored.
+
+    eval_set never reaches recovery with these arguments under the default
+    disposition, so the mismatch is reported at entry rather than silently
+    dropped.
+    """
+    with tempfile.TemporaryDirectory() as log_dir:
+        with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+            success, logs = eval_set(
+                tasks=Task(
+                    dataset=[Sample(id=1, input="Say hello", target="hello")],
+                    solver=[identity_solver()],
+                    name="incomplete_max_inert",
+                ),
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_immediate=True,
+                incomplete_max=0.1,
+            )
+        assert success
+        assert len(logs) == 1
+        warnings = [r for r in caplog.records if "incomplete_max=0.1" in r.message]
+        assert len(warnings) == 1
+        assert "no effect" in warnings[0].message
 
 
 def test_eval_set_incomplete_action_error_recovers_once(

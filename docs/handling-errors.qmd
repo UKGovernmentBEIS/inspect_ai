@@ -208,7 +208,7 @@ The `--incomplete-max` option guards against silently completing a systemic fail
 inspect log recover path/to/crashed.eval --incomplete-action error --incomplete-max 0.1
 ```
 
-The same options are available on `inspect eval-retry` and `inspect eval-set` (and the `eval_retry()` and `eval_set()` functions), where they apply to the automatic recovery of crashed logs. There, exceeding `--incomplete-max` falls back to the default recover-and-retry behavior rather than failing. You can also set these via the `INSPECT_EVAL_INCOMPLETE_ACTION` and `INSPECT_EVAL_INCOMPLETE_MAX` environment variables.
+The same options are available on `inspect eval-retry` and `inspect eval-set` (and the `eval_retry()` and `eval_set()` functions), where they apply to the automatic recovery of crashed logs. There, exceeding `--incomplete-max` falls back to the default recover-and-retry behavior rather than failing. You can also set these via the `INSPECT_EVAL_INCOMPLETE_ACTION` and `INSPECT_EVAL_INCOMPLETE_MAX` environment variables. On every surface `--incomplete-max` only guards a resolving disposition: with the default `retry` it has no effect, and a warning is logged so the mismatch is visible.
 
 ### Python API
 
