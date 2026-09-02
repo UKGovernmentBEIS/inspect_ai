@@ -310,6 +310,102 @@ def test_live_injection_runs_concurrently_with_in_flight_sample() -> None:
     assert _sample_inputs(log) == ["blocker", "injected", "injector"]
 
 
+def test_sample_complete_fires_for_per_sample_cancel() -> None:
+    """A per-sample `cancel` interrupt still notifies the source.
+
+    Only a task-level unwind skips `sample_complete`; a sample the operator
+    cancelled individually completes (as cancelled) while the task runs on,
+    so a source waiting on it must hear about it.
+    """
+    from inspect_ai.log._samples import sample_active
+
+    completed: list[str] = []
+
+    async def on_complete(sample: EvalSample) -> list[Sample] | None:
+        completed.append(str(sample.id))
+        return None
+
+    @solver(name="self_cancel_solver")
+    def self_cancel_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "a":
+                active = sample_active()
+                assert active is not None
+                active.interrupt("cancel")
+                await anyio.sleep(10)
+            return state
+
+        return solve
+
+    source = SampleSource.from_samples(
+        [Sample(id="a", input="x"), Sample(id="b", input="x")],
+        sample_complete=on_complete,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        logs = eval(
+            Task(dataset=source, solver=self_cancel_solver(), name="per_sample_cancel"),
+            model="mockllm/model",
+            log_dir=log_dir,
+        )
+        log = read_eval_log(logs[0].location)
+        assert log.status == "success"
+        assert sorted(completed) == ["a", "b"]
+        assert log.samples is not None
+        cancelled = next(s for s in log.samples if s.id == "a")
+        assert cancelled.error is not None
+
+
+def test_sample_complete_skipped_for_task_cancel() -> None:
+    """A task-level cancel does not notify the source for any sample.
+
+    Unlike a per-sample cancel, `cancel_task(..., action="cancel")` unwinds
+    the whole task: every in-flight sample (the one issuing the cancel and a
+    sibling still running) is resolved as cancelled by the task unwind, and
+    `sample_complete` fires for none of them.
+    """
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import get_eval_states
+
+    completed: list[str] = []
+
+    async def on_complete(sample: EvalSample) -> list[Sample] | None:
+        completed.append(str(sample.id))
+        return None
+
+    @solver(name="task_cancel_solver")
+    def task_cancel_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "a":
+                # give sibling `b` time to start so it is in flight when the
+                # task-level cancel lands
+                await anyio.sleep(0.5)
+                result = ctl_cancel_task(get_eval_states()[0].task_id, action="cancel")
+                assert result is not None and result["ok"] is True
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    source = SampleSource.from_samples(
+        [Sample(id="a", input="x"), Sample(id="b", input="x")],
+        sample_complete=on_complete,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        logs = eval(
+            Task(dataset=source, solver=task_cancel_solver(), name="task_cancel"),
+            model="mockllm/model",
+            log_dir=log_dir,
+        )
+        log = read_eval_log(logs[0].location)
+        # an operator task cancel is logged as an error (not "cancelled", which
+        # eval_set would take for an external ^C)
+        assert log.status == "error"
+        assert log.error is not None and "cancelled by user" in log.error.message
+        assert log.samples is not None and len(log.samples) == 2
+        assert all(s.error is not None for s in log.samples)
+        assert completed == []
+
+
 def test_enqueue_sample_rejected_outside_sample_source_task() -> None:
     # enqueue_sample() requires a running SampleSource-driven task: a plain
     # task has a fixed sample set (no loop to run additions)
