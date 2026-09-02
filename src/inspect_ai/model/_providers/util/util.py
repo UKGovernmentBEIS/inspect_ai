@@ -11,6 +11,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 
 logger = getLogger(__name__)
 
@@ -152,3 +153,20 @@ def is_claude_fable_5_1_model(model_name: str) -> bool:
     point releases.
     """
     return _CLAUDE_FABLE_5_POINT_RELEASE.search(model_name) is not None
+
+
+def is_forced_tool_choice(tool_choice: ToolChoice) -> bool:
+    """A tool choice that requires a tool call ("any" or a specific tool)."""
+    return tool_choice == "any" or isinstance(tool_choice, ToolFunction)
+
+
+def forced_tool_choice_degraded_metadata(tool_choice: ToolChoice) -> dict[str, Any]:
+    """ModelOutput metadata recording a forced tool choice degraded to auto."""
+    return {
+        "tool_choice_degraded": {
+            "requested": {"type": "tool", "name": tool_choice.name}
+            if isinstance(tool_choice, ToolFunction)
+            else {"type": "any"},
+            "used": {"type": "auto"},
+        }
+    }

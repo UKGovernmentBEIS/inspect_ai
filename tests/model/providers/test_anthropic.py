@@ -1640,14 +1640,20 @@ def test_anthropic_fable_5_no_binding_on_base_model() -> None:
     assert "thinking" not in request
 
 
-def test_anthropic_fable_5_1_no_binding_on_bedrock() -> None:
-    """The thinking-binding beta is first-party only (not bedrock/vertex)."""
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "bedrock/anthropic.claude-fable-5-1",
+        "azure/claude-fable-5-1",
+    ],
+)
+def test_anthropic_fable_5_1_no_binding_off_first_party(model_name: str) -> None:
+    """The thinking-binding beta is first-party only (not bedrock/vertex/azure)."""
     setenv_if_unset("AWS_REGION", "us-east-1")
     setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
     setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
-    api = AnthropicAPI(
-        model_name="bedrock/anthropic.claude-fable-5-1", api_key="test-key"
-    )
+    setenv_if_unset("AZUREAI_ANTHROPIC_BASE_URL", "https://fake-azure.example.com")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     request = _request_with_thinking_history()
     betas: list[str] = []
     api.apply_thinking_block_binding(request, betas)
@@ -1718,16 +1724,27 @@ async def test_anthropic_forced_tool_choice_request_wiring(
 
 
 @pytest.mark.anyio
-async def test_anthropic_forced_tool_choice_with_thinking_records_metadata() -> None:
-    """A forced choice dropped by the thinking gate is recorded as degraded.
+@pytest.mark.parametrize(
+    "model_name,expect_degraded",
+    [
+        # forcing is never honored on 5.1, so record the degradation
+        ("claude-fable-5-1", True),
+        # other models keep their existing log shape on this long-standing path
+        ("claude-opus-4-8", False),
+    ],
+)
+async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
+    model_name: str, expect_degraded: bool
+) -> None:
+    """A forced choice dropped by the thinking gate is recorded on 5.1 models.
 
-    With thinking active, tool_choice is omitted for all Claude models; the
-    degradation must still land in the output metadata.
+    With thinking active, tool_choice is omitted for all Claude models; on
+    Fable/Mythos 5.1 the degradation must still land in the output metadata.
     """
     from inspect_ai.model._model_output import ModelOutput
     from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
-    api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     captured: dict[str, Any] = {}
 
     async def fake_perform(
@@ -1762,11 +1779,14 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata() -> 
 
     assert "tool_choice" not in captured
     assert isinstance(output, ModelOutput)
-    assert output.metadata is not None
-    assert output.metadata["tool_choice_degraded"] == {
-        "requested": {"type": "any"},
-        "used": {"type": "auto"},
-    }
+    if expect_degraded:
+        assert output.metadata is not None
+        assert output.metadata["tool_choice_degraded"] == {
+            "requested": {"type": "any"},
+            "used": {"type": "auto"},
+        }
+    else:
+        assert not (output.metadata or {}).get("tool_choice_degraded")
 
 
 def _message_with_transformations(transformations: list[dict[str, Any]]) -> Any:

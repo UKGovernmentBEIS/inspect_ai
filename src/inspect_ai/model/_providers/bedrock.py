@@ -58,7 +58,9 @@ from .._stream import (
     report_model_stream_start,
 )
 from .util import (
+    forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
+    is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
 )
@@ -625,9 +627,7 @@ class BedrockAPI(ModelAPI):
 
     def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
         """Mirrors `resolved_tool_choice` in the native anthropic provider."""
-        if (
-            tool_choice == "any" or isinstance(tool_choice, ToolFunction)
-        ) and self.is_claude_fable_5_1_or_later():
+        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
             warn_once(
                 logger,
                 f"bedrock model '{self.model_name}' does not support forced "
@@ -889,14 +889,9 @@ class BedrockAPI(ModelAPI):
         # a degraded forced tool choice changes request semantics — record it
         # per-request so the eval log reflects it (mirrors the native provider)
         if tool_choice_degraded:
-            output.metadata = (output.metadata or {}) | {
-                "tool_choice_degraded": {
-                    "requested": {"type": "tool", "name": tool_choice.name}
-                    if isinstance(tool_choice, ToolFunction)
-                    else {"type": "any"},
-                    "used": {"type": "auto"},
-                }
-            }
+            output.metadata = (
+                output.metadata or {}
+            ) | forced_tool_choice_degraded_metadata(tool_choice)
 
         # return
         return output, model_call

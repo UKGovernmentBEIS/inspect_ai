@@ -14,6 +14,7 @@ ignored. These tests pin the corrected shape and the adaptive-thinking /
 from __future__ import annotations
 
 import pytest
+from test_helpers.utils import skip_if_trio
 
 pytest.importorskip("aiobotocore")
 pytest.importorskip("botocore")
@@ -321,6 +322,82 @@ def test_fable_5_base_keeps_forced_tool_choice():
     assert api.resolved_tool_choice("any") == "any"
     tool_function = ToolFunction(name="get_weather")
     assert api.resolved_tool_choice(tool_function) is tool_function
+
+
+@pytest.mark.anyio
+@skip_if_trio
+@pytest.mark.parametrize(
+    "model_name,expected_choice,expect_degraded",
+    [
+        ("anthropic.claude-fable-5-1", {"auto": {}}, True),
+        ("anthropic.claude-fable-5", {"tool": {"name": "addition"}}, False),
+    ],
+)
+async def test_bedrock_fable_5_1_forced_tool_choice_wiring(
+    model_name: str, expected_choice: dict, expect_degraded: bool
+):
+    """The degraded tool choice lands in the Converse request and output metadata."""
+    from typing import Any
+    from unittest.mock import patch
+
+    from inspect_ai.model import ChatMessageUser
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.tool import ToolInfo
+    from inspect_ai.tool._tool_choice import ToolFunction
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    api = BedrockAPI(model_name=model_name, base_url=None)
+    captured: dict[str, Any] = {}
+
+    class _FakeClient:
+        async def converse(self, **kwargs: Any) -> dict[str, Any]:
+            captured.update(kwargs)
+            return {
+                "output": {
+                    "message": {"role": "assistant", "content": [{"text": "ok"}]}
+                },
+                "stopReason": "end_turn",
+                "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+                "metrics": {"latencyMs": 1},
+            }
+
+    class _FakeClientContext:
+        async def __aenter__(self) -> Any:
+            return _FakeClient()
+
+        async def __aexit__(self, *exc: Any) -> bool:
+            return False
+
+    with patch.object(
+        api.session, "client", lambda *args, **kwargs: _FakeClientContext()
+    ):
+        result = await api.generate(
+            input=[ChatMessageUser(content="What is 1 + 1?")],
+            tools=[
+                ToolInfo(
+                    name="addition",
+                    description="Add two numbers.",
+                    parameters=ToolParams(
+                        properties={"x": ToolParam(type="integer")}, required=["x"]
+                    ),
+                )
+            ],
+            tool_choice=ToolFunction(name="addition"),
+            config=GenerateConfig(max_tokens=64),
+        )
+
+    assert isinstance(result, tuple)
+    output = result[0]
+    assert isinstance(output, ModelOutput)
+    assert captured["toolConfig"]["toolChoice"] == expected_choice
+    if expect_degraded:
+        assert output.metadata is not None
+        assert output.metadata["tool_choice_degraded"] == {
+            "requested": {"type": "tool", "name": "addition"},
+            "used": {"type": "auto"},
+        }
+    else:
+        assert not (output.metadata or {}).get("tool_choice_degraded")
 
 
 # --- thinking + tool use round trip (live) ---------------------------------

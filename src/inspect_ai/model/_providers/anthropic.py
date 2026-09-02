@@ -209,7 +209,9 @@ from ._anthropic_batch import AnthropicBatcher
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
+    forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
+    is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
     require_azure_base_url,
@@ -246,11 +248,11 @@ _FORCED_TOOL_CHOICE_WARNING = (
 )
 _THINKING_DROPPED_WARNING = (
     "anthropic model '{model}' dropped replayed thinking block(s) from the "
-    "request (reason: {reason}): earlier conversation content (system prompt, "
-    "tools, or messages) changed after the blocks were produced, so their "
-    "reasoning is no longer visible to the model. Per-request details are "
-    "recorded in the model output metadata under "
-    "extra_body.input_transformations."
+    "request (reason: {reason}), so their reasoning is no longer visible to "
+    "the model. A prefix_binding_mismatch reason means earlier conversation "
+    "content (system prompt, tools, or messages) changed after the blocks "
+    "were produced. Per-request details are recorded in the model output "
+    "metadata under extra_body.input_transformations."
 )
 _MID_CONV_SYSTEM_HOISTED_WARNING = (
     "anthropic: {count} mid-conversation system message(s) were repositioned "
@@ -546,10 +548,12 @@ class AnthropicAPI(ModelAPI):
                 else:
                     # with thinking active the API rejects forced tool choice,
                     # so tool_choice is omitted entirely (long-standing
-                    # behavior for all Claude models) — record a forced choice
-                    # as degraded here too so the eval log reflects it
-                    tool_choice_degraded = tool_choice == "any" or isinstance(
-                        tool_choice, ToolFunction
+                    # behavior for all Claude models). On Fable/Mythos 5.1 —
+                    # where forcing is never honored in any mode — record it
+                    # as degraded; other models keep their existing log shape.
+                    tool_choice_degraded = (
+                        is_forced_tool_choice(tool_choice)
+                        and self.is_claude_fable_5_1_or_later()
                     )
 
             # additional options
@@ -677,14 +681,9 @@ class AnthropicAPI(ModelAPI):
             # call), so record it per-request in the output metadata — an
             # auditable fact in the eval log, not just a log warning
             if tool_choice_degraded:
-                output.metadata = (output.metadata or {}) | {
-                    "tool_choice_degraded": {
-                        "requested": {"type": "tool", "name": tool_choice.name}
-                        if isinstance(tool_choice, ToolFunction)
-                        else {"type": "any"},
-                        "used": {"type": "auto"},
-                    }
-                }
+                output.metadata = (
+                    output.metadata or {}
+                ) | forced_tool_choice_degraded_metadata(tool_choice)
 
             return output, model_call
 
@@ -1253,10 +1252,12 @@ class AnthropicAPI(ModelAPI):
         models — not only those replaying thinking blocks — so the beta header
         stays uniform across a task's requests (the batcher submits a single
         header set per batch). First-party API only; the beta is not
-        documented for bedrock/vertex, where a history edit will still 400.
+        documented for bedrock/vertex/azure, where a history edit will still
+        400. A caller-supplied `extra_body.thinking` shallow-merges over the
+        request body and replaces this binding config.
         """
         if self.is_claude_fable_5_1_or_later() and not (
-            self.is_bedrock() or self.is_vertex()
+            self.is_bedrock() or self.is_vertex() or self.is_azure()
         ):
             betas.append(_THINKING_BINDING_BETA)
             # thinking is always on for these models, so explicit adaptive
@@ -1271,9 +1272,7 @@ class AnthropicAPI(ModelAPI):
         "auto" and "none" pass through unchanged; strict tool use with auto
         remains the schema-enforcement path on Fable/Mythos 5.1.
         """
-        if (
-            tool_choice == "any" or isinstance(tool_choice, ToolFunction)
-        ) and self.is_claude_fable_5_1_or_later():
+        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
             warn_once(
                 logger,
                 _FORCED_TOOL_CHOICE_WARNING.format(model=self.service_model_name()),
