@@ -8,8 +8,8 @@ google:
       context_length: 1048576
       output_tokens: 65536
       reasoning: True
-      # Gemini 3.8 Flash defaults to thinking_level=MEDIUM if unspecified and
-      # rejects MINIMAL. https://ai.google.dev/gemini-api/docs/thinking
+      # Gemini 3.8 Flash defaults to thinking_level=MEDIUM if unspecified.
+      # https://ai.google.dev/gemini-api/docs/thinking
       reasoning_effort_default: medium
     gemini-3.7-flash:
       display_name: "Gemini 3.7 Flash"
@@ -18,8 +18,8 @@ google:
       context_length: 1048576
       output_tokens: 65536
       reasoning: True
-      # Gemini 3.7 Flash defaults to thinking_level=MEDIUM if unspecified and
-      # rejects MINIMAL. https://ai.google.dev/gemini-api/docs/thinking
+      # Gemini 3.7 Flash defaults to thinking_level=MEDIUM if unspecified.
+      # https://ai.google.dev/gemini-api/docs/thinking
       reasoning_effort_default: medium
     gemini-3.6-flash:
       display_name: "Gemini 3.6 Flash"

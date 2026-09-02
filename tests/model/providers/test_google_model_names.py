@@ -98,6 +98,8 @@ def test_pro_codename_is_thinking_only() -> None:
         ("gemini-3.1-flash-lite", True),
         ("gemini-3.1-flash-lite-preview", True),
         ("gemini-3.5-flash-lite", True),
+        ("gemini-3-flash-lite", False),
+        ("gemini-3.6-flash-lite", False),
         ("gemini-2.5-flash-lite", False),
         ("gemini-4-flash-lite", False),
         ("gemini-3-pro", False),
@@ -105,13 +107,22 @@ def test_pro_codename_is_thinking_only() -> None:
         ("gemini-2.5-flash", False),
         ("vertex/gemini-3.8-flash", False),
         ("vertex/gemini-3.6-flash", True),
-        # version-less names track the newest release of their line
+        # unverified: version-less names and vertex resource paths whose
+        # project id happens to look like a version
         ("gemini-flash-latest", False),
-        ("gemini-flash-lite-latest", True),
+        ("gemini-flash-lite-latest", False),
         ("nimbus-flash-preview", False),
-        ("nimbus-flash-lite-preview", True),
+        ("nimbus-flash-lite-preview", False),
         ("satellite-flash-preview", False),
         ("vertex/some-flash-lite-endpoint", False),
+        (
+            "vertex/projects/gemini-3-research/locations/us-central1/publishers/google/models/gemini-3.8-flash",
+            False,
+        ),
+        (
+            "vertex/projects/gemini-3-research/locations/us-central1/publishers/google/models/gemini-3.6-flash",
+            True,
+        ),
     ],
 )
 def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
@@ -126,6 +137,11 @@ def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
         ("gemini-2.5-flash-lite", (2, 5)),
         ("gemini-3.1-pro-preview", (3, 1)),
         ("nimbus-flash-preview", None),
+        ("gemini-flash-latest", None),
+        (
+            "vertex/projects/gemini-3-research/publishers/google/models/gemini-3.8-flash",
+            (3, 8),
+        ),
     ],
 )
 def test_gemini_version(model_name: str, expected: tuple[int, ...] | None) -> None:

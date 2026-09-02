@@ -854,8 +854,13 @@ class GoogleGenAIAPI(ModelAPI):
         return "gemini-3" in self.model_family()
 
     def gemini_version(self) -> tuple[int, ...] | None:
-        """Numeric version parsed from a gemini-N[.N] model name (None if absent)."""
-        match = re.search(r"gemini-(\d+(?:\.\d+)*)", self.model_family())
+        """Numeric version parsed from a gemini-N[.N] model name (None if absent).
+
+        Only the final path segment is inspected so a vertex resource path
+        takes its version from the model, not the project id.
+        """
+        name = self.model_family().rsplit("/", 1)[-1]
+        match = re.search(r"gemini-(\d+(?:\.\d+)*)", name)
         if match is None:
             return None
         return tuple(int(part) for part in match.group(1).split("."))
@@ -863,24 +868,18 @@ class GoogleGenAIAPI(ModelAPI):
     def supports_minimal_thinking(self) -> bool:
         """Whether the model accepts thinking_level=MINIMAL.
 
-        Only the Gemini 3 releases documented to accept it return True: Flash
-        3.0-3.6 and Flash-Lite 3.1-3.5. Gemini 3 Pro never has, and 3.7 Flash
-        and later reject it with a 400, so unknown future versions are not
-        sent it either (a downgrade to LOW is recoverable, a 400 is not).
-        Version-less names (codenames, rolling aliases such as
-        gemini-flash-latest) track the newest release of their line: Flash
-        does not accept it, Flash-Lite does.
-        https://ai.google.dev/gemini-api/docs/thinking
+        True only for releases documented to accept it: Flash 3.0-3.6 and
+        Flash-Lite 3.1-3.5. Gemini 3 Pro never has, 3.7 Flash and later reject
+        it with a 400, and anything unverified (newer versions, codenames,
+        rolling aliases such as gemini-flash-lite-latest) is downgraded to LOW
+        rather than risk a 400. https://ai.google.dev/gemini-api/docs/thinking
         """
-        if not self.is_gemini() or not self.is_gemini_flash():
+        version = self.gemini_version()
+        if version is None or not self.is_gemini_flash():
             return False
         lite = "flash-lite" in self.model_family()
-        version = self.gemini_version()
-        if version is None:
-            return lite
-        if lite:
-            return (3,) <= version < (3, 6)
-        return (3,) <= version < (3, 7)
+        low, high = ((3, 1), (3, 6)) if lite else ((3,), (3, 7))
+        return low <= version < high
 
     def is_gemini_3_plus(self) -> bool:
         return (
