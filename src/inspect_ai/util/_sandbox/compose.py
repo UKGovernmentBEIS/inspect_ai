@@ -365,6 +365,9 @@ class ComposeService(ComposeModel):
     pids_limit: int | str | None = Field(default=None)
     """Maximum number of processes the container may spawn (``-1`` for unlimited)."""
 
+    cgroup: str | None = Field(default=None)
+    """Cgroup namespace to join (``host`` or ``private``)."""
+
     depends_on: list[str] | dict[str, Any] | None = Field(default=None)
     """Service startup dependencies. Short (list) or long (dict) form per Compose spec."""
 

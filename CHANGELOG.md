@@ -25,7 +25,7 @@
 - Agent bridge: Anthropic responses now report thinking tokens in `usage.output_tokens_details`, so bridged clients can distinguish a reasoning response from a plain one.
 - Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
 - Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
-- Sandboxes: Compose files using long syntax volume mounts, `pids_limit`, `read_only`, or `build.no_cache` no longer fail validation when starting an eval.
+- Sandboxes: Compose files using long syntax volume mounts, `pids_limit`, `read_only`, `cgroup`, or `build.no_cache` no longer fail validation when starting an eval.
 
 ## 0.3.261 (30 August 2026)
 

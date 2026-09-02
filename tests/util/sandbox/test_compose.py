@@ -352,7 +352,7 @@ services:
     assert image_mount.image.subpath == "dir"
 
 
-def test_parse_compose_yaml_accepts_pids_limit_and_read_only(tmp_path):
+def test_parse_compose_yaml_accepts_pids_limit_read_only_cgroup(tmp_path):
     compose_file = tmp_path / "compose.yaml"
     compose_file.write_text("""
 services:
@@ -360,10 +360,12 @@ services:
     image: ubuntu
     pids_limit: 512
     read_only: true
+    cgroup: host
 """)
     config = parse_compose_yaml(str(compose_file))
     assert config.services["default"].pids_limit == 512
     assert config.services["default"].read_only is True
+    assert config.services["default"].cgroup == "host"
 
 
 def test_parse_compose_yaml_accepts_interpolated_pids_limit(tmp_path):
