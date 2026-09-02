@@ -1,9 +1,17 @@
 import logging
 import re
+from collections.abc import Sequence
 from functools import partial
 from typing import Any, Callable
 
-from inspect_ai._util.content import Content, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.dict import omit
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.list import remove_last_match_and_after
@@ -29,6 +37,8 @@ from ._scorer import Scorer, scorer
 from ._target import Target
 
 logger = logging.getLogger(__name__)
+
+_ModelGraderMedia = ContentImage | ContentAudio | ContentVideo | ContentDocument
 
 
 @scorer(metrics=[accuracy(), stderr()])
@@ -290,13 +300,38 @@ def _model_graded_qa_single(
             state.metadata, ["question", "answer", "criterion", "instructions"]
         )
 
+        input_media = _model_grader_input_media(state.input)
+        input_media_text = " ".join(f"[{media.type}]" for media in input_media)
+
         # present the question
         if include_history is True:
             question = chat_history(state)
+            if (
+                input_media_text
+                and isinstance(state.input, list)
+                and not any(
+                    isinstance(message, ChatMessageUser) and message.text
+                    for message in state.input
+                )
+            ):
+                question = f"{input_media_text}{question}"
         elif callable(include_history):
             question = include_history(state)
         else:
-            question = state.input_text
+            try:
+                question = state.input_text
+            except ValueError:
+                if (
+                    not input_media
+                    or not isinstance(state.input, list)
+                    or not any(
+                        isinstance(message, ChatMessageUser) for message in state.input
+                    )
+                ):
+                    raise
+                question = ""
+        if not question and input_media_text and not callable(include_history):
+            question = input_media_text
 
         # format the scoring template
         scoring_prompt = model_scoring_prompt(
@@ -306,10 +341,13 @@ def _model_graded_qa_single(
             criterion=target.text,
             instructions=instructions,
             metadata=metadata,
+            input_media=input_media,
         )
 
         # query the model for the score
         result = await model.generate([scoring_prompt])
+        metadata_prompt = _model_grading_metadata_message(scoring_prompt)
+        metadata_response = _model_grading_metadata_message(result.message)
 
         # extract the grade
         match = re.search(resolved_grade_pattern, result.completion)
@@ -340,8 +378,8 @@ def _model_graded_qa_single(
                 explanation=result.completion,
                 metadata=dict(
                     grading=[
-                        scoring_prompt,
-                        result.message,
+                        metadata_prompt,
+                        metadata_response,
                     ]
                 ),
             )
@@ -353,8 +391,8 @@ def _model_graded_qa_single(
                 + f"{result.completion}",
                 metadata=dict(
                     grading=[
-                        scoring_prompt,
-                        result.message,
+                        metadata_prompt,
+                        metadata_response,
                     ],
                 ),
             )
@@ -544,6 +582,7 @@ def model_scoring_prompt(
     criterion: str,
     instructions: str,
     metadata: dict[str, Any],
+    input_media: Sequence[_ModelGraderMedia] = (),
 ) -> ChatMessageUser:
     # Neutralize structural delimiters in all dataset-controlled inputs so a model
     # cannot inject fake [END DATA] / [BEGIN DATA] markers into the judge prompt.
@@ -555,8 +594,15 @@ def model_scoring_prompt(
         k: _sanitize_metadata_value(v) for k, v in metadata.items()
     }
 
+    if len(input_media) > 0:
+        question = (
+            f"{question} (see [Task media])"
+            if len(question) > 0
+            else "See [Task media]"
+        )
+
     # we need to remove media objects from output and reference them as attachements in the answer
-    media: list[Content] = (
+    output_media: list[Content] = (
         [
             content
             for content in output.message.content
@@ -565,11 +611,11 @@ def model_scoring_prompt(
         if len(output.choices) > 0 and isinstance(output.message.content, list)
         else []
     )
-    if len(media) > 0:
+    if len(output_media) > 0:
         if len(answer) > 0:
-            answer = f"{answer} (see also attached media)"
+            answer = f"{answer} (see [Submission media])"
         else:
-            answer = "See attached media"
+            answer = "See [Submission media]"
 
     # format the prompt
     prompt = template.format(
@@ -581,7 +627,36 @@ def model_scoring_prompt(
     )
 
     # return with media if necessary
-    if len(media) > 0:
-        return ChatMessageUser(content=[ContentText(text=prompt)] + media)
+    if len(input_media) > 0 or len(output_media) > 0:
+        content: list[Content] = [ContentText(text=prompt)]
+        if len(input_media) > 0:
+            content.extend([ContentText(text="[Task media]"), *input_media])
+        if len(output_media) > 0:
+            content.extend([ContentText(text="[Submission media]"), *output_media])
+        return ChatMessageUser(content=content)
     else:
         return ChatMessageUser(content=prompt)
+
+
+def _model_grading_metadata_message(message: ChatMessage) -> ChatMessage:
+    if isinstance(message.content, list) and any(
+        isinstance(content, _ModelGraderMedia) for content in message.content
+    ):
+        return message.model_copy(update={"content": message.text})
+    return message
+
+
+def _model_grader_input_media(
+    sample_input: str | list[ChatMessage],
+) -> list[_ModelGraderMedia]:
+    if isinstance(sample_input, str):
+        return []
+    return [
+        content
+        for message in sample_input
+        if isinstance(message.content, list)
+        for content in message.content
+        if isinstance(
+            content, ContentImage | ContentAudio | ContentVideo | ContentDocument
+        )
+    ]
