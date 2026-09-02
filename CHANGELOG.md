@@ -45,6 +45,7 @@
 - Bugfix: Model calls no longer time out during long samples with realtime logging or bounded transcripts enabled.
 - Control Channel: `inspect ctl sample cancel --action cancel` now works on samples that haven't started — cancelling a never-started sample before it runs and withdrawing (un-requeuing) a queued re-run so its prior outcome stands.
 - Crash Recovery: `inspect log recover`, `eval-retry`, and `eval_set` gain `--incomplete-action error` (with an `--incomplete-max` guard) to resolve samples that were in progress at a crash as errors and finalize the eval as `success` instead of endlessly re-running hung samples.
+- Crash Recovery: `inspect log recover --list` now reports `total_samples` for evals run with `--limit` or `--sample-id` as the selected samples times epochs, rather than the full dataset size.
 - Metrics: Add `ci_wilson()` metric reporting the Wilson score confidence interval for the mean of binary scores (as `{"lower", "upper"}`), with bounds always within [0, 1]; `cluster=` computes an effective-sample-size interval accounting for within-cluster correlation.
 - Agent Bridge: Image tool results now reach sandboxed agents as MCP image content instead of being flattened to text.
 - Scoring: `inspect_ai.scorer` now exports `Reference`, the model for the message/event references that scanner scores store in metadata (previously importable only from Inspect Scout).

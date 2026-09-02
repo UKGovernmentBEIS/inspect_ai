@@ -2432,6 +2432,24 @@ def test_eval_set_incomplete_action_error_finalizes() -> None:
             assert "terminated by operator during recovery" in resolved.error.message
             # the recovered file is the final log, so the buffer is swept
             assert not buffer.db_path.exists()
+
+            # a second invocation (with the default retry_cleanup) must select
+            # the finalized recovered log over the still-present "started"
+            # log and neither re-run the task nor write a new log file
+            log_files_before = sorted(os.listdir(log_dir))
+            success, logs = eval_set(
+                tasks=resume_task,
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_immediate=True,
+                incomplete_action="error",
+            )
+            assert success
+            assert len(logs) == 1
+            assert logs[0].location is not None
+            assert local_path(logs[0].location) == local_path(final.location)
+            assert sorted(os.listdir(log_dir)) == log_files_before
         finally:
             buffer.cleanup()
 

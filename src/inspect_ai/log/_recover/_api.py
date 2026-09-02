@@ -4,7 +4,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Literal
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.file import dirname, filesystem
@@ -79,7 +79,7 @@ def recover_eval_log(
     log: str,
     output: str | None = None,
     overwrite: bool = False,
-    cleanup: bool = True,
+    cleanup: bool | Literal["finalized"] = True,
     no_events: bool = False,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
@@ -95,7 +95,12 @@ def recover_eval_log(
         output: Output path (default: <name>-recovered.eval alongside original).
         overwrite: Write the recovered log to the same path as the input,
             replacing the crashed log in-place.
-        cleanup: Remove the buffer DB after recovery.
+        cleanup: Remove the buffer DB after recovery. `"finalized"` removes it
+            only when the recovered log finalizes with `status="success"`: for
+            callers that keep the buffer as a safety net while resolved
+            samples re-run, a finalized recovery is the final log and nothing
+            re-runs, so the buffer would otherwise linger until the multi-day
+            startup sweep.
         no_events: Exclude event transcript from recovered samples.
         incomplete_action: Disposition for samples that were in progress at
             crash. `"retry"` (default) marks them as cancelled errors that a
@@ -135,7 +140,7 @@ async def recover_eval_log_async(
     log: str,
     output: str | None = None,
     overwrite: bool = False,
-    cleanup: bool = True,
+    cleanup: bool | Literal["finalized"] = True,
     _db_dir: str | Path | None = None,
     no_events: bool = False,
     incomplete_action: IncompleteAction = "retry",
@@ -277,26 +282,13 @@ async def recover_eval_log_async(
         recovered_log = await read_eval_log_async(final_output)
 
     # Cleanup buffer DB (only after successful write)
-    if cleanup and recovery_data is not None and recovery_data.buffer is not None:
+    remove_buffer = cleanup is True or (
+        cleanup == "finalized" and recovered_log.status == "success"
+    )
+    if remove_buffer and recovery_data.buffer is not None:
         recovery_data.buffer.cleanup()
 
     return recovered_log
-
-
-def cleanup_recovery_buffer(log: str, _db_dir: str | Path | None = None) -> None:
-    """Remove the sample buffer a crashed log was recovered from.
-
-    For callers that recover with `cleanup=False` so the buffer stays as a
-    safety net while the resolved samples re-run: once a recovery finalizes
-    (`status="success"`) the recovered file is the final log, nothing re-runs,
-    and the buffer would otherwise linger until the multi-day startup sweep.
-
-    Args:
-        log: Path to the crashed .eval file the buffer belongs to.
-    """
-    recovery_data = read_buffer_recovery_data(log, db_dir=_db_dir)
-    if recovery_data is not None and recovery_data.buffer is not None:
-        recovery_data.buffer.cleanup()
 
 
 def recoverable_eval_logs(

@@ -1399,7 +1399,9 @@ def eval_retry(
             `"retry"` (default) re-runs them; `"error"` resolves them as
             operator terminations — if that leaves every expected sample
             final, the recovered log finalizes as `status="success"` and is
-            returned without retrying.
+            returned without retrying. A finalized log lives at
+            `<name>-recovered.eval` alongside the crashed log rather than in
+            `log_dir`, so read its location from `EvalLog.location`.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
@@ -1584,7 +1586,9 @@ async def eval_retry_async(
             `"retry"` (default) re-runs them; `"error"` resolves them as
             operator terminations — if that leaves every expected sample
             final, the recovered log finalizes as `status="success"` and is
-            returned without retrying.
+            returned without retrying. A finalized log lives at
+            `<name>-recovered.eval` alongside the crashed log rather than in
+            `log_dir`, so read its location from `EvalLog.location`.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
@@ -1622,15 +1626,16 @@ async def eval_retry_async(
             from inspect_ai.log._recover import (
                 RecoveryNotAvailable,
                 RecoveryThresholdExceeded,
-                cleanup_recovery_buffer,
                 recover_eval_log_async,
             )
 
             try:
                 try:
+                    # the buffer stays as a safety net while resolved samples
+                    # re-run; a finalized recovery is the final log, so sweep it
                     recovered = await recover_eval_log_async(
                         eval_log.location,
-                        cleanup=False,
+                        cleanup="finalized",
                         incomplete_action=incomplete_action,
                         incomplete_max=incomplete_max,
                     )
@@ -1648,7 +1653,6 @@ async def eval_retry_async(
                     # the log — there is nothing left to retry (and the
                     # recovered file is the final log, so don't clean it up)
                     finalized_indexes.add(i)
-                    cleanup_recovery_buffer(eval_log.location)
                 elif recovered.location:
                     recovered_files[i] = recovered.location
             except RecoveryNotAvailable:

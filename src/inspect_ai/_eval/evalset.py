@@ -1508,15 +1508,16 @@ def _recover_crashed_log(
         from inspect_ai.log._recover import (
             RecoveryNotAvailable,
             RecoveryThresholdExceeded,
-            cleanup_recovery_buffer,
             recover_eval_log,
         )
 
         try:
             try:
+                # the buffer stays as a safety net while resolved samples
+                # re-run; a finalized recovery is the final log, so sweep it
                 recovered = recover_eval_log(
                     eval_log.location,
-                    cleanup=False,
+                    cleanup="finalized",
                     incomplete_action=incomplete_action,
                     incomplete_max=incomplete_max,
                 )
@@ -1526,10 +1527,6 @@ def _recover_crashed_log(
                     f"falling back to recover-and-retry: {ex}"
                 )
                 recovered = recover_eval_log(eval_log.location, cleanup=False)
-            if recovered.status == "success":
-                # finalized: the recovered file is the final log and nothing
-                # re-runs, so the buffer no longer serves as a safety net
-                cleanup_recovery_buffer(eval_log.location)
             if recovered.location:
                 log_info = log_info.model_copy(update={"name": recovered.location})
             eval_log = recovered

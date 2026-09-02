@@ -91,7 +91,7 @@ def recover_eval_log(
     log: str,
     output: str | None = None,
     overwrite: bool = False,
-    cleanup: bool = True,
+    cleanup: bool | Literal["finalized"] = True,   # "finalized": sweep the buffer only when the log finalizes
     no_events: bool = False,
     incomplete_action: Literal["retry", "error"] = "retry",   # shipped ("score" deferred)
     incomplete_max: int | float | None = None,
