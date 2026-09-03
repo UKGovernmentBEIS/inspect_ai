@@ -642,12 +642,6 @@
       "undescribed": 2
     }
   },
-  "src/inspect_ai/log/_recover/_api.py": {
-    "type: ignore[union-attr]": {
-      "count": 2,
-      "undescribed": 2
-    }
-  },
   "src/inspect_ai/model/__init__.py": {
     "noqa:F401 (file-wide)": {
       "count": 1,

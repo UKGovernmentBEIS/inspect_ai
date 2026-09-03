@@ -461,13 +461,16 @@ def set_model_cost(model: str, cost: ModelCost) -> None:
 
 
 def clear_model_info_cache() -> None:
-    """Clear the model info cache.
+    """Clear registered model info and memoized lookups.
 
-    This is primarily useful for testing. After calling this function,
-    the next call to model_info() will reload the database from disk.
+    This is primarily useful for testing: after calling this function, models
+    registered with set_model_info() / set_model_cost() are gone and lookups
+    are recomputed.
+
+    The built-in database read from disk is deliberately kept. Nothing mutates
+    it (set_model_info and set_model_cost both write to the custom registry,
+    the latter via model_copy), so re-reading it yields the same data at a cost
+    of ~0.2s per call — which an autouse fixture pays once per test.
     """
-    global _model_info_cache, _lookup_index
-    _model_info_cache = None
-    _lookup_index = None
     _custom_models.clear()
     _result_cache.clear()
