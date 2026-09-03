@@ -42,6 +42,18 @@ class CopyOutResult(NamedTuple):
     """Bytes actually read (equals the reported size on success)."""
 
 
+def copy_out_partial_path(dest: Path) -> Path:
+    """The in-flight file ``copy_out`` writes before renaming to ``dest``.
+
+    ``<dir>/.<name>.partial`` — hidden, beside ``dest``. A ``dest`` whose
+    name is already hidden gets no second leading dot, so residue from a
+    hard kill (SIGKILL, OOM) stays under the same ``.<prefix>`` a caller's
+    sweep would glob for.
+    """
+    name = dest.name if dest.name.startswith(".") else f".{dest.name}"
+    return dest.with_name(f"{name}.partial")
+
+
 async def probe_dd_fullblock(env: SandboxEnvironment) -> bool:
     """Whether the sandbox's ``dd`` supports ``iflag=fullblock``.
 
@@ -77,12 +89,13 @@ async def copy_out(
     chunk is produced by ``dd`` into ``chunk_path`` (inside the
     sandbox's root-only area) and read back with ``read_file``.
 
-    Written to a dot-prefixed partial file and renamed into place only
+    Written to :func:`copy_out_partial_path` and renamed into place only
     after the copy completes (and, when ``expected_sha256`` is given,
     the digest of the bytes actually read matches it), so an
     interrupted, over-cap, or corrupted copy — including cancellation
     mid-transfer — never leaves a plausible-looking file at ``dest``.
-    ``label`` prefixes error messages.
+    Only a hard kill can leave the partial file behind; callers that
+    care sweep it by that name. ``label`` prefixes error messages.
     """
     if size < 0:
         raise RuntimeError(f"{label}: sandbox reported a negative size ({size})")
@@ -93,7 +106,7 @@ async def copy_out(
         )
     digest = hashlib.sha256()
     dest.parent.mkdir(parents=True, exist_ok=True)
-    partial = dest.with_name(f".{dest.name}.partial")
+    partial = copy_out_partial_path(dest)
     try:
         with open(partial, "wb") as out:
             index = 0

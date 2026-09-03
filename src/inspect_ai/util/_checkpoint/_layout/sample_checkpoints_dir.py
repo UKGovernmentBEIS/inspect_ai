@@ -19,10 +19,12 @@ The optional ``_<retry>`` suffix on the dir name is omitted until
 from __future__ import annotations
 
 import secrets
+from functools import partial
 from typing import TypeVar
 
 from pydantic import BaseModel
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import get_async_filesystem
 
 from .._async_fs import async_mkdir
@@ -134,15 +136,21 @@ async def scan_committed_checkpoints(sample_checkpoints_dir: str) -> list[Checkp
     """
     ids = await _list_checkpoint_ids(sample_checkpoints_dir)
     async_fs = get_async_filesystem()
-    committed: list[Checkpoint] = []
-    for n in sorted(ids):
-        path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
+
+    async def read_one(n: int) -> Checkpoint | None:
         try:
-            raw = await async_fs.read_file(path)
-            committed.append(Checkpoint.model_validate_json(raw))
+            raw = await async_fs.read_file(
+                f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
+            )
+            return Checkpoint.model_validate_json(raw)
         except Exception:
-            continue
-    return committed
+            return None
+
+    # Concurrent reads: with a remote location and a turn trigger a sample
+    # can hold hundreds of checkpoint files, and serial GETs would dominate
+    # resume. tg_collect preserves input order, so the result stays ascending.
+    results = await tg_collect([partial(read_one, n) for n in sorted(ids)])
+    return [checkpoint for checkpoint in results if checkpoint is not None]
 
 
 async def write_checkpoint_file(

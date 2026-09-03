@@ -12,7 +12,7 @@
 - Control Channel: `inspect ctl task cancel` of a task between retry attempts (including one still writing its errored attempt's final log) now abandons the queued retry (the task ends with its last attempt's error log) instead of asking to re-issue once the retry starts.
 - Control Channel: `inspect ctl task list` rows now report a pending graceful resolution (`resolving`: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as `pending`.
 - Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
-- Checkpointing: Sandbox snapshot data shipped out of a sandbox is now verified host-side (only new, content-addressed restic files are accepted and the destination must gain exactly the reported snapshot), transfers are capped by the new `max_sandbox_snapshot_bytes` option (default 4 GiB), and resume restores the exact recorded snapshot rather than whatever the repo calls latest.
+- Checkpointing: Sandbox snapshot transfers are now verified host-side and capped by the new `max_sandbox_snapshot_bytes` option (default 4 GiB); resume restores the recorded snapshot rather than the repo's latest.
 - Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
 
 ## 0.3.262 (02 September 2026)

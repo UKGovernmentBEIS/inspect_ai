@@ -25,6 +25,7 @@ import anyio
 import pytest
 from test_helpers.local_shell_sandbox import LocalShellSandbox
 
+from inspect_ai.util._checkpoint._copy import copy_out_partial_path
 from inspect_ai.util._checkpoint._repo_ops import (
     forget_unrecorded_snapshots,
     list_snapshots,
@@ -229,15 +230,20 @@ async def test_egress_rejects_unreadable_tarball(repos: _Repos) -> None:
 
 
 async def test_egress_sweeps_stale_scratch_files(repos: _Repos) -> None:
+    """Residue a hard kill leaves (the scratch tar and copy_out's partial) is swept."""
     id1 = repos.backup("ckpt-00001")
     repos.dest.parent.mkdir(parents=True, exist_ok=True)
-    stale = repos.dest.parent / ".egress-default-ckpt-00000.tar.partial"
-    stale.write_bytes(b"residue of an interrupted fire")
+    stale_tar = repos.dest.parent / ".egress-default-ckpt-00000.tar"
+    stale_partial = copy_out_partial_path(stale_tar)
+    stale_tar.write_bytes(b"residue of a fire killed during extraction")
+    stale_partial.write_bytes(b"residue of a fire killed mid-transfer")
 
     await repos.egress("ckpt-00001", id1)
 
-    assert not stale.exists()
+    assert not stale_tar.exists()
+    assert not stale_partial.exists()
     assert not list(repos.dest.parent.glob(".egress-*"))
+    assert not list(repos.dest.parent.glob("..egress-*"))
 
 
 async def test_egress_rejects_replayed_snapshot_id(repos: _Repos) -> None:

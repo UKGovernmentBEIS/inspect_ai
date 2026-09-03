@@ -100,7 +100,7 @@ The interface already exists in the code, inlined at two call sites:
 | Fresh sample | `hydrate._hydrate_sandbox` (resume=None): `inject_restic(env)` → `init_sandbox_repo(env, password)` |
 | Fire | `checkpointer_impl._backup_and_egress_sandbox`: `run_sandbox_backup(env, ...)` → `egress_sandbox(env, dest_repo=sandbox_repo_dir(sample_root, name), ...)`; then `_fire_once` runs `list_changed_files` host-side and records a `SnapshotDetails` per sandbox |
 | Remote shipping | `_host_egress.host_egress`: manifest-diff the staging dir, ship in restic-aware safe order (`config`/`keys` → `data` → `index` → `snapshots` → catch-all (everything unmatched) → `restic-config.json` → `ckpt-*.json` last) |
-| Resume | `hydrate._hydrate_sandbox` (resume set): `_fs_copy_repo` (old sample dir → new sample root) → `_drop_orphan_snapshots` → `ingress_sandbox` (tar repo into container, `restic restore latest --target /`). *Since the egress hardening: `forget_unrecorded_snapshots` (keep exactly the snapshots committed checkpoints record) → `ingress_sandbox` restoring the recorded snapshot id.* |
+| Resume | `hydrate._hydrate_sandbox` (resume set): `fs_copy_repo` (old sample dir → new sample root) → `forget_unrecorded_snapshots` (keep exactly the snapshots committed checkpoints record; the latest committed one must be present) → `ingress_sandbox` (tar repo into container, `restic restore <recorded snapshot id> --target /`) |
 | Retention | `retention: "delete" \| "retain"` — all-or-nothing at eval end *(defined and merged in `config.py`, but not yet enforced — no eval-end delete is implemented)* |
 
 Two pieces of restic knowledge currently leak outside this boundary and

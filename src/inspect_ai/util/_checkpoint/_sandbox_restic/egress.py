@@ -257,8 +257,9 @@ async def egress_sandbox(
         )
 
     # Host scratch copy of the tarball: beside (not inside) the repo so
-    # nothing partial ever sits where restic would see it. Residue from an
-    # interrupted fire (any tag) is swept first so it never rides along
+    # nothing partial ever sits where restic would see it. Residue from a
+    # killed fire (any tag; the tar or copy_out's `.partial` beside it,
+    # which shares this prefix) is swept first so it never rides along
     # with the next host egress to a remote destination.
     dest_path = Path(dest_repo)
     for stale in dest_path.parent.glob(f".egress-{dest_path.name}-*"):

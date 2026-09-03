@@ -24,7 +24,7 @@ import anyio
 import pytest
 from test_helpers.local_shell_sandbox import LocalShellSandbox
 
-from inspect_ai.util._checkpoint._copy import copy_out
+from inspect_ai.util._checkpoint._copy import copy_out, copy_out_partial_path
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint._snapshot import (
     committed_snapshots_for,
@@ -421,6 +421,17 @@ def _copy_fixture(tmp_path: Path, size: int) -> tuple[Path, bytes]:
     payload = bytes(bytearray((i * 7919 + i // 251) % 256 for i in range(size)))
     (sandbox_dir / "blob").write_bytes(payload)
     return sandbox_dir, payload
+
+
+def test_copy_out_partial_path_hides_once(tmp_path: Path) -> None:
+    """A hidden dest gets no second leading dot, so a `.prefix-*` sweep still matches."""
+    assert (
+        copy_out_partial_path(tmp_path / "blob.out") == tmp_path / ".blob.out.partial"
+    )
+    assert (
+        copy_out_partial_path(tmp_path / ".egress-default-ckpt-00001.tar")
+        == tmp_path / ".egress-default-ckpt-00001.tar.partial"
+    )
 
 
 async def test_copy_out_roundtrip_multi_chunk(tmp_path: Path) -> None:
