@@ -160,9 +160,18 @@ async def requeue_sample(
         # assigned by resolution, so None can't occur here — but the field
         # allows it, and the query-param string is the right fallback
         resolved_id = active.sample.id if active.sample.id is not None else sample_id
-        return _scheduled(
-            resolved_id, epoch, dry_run, status, f"sample is already {status}"
-        )
+        reason = f"sample is already {status}"
+        # an initializing sample carrying a deferred `sample cancel` is not
+        # un-cancellable the way a cancel-before-start is (the intent fires
+        # as it starts — design/ctl/initializing-sample-cancel.md), so name
+        # it rather than let "already queued" imply the sample will run
+        if status == "queued" and active.interrupt_action is not None:
+            reason = (
+                f"sample is already {status} with a pending cancel "
+                f"({active.interrupt_action}) that resolves as it starts — "
+                "requeue it once it has"
+            )
+        return _scheduled(resolved_id, epoch, dry_run, status, reason)
 
     # one synchronous snapshot of the key's queue lifecycle
     # (design/ctl/queued-sample-cancel.md): no await separates it from the

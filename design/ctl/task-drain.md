@@ -172,8 +172,10 @@ POST /tasks/<task-id>/drain?dry_run=true|false
   draws — past the queue, a sample is resolved rather than expunged. Either
   way the sample re-runs under a later explicit retry (error set → re-run).
   This start-time self-check is also the hook the per-sample counterpart
-  rides — cancelling one initializing sample from `sample cancel`, designed
-  in [`initializing-sample-cancel.md`](initializing-sample-cancel.md).
+  rides — cancelling one initializing sample from `sample cancel`, per
+  [`initializing-sample-cancel.md`](initializing-sample-cancel.md); a
+  per-sample intent stamped there fires first and exclusively, so a task
+  stamp never overwrites it (the sweep's first-resolution-wins rule).
 - **Sample error retries are new work.** A sample that errors after the
   stamp with `retry_on_error` budget remaining is not re-dispatched — the
   retry re-enters the gated semaphore and abandons at the queue-exit check,

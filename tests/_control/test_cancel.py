@@ -20,6 +20,8 @@ from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai import Task, eval_async
 from inspect_ai._control.cancel import (
+    CancelSampleAlreadyRequested,
+    CancelSampleFinished,
     CancelSampleResult,
     CancelTaskResult,
     TaskCancelAction,
@@ -937,21 +939,97 @@ async def test_cancel_sample_dry_run_does_not_interrupt(
     assert sample.interrupts == []
 
 
-async def test_cancel_sample_initializing_rejected(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("action", ["cancel", "score", "error"])
+async def test_cancel_sample_initializing_deferred(
+    monkeypatch: pytest.MonkeyPatch, action: Literal["score", "error", "cancel"]
 ) -> None:
     """A sample past the queue but not yet running (ActiveSample, started=None).
 
-    The message says "initializing", not "queued" — this sample has left the
-    queue, and the genuinely-queued flavors never reach this check.
+    Every action is accepted and deferred (design/ctl/initializing-sample-
+    cancel.md): the intent is stamped via the same ``interrupt`` primitive and
+    fires as the sample starts, and the result says so via ``reason``.
     """
     sample = _FakeActiveSample(started=None)
     _patch_active_samples(monkeypatch, [sample])
 
-    result = await cancel_sample("e1", "s1", 1)
+    result = await cancel_sample("e1", "s1", 1, action=action)
     assert result is not None
-    assert result["ok"] is False and "initializing" in result["error"]
+    assert result["ok"] is True and result["changed"] is True
+    assert result["action"] == action
+    assert "initializing" in result["reason"]
+    assert sample.interrupts == [action]
+
+
+async def test_cancel_sample_initializing_repeat_is_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second cancel of an initializing sample is the no-op naming the intent.
+
+    The intent is not overwritable (first resolution wins, as with the
+    task-cancel sweep) — a later 'score' does not replace a pending 'cancel'.
+    """
+    sample = _FakeActiveSample(started=None)
+    _patch_active_samples(monkeypatch, [sample])
+    first = await cancel_sample("e1", "s1", 1, action="cancel")
+    assert first is not None and first["ok"] is True and first["changed"] is True
+
+    repeat = await cancel_sample("e1", "s1", 1, action="score")
+    assert repeat is not None
+    assert repeat["ok"] is True and repeat["changed"] is False
+    assert repeat["reason"] == "cancel already requested (cancel)"
+    assert cast(CancelSampleAlreadyRequested, repeat)["interrupt"] == "cancel"
+    assert sample.interrupts == ["cancel"]
+
+
+async def test_cancel_sample_running_repeat_reinterrupts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The repeat no-op is scoped to initializing: a running row re-interrupts.
+
+    Re-firing a running sample's cancel scope is a real action (the runner
+    reads the live action when it handles the interrupt), so the running row
+    keeps today's ``changed: true`` answer.
+    """
+    sample = _FakeActiveSample()
+    sample.interrupt_action = "cancel"
+    _patch_active_samples(monkeypatch, [sample])
+
+    result = await cancel_sample("e1", "s1", 1, action="cancel")
+    assert result is not None
+    assert result["ok"] is True and result["changed"] is True
+    assert sample.interrupts == ["cancel"]
+
+
+async def test_cancel_sample_initializing_error_gated_by_fails_on_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fail-on-error gate applies to a deferred 'error' as to a running one.
+
+    The initializing sample is registered, so — unlike the task-level
+    blind spot — the gate sees it and no start-time downgrade is needed.
+    """
+    sample = _FakeActiveSample(started=None, fails_on_error=True)
+    _patch_active_samples(monkeypatch, [sample])
+
+    result = await cancel_sample("e1", "s1", 1, action="error")
+    assert result is not None
+    assert result["ok"] is False and "fail on errors" in result["error"]
     assert sample.interrupts == []
+
+
+async def test_cancel_sample_initializing_dry_run_does_not_stamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sample = _FakeActiveSample(started=None)
+    _patch_active_samples(monkeypatch, [sample])
+
+    result = await cancel_sample("e1", "s1", 1, action="cancel", dry_run=True)
+    assert result is not None
+    assert result["ok"] is True and result["changed"] is True
+    assert result["dry_run"] is True
+    assert "would be" in result["reason"]
+    assert sample.interrupts == []
+    assert sample.interrupt_action is None
 
 
 async def test_cancel_sample_terminal_is_idempotent_noop(
@@ -972,7 +1050,7 @@ async def test_cancel_sample_terminal_is_idempotent_noop(
     result = await cancel_sample("e1", "s1", 1)
     assert result is not None
     assert result["ok"] is True and result["changed"] is False
-    assert result["status"] == "completed"
+    assert cast(CancelSampleFinished, result)["status"] == "completed"
 
 
 async def test_cancel_sample_unknown_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1756,9 +1834,9 @@ async def test_cancel_drain_abandoned_sample_reads_cancelled(
 
     A graceful task cancel abandons a still-queued sample at the queue-exit
     check with no record; the abandon stamp is what keeps the outcome
-    readable — without it the departed key would advise "retry once it is
-    running" forever. Re-runs need no stamp (their pending key clears and
-    the prior record renders), so the hook no-ops for them.
+    readable — without it the departed key would advise "retry in a moment"
+    forever. Re-runs need no stamp (their pending key clears and the prior
+    record renders), so the hook no-ops for them.
     """
     _patch_active_samples(monkeypatch, [])
     cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
@@ -1791,8 +1869,8 @@ async def test_cancel_departed_task_gates_before_retry_advice(
 ) -> None:
     """A task-level gate answers a departed key before the "retry" advice.
 
-    Once a task cancel is in flight (or the task has finished) "retry once
-    it is running" would be advice with no exit — e.g. an abort abandons the
+    Once a task cancel is in flight (or the task has finished) "retry in a
+    moment" would be advice with no exit — e.g. an abort abandons the
     departed run, and a completed sample under log_samples=False never gains
     a readable record.
     """

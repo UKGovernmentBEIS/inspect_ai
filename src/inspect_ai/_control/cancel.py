@@ -35,13 +35,17 @@ per the phase-3 agent-shape constraints:
   plain ``cancel`` is force.
 
 - :func:`cancel_sample` — attempt-keyed like the other per-sample operations:
-  interrupts one *running* sample via ``ActiveSample.interrupt``, the same
-  primitive the in-process TUI and ACP's ``inspect/cancel_sample`` use.
-  ``action`` selects the outcome — ``"score"`` completes the sample and runs
-  the scorer on the work done so far; ``"error"`` marks it errored (rejected
-  when the sample is configured to fail on errors, mirroring the TUI/ACP
-  gate, since the auto-fail would race it); ``"cancel"`` records it as
-  cancelled — transcript preserved, no scoring, not counted as an error.
+  interrupts one *running or initializing* sample via
+  ``ActiveSample.interrupt``, the same primitive the in-process TUI and ACP's
+  ``inspect/cancel_sample`` use. ``action`` selects the outcome — ``"score"``
+  completes the sample and runs the scorer on the work done so far;
+  ``"error"`` marks it errored (rejected when the sample is configured to
+  fail on errors, mirroring the TUI/ACP gate, since the auto-fail would race
+  it); ``"cancel"`` records it as cancelled — transcript preserved, no
+  scoring, not counted as an error. On an *initializing* sample (registered,
+  not yet started — sandbox provisioning may be in flight) the interrupt is
+  deferred: the intent is stamped now and fires as the sample starts, before
+  its plan runs (see ``design/ctl/initializing-sample-cancel.md``).
   ``"cancel"`` additionally acts on samples that haven't started: it
   withdraws a queued re-run's pending requeue (un-requeue) and cancels a
   never-started sample before it starts (see
@@ -441,7 +445,13 @@ class CancelSampleRejected(TypedDict):
 
 
 class CancelSampleChanged(TypedDict):
-    """The interrupt was delivered (or, under ``dry_run``, would be)."""
+    """The interrupt was delivered (or, under ``dry_run``, would be).
+
+    ``reason`` is present only for an *initializing* sample, where the
+    interrupt is deferred rather than delivered: it says the sample will
+    resolve as it starts (the CLI renders it in place of its "it will be
+    …" outcome line).
+    """
 
     ok: Literal[True]
     sample_id: str | int | None
@@ -449,6 +459,27 @@ class CancelSampleChanged(TypedDict):
     action: SampleCancelAction
     dry_run: bool
     changed: Literal[True]
+    reason: NotRequired[str]
+
+
+class CancelSampleAlreadyRequested(TypedDict):
+    """The repeat no-op on an initializing sample with an interrupt pending.
+
+    Scoped to ``started is None``: re-interrupting a *running* sample re-fires
+    its cancel scope (a real action, reported ``changed: true``), but
+    re-stamping a deferred intent does nothing, and the intent is not
+    overwritable — first resolution wins. ``interrupt`` names the pending
+    action, matching the live sample row's field.
+    """
+
+    ok: Literal[True]
+    sample_id: str | int | None
+    epoch: int
+    action: SampleCancelAction
+    dry_run: bool
+    changed: Literal[False]
+    reason: str
+    interrupt: SampleCancelAction
 
 
 class CancelSampleFinished(TypedDict):
@@ -486,9 +517,19 @@ class CancelSampleQueued(TypedDict):
 CancelSampleResult = (
     CancelSampleRejected
     | CancelSampleChanged
+    | CancelSampleAlreadyRequested
     | CancelSampleQueued
     | CancelSampleFinished
 )
+
+
+_DEFERRED_OUTCOME: dict[str, str] = {
+    "score": "scored on the work done so far",
+    "error": "marked as errored",
+    "cancel": "recorded as cancelled",
+}
+"""How a deferred interrupt's ``reason`` names the outcome (mirrors the CLI's
+outcome vocabulary for a delivered interrupt)."""
 
 
 async def cancel_sample(
@@ -506,6 +547,18 @@ async def cancel_sample(
     work done so far, ``"error"`` marks it errored, ``"cancel"`` records it
     as cancelled (transcript preserved, no scoring, not counted as an error).
 
+    An *initializing* sample (registered in ``active_samples()`` but not yet
+    started — media materialization or sandbox provisioning in flight)
+    accepts the same three actions, deferred
+    (``design/ctl/initializing-sample-cancel.md``): ``interrupt`` stamps the
+    intent, which the task runner fires the moment the sample starts, before
+    any of its plan runs — so the sandbox is fully built and then torn down
+    normally. The result is ``changed: True`` with a ``reason`` saying so.
+    Repeating the request while the sample is still initializing is the
+    ``changed: False`` "cancel already requested" no-op (the intent is not
+    overwritable — first resolution wins, as with the task-cancel sweep);
+    once the sample has started it lands on the running row as today.
+
     ``action="cancel"`` also acts on a sample that hasn't started
     (``design/ctl/queued-sample-cancel.md``): a queued re-run's pending
     requeue is withdrawn (un-requeue — the prior terminal record stands),
@@ -515,21 +568,32 @@ async def cancel_sample(
 
     Returns ``None`` when the sample is unknown to this process (the route
     404s); a ``changed: False`` no-op when it has already reached a terminal
-    outcome (or was already cancelled before start); ``{"ok": False,
-    "error": ...}`` when it can't be cancelled — initializing (past the
-    queue but not yet running), not yet at the queue (a retry attempt may
-    reuse it from the prior attempt), ``action="score"|"error"`` on a queued
-    sample (nothing to score, no error to record), ``action="error"`` on a
-    running sample configured to fail on errors, or a task-level gate
-    (finished / between attempts / task cancel in flight) closing a queued
-    row.
+    outcome (or was already cancelled before start, or already carries a
+    deferred interrupt); ``{"ok": False, "error": ...}`` when it can't be
+    cancelled — departed from the queue but not yet registered (the brief
+    window before its ``ActiveSample`` exists; retryable), not yet at the
+    queue (a retry attempt may reuse it from the prior attempt),
+    ``action="score"|"error"`` on a queued sample (nothing to score, no
+    error to record), ``action="error"`` on a running or initializing
+    sample configured to fail on errors, or a task-level gate (finished /
+    between attempts / task cancel in flight) closing a queued row.
     """
     from inspect_ai._control.state import find_active_sample
 
     sample = find_active_sample(eval_id, sample_id, epoch)
     if sample is not None and sample.completed is None:
-        if sample.started is None:
-            return _initializing_reject(sample_id, epoch)
+        initializing = sample.started is None
+        if initializing and sample.interrupt_action is not None:
+            return {
+                "ok": True,
+                "sample_id": sample.sample.id,
+                "epoch": sample.epoch,
+                "action": action,
+                "dry_run": dry_run,
+                "changed": False,
+                "reason": f"cancel already requested ({sample.interrupt_action})",
+                "interrupt": sample.interrupt_action,
+            }
         if action == "error" and sample.fails_on_error:
             return {
                 "ok": False,
@@ -542,7 +606,7 @@ async def cancel_sample(
             }
         if not dry_run:
             sample.interrupt(action)
-        return {
+        result: CancelSampleChanged = {
             "ok": True,
             "sample_id": sample.sample.id,
             "epoch": sample.epoch,
@@ -550,6 +614,16 @@ async def cancel_sample(
             "dry_run": dry_run,
             "changed": True,
         }
+        if initializing:
+            outcome = _DEFERRED_OUTCOME[action]
+            result["reason"] = (
+                "cancel would be deferred: the sample is initializing and "
+                f"would be {outcome} as soon as it starts"
+                if dry_run
+                else "cancel deferred: the sample is initializing and will be "
+                f"{outcome} as soon as it starts"
+            )
+        return result
 
     # Not running: the queued flavors resolve synchronously (no await between
     # validation and mutation — design/ctl/queued-sample-cancel.md).
@@ -638,16 +712,18 @@ def _cancel_queued_sample(
         if gated is not None:
             return {"ok": False, "error": gated["error"]}
         # the departed blind window refuses every action (the run is
-        # mid-materialization and will terminal-record on its own), so it
-        # answers before the action gate: not_cancellable()'s "use
-        # `--action cancel`" advice would immediately 409 here
+        # mid-materialization, not yet registered, and will terminal-record
+        # on its own), so it answers before the action gate:
+        # not_cancellable()'s "use `--action cancel`" advice would
+        # immediately 409 here. Brief: once the re-run's ActiveSample
+        # registers, the active row above applies the (deferred) interrupt.
         if view.pending_departed:
             return {
                 "ok": False,
                 "error": (
                     f"sample {sample_id} (epoch {epoch})'s re-run has left "
-                    "the queue and is initializing — retry once it is "
-                    "running"
+                    "the queue and is initializing but is not yet "
+                    "registered — retry in a moment"
                 ),
             }
         if action != "cancel":
@@ -751,18 +827,20 @@ def _planned_but_unqueued(
 
 
 def _initializing_reject(sample_id: str, epoch: int) -> CancelSampleRejected:
-    """The 409 for a sample past the queue but not yet running.
+    """The 409 for a sample past the queue but not yet registered.
 
-    Mid-materialization (sandbox init may be in flight): there is no task
-    group to interrupt and the queue-exit check has already passed, so the
-    window is uncancellable — but short and self-resolving.
+    The blind window between the queue-exit check and ``ActiveSample``
+    registration: the run holds no intent slot yet (nothing to stamp) and
+    the queue-exit check has already passed. It holds only dataset
+    materialization — brief — and the moment the ``ActiveSample`` registers
+    the active row accepts a deferred interrupt, so the retry advice has an
+    exit. (``design/ctl/initializing-sample-cancel.md``, "Alternatives".)
     """
     return {
         "ok": False,
         "error": (
-            f"sample {sample_id} (epoch {epoch}) is initializing (it has "
-            "left the queue but is not yet running) — retry once it is "
-            "running"
+            f"sample {sample_id} (epoch {epoch}) has left the queue and is "
+            "initializing but is not yet registered — retry in a moment"
         ),
     }
 

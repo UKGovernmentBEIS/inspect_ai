@@ -964,9 +964,11 @@ def _run_sample_cancel(
     }[action]
 
     # the queued rows (cancel-before-start / un-requeue — see
-    # design/ctl/queued-sample-cancel.md) report what actually happened via
-    # `reason`; "it will be scored/cancelled" would misdescribe a sample that
-    # never runs, so the reason wins when the server sends one
+    # design/ctl/queued-sample-cancel.md) and the initializing row (a
+    # deferred interrupt — design/ctl/initializing-sample-cancel.md) report
+    # what actually happened via `reason`; "it will be scored/cancelled" would
+    # misdescribe a sample that never runs (or hasn't started), so the reason
+    # wins when the server sends one
     def changed_message(label: str, result: dict[str, Any]) -> str:
         reason = result.get("reason")
         if reason:

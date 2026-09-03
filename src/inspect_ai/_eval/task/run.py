@@ -2373,7 +2373,10 @@ async def _task_run_sample_attempt(
             # helper to log sample error
             def log_sample_error() -> None:
                 msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
-                if attempt.retries_remaining > 0:
+                # a stamped interrupt suppresses the retry (the attempt is
+                # abandoned as cancelled instead — see the retry decision at
+                # the tail), so don't promise one
+                if attempt.retries_remaining > 0 and active.interrupt_action is None:
                     msg = f"{msg}. Sample will be retried."
                 elif score_on_error:
                     msg = f"{msg}. Sample will be scored."
@@ -2599,19 +2602,31 @@ async def _task_run_sample_attempt(
                                     # start the sample
                                     active.start(tg)
 
-                                    # a task cancel with a graceful sample
-                                    # resolution arrived while this sample was
+                                    # a cancel arrived while this sample was
                                     # initializing (after it left the queue,
                                     # before it started — so the control
                                     # layer's interrupt of in-flight samples
                                     # missed it) — resolve it now rather than
-                                    # running the plan
+                                    # running the plan. A per-sample intent
+                                    # (`sample cancel` while initializing,
+                                    # stamped by `interrupt()` with no task
+                                    # group) fires first and exclusively: the
+                                    # task-level branches below also call
+                                    # interrupt(), and the runner handles the
+                                    # *live* interrupt_action, so falling
+                                    # through would let a task `score`
+                                    # overwrite the operator's per-sample
+                                    # `cancel` (the sweep applies the same
+                                    # first-resolution-wins rule).
+                                    pending_interrupt = active.interrupt_action
                                     resolution = (
                                         task_cancel.cancel_type
                                         if task_cancel is not None
                                         else None
                                     )
-                                    if resolution == "drain":
+                                    if pending_interrupt is not None:
+                                        active.interrupt(pending_interrupt)
+                                    elif resolution == "drain":
                                         # drain never interrupts in-flight
                                         # samples, but this one is not yet in
                                         # flight — it left the queue before

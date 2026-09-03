@@ -1,6 +1,8 @@
 # Initializing-Window Sample Cancel (`inspect ctl sample cancel` of a sample past the queue, not yet started)
 
-> **Status: proposed.** Originating issue: meridianlabs-ai/inspect_ai#289. Follow-up to
+> **Status: implemented** (see "Implementation notes" at the end for the two places
+> the implementation spells a detail differently than sketched here). Originating
+> issue: meridianlabs-ai/inspect_ai#289. Follow-up to
 > [`queued-sample-cancel.md`](queued-sample-cancel.md) (issue #113), whose "the
 > initializing window" section deferred this, and built on the start-time self-interrupt
 > that [`task-drain.md`](task-drain.md) (issue #96) landed for exactly this window. No new
@@ -233,3 +235,17 @@ carrying one as *cancelled, absent from the log*. So the design adds no second s
   it at start); ACP `inspect/cancel_sample` on an observe-only-attached *initializing*
   sample → deferred cancel that fires at start (and the running case unchanged); run the
   runner tests under `--runtrio`.
+
+## Implementation notes
+
+- **The repeat no-op is its own result variant.** `cancel_sample` returns
+  `CancelSampleAlreadyRequested` (`changed: false`, `reason: "cancel already requested
+  (<action>)"`, plus `interrupt: <action>` naming the pending intent — the same field
+  name the live rows use) rather than reusing the already-terminal `CancelSampleFinished`
+  shape, whose `status` field has no honest value for a sample that hasn't finished.
+- **`interrupt` is on every row, not just live ones.** Terminal, pending, and
+  requeued rows carry `interrupt: null`, so the listing's row schema stays stable for
+  `jq` consumers (the same rule the other per-row fields follow). The CLI renders it in
+  the status cell — `queued (cancel requested)` — in `sample list` and `sample show`.
+- **The runner tests are synchronous `eval()` drives**, so the `--runtrio` variant does
+  not apply to them; the async `ActiveSample`/ACP/route tests run under both backends.

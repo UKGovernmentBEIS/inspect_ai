@@ -187,12 +187,14 @@ class _FakeActiveSample:
         epoch: int = 1,
         started: float | None = 1.0,
         completed: float | None = None,
+        interrupt_action: Literal["score", "error", "cancel"] | None = None,
     ) -> None:
         self.eval_id = eval_id
         self.sample = self._Sample(sample_id)
         self.epoch = epoch
         self.started = started
         self.completed = completed
+        self.interrupt_action = interrupt_action
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +278,32 @@ async def test_requeue_queued_sample_is_noop(monkeypatch: pytest.MonkeyPatch) ->
     assert result is not None
     assert result["ok"] is True
     assert result["changed"] is False and result["status"] == "queued"
+    assert result["reason"] == "sample is already queued"
+    assert handle.accepts == []
+
+
+async def test_requeue_initializing_sample_with_pending_cancel_names_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The queued no-op names a deferred cancel rather than implying a run.
+
+    An initializing sample carrying a `sample cancel` intent resolves as it
+    starts and the intent cannot be withdrawn (unlike a cancel-before-start,
+    which `requeue` un-cancels — design/ctl/initializing-sample-cancel.md),
+    so "already queued" alone would mislead: the sample is about to be
+    cancelled, and is requeueable only once it has.
+    """
+    _patch_active_samples(
+        monkeypatch, [_FakeActiveSample(started=None, interrupt_action="cancel")]
+    )
+    handle = _register_requeueable()
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["ok"] is True
+    assert result["changed"] is False and result["status"] == "queued"
+    assert "pending cancel (cancel)" in result["reason"]
+    assert handle.accepts == []
     assert handle.accepts == []
 
 
