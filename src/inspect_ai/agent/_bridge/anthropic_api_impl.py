@@ -50,6 +50,8 @@ from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
+    EXTRA_BODY,
+    PROBABILITIES,
     ToolParamDef,
     anthropic_extra_body_fields,
     assistant_message_blocks,
@@ -149,7 +151,7 @@ async def inspect_anthropic_api_request_impl(
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system messages)
-    config = generate_config_from_anthropic(json_data)
+    config = generate_config_from_anthropic(json_data, ModelName(model).api)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
     validate_client_config(config)
@@ -188,6 +190,9 @@ async def inspect_anthropic_api_request_impl(
 
     # return message (use beta message type if request came from beta endpoint)
     message_class = BetaMessage if beta else Message
+    # the provider parks undeclared response fields under metadata[EXTRA_BODY];
+    # hand back only the probability field, not the whole bag.
+    probabilities = (output.metadata or {}).get(EXTRA_BODY, {}).get(PROBABILITIES)
     message = message_class.model_construct(
         id=output.message.id or uuid(),
         content=await assistant_message_blocks(output.message, beta=beta),
@@ -196,6 +201,7 @@ async def inspect_anthropic_api_request_impl(
         stop_reason=anthropic_stop_reason(output.stop_reason),
         type="message",
         usage=anthropic_usage(output.usage or ModelUsage(), beta=beta),
+        **({PROBABILITIES: probabilities} if probabilities is not None else {}),
     )
     debug_log("SCAFFOLD RESPONSE", message)
 
@@ -237,7 +243,9 @@ def anthropic_system_to_texts(value: Any) -> list[str]:
     return texts
 
 
-def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
+def generate_config_from_anthropic(
+    json_data: dict[str, Any], model_api: str = "anthropic"
+) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get("max_tokens", None)
     config.stop_seqs = json_data.get("stop_sequences", None) or None
@@ -316,6 +324,10 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     for field in anthropic_extra_body_fields():
         if field in json_data:
             extra_body[field] = json_data[field]
+    # probabilities is an Anthropic-only beta field, so a model resolved to another
+    # provider must not receive it (sagemaker, for one, forwards extra_body verbatim).
+    if PROBABILITIES in json_data and model_api == "anthropic":
+        extra_body[PROBABILITIES] = json_data[PROBABILITIES]
     if len(extra_body) > 0:
         config.extra_body = extra_body
 

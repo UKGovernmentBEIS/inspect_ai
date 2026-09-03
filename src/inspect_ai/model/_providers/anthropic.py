@@ -1138,6 +1138,10 @@ class AnthropicAPI(ModelAPI):
             # pass through context_management for compaction
             if CONTEXT_MANAGEMENT in config.extra_body:
                 extra_body[CONTEXT_MANAGEMENT] = config.extra_body[CONTEXT_MANAGEMENT]
+            # probabilities is a beta field the SDK does not accept as a keyword
+            # argument, so it travels in extra_body rather than params.
+            if PROBABILITIES in config.extra_body:
+                extra_body[PROBABILITIES] = config.extra_body[PROBABILITIES]
 
         # return config
         return params, extra_body, headers, betas
@@ -4053,6 +4057,7 @@ EDIT_TYPE = "type"
 COMPACT_20260112 = "compact_20260112"
 EXTRA_BODY = "extra_body"
 CONTEXT_MANAGEMENT = "context_management"
+PROBABILITIES = "probabilities"
 MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
 FALLBACK_BETA = "server-side-fallback-2026-06-01"
 

@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent bridge: An Anthropic client using the probabilities beta now has its `probabilities` request forwarded and the model's probabilities returned, instead of both being dropped.
+
 ## 0.3.263 (03 September 2026)
 
 - OpenAI: Added support for GPT-6 Astra (`gpt-6-astra`).
