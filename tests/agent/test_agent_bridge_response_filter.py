@@ -6,18 +6,22 @@ import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.agent import AgentState
+from inspect_ai.agent._bridge._errors import ResponseFilterError
 from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.sandbox import bridge as sandbox_bridge_module
 from inspect_ai.agent._bridge.sandbox.bridge import sandbox_agent_bridge
+from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.log import EvalLog
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
     Model,
     ModelResponseFilter,
+    get_model,
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_choice import ToolChoice
@@ -411,3 +415,126 @@ def test_sandbox_response_filter_replaces_output(tmp_path: Path) -> None:
     log = eval(t(), model="mockllm/model", log_dir=str(tmp_path), display="plain")
     log_json = log[0].model_dump_json()
     assert SANDBOX_REPLACED_SENTINEL in log_json
+
+
+class _RecordingCompact:
+    """Minimal `Compact` implementation that just records what it's given."""
+
+    def __init__(self) -> None:
+        self.recorded: list[tuple[list[ChatMessage], ModelOutput]] = []
+
+    async def compact_input(
+        self, messages: list[ChatMessage], force: bool = False
+    ) -> tuple[list[ChatMessage], None]:
+        return messages, None
+
+    async def record_output(
+        self, input: list[ChatMessage], output: ModelOutput
+    ) -> None:
+        self.recorded.append((input, output))
+
+
+async def test_response_filter_runs_after_compaction_baseline_update() -> None:
+    """A replacing filter must not blind compaction to the real generate usage.
+
+    `compact.record_output()` calibrates the compaction token baseline from
+    `output.usage`, and early-returns when usage is `None`. A response_filter
+    can replace `output` with a synthetic one (e.g. `ModelOutput.from_content()`,
+    which carries no usage) -- the filter changes what the scaffold sees, not
+    what the generate call actually consumed, so the baseline must be recorded
+    from the pre-filter output.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "original")],
+    )
+    compact = _RecordingCompact()
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge._compact = compact
+
+    async def replacing_filter(
+        model: Model,
+        output: ModelOutput,
+        input_messages: list[ChatMessage],
+        tool_info: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        return ModelOutput.from_content(model.name, REPLACED_SENTINEL)
+
+    bridge.response_filter = replacing_filter
+
+    output, _ = await bridge_generate(
+        bridge,
+        model,
+        [ChatMessageUser(content="hello")],
+        [],
+        None,
+        GenerateConfig(),
+    )
+
+    # the filter's replacement is what the scaffold gets back
+    assert output.completion == REPLACED_SENTINEL
+    assert output.usage is None
+
+    # but compaction was calibrated from the real generate call, not the
+    # filter's synthetic replacement
+    assert len(compact.recorded) == 1
+    recorded_output = compact.recorded[0][1]
+    assert recorded_output.completion == "original"
+    assert recorded_output.usage is not None
+
+
+async def test_response_filter_exception_fails_sample_in_process() -> None:
+    """A raising response_filter must fail the sample, not be swallowed.
+
+    In-process, this means the exception propagates out of `bridge_generate`
+    as a `ResponseFilterError` attributing the failure to the filter, rather
+    than the raw exception escaping undocumented and untested.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "hi")],
+    )
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    async def raising_filter(
+        model: Model,
+        output: ModelOutput,
+        input_messages: list[ChatMessage],
+        tool_info: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        raise ValueError("filter is broken")
+
+    bridge.response_filter = raising_filter
+
+    with pytest.raises(ResponseFilterError) as exc_info:
+        await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hello")],
+            [],
+            None,
+            GenerateConfig(),
+        )
+    assert "filter is broken" in str(exc_info.value)
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+async def test_forward_provider_errors_excludes_response_filter_error() -> None:
+    """The sandbox path must not report a filter failure as a provider error.
+
+    Otherwise a hook bug looks like a model API failure to the scaffold, which
+    may retry forever against a filter that always breaks. `ResponseFilterError`
+    must be excluded from `_forward_provider_errors` the same way
+    `LimitExceededError` is.
+    """
+
+    async def failing_generate(json_data: dict[str, object]) -> dict[str, object]:
+        raise ResponseFilterError("filter is broken") from ValueError("boom")
+
+    wrapped = _forward_provider_errors(failing_generate)  # type: ignore[arg-type]
+    with pytest.raises(ResponseFilterError):
+        await wrapped({})

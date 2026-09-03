@@ -2064,9 +2064,10 @@ ModelResponseFilter: TypeAlias = Callable[
 """Filter that mutates a model's output after generation.
 
 Called inside the bridge's refusal-retry loop, after ``model.generate()``
-returns and before the compaction baseline is updated. Receives the
-resolved ``Model``, the ``ModelOutput`` returned by ``model.generate()``,
-and the same input arguments that were sent to the model.
+returns and after the compaction baseline is updated from that call's
+actual usage. Receives the resolved ``Model``, the ``ModelOutput``
+returned by ``model.generate()``, and the same input arguments that were
+sent to the model.
 
 Return a ``ModelOutput`` to replace the response, or ``None`` to pass
 through unchanged. Returning an output with ``stop_reason="content_filter"``
@@ -2083,8 +2084,10 @@ next turn matches what the model originally emitted. Filters that only
 substitute outputs without depending on cross-turn consistency do not need
 this symmetric setup.
 
-Unlike ``GenerateFilter``, this filter has no ``str``-first deprecated
-variant — it is a new addition with no legacy form.
+A filter is eval logic, not a passive observer of the model response: an
+exception raised from it propagates and fails the sample (attributed to the
+filter), on both the in-process and sandboxed bridge paths, rather than
+being reported to the scaffold as a model or provider error.
 """
 
 
