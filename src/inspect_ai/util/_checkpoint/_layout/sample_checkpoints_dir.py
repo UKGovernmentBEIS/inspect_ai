@@ -124,6 +124,27 @@ async def scan_latest_committed_checkpoint(
     return None
 
 
+async def scan_committed_checkpoints(sample_checkpoints_dir: str) -> list[Checkpoint]:
+    """Return every checkpoint whose file parses cleanly, in ascending id order.
+
+    Same commit-point contract as :func:`scan_latest_committed_checkpoint`
+    (a torn-write file is silently skipped); the last element is that
+    function's result. Resume uses the full list to decide which strategy
+    snapshots are acknowledged by a committed checkpoint.
+    """
+    ids = await _list_checkpoint_ids(sample_checkpoints_dir)
+    async_fs = get_async_filesystem()
+    committed: list[Checkpoint] = []
+    for n in sorted(ids):
+        path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
+        try:
+            raw = await async_fs.read_file(path)
+            committed.append(Checkpoint.model_validate_json(raw))
+        except Exception:
+            continue
+    return committed
+
+
 async def write_checkpoint_file(
     *,
     sample_checkpoints_dir: str,

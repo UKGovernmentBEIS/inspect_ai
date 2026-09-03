@@ -14,8 +14,10 @@ Capture mechanics (design §7.2/§8, first implementation):
 
 - The archive is produced complete inside the sandbox's root-only
   staging area, then copied out in fixed-size chunks (``dd`` per chunk
-  + ``read_file``), so host RAM is bounded by one chunk regardless of
-  archive size. Transient sandbox disk equals the archive size plus
+  + ``read_file``; the shared ``_copy.copy_out`` primitive), so host RAM
+  is bounded by one chunk regardless of archive size, and the transfer
+  is capped by ``SnapshotContext.max_snapshot_bytes`` against the bytes
+  actually read. Transient sandbox disk equals the archive size plus
   one chunk; the §8 detached-producer pipeline that bounds sandbox
   disk to ~two chunks is a compatible follow-up (same storage layout
   and recorded details).
@@ -41,20 +43,21 @@ Capture mechanics (design §7.2/§8, first implementation):
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 import shlex
 import time
+from collections.abc import Sequence
 from logging import getLogger
 from pathlib import Path
 
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
-from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
+from .._copy import DD_FULLBLOCK_PROBE, DEFAULT_COPY_CHUNK_SIZE, copy_out
 from .._layout.schemas import SnapshotDetails
 from .._repo_ops import checkpoint_tag, fs_copy_repo
 from ..sandbox_paths import SandboxBackupPaths
 from .types import (
+    CommittedSnapshot,
     PriorAttempt,
     SandboxSnapshotStrategy,
     SnapshotContext,
@@ -67,7 +70,7 @@ _DEFAULT_SANDBOX_DIR = "/root/.cache/inspect"
 parent is unlistable by the agent and ``.cache`` falls inside the
 always-on capture exclude, so staging never captures itself."""
 
-_DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
+_DEFAULT_CHUNK_SIZE = DEFAULT_COPY_CHUNK_SIZE
 
 _ARCHIVE_NAME_RE = re.compile(r"ckpt-\d{5,}\.tar\.(?:zst|gz)")
 """The exact archive filename form ``snapshot()`` generates — also the
@@ -108,8 +111,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             "for tool in tar sha256sum dd; do "
             'command -v "$tool" >/dev/null 2>&1 || '
             '{ echo "missing required tool: $tool" >&2; exit 1; }; done; '
-            "if dd if=/dev/null of=/dev/null bs=1 count=0 iflag=fullblock "
-            ">/dev/null 2>&1; then echo fullblock; fi; "
+            f"if {DD_FULLBLOCK_PROBE}; then echo fullblock; fi; "
             "if command -v zstd >/dev/null 2>&1; then echo zstd; "
             "elif command -v gzip >/dev/null 2>&1; then echo gzip; "
             'else echo "missing required tool: zstd or gzip" >&2; exit 1; fi'
@@ -146,13 +148,19 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         )
         local_path = Path(ctx.storage_dir) / archive_name
         try:
-            await self._copy_out(
+            # The in-sandbox digest is cross-checked against the bytes the
+            # host actually read, so transport corruption cannot produce a
+            # "verified" archive whose recorded hash matches corrupt bytes.
+            await copy_out(
                 env,
-                ctx,
-                staging=staging,
-                archive=archive,
+                src=archive,
+                chunk_path=f"{staging}/chunk",
                 size=size,
                 dest=local_path,
+                max_bytes=ctx.max_snapshot_bytes,
+                label=f"archive snapshot copy-out for sandbox {ctx.sandbox_name!r}",
+                chunk_size=self._chunk_size,
+                dd_fullblock=self._dd_fullblock,
                 expected_sha256=sandbox_digest,
             )
         finally:
@@ -229,72 +237,6 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 f"parse size/digest from output: {result.stdout!r}"
             ) from exc
         return size, digest
-
-    async def _copy_out(
-        self,
-        env: SandboxEnvironment,
-        ctx: SnapshotContext,
-        *,
-        staging: str,
-        archive: str,
-        size: int,
-        dest: Path,
-        expected_sha256: str,
-    ) -> None:
-        """Chunked sandbox → host copy, digest-verified before it lands.
-
-        Written to a dot-prefixed partial file and renamed into place
-        only after the digest of the bytes actually read matches the
-        in-sandbox one, so an interrupted or corrupted copy never
-        leaves a plausible-looking archive in the storage area.
-        """
-        chunk_path = f"{staging}/chunk"
-        digest = hashlib.sha256()
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        partial = dest.with_name(f".{dest.name}.partial")
-        try:
-            with open(partial, "wb") as out:
-                index = 0
-                copied = 0
-                while copied < size:
-                    script = (
-                        # fullblock (when dd supports it): without it a short
-                        # read (fuse/9p-backed filesystems) desyncs the
-                        # block-indexed `skip` from the bytes actually copied,
-                        # dropping data — which the digest check then rejects.
-                        f"rm -f {chunk_path} && dd if={archive} of={chunk_path} "
-                        f"bs={self._chunk_size} skip={index} count=1 "
-                        f"{'iflag=fullblock ' if self._dd_fullblock else ''}"
-                        f"2>/dev/null"
-                    )
-                    result = await env.exec(["sh", "-c", script], user="root")
-                    if not result.success:
-                        raise RuntimeError(
-                            f"archive snapshot copy-out failed for sandbox "
-                            f"{ctx.sandbox_name!r}: {result.stderr}"
-                        )
-                    with override_max_read_file_size(self._chunk_size * 2):
-                        data = await env.read_file(chunk_path, text=False)
-                    if not data:
-                        raise RuntimeError(
-                            f"archive snapshot copy-out for sandbox "
-                            f"{ctx.sandbox_name!r}: unexpected EOF at chunk "
-                            f"{index} ({copied}/{size} bytes)"
-                        )
-                    out.write(data)
-                    digest.update(data)
-                    copied += len(data)
-                    index += 1
-            if digest.hexdigest() != expected_sha256:
-                raise RuntimeError(
-                    f"archive snapshot for sandbox {ctx.sandbox_name!r} "
-                    f"corrupted in transit: in-sandbox sha256 "
-                    f"{expected_sha256} != host-read sha256 {digest.hexdigest()}"
-                )
-        except BaseException:
-            partial.unlink(missing_ok=True)
-            raise
-        os.replace(partial, dest)
 
     async def restore(
         self,
@@ -449,14 +391,25 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         )
 
     async def discard_orphans(
-        self, latest_committed_id: int, ctx: SnapshotContext
+        self, committed: Sequence[CommittedSnapshot], ctx: SnapshotContext
     ) -> None:
         storage = Path(ctx.storage_dir)
-        if not storage.is_dir():
-            return
+        recorded = {c.checkpoint_id for c in committed}
+        latest = max(committed, key=lambda c: c.checkpoint_id)
+        extra = latest.details.model_extra or {}
+        latest_archive = extra.get("archive")
+        if (
+            not isinstance(latest_archive, str)
+            or not (storage / latest_archive).is_file()
+        ):
+            raise RuntimeError(
+                f"archive snapshot discard for sandbox {ctx.sandbox_name!r}: the "
+                f"latest committed checkpoint's archive {latest_archive!r} is "
+                f"absent from {ctx.storage_dir}"
+            )
         for entry in storage.iterdir():
             checkpoint_id = _archive_checkpoint_id(entry.name)
-            if checkpoint_id is None or checkpoint_id > latest_committed_id:
+            if checkpoint_id is None or checkpoint_id not in recorded:
                 entry.unlink(missing_ok=True)
 
     async def _clean_staging(self, env: SandboxEnvironment) -> None:

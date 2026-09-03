@@ -11,6 +11,7 @@ from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
     sample_checkpoints_dir,
+    scan_committed_checkpoints,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
 )
@@ -255,3 +256,30 @@ async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
     assert checkpoint is not None
     assert checkpoint.checkpoint_id == 2
     assert checkpoint.trigger == "agent_complete"
+
+
+async def test_scan_committed_checkpoints_skips_torn_files_in_order(
+    tmp_path: Path,
+) -> None:
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.checkpoints"), "s", 0
+    )
+    for checkpoint_id in (3, 1):
+        await write_checkpoint_file(
+            sample_checkpoints_dir=sample_dir,
+            checkpoint=_checkpoint(
+                checkpoint_id=checkpoint_id,
+                trigger="turn",
+                turn=checkpoint_id,
+                host=_info(f"snap-{checkpoint_id}"),
+            ),
+        )
+    (Path(sample_dir) / "ckpt-00002.json").write_text("{")
+    (Path(sample_dir) / "ckpt-00004.json").write_text("{")
+
+    committed = await scan_committed_checkpoints(sample_dir)
+
+    assert [c.checkpoint_id for c in committed] == [1, 3]
+    latest = await scan_latest_committed_checkpoint(sample_dir)
+    assert latest is not None and latest.checkpoint_id == committed[-1].checkpoint_id
+    assert await scan_committed_checkpoints(str(tmp_path / "missing")) == []

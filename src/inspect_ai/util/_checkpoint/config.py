@@ -40,6 +40,9 @@ MAX_LISTED_FILES = 100
 """Max files recorded per snapshot in a checkpoint file; the count beyond
 this is recorded in ``additional_files``."""
 
+DEFAULT_MAX_SANDBOX_SNAPSHOT_BYTES = 4 * 1024**3
+"""Cap applied when no layer sets ``max_sandbox_snapshot_bytes`` (4 GiB)."""
+
 
 @dataclass(frozen=True)
 class ResticSnapshots:
@@ -155,8 +158,8 @@ class CheckpointConfig(CheckpointSampleConfig):
     (precedence: eval > sample > task).
 
     Adds the eval-wide storage-policy fields (``checkpoints_location``,
-    ``retention``) to the sample-permitted surface it inherits from
-    :class:`CheckpointSampleConfig`.
+    ``retention``, ``max_sandbox_snapshot_bytes``) to the sample-permitted
+    surface it inherits from :class:`CheckpointSampleConfig`.
     """
 
     checkpoints_location: str | None = None
@@ -172,6 +175,16 @@ class CheckpointConfig(CheckpointSampleConfig):
     completion; ``"retain"`` keeps it for later inspection or replay.
     ``None`` = inherit / use the default (``"delete"``). Eval-wide —
     settable only at the task or eval layer."""
+
+    max_sandbox_snapshot_bytes: int | None = None
+    """Upper bound, in bytes, on the data one sandbox snapshot may
+    transfer out of the sandbox per checkpoint (the restic strategy's
+    per-checkpoint pack-file delta — the full captured tree on the first
+    checkpoint — or the archive strategy's complete compressed archive).
+    A snapshot exceeding it fails that checkpoint attempt (see
+    ``max_consecutive_failures``). ``None`` = inherit / use the default
+    (4 GiB). Eval-wide — settable only at the task or eval layer, since
+    it bounds the host disk written on a sandbox's behalf."""
 
 
 class CheckpointDisabled(CheckpointConfig):
@@ -216,6 +229,7 @@ class ResolvedCheckpointConfig:
     retention: Literal["delete", "retain"] = "delete"
     checkpoints_location: str | None = None
     max_consecutive_failures: int | None = None
+    max_sandbox_snapshot_bytes: int = DEFAULT_MAX_SANDBOX_SNAPSHOT_BYTES
     on_checkpoint: OnCheckpointCallback | None = None
     on_resume: OnResumeCallback | None = None
 
@@ -259,7 +273,8 @@ def merge_checkpoint_configs(
     contributes capture configuration (``trigger``, ``sandbox_paths``
     including strategy selection, ``max_consecutive_failures``) but not
     the eval-wide storage-policy fields (``checkpoints_location``,
-    ``retention``), which come only from the task or eval layers.
+    ``retention``, ``max_sandbox_snapshot_bytes``), which come only from
+    the task or eval layers.
 
     For every field, the highest-priority layer with a non-None value
     wins; lower layers supply defaults that higher layers can override.
@@ -313,6 +328,7 @@ def merge_checkpoint_configs(
 
     checkpoints_location: str | None = None
     retention: Literal["delete", "retain"] | None = None
+    max_sandbox_snapshot_bytes: int | None = None
     for layer in (task, eval_):
         if layer is None:
             continue
@@ -320,6 +336,13 @@ def merge_checkpoint_configs(
             checkpoints_location = layer.checkpoints_location
         if layer.retention is not None:
             retention = layer.retention
+        if layer.max_sandbox_snapshot_bytes is not None:
+            if layer.max_sandbox_snapshot_bytes <= 0:
+                raise ValueError(
+                    "checkpoint max_sandbox_snapshot_bytes must be > 0, got "
+                    f"{layer.max_sandbox_snapshot_bytes}"
+                )
+            max_sandbox_snapshot_bytes = layer.max_sandbox_snapshot_bytes
 
     if trigger is None:
         trigger = DEFAULT_CHECKPOINT_TRIGGER
@@ -352,6 +375,11 @@ def merge_checkpoint_configs(
         retention=retention if retention is not None else "delete",
         checkpoints_location=checkpoints_location,
         max_consecutive_failures=max_consecutive_failures,
+        max_sandbox_snapshot_bytes=(
+            max_sandbox_snapshot_bytes
+            if max_sandbox_snapshot_bytes is not None
+            else DEFAULT_MAX_SANDBOX_SNAPSHOT_BYTES
+        ),
         on_checkpoint=on_checkpoint,
         on_resume=on_resume,
     )
