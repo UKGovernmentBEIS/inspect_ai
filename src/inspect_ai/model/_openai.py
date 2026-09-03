@@ -1322,28 +1322,49 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     if isinstance(ex, APIError):
         # A failure delivered mid-stream (after HTTP 200) is raised by the
         # SDK as a bare APIError with no status code, carrying only the
-        # error body's `code`/`type`. OpenAI itself signals with
-        # `server_error` / `rate_limit_exceeded`; OpenAI-compatible servers
-        # use their own vocabulary — often a numeric HTTP status in `code`
-        # (vLLM/SGLang: {"type": "InternalServerError", "code": 500},
-        # OpenRouter: {"code": 502}), which classifies through the standard
-        # status rules. Anything unrecognized stays unretried.
-        code_status = _http_status_from_error_code(ex.code)
-        if code_status is not None:
-            if code_status == 429:
-                return RetryDecision.rate_limit()
-            if is_retryable_http_status(code_status):
-                return RetryDecision.transient()
-            return None
-        # normalize code/type spellings (rate_limit_error/RateLimitError/...)
-        names = {
-            v.lower().replace("_", "") for v in (ex.code, ex.type) if isinstance(v, str)
-        }
-        if names & {"ratelimitexceeded", "ratelimiterror"}:
+        # error body's `code`/`type`.
+        return openai_classify_error_body(ex.code, ex.type)
+    return None
+
+
+def openai_classify_error_body(
+    code: object, error_type: object
+) -> "RetryDecision | None":
+    """Classify an error body's `code`/`type` when no HTTP status is available.
+
+    A failure delivered mid-stream (after HTTP 200) reaches the caller with
+    only the error body. OpenAI itself signals with `server_error` /
+    `rate_limit_exceeded`; OpenAI-compatible servers use their own
+    vocabulary — often a numeric HTTP status in `code` (vLLM/SGLang:
+    `{"type": "InternalServerError", "code": 500}`, OpenRouter:
+    `{"code": 502}`), which classifies through the standard status rules.
+    Returns None for anything unrecognized (not retried). Shared with the
+    groq provider, whose SDK is built from the same template and raises the
+    same shape.
+    """
+    from inspect_ai.model._model import RetryDecision
+
+    code_status = _http_status_from_error_code(code)
+    if code_status is not None:
+        if code_status == 429:
             return RetryDecision.rate_limit()
-        if names & {"servererror", "internalservererror", "internalerror"}:
+        if is_retryable_http_status(code_status):
             return RetryDecision.transient()
         return None
+    # normalize code/type spellings (rate_limit_error/RateLimitError/...)
+    names = {
+        v.lower().replace("_", "") for v in (code, error_type) if isinstance(v, str)
+    }
+    if names & {"ratelimitexceeded", "ratelimiterror"}:
+        return RetryDecision.rate_limit()
+    if names & {
+        "servererror",
+        "internalservererror",
+        "internalerror",
+        "serviceunavailable",
+        "serviceunavailableerror",
+    }:
+        return RetryDecision.transient()
     return None
 
 

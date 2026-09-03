@@ -1,6 +1,9 @@
+import json
 from typing import Any, Literal, cast
 
+import httpx
 import pytest
+from groq import APIConnectionError, APIError, APIStatusError, AsyncStream
 from groq.types.chat import ChatCompletionChunk
 from pydantic import BaseModel
 from test_helpers.utils import skip_if_no_groq
@@ -281,6 +284,111 @@ async def test_groq_completion_from_stream_error() -> None:
     # auto-streaming must not turn it into a permanently failed sample
     decision = _groq_api().should_retry(ex.value)
     assert isinstance(decision, RetryDecision) and decision.retry is True
+
+
+def _sdk_stream(api: GroqAPI, body: bytes) -> AsyncStream[ChatCompletionChunk]:
+    """A real SDK chunk stream over a canned SSE body (HTTP 200)."""
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    response = httpx.Response(
+        200,
+        headers={"content-type": "text/event-stream"},
+        content=body,
+        request=request,
+    )
+    return AsyncStream(
+        cast_to=ChatCompletionChunk, response=response, client=api.client
+    )
+
+
+def _sse(payload: dict[str, Any], event: str | None = None) -> bytes:
+    frame = f"data: {json.dumps(payload)}\n\n"
+    return ((f"event: {event}\n" if event else "") + frame).encode()
+
+
+_CHUNK = dict(
+    id="chatcmpl-1",
+    object="chat.completion.chunk",
+    created=123,
+    model="llama-3.3-70b",
+    choices=[dict(index=0, delta=dict(content="hel"), finish_reason=None)],
+)
+
+
+@pytest.mark.parametrize(
+    ("error", "event", "kind"),
+    [
+        # server-side failure frames are transient
+        (
+            dict(message="Service Unavailable", type="internal_server_error"),
+            None,
+            "transient",
+        ),
+        (
+            dict(message="over capacity", type="service_unavailable"),
+            "error",
+            "transient",
+        ),
+        # rate limits scale the adaptive controller down
+        (
+            dict(
+                message="Rate limit reached", type="tokens", code="rate_limit_exceeded"
+            ),
+            None,
+            "rate_limit",
+        ),
+        # OpenAI-compatible servers often put the HTTP status in `code`
+        (dict(message="upstream error", code=502), None, "transient"),
+    ],
+)
+async def test_groq_stream_top_level_error_retries(
+    error: dict[str, Any], event: str | None, kind: str
+) -> None:
+    """An in-band error frame (top-level `error` or `event: error`) is retried.
+
+    The SDK raises these from the stream iterator as a bare `APIError` (no
+    status code) — the same shape as a mid-stream failure on the OpenAI SDK —
+    so retry classification must read the error body.
+    """
+    api = _groq_api()
+    stream = _sdk_stream(api, _sse(_CHUNK) + _sse(dict(error=error), event=event))
+    with pytest.raises(APIError) as excinfo:
+        await groq_completion_from_stream(stream)
+    assert not isinstance(excinfo.value, APIStatusError)
+    assert excinfo.value.body == error
+
+    decision = api.should_retry(excinfo.value)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == kind
+
+
+async def test_groq_stream_unrecognized_error_not_retried() -> None:
+    """An in-band error with no retryable code/type still fails the request."""
+    api = _groq_api()
+    error = dict(message="invalid request", type="invalid_request_error")
+    stream = _sdk_stream(api, _sse(dict(error=error)))
+    with pytest.raises(APIError) as excinfo:
+        await groq_completion_from_stream(stream)
+    assert bool(api.should_retry(excinfo.value)) is False
+
+
+def test_groq_should_retry_stream_transport_errors() -> None:
+    """Connection failures while reading a stream body are transient.
+
+    The SDK wraps only request-time failures as `APIConnectionError`; a
+    connection dropped mid-stream surfaces as a raw httpx transport error.
+    """
+    api = _groq_api()
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    for ex in (
+        APIConnectionError(request=request),
+        httpx.ReadError("connection reset"),
+        httpx.RemoteProtocolError("peer closed connection"),
+    ):
+        decision = api.should_retry(ex)
+        assert isinstance(decision, RetryDecision)
+        assert decision.retry is True and decision.kind == "transient"
+    assert bool(api.should_retry(ValueError("unrelated"))) is False
 
 
 async def test_groq_stream_gated_without_on_stream(
