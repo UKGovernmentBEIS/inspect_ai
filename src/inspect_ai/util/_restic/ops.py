@@ -7,6 +7,7 @@ source(s)/target, and tag.
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
@@ -193,11 +194,12 @@ async def _snapshot_nodes(
     """Node records of ``snapshot_id`` per ``restic ls --json`` (header dropped).
 
     Parsing stops after ``max_nodes + 1`` node records. The listing is
-    untrusted and is decoded synchronously on the event loop, so an
-    oversized one is cut off at the first record that already puts it over
-    the bound — enough for :func:`_check_snapshot_nodes` to reject it —
-    instead of stalling every other running sample while millions of lines
-    are parsed.
+    untrusted and is decoded synchronously on the event loop, so the
+    buffered stdout is iterated line by line and an oversized listing is cut
+    off at the first record that already puts it over the bound — enough
+    for :func:`_check_snapshot_nodes` to reject it — leaving the remaining
+    lines neither decoded nor parsed. (``anyio.run_process`` has already
+    buffered the whole listing in memory; only that residual cost remains.)
     """
     proc = await anyio.run_process(
         [str(restic), "-r", repo, "ls", "--json", snapshot_id],
@@ -205,7 +207,8 @@ async def _snapshot_nodes(
         check=True,
     )
     nodes: list[dict[str, Any]] = []
-    for line in proc.stdout.decode().splitlines():
+    for raw in io.BytesIO(proc.stdout):
+        line = raw.decode().strip()
         if not line:
             continue
         record = json.loads(line)

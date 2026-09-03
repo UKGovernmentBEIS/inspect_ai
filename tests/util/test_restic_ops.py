@@ -492,15 +492,17 @@ async def test_restore_repo_stops_parsing_listing_past_entry_bound(
 ) -> None:
     """Listing lines beyond the entry bound are never decoded.
 
-    The lines after the bound are not JSON, so parsing them would raise
-    ``JSONDecodeError`` rather than the bound error; an untrusted listing
-    with millions of nodes must not be parsed in full on the event loop.
+    The lines after the bound are not valid UTF-8, let alone JSON, so
+    decoding the whole buffer up front would raise ``UnicodeDecodeError``
+    and parsing them ``JSONDecodeError`` rather than the bound error; an
+    untrusted listing with millions of nodes must not be processed in full
+    on the event loop.
     """
     over_bound = _ls_chain(
         *(_ls_node(f"{_SNAPSHOT_PATH}/f{i}.json", "file", size=1) for i in range(6))
     )
-    lines = [json.dumps(record) for record in over_bound]
-    lines.extend("not json" for _ in range(1000))
+    listing = "\n".join(json.dumps(record) for record in over_bound).encode()
+    listing += b"\n" + b"\xff not utf-8\n" * 1000
     calls: list[list[str]] = []
 
     async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
@@ -508,7 +510,7 @@ async def test_restore_repo_stops_parsing_listing_past_entry_bound(
         if "snapshots" in command:
             return SimpleNamespace(stdout=json.dumps(_ONE_SNAPSHOT).encode())
         if "ls" in command:
-            return SimpleNamespace(stdout="\n".join(lines).encode())
+            return SimpleNamespace(stdout=listing)
         raise AssertionError(f"unexpected restic command: {command}")
 
     monkeypatch.setattr(anyio, "run_process", fake_run_process)
