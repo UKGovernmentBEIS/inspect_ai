@@ -1,4 +1,7 @@
 ## Unreleased
+- Eval Log: Sample summaries now keep `Score.reason`, so an explicit reason is no longer dropped (and a stale `metadata["unscored_reason"]` cannot replace it).
+
+## 0.3.262 (02 September 2026)
 - Agent bridge: A Chat Completions response truncated by the output-token limit now reports `finish_reason="length"` instead of `"stop"`.
 
 ## 0.3.262 (02 September 2026)
