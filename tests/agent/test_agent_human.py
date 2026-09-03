@@ -29,6 +29,7 @@ from inspect_ai.agent._human.install import (
     BASHRC_MARKER,
     HUMAN_AGENT_DIR,
     TASK_PY,
+    TASK_PY_MODE,
     append_bashrc,
     human_agent_bashrc,
     human_agent_commands,
@@ -36,11 +37,14 @@ from inspect_ai.agent._human.install import (
 )
 from inspect_ai.util._sandbox._framework_directory import (
     _SCRIPT,
+    _STAT_ENTRY,
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
+    _WRITE_ENTRY,
     SHELL_PATH,
     FrameworkDirectoryError,
+    write_file_in_framework_directory,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.environment import (
@@ -134,24 +138,27 @@ def wrapped_command(cmd: list[str]) -> list[str]:
     return cmd[cmd.index(HUMAN_AGENT_LEAF) + 1 :]
 
 
-def _wrapped_shell_script(cmd: list[str], name: str) -> str | None:
-    """The `sh -c` script a helper call runs against ``name``, if it is one."""
-    if not is_helper_call(cmd):
-        return None
-    wrapped = wrapped_command(cmd)
-    if wrapped[:2] == ["sh", "-c"] and wrapped[3:] == ["sh", name]:
-        return wrapped[2]
-    return None
-
-
 def is_task_py_probe(cmd: list[str]) -> bool:
-    script = _wrapped_shell_script(cmd, TASK_PY)
-    return script is not None and "stat -c %f" in script
+    """A helper call running the shared stat operation on ``task.py``."""
+    return is_helper_call(cmd) and wrapped_command(cmd) == [
+        "sh",
+        "-c",
+        _STAT_ENTRY,
+        "sh",
+        TASK_PY,
+    ]
 
 
 def is_task_py_write(cmd: list[str]) -> bool:
-    script = _wrapped_shell_script(cmd, TASK_PY)
-    return script is not None and "cat >" in script
+    """A helper call running the shared atomic write of ``task.py`` in mode 0755."""
+    return is_helper_call(cmd) and wrapped_command(cmd) == [
+        "sh",
+        "-c",
+        _WRITE_ENTRY,
+        "sh",
+        TASK_PY,
+        "755",
+    ]
 
 
 class HelperFlags(NamedTuple):
@@ -220,15 +227,12 @@ async def test_install_writes_task_py_into_verified_root_dir_after_bashrc(
     assert sandbox.inputs[2] == bash_rc
     assert BASHRC_MARKER in bash_rc
 
-    # task.py is written by root inside the verified directory, by relative name,
-    # with the content on stdin, made world-readable and executable, and published
-    # under its final name only once complete.
+    # task.py is published by root through the shared atomic write, inside the
+    # verified directory, by relative name, with the content on stdin, in the
+    # world-readable and executable mode the login user needs.
     assert write_user == "root"
     assert helper_flags(write) == ROOT_CHECK
     assert is_task_py_write(write)
-    script = wrapped_command(write)[2]
-    assert "chmod 0755" in script and "set -C" in script
-    assert script.index("cat >") < script.index("chmod 0755") < script.index("ln ")
     assert sandbox.inputs[3] == human_agent_commands([])
 
     # Every command is launched through the absolute shell path; nothing is staged,
@@ -608,10 +612,14 @@ async def test_bashrc_append_is_skipped_when_the_block_is_already_there(
     assert (home / BASHRC).read_text().count(BASHRC_MARKER) == 2
 
 
-async def test_task_py_probe_and_write_against_a_real_directory(
+async def test_task_py_detection_against_a_real_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The probe and the atomic write run for real through the local sandbox."""
+    """The directory and the installed check run for real through the local sandbox.
+
+    The atomic write itself is covered by the framework-directory tests; here it
+    only publishes a ``task.py`` in the mode the installer asks for.
+    """
     if sys.platform != "linux":
         pytest.skip("runs the helper script through the local sandbox on Linux")
     parent = tmp_path / "opt"
@@ -624,18 +632,18 @@ async def test_task_py_probe_and_write_against_a_real_directory(
         assert stat.S_IMODE(target.stat().st_mode) == 0o755
         assert await human_install._task_py_installed(local, None) is False
 
-        await human_install._write_task_py(local, None, "print('hi')\n")
+        await write_file_in_framework_directory(
+            local,
+            str(target),
+            TASK_PY,
+            "print('hi')\n",
+            user=None,
+            mode=0o755,
+            file_mode=TASK_PY_MODE,
+        )
         task_py = target / TASK_PY
-        assert task_py.read_text() == "print('hi')\n"
         assert stat.S_IMODE(task_py.stat().st_mode) == 0o755
-        assert sorted(p.name for p in target.iterdir()) == [TASK_PY]
         assert await human_install._task_py_installed(local, None) is True
-
-        # Publishing never replaces an existing task.py, and leaves no temp file.
-        with pytest.raises(RuntimeError, match="File exists"):
-            await human_install._write_task_py(local, None, "print('bye')\n")
-        assert task_py.read_text() == "print('hi')\n"
-        assert sorted(p.name for p in target.iterdir()) == [TASK_PY]
 
         # Anything other than a regular file at task.py is an error, not "installed".
         task_py.unlink()

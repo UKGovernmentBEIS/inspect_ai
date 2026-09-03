@@ -37,6 +37,7 @@ from inspect_ai.util._sandbox._framework_directory import (
     ensure_framework_directory,
     exec_in_framework_directory,
     expected_uid_for,
+    stat_in_framework_directory,
     try_ensure_framework_directory_as_root,
     verify_framework_directory,
 )
@@ -209,14 +210,15 @@ async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> 
 
     Returns False when the tools directory is missing, violates the contract, or
     does not hold a regular-file launcher (injection then creates it, fails loudly,
-    or re-extracts). Raises when the check did not run (the provider cannot exec
-    as ``user``) or could not be performed.
+    or re-extracts; a symlink at the launcher name reports its own type and is
+    rejected). Raises when the check did not run (the provider cannot exec as
+    ``user``) or could not be performed.
     """
     try:
-        result = await exec_in_framework_directory(
+        st_mode = await stat_in_framework_directory(
             sandbox,
             SANDBOX_TOOLS_DIR,
-            ["stat", "-c", "%f", SANDBOX_TOOLS_BASE_NAME],
+            SANDBOX_TOOLS_BASE_NAME,
             user=user,
             expected_uid=expected_uid_for(user),
         )
@@ -225,22 +227,7 @@ async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> 
     except FrameworkDirectoryError as ex:
         trace_message(logger, TRACE_SANDBOX_TOOLS, f"tools dir not reusable: {ex}")
         return False
-    return result.success and _is_regular_file_mode(result.stdout)
-
-
-def _is_regular_file_mode(stat_output: str) -> bool:
-    """Whether ``stat -c %f`` output (raw st_mode in hex) denotes a regular file.
-
-    The raw mode is used instead of ``%F`` because GNU ``stat`` localizes the
-    latter's type names, so a container with a non-C locale would never match
-    "regular file". ``stat`` does not follow symlinks, so a symlink at the launcher
-    path reports its own type and is rejected.
-    """
-    try:
-        mode = int(stat_output.strip(), 16)
-    except ValueError:
-        return False
-    return stat.S_ISREG(mode)
+    return st_mode is not None and stat.S_ISREG(st_mode)
 
 
 async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:

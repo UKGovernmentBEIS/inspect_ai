@@ -13,6 +13,7 @@ from inspect_ai.tool._sandbox_tools_utils import sandbox as sandbox_tools
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox._framework_directory import (
     _MISSING_MARKER,
+    _STAT_ENTRY,
     _UNAVAILABLE_MARKER,
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
@@ -419,7 +420,13 @@ async def test_detector_checks_as_known_tools_user() -> None:
     # Checked as the tools user, inside the verified directory, by relative name.
     [(cmd, user)] = sandbox.exec_calls
     assert user == "root"
-    assert wrapped_command(cmd) == ["stat", "-c", "%f", "inspect-sandbox-tools"]
+    assert wrapped_command(cmd) == [
+        "sh",
+        "-c",
+        _STAT_ENTRY,
+        "sh",
+        "inspect-sandbox-tools",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -429,14 +436,13 @@ async def test_detector_checks_as_known_tools_user() -> None:
         pytest.param("8180\n", True, id="regular-0600"),
         pytest.param("a1ff\n", False, id="symlink"),
         pytest.param("41ed\n", False, id="directory"),
-        pytest.param("regular file\n", False, id="localized-%F-output"),
-        pytest.param("", False, id="empty"),
+        pytest.param("missing\n", False, id="missing"),
     ],
 )
 async def test_detector_reads_launcher_type_from_raw_mode(
     stdout: str, expected: bool
 ) -> None:
-    """The launcher check uses the raw st_mode, not the locale-dependent %F text."""
+    """Only a regular file at the launcher name counts as installed."""
     sandbox = CannedSandbox(
         lambda cmd, user: ExecResult(
             success=True, returncode=0, stdout=stdout, stderr=f"{_VERIFIED_MARKER}\n"
@@ -557,10 +563,10 @@ async def test_transient_root_failure_cannot_pin_a_planted_tree(
         pytest.param(UNAVAILABLE, id="cannot-verify"),
         pytest.param(
             ExecResult(
-                success=False,
-                returncode=1,
-                stdout="",
-                stderr=f"{_VERIFIED_MARKER}\nstat: cannot stat 'inspect-sandbox-tools'\n",
+                success=True,
+                returncode=0,
+                stdout="missing\n",
+                stderr=f"{_VERIFIED_MARKER}\n",
             ),
             id="launcher-missing",
         ),

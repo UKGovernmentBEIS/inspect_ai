@@ -25,10 +25,12 @@ from inspect_ai.util._sandbox._framework_directory import (
     _CREATE_FAILED_MARKER,
     _MISSING_MARKER,
     _SCRIPT,
+    _STAT_ENTRY,
     _UNAVAILABLE_MARKER,
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
+    _WRITE_ENTRY,
     SHELL_PATH,
     FrameworkDirectoryError,
     FrameworkDirectoryNotFoundError,
@@ -39,9 +41,12 @@ from inspect_ai.util._sandbox._framework_directory import (
     exec_in_framework_directory,
     expected_uid_for,
     framework_directory_mode,
+    framework_file_mode,
     split_framework_path,
+    stat_in_framework_directory,
     try_ensure_framework_directory_as_root,
     verify_framework_directory,
+    write_file_in_framework_directory,
 )
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
@@ -1209,3 +1214,239 @@ async def test_verdict_after_verification_belongs_to_the_command() -> None:
     )
     assert result.returncode == 3
     assert result.stderr == f"{_VIOLATION_MARKER}: forged by the command\n"
+
+
+# ---------------------------------------------------------------------------
+# Entry operations: stat and atomic write inside a verified directory
+# ---------------------------------------------------------------------------
+
+
+async def test_stat_reports_missing_regular_and_symlink_entries(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    assert await stat_in_framework_directory(local, str(target), "f", user=None) is None
+
+    (target / "f").write_text("x")
+    st_mode = await stat_in_framework_directory(local, str(target), "f", user=None)
+    assert st_mode is not None and stat.S_ISREG(st_mode)
+
+    # A symlink reports its own type (it is not followed), even a dangling one.
+    os.symlink("nowhere", target / "-link")
+    st_mode = await stat_in_framework_directory(local, str(target), "-link", user=None)
+    assert st_mode is not None and stat.S_ISLNK(st_mode)
+
+    (target / "d").mkdir()
+    st_mode = await stat_in_framework_directory(local, str(target), "d", user=None)
+    assert st_mode is not None and stat.S_ISDIR(st_mode)
+
+
+async def test_stat_runs_the_entry_probe_in_the_verified_directory() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="81ed\n", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    st_mode = await stat_in_framework_directory(
+        sandbox, "/var/tmp/.x", "launcher", user="root", expected_uid=0, mode=0o755
+    )
+    assert st_mode == 0o100755
+    [(cmd, user)] = sandbox.exec_calls
+    assert user == "root"
+    assert cmd[:3] == [SHELL_PATH, "-c", _SCRIPT]
+    leaf = cmd.index(".x")
+    assert cmd[leaf - 5 : leaf - 1] == ["0", "0", "0", "755"]
+    assert cmd[leaf + 1 :] == ["sh", "-c", _STAT_ENTRY, "sh", "launcher"]
+
+
+@pytest.mark.parametrize(
+    "result, expected",
+    [
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=1,
+                stdout="",
+                stderr=f"{_VERIFIED_MARKER}\nstat: cannot statx 'f': Input/output error\n",
+            ),
+            "Input/output error",
+            id="stat-failed",
+        ),
+        pytest.param(
+            ExecResult(
+                success=True,
+                returncode=0,
+                stdout="regular file\n",
+                stderr=f"{_VERIFIED_MARKER}\n",
+            ),
+            "Unexpected output",
+            id="not-a-hex-mode",
+        ),
+        pytest.param(
+            ExecResult(
+                success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+            ),
+            "Unexpected output",
+            id="empty",
+        ),
+    ],
+)
+async def test_stat_failure_is_an_error_not_missing(
+    result: ExecResult[str], expected: str
+) -> None:
+    sandbox = CannedSandbox.returning(result)
+    with pytest.raises(RuntimeError, match=expected):
+        await stat_in_framework_directory(sandbox, "/var/tmp/.x", "f", user=None)
+
+
+async def test_stat_propagates_directory_verdicts() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=3,
+            stdout="",
+            stderr=f"{_VIOLATION_MARKER}: /var/tmp/.x is a symbolic link\n",
+        )
+    )
+    with pytest.raises(FrameworkDirectoryError, match="symbolic link"):
+        await stat_in_framework_directory(sandbox, "/var/tmp/.x", "f", user=None)
+
+
+@pytest.mark.parametrize("name", ["", ".", "..", "a/b", "/abs", "a/"])
+async def test_entry_operations_reject_names_that_are_not_a_single_component(
+    name: str,
+) -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(success=True, returncode=0, stdout="", stderr="")
+    )
+    with pytest.raises(ValueError, match="single path component"):
+        await stat_in_framework_directory(sandbox, "/var/tmp/.x", name, user=None)
+    with pytest.raises(ValueError, match="single path component"):
+        await write_file_in_framework_directory(
+            sandbox, "/var/tmp/.x", name, "x", user=None, file_mode=0o600
+        )
+    assert sandbox.exec_calls == []
+
+
+async def test_write_publishes_complete_file_in_requested_mode(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None, mode=0o755)
+    await write_file_in_framework_directory(
+        local,
+        str(target),
+        "-task.py",
+        "print('hi')\n",
+        user=None,
+        mode=0o755,
+        file_mode=0o755,
+    )
+    published = target / "-task.py"
+    assert published.read_text() == "print('hi')\n"
+    assert _mode(published) == 0o755
+    assert sorted(p.name for p in target.iterdir()) == ["-task.py"]
+
+
+async def test_write_never_replaces_an_existing_entry(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    existing = target / "f"
+    existing.write_text("original\n")
+    with pytest.raises(RuntimeError, match="File exists"):
+        await write_file_in_framework_directory(
+            local, str(target), "f", "replacement\n", user=None, file_mode=0o600
+        )
+    assert existing.read_text() == "original\n"
+    # No temporary file is left behind either.
+    assert sorted(p.name for p in target.iterdir()) == ["f"]
+
+    # A symlink at the name is not written through, and the write still fails.
+    existing.unlink()
+    decoy = parent / "decoy"
+    decoy.write_text("decoy\n")
+    os.symlink(decoy, existing)
+    with pytest.raises(RuntimeError, match="File exists"):
+        await write_file_in_framework_directory(
+            local, str(target), "f", "replacement\n", user=None, file_mode=0o600
+        )
+    assert decoy.read_text() == "decoy\n"
+    assert sorted(p.name for p in target.iterdir()) == ["f"]
+
+
+async def test_write_clears_a_leftover_temporary_file_and_refuses_a_planted_one(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    # Leftover from an interrupted earlier write: removed, then the write proceeds.
+    (target / "f.tmp").write_text("partial")
+    await write_file_in_framework_directory(
+        local, str(target), "f", "done\n", user=None, file_mode=0o600
+    )
+    assert (target / "f").read_text() == "done\n"
+    assert _mode(target / "f") == 0o600
+    assert sorted(p.name for p in target.iterdir()) == ["f"]
+
+
+async def test_write_passes_content_on_stdin_and_mode_as_an_argument() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await write_file_in_framework_directory(
+        sandbox,
+        "/var/tmp/.x",
+        "f",
+        "content\n",
+        user="root",
+        expected_uid=0,
+        mode=0o755,
+        file_mode=0o755,
+    )
+    [(cmd, user)] = sandbox.exec_calls
+    assert user == "root"
+    assert cmd[:3] == [SHELL_PATH, "-c", _SCRIPT]
+    leaf = cmd.index(".x")
+    assert cmd[leaf - 5 : leaf - 1] == ["0", "0", "0", "755"]
+    assert cmd[leaf + 1 :] == ["sh", "-c", _WRITE_ENTRY, "sh", "f", "755"]
+    assert sandbox.inputs == ["content\n"]
+
+
+async def test_write_failure_is_reported_with_the_command_error() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=1,
+            stdout="",
+            stderr=f"{_VERIFIED_MARKER}\ncat: write error: No space left on device\n",
+        )
+    )
+    with pytest.raises(RuntimeError, match="No space left on device"):
+        await write_file_in_framework_directory(
+            sandbox, "/var/tmp/.x", "f", "x", user=None, file_mode=0o600
+        )
+
+
+@pytest.mark.parametrize("mode", [0o600, 0o644, 0o755, 0o400, 0o700], ids=oct)
+def test_framework_file_mode_accepts_owner_readable_non_writable_by_others(
+    mode: int,
+) -> None:
+    assert framework_file_mode(mode) == format(mode, "o")
+
+
+@pytest.mark.parametrize(
+    "mode", [0o666, 0o775, 0o757, 0o200, 0o000, 0o4755, 0o2644, 0o1644], ids=oct
+)
+def test_framework_file_mode_rejects_unsafe_modes(mode: int) -> None:
+    with pytest.raises(ValueError, match="framework file mode"):
+        framework_file_mode(mode)
+
+
+def test_entry_scripts_are_valid_posix_sh() -> None:
+    for script in (_STAT_ENTRY, _WRITE_ENTRY):
+        subprocess.run(["sh", "-n", "-c", script], check=True)

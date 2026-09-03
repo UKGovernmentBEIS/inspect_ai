@@ -15,11 +15,11 @@ planted:
   writable by others, as it is in standard images.
 - "Already installed" means the verified directory holds ``task.py`` as a regular
   file. A directory that fails the contract is an error, never a reason to skip.
-- ``task.py`` is written by root directly into the verified directory (the write
-  runs with that directory object as its cwd) under a temporary name, made
-  world-readable and executable, and then linked into place, so ``task.py`` only
-  ever exists complete and in its final mode. Nothing is staged in, or executed
-  from, a directory the sandbox user can write to.
+- ``task.py`` is published by root through the helper's atomic write, which writes
+  into the verified directory object itself, so ``task.py`` only ever exists
+  complete, world-readable and executable, and is never written over an existing
+  entry. Nothing is staged in, or executed from, a directory the sandbox user can
+  write to.
 - The ``.bashrc`` append runs as the login user with the content on stdin, inside
   that user's home directory, and refuses a ``.bashrc`` that is a symbolic link or
   anything other than a regular file. It is idempotent (a ``.bashrc`` that already
@@ -48,9 +48,10 @@ from inspect_ai.util import SandboxEnvironment, sandbox
 from inspect_ai.util._sandbox._framework_directory import (
     SHELL_PATH,
     ensure_framework_directory,
-    exec_in_framework_directory,
     expected_uid_for,
+    stat_in_framework_directory,
     try_ensure_framework_directory_as_root,
+    write_file_in_framework_directory,
 )
 
 from .commands.command import HumanAgentCommand
@@ -61,6 +62,8 @@ HUMAN_AGENT_DIR = "/opt/human_agent"
 HUMAN_AGENT_DIR_MODE = 0o755
 """Root-owned, traversable by every user so the login user can run ``task.py``."""
 TASK_PY = "task.py"
+TASK_PY_MODE = 0o755
+"""Readable and runnable by every user; only the directory owner can replace it."""
 BASHRC = ".bashrc"
 BASHRC_MARKER = (
     "### Inspect Human Agent Setup #########################################="
@@ -102,8 +105,9 @@ async def install_human_agent(
             cannot be entered).
         RuntimeError: ``task.py`` exists but is not a regular file, its presence
             could not be determined, the ``.bashrc`` append was refused or failed,
-            ``task.py`` could not be written, or (in a rootless sandbox) the
-            helper could not run as the default user either.
+            ``task.py`` could not be written (including when an entry appeared at
+            its name in the meantime), or (in a rootless sandbox) the helper could
+            not run as the default user either.
     """
     sb = sandbox_env or sandbox()
     owner = await _ensure_human_agent_dir(sb)
@@ -113,8 +117,16 @@ async def install_human_agent(
     bash_rc = human_agent_bashrc(commands, bashrc_content, record_session)
     await append_bashrc(sb, user, bash_rc)
 
-    task_py = human_agent_commands(commands)
-    await _write_task_py(sb, owner, task_py)
+    await write_file_in_framework_directory(
+        sb,
+        HUMAN_AGENT_DIR,
+        TASK_PY,
+        human_agent_commands(commands),
+        user=owner,
+        expected_uid=expected_uid_for(owner),
+        mode=HUMAN_AGENT_DIR_MODE,
+        file_mode=TASK_PY_MODE,
+    )
 
 
 async def _ensure_human_agent_dir(sb: SandboxEnvironment) -> str | None:
@@ -134,80 +146,28 @@ async def _ensure_human_agent_dir(sb: SandboxEnvironment) -> str | None:
     return None
 
 
-# Prints the raw st_mode of $1 (as `stat -c %f` does, without following a symlink)
-# or the word "missing" when nothing is there, so absence and a stat failure are told
-# apart by the host.
-_TASK_PY_PROBE = (
-    'if [ -e "$1" ] || [ -L "$1" ]; then stat -c %f "$1"; else echo missing; fi'
-)
-
-
 async def _task_py_installed(sb: SandboxEnvironment, owner: str | None) -> bool:
     """Whether the verified ``HUMAN_AGENT_DIR`` already holds ``task.py``.
 
-    Only a regular file counts as installed. Any other kind of entry, or a probe
-    that fails outright, is an error rather than a reason to install over it.
+    Only a regular file counts as installed. Any other kind of entry is an error
+    rather than a reason to install over it.
     """
-    result = await exec_in_framework_directory(
+    st_mode = await stat_in_framework_directory(
         sb,
         HUMAN_AGENT_DIR,
-        ["sh", "-c", _TASK_PY_PROBE, "sh", TASK_PY],
+        TASK_PY,
         user=owner,
         expected_uid=expected_uid_for(owner),
         mode=HUMAN_AGENT_DIR_MODE,
     )
-    if not result.success:
-        raise RuntimeError(
-            f"Cannot check for {HUMAN_AGENT_DIR}/{TASK_PY}: {result.stderr.strip()}"
-        )
-    output = result.stdout.strip()
-    if output == "missing":
+    if st_mode is None:
         return False
-    try:
-        st_mode = int(output, 16)
-    except ValueError:
-        raise RuntimeError(
-            f"Unexpected output checking {HUMAN_AGENT_DIR}/{TASK_PY}: {output!r}"
-        ) from None
     if not stat.S_ISREG(st_mode):
         raise RuntimeError(
             f"Cannot install human agent: {HUMAN_AGENT_DIR}/{TASK_PY} exists but is "
             "not a regular file. Remove it and retry."
         )
     return True
-
-
-# Writes stdin to a temporary name ($1.tmp) in the verified directory, sets its mode
-# (the helper's `umask 077` would otherwise leave it private to the owner), and
-# publishes it as $1 with `ln`, which fails rather than replacing an existing entry
-# (`mv` would replace one; `ln` also fails on a filesystem without hard links, which
-# then surfaces as a write error). The temporary name is cleared first so a retry
-# after an interrupted write is not blocked by the leftover, and `set -C` refuses to
-# clobber a regular file or symlink that appears at that name in between. The
-# temporary name is removed whether or not `ln` succeeded.
-_TASK_PY_WRITE = (
-    'rm -f "$1.tmp" && set -C && cat > "$1.tmp" && chmod 0755 "$1.tmp" || exit; '
-    'ln "$1.tmp" "$1"; rc=$?; rm -f "$1.tmp"; exit $rc'
-)
-
-
-async def _write_task_py(
-    sb: SandboxEnvironment, owner: str | None, contents: str
-) -> None:
-    """Write ``task.py`` into the verified directory, complete and 0755, atomically."""
-    result = await exec_in_framework_directory(
-        sb,
-        HUMAN_AGENT_DIR,
-        ["sh", "-c", _TASK_PY_WRITE, "sh", TASK_PY],
-        user=owner,
-        expected_uid=expected_uid_for(owner),
-        mode=HUMAN_AGENT_DIR_MODE,
-        input=contents,
-    )
-    if not result.success:
-        raise RuntimeError(
-            f"Error writing {HUMAN_AGENT_DIR}/{TASK_PY}: {result.stderr.strip()}"
-        )
 
 
 # Runs as the login user with the content to append on stdin; $1 = file name,

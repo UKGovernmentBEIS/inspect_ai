@@ -5,7 +5,10 @@ paths inside sandboxes. An untrusted principal in the sandbox (the agent running
 the default user) can pre-create an entry at such a path, so a successful
 ``mkdir -p`` followed by a path-based ``chmod`` proves nothing about who controls
 the directory. This module provides the one audited primitive for preparing such a
-directory and for running commands against it.
+directory and for running commands against it, plus the two entry operations built
+on it that every consumer needs: checking what kind of entry a name holds
+(:func:`stat_in_framework_directory`) and publishing a file there complete and in
+its final mode (:func:`write_file_in_framework_directory`).
 
 The contract for a private framework directory is:
 
@@ -714,3 +717,182 @@ async def exec_in_framework_directory(
         input=input,
         timeout=timeout,
     )
+
+
+def _entry_name(name: str) -> str:
+    """Validate ``name`` as a single path component inside a framework directory.
+
+    Raises:
+        ValueError: ``name`` is empty, is ``.`` or ``..``, or contains a slash (an
+            entry operation acts on a direct child of the verified directory only).
+    """
+    if not name or name in (".", "..") or "/" in name:
+        raise ValueError(
+            f"framework directory entry name must be a single path component: {name!r}"
+        )
+    return name
+
+
+# Prints the raw st_mode of $1 in hex (as `stat -c %f` does, without following a
+# symlink) or the word "missing" when nothing is there, so absence and a stat
+# failure are told apart by the host.
+_STAT_ENTRY = (
+    'if [ -e "$1" ] || [ -L "$1" ]; then stat -c %f -- "$1"; else echo missing; fi'
+)
+
+
+async def stat_in_framework_directory(
+    sandbox: SandboxEnvironment,
+    path: str,
+    name: str,
+    *,
+    user: str | None,
+    expected_uid: int | None = None,
+    mode: int = DEFAULT_MODE,
+    timeout: int | None = None,
+) -> int | None:
+    """Return the raw ``st_mode`` of ``name`` inside the verified ``path``.
+
+    ``None`` means nothing exists at that name. Otherwise the result is the entry's
+    own ``st_mode`` (a symbolic link is not followed, so it reports ``S_ISLNK``);
+    test it with the ``stat`` module (``stat.S_ISREG`` and friends). The raw mode is
+    read rather than a type name because GNU ``stat`` localizes ``%F``. Callers
+    decide what an unexpected kind of entry means: the sandbox tools reinstall over
+    it, the human agent refuses to.
+
+    Args:
+        sandbox: Sandbox to operate in.
+        path: Absolute path of the framework directory.
+        name: Name of the entry inside it (a single path component).
+        user: User to run as (as for ``sandbox.exec``); also the expected owner.
+        expected_uid: If given, the uid the command must actually run as (see
+            :func:`ensure_framework_directory`).
+        mode: Permission bits the directory must have (see
+            :func:`ensure_framework_directory`).
+        timeout: Optional timeout for the sandbox command.
+
+    Raises:
+        RuntimeError: ``stat`` failed on an existing entry, or printed something
+            that is not a hexadecimal mode.
+        ValueError: ``name`` is not a single path component.
+        Everything :func:`exec_in_framework_directory` raises (the directory was not
+        verified, or the check could not run).
+    """
+    name = _entry_name(name)
+    result = await exec_in_framework_directory(
+        sandbox,
+        path,
+        ["sh", "-c", _STAT_ENTRY, "sh", name],
+        user=user,
+        expected_uid=expected_uid,
+        mode=mode,
+        timeout=timeout,
+    )
+    if not result.success:
+        raise RuntimeError(f"Cannot stat {path}/{name}: {result.stderr.strip()}")
+    output = result.stdout.strip()
+    if output == "missing":
+        return None
+    try:
+        return int(output, 16)
+    except ValueError:
+        raise RuntimeError(
+            f"Unexpected output from stat of {path}/{name}: {output!r}"
+        ) from None
+
+
+def framework_file_mode(mode: int) -> str:
+    """Validate the mode of a file published into a framework directory.
+
+    Returns the octal string ``chmod`` accepts (``"755"``, ``"600"``).
+
+    Raises:
+        ValueError: ``mode`` carries set-id or sticky bits, does not let the owner
+            read the file, or lets group or others write to it (which would let
+            another principal rewrite content the framework later trusts).
+    """
+    if mode & ~0o777:
+        raise ValueError(
+            f"framework file mode {mode:#o} must not include set-id or sticky bits"
+        )
+    if not mode & 0o400:
+        raise ValueError(f"framework file mode {mode:#o} must be readable by the owner")
+    if mode & 0o022:
+        raise ValueError(
+            f"framework file mode {mode:#o} must not be writable by group or others"
+        )
+    return format(mode, "o")
+
+
+# Writes stdin to a temporary name ($1.tmp) in the verified directory, sets its mode
+# to $2 (the helper's `umask 077` would otherwise leave it private to the owner),
+# and publishes it as $1 with `ln`, which fails rather than replacing an existing
+# entry (`mv` would replace one; `ln` also fails on a filesystem without hard
+# links, which then surfaces as a write error). The temporary name is cleared
+# first so a retry after an interrupted write is not blocked by the leftover, and
+# `set -C` refuses to clobber a regular file or symlink that appears at that name
+# in between. The temporary name is removed whether or not `ln` succeeded.
+_WRITE_ENTRY = (
+    'rm -f -- "$1.tmp" && set -C && cat > "$1.tmp" && chmod -- "$2" "$1.tmp" || exit; '
+    'ln -- "$1.tmp" "$1"; rc=$?; rm -f -- "$1.tmp"; exit $rc'
+)
+
+
+async def write_file_in_framework_directory(
+    sandbox: SandboxEnvironment,
+    path: str,
+    name: str,
+    contents: str | bytes,
+    *,
+    user: str | None,
+    expected_uid: int | None = None,
+    mode: int = DEFAULT_MODE,
+    file_mode: int,
+    timeout: int | None = None,
+) -> None:
+    """Publish ``contents`` as ``name`` inside the verified ``path``, atomically.
+
+    The file only ever exists under its final name complete and in ``file_mode``:
+    the content is written under a temporary name in the verified directory (the
+    write runs with that directory object as its cwd, so nothing is staged in a
+    location another principal could replace), given its mode, and then linked
+    into place. An entry already at ``name`` is never replaced; the call fails and
+    leaves it untouched. A temporary file left by an interrupted earlier call is
+    cleared first, so retrying is safe.
+
+    Args:
+        sandbox: Sandbox to operate in.
+        path: Absolute path of the framework directory.
+        name: Name of the file inside it (a single path component).
+        contents: File content, passed on stdin (as for ``sandbox.exec``).
+        user: User to run as (as for ``sandbox.exec``); also the expected owner.
+        expected_uid: If given, the uid the command must actually run as (see
+            :func:`ensure_framework_directory`).
+        mode: Permission bits the directory must have (see
+            :func:`ensure_framework_directory`).
+        file_mode: Permission bits the published file gets (see
+            :func:`framework_file_mode`). In a directory with a wider ``mode``,
+            this is what lets other principals read or run the file.
+        timeout: Optional timeout for the sandbox command.
+
+    Raises:
+        RuntimeError: The file could not be written or published (including when
+            an entry already exists at ``name``).
+        ValueError: ``name`` is not a single path component, or ``file_mode`` is
+            not an acceptable framework file mode.
+        Everything :func:`exec_in_framework_directory` raises (the directory was not
+        verified, or the check could not run).
+    """
+    name = _entry_name(name)
+    result = await exec_in_framework_directory(
+        sandbox,
+        path,
+        ["sh", "-c", _WRITE_ENTRY, "sh", name, framework_file_mode(file_mode)],
+        user=user,
+        expected_uid=expected_uid,
+        mode=mode,
+        input=contents,
+        timeout=timeout,
+    )
+    if not result.success:
+        raise RuntimeError(f"Cannot write {path}/{name}: {result.stderr.strip()}")
