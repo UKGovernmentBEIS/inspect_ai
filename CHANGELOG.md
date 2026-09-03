@@ -183,7 +183,7 @@
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Eval Log: A retry attempt killed before it finishes reusing the prior log's completed samples no longer causes the next retry to re-run (and eventually lose) those samples.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
-- Agent Bridge: A bridged client that sends the eval model's concrete id instead of `inspect` (claude_code sends e.g. `claude-fable-5`) now resolves to the eval's own `Model` instance rather than a second one built by `get_model()`, whose memoization key includes the config. Previously such a client got a distinct instance, and since the eval's `GenerateConfig` is only applied to the active model, eval-level options such as `fallback_models` were silently dropped before the provider request. Aliases, model roles, and any other model the client names are unaffected.
+- Bugfix: Hugging Face and nnterp providers now record `hidden_states` (from `-M hidden_states`) as JSON-serializable nested lists instead of silently dropping them to `None` in the log; the batched Hugging Face path now records each sample's own activations rather than the whole batch's. Note: code reading `ModelOutput.metadata["hidden_states"]` live (in a solver or scorer) now receives nested lists rather than tensors — wrap with `torch.tensor(...)` if tensor operations are needed. (#2860)
 
 ## 0.3.259 (16 August 2026)
 
