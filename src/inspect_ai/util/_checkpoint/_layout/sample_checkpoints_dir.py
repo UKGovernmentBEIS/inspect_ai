@@ -22,7 +22,8 @@ import secrets
 from functools import partial
 from typing import TypeVar
 
-from pydantic import BaseModel
+import anyio
+from pydantic import BaseModel, ValidationError
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -32,6 +33,12 @@ from .schemas import Checkpoint, ResticConfig
 from .staging_dir import restic_config_path, restic_dir
 
 _M = TypeVar("_M", bound=BaseModel)
+
+_SCAN_READ_CONCURRENCY = 16
+"""Concurrent checkpoint-file reads in :func:`scan_committed_checkpoints`.
+
+Bounds the GET fan-out against a remote location so a sample with
+hundreds of checkpoint files does not trip request throttling."""
 
 
 def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
@@ -110,19 +117,16 @@ async def scan_latest_committed_checkpoint(
     Walks ``ckpt-NNNNN.json`` files in the sample dir from highest N
     to lowest; the first whose contents validate as a
     :class:`Checkpoint` is the commit point. A torn-write checkpoint
-    file is silently skipped. Returns ``None`` if no checkpoint file
+    file is silently skipped (see :func:`_read_checkpoint_file` for
+    what counts as torn). Returns ``None`` if no checkpoint file
     exists or none parses (caller is responsible for treating that as
     a meaningful state — typically an error on resume).
     """
     ids = await _list_checkpoint_ids(sample_checkpoints_dir)
-    async_fs = get_async_filesystem()
     for n in sorted(ids, reverse=True):
-        path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
-        try:
-            raw = await async_fs.read_file(path)
-            return Checkpoint.model_validate_json(raw)
-        except Exception:
-            continue
+        checkpoint = await _read_checkpoint_file(sample_checkpoints_dir, n)
+        if checkpoint is not None:
+            return checkpoint
     return None
 
 
@@ -132,25 +136,43 @@ async def scan_committed_checkpoints(sample_checkpoints_dir: str) -> list[Checkp
     Same commit-point contract as :func:`scan_latest_committed_checkpoint`
     (a torn-write file is silently skipped); the last element is that
     function's result. Resume uses the full list to decide which strategy
-    snapshots are acknowledged by a committed checkpoint.
+    snapshots are acknowledged by a committed checkpoint — and deletes
+    the rest — so a file that cannot be *read* fails the scan rather
+    than passing as absent (see :func:`_read_checkpoint_file`).
     """
     ids = await _list_checkpoint_ids(sample_checkpoints_dir)
-    async_fs = get_async_filesystem()
+    limiter = anyio.Semaphore(_SCAN_READ_CONCURRENCY)
 
     async def read_one(n: int) -> Checkpoint | None:
-        try:
-            raw = await async_fs.read_file(
-                f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
-            )
-            return Checkpoint.model_validate_json(raw)
-        except Exception:
-            return None
+        async with limiter:
+            return await _read_checkpoint_file(sample_checkpoints_dir, n)
 
     # Concurrent reads: with a remote location and a turn trigger a sample
     # can hold hundreds of checkpoint files, and serial GETs would dominate
     # resume. tg_collect preserves input order, so the result stays ascending.
     results = await tg_collect([partial(read_one, n) for n in sorted(ids)])
     return [checkpoint for checkpoint in results if checkpoint is not None]
+
+
+async def _read_checkpoint_file(
+    sample_checkpoints_dir: str, n: int
+) -> Checkpoint | None:
+    """Read ``ckpt-NNNNN.json``; ``None`` if its contents don't validate.
+
+    Only a parse/validation failure is the torn-write case the commit
+    point contract skips. An I/O error (a throttled or reset remote GET)
+    propagates: treating an unreadable file as absent would present a
+    committed checkpoint as uncommitted to callers that act on the
+    result — orphan discard would delete its snapshot, the next fire
+    would reuse its id and overwrite it.
+    """
+    raw = await get_async_filesystem().read_file(
+        f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
+    )
+    try:
+        return Checkpoint.model_validate_json(raw)
+    except ValidationError:
+        return None
 
 
 async def write_checkpoint_file(

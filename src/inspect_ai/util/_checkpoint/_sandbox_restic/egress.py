@@ -29,11 +29,18 @@ observed itself:
   file in the restic layout (``filter="data"`` stays as the path-safety
   layer beneath the layout check), so a ``ckpt-N.json`` that names a
   snapshot means exactly the files this fire accepted were added.
-- **Freshness, not membership.** The destination's snapshot-id set must
-  grow by exactly the reported id, and that snapshot's tags must be
-  exactly this cycle's tag. Injected extra snapshots and replayed old
-  ids both fail. The host-verified full id is what the strategy
-  records.
+- **Freshness, not membership.** The snapshot ids the destination
+  gains must be exactly the ``snapshots/`` files this fire wrote (so no
+  snapshot appears that the host did not watch land), the reported id
+  must be among them, and that snapshot's tags must be exactly this
+  cycle's tag. A replayed old id fails. Any other new snapshot is
+  tolerated as an orphan: a fire that failed between its backup and
+  its commit leaves its snapshot unshipped in the sandbox repo, so the
+  next fire's diff legitimately carries it (it may even share this
+  cycle's tag, since a failed fire's checkpoint id is reused). No
+  checkpoint file records an orphan, so resume forgets it
+  (``forget_unrecorded_snapshots``). The host-verified full id is what
+  the strategy records.
 - **A fire that captured nothing is an error.** A restic backup always
   writes a new ``snapshots/`` file, so an honest post-backup diff is
   never empty; an empty one is a protocol violation, not a no-op.
@@ -62,7 +69,7 @@ import io
 import os
 import re
 import tarfile
-from collections.abc import Collection, Iterator, Sequence
+from collections.abc import Collection, Sequence
 from functools import partial
 from pathlib import Path
 from typing import IO, Any, NamedTuple
@@ -298,6 +305,7 @@ async def egress_sandbox(
             dest_repo,
             password,
             before_ids=before_ids,
+            written=extracted.written,
             snapshot_id=snapshot_id,
             tag=tag,
             label=label,
@@ -446,43 +454,46 @@ def _extract_verified(
     written: list[str] = []
     total = 0
     try:
+        # One TarError mapping for the whole walk: a corrupt header
+        # surfaces from iteration, truncated member data from the reads
+        # inside the loop body. (FilterError is a TarError too, but
+        # _check_member has already mapped it by the time it gets here.)
         try:
-            tar = tarfile.open(tar_path, mode="r:")
+            with tarfile.open(tar_path, mode="r:") as tar:
+                for member in tar:
+                    name = member.name
+                    _check_member(member, dest_repo, expected, label)
+                    if name in seen:
+                        raise EgressVerificationError(
+                            f"{label}: member {name!r} appears more than once"
+                        )
+                    seen.add(name)
+                    total += member.size
+                    if total > max_bytes:
+                        raise EgressVerificationError(
+                            f"{label}: extracted bytes would exceed the "
+                            f"max_sandbox_snapshot_bytes cap of {max_bytes}"
+                        )
+                    src = tar.extractfile(member)
+                    if src is None:
+                        raise EgressVerificationError(
+                            f"{label}: member {name!r} has no readable content"
+                        )
+                    with src:
+                        if name in existing:
+                            _accept_identical_reship(src, dest_repo, name, label)
+                        elif not first_cycle and name.startswith(_FIRST_CYCLE_ONLY):
+                            raise EgressVerificationError(
+                                f"{label}: member {name!r} is only accepted while "
+                                f"the destination repo is uninitialized"
+                            )
+                        else:
+                            _write_member(src, dest_repo, name, label)
+                            written.append(name)
         except tarfile.TarError as exc:
             raise EgressVerificationError(
                 f"{label}: unreadable tarball: {exc}"
             ) from exc
-        with tar:
-            for member in _iter_members(tar, label):
-                name = member.name
-                _check_member(member, dest_repo, expected, label)
-                if name in seen:
-                    raise EgressVerificationError(
-                        f"{label}: member {name!r} appears more than once"
-                    )
-                seen.add(name)
-                total += member.size
-                if total > max_bytes:
-                    raise EgressVerificationError(
-                        f"{label}: extracted bytes would exceed the "
-                        f"max_sandbox_snapshot_bytes cap of {max_bytes}"
-                    )
-                src = tar.extractfile(member)
-                if src is None:
-                    raise EgressVerificationError(
-                        f"{label}: member {name!r} has no readable content"
-                    )
-                with src:
-                    if name in existing:
-                        _accept_identical_reship(src, dest_repo, name, label)
-                    elif not first_cycle and name.startswith(_FIRST_CYCLE_ONLY):
-                        raise EgressVerificationError(
-                            f"{label}: member {name!r} is only accepted while the "
-                            f"destination repo is uninitialized"
-                        )
-                    else:
-                        _write_member(src, dest_repo, name, label)
-                        written.append(name)
         missing = expected - seen
         if missing:
             raise EgressVerificationError(
@@ -493,14 +504,6 @@ def _extract_verified(
         _remove_files(dest_repo, written)
         raise
     return _Extracted(members=sorted(seen), written=written)
-
-
-def _iter_members(tar: tarfile.TarFile, label: str) -> Iterator[tarfile.TarInfo]:
-    """Iterate ``tar``'s members, surfacing a corrupt archive as a verification error."""
-    try:
-        yield from tar
-    except tarfile.TarError as exc:
-        raise EgressVerificationError(f"{label}: unreadable tarball: {exc}") from exc
 
 
 def _check_member(
@@ -621,15 +624,21 @@ async def _verify_fresh_snapshot(
     password: str,
     *,
     before_ids: Collection[str],
+    written: Collection[str],
     snapshot_id: str,
     tag: str,
     label: str,
 ) -> str:
-    """Require the destination's snapshot set to have grown by exactly one.
+    """Require the destination's new snapshots to be the ones this fire wrote.
 
-    The one new snapshot must be the reported ``snapshot_id`` and carry
-    exactly ``[tag]``. Returns its full id — the host-verified value the
-    checkpoint file records.
+    The snapshot ids the destination gained must equal the
+    ``snapshots/`` members in ``written`` (what the host itself placed
+    this cycle), must include the reported ``snapshot_id``, and that
+    snapshot must carry exactly ``[tag]``. Other new ids are in-sandbox
+    orphans from fires that failed between backup and commit; they are
+    accepted here and forgotten on resume because no checkpoint file
+    records them. Returns the reported snapshot's full id — the
+    host-verified value the checkpoint file records.
     """
     after = await _snapshot_tags(host_restic, dest_repo, password)
     lost = set(before_ids) - set(after)
@@ -637,24 +646,30 @@ async def _verify_fresh_snapshot(
         raise EgressVerificationError(
             f"{label}: destination no longer lists snapshot(s) {sorted(lost)}"
         )
-    new_ids = sorted(set(after) - set(before_ids))
-    if len(new_ids) != 1:
+    new_ids = set(after) - set(before_ids)
+    shipped = {
+        name.removeprefix("snapshots/")
+        for name in written
+        if name.startswith("snapshots/")
+    }
+    if new_ids != shipped:
         raise EgressVerificationError(
-            f"{label}: expected the destination to gain exactly one snapshot, "
-            f"found {len(new_ids)} new: {[i[:8] for i in new_ids]}"
+            f"{label}: destination gained snapshot(s) "
+            f"{sorted(i[:8] for i in new_ids)} but this fire wrote snapshot "
+            f"file(s) {sorted(i[:8] for i in shipped)}"
         )
-    (new_id,) = new_ids
-    if match_snapshot_id([new_id], snapshot_id) is None:
+    verified_id = match_snapshot_id(new_ids, snapshot_id)
+    if verified_id is None:
         raise EgressVerificationError(
-            f"{label}: destination gained snapshot {new_id}, not the reported "
-            f"{snapshot_id}"
+            f"{label}: reported snapshot {snapshot_id} is not among the "
+            f"snapshot(s) the destination gained: {sorted(i[:8] for i in new_ids)}"
         )
-    if after[new_id] != [tag]:
+    if after[verified_id] != [tag]:
         raise EgressVerificationError(
-            f"{label}: snapshot {new_id[:8]} carries tags {after[new_id]}, "
-            f"expected [{tag!r}]"
+            f"{label}: snapshot {verified_id[:8]} carries tags "
+            f"{after[verified_id]}, expected [{tag!r}]"
         )
-    return new_id
+    return verified_id
 
 
 async def _commit_egress(

@@ -5,7 +5,12 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
+import pytest
+
+from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     _read_restic_config,
     ensure_restic_config,
@@ -283,3 +288,49 @@ async def test_scan_committed_checkpoints_skips_torn_files_in_order(
     latest = await scan_latest_committed_checkpoint(sample_dir)
     assert latest is not None and latest.checkpoint_id == committed[-1].checkpoint_id
     assert await scan_committed_checkpoints(str(tmp_path / "missing")) == []
+
+
+async def test_scan_committed_checkpoints_propagates_read_errors(
+    tmp_path: Path,
+) -> None:
+    """An unreadable (not unparseable) file fails the scan instead of vanishing.
+
+    The list drives orphan discard on resume, which deletes every snapshot
+    not in it, so a transient remote read failure must not read as "this
+    checkpoint was never committed".
+    """
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.checkpoints"), "s", 0
+    )
+    for checkpoint_id in (1, 2, 3):
+        await write_checkpoint_file(
+            sample_checkpoints_dir=sample_dir,
+            checkpoint=_checkpoint(
+                checkpoint_id=checkpoint_id,
+                trigger="turn",
+                turn=checkpoint_id,
+                host=_info(f"snap-{checkpoint_id}"),
+            ),
+        )
+    real_fs = get_async_filesystem()
+
+    class _FlakyFs:
+        def __getattr__(self, name: str) -> Any:
+            return getattr(real_fs, name)
+
+        async def read_file(self, filename: str) -> bytes:
+            if filename.endswith("ckpt-00003.json"):
+                raise OSError("connection reset by peer")
+            return await real_fs.read_file(filename)
+
+    with patch(
+        "inspect_ai.util._checkpoint._layout.sample_checkpoints_dir"
+        ".get_async_filesystem",
+        return_value=_FlakyFs(),
+    ):
+        with pytest.raises(OSError, match="connection reset"):
+            await scan_committed_checkpoints(sample_dir)
+        # The latest-only scan must not fall back to checkpoint 2 either:
+        # the next fire would reuse id 3 and overwrite the committed file.
+        with pytest.raises(OSError, match="connection reset"):
+            await scan_latest_committed_checkpoint(sample_dir)

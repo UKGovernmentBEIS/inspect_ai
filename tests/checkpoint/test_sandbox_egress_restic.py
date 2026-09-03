@@ -6,8 +6,9 @@ the "in-sandbox" repo is a real restic repo under a temp dir that real
 tar, dd) runs on the host, and the host-side checks run against the
 destination repo with the same binary. Covers the host-side truth
 checks the egress protocol makes: a fire that captured nothing raises,
-an injected extra snapshot fails the freshness check and leaves the
-destination unchanged, a replayed id or foreign tag is rejected, the
+a replayed id, an unshipped reported id, or a foreign tag is rejected
+and leaves the destination unchanged, an unrecorded extra snapshot (a
+failed fire's leftover or a planted one) ships as an orphan, the
 transfer cap binds, and resume-side orphan discard keeps exactly the
 recorded snapshots and restores the recorded id.
 """
@@ -94,7 +95,7 @@ class _Repos:
 
     async def dest_snapshots(self) -> dict[str, list[str]]:
         snaps = await list_snapshots(self.restic, str(self.dest), PASSWORD)
-        return {s["id"]: s["tags"] for s in snaps}
+        return {s["id"]: s.get("tags") or [] for s in snaps}
 
     def dest_files(self) -> set[str]:
         return {
@@ -155,26 +156,102 @@ async def test_egress_empty_diff_after_backup_raises(repos: _Repos) -> None:
     assert repos.manifest() == set()
 
 
-async def test_egress_rejects_injected_extra_snapshot(repos: _Repos) -> None:
-    """A tar carrying a snapshot no backup of this fire produced fails freshness."""
+async def test_egress_ships_unrecorded_extra_snapshot_as_orphan(repos: _Repos) -> None:
+    """A snapshot no fire reported rides along and is forgotten on resume.
+
+    The host cannot tell a container-planted snapshot from the orphan a
+    failed fire leaves (see ``test_egress_recovers_after_failed_transfer``),
+    so freshness accepts it: it is not recorded, and orphan discard drops it.
+    """
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    (repos.src / "notes.txt").write_text("rogue\n")
+    rogue = repos.backup(None)  # untagged snapshot the container planted
+
+    assert await repos.egress("ckpt-00002", id2) == id2
+    assert await repos.dest_snapshots() == {
+        id1: ["ckpt-00001"],
+        id2: ["ckpt-00002"],
+        rogue: [],
+    }
+
+    await forget_unrecorded_snapshots(
+        repos.restic,
+        str(repos.dest),
+        PASSWORD,
+        recorded_ids=[id1, id2],
+        required_id=id2,
+    )
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"], id2: ["ckpt-00002"]}
+
+
+async def test_egress_rejects_unshipped_reported_id(repos: _Repos) -> None:
+    """The reported id must be one of the snapshots this fire landed."""
     id1 = repos.backup("ckpt-00001")
     await repos.egress("ckpt-00001", id1)
     files_after_1 = repos.dest_files()
     manifest_after_1 = repos.manifest()
-
     (repos.src / "notes.txt").write_text("v2\n")
-    id2 = repos.backup("ckpt-00002")
-    (repos.src / "notes.txt").write_text("rogue\n")
-    repos.backup(None)  # untagged snapshot the container planted
+    repos.backup("ckpt-00002")
 
-    with pytest.raises(EgressVerificationError, match="exactly one snapshot"):
-        await repos.egress("ckpt-00002", id2)
+    with pytest.raises(EgressVerificationError, match="not among the snapshot"):
+        await repos.egress("ckpt-00002", "f" * 64)
     # Rolled back: destination and manifest exactly as after fire 1.
     assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
     assert repos.dest_files() == files_after_1
     assert repos.manifest() == manifest_after_1
     assert not list(repos.dest.rglob("*.partial"))
     assert not list(repos.dest.parent.glob(".egress-*"))
+
+
+async def test_egress_recovers_after_failed_transfer(repos: _Repos) -> None:
+    """A fire that fails between backup and commit does not poison later fires.
+
+    The failed fire's snapshot stays unshipped in the sandbox repo, so the
+    retry (which reuses the checkpoint id, hence the tag) ships two
+    snapshot files; the retry's own id is the verified one and the other
+    is an orphan that resume forgets.
+    """
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    (repos.src / "notes.txt").write_text("v2\n")
+    orphan = repos.backup("ckpt-00002")
+
+    async def failing_copy_out(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("chunk copy failed: transport reset")
+
+    with patch(
+        "inspect_ai.util._checkpoint._sandbox_restic.egress.copy_out",
+        new=failing_copy_out,
+    ):
+        with pytest.raises(RuntimeError, match="transport reset"):
+            await repos.egress("ckpt-00002", orphan)
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+
+    id2 = repos.backup("ckpt-00002")  # the retried fire
+    assert await repos.egress("ckpt-00002", id2) == id2
+    (repos.src / "notes.txt").write_text("v3\n")
+    id3 = repos.backup("ckpt-00003")
+    assert await repos.egress("ckpt-00003", id3) == id3
+    assert await repos.dest_snapshots() == {
+        id1: ["ckpt-00001"],
+        orphan: ["ckpt-00002"],
+        id2: ["ckpt-00002"],
+        id3: ["ckpt-00003"],
+    }
+    assert repos.dest_files() == repos.repo_files()
+
+    forgotten = await forget_unrecorded_snapshots(
+        repos.restic,
+        str(repos.dest),
+        PASSWORD,
+        recorded_ids=[id1, id2, id3],
+        required_id=id3,
+    )
+    assert forgotten == ["ckpt-00002"]
+    assert set(await repos.dest_snapshots()) == {id1, id2, id3}
 
 
 async def test_egress_cancelled_during_verification_rolls_back(

@@ -284,6 +284,18 @@ def test_config_reship_accepted_only_when_identical(tmp_path: Path) -> None:
     assert (dest / "config").read_bytes() == b"repo config"
 
 
+def test_truncated_member_data_is_a_verification_error(tmp_path: Path) -> None:
+    """A tar cut inside a member's data (headers intact) is 'unreadable', not a raw ReadError."""
+    dest = _dest(tmp_path)
+    tar = _tar(tmp_path, _file(PACK_NAME, PACK), _file(INDEX_NAME, INDEX))
+    data = tar.read_bytes()
+    tar.write_bytes(data[: 512 + len(PACK) // 2])
+
+    with pytest.raises(EgressVerificationError, match="unreadable tarball"):
+        _extract(tar, dest, [PACK_NAME, INDEX_NAME])
+    assert _files(dest) == set()
+
+
 def test_rejects_extraction_exceeding_byte_cap(tmp_path: Path) -> None:
     dest = _dest(tmp_path)
     tar = _tar(tmp_path, _file(SNAP_NAME, SNAP), _file(PACK_NAME, PACK))
