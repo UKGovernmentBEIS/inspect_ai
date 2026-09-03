@@ -136,22 +136,50 @@ class CacheEntry:
         self.key = _cache_key(self)
 
 
+# Runtime/transport GenerateConfig knobs that cannot change what the provider
+# returns, and so must not affect the cache key. Their union must equal
+# GENERATE_CONFIG_FIELDS_TO_EXCLUDE (the task-identity partition in
+# inspect_ai._eval.evalset) — both answer the same question, and
+# test_cache_key_neutral_fields_match_task_identity fails when they diverge.
+#
+# Which bucket a field goes in decides whether existing caches survive
+# classifying it:
+#
+#  - Dropped fields are absent from the serialized config. Right for a field
+#    classified when it is added to GenerateConfig: keys written before the
+#    field existed were already computed without it, so they still match.
+#  - Neutralized fields are serialized as their default instead. Right for a
+#    field that has been part of the key already — dropping one rewrites every
+#    key in every existing cache, whereas a config that leaves it unset
+#    serializes exactly as it did before.
+_CACHE_KEY_DROPPED_FIELDS = {
+    "max_connections",
+    "adaptive_connections",
+    "max_retries",
+    "timeout",
+    "stream_idle_timeout",
+    "cache",
+    "batch",
+}
+
+_CACHE_KEY_NEUTRALIZED_FIELDS = {
+    "attempt_timeout",
+    "cache_prompt",
+}
+
+
+def _cache_key_config(config: BaseModel) -> dict[str, Any]:
+    """The generate config as the cache key sees it, with runtime knobs made inert."""
+    values = config.model_dump(exclude=_CACHE_KEY_DROPPED_FIELDS)
+    fields = type(config).model_fields
+    for field in _CACHE_KEY_NEUTRALIZED_FIELDS & values.keys():
+        values[field] = fields[field].get_default()
+    return values
+
+
 def _cache_key(entry: CacheEntry) -> str:
     components = [
-        entry.config.model_dump(
-            # Exclude fields that don't affect the model output
-            exclude=set(
-                [
-                    "max_connections",
-                    "adaptive_connections",
-                    "max_retries",
-                    "timeout",
-                    "stream_idle_timeout",
-                    "cache",
-                    "batch",
-                ]
-            )
-        ),
+        _cache_key_config(entry.config),
         ",".join(
             [str(message.model_dump(exclude=set(["id"]))) for message in entry.input]
         ),
