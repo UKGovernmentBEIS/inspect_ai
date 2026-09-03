@@ -37,6 +37,7 @@ from inspect_ai.util._sandbox._framework_directory import (
     FrameworkPath,
     ensure_framework_directory,
     exec_in_framework_directory,
+    framework_directory_mode,
     split_framework_path,
     verify_framework_directory,
 )
@@ -209,6 +210,56 @@ async def test_creates_in_setgid_parent_and_clears_inherited_bits(
     target = parent / "fw"
     await ensure_framework_directory(local, str(target), user=None)
     assert _mode(target) == 0o700
+
+
+async def test_creates_and_adopts_directory_in_a_wider_requested_mode(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """A caller may ask for a traversable directory; the mode is then pinned to that."""
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None, mode=0o755)
+    assert target.is_dir() and _mode(target) == 0o755
+    (target / "keep").write_text("x")
+
+    await ensure_framework_directory(local, str(target), user=None, mode=0o755)
+    await verify_framework_directory(local, str(target), user=None, mode=0o755)
+    result = await exec_in_framework_directory(
+        local, str(target), ["cat", "keep"], user=None, mode=0o755
+    )
+    assert result.stdout == "x"
+    # The default (private) contract does not accept it, and vice versa.
+    with pytest.raises(FrameworkDirectoryError, match="has mode 755, expected 700"):
+        await verify_framework_directory(local, str(target), user=None)
+    private = parent / "private"
+    await ensure_framework_directory(local, str(private), user=None)
+    with pytest.raises(FrameworkDirectoryError, match="has mode 700, expected 755"):
+        await ensure_framework_directory(local, str(private), user=None, mode=0o755)
+    assert _mode(target) == 0o755 and _mode(private) == 0o700
+
+
+async def test_wider_mode_in_setgid_parent_clears_inherited_bits(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    parent.chmod(0o2700)
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None, mode=0o755)
+    assert _mode(target) == 0o755
+
+
+@pytest.mark.parametrize("mode", [0o700, 0o2755, 0o1755, 0o770], ids=oct)
+async def test_repair_mode_sets_owned_directory_to_the_requested_mode(
+    local: LocalSandboxEnvironment, parent: Path, mode: int
+) -> None:
+    target = parent / "fw"
+    target.mkdir()
+    target.chmod(mode)
+    (target / "keep").write_text("x")
+    await ensure_framework_directory(
+        local, str(target), user=None, mode=0o755, repair_mode=True
+    )
+    assert _mode(target) == 0o755
+    assert (target / "keep").read_text() == "x"
+    await verify_framework_directory(local, str(target), user=None, mode=0o755)
 
 
 def _chmod_after_mkdir(mode: int) -> Callable[[Path], None]:
@@ -857,10 +908,11 @@ async def test_user_mismatch_verdict_becomes_user_error() -> None:
     assert not isinstance(
         excinfo.value, (FrameworkDirectoryError, FrameworkDirectoryUnavailableError)
     )
-    # The expectation is passed to the script ahead of the create and repair flags.
+    # The expectation is passed to the script ahead of the create and repair flags
+    # and the required mode.
     (cmd, user), *_ = sandbox.exec_calls
     assert user == "root"
-    assert cmd[-5:] == ["0", "1", "0", "/var/tmp", ".x"]
+    assert cmd[-6:] == ["0", "1", "0", "700", "/var/tmp", ".x"]
 
 
 async def test_no_expected_uid_passes_an_empty_expectation() -> None:
@@ -871,7 +923,7 @@ async def test_no_expected_uid_passes_an_empty_expectation() -> None:
     )
     await verify_framework_directory(sandbox, "/var/tmp/.x", user=None)
     (cmd, _), *_ = sandbox.exec_calls
-    assert cmd[-5:] == ["", "0", "0", "/var/tmp", ".x"]
+    assert cmd[-6:] == ["", "0", "0", "700", "/var/tmp", ".x"]
 
 
 async def test_repair_mode_is_passed_to_the_script() -> None:
@@ -884,7 +936,58 @@ async def test_repair_mode_is_passed_to_the_script() -> None:
         sandbox, "/var/tmp/.x", user=None, repair_mode=True
     )
     (cmd, _), *_ = sandbox.exec_calls
-    assert cmd[-5:] == ["", "1", "1", "/var/tmp", ".x"]
+    assert cmd[-6:] == ["", "1", "1", "700", "/var/tmp", ".x"]
+
+
+async def test_mode_is_passed_to_the_script_as_stat_prints_it() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await ensure_framework_directory(sandbox, "/var/tmp/.x", user="root", mode=0o755)
+    await verify_framework_directory(sandbox, "/var/tmp/.x", user="root", mode=0o750)
+    await exec_in_framework_directory(
+        sandbox, "/var/tmp/.x", ["true"], user="root", mode=0o755
+    )
+    assert [cmd[-3] for cmd, _ in sandbox.exec_calls[:2]] == ["755", "750"]
+    assert sandbox.exec_calls[2][0][-4:] == ["755", "/var/tmp", ".x", "true"]
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        pytest.param(0o1755, "set-id or sticky", id="sticky"),
+        pytest.param(0o2700, "set-id or sticky", id="setgid"),
+        pytest.param(0o500, "owner rwx", id="owner-cannot-write"),
+        pytest.param(0o775, "writable by group or others", id="group-writable"),
+        pytest.param(0o757, "writable by group or others", id="other-writable"),
+    ],
+)
+async def test_unacceptable_mode_is_rejected_before_running_anything(
+    mode: int, expected: str
+) -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    with pytest.raises(ValueError, match=expected):
+        framework_directory_mode(mode)
+    for op in (ensure_framework_directory, verify_framework_directory):
+        with pytest.raises(ValueError, match=expected):
+            await op(sandbox, "/var/tmp/.x", user="root", mode=mode)
+    with pytest.raises(ValueError, match=expected):
+        await exec_in_framework_directory(
+            sandbox, "/var/tmp/.x", ["true"], user="root", mode=mode
+        )
+    assert sandbox.exec_calls == []
+
+
+def test_framework_directory_mode_formats_like_stat() -> None:
+    assert framework_directory_mode(0o700) == "700"
+    assert framework_directory_mode(0o755) == "755"
+    assert framework_directory_mode(0o750) == "750"
 
 
 async def test_failure_before_verification_is_a_plain_runtime_error() -> None:
@@ -922,7 +1025,17 @@ async def test_exec_success_passes_result_through() -> None:
     assert result.stderr == ""
     (cmd, user), *_ = sandbox.exec_calls
     assert user is None
-    assert cmd[-8:] == ["0", "0", "/var/tmp", ".x", "stat", "-c", "%F", "launcher"]
+    assert cmd[-9:] == [
+        "0",
+        "0",
+        "700",
+        "/var/tmp",
+        ".x",
+        "stat",
+        "-c",
+        "%F",
+        "launcher",
+    ]
 
 
 async def test_verdict_after_verification_belongs_to_the_command() -> None:

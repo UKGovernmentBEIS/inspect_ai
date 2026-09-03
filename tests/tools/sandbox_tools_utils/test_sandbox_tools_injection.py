@@ -99,12 +99,13 @@ class HelperFlags(NamedTuple):
     expected_uid: str
     create: str
     repair: str
+    mode: str
 
 
 def helper_flags(cmd: list[str]) -> HelperFlags:
     assert is_framework_dir_call(cmd)
     leaf = SANDBOX_TOOLS_DIR.rsplit("/", 1)[1]
-    return HelperFlags(*cmd[cmd.index(leaf) - 4 : cmd.index(leaf) - 1])
+    return HelperFlags(*cmd[cmd.index(leaf) - 5 : cmd.index(leaf) - 1])
 
 
 def helper_ok(cmd: list[str], user: str | None) -> ExecResult[str]:
@@ -225,6 +226,8 @@ async def test_inject_uses_root_and_verifies_before_start(
     ]
     assert all(flags.expected_uid == "0" for flags in root_flags)
     assert all(flags.repair == "0" for flags in root_flags)
+    # The tools tree stays private to the tools user.
+    assert all(flags.mode == "700" for flags in root_flags)
     # No path-based chmod: the directory is created 0700 and verified, not repaired.
     assert not any(cmd[:1] == ["chmod"] for cmd, _ in sandbox.exec_calls)
 

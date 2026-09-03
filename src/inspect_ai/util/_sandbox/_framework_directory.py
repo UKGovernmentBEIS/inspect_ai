@@ -11,7 +11,11 @@ The contract for a private framework directory is:
 
 - it is a real directory, not a symbolic link (nor reached through one at the leaf);
 - it is owned by the uid the sandbox command runs as (the intended owner);
-- its mode is exactly ``0700``, so no other principal can read or modify it;
+- its mode is exactly the mode the caller asked for (``0700`` by default, so no
+  other principal can read or modify it). A caller may ask for a wider mode such
+  as ``0755`` when other principals must be able to read and traverse the
+  directory, but never one that lets group or others write to it: the owner
+  stays the only principal who can add, replace, or remove entries;
 - its parent is owned by that uid or by root, and is either not writable by
   group/others or is sticky, so no other principal can rename or unlink the
   directory out from under a verified path.
@@ -29,9 +33,9 @@ Any pre-existing entry that does not satisfy the contract makes the operation fa
 with :class:`FrameworkDirectoryError`. Nothing is silently repaired or replaced: a
 wrong-mode or wrong-owner directory may already contain planted content, so the
 caller (and ultimately the user) must decide what to do with it. The one exception
-is opt-in: ``ensure_framework_directory(..., repair_mode=True)`` tightens the mode
-of a directory the current uid already owns (every other check still applies). It
-exists for rootless sandboxes, below.
+is opt-in: ``ensure_framework_directory(..., repair_mode=True)`` sets the mode
+of a directory the current uid already owns to the requested one (every other
+check still applies). It exists for rootless sandboxes, below.
 
 Verification runs inside a single POSIX ``sh`` invocation in the sandbox. The script
 ``cd -P``s into the directory and performs every check on ``.``, so the checks and
@@ -86,14 +90,17 @@ _CREATE_FAILED_EXIT = 7
 _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 
 # Arguments: $1 = expected uid (empty = no expectation), $2 = create flag (1/0),
-# $3 = repair-mode flag (1/0), $4 = parent path, $5 = leaf name, $6.. = command to
-# exec with the verified directory as cwd (optional). POSIX sh only (dash/BusyBox):
+# $3 = repair-mode flag (1/0), $4 = required mode (octal, as `stat -c %a` prints
+# it), $5 = parent path, $6 = leaf name, $7.. = command to exec with the verified
+# directory as cwd (optional). POSIX sh only (dash/BusyBox):
 # no arrays, no [[ ]], no local. `stat -c %u/%a` is common to GNU coreutils and
 # BusyBox. `umask 077` closes the window in BusyBox's non-atomic `mkdir -m`
 # (mkdir(0777) then chmod) and also applies to whatever the wrapped command creates:
 # a non-root `tar` extracts entries at 0700/0600 instead of the archive's modes
 # (root's `tar` preserves them). Inside a 0700 directory used by one uid this changes
-# nothing observable. Tool output is captured with stderr discarded so a warning
+# nothing observable; a caller using a wider directory mode must widen the mode of
+# anything it wants other principals to read itself (see
+# `exec_in_framework_directory`). Tool output is captured with stderr discarded so a warning
 # cannot be folded into a value; the error path re-runs the tool for its message.
 # PATH is replaced outright with the four base system directories: the inherited
 # value is not consulted at all, so a user-owned directory an image puts on PATH
@@ -112,8 +119,8 @@ umask 077
 unset CDPATH
 PATH=/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
-expect=$1 create=$2 repair=$3 parent=$4 leaf=$5
-shift 5
+expect=$1 create=$2 repair=$3 want=$4 parent=$5 leaf=$6
+shift 6
 case $parent in
     /) dir=/$leaf ;;
     *) dir=$parent/$leaf ;;
@@ -151,8 +158,8 @@ pstat=$(stat -c '%u %a' . 2>/dev/null) || unavailable "cannot stat parent direct
 puid=${pstat% *}
 pmode=${pstat#* }
 if [ "$puid" != "$me" ] && [ "$puid" != 0 ]; then
-    if [ "$me" = 0 ]; then want="uid 0"; else want="uid $me or 0"; fi
-    violation "parent directory $parent is owned by uid $puid (expected $want), so its owner could replace $dir"
+    if [ "$me" = 0 ]; then owner_want="uid 0"; else owner_want="uid $me or 0"; fi
+    violation "parent directory $parent is owned by uid $puid (expected $owner_want), so its owner could replace $dir"
 fi
 if [ $((0$pmode & 022)) -ne 0 ] && [ $((0$pmode & 01000)) -eq 0 ]; then
     violation "parent directory $parent has mode $pmode (writable by others, not sticky), so other users could replace $dir"
@@ -164,7 +171,7 @@ case $phys in
 esac
 created=0
 if [ "$create" = 1 ] && [ ! -e "$leaf" ] && [ ! -L "$leaf" ]; then
-    if err=$(mkdir -m 0700 -- "$leaf" 2>&1); then
+    if err=$(mkdir -m "$want" -- "$leaf" 2>&1); then
         created=1
     else
         [ -e "$leaf" ] || [ -L "$leaf" ] || createfailed "$err"
@@ -181,19 +188,19 @@ dstat=$(stat -c '%u %a' . 2>/dev/null) || unavailable "cannot stat $dir: $(stat 
 uid=${dstat% *}
 mode=${dstat#* }
 [ "$uid" = "$me" ] || violation "$dir is owned by uid $uid, expected uid $me"
-if [ "$mode" != 700 ]; then
+if [ "$mode" != "$want" ]; then
     if [ "$created" = 1 ] || [ "$repair" = 1 ]; then
-        # Either we just created it (a setgid parent may have added bits; a numeric
-        # chmod alone does not clear setgid on a directory) or the caller asked for
-        # an owned directory to be tightened. `.` is the verified object we own.
-        # `u=rwx` leaves a directory's set-id bits alone, so name them explicitly;
-        # BusyBox `o=` also leaves the sticky bit (and its `o-t` is a no-op), so
-        # clear that with the bare `-t` both implementations honour.
-        chmod u=rwx,g=,o=,u-s,g-s,-t . || violation "could not set mode of $dir"
+        # Either we just created it (a setgid parent may have added bits) or the
+        # caller asked for an owned directory to be put in the required mode. `.` is
+        # the verified object we own. GNU chmod keeps a directory's set-id bits
+        # across a numeric mode, so clear them by name first; BusyBox `o-t` is a
+        # no-op, so clear the sticky bit with the bare `-t` both implementations
+        # honour. The numeric mode then sets exactly the permission bits wanted.
+        chmod u-s,g-s,-t . && chmod "$want" . || violation "could not set mode of $dir"
         mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
     fi
 fi
-[ "$mode" = 700 ] || violation "$dir has mode $mode, expected 700"
+[ "$mode" = "$want" ] || violation "$dir has mode $mode, expected $want"
 printf '%s\\n' @VERIFIED@ >&2
 [ $# -eq 0 ] || exec "$@"
 """
@@ -227,8 +234,8 @@ class FrameworkDirectoryError(RuntimeError):
     """A framework directory cannot be trusted or used.
 
     Raised when the entry at the path is a symlink, not a directory, owned by another
-    uid, has a mode other than ``0700`` (and repair was not requested), sits in a
-    parent that lets other principals replace it, or could not be created or
+    uid, has a mode other than the one required (and repair was not requested), sits
+    in a parent that lets other principals replace it, or could not be created or
     entered. Callers must not fall back to a weaker owner or continue privileged
     work when this is raised.
 
@@ -293,6 +300,38 @@ def split_framework_path(path: str) -> FrameworkPath:
     return FrameworkPath(parent=str(pure.parent), leaf=pure.name)
 
 
+DEFAULT_MODE = 0o700
+"""Mode of a private framework directory: readable and writable by its owner only."""
+
+
+def framework_directory_mode(mode: int) -> str:
+    """Validate a framework directory mode and return it as the script expects it.
+
+    The result is the octal permission string ``stat -c %a`` prints for a directory
+    in that mode (``"700"``, ``"755"``), which is also what ``chmod`` and
+    ``mkdir -m`` accept.
+
+    Raises:
+        ValueError: ``mode`` carries set-id or sticky bits, does not give its owner
+            read, write, and search permission, or lets group or others write to
+            the directory (which would let another principal add or replace entries
+            behind the owner's back, defeating the point of verifying it).
+    """
+    if mode & ~0o777:
+        raise ValueError(
+            f"framework directory mode {mode:#o} must not include set-id or sticky bits"
+        )
+    if mode & 0o700 != 0o700:
+        raise ValueError(
+            f"framework directory mode {mode:#o} must give the owner rwx permission"
+        )
+    if mode & 0o022:
+        raise ValueError(
+            f"framework directory mode {mode:#o} must not be writable by group or others"
+        )
+    return format(mode, "o")
+
+
 def _verdict(result: ExecResult[str], marker: str) -> str | None:
     """Return the script's message if it reported ``marker``.
 
@@ -329,6 +368,7 @@ async def _run_verified(
     *,
     create: bool,
     repair_mode: bool = False,
+    mode: int,
     cmd: list[str],
     user: str | None,
     expected_uid: int | None,
@@ -336,6 +376,7 @@ async def _run_verified(
     input: str | bytes | None = None,
 ) -> ExecResult[str]:
     parent, leaf = split_framework_path(path)
+    want = framework_directory_mode(mode)
     expect = "" if expected_uid is None else str(expected_uid)
     result = await sandbox.exec(
         [
@@ -346,6 +387,7 @@ async def _run_verified(
             expect,
             "1" if create else "0",
             "1" if repair_mode else "0",
+            want,
             parent,
             leaf,
             *cmd,
@@ -394,18 +436,19 @@ async def ensure_framework_directory(
     user: str | None,
     expected_uid: int | None = None,
     repair_mode: bool = False,
+    mode: int = DEFAULT_MODE,
     timeout: int | None = None,
 ) -> None:
-    """Create or adopt ``path`` as a private framework directory owned by ``user``.
+    """Create or adopt ``path`` as a framework directory owned by ``user``.
 
-    A missing directory is created with mode ``0700``; missing parent components are
+    A missing directory is created with ``mode``; missing parent components are
     created with the conventional ``0755``. An existing entry is adopted only if it
     already satisfies the contract described in the module docstring:
-    a real directory owned by the uid the command runs as, mode ``0700``, in a parent
-    other principals cannot use to replace it. Only the immediate parent is checked;
-    ``path`` must sit under root-owned ancestors (see the module docstring).
-    Concurrent creation by another instance of this helper is tolerated (the
-    survivor is verified like any other existing entry).
+    a real directory owned by the uid the command runs as, in exactly ``mode``, in a
+    parent other principals cannot use to replace it. Only the immediate parent is
+    checked; ``path`` must sit under root-owned ancestors (see the module
+    docstring). Concurrent creation by another instance of this helper is tolerated
+    (the survivor is verified like any other existing entry).
 
     Args:
         sandbox: Sandbox to operate in.
@@ -417,15 +460,20 @@ async def ensure_framework_directory(
             ``0`` with ``user="root"`` so a provider that ignores ``user`` cannot
             pass off a default-user directory as root's.
         repair_mode: Also accept an existing directory the command's uid owns but
-            whose mode is not ``0700``, tightening it to ``0700`` in place and
+            whose mode is not ``mode``, setting it to ``mode`` in place and
             keeping its contents. The ``chmod`` runs on the verified directory
             object after the owner check, so it can only touch something that uid
             already owns; the symlink, type, owner, and parent checks still apply.
             Use this only where the owner shares its uid with every other
-            principal in the sandbox (a rootless install), so a wider mode never
-            protected anything. Leave it off for a privileged owner such as root:
-            a root-owned directory in an unexpected mode may hold content other
-            users placed there, and must be refused.
+            principal in the sandbox (a rootless install), so the directory's
+            mode never protected anything. Leave it off for a privileged owner
+            such as root: a root-owned directory in an unexpected mode may hold
+            content other users placed there, and must be refused.
+        mode: Permission bits the directory must have (default ``0700``, private
+            to the owner). Use a wider mode such as ``0755`` only when other
+            principals must read and traverse the directory; the mode can never
+            let group or others write (see :func:`framework_directory_mode`).
+            Every later check of the same directory must ask for the same mode.
         timeout: Optional timeout for the sandbox command.
 
     Raises:
@@ -438,13 +486,15 @@ async def ensure_framework_directory(
             cannot be entered).
         RuntimeError: The script could not run at all (no ``sh``, or the provider
             refused the requested user).
-        ValueError: ``path`` is not an absolute, non-root path free of ``..``.
+        ValueError: ``path`` is not an absolute, non-root path free of ``..``, or
+            ``mode`` is not an acceptable framework directory mode.
     """
     await _run_verified(
         sandbox,
         path,
         create=True,
         repair_mode=repair_mode,
+        mode=mode,
         cmd=[],
         user=user,
         expected_uid=expected_uid,
@@ -458,6 +508,7 @@ async def verify_framework_directory(
     *,
     user: str | None,
     expected_uid: int | None = None,
+    mode: int = DEFAULT_MODE,
     timeout: int | None = None,
 ) -> None:
     """Check that ``path`` is an existing directory satisfying the contract.
@@ -472,6 +523,8 @@ async def verify_framework_directory(
         user: User to run as (as for ``sandbox.exec``); also the expected owner.
         expected_uid: If given, the uid the command must actually run as (see
             :func:`ensure_framework_directory`).
+        mode: Permission bits the directory must have (see
+            :func:`ensure_framework_directory`).
         timeout: Optional timeout for the sandbox command.
 
     Raises:
@@ -481,12 +534,14 @@ async def verify_framework_directory(
             ``expected_uid``.
         FrameworkDirectoryUnavailableError: The check itself could not be performed.
         RuntimeError: The script could not run at all.
-        ValueError: ``path`` is not an absolute, non-root path free of ``..``.
+        ValueError: ``path`` is not an absolute, non-root path free of ``..``, or
+            ``mode`` is not an acceptable framework directory mode.
     """
     await _run_verified(
         sandbox,
         path,
         create=False,
+        mode=mode,
         cmd=[],
         user=user,
         expected_uid=expected_uid,
@@ -501,6 +556,7 @@ async def exec_in_framework_directory(
     *,
     user: str | None,
     expected_uid: int | None = None,
+    mode: int = DEFAULT_MODE,
     input: str | bytes | None = None,
     timeout: int | None = None,
 ) -> ExecResult[str]:
@@ -511,7 +567,9 @@ async def exec_in_framework_directory(
     paths in ``cmd`` therefore refer to the verified directory object itself, not to
     whatever ``path`` names by the time the command starts. The directory is never
     created here; use :func:`ensure_framework_directory` first. ``cmd`` inherits the
-    script's ``umask 077``, so anything it creates is private to the owner.
+    script's ``umask 077``, so anything it creates is private to the owner; in a
+    directory with a wider ``mode``, ``cmd`` must ``chmod`` whatever other
+    principals are meant to read.
 
     Keep ``cmd``'s stderr well under the sandbox output limit
     (``SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE``). Providers keep the tail of
@@ -527,6 +585,8 @@ async def exec_in_framework_directory(
             contains a slash (use ``./name`` for a program inside the directory).
         user: User to run as (as for ``sandbox.exec``); also the expected owner.
         expected_uid: If given, the uid the command must actually run as (see
+            :func:`ensure_framework_directory`).
+        mode: Permission bits the directory must have (see
             :func:`ensure_framework_directory`).
         input: Standard input for ``cmd`` (as for ``sandbox.exec``). The
             verification script reads nothing from stdin, so ``cmd`` receives it
@@ -546,8 +606,9 @@ async def exec_in_framework_directory(
         FrameworkDirectoryUnavailableError: The check itself could not be performed.
         RuntimeError: The script could not run at all (no ``sh``, or the provider
             refused the requested user); ``cmd`` was not run.
-        ValueError: ``path`` is not an absolute, non-root path free of ``..``, or
-            ``cmd`` is empty.
+        ValueError: ``path`` is not an absolute, non-root path free of ``..``,
+            ``mode`` is not an acceptable framework directory mode, or ``cmd`` is
+            empty.
     """
     if not cmd:
         raise ValueError("cmd must not be empty")
@@ -555,6 +616,7 @@ async def exec_in_framework_directory(
         sandbox,
         path,
         create=False,
+        mode=mode,
         cmd=cmd,
         user=user,
         expected_uid=expected_uid,
