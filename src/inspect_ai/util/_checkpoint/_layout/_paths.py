@@ -11,7 +11,7 @@ by the checkpointing code:
   checkpoints and staging dir names. An id containing ``/`` or ``..``
   would relocate the whole per-sample tree.
 
-Every such site routes through the two pure functions here so that a
+Every such site routes through the pure functions here so that a
 hostile or corrupt string fails loudly (or is rewritten to a safe
 single segment) instead of becoming a traversal.
 """
