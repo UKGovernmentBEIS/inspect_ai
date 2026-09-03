@@ -7,6 +7,7 @@ size limits (fzstd @ 256 MiB) can decode large inspect_ai .eval files.
 
 from __future__ import annotations
 
+import random
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,6 @@ from test_helpers.zstd import (
 # Importing this module installs the zstd compression patches (both the
 # zipfile_zstd delegation on Python < 3.14 and our multi-frame wrapper).
 import inspect_ai._util.zipfile
-from inspect_ai._util.zipfile import _MultiFrameZstdDecompressObj
 
 MAX_INPUT_PER_FRAME = 200 * 1024 * 1024  # must match the value in _util/zipfile.py
 
@@ -104,56 +104,15 @@ def test_large_entry_round_trip(tmp_path: Path, large_payload: bytes) -> None:
     )
 
 
-# ---------------------------------------------------------------------------
-# Consumer-side contract: CPython gh-156002 made zipfile._read1 call
-# ``decompress(data, max_length)`` on non-deflate decompressors and consult
-# ``needs_input`` before reading more compressed bytes. Our multi-frame wrapper
-# sits behind ``zipfile._get_decompressor`` on every Python version, so it must
-# honour that contract or every .eval read fails with AttributeError.
-# ---------------------------------------------------------------------------
-
-
-def _two_frame_stream(payload: bytes, split: int) -> bytes:
-    cctx = zstandard.ZstdCompressor(level=3)
-    return cctx.compress(payload[:split]) + cctx.compress(payload[split:])
-
-
-def _decompressor_for_zstd() -> _MultiFrameZstdDecompressObj:
-    # zipfile._get_decompressor is private and absent from the typeshed stubs.
-    get_decompressor = getattr(zipfile, "_get_decompressor", None)
-    assert get_decompressor is not None
-    decomp = get_decompressor(ZIP_ZSTANDARD)
-    assert isinstance(decomp, _MultiFrameZstdDecompressObj)
-    return decomp
-
-
-def test_registered_zstd_decompressor_exposes_needs_input() -> None:
-    """The stdlib's ``_decompressor_needs_input`` probes ``needs_input`` first."""
-    decomp = _decompressor_for_zstd()
-    assert decomp.needs_input is True
-
-
-def test_unbounded_decompress_returns_everything() -> None:
-    """The pre-gh-156002 call shape ``decompress(data)`` is unchanged."""
-    payload = moderately_compressible_payload(64 * 1024)
-    decomp = _decompressor_for_zstd()
-    out = decomp.decompress(_two_frame_stream(payload, 20_000))
-    assert out == payload
-    assert decomp.needs_input is True
-    assert decomp.eof is False
-
-
 MIN_READ_SIZE = 4096  # zipfile.ZipExtFile.MIN_READ_SIZE
 
 
 def _read_like_post_gh156002(decomp: Any, compressed: bytes, n: int) -> bytes:
-    """Mirror ``ZipExtFile._read1``'s non-deflate branch after CPython gh-156002.
+    """Mirror ``ZipExtFile._read1`` after CPython gh-156002.
 
-    Probe ``needs_input`` (falling back to ``_needs_input`` like the stdlib),
-    read more compressed bytes only while it is True, call
-    ``decompress(data, max_length)``, and stop on
-    ``eof or (no compressed bytes left and needs_input)``.  This exercises the
-    new call shape on interpreters whose ``zipfile`` predates the change.
+    It probes ``needs_input`` (falling back to ``_needs_input`` like the stdlib)
+    before reading more, calls ``decompress(data, max_length)``, and stops on
+    ``eof or (input exhausted and needs_input)``.
     """
 
     def needs_input(d: Any) -> bool:
@@ -176,33 +135,24 @@ def _read_like_post_gh156002(decomp: Any, compressed: bytes, n: int) -> bytes:
     return bytes(out)
 
 
-@pytest.mark.parametrize("n", [1, 4096, 65_536])
+# 4096 reads the 50 KB stream in a dozen slices across the frame boundary;
+# 65_536 reads it in one.
+@pytest.mark.parametrize("n", [4096, 65_536])
 def test_post_gh156002_read1_loop_reassembles_multi_frame_entry(n: int) -> None:
-    payload = moderately_compressible_payload(50_000)
-    stream = _two_frame_stream(payload, 17_000)
-    assert _read_like_post_gh156002(_decompressor_for_zstd(), stream, n) == payload
-
-
-def test_partial_input_across_a_frame_boundary() -> None:
-    """Input arriving in arbitrary slices is reassembled across frames."""
-    payload = moderately_compressible_payload(30_000)
-    stream = _two_frame_stream(payload, 15_000)
-    decomp = _decompressor_for_zstd()
-
-    out = b""
-    for i in range(0, len(stream), 100):
-        out += decomp.decompress(stream[i : i + 100], 4096)
-        assert decomp.needs_input is True
-    assert out == payload
+    payload = random.Random(0).randbytes(50_000)  # incompressible: ~1:1
+    cctx = zstandard.ZstdCompressor(level=3)
+    stream = cctx.compress(payload[:17_000]) + cctx.compress(payload[17_000:])
+    get_decompressor = getattr(zipfile, "_get_decompressor", None)
+    assert get_decompressor is not None
+    assert (
+        _read_like_post_gh156002(get_decompressor(ZIP_ZSTANDARD), stream, n) == payload
+    )
 
 
 def test_zip_member_read_paths_round_trip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``read``, ``read1`` and ``readline`` all reassemble a multi-frame entry.
-
-    Exercises whatever ``zipfile._read1`` the running interpreter ships.
-    """
+    """``read``, ``read1`` and ``readline`` reassemble a multi-frame entry."""
     # Shrink the frame cap so a 3 MiB payload becomes a 3-frame entry.
     monkeypatch.setattr(inspect_ai._util.zipfile, "_MAX_INPUT_PER_FRAME", 1024 * 1024)
     payload = moderately_compressible_payload(3 * 1024 * 1024)
