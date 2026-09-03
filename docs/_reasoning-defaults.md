@@ -20,6 +20,8 @@
 | google/gemini-3.5-flash | medium |
 | google/gemini-3.5-flash-lite | minimal |
 | google/gemini-3.6-flash | medium |
+| google/gemini-3.7-flash | medium |
+| google/gemini-3.8-flash | medium |
 | grok/grok-3-mini | low |
 | grok/grok-4 | no effort scale |
 | grok/grok-4.3 | low |
