@@ -5,6 +5,7 @@
 - Agent bridge: A Chat Completions response truncated by the output-token limit now reports `finish_reason="length"` instead of `"stop"`.
 - Google: Batched evaluations with a system message now serialize `system_instruction` as REST `Content` instead of a bare JSON array, fixing batch submission failures; batch results are now parsed through the SDK converter so unknown REST fields (e.g. `usageMetadata.serviceTier`) no longer fail the whole batch. (#5100)
 - Solver: `chain_of_thought()` now uses `format_template()` for prompt interpolation, matching the other prompt solvers: custom templates with extra `{name}` placeholders no longer raise `KeyError` (unknown placeholders pass through unchanged; JSON-style braces still need `{{ }}` escaping). (#5166)
+- Model Info: Explicit model info database entries for GLM 5.2 and 5.3.
 - Util: Support datetime instances in UtcDatetimeStr. (#5157)
 - Control Channel: New `inspect ctl task drain` command stops dispatching a task's queued samples while in-flight samples finish naturally, completing the task with an ordinary log whose abandoned remainder a later `inspect eval-set` re-invocation or `inspect eval-retry` still runs.
 - Control Channel: A later `inspect eval-set` re-invocation now re-runs samples left queued (never dispatched) when a task was ended with `inspect ctl task cancel --action score|error`; previously the cancelled task's log read as complete and was reused, so those samples never ran.
