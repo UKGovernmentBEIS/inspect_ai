@@ -104,10 +104,16 @@ def test_socket_creation_and_permissions():
     else:
         pytest.fail("Socket was not created within 5 seconds")
 
-    # Check socket permissions
-    stat_info = SOCKET_PATH.stat()
-    permissions = oct(stat_info.st_mode)[-3:]
-    assert permissions == "666", f"Socket permissions should be 666, got {permissions}"
+    # The socket and its directory are private to the server's user: only the CLI
+    # wrapper, which runs as that user, may connect.
+    socket_mode = SOCKET_PATH.stat().st_mode & 0o777
+    assert socket_mode & 0o077 == 0, (
+        f"Socket is reachable by other users: {socket_mode:o}"
+    )
+    directory_mode = SOCKET_PATH.parent.stat().st_mode & 0o777
+    assert directory_mode == 0o700, (
+        f"Server directory should be 0700, got {directory_mode:o}"
+    )
 
 
 def test_invalid_json_request():

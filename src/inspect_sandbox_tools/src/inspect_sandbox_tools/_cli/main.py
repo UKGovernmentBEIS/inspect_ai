@@ -23,6 +23,10 @@ from inspect_sandbox_tools._util.constants import (
     SERVER_PID_PATH,
     SHUTDOWN_STATUS_PATH,
     SOCKET_PATH,
+    ensure_private_server_dir,
+    open_private_append,
+    read_private_text,
+    write_private_text,
 )
 from inspect_sandbox_tools._util.json_rpc_chunking import (
     JSON_RPC_RESPONSE_CHUNK_METHOD,
@@ -87,6 +91,21 @@ def stop_server() -> None:
 
 
 async def _stop_server() -> None:
+    try:
+        ensure_private_server_dir(SERVER_DIR, create=False)
+    except FileNotFoundError:
+        # No server was ever started for this directory (its pid, lock, and
+        # status files would live there), so there is nothing to stop and no
+        # verified directory whose contents may be touched.
+        return
+    if SOCKET_PATH.parent != SERVER_DIR:
+        try:
+            ensure_private_server_dir(SOCKET_PATH.parent, create=False)
+        except FileNotFoundError:
+            # No socket can exist, but the pid file may still identify a live
+            # daemon, which the unreachable-socket path below will terminate.
+            pass
+
     if not _can_connect_to_socket():
         if not await _wait_for_starting_server():
             _clear_stale_server_state()
@@ -119,7 +138,7 @@ async def _wait_for_shutdown_status() -> None:
     deadline = time.monotonic() + _SHUTDOWN_STATUS_TIMEOUT
     while time.monotonic() < deadline:
         if SHUTDOWN_STATUS_PATH.exists():
-            status = json.loads(SHUTDOWN_STATUS_PATH.read_text())
+            status = json.loads(read_private_text(SHUTDOWN_STATUS_PATH))
             SOCKET_PATH.unlink(missing_ok=True)
             SERVER_PID_PATH.unlink(missing_ok=True)
             errors = status.get("errors", [])
@@ -200,10 +219,22 @@ _SERVER_STDERR_LOG = SERVER_DIR / "server-stderr.log"
 _SERVER_START_LOCK_PATH = SERVER_DIR / "server-start.lock"
 
 
+def _ensure_private_server_dirs() -> None:
+    """Create or verify every directory whose contents the CLI trusts.
+
+    The socket may live outside the server directory (the long-path fallback), and
+    the CLI must not connect to, or clean up, a socket in a directory it has not
+    verified any more than the daemon may bind one there.
+    """
+    ensure_private_server_dir(SERVER_DIR)
+    if SOCKET_PATH.parent != SERVER_DIR:
+        ensure_private_server_dir(SOCKET_PATH.parent)
+
+
 def _ensure_server_is_running() -> None:
     """Start one server for this directory, waiting for a concurrent starter."""
-    SERVER_DIR.mkdir(parents=True, exist_ok=True)
-    with _SERVER_START_LOCK_PATH.open("a+") as lock_file:
+    _ensure_private_server_dirs()
+    with open_private_append(_SERVER_START_LOCK_PATH) as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         _ensure_server_is_running_locked()
 
@@ -227,30 +258,30 @@ def _ensure_server_is_running_locked() -> None:
 
     SHUTDOWN_STATUS_PATH.unlink(missing_ok=True)
 
-    SERVER_DIR.mkdir(exist_ok=True)
-    stdout_log = open(_SERVER_STDOUT_LOG, "a")
-    stderr_log = open(_SERVER_STDERR_LOG, "a")
-
-    process = subprocess.Popen(
-        (
-            # Frozen onedir bundle: sys.executable is the stable launcher on disk
-            # (no self-extraction / self-deleting temp), so re-invoke it directly.
-            [sys.executable, "server"]
-            if getattr(sys, "frozen", False)
-            # Dev/test mode: use Python interpreter with module invocation
-            else [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "server"]
-        ),
-        stdout=stdout_log,
-        stderr=stderr_log,
-        env={**os.environ, SERVER_DIR_ENV: str(SERVER_DIR)},
-    )
+    with (
+        open_private_append(_SERVER_STDOUT_LOG) as stdout_log,
+        open_private_append(_SERVER_STDERR_LOG) as stderr_log,
+    ):
+        process = subprocess.Popen(
+            (
+                # Frozen onedir bundle: sys.executable is the stable launcher on
+                # disk (no self-extraction / self-deleting temp), so re-invoke it
+                # directly.
+                [sys.executable, "server"]
+                if getattr(sys, "frozen", False)
+                # Dev/test mode: use Python interpreter with module invocation
+                else [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "server"]
+            ),
+            stdout=stdout_log,
+            stderr=stderr_log,
+            env={**os.environ, SERVER_DIR_ENV: str(SERVER_DIR)},
+        )
     server_process = psutil.Process(process.pid)
-    SERVER_PID_PATH.write_text(
+    write_private_text(
+        SERVER_PID_PATH,
         json.dumps({"pid": process.pid, "created_at": server_process.create_time()})
-        + "\n"
+        + "\n",
     )
-    stdout_log.close()
-    stderr_log.close()
 
     # Wait for socket to become available
     for _ in range(6000):  # Wait up to 600 seconds
@@ -277,11 +308,14 @@ def _read_server_logs() -> str:
     parts = []
     for label, path in [("stdout", _SERVER_STDOUT_LOG), ("stderr", _SERVER_STDERR_LOG)]:
         try:
-            content = open(path).read()[-2000:]
-            if content.strip():
-                parts.append(f"  [{label}] {content}")
+            content = read_private_text(path)[-2000:]
         except FileNotFoundError:
-            pass
+            continue
+        except RuntimeError as ex:
+            parts.append(f"  [{label}] {ex}")
+            continue
+        if content.strip():
+            parts.append(f"  [{label}] {content}")
     return "\n".join(parts) if parts else "  (no log output)"
 
 
@@ -354,7 +388,7 @@ def _clear_stale_server_state() -> None:
 
 def _server_process_metadata() -> dict[str, int | float] | None:
     try:
-        metadata = json.loads(SERVER_PID_PATH.read_text())
+        metadata = json.loads(read_private_text(SERVER_PID_PATH))
         pid = metadata["pid"]
         created_at = metadata["created_at"]
     except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError):
