@@ -77,6 +77,7 @@ from ._layout.sample_checkpoints_dir import (
 )
 from ._layout.schemas import Checkpoint, ResticConfig
 from ._layout.staging_dir import (
+    RESTIC_CONFIG_SUBPATH,
     ensure_context_dir,
     ensure_sample_staging_dir,
     host_repo_dir,
@@ -113,8 +114,6 @@ logger = getLogger(__name__)
 # transcript.
 _HOST_CONTEXT_MAX_FILES = 256
 _HOST_CONTEXT_MAX_BYTES = 8 * 1024**3
-
-_RESTIC_CONFIG_SUBPATH = "restic/restic-config.json"
 
 
 @dataclass
@@ -534,7 +533,7 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
     written: list[str] = []
 
     with trace_action(logger, "Checkpoint Hydrate", "fs-copy cross-cutting"):
-        for subpath in (_RESTIC_CONFIG_SUBPATH, STRATEGY_PIN_SUBPATH):
+        for subpath in (RESTIC_CONFIG_SUBPATH, STRATEGY_PIN_SUBPATH):
             src = f"{old_sample_dir}/{subpath}"
             if await async_fs.exists(src):
                 dst = new / subpath
@@ -542,13 +541,13 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
                 await async_fs.get_file(src, str(dst))
                 written.append(subpath)
 
-        if _RESTIC_CONFIG_SUBPATH in written:
-            config_path = new / _RESTIC_CONFIG_SUBPATH
+        if RESTIC_CONFIG_SUBPATH in written:
+            config_path = new / RESTIC_CONFIG_SUBPATH
             try:
                 ResticConfig.model_validate_json(config_path.read_bytes())
             except ValueError as ex:
                 raise RuntimeError(
-                    f"resume: {old_sample_dir}/{_RESTIC_CONFIG_SUBPATH} is not a "
+                    f"resume: {old_sample_dir}/{RESTIC_CONFIG_SUBPATH} is not a "
                     f"valid restic config: {ex}"
                 ) from ex
 
