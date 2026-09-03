@@ -68,8 +68,6 @@ def test_grok_service_tier_omitted_for_batch() -> None:
         "(1149677 tokens) exceeds budget (975424 tokens)",
         # legacy xAI wording
         "The prompt length exceeds the maximum context length",
-        # spaced / mixed-case variant
-        "Input Too Large for this model",
     ],
 )
 def test_grok_context_overflow_maps_to_model_length(details: str) -> None:

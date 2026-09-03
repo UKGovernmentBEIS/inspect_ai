@@ -511,8 +511,7 @@ class GrokAPI(ModelAPI):
         details = ex.details() or ""
         details_lower = details.lower()
         if any(
-            marker in details_lower
-            for marker in ("prompt length", "input_too_large", "input too large")
+            marker in details_lower for marker in ("prompt length", "input_too_large")
         ):
             return ModelOutput.from_content(
                 model=self.model_name, content=details, stop_reason="model_length"
