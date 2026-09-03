@@ -65,12 +65,16 @@ directory left by an older install (which created it ``0755``) be reused instead
 refused.
 """
 
+from logging import getLogger
 from pathlib import PurePosixPath
 from typing import NamedTuple
 
+from inspect_ai._util.trace import trace_message
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
+
+logger = getLogger(__name__)
 
 # The script reports a verdict with a marker line on stderr and announces successful
 # verification with a marker line just before it execs the wrapped command. A
@@ -112,7 +116,7 @@ _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 # `npm install -g` or venv-less `pip install`), and nothing the script or the
 # sandbox tools need lives there. The shell itself is resolved by the provider
 # before this runs, through the image's PATH, which is why the host launches it
-# as `_SHELL`.
+# as `SHELL_PATH`.
 _SCRIPT = """
 set -u
 umask 077
@@ -221,12 +225,13 @@ for _placeholder, _value in {
     _SCRIPT = _SCRIPT.replace(_placeholder, _value)
 
 
-_SHELL = "/bin/sh"
+SHELL_PATH = "/bin/sh"
 """Absolute path of the shell that runs the verification script.
 
 A bare ``sh`` would be resolved by the provider through the image's PATH before the
 script can pin its own, so an image with a default-user-writable directory ahead of
-``/bin`` would let the agent supply the shell that root runs.
+``/bin`` would let the agent supply the shell that root runs. Callers that run
+their own privileged scripts in a sandbox should launch them the same way.
 """
 
 
@@ -302,6 +307,17 @@ def split_framework_path(path: str) -> FrameworkPath:
 
 DEFAULT_MODE = 0o700
 """Mode of a private framework directory: readable and writable by its owner only."""
+
+
+def expected_uid_for(user: str | None) -> int | None:
+    """The uid the helper must actually run as for ``user``, if the host knows it.
+
+    Only root has a uid known to the host. Pinning it makes a provider that ignores
+    or downgrades ``user`` (``LocalSandboxEnvironment`` does) fail a root call
+    instead of passing off the default user's directory as root's. For any other
+    user, including the default user (``None``), no expectation is made.
+    """
+    return 0 if user == "root" else None
 
 
 def framework_directory_mode(mode: int) -> str:
@@ -380,7 +396,7 @@ async def _run_verified(
     expect = "" if expected_uid is None else str(expected_uid)
     result = await sandbox.exec(
         [
-            _SHELL,
+            SHELL_PATH,
             "-c",
             _SCRIPT,
             "sh",
@@ -500,6 +516,81 @@ async def ensure_framework_directory(
         expected_uid=expected_uid,
         timeout=timeout,
     )
+
+
+async def try_ensure_framework_directory_as_root(
+    sandbox: SandboxEnvironment,
+    path: str,
+    *,
+    mode: int = DEFAULT_MODE,
+    trace_tag: str,
+    timeout: int | None = None,
+) -> bool:
+    """Create or adopt ``path`` as a root-owned framework directory, if root works.
+
+    Runs :func:`ensure_framework_directory` as ``root`` with ``expected_uid=0`` and
+    returns ``True`` once the directory is verified root-owned. Returns ``False``
+    when the sandbox cannot exec as root, which includes a provider that accepts
+    ``user="root"`` but runs the command as someone else
+    (``LocalSandboxEnvironment`` ignores ``user``): the helper reports the uid
+    mismatch before creating anything. Providers that refuse root signal it with
+    provider-specific exceptions or a failing exit status, so any other exception
+    from the exec is also read as "no root" (the trade-off is that an unrelated
+    probe failure selects the rootless path too). Each fallback is traced under
+    ``trace_tag``.
+
+    A contract violation reported by the helper (the entry exists but is a
+    symlink, is owned by another uid, has the wrong mode, ...) and a check that
+    could not be performed are re-raised rather than read as "no root": falling
+    back to the default user there would let whoever planted the entry decide
+    which user owns the framework's files. Callers decide what the rootless
+    fallback does (for instance whether ``repair_mode`` is appropriate for the
+    default user), which is why this helper stops at the verdict.
+
+    Args:
+        sandbox: Sandbox to operate in.
+        path: Absolute path of the directory.
+        mode: Permission bits the directory must have (see
+            :func:`ensure_framework_directory`).
+        trace_tag: Trace category for the fallback messages.
+        timeout: Optional timeout for the sandbox command.
+
+    Returns:
+        ``True`` if the directory was created or adopted as root; ``False`` if the
+        sandbox cannot run commands as root and the caller should install as the
+        default user.
+
+    Raises:
+        FrameworkDirectoryError: The entry violates the contract or could not be
+            created or entered as root.
+        FrameworkDirectoryUnavailableError: The check itself could not be performed.
+        ValueError: ``path`` is not an absolute, non-root path free of ``..``, or
+            ``mode`` is not an acceptable framework directory mode.
+    """
+    try:
+        await ensure_framework_directory(
+            sandbox, path, user="root", expected_uid=0, mode=mode, timeout=timeout
+        )
+        return True
+    except (FrameworkDirectoryError, FrameworkDirectoryUnavailableError, ValueError):
+        raise
+    except FrameworkDirectoryUserError as ex:
+        trace_message(
+            logger,
+            trace_tag,
+            f"sandbox does not run commands as root; using default user: {ex}",
+        )
+        return False
+    except Exception as ex:
+        # Broad catch is deliberate: providers signal "cannot exec as root" by
+        # raising provider-specific exception types (or a failing exit status), so
+        # no narrower type is available (see the docstring).
+        trace_message(
+            logger,
+            trace_tag,
+            f"root probe of {path} failed; falling back to default user: {ex}",
+        )
+        return False
 
 
 async def verify_framework_directory(

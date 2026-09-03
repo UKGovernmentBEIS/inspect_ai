@@ -36,6 +36,8 @@ from inspect_ai.util._sandbox._framework_directory import (
     FrameworkDirectoryUserError,
     ensure_framework_directory,
     exec_in_framework_directory,
+    expected_uid_for,
+    try_ensure_framework_directory_as_root,
     verify_framework_directory,
 )
 from inspect_ai.util._sandbox.context import (
@@ -202,16 +204,6 @@ def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
     sandbox._tools_user_resolved = True
 
 
-def _expected_uid(user: str | None) -> int | None:
-    """The uid the helper must actually run as for ``user``.
-
-    Only root has a uid known to the host. Pinning it makes a provider that ignores
-    or downgrades ``user`` (``LocalSandboxEnvironment`` does) fail the root probe
-    instead of passing off the default user's directory as root's.
-    """
-    return 0 if user == "root" else None
-
-
 async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> bool:
     """Check for a trustworthy installation from ``user``'s point of view.
 
@@ -226,7 +218,7 @@ async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> 
             SANDBOX_TOOLS_DIR,
             ["stat", "-c", "%f", SANDBOX_TOOLS_BASE_NAME],
             user=user,
-            expected_uid=_expected_uid(user),
+            expected_uid=expected_uid_for(user),
         )
     except FrameworkDirectoryNotFoundError:
         return False
@@ -268,7 +260,9 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         # rootless sandbox the agent shares the tools user's uid, so a directory that
         # uid owns is tightened to 0700 rather than refused: older releases left
         # rootless installs at 0755 (on the host, for the `local` sandbox).
-        if await _create_tools_dir_as_root(sandbox):
+        if await try_ensure_framework_directory_as_root(
+            sandbox, SANDBOX_TOOLS_DIR, trace_tag=TRACE_SANDBOX_TOOLS
+        ):
             _set_tools_user(sandbox, "root")
         else:
             await ensure_framework_directory(
@@ -285,7 +279,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
             sandbox,
             SANDBOX_TOOLS_DIR,
             user=sandbox._tools_user,
-            expected_uid=_expected_uid(sandbox._tools_user),
+            expected_uid=expected_uid_for(sandbox._tools_user),
         )
 
         # Start the server as root so it can setuid to any user for exec_remote.
@@ -300,47 +294,6 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         raise SandboxInjectionError(
             f"Failed to inject sandbox tools into sandbox: {e}", cause=e
         ) from e
-
-
-async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
-    """Prepare the tools dir as root; False if the sandbox cannot exec as root.
-
-    "Cannot exec as root" includes a provider that accepts ``user="root"`` but runs
-    the command as someone else (``LocalSandboxEnvironment`` ignores ``user``): the
-    helper is told to expect uid 0 and reports the mismatch before creating
-    anything, so the rootless path is taken and the tools user is recorded
-    truthfully.
-
-    A contract violation reported by the helper (the entry exists but is a symlink,
-    is owned by another uid, has the wrong mode, ...) is re-raised rather than
-    treated as "no root": falling back to the default user there would let whoever
-    planted the entry decide which user the tools run as.
-    """
-    try:
-        await ensure_framework_directory(
-            sandbox, SANDBOX_TOOLS_DIR, user="root", expected_uid=0
-        )
-        return True
-    except (FrameworkDirectoryError, FrameworkDirectoryUnavailableError):
-        raise
-    except FrameworkDirectoryUserError as ex:
-        trace_message(
-            logger,
-            TRACE_SANDBOX_TOOLS,
-            f"sandbox does not run commands as root; using default user: {ex}",
-        )
-        return False
-    except Exception as ex:
-        # Broad catch is deliberate: providers signal "cannot exec as root" by
-        # raising provider-specific exception types (or a failing exit status), so
-        # no narrower type is available. Trade-off: any other probe failure selects
-        # the rootless install.
-        trace_message(
-            logger,
-            TRACE_SANDBOX_TOOLS,
-            f"root sandbox tools dir probe failed; falling back to default user: {ex}",
-        )
-        return False
 
 
 async def _extract_tools_tree(
@@ -367,7 +320,7 @@ async def _extract_tools_tree(
             SANDBOX_TOOLS_DIR,
             ["tar", "xzf", gz_tmp],
             user=user,
-            expected_uid=_expected_uid(user),
+            expected_uid=expected_uid_for(user),
         )
     finally:
         await _remove_staged_archive(sandbox, gz_tmp, user)
@@ -388,7 +341,7 @@ async def _extract_tools_tree(
             SANDBOX_TOOLS_DIR,
             ["tar", "xf", tar_tmp],
             user=user,
-            expected_uid=_expected_uid(user),
+            expected_uid=expected_uid_for(user),
         )
     finally:
         await _remove_staged_archive(sandbox, tar_tmp, user)
@@ -414,7 +367,7 @@ async def _remove_staged_archive(
             SANDBOX_TOOLS_DIR,
             ["rm", "-f", path],
             user=user,
-            expected_uid=_expected_uid(user),
+            expected_uid=expected_uid_for(user),
         )
     except RuntimeError as ex:
         # Covers every helper verdict (all subclass RuntimeError) as well as the

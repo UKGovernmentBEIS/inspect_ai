@@ -25,11 +25,11 @@ from inspect_ai.util._sandbox._framework_directory import (
     _CREATE_FAILED_MARKER,
     _MISSING_MARKER,
     _SCRIPT,
-    _SHELL,
     _UNAVAILABLE_MARKER,
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
+    SHELL_PATH,
     FrameworkDirectoryError,
     FrameworkDirectoryNotFoundError,
     FrameworkDirectoryUnavailableError,
@@ -37,8 +37,10 @@ from inspect_ai.util._sandbox._framework_directory import (
     FrameworkPath,
     ensure_framework_directory,
     exec_in_framework_directory,
+    expected_uid_for,
     framework_directory_mode,
     split_framework_path,
+    try_ensure_framework_directory_as_root,
     verify_framework_directory,
 )
 from inspect_ai.util._sandbox.environment import (
@@ -160,8 +162,10 @@ class _ScriptOverrideSandbox(_EnvSandbox):
         timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        assert cmd[:3] == [_SHELL, "-c", _SCRIPT]
-        return await self.inner.exec([_SHELL, "-c", self.script, *cmd[3:]], input, cwd)
+        assert cmd[:3] == [SHELL_PATH, "-c", _SCRIPT]
+        return await self.inner.exec(
+            [SHELL_PATH, "-c", self.script, *cmd[3:]], input, cwd
+        )
 
 
 async def test_creates_missing_directory_with_mode_0700(
@@ -733,7 +737,7 @@ async def test_verifier_is_launched_by_absolute_shell_path() -> None:
     )
     await verify_framework_directory(sandbox, "/var/tmp/.x", user="root")
     (cmd, _), *_ = sandbox.exec_calls
-    assert cmd[0] == _SHELL == "/bin/sh"
+    assert cmd[0] == SHELL_PATH == "/bin/sh"
 
 
 async def test_exec_does_not_create_and_does_not_run_command_on_violation(
@@ -860,7 +864,7 @@ async def test_violation_verdict_becomes_framework_directory_error() -> None:
     # The request ran as the intended owner, via sh, with parent and leaf split.
     (cmd, user), *_ = sandbox.exec_calls
     assert user == "root"
-    assert cmd[:2] == [_SHELL, "-c"]
+    assert cmd[:2] == [SHELL_PATH, "-c"]
     assert cmd[-2:] == ["/var/tmp", ".x"]
 
 
@@ -913,6 +917,159 @@ async def test_user_mismatch_verdict_becomes_user_error() -> None:
     (cmd, user), *_ = sandbox.exec_calls
     assert user == "root"
     assert cmd[-6:] == ["0", "1", "0", "700", "/var/tmp", ".x"]
+
+
+def test_expected_uid_is_known_only_for_root() -> None:
+    assert expected_uid_for("root") == 0
+    assert expected_uid_for("nonroot") is None
+    assert expected_uid_for(None) is None
+
+
+async def test_root_probe_creates_as_root_insisting_on_uid_0() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    assert (
+        await try_ensure_framework_directory_as_root(
+            sandbox, "/var/tmp/.x", mode=0o755, trace_tag="Test"
+        )
+        is True
+    )
+    (cmd, user), *rest = sandbox.exec_calls
+    assert rest == []
+    assert user == "root"
+    assert cmd[-6:] == ["0", "1", "0", "755", "/var/tmp", ".x"]
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=6,
+                stdout="",
+                stderr=f"{_USER_MISMATCH_MARKER}: running as uid 1000, expected uid 0\n",
+            ),
+            id="ran-as-someone-else",
+        ),
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=126,
+                stdout="",
+                stderr="unable to find user root: no matching entries in passwd file\n",
+            ),
+            id="failing-status",
+        ),
+    ],
+)
+async def test_root_probe_is_false_when_root_is_unavailable(
+    result: ExecResult[str],
+) -> None:
+    sandbox = CannedSandbox.returning(result)
+    assert (
+        await try_ensure_framework_directory_as_root(
+            sandbox, "/var/tmp/.x", trace_tag="Test"
+        )
+        is False
+    )
+
+
+async def test_root_probe_is_false_when_the_provider_raises() -> None:
+    class Refused(Exception):
+        pass
+
+    def policy(_cmd: list[str], _user: str | None) -> ExecResult[str]:
+        raise Refused("no root in this sandbox")
+
+    sandbox = CannedSandbox(policy)
+    assert (
+        await try_ensure_framework_directory_as_root(
+            sandbox, "/var/tmp/.x", trace_tag="Test"
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    "result, expected",
+    [
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=3,
+                stdout="",
+                stderr=f"{_VIOLATION_MARKER}: /var/tmp/.x is owned by uid 1111, expected uid 0\n",
+            ),
+            FrameworkDirectoryError,
+            id="violation",
+        ),
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=7,
+                stdout="",
+                stderr=f"{_CREATE_FAILED_MARKER}: mkdir: read-only file system\n",
+            ),
+            FrameworkDirectoryError,
+            id="create-failed",
+        ),
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=5,
+                stdout="",
+                stderr=f"{_UNAVAILABLE_MARKER}: cannot stat parent directory /var/tmp: stat: not found\n",
+            ),
+            FrameworkDirectoryUnavailableError,
+            id="unavailable",
+        ),
+    ],
+)
+async def test_root_probe_reraises_verdicts_instead_of_downgrading(
+    result: ExecResult[str], expected: type[Exception]
+) -> None:
+    """A planted entry or an unverifiable check must never select the rootless path."""
+    sandbox = CannedSandbox.returning(result)
+    with pytest.raises(expected):
+        await try_ensure_framework_directory_as_root(
+            sandbox, "/var/tmp/.x", trace_tag="Test"
+        )
+
+
+async def test_root_probe_rejects_bad_arguments_rather_than_falling_back() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(success=True, returncode=0, stdout="", stderr="")
+    )
+    with pytest.raises(ValueError):
+        await try_ensure_framework_directory_as_root(
+            sandbox, "relative", trace_tag="Test"
+        )
+    with pytest.raises(ValueError):
+        await try_ensure_framework_directory_as_root(
+            sandbox, "/var/tmp/.x", mode=0o777, trace_tag="Test"
+        )
+    assert sandbox.exec_calls == []
+
+
+async def test_root_probe_is_false_on_local_sandbox(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """LocalSandboxEnvironment ignores `user`, so it must not report root."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user")
+    target = parent / "fw"
+    with pytest.warns(UserWarning, match="'user' parameter is ignored"):
+        assert (
+            await try_ensure_framework_directory_as_root(
+                local, str(target), trace_tag="Test"
+            )
+            is False
+        )
+    assert not target.exists()  # refused before creating anything
 
 
 async def test_no_expected_uid_passes_an_empty_expectation() -> None:

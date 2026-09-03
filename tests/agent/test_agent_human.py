@@ -36,10 +36,10 @@ from inspect_ai.agent._human.install import (
 )
 from inspect_ai.util._sandbox._framework_directory import (
     _SCRIPT,
-    _SHELL,
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
+    SHELL_PATH,
     FrameworkDirectoryError,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
@@ -121,11 +121,11 @@ HUMAN_AGENT_LEAF = HUMAN_AGENT_DIR.rsplit("/", 1)[1]
 
 
 def is_helper_call(cmd: list[str]) -> bool:
-    return cmd[:3] == [_SHELL, "-c", _SCRIPT] and HUMAN_AGENT_LEAF in cmd
+    return cmd[:3] == [SHELL_PATH, "-c", _SCRIPT] and HUMAN_AGENT_LEAF in cmd
 
 
 def is_bashrc_call(cmd: list[str]) -> bool:
-    return cmd[:3] == [_SHELL, "-c", _BASHRC_APPEND_SCRIPT]
+    return cmd[:3] == [SHELL_PATH, "-c", _BASHRC_APPEND_SCRIPT]
 
 
 def wrapped_command(cmd: list[str]) -> list[str]:
@@ -233,7 +233,7 @@ async def test_install_writes_task_py_into_verified_root_dir_after_bashrc(
 
     # Every command is launched through the absolute shell path; nothing is staged,
     # chowned, or executed from a directory the login user could replace.
-    assert all(cmd[0] == _SHELL for cmd, _ in sandbox.exec_calls)
+    assert all(cmd[0] == SHELL_PATH for cmd, _ in sandbox.exec_calls)
     assert sandbox.written == []
 
 
@@ -485,7 +485,7 @@ def test_installer_source_runs_nothing_outside_the_helper_and_bashrc_scripts() -
                 argv = node.args[0]
                 assert isinstance(argv, ast.List), ast.unparse(node)
                 assert isinstance(argv.elts[0], ast.Name), ast.unparse(node)
-                assert argv.elts[0].id == "_SHELL", ast.unparse(node)
+                assert argv.elts[0].id == "SHELL_PATH", ast.unparse(node)
     assert not hasattr(human_install, "INSTALL_DIR")
     assert not hasattr(human_install, "human_agent_install_sh")
 
@@ -533,8 +533,8 @@ class _HomeSandbox(SandboxEnvironment):
         timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        assert cmd[:3] == [_SHELL, "-c", _BASHRC_APPEND_SCRIPT]
-        return await self.inner.exec([_SHELL, "-c", self.script, *cmd[3:]], input)
+        assert cmd[:3] == [SHELL_PATH, "-c", _BASHRC_APPEND_SCRIPT]
+        return await self.inner.exec([SHELL_PATH, "-c", self.script, *cmd[3:]], input)
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
         raise NotImplementedError

@@ -1,7 +1,5 @@
 """Tests for sandbox tools injection."""
 
-import os
-import sys
 from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import AsyncIterator, BinaryIO, NamedTuple
@@ -15,16 +13,15 @@ from inspect_ai.tool._sandbox_tools_utils import sandbox as sandbox_tools
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox._framework_directory import (
     _MISSING_MARKER,
-    _SHELL,
     _UNAVAILABLE_MARKER,
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
+    SHELL_PATH,
     FrameworkDirectoryError,
 )
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
-from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, SupportedContainerOSInfo
 from inspect_ai.util._subprocess import ExecResult
 
@@ -83,7 +80,7 @@ NOT_ROOT = ExecResult(
 
 
 def is_framework_dir_call(cmd: list[str]) -> bool:
-    return cmd[:2] == [_SHELL, "-c"] and SANDBOX_TOOLS_DIR.rsplit("/", 1)[1] in cmd
+    return cmd[:2] == [SHELL_PATH, "-c"] and SANDBOX_TOOLS_DIR.rsplit("/", 1)[1] in cmd
 
 
 def wrapped_command(cmd: list[str]) -> list[str]:
@@ -260,19 +257,6 @@ async def test_inject_falls_back_when_provider_runs_root_as_default_user(
     assert all(flags.expected_uid == "" for flags in default_flags)
     assert [flags.repair for flags in default_flags if flags.create == "1"] == ["1"]
     assert all(flags.repair == "0" for flags in default_flags if flags.create == "0")
-
-
-@pytest.mark.skipif(sys.platform != "linux", reason="helper script needs GNU stat")
-async def test_root_probe_is_false_on_local_sandbox() -> None:
-    """LocalSandboxEnvironment ignores `user`, so it must not be recorded as root."""
-    if os.getuid() == 0:
-        pytest.skip("requires a non-root test user")
-    local = LocalSandboxEnvironment()
-    try:
-        with pytest.warns(UserWarning, match="'user' parameter is ignored"):
-            assert await sandbox_tools._create_tools_dir_as_root(local) is False
-    finally:
-        local.directory.cleanup()
 
 
 @pytest.mark.parametrize(

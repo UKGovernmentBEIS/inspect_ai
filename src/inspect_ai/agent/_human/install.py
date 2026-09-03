@@ -42,23 +42,18 @@ world-writable directory would adopt whatever the sandbox user put in it.
 
 import inspect
 import stat
-from logging import getLogger
 from textwrap import dedent
 
-from inspect_ai._util.trace import trace_message
 from inspect_ai.util import SandboxEnvironment, sandbox
 from inspect_ai.util._sandbox._framework_directory import (
-    _SHELL,
-    FrameworkDirectoryError,
-    FrameworkDirectoryUnavailableError,
-    FrameworkDirectoryUserError,
+    SHELL_PATH,
     ensure_framework_directory,
     exec_in_framework_directory,
+    expected_uid_for,
+    try_ensure_framework_directory_as_root,
 )
 
 from .commands.command import HumanAgentCommand
-
-logger = getLogger(__name__)
 
 TRACE_HUMAN_AGENT = "Human Agent"
 
@@ -122,48 +117,17 @@ async def install_human_agent(
     await _write_task_py(sb, owner, task_py)
 
 
-def _expected_uid(owner: str | None) -> int | None:
-    """The uid the helper must actually run as for ``owner`` (only root's is known)."""
-    return 0 if owner == "root" else None
-
-
 async def _ensure_human_agent_dir(sb: SandboxEnvironment) -> str | None:
     """Create or adopt ``HUMAN_AGENT_DIR``; return its owner (``None`` = default user).
 
-    Root is tried first and must really be uid 0, so a provider that ignores
-    ``user`` cannot pass off the default user's directory as root's. A contract
-    violation reported by the helper propagates rather than selecting the rootless
-    install: falling back there would let whoever planted the entry decide which
-    user owns the human agent's files. The fallback never repairs a wrong-mode
-    directory (see the module docstring).
+    Root is tried first through the shared root probe, which re-raises a contract
+    violation rather than selecting the rootless install. The fallback never
+    repairs a wrong-mode directory (see the module docstring).
     """
-    try:
-        await ensure_framework_directory(
-            sb,
-            HUMAN_AGENT_DIR,
-            user="root",
-            expected_uid=0,
-            mode=HUMAN_AGENT_DIR_MODE,
-        )
+    if await try_ensure_framework_directory_as_root(
+        sb, HUMAN_AGENT_DIR, mode=HUMAN_AGENT_DIR_MODE, trace_tag=TRACE_HUMAN_AGENT
+    ):
         return "root"
-    except (FrameworkDirectoryError, FrameworkDirectoryUnavailableError):
-        raise
-    except FrameworkDirectoryUserError as ex:
-        trace_message(
-            logger,
-            TRACE_HUMAN_AGENT,
-            f"sandbox does not run commands as root; using default user: {ex}",
-        )
-    except Exception as ex:
-        # Broad catch is deliberate: providers signal "cannot exec as root" by
-        # raising provider-specific exception types (or a failing exit status), so
-        # no narrower type is available.
-        trace_message(
-            logger,
-            TRACE_HUMAN_AGENT,
-            f"root human agent dir probe failed; falling back to default user: {ex}",
-        )
-
     await ensure_framework_directory(
         sb, HUMAN_AGENT_DIR, user=None, mode=HUMAN_AGENT_DIR_MODE
     )
@@ -189,7 +153,7 @@ async def _task_py_installed(sb: SandboxEnvironment, owner: str | None) -> bool:
         HUMAN_AGENT_DIR,
         ["sh", "-c", _TASK_PY_PROBE, "sh", TASK_PY],
         user=owner,
-        expected_uid=_expected_uid(owner),
+        expected_uid=expected_uid_for(owner),
         mode=HUMAN_AGENT_DIR_MODE,
     )
     if not result.success:
@@ -236,7 +200,7 @@ async def _write_task_py(
         HUMAN_AGENT_DIR,
         ["sh", "-c", _TASK_PY_WRITE, "sh", TASK_PY],
         user=owner,
-        expected_uid=_expected_uid(owner),
+        expected_uid=expected_uid_for(owner),
         mode=HUMAN_AGENT_DIR_MODE,
         input=contents,
     )
@@ -297,7 +261,15 @@ async def append_bashrc(
         RuntimeError: The append was refused or failed.
     """
     result = await sb.exec(
-        [_SHELL, "-c", _BASHRC_APPEND_SCRIPT, "sh", BASHRC, user or "", BASHRC_MARKER],
+        [
+            SHELL_PATH,
+            "-c",
+            _BASHRC_APPEND_SCRIPT,
+            "sh",
+            BASHRC,
+            user or "",
+            BASHRC_MARKER,
+        ],
         input=contents,
         user=user,
     )
