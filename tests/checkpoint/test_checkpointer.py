@@ -1276,6 +1276,56 @@ async def test_fire_writes_restic_config_and_checkpoint_files(
     assert (context / "store.json").is_file()
 
 
+async def test_fire_with_traversal_sample_id_stays_inside_eval_dir(
+    active_sample: _FakeActiveSample, tmp_path: Path
+) -> None:
+    """A dataset id with `/` and `..` checkpoints inside the eval dir and is resumable.
+
+    Everything the checkpointer materializes (restic config, checkpoint
+    files, context) must land under the eval checkpoints dir, and the
+    resume lookup must find it under the same name the write path used.
+    """
+    from inspect_ai.util._checkpoint._layout import (
+        has_sample_checkpoint,
+        sample_checkpoints_dir,
+    )
+    from inspect_ai.util._checkpoint._layout._paths import sample_dir_segment
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+
+    hostile_id = "../../escape/me"
+    active_sample.sample.id = hostile_id
+    active_sample.epoch = 0
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=TurnInterval(every=1))
+    active_sample.checkpointer = create_checkpointer(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=hostile_id,
+        epoch=0,
+    )
+
+    async with checkpointer() as cp:
+        await cp.tick()  # informational boundary, no fire
+        await cp.tick()  # turn 1 elapsed, fires (ckpt-1)
+
+    log = Path(active_sample.log_location)
+    eval_dir = log.parent / f"{log.stem}.checkpoints"
+    sample_dir = eval_dir / f"{sample_dir_segment(hostile_id)}__0"
+    assert sample_dir.is_dir()
+    assert (sample_dir / "restic" / "restic-config.json").is_file()
+    assert (sample_dir / "ckpt-00001.json").is_file()
+    assert (sample_dir / "context" / "events.json").is_file()
+    # Nothing was relocated to where the raw id would have pointed.
+    assert not (log.parent / "escape").exists()
+    assert not (tmp_path / "escape").exists()
+    assert not (tmp_path.parent / "escape").exists()
+    # The eval dir holds exactly this sample's dir.
+    assert [p.name for p in eval_dir.iterdir()] == [sample_dir.name]
+
+    # Resume-side lookup (as `_resume_if_checkpointed` does) agrees.
+    assert await has_sample_checkpoint(str(eval_dir), hostile_id, 0)
+    assert sample_checkpoints_dir(str(eval_dir), hostile_id, 0) == str(sample_dir)
+
+
 # === nested re-entry: sub-agent loops (agent-as-tool / handoff / deepagent) ==
 
 

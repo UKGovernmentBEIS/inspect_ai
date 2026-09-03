@@ -18,6 +18,7 @@ The optional ``_<retry>`` suffix on the dir name is omitted until
 
 from __future__ import annotations
 
+import re
 import secrets
 from typing import TypeVar
 
@@ -26,15 +27,24 @@ from pydantic import BaseModel
 from inspect_ai._util.asyncfiles import get_async_filesystem
 
 from .._async_fs import async_mkdir
+from ._paths import sample_dir_segment
 from .schemas import Checkpoint, ResticConfig
 from .staging_dir import restic_config_path, restic_dir
 
 _M = TypeVar("_M", bound=BaseModel)
 
+CHECKPOINT_FILE_RE = re.compile(r"ckpt-[0-9]{5,}\.json")
+"""The exact basename form ``write_checkpoint_file`` generates."""
+
 
 def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
-    """Return the per-sample checkpoints dir path (no FS side effects)."""
-    return f"{eval_dir}/{sample_id}__{epoch}"
+    """Return the per-sample checkpoints dir path (no FS side effects).
+
+    The sample id is a dataset-supplied string; ``sample_dir_segment``
+    reduces it to a single safe dir segment so an id containing ``/``
+    or ``..`` cannot relocate the per-sample tree out of ``eval_dir``.
+    """
+    return f"{eval_dir}/{sample_dir_segment(sample_id)}__{epoch}"
 
 
 async def has_sample_checkpoint(
