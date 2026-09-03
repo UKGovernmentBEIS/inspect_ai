@@ -535,7 +535,9 @@ async def test_restore_repo_rejects_symlink_in_restored_tree(
 
     with pytest.raises(RestoredTreeError, match="symlink"):
         await _restore(target)
-    assert not target.exists()  # rejected tree is not left behind
+    # The rejected tree is not left behind; the caller's dir is, emptied.
+    assert target.is_dir() and not any(target.iterdir())
+    assert secret.read_text() == '{"pwned": true}'  # cleanup did not follow the link
 
 
 async def test_restore_repo_cleans_target_when_restic_fails(
@@ -545,6 +547,8 @@ async def test_restore_repo_cleans_target_when_restic_fails(
 
     def restore_then_fail(target: Path) -> None:
         _write_store(target)
+        (target / "nested").mkdir()
+        (target / "nested" / "leftover.json").write_text("{}")
         raise subprocess.CalledProcessError(1, ["restic", "restore"])
 
     _fake_restic(monkeypatch, _ONE_SNAPSHOT, _STORE_ONLY, restore_then_fail)
@@ -552,7 +556,7 @@ async def test_restore_repo_cleans_target_when_restic_fails(
 
     with pytest.raises(subprocess.CalledProcessError):
         await _restore(target)
-    assert not target.exists()
+    assert target.is_dir() and not any(target.iterdir())
 
 
 async def test_restore_repo_cleans_target_when_cancelled_mid_restore(
@@ -576,7 +580,7 @@ async def test_restore_repo_cleans_target_when_cancelled_mid_restore(
     with anyio.move_on_after(0.2) as scope:
         await _restore(target)
     assert scope.cancelled_caught
-    assert not target.exists()
+    assert target.is_dir() and not any(target.iterdir())
 
 
 def test_tree_path_maps_windows_drive_to_root_component() -> None:

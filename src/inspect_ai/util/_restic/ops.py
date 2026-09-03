@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 from collections.abc import Sequence
+from contextlib import suppress
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -111,8 +112,10 @@ async def restore_repo(
     rename. The restored tree is re-checked with
     :func:`verify_regular_tree` as belt-and-braces — the listing's sizes
     are the repo's own claims, so only the on-disk check is authoritative
-    for bytes. Whatever restic wrote is removed from ``target`` if the
-    restore fails, is cancelled, or fails the on-disk check.
+    for bytes. ``target`` belongs to the caller and is left in place on
+    every failure path; if the restore fails, is cancelled, or fails the
+    on-disk check, everything restic wrote into it is removed so it ends
+    up empty, just as after a listing-gate rejection.
 
     Raises:
         RestoredTreeError: the snapshot holds something other than regular
@@ -163,8 +166,24 @@ async def restore_repo(
             raise RuntimeError(f"restic restore produced no files under {target_dir}")
     except BaseException:
         # Cancellation included: never leave an unverified tree behind.
-        shutil.rmtree(target_dir, ignore_errors=True)
+        _clear_dir(target_dir)
         raise
+
+
+def _clear_dir(path: Path) -> None:
+    """Remove everything inside ``path`` without following symlinks, keeping ``path``.
+
+    Best-effort cleanup of an unverified restore. Symlinks are unlinked,
+    not descended, so a symlink to a directory elsewhere on the host is
+    never emptied; ``rmtree`` handles the same for nested entries.
+    """
+    with suppress(OSError), os.scandir(path) as entries:
+        for entry in entries:
+            if entry.is_dir(follow_symlinks=False):
+                shutil.rmtree(entry.path, ignore_errors=True)
+            else:
+                with suppress(OSError):
+                    os.unlink(entry.path)
 
 
 async def _latest_snapshot(restic: Path, repo: str, password: str) -> dict[str, Any]:
