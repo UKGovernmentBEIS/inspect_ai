@@ -67,7 +67,7 @@ from inspect_ai.approval._policy import (
     approval_policies_from_config,
     config_from_approval_policies,
 )
-from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo
+from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, IncompleteAction
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._recorders import create_recorder_for_format
 from inspect_ai.log._recorders.buffer import cleanup_sample_buffers
@@ -1060,6 +1060,7 @@ async def _eval_async_inner(
                         recorder=recorder,
                         header_only=log_header_only,
                         epochs_reducer=epochs_reducer,
+                        approval=approval,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1293,9 +1294,12 @@ def eval_retry(
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
+    stream_idle_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
+    incomplete_action: IncompleteAction = "retry",
+    incomplete_max: int | float | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1372,6 +1376,8 @@ def eval_retry(
             Request timeout (in seconds)
         attempt_timeout:
             Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
+        stream_idle_timeout:
+            Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries).
         max_connections:
             Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections:
@@ -1388,6 +1394,20 @@ def eval_retry(
             Must match the config used on the original eval for resume
             detection to find the checkpoint files (the original
             `--checkpoint` is not recorded in the log file).
+        incomplete_action: Disposition applied when recovering a crashed log
+            before retrying, for samples that were in progress at crash.
+            `"retry"` (default) re-runs them; `"error"` resolves them as
+            operator terminations — if that leaves every expected sample
+            final, the recovered log finalizes as `status="success"` and is
+            returned without retrying. A finalized log lives at
+            `<name>-recovered.eval` alongside the crashed log rather than in
+            `log_dir`, so read its location from `EvalLog.location`.
+        incomplete_max: Safety threshold for `incomplete_action="error"`
+            (count if >= 1, or proportion of expected samples if strictly
+            less than 1, so `1.0` means one sample, not 100%): when more
+            than this many samples are in progress, fall back to the default
+            recover-and-retry behavior. Has no effect (a warning is logged)
+            with `incomplete_action="retry"`.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1431,9 +1451,12 @@ def eval_retry(
             max_retries=max_retries,
             timeout=timeout,
             attempt_timeout=attempt_timeout,
+            stream_idle_timeout=stream_idle_timeout,
             max_connections=max_connections,
             adaptive_connections=adaptive_connections,
             checkpoint=checkpoint,
+            incomplete_action=incomplete_action,
+            incomplete_max=incomplete_max,
         )
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
@@ -1484,9 +1507,12 @@ async def eval_retry_async(
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
+    stream_idle_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
+    incomplete_action: IncompleteAction = "retry",
+    incomplete_max: int | float | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1552,9 +1578,24 @@ async def eval_retry_async(
         max_retries: Maximum number of times to retry request.
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
+        stream_idle_timeout: Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
         checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
+        incomplete_action: Disposition applied when recovering a crashed log
+            before retrying, for samples that were in progress at crash.
+            `"retry"` (default) re-runs them; `"error"` resolves them as
+            operator terminations — if that leaves every expected sample
+            final, the recovered log finalizes as `status="success"` and is
+            returned without retrying. A finalized log lives at
+            `<name>-recovered.eval` alongside the crashed log rather than in
+            `log_dir`, so read its location from `EvalLog.location`.
+        incomplete_max: Safety threshold for `incomplete_action="error"`
+            (count if >= 1, or proportion of expected samples if strictly
+            less than 1, so `1.0` means one sample, not 100%): when more
+            than this many samples are in progress, fall back to the default
+            recover-and-retry behavior. Has no effect (a warning is logged)
+            with `incomplete_action="retry"`.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1580,31 +1621,55 @@ async def eval_retry_async(
     ]
 
     # opportunistically recover crashed logs before retrying
+    from inspect_ai.log._recover import (
+        RecoveryNotAvailable,
+        RecoveryThresholdExceeded,
+        recover_eval_log_async,
+        resolve_incomplete_max,
+    )
+
+    incomplete_max = resolve_incomplete_max(incomplete_action, incomplete_max)
     recovered_files: dict[int, str] = {}
+    finalized_indexes: set[int] = set()
     for i, eval_log in enumerate(retry_eval_logs):
         if eval_log.status == "started" and eval_log.location:
-            from inspect_ai.log._recover import (
-                RecoveryNotAvailable,
-                recover_eval_log_async,
-            )
-
             try:
-                recovered = await recover_eval_log_async(
-                    eval_log.location, cleanup=False
-                )
+                try:
+                    # the buffer stays as a safety net while resolved samples
+                    # re-run; a finalized recovery is the final log, so sweep it
+                    recovered = await recover_eval_log_async(
+                        eval_log.location,
+                        cleanup="finalized",
+                        incomplete_action=incomplete_action,
+                        incomplete_max=incomplete_max,
+                    )
+                except RecoveryThresholdExceeded as ex:
+                    log.warning(
+                        f"Recovery for {eval_log.location} exceeded "
+                        f"incomplete_max; falling back to recover-and-retry: {ex}"
+                    )
+                    recovered = await recover_eval_log_async(
+                        eval_log.location, cleanup=False
+                    )
                 retry_eval_logs[i] = recovered
-                if recovered.location:
+                if recovered.status == "success":
+                    # recovery resolved every in-progress sample and finalized
+                    # the log — there is nothing left to retry (and the
+                    # recovered file is the final log, so don't clean it up)
+                    finalized_indexes.add(i)
+                elif recovered.location:
                     recovered_files[i] = recovered.location
             except RecoveryNotAvailable:
                 pass  # no recovery data available — proceed with flushed samples
             except Exception as ex:
-                logging.getLogger(__name__).warning(
-                    f"Recovery failed for {eval_log.location}: {ex}"
-                )
+                log.warning(f"Recovery failed for {eval_log.location}: {ex}")
 
     # eval them in turn
     eval_logs: list[EvalLog] = []
-    for eval_log in retry_eval_logs:
+    for i, eval_log in enumerate(retry_eval_logs):
+        if i in finalized_indexes:
+            eval_logs.append(eval_log)
+            continue
         # the task needs to be either filesystem or registry
         # based in order to do a retry (we don't have enough
         # context to reconstruct ephemeral Task instances)
@@ -1771,6 +1836,7 @@ async def eval_retry_async(
         )
         config.timeout = timeout or config.timeout
         config.attempt_timeout = attempt_timeout or config.attempt_timeout
+        config.stream_idle_timeout = stream_idle_timeout or config.stream_idle_timeout
         config.max_connections = max_connections or config.max_connections
         if adaptive_connections is not None:
             config.adaptive_connections = adaptive_connections
@@ -1792,7 +1858,7 @@ async def eval_retry_async(
         )
 
         # run the eval
-        log = (
+        retried_log = (
             await eval_async(
                 tasks=PreviousTask(
                     id=task_id,
@@ -1855,7 +1921,7 @@ async def eval_retry_async(
         )[0]
 
         # add it to our results
-        eval_logs.append(log)
+        eval_logs.append(retried_log)
 
     # Clean up recovered files only for retries that succeeded. On failure,
     # the recovered file serves as a safety net with samples that would
