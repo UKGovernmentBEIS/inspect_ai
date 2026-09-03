@@ -298,3 +298,31 @@ async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
     assert checkpoint is not None
     assert checkpoint.checkpoint_id == 2
     assert checkpoint.trigger == "agent_complete"
+
+
+async def test_scan_ignores_names_outside_checkpoint_file_form(
+    tmp_path: Path,
+) -> None:
+    """Listing and the resume copy agree on what counts as a checkpoint file.
+
+    ``ckpt-1.json`` and ``ckpt- 5.json`` int-parse but are not the
+    ``ckpt-NNNNN.json`` form ``write_checkpoint_file`` produces, so they
+    must not be treated as (higher-precedence) commit points here when
+    the resume copy would refuse them.
+    """
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.checkpoints"), "s", 0
+    )
+    good = _checkpoint(checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1"))
+    stray = _checkpoint(checkpoint_id=9, trigger="turn", turn=9, host=_info("snap-9"))
+    for name in ("ckpt-1.json", "ckpt- 5.json", "ckpt-x.json"):
+        (Path(sample_dir) / name).write_text(stray.model_dump_json())
+
+    assert not await has_sample_checkpoint(str(tmp_path / "foo.checkpoints"), "s", 0)
+    assert await scan_latest_committed_checkpoint(sample_dir) is None
+
+    await write_checkpoint_file(sample_checkpoints_dir=sample_dir, checkpoint=good)
+
+    checkpoint = await scan_latest_committed_checkpoint(sample_dir)
+    assert checkpoint is not None
+    assert checkpoint.checkpoint_id == 1

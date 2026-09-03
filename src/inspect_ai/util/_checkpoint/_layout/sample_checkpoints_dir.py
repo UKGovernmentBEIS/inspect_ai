@@ -33,8 +33,12 @@ from .staging_dir import restic_config_path, restic_dir
 
 _M = TypeVar("_M", bound=BaseModel)
 
-CHECKPOINT_FILE_RE = re.compile(r"ckpt-[0-9]{5,}\.json")
-"""The exact basename form ``write_checkpoint_file`` generates."""
+CHECKPOINT_FILE_RE = re.compile(r"ckpt-([0-9]{5,})\.json")
+"""The exact basename form ``write_checkpoint_file`` generates.
+
+Group 1 is the checkpoint id. Use ``fullmatch``: both the resume copy
+and the local listing rely on this being the only accepted form.
+"""
 
 
 def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
@@ -156,21 +160,19 @@ async def write_checkpoint_file(
 async def _list_checkpoint_ids(sample_dir: str) -> list[int]:
     """Return every checkpoint id present as ``ckpt-NNNNN.json`` in ``sample_dir``.
 
-    Unsorted. Names that don't parse as an int are silently skipped.
-    Works over any ``AsyncFilesystem``-supported scheme; a missing dir
-    yields nothing (no pre-check needed — see note on
-    ``has_sample_checkpoint``).
+    Unsorted. Names that don't fully match ``CHECKPOINT_FILE_RE`` (the
+    same filter the resume copy applies) are silently skipped. Works
+    over any ``AsyncFilesystem``-supported scheme; a missing dir yields
+    nothing (no pre-check needed — see note on ``has_sample_checkpoint``).
     """
     ids: list[int] = []
     try:
         async for uri in get_async_filesystem().iter_files(
             sample_dir, pattern="ckpt-*.json"
         ):
-            name = uri.rsplit("/", 1)[-1]
-            try:
-                ids.append(int(name.removeprefix("ckpt-").removesuffix(".json")))
-            except ValueError:
-                continue
+            match = CHECKPOINT_FILE_RE.fullmatch(uri.rsplit("/", 1)[-1])
+            if match is not None:
+                ids.append(int(match.group(1)))
     except FileNotFoundError:
         pass
     return ids
