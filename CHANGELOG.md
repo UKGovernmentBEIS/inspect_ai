@@ -1,4 +1,5 @@
 ## Unreleased
+- Meta: New `meta` provider for Muse Spark models on the Meta Model API (Responses API with streaming and reasoning replay, plus detection of text refusals as `content_filter` stops).
 - Scorer (breaking): Model-graded scorers with a panel of graders now require a strict majority: samples with no majority grade (even-split ties, three-way splits, or ties after a grader returns no parseable grade) come back unscored and leave the metric denominator, rather than the most common grade winning with ties broken by grader order. Pass `reducer="mode"` to `model_graded_qa()`/`model_graded_fact()` to restore the previous behavior. (#4721)
 - Scorer: `pattern()` now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)
 - Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)

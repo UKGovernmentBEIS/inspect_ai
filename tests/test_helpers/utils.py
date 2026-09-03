@@ -355,6 +355,17 @@ def skip_if_no_deepseek(func):
     return pytest.mark.api(skip_if_env_var("DEEPSEEK_API_KEY", exists=False)(func))
 
 
+def skip_if_no_meta(func):
+    func._needs_flaky_retry = True
+    has_key = "META_API_KEY" in os.environ or "MODEL_API_KEY" in os.environ
+    return pytest.mark.api(
+        pytest.mark.skipif(
+            not has_key,
+            reason="Test doesn't work without META_API_KEY or MODEL_API_KEY defined.",
+        )(func)
+    )
+
+
 def skip_if_no_sambanova(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("SAMBANOVA_API_KEY", exists=False)(func))
