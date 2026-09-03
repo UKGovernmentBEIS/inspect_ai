@@ -36,9 +36,10 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
 )
-from inspect_ai.model._model_output import ModelOutput, ModelUsage
+from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.model._openai import (
     chat_message_assistant_from_openai,
+    openai_chat_choices,
     openai_completion_usage,
 )
 from inspect_ai.model._openai_responses import (
@@ -461,6 +462,22 @@ async def test_model_output_from_openai_length_stop_reason() -> None:
 
     assert isinstance(result, ModelOutput)
     assert result.choices[0].stop_reason == "max_tokens"
+
+
+def test_openai_chat_choices_stop_reason_to_finish_reason() -> None:
+    """Chat Completions conversion maps truncation stop reasons to finish_reason=length."""
+
+    def finish_reason(stop_reason: StopReason) -> str:
+        output = ModelOutput.from_content(
+            model="mock/test",
+            content="partial response",
+            stop_reason=stop_reason,
+        )
+        return openai_chat_choices(output.choices)[0].finish_reason
+
+    assert finish_reason("max_tokens") == "length"
+    assert finish_reason("model_length") == "length"
+    assert finish_reason("stop") == "stop"
 
 
 async def test_model_output_from_openai_cache_token_normalization() -> None:
