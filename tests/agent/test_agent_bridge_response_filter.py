@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 
 import anyio
 import pytest
+from pydantic import JsonValue
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.agent import AgentState
@@ -532,9 +533,9 @@ async def test_forward_provider_errors_excludes_response_filter_error() -> None:
     `LimitExceededError` is.
     """
 
-    async def failing_generate(json_data: dict[str, object]) -> dict[str, object]:
+    async def failing_generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         raise ResponseFilterError("filter is broken") from ValueError("boom")
 
-    wrapped = _forward_provider_errors(failing_generate)  # type: ignore[arg-type]
+    wrapped = _forward_provider_errors(failing_generate)
     with pytest.raises(ResponseFilterError):
         await wrapped({})
