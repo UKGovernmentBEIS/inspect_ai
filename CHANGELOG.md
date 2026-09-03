@@ -17,7 +17,8 @@
 - Bugfix: Changing `attempt_timeout` or `cache_prompt` no longer misses the model cache, since neither changes what the provider returns.
 - Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
 - Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
-- Human Agent: Sandbox installation of the `task` CLI now refuses a pre-planted or non-root-owned `/opt/human_agent` and a login user's `.bashrc` that is a symlink, errors instead of silently skipping when it cannot be created, and no longer runs a staged install script.
+- Human Agent: Sandbox installation of the `task` CLI now refuses a pre-planted or non-root-owned `/opt/human_agent`, errors instead of silently skipping when it cannot be created, and no longer runs a staged install script.
+- Human Agent: The `task` shell hook is now appended to the login user's `.bashrc` as that user, so a `.bashrc` that user cannot write (e.g. root-owned) or that is a symlink fails installation instead of being written by root.
 
 ## 0.3.262 (02 September 2026)
 

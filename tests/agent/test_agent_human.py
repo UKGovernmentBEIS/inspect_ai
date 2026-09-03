@@ -683,6 +683,25 @@ async def test_bashrc_append_is_skipped_when_the_block_is_already_there(
     assert (home / BASHRC).read_text().count(BASHRC_MARKER) == 2
 
 
+async def test_bashrc_append_fails_on_a_bashrc_the_user_cannot_write(
+    home_sandbox: tuple[_HomeSandbox, Path],
+) -> None:
+    """The append carries only the login user's authority (no root write-through).
+
+    Stands in for a root-owned ``.bashrc`` left by an image build, which the old
+    ``install.sh`` wrote as the default user.
+    """
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user (root can write anywhere)")
+    sandbox, home = home_sandbox
+    bashrc = home / BASHRC
+    bashrc.write_text("existing\n")
+    bashrc.chmod(0o444)
+    with pytest.raises(RuntimeError, match=BASHRC):
+        await append_bashrc(sandbox, None, "payload\n")
+    assert bashrc.read_text() == "existing\n"
+
+
 async def test_task_py_detection_against_a_real_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -697,30 +716,33 @@ async def test_task_py_detection_against_a_real_directory(
     parent.mkdir(mode=0o755)
     target = parent / "human_agent"
     monkeypatch.setattr(human_install, "HUMAN_AGENT_DIR", str(target))
+    # The local sandbox ignores `user`, so the root probe succeeds exactly when the
+    # test process itself is root.
+    owner = "root" if os.getuid() == 0 else None
     local = LocalSandboxEnvironment()
     try:
-        assert await human_install._ensure_human_agent_dir(local) is None
+        assert await human_install._ensure_human_agent_dir(local) == owner
         assert stat.S_IMODE(target.stat().st_mode) == 0o755
-        assert await human_install._task_py_installed(local, None) is False
+        assert await human_install._task_py_installed(local, owner) is False
 
         await write_file_in_framework_directory(
             local,
             str(target),
             TASK_PY,
             "print('hi')\n",
-            user=None,
+            user=owner,
             mode=0o755,
             file_mode=TASK_PY_MODE,
         )
         task_py = target / TASK_PY
         assert stat.S_IMODE(task_py.stat().st_mode) == 0o755
-        assert await human_install._task_py_installed(local, None) is True
+        assert await human_install._task_py_installed(local, owner) is True
 
         # Anything other than a regular file at task.py is an error, not "installed".
         task_py.unlink()
         task_py.mkdir()
         with pytest.raises(RuntimeError, match="not a regular file"):
-            await human_install._task_py_installed(local, None)
+            await human_install._task_py_installed(local, owner)
     finally:
         local.directory.cleanup()
 
