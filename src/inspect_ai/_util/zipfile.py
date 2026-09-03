@@ -107,6 +107,15 @@ class _MultiFrameZstdDecompressObj:
     ``self._compress_left <= 0`` (all compressed bytes fed).  Meanwhile,
     ``decompress`` buffers leftover bytes from a completed frame and feeds them
     into the next inner decompressobj.
+
+    Since CPython gh-156002 (CVE-2026-15310; on main and 3.15, backports open
+    for 3.10-3.14 as python/cpython#156737-#156741, and already shipped by some
+    distributions' 3.13 builds) ``_read1`` drives non-deflate decompressors like
+    the stdlib ``bz2``/``lzma``/``zstd`` ones: it calls
+    ``decompress(data, max_length)`` and only reads more compressed bytes while
+    ``needs_input`` is True, otherwise draining with ``decompress(b"")``.  Both
+    are provided here so that call shape works; see ``decompress`` for why the
+    bound itself is not enforced.
     """
 
     def __init__(self) -> None:
@@ -116,7 +125,14 @@ class _MultiFrameZstdDecompressObj:
         self._obj: zstandard.ZstdDecompressionObj = self._dctx.decompressobj()
         self._pending: bytes = b""
 
-    def decompress(self, data: bytes) -> bytes:
+    def decompress(self, data: bytes, max_length: int = -1) -> bytes:
+        # ``max_length`` is accepted for the post-gh-156002 call shape but not
+        # enforced.  A ``zstandard`` decompressobj has no output bound of its
+        # own; withholding bytes here would only add copies on top of an
+        # expansion that has already been allocated, and rationing the input
+        # instead slows the whole-member reads inspect actually does.  Oversize
+        # returns are what ``ZipExtFile`` always got from this path and are
+        # buffered by its callers (``read``/``read1``/``peek``).
         self._pending += data
         out = b""
         while self._pending:
@@ -139,6 +155,12 @@ class _MultiFrameZstdDecompressObj:
     def eof(self) -> bool:
         # Always False: let compress_left drive the outer EOF check.
         return False
+
+    @property
+    def needs_input(self) -> bool:
+        # ``decompress`` drains all of its input and emits all of its output,
+        # so there is never anything for zipfile to drain with ``decompress(b"")``.
+        return True
 
 
 def _install_multiframe_patches() -> None:
