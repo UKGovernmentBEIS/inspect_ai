@@ -212,3 +212,14 @@ def test_safe_order_checkpoint_file_last_across_multiple() -> None:
         "ckpt-00001.json",
         "ckpt-00002.json",
     ]
+
+
+def test_safe_order_uses_shared_checkpoint_file_form() -> None:
+    """Only ``ckpt-NNNNN.json`` names are checkpoint files to the egress.
+
+    The same ``CHECKPOINT_FILE_RE`` gates the resume copy and the id
+    listing, so a name those would ignore (``ckpt-1.json``) must not be
+    held to the checkpoint-file tier here either.
+    """
+    ordered = _safe_order(["ckpt-00001.json", "ckpt-1.json", "restic/host/data/ab"])
+    assert ordered == ["restic/host/data/ab", "ckpt-1.json", "ckpt-00001.json"]

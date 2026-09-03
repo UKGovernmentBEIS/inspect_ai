@@ -36,8 +36,9 @@ _M = TypeVar("_M", bound=BaseModel)
 CHECKPOINT_FILE_RE = re.compile(r"ckpt-([0-9]{5,})\.json")
 """The exact basename form ``write_checkpoint_file`` generates.
 
-Group 1 is the checkpoint id. Use ``fullmatch``: both the resume copy
-and the local listing rely on this being the only accepted form.
+Group 1 is the checkpoint id. Use ``fullmatch``: the resume copy, the
+id listing and the host egress all rely on this being the only accepted
+form.
 """
 
 
