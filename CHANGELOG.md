@@ -13,6 +13,8 @@
 - Control Channel: `inspect ctl task list` rows now report a pending graceful resolution (`resolving`: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as `pending`.
 - Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
 - Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
+- Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
+- Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
 
 ## 0.3.262 (02 September 2026)
 
