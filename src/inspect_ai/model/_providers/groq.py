@@ -95,7 +95,11 @@ from .._model_output import (
     as_stop_reason,
     collect_stop_details,
 )
-from .._openai import classify_error_body, openai_stop_details
+from .._openai import (
+    classify_error_body,
+    http_status_from_error_code,
+    openai_stop_details,
+)
 from .._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
@@ -175,14 +179,18 @@ def groq_classify_stream_error(ex: APIError) -> RetryDecision:
     The SDK raises it without a status code, so the body is read instead: the
     shared `code`/`type` rules (`classify_error_body`) extended with Groq's
     own spellings, then the message for the "over capacity" condition (see
-    `GroqStreamError` for why that must retry). Anything unrecognized stays
-    unretried.
+    `GroqStreamError` for why that must retry). A numeric HTTP status in
+    `code` is authoritative: when it is non-retryable (400/404/413/...) the
+    message is not consulted. Anything unrecognized stays unretried.
     """
     info = groq_error_info(ex)
     decision = classify_error_body(info.code, info.type, GROQ_TRANSIENT_ERROR_NAMES)
     if decision is not None:
         return decision
-    if "over capacity" in info.message.lower():
+    if (
+        http_status_from_error_code(info.code) is None
+        and "over capacity" in info.message.lower()
+    ):
         return RetryDecision.transient()
     return RetryDecision.no()
 

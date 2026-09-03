@@ -656,6 +656,9 @@ def test_groq_mid_stream_error_classifies_by_body(body: object, kind: str) -> No
             code="invalid_api_key",
         ),
         dict(message="Not Found", code=404),
+        # a non-retryable numeric status is authoritative over the message
+        dict(message="Over capacity", code=400),
+        dict(message="Model over capacity for this request size", code="413"),
         "something unexpected",
         None,
     ],
