@@ -567,7 +567,7 @@ export META_API_KEY=your-meta-api-key
 inspect eval arc.py --model meta/muse-spark-1.3
 ```
 
-The provider uses the [Responses API](https://dev.meta.ai/docs/protocols/responses) with streaming enabled by default: Muse Spark reasons before producing any visible output, and only the Responses API preserves that reasoning across turns (as encrypted reasoning items that are replayed automatically). Pass `-M responses_api=false` to use Chat Completions instead, or `-M stream=false` to disable streaming.
+The provider uses the [Responses API](https://dev.meta.ai/docs/protocols/responses), which is the only Meta endpoint that preserves the model's reasoning across turns (as encrypted reasoning items that are replayed automatically). Pass `-M responses_api=false` to use Chat Completions instead.
 
 Muse Spark always reasons. Use `--reasoning-effort` (`minimal` through `xhigh`) to control how much — `none` is not supported and is ignored with a warning, and `max` is submitted as `xhigh`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
 
