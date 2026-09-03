@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -323,9 +324,16 @@ async def test_scan_committed_checkpoints_propagates_read_errors(
                 raise OSError("connection reset by peer")
             return await real_fs.read_file(filename)
 
-    with patch(
+    # Resolve the submodule explicitly: the `_layout` package re-exports a
+    # *function* named `sample_checkpoints_dir`, so a dotted `patch` target
+    # (or `from _layout import sample_checkpoints_dir`) lands on that
+    # function instead of the module on Python 3.10.
+    module = importlib.import_module(
         "inspect_ai.util._checkpoint._layout.sample_checkpoints_dir"
-        ".get_async_filesystem",
+    )
+    with patch.object(
+        module,
+        "get_async_filesystem",
         return_value=_FlakyFs(),
     ):
         with pytest.raises(OSError, match="connection reset"):
