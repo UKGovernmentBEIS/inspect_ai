@@ -155,6 +155,7 @@ After recovery, if there are cancelled or failed samples, the CLI will suggest r
 
 ```
 Recovered 47 samples to path/to/crashed-recovered.eval
+  status: error
 
 To re-run the 5 failed/cancelled samples:
   inspect eval-retry path/to/crashed-recovered.eval
@@ -184,6 +185,31 @@ inspect log list --status started
 inspect log recover path/to/started.eval --output ~/recovered/started-recovered.eval
 ```
 
+### Resolving Stalled Samples
+
+By default, samples that were still in progress at the time of the crash are recovered as cancelled errors, and the recovered log keeps status `"error"` — so `eval_set()` and `eval-retry` will re-run them. For agentic evals this can loop forever: a handful of samples hang, the process is killed, and the retry re-runs the same samples only for them to hang again.
+
+The `--incomplete-action` option resolves this by letting you choose the disposition for in-progress samples:
+
+- `retry` (the default) marks them as cancelled errors that a later retry re-runs.
+- `error` resolves them as operator terminations. When every expected sample is then final, the recovered log is finalized with status `"success"` and full results — nothing will retry it. If expected samples are missing entirely (never started), the log keeps status `"error"` and stays retryable. Expected samples are matched by id and epoch against the ids recorded in the log, so for a task with a dynamic `sample_source` (whose log records only the seed samples' ids) finalization happens only when the written samples are exactly the seed samples; once produced samples have been written, the log stays retryable. Finalization also requires the eval's metrics to be recomputed, so if a scorer or metric cannot be resolved in the recovery process (for example, a custom metric from a package that is not installed there) the log is not finalized either. Whenever `error` does not finalize, `inspect log recover` prints a `not finalized:` line giving the reason.
+
+Note that finalization freezes *every* errored sample in the recovered log, not only the ones resolved during recovery: samples that had already failed before the crash (within the eval's `fail_on_error` tolerance, or with `fail_on_error=False`) are recorded as errors in the finalized log rather than re-run — the same outcome the eval would have reached had it not crashed. An explicit `inspect eval-retry` on the finalized log can still re-run its errored samples later.
+
+For example, to bring a crashed eval with a few hung samples to a terminal state:
+
+``` bash
+inspect log recover path/to/crashed.eval --incomplete-action error
+```
+
+The `--incomplete-max` option guards against silently completing a systemic failure (e.g. a provider outage that left *most* samples in progress). Specify a count (a value of 1 or more), or a proportion of expected samples (a value strictly less than 1, so `1.0` means one sample rather than 100%; negative values are rejected); when more samples are in progress than the threshold allows, manual recovery refuses without writing anything:
+
+``` bash
+inspect log recover path/to/crashed.eval --incomplete-action error --incomplete-max 0.1
+```
+
+The same options are available on `inspect eval-retry` and `inspect eval-set` (and the `eval_retry()` and `eval_set()` functions), where they apply to the automatic recovery of crashed logs. There, exceeding `--incomplete-max` falls back to the default recover-and-retry behavior rather than failing. You can also set these via the `INSPECT_EVAL_INCOMPLETE_ACTION` and `INSPECT_EVAL_INCOMPLETE_MAX` environment variables. On every surface `--incomplete-max` only guards a resolving disposition: with the default `retry` it has no effect, and a warning is logged so the mismatch is visible.
+
 ### Python API
 
 You can also use the Python API perform recovery actions:
@@ -196,4 +222,11 @@ logs = recoverable_eval_logs()
 
 # Recover a specific log
 log = recover_eval_log("path/to/crashed.eval")
+
+# Recover, resolving in-progress samples so nothing retries them
+log = recover_eval_log(
+    "path/to/crashed.eval",
+    incomplete_action="error",
+    incomplete_max=0.1,
+)
 ```

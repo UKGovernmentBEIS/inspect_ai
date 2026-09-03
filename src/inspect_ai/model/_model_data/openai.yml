@@ -435,6 +435,8 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://developers.openai.com/api/docs/guides/reasoning ("GPT-5.6 defaults to medium in both modes")
+      reasoning_effort_default: medium
     gpt-5.6-sol:
       display_name: GPT-5.6 Sol
       release_date: 2026-07-09
@@ -443,6 +445,8 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://developers.openai.com/api/docs/guides/reasoning ("GPT-5.6 defaults to medium in both modes")
+      reasoning_effort_default: medium
     gpt-5.6-terra:
       display_name: GPT-5.6 Terra
       release_date: 2026-07-09
@@ -451,6 +455,8 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://developers.openai.com/api/docs/guides/reasoning ("GPT-5.6 defaults to medium in both modes")
+      reasoning_effort_default: medium
     gpt-5.6-luna:
       display_name: GPT-5.6 Luna
       release_date: 2026-07-09
@@ -459,4 +465,6 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://developers.openai.com/api/docs/guides/reasoning ("GPT-5.6 defaults to medium in both modes")
+      reasoning_effort_default: medium
 
