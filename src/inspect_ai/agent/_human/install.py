@@ -1,43 +1,30 @@
 """Install the human agent's ``task`` command into a sandbox.
 
-The installation consists of ``task.py`` (the CLI the human runs) in
-``HUMAN_AGENT_DIR`` and an alias for it appended to the login user's ``.bashrc``.
-The human logs in as an unprivileged user in a sandbox that user may already have
-been able to prepare, so nothing here trusts a pathname the sandbox user could have
-planted:
+The installation is ``task.py`` (the CLI the human runs) in ``HUMAN_AGENT_DIR`` and
+an alias for it appended to the login user's ``.bashrc``. The human logs in as an
+unprivileged user in a sandbox that user may already have been able to prepare, so
+nothing here trusts a pathname the sandbox user could have planted:
 
-- ``HUMAN_AGENT_DIR`` is created or adopted through the verified framework-directory
-  helper as root, in mode ``0755``: root stays the only principal who can add or
-  replace entries, and every user can read and run ``task.py``. A pre-existing entry
-  that is a symlink, not a directory, not root-owned, or in another mode aborts the
-  installation with the helper's message rather than being adopted, re-owned, or
-  repaired. The helper also requires the parent (``/opt``) to be root-owned and not
-  writable by others, as it is in standard images.
+- ``HUMAN_AGENT_DIR`` is a root-owned framework directory in mode ``0755`` (see
+  ``inspect_ai.util._sandbox._framework_directory`` for the contract): root alone
+  can add or replace entries, and every user can read and run ``task.py``. An
+  entry that fails the contract aborts the installation rather than being adopted
+  or repaired.
 - "Already installed" means the verified directory holds ``task.py`` as a regular
-  file. A directory that fails the contract is an error, never a reason to skip.
-- ``task.py`` is published by root through the helper's atomic write, which writes
-  into the verified directory object itself, so ``task.py`` only ever exists
-  complete, world-readable and executable, and is never written over an existing
-  entry. Nothing is staged in, or executed from, a directory the sandbox user can
-  write to.
-- The ``.bashrc`` append runs as the login user with the content on stdin, inside
-  that user's home directory, and refuses a ``.bashrc`` that is a symbolic link or
-  anything other than a regular file. It is idempotent (a ``.bashrc`` that already
-  carries the human agent block is left alone), so a failed installation can be
-  retried without duplicating the block.
+  file; any other entry there is an error, never a reason to skip.
+- ``task.py`` is published through the helper's atomic write, so it only ever
+  exists complete, in its final mode, and never over an existing entry.
+- The ``.bashrc`` append runs as the login user with the content on stdin, refuses
+  a ``.bashrc`` that is not a regular file, and is idempotent, so a failed
+  installation can be retried without duplicating the block.
 
-Rootless sandboxes (the provider cannot run commands as root, or silently runs them
-as the default user) install with the default user as the owner of
-``HUMAN_AGENT_DIR``. The directory contract still holds for that uid, but there is
-no boundary between the human agent's files and the sandbox user, because they are
-the same user. When that user is not root and ``/opt`` is the usual root-owned
-``0755``, creating the directory fails and the installation reports that error
-(earlier releases silently skipped installing, leaving no ``task`` command).
-Unlike the sandbox tools, a directory in the wrong mode is refused
-here even in that case: no earlier release left a rootless installation behind to
-repair, and the fallback may in fact be running as root (a provider that refused
-``user="root"`` while its default user is root), where repairing a root-owned
-world-writable directory would adopt whatever the sandbox user put in it.
+Rootless sandboxes (root cannot be used, or the provider silently runs commands as
+the default user) install with the default user as the directory owner. That is
+also the human's user, so there is no boundary between the two; if it cannot create
+the directory under ``/opt``, the installation fails with that error rather than
+silently skipping. Unlike the sandbox tools, a wrong-mode directory is refused even
+here: no earlier release left a rootless installation to repair, and the fallback
+may itself be running as root.
 """
 
 import inspect
@@ -98,16 +85,10 @@ async def install_human_agent(
             sandbox).
 
     Raises:
-        FrameworkDirectoryError: ``HUMAN_AGENT_DIR`` exists but cannot be trusted,
-            or could not be created.
-        FrameworkDirectoryUnavailableError: The directory could not be verified
-            (the sandbox lacks ``stat`` or ``id`` on its system path, or ``/opt``
-            cannot be entered).
-        RuntimeError: ``task.py`` exists but is not a regular file, its presence
-            could not be determined, the ``.bashrc`` append was refused or failed,
-            ``task.py`` could not be written (including when an entry appeared at
-            its name in the meantime), or (in a rootless sandbox) the helper could
-            not run as the default user either.
+        FrameworkDirectoryError: ``HUMAN_AGENT_DIR`` cannot be trusted or created.
+        FrameworkDirectoryUnavailableError: The directory could not be verified.
+        RuntimeError: ``task.py`` is not a regular file or could not be checked or
+            written, or the ``.bashrc`` append was refused or failed.
     """
     sb = sandbox_env or sandbox()
     owner = await _ensure_human_agent_dir(sb)
@@ -132,9 +113,7 @@ async def install_human_agent(
 async def _ensure_human_agent_dir(sb: SandboxEnvironment) -> str | None:
     """Create or adopt ``HUMAN_AGENT_DIR``; return its owner (``None`` = default user).
 
-    Root is tried first through the shared root probe, which re-raises a contract
-    violation rather than selecting the rootless install. The fallback never
-    repairs a wrong-mode directory (see the module docstring).
+    The rootless fallback never repairs a wrong-mode directory (see module docs).
     """
     if await try_ensure_framework_directory_as_root(
         sb, HUMAN_AGENT_DIR, mode=HUMAN_AGENT_DIR_MODE, trace_tag=TRACE_HUMAN_AGENT
@@ -212,10 +191,8 @@ async def append_bashrc(
     """Append ``contents`` to ``user``'s ``~/.bashrc`` unless already present.
 
     Runs as ``user`` (``None`` = the sandbox default user) so the write carries no
-    authority that user does not already have; a ``.bashrc`` that is a symbolic
-    link or some other non-regular entry is refused rather than written through. A
-    missing ``.bashrc`` is created; one that already contains ``BASHRC_MARKER`` is
-    left unchanged.
+    authority that user does not already have. A missing ``.bashrc`` is created; a
+    non-regular one is refused; one containing ``BASHRC_MARKER`` is left unchanged.
 
     Raises:
         RuntimeError: The append was refused or failed.
