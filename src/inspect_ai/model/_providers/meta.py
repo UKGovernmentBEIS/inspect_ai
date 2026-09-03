@@ -1,18 +1,16 @@
 import os
-import re
 from logging import getLogger
 from typing import Any
 
 from typing_extensions import override
 
-from inspect_ai._util.content import ContentText
 from inspect_ai._util.logger import warn_once
 from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model_call import ModelCall
-from .._model_output import ModelOutput, StopDetails
+from .._model_output import ModelOutput
 from .openai_compatible import OpenAICompatibleAPI
 from .util import environment_prerequisite_error
 
@@ -53,63 +51,25 @@ META_UNSUPPORTED_PARAM_WARNING = (
 # already omits these with a warning of its own).
 META_CHAT_UNSUPPORTED_PARAMS = ("stop", "logit_bias", "n")
 
-# Refusal detection. The API surfaces no structured refusal signal (no
-# `refusal` content part, no `content_filter` incomplete reason): a refusal is
-# an ordinary assistant message such as "I can't provide information or
-# guidance on that." or "I can't help with that — ... If you're interested in
-# X, I'm happy to help with that instead." We flag short replies that open
-# with a first-person refusal so agent loops and scorers see a
-# `content_filter` stop rather than a normal completion. Longer replies are
-# left alone: a message that declines one thing and then continues at length
-# is partial compliance, not a refusal.
-REFUSAL_MAX_CHARS = 1000
 
-_I_CANNOT = (
-    r"(?:i\s+(?:can(?:'|no|\s+no)?t|won't|will not|am (?:not able|unable) to)"
-    r"|i'm (?:not able|unable) to)"
-)
-_REFUSAL_VERBS = (
-    r"(?:help|assist|provide|create|write|generate|produce|do|comply|support|"
-    r"share|give|continue|proceed|fulfil|engage|participate)"
-)
-REFUSAL_PATTERNS = (
-    # "I'm sorry, but I can't help with that" / "Sorry, I can't ..."
-    re.compile(
-        rf"^(?:i'm sorry|i am sorry|sorry|i apologi[sz]e|unfortunately)[,.!]?\s*(?:but\s+)?{_I_CANNOT}\b",
-        re.IGNORECASE,
-    ),
-    # "I can't help with that" / "I won't provide ..." / "I'm unable to assist"
-    re.compile(rf"^{_I_CANNOT}\s+{_REFUSAL_VERBS}\b", re.IGNORECASE),
-)
-_CONTRASTIVE = re.compile(r"\b(?:but|however|though|although)\b", re.IGNORECASE)
-_SENTENCE_END = re.compile(r"[.!?\n]")
+def _flag_refusal_stop(output: ModelOutput) -> None:
+    """Report a structurally-signalled refusal as a content_filter stop.
 
-
-def meta_refusal_stop_details(text: str) -> StopDetails | None:
-    """Detect a first-person refusal in a short assistant reply.
-
-    Returns refusal `StopDetails` when `text` is short and opens with a
-    refusal, otherwise None. The heuristic deliberately errs toward missing a
-    refusal over mislabelling a real answer.
+    A policy block reaches us four ways depending on protocol and streaming: a
+    400 with `content_policy_violation`, a `content_filter` finish reason, or
+    (streamed Responses) a completed response whose only content is a
+    `refusal` part. The first three already stop as `content_filter`; the last
+    arrives as an ordinary `stop` that agent loops would treat as compliance,
+    so promote it. Keyed on the API's own refusal field, never on message text.
     """
-    stripped = text.strip()
-    if not stripped or len(stripped) > REFUSAL_MAX_CHARS:
-        return None
-    # normalize typographic apostrophes and leading markdown emphasis
-    normalized = stripped.replace("’", "'").lstrip("*_# ")
-    for pattern in REFUSAL_PATTERNS:
-        match = pattern.match(normalized)
-        if match is None:
-            continue
-        # a contrastive clause in the same sentence ("I can't X, but Y" /
-        # "can't help but notice") means the reply goes on to answer; a later
-        # sentence offering alternatives is still a refusal
-        rest = normalized[match.end() :]
-        end = _SENTENCE_END.search(rest)
-        sentence = rest if end is None else rest[: end.start()]
-        if not _CONTRASTIVE.search(sentence):
-            return StopDetails(type="refusal", explanation=stripped)
-    return None
+    for choice in output.choices:
+        details = choice.stop_details
+        if (
+            choice.stop_reason == "stop"
+            and details is not None
+            and details.type == "refusal"
+        ):
+            choice.stop_reason = "content_filter"
 
 
 class MetaAPI(OpenAICompatibleAPI):
@@ -129,7 +89,6 @@ class MetaAPI(OpenAICompatibleAPI):
         config: GenerateConfig = GenerateConfig(),
         responses_api: bool | None = None,
         strict_tools: bool = False,
-        detect_refusals: bool = True,
         **model_args: Any,
     ) -> None:
         api_key_var = META_API_KEY_VARS[0]
@@ -154,16 +113,6 @@ class MetaAPI(OpenAICompatibleAPI):
             strict_tools=strict_tools,
             **model_args,
         )
-        self.detect_refusals = detect_refusals
-
-    @override
-    def canonical_name(self) -> str:
-        """Muse models are keyed under the `meta` organization in the model info database."""
-        return f"meta/{self.service_model_name()}"
-
-    @override
-    def should_stream(self, config: GenerateConfig) -> bool:
-        return True
 
     @override
     async def generate(
@@ -173,17 +122,23 @@ class MetaAPI(OpenAICompatibleAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        result = await super().generate(
-            input, tools, tool_choice, self.resolve_config(config)
-        )
-        if not self.detect_refusals:
-            return result
+        result = await super().generate(input, tools, tool_choice, config)
         if isinstance(result, tuple):
             output, call = result
             if isinstance(output, ModelOutput):
-                output = self.flag_refusal(output)
+                _flag_refusal_stop(output)
             return output, call
-        return self.flag_refusal(result)
+        _flag_refusal_stop(result)
+        return result
+
+    @override
+    def canonical_name(self) -> str:
+        """Muse models are keyed under the `meta` organization in the model info database."""
+        return f"meta/{self.service_model_name()}"
+
+    @override
+    def should_stream(self, config: GenerateConfig) -> bool:
+        return True
 
     def resolve_config(self, config: GenerateConfig) -> GenerateConfig:
         """Drop or remap generation options the API rejects with a 400."""
@@ -211,6 +166,7 @@ class MetaAPI(OpenAICompatibleAPI):
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
     ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
         tools, tool_choice, config = super().resolve_tools(tools, tool_choice, config)
+        config = self.resolve_config(config)
         model = self.service_model_name()
         if tool_choice == "none":
             if tools:
@@ -244,24 +200,3 @@ class MetaAPI(OpenAICompatibleAPI):
                     ),
                 )
         return params
-
-    def flag_refusal(self, output: ModelOutput) -> ModelOutput:
-        """Convert a text refusal into a `content_filter` stop (see `meta_refusal_stop_details`)."""
-        if output.empty or output.stop_reason != "stop":
-            return output
-        choice = output.choices[0]
-        message = choice.message
-        if message.tool_calls:
-            return output
-        details = meta_refusal_stop_details(message.text)
-        if details is None:
-            return output
-        choice.stop_reason = "content_filter"
-        choice.stop_details = details
-        if isinstance(message.content, str):
-            message.content = [ContentText(text=message.content, refusal=True)]
-        else:
-            for content in message.content:
-                if isinstance(content, ContentText):
-                    content.refusal = True
-        return output

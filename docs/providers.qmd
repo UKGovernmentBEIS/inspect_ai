@@ -571,7 +571,7 @@ The provider uses the [Responses API](https://dev.meta.ai/docs/protocols/respons
 
 Muse Spark always reasons. Use `--reasoning-effort` (`minimal` through `xhigh`) to control how much — `none` is not supported and is ignored with a warning, and `max` is submitted as `xhigh`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"` (and `"none"` omits the tools from the request). Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
 
-The Meta Model API returns refusals as ordinary assistant messages with no structured refusal signal, so the provider inspects short replies for a refusal and reports them with `stop_reason="content_filter"` and `stop_details.type="refusal"`. Pass `-M detect_refusals=false` to disable this.
+Prompts blocked by Meta's content policy are reported as `stop_reason="content_filter"` with `stop_details`. The API signals such a block three different ways depending on protocol and streaming (an HTTP 400 with a `content_policy_violation` code, a `content_filter` finish reason, or a `refusal` content part), and the provider normalizes all of them. Note that a refusal the model writes itself, rather than one the policy layer blocks, carries no signal at all and arrives as an ordinary completion — score those from the completion text.
 
 The following environment variables are supported by the Meta provider
 
