@@ -166,9 +166,11 @@ jobs:
       # the source the reference docs are generated from. diff-tree lists
       # changed paths with blob ids, so it needs no blob fetches under the
       # blob:none checkout. The merge-base is quoted so a failure there fails
-      # the step; an empty unquoted arg would silently diff one commit.
+      # the step; an empty unquoted arg would leave the delta silently empty
+      # (diff-tree prints nothing for a merge commit given one argument).
+      # base_ref is empty on push and workflow_dispatch, so those use main.
       - name: Record this PR's own inspect_ai source delta
-        run: git diff-tree -r "$(git merge-base origin/main HEAD)" HEAD -- src/inspect_ai > .docs-src-delta
+        run: git diff-tree -r "$(git merge-base origin/${{ github.base_ref || 'main' }} HEAD)" HEAD -- src/inspect_ai > .docs-src-delta
 
       - name: Check for previous successful render
         id: render-cache
