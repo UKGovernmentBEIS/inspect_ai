@@ -1224,6 +1224,88 @@ def _make_batcher_and_batch(job_state: JobState) -> tuple:
     return batcher, batch
 
 
+def test_google_batch_result_line_tolerates_unknown_rest_fields() -> None:
+    """Batch result parsing must not fail on REST fields the SDK model lacks.
+
+    Google's batch results carry ``usageMetadata.serviceTier``, which no
+    released google-genai models; validating the raw dict with
+    ``extra="forbid"`` rejected every result (issue #5100 follow-on).
+    """
+    from google.genai.types import GenerateContentResponse
+    from pydantic import JsonValue
+
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._google_batch import GoogleBatcher
+    from inspect_ai.model._retry import model_retry_config
+
+    batcher = GoogleBatcher(
+        client=MagicMock(),
+        config=BatchConfig(),
+        retry_config=model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+        model_name="gemini-2.5-flash-lite",
+    )
+    line: dict[str, JsonValue] = {
+        "key": "req-1",
+        "response": {
+            "candidates": [
+                {
+                    "content": {"role": "model", "parts": [{"text": "Blue"}]},
+                    "finishReason": "STOP",
+                    "index": 0,
+                }
+            ],
+            "usageMetadata": {
+                "promptTokenCount": 20,
+                "candidatesTokenCount": 2,
+                "totalTokenCount": 22,
+                "serviceTier": "SERVICE_TIER_STANDARD",
+            },
+            "modelVersion": "gemini-2.5-flash-lite",
+            "responseId": "abc123",
+        },
+    }
+
+    key, result = batcher._parse_jsonl_line(line)
+
+    assert key == "req-1"
+    assert isinstance(result, GenerateContentResponse)
+    assert result.text == "Blue"
+    assert result.usage_metadata is not None
+    assert result.usage_metadata.total_token_count == 22
+
+
+def test_batch_request_dict_wraps_system_instruction() -> None:
+    from google.genai.types import Content, GenerateContentConfig, Part
+
+    from inspect_ai.model._providers._google_batch import batch_request_dict
+
+    config = GenerateContentConfig(
+        system_instruction=["You are helpful.", "Be concise."]
+    )
+    request = batch_request_dict(
+        config, [Content(role="user", parts=[Part.from_text(text="hi")])]
+    )
+
+    assert request["system_instruction"] == {
+        "parts": [{"text": "You are helpful."}, {"text": "Be concise."}],
+    }
+    assert request["contents"] == [
+        {"role": "user", "parts": [{"text": "hi"}]},
+    ]
+
+    config_parts = GenerateContentConfig(
+        system_instruction=[Part.from_text(text="You are helpful.")]
+    )
+    request_parts = batch_request_dict(
+        config_parts, [Content(role="user", parts=[Part.from_text(text="hi")])]
+    )
+    assert request_parts["system_instruction"] == {
+        "parts": [{"text": "You are helpful."}],
+    }
+
+
 @pytest.mark.parametrize(
     "state,expect_completed,expect_failed,expect_completion_info",
     [

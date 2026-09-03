@@ -157,23 +157,25 @@ def _before_validate_utc_time(v: Any) -> Any:
 
 
 def _before_validate_utc_datetime_str(v: Any) -> str:
-    """Parse and normalize ISO datetime string to UTC.
+    """Parse and normalize ISO datetime string or datetime instance to UTC.
 
     For legacy string temporal fields that cannot be converted to UtcDatetime
-    without breaking API compatibility. Accepts ISO 8601 strings, normalizes
-    to UTC, returns as ISO string.
+    without breaking API compatibility. Accepts ISO 8601 strings or datetime
+    instances, normalizes to UTC, returns as ISO string.
 
     Args:
-        v: ISO 8601 datetime string
+        v: ISO 8601 datetime string or datetime instance
 
     Returns:
         UTC-normalized ISO 8601 string
 
     Raises:
-        ValueError: If v is not a string or not a valid ISO datetime
+        ValueError: If v is not a string or datetime, or not a valid ISO datetime
     """
+    if isinstance(v, datetime):
+        return datetime_safe(v, timezone.utc).astimezone(timezone.utc).isoformat()
     if not isinstance(v, str):
-        raise ValueError(f"Expected str, got {type(v)}")
+        raise ValueError(f"Expected str or datetime, got {type(v)}")
     return (
         datetime_from_iso_format_safe(v, fallback_tz=timezone.utc)
         .astimezone(timezone.utc)

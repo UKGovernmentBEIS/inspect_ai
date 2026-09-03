@@ -12,6 +12,7 @@ import pytest
 from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai._control.eval_state import (
+    EvalState,
     clear_all_eval_states,
     finalize_eval,
     get_eval_state,
@@ -43,6 +44,14 @@ def test_finalize_folds_unaccounted_samples_into_cancelled() -> None:
     assert state.cancelled == 5
     assert state.is_finished
     assert state.completed_at is not None
+
+
+def test_queued_is_the_undispatched_remainder_clamped_at_zero() -> None:
+    state = EvalState(eval_id="e1", total=6, completed=2, errored=1, cancelled=1)
+    assert state.queued(in_flight=1) == 1
+    # the terminal counters and the live in-flight read aren't one snapshot:
+    # a sample counted in both must not produce a negative queue
+    assert state.queued(in_flight=3) == 0
 
 
 def test_dynamic_eval_not_provisionally_finished() -> None:
