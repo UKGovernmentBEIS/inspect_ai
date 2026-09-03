@@ -487,6 +487,37 @@ async def test_restore_repo_enforces_listing_bounds(
     assert [c[3] for c in calls] == ["snapshots", "ls"]
 
 
+async def test_restore_repo_stops_parsing_listing_past_entry_bound(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Listing lines beyond the entry bound are never decoded.
+
+    The lines after the bound are not JSON, so parsing them would raise
+    ``JSONDecodeError`` rather than the bound error; an untrusted listing
+    with millions of nodes must not be parsed in full on the event loop.
+    """
+    over_bound = _ls_chain(
+        *(_ls_node(f"{_SNAPSHOT_PATH}/f{i}.json", "file", size=1) for i in range(6))
+    )
+    lines = [json.dumps(record) for record in over_bound]
+    lines.extend("not json" for _ in range(1000))
+    calls: list[list[str]] = []
+
+    async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
+        calls.append(command)
+        if "snapshots" in command:
+            return SimpleNamespace(stdout=json.dumps(_ONE_SNAPSHOT).encode())
+        if "ls" in command:
+            return SimpleNamespace(stdout="\n".join(lines).encode())
+        raise AssertionError(f"unexpected restic command: {command}")
+
+    monkeypatch.setattr(anyio, "run_process", fake_run_process)
+
+    with pytest.raises(RestoredTreeError, match="exceeds 8 entries"):
+        await _restore(tmp_path / "ctx")
+    assert [c[3] for c in calls] == ["snapshots", "ls"]
+
+
 async def test_restore_repo_rejects_symlink_in_restored_tree(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

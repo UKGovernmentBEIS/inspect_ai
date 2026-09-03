@@ -130,7 +130,9 @@ async def restore_repo(
             f"restic restore: expected the latest snapshot in {repo} to record "
             f"exactly one source path, found {paths}"
         )
-    nodes = await _snapshot_nodes(restic, repo, password, snapshot["id"])
+    nodes = await _snapshot_nodes(
+        restic, repo, password, snapshot["id"], max_nodes=max_files
+    )
     subfolder = _check_snapshot_nodes(
         nodes, paths[0], max_files=max_files, max_bytes=max_bytes
     )
@@ -186,17 +188,34 @@ async def _latest_snapshot(restic: Path, repo: str, password: str) -> dict[str, 
 
 
 async def _snapshot_nodes(
-    restic: Path, repo: str, password: str, snapshot_id: str
+    restic: Path, repo: str, password: str, snapshot_id: str, *, max_nodes: int
 ) -> list[dict[str, Any]]:
-    """Every node in ``snapshot_id`` per ``restic ls --json`` (header dropped)."""
+    """Node records of ``snapshot_id`` per ``restic ls --json`` (header dropped).
+
+    Parsing stops after ``max_nodes + 1`` node records. The listing is
+    untrusted and is decoded synchronously on the event loop, so an
+    oversized one is cut off at the first record that already puts it over
+    the bound — enough for :func:`_check_snapshot_nodes` to reject it —
+    instead of stalling every other running sample while millions of lines
+    are parsed.
+    """
     proc = await anyio.run_process(
         [str(restic), "-r", repo, "ls", "--json", snapshot_id],
         env=restic_env(password),
         check=True,
     )
-    records = (json.loads(line) for line in proc.stdout.decode().splitlines() if line)
-    # restic 0.17+ emits ``message_type``; ``struct_type`` is the pre-0.17 key.
-    return [r for r in records if r.get("message_type", r.get("struct_type")) == "node"]
+    nodes: list[dict[str, Any]] = []
+    for line in proc.stdout.decode().splitlines():
+        if not line:
+            continue
+        record = json.loads(line)
+        # restic 0.17+ emits ``message_type``; ``struct_type`` is the pre-0.17 key.
+        if record.get("message_type", record.get("struct_type")) != "node":
+            continue
+        nodes.append(record)
+        if len(nodes) > max_nodes:
+            break
+    return nodes
 
 
 def _check_snapshot_nodes(
