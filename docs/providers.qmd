@@ -557,6 +557,30 @@ The following environment variables are supported by the Moonshot AI provider
 | `MOONSHOT_API_KEY` | API key credentials (required). |
 | `MOONSHOT_BASE_URL` | Base URL for requests (optional, defaults to `https://api.moonshot.ai/v1`). |
 
+## Meta {#meta}
+
+To use the [Meta](https://dev.meta.ai/docs) provider (Muse Spark models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export META_API_KEY=your-meta-api-key
+inspect eval arc.py --model meta/muse-spark-1.3
+```
+
+The provider uses the [Responses API](https://dev.meta.ai/docs/protocols/responses), which is the only Meta endpoint that preserves the model's reasoning across turns (as encrypted reasoning items that are replayed automatically). Pass `-M responses_api=false` to use Chat Completions instead.
+
+Muse Spark always reasons. Use `--reasoning-effort` (`minimal` through `xhigh`) to control how much — `none` is not supported and is ignored with a warning, and `max` is submitted as `xhigh`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
+
+Prompts blocked by Meta's content policy are reported as `stop_reason="content_filter"` with `stop_details`. The API signals such a block three different ways depending on protocol and streaming (an HTTP 400 with a `content_policy_violation` code, a `content_filter` finish reason, or a `refusal` content part), and the provider normalizes all of them. Note that a refusal the model writes itself, rather than one the policy layer blocks, carries no signal at all and arrives as an ordinary completion — score those from the completion text. Meta also restricts API keys after repeated policy violations (HTTP 403 with code `user_blocked`); while a key is restricted, streamed requests return a refusal for every prompt, so an eval where every sample stops with `content_filter` is more likely hitting that restriction than the content policy.
+
+The following environment variables are supported by the Meta provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `META_API_KEY` | API key credentials (required unless `MODEL_API_KEY` is set). |
+| `MODEL_API_KEY` | API key credentials (Meta's official variable name; used when `META_API_KEY` is not set). |
+| `META_BASE_URL` | Base URL for requests (optional, defaults to `https://api.meta.ai/v1`). |
+
 ## Grok {#grok}
 
 To use the [Grok](https://x.ai/) provider, install the `openai` package (which the Grok service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:

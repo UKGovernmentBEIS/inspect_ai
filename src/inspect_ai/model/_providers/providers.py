@@ -199,6 +199,14 @@ def moonshot() -> type[ModelAPI]:
     return MoonshotAPI
 
 
+@modelapi(name="meta")
+def meta() -> type[ModelAPI]:
+    validate_openai_client("Meta Model API")
+    from .meta import MetaAPI
+
+    return MetaAPI
+
+
 @modelapi(name="deepseek")
 def deepseek() -> type[ModelAPI]:
     validate_openai_client("DeepSeek API")
