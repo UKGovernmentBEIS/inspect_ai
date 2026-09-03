@@ -25,6 +25,7 @@ from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
+from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._trim import partition_messages, strip_citations
@@ -41,6 +42,84 @@ class ConsecutiveUserCompaction(CompactionSummary):
             metadata={"summary": True},
         )
         return [user_msg("input", "input", source="input"), summary], summary
+
+
+class _TwoTupleStrategy(CompactionStrategy):
+    """Third-party shape: overrides only compact(), returns a 2-tuple."""
+
+    def __init__(self) -> None:
+        super().__init__(type="trim", threshold=10_000, memory=False)
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        return [messages[-1]], None
+
+
+class _NoPrefixStrategy(_TwoTupleStrategy):
+    """Strategy that withholds the prefix, like CompactionNative."""
+
+    @property
+    def preserve_prefix(self) -> bool:
+        return False
+
+
+class _DropsInputStrategy(CompactionSummary):
+    """Summary-shaped output that omits the sample input message.
+
+    Mirrors what CompactionSummary produces once a prior native compaction
+    has already removed the source="input" message from the conversation.
+    """
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        summary = ChatMessageUser(
+            content="summary", id="summary", metadata={"summary": True}
+        )
+        system = next(m for m in messages if m.role == "system")
+        return [
+            system,
+            assistant_msg("[COMPACTED BLOCK]", "block"),
+            user_msg("Please continue working.", "continue"),
+            summary,
+        ], summary
+
+
+class _DropsInputAndMergesStrategy(CompactionSummary):
+    """Summary-shaped output that omits the sample input message.
+
+    Unlike `_DropsInputStrategy`, the output is just `[system, summary]` — no
+    intervening messages — so restoring the prefix's `source="input"` message
+    lands it immediately before the summary, and a provider that collapses
+    consecutive user messages merges the two.
+    """
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        summary = ChatMessageUser(
+            content="summary", id="summary", metadata={"summary": True}
+        )
+        system = next(m for m in messages if m.role == "system")
+        return [system, summary], summary
+
+
+class _NoPrefixWithSystemStrategy(CompactionSummary):
+    """preserve_prefix=False, but the output already contains the system message."""
+
+    @property
+    def preserve_prefix(self) -> bool:
+        return False
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        system = next(m for m in messages if m.role == "system")
+        summary = ChatMessageUser(
+            content="kept", id="kept1", metadata={"summary": True}
+        )
+        return [system, summary], summary
 
 
 # Helper to create messages with IDs
@@ -290,6 +369,60 @@ async def test_prefix_empty() -> None:
 
     result, summary = await compact.compact_input(messages)
     assert len(result) == 2
+
+
+async def test_prefix_restored_after_system_not_before() -> None:
+    """A restored input message must not land ahead of the system message."""
+    model = get_model("mockllm/model")
+    prefix: list[ChatMessage] = [
+        system_msg("System prompt", "sys1"),
+        user_msg("Initial input", "input1", source="input"),
+    ]
+    compact = compaction(
+        _DropsInputStrategy(threshold=100), prefix=prefix, tools=None, model=model
+    )
+
+    messages: list[ChatMessage] = [
+        *prefix,
+        assistant_msg("A" * 200, "msg1"),
+        user_msg("Q" * 200, "msg2"),
+    ]
+
+    result, _ = await compact.compact_input(messages)
+
+    assert [m.id for m in result] == [
+        "sys1",
+        "input1",
+        "block",
+        "continue",
+        "summary",
+    ]
+
+
+async def test_no_prefix_branch_does_not_duplicate_system() -> None:
+    """The system-only prepend must skip messages already in the output."""
+    model = get_model("mockllm/model")
+    prefix: list[ChatMessage] = [
+        system_msg("System prompt", "sys1"),
+        user_msg("Initial input", "input1", source="input"),
+    ]
+    compact = compaction(
+        _NoPrefixWithSystemStrategy(threshold=100),
+        prefix=prefix,
+        tools=None,
+        model=model,
+    )
+
+    messages: list[ChatMessage] = [
+        *prefix,
+        assistant_msg("A" * 200, "msg1"),
+        user_msg("Q" * 200, "msg2"),
+    ]
+
+    result, _ = await compact.compact_input(messages)
+
+    assert sum(1 for m in result if m.role == "system") == 1
+    assert [m.id for m in result] == ["sys1", "kept1"]
 
 
 # ==============================================================================
@@ -965,6 +1098,52 @@ async def test_compaction_collapse_does_not_accumulate_old_summaries(
     assert result[0] is summary
     assert "SUMMARY1" not in result[0].text
     assert "SUMMARY2" in result[0].text
+
+
+async def test_compaction_preserves_summary_when_spliced_prefix_absorbs_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A prefix message we splice in must not swallow the summary's return.
+
+    The strategy's own output ([system, summary]) does not collapse by
+    itself. Only after the orchestrator restores the prefix's
+    `source="input"` message ahead of the summary does a collapsing provider
+    merge them. Unlike the #3886 case, the caller must still be told a
+    summary was produced.
+    """
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(model.api, "collapse_user_messages", lambda: True)
+
+    prefix: list[ChatMessage] = [
+        system_msg("System prompt", "sys1"),
+        user_msg("Initial input", "input1", source="input"),
+    ]
+    compact = compaction(
+        _DropsInputAndMergesStrategy(threshold=100),
+        prefix=prefix,
+        tools=None,
+        model=model,
+    )
+
+    messages: list[ChatMessage] = [
+        *prefix,
+        assistant_msg("A" * 200, "msg1"),
+        user_msg("Q" * 200, "msg2"),
+    ]
+
+    result, summary = await compact.compact_input(messages)
+
+    assert summary is not None
+    assert summary.id == "summary"
+    # the summary itself was absorbed by the collapse (it is not returned as
+    # a standalone message), but its content must survive in the merge
+    merged = [
+        m
+        for m in result
+        if m.metadata is not None and "summary" in m.metadata.get("combined_from", [])
+    ]
+    assert len(merged) == 1
+    assert "summary" in merged[0].text
 
 
 # ==============================================================================
@@ -1792,3 +1971,64 @@ def test_truncate_middle_marker_at_seam() -> None:
     # a multibyte char split at the seam decodes as U+FFFD (replacement char)
     trimmed_back = back.lstrip("\ufffd")
     assert trimmed_back and text.endswith(trimmed_back)
+
+
+# ==============================================================================
+# CompactionStrategy.compact_outcome() tests
+# ==============================================================================
+
+
+async def test_compact_outcome_default_reports_own_values() -> None:
+    """The default compact_outcome() wraps compact() and reports self."""
+    strategy = _TwoTupleStrategy()
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [system_msg("s", "sys1"), user_msg("u", "u1")]
+
+    outcome = await strategy.compact_outcome(model, messages, [])
+
+    assert [m.id for m in outcome.input] == ["u1"]
+    assert outcome.message is None
+    assert outcome.preserve_prefix is True
+    assert outcome.applied == "_TwoTupleStrategy"
+    assert outcome.fallback_reason is None
+
+
+async def test_compact_outcome_default_reads_preserve_prefix_override() -> None:
+    """A strategy that withholds the prefix reports preserve_prefix=False."""
+    strategy = _NoPrefixStrategy()
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [system_msg("s", "sys1"), user_msg("u", "u1")]
+
+    outcome = await strategy.compact_outcome(model, messages, [])
+
+    assert outcome.preserve_prefix is False
+    assert outcome.applied == "_NoPrefixStrategy"
+
+
+async def test_third_party_delegating_wrapper_still_unpacks_two_values() -> None:
+    """A wrapper that unpacks an inner compact() must keep working.
+
+    This is the compatibility case the additive method exists to protect:
+    a delegating strategy written against the 2-tuple contract, which is
+    the shape CompactionAuto itself uses.
+    """
+
+    class _Wrapper(CompactionStrategy):
+        def __init__(self, inner: CompactionStrategy) -> None:
+            super().__init__(type="trim", threshold=10_000, memory=False)
+            self._inner = inner
+
+        async def compact(
+            self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+        ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+            input, message = await self._inner.compact(model, messages, tools)
+            return list(input), message
+
+    strategy = _Wrapper(_TwoTupleStrategy())
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [system_msg("s", "sys1"), user_msg("u", "u1")]
+
+    outcome = await strategy.compact_outcome(model, messages, [])
+
+    assert [m.id for m in outcome.input] == ["u1"]
+    assert outcome.applied == "_Wrapper"
