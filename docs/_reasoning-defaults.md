@@ -20,6 +20,8 @@
 | google/gemini-3.5-flash | medium |
 | google/gemini-3.5-flash-lite | minimal |
 | google/gemini-3.6-flash | medium |
+| google/gemini-3.7-flash | medium |
+| google/gemini-3.8-flash | medium |
 | grok/grok-3-mini | low |
 | grok/grok-4 | no effort scale |
 | grok/grok-4.3 | low |
@@ -45,3 +47,7 @@
 | openai/gpt-5.4-pro | high |
 | openai/gpt-5.5 | medium |
 | openai/gpt-5.5-pro | high |
+| openai/gpt-5.6 | medium |
+| openai/gpt-5.6-luna | medium |
+| openai/gpt-5.6-sol | medium |
+| openai/gpt-5.6-terra | medium |

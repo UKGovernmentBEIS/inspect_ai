@@ -642,12 +642,6 @@
       "undescribed": 2
     }
   },
-  "src/inspect_ai/log/_recover/_api.py": {
-    "type: ignore[union-attr]": {
-      "count": 2,
-      "undescribed": 2
-    }
-  },
   "src/inspect_ai/model/__init__.py": {
     "noqa:F401 (file-wide)": {
       "count": 1,
@@ -880,6 +874,14 @@
     "type: ignore[import-untyped]": {
       "count": 1,
       "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_providers/util/hidden_states.py": {
+    "type: ignore[import-not-found]": {
+      "count": 1
+    },
+    "type: ignore[unused-ignore]": {
+      "count": 1
     }
   },
   "src/inspect_ai/model/_providers/util/hooks.py": {

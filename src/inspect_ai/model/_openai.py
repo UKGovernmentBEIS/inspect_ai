@@ -511,7 +511,7 @@ def openai_finish_reason(
     match stop_reason:
         case "stop" | "tool_calls" | "content_filter":
             return stop_reason
-        case "model_length":
+        case "max_tokens" | "model_length":
             return "length"
         case _:
             return "stop"

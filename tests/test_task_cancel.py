@@ -353,6 +353,86 @@ def test_error_resolution_downgraded_for_materializing_fail_on_error_sample() ->
         assert sample.scores is not None
 
 
+def test_drain_resolution_cancels_materializing_sample() -> None:
+    """A `drain` landing mid-materialization resolves the sample as cancelled.
+
+    Drain never interrupts in-flight samples, but a sample between leaving
+    the queue and starting is not yet in flight: it must not start new work,
+    so its self-interrupt resolves it as cancelled — transcript preserved,
+    not scored, not counted as an error (the task still succeeds under the
+    default fail_on_error), and excluded from the completeness stamp so the
+    remainder stays re-runnable.
+    """
+    from anyio.abc import TaskGroup
+
+    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai._util.error import is_cancellation_message
+    from inspect_ai.log._samples import ActiveSample
+
+    original_start = ActiveSample.start
+    solved: list[int | str | None] = []
+
+    def stamping_start(self: ActiveSample, tg: TaskGroup) -> None:
+        # stamp the drain at the last instant before the second sample starts
+        # — after its queue-exit check, so only this branch can resolve it
+        # (max_samples=1 has the first sample fully resolved by then)
+        if self.sample.id == 2:
+            eval_state = get_eval_states()[0]
+            assert eval_state.task_cancel is not None
+            eval_state.task_cancel.cancel_task("drain")
+        original_start(self, tg)
+
+    @solver(name="drain_resolution_solver")
+    def drain_resolution_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 2:
+                # the self-interrupt fired before the plan ran; its
+                # cancellation is delivered at this checkpoint (the sleep is
+                # only an upper bound on the propagation window)
+                await anyio.sleep(10)
+            solved.append(state.sample_id)
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        with patch.object(ActiveSample, "start", stamping_start):
+            logs = inspect_eval(
+                Task(
+                    dataset=[
+                        Sample(id=1, input="x", target="y"),
+                        Sample(id=2, input="x", target="y"),
+                    ],
+                    solver=[drain_resolution_solver()],
+                    scorer=includes(),
+                    name="task_drain_resolution",
+                ),
+                log_dir=log_dir,
+                model="mockllm/model",
+                max_samples=1,
+            )
+
+        assert solved == [1]
+        assert len(logs) == 1
+        log = logs[0]
+        # cancelled, not errored: the default fail_on_error would otherwise
+        # have errored the task the operator meant to complete gracefully
+        assert log.status == "success"
+        assert log.samples is not None and len(log.samples) == 2
+        finished = next(s for s in log.samples if s.id == 1)
+        cancelled = next(s for s in log.samples if s.id == 2)
+        assert finished.error is None and finished.scores
+        assert cancelled.error is not None
+        assert is_cancellation_message(cancelled.error.message)
+        assert not cancelled.scores
+        assert cancelled.limit is None
+        # the cancelled sample is excluded from the completeness stamp, so a
+        # later eval-set re-invocation re-runs it
+        assert log.results is not None
+        assert log.results.total_samples == 2
+        assert log.results.logged_samples == 1
+
+
 def test_sample_cancelled_interrupt_action() -> None:
     """`ActiveSample.interrupt("cancel")` records the sample as cancelled.
 
