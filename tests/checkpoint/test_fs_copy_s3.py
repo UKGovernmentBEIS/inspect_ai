@@ -102,6 +102,25 @@ async def test_fs_copy_cross_cutting_noop_when_source_missing(
     assert not (new / "restic").exists()
 
 
+async def test_fs_copy_cross_cutting_rejects_unparseable_restic_config(
+    tmp_path: Path, mock_s3: None
+) -> None:
+    """A resume source whose restic-config.json doesn't parse fails resume outright.
+
+    The adopted repos open only with the password that file carries, so
+    continuing would just fail later with an opaque restic error.
+    """
+    src = f"{S3_BUCKET}/bad-config.checkpoints/s__0"
+    new = tmp_path / "staging"
+    new.mkdir()
+
+    async with AsyncFilesystem() as fs:
+        await _put(fs, f"{src}/restic/restic-config.json", b'{"not": "a config"}')
+
+        with pytest.raises(RuntimeError, match="not a valid restic config"):
+            await _fs_copy_cross_cutting(src, str(new))
+
+
 async def test_fs_copy_repo_downloads_tree_from_s3(
     tmp_path: Path, mock_s3: None
 ) -> None:

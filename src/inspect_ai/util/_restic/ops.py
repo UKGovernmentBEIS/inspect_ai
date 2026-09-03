@@ -9,13 +9,17 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 from collections.abc import Sequence
+from functools import partial
 from pathlib import Path
 from typing import Any
 
 import anyio
 
 from .summary import ResticBackupSummary
+from .verify import RestoredTreeError, verify_regular_tree
 
 
 async def init_repo(restic: Path, repo: str, password: str) -> None:
@@ -77,55 +81,178 @@ async def run_backup(
     return ResticBackupSummary.from_stdout(proc.stdout.decode())
 
 
-async def restore_repo(restic: Path, repo: str, password: str, target: str) -> None:
-    """Restore the latest snapshot in ``repo`` into ``target``.
+async def restore_repo(
+    restic: Path,
+    repo: str,
+    password: str,
+    target: str,
+    *,
+    max_files: int,
+    max_bytes: int,
+) -> None:
+    """Restore the latest snapshot's single source directory into ``target``.
 
-    Restic preserves the source's directory structure under ``--target``
-    — exactly where the restored files land within that structure has
-    varied across restic versions and `--include` flag combinations.
-    Rather than try to predict the leaf path, we restore everything,
-    then walk down the single-child directory chain from ``target``
-    until we hit the leaf containing actual files, and move them up to
-    ``target`` so callers see the files directly. Assumes the latest
-    snapshot backed up exactly one source directory (the chain has
-    exactly one descent path).
+    The repo is untrusted input on resume (see :mod:`.verify`), so the
+    restored layout is never interpreted. The latest snapshot's recorded
+    source path is read from ``restic snapshots --json latest`` (exactly
+    one is required) and its node listing from ``restic ls --json``; the
+    listing is checked *before* restic writes anything — every node must
+    be a ``dir`` or ``file`` and the entry count / total size must fit
+    ``max_files`` / ``max_bytes`` — then that directory is restored with
+    restic's ``<snapshot>:<subfolder>`` syntax, which places its contents
+    directly in ``target`` with no intermediate path chain to walk or
+    rename. The restored tree is re-checked with
+    :func:`verify_regular_tree` as belt-and-braces — the listing's sizes
+    are the repo's own claims, so only the on-disk check is authoritative
+    for bytes. Whatever restic wrote is removed from ``target`` if the
+    restore fails, is cancelled, or fails the on-disk check.
+
+    Raises:
+        RestoredTreeError: the snapshot holds something other than regular
+            files and directories, or exceeds the bounds.
+        RuntimeError: the snapshot has no/several source paths, its source
+            path is not a directory in the listing, or restore produced no
+            files.
     """
     target_dir = Path(target).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    await anyio.run_process(
-        [str(restic), "-r", repo, "restore", "latest", "--target", str(target_dir)],
+    snapshot = await _latest_snapshot(restic, repo, password)
+    paths = snapshot.get("paths") or []
+    if len(paths) != 1:
+        raise RuntimeError(
+            f"restic restore: expected the latest snapshot in {repo} to record "
+            f"exactly one source path, found {paths}"
+        )
+    nodes = await _snapshot_nodes(restic, repo, password, snapshot["id"])
+    subfolder = _check_snapshot_nodes(
+        nodes, paths[0], max_files=max_files, max_bytes=max_bytes
+    )
+    try:
+        await anyio.run_process(
+            [
+                str(restic),
+                "-r",
+                repo,
+                "restore",
+                f"{snapshot['id']}:{subfolder}",
+                "--target",
+                str(target_dir),
+            ],
+            env=restic_env(password),
+            check=True,
+        )
+        stats = await anyio.to_thread.run_sync(
+            partial(
+                verify_regular_tree,
+                target_dir,
+                max_files=max_files,
+                max_bytes=max_bytes,
+            )
+        )
+        if stats.files == 0:
+            raise RuntimeError(f"restic restore produced no files under {target_dir}")
+    except BaseException:
+        # Cancellation included: never leave an unverified tree behind.
+        shutil.rmtree(target_dir, ignore_errors=True)
+        raise
+
+
+async def _latest_snapshot(restic: Path, repo: str, password: str) -> dict[str, Any]:
+    """The latest snapshot record in ``repo`` (``restic snapshots --json latest``).
+
+    Delegating "latest" to restic keeps the selection identical to what
+    ``restic restore latest`` would pick, rather than re-deriving it from
+    timestamps here. An empty repo yields ``[]`` (exit status 0).
+    """
+    proc = await anyio.run_process(
+        [str(restic), "-r", repo, "snapshots", "--json", "latest"],
         env=restic_env(password),
         check=True,
     )
-
-    # Walk down through any single-child intermediate directories restic
-    # created to mirror the source path; stop when we find files.
-    leaf = target_dir
-    while True:
-        entries = list(leaf.iterdir())
-        if not entries:
-            raise RuntimeError(f"restic restore produced no files under {target_dir}")
-        if any(e.is_file() for e in entries):
-            break  # leaf reached
-        if len(entries) == 1 and entries[0].is_dir():
-            leaf = entries[0]
-            continue
+    snapshots: list[dict[str, Any]] = json.loads(proc.stdout.decode())
+    if len(snapshots) != 1:
         raise RuntimeError(
-            f"restic restore: ambiguous layout under {target_dir} "
-            f"(expected single-child dir chain to file leaf, found "
-            f"{len(entries)} children at {leaf})"
+            f"restic restore: expected one latest snapshot in {repo}, "
+            f"found {len(snapshots)}"
         )
+    return snapshots[0]
 
-    if leaf != target_dir:
-        for entry in leaf.iterdir():
-            entry.rename(target_dir / entry.name)
-        # Walk back up removing the now-empty intermediate dirs.
-        current = leaf
-        while current != target_dir and current.is_dir() and not any(current.iterdir()):
-            parent = current.parent
-            current.rmdir()
-            current = parent
+
+async def _snapshot_nodes(
+    restic: Path, repo: str, password: str, snapshot_id: str
+) -> list[dict[str, Any]]:
+    """Every node in ``snapshot_id`` per ``restic ls --json`` (header dropped)."""
+    proc = await anyio.run_process(
+        [str(restic), "-r", repo, "ls", "--json", snapshot_id],
+        env=restic_env(password),
+        check=True,
+    )
+    records = (json.loads(line) for line in proc.stdout.decode().splitlines() if line)
+    return [r for r in records if r.get("struct_type") == "node"]
+
+
+def _check_snapshot_nodes(
+    nodes: list[dict[str, Any]], source_path: str, *, max_files: int, max_bytes: int
+) -> str:
+    """Validate a snapshot listing before restore; return the subfolder to restore.
+
+    Every node must be a ``dir`` or ``file`` — a symlink, fifo, socket, or
+    device node is rejected here, before restic materializes anything.
+    The node count (including the source path's ancestor directories,
+    which restic lists too) is bounded by ``max_files`` and the summed
+    file sizes by ``max_bytes``; a file node without an integer ``size``
+    is malformed and rejected. The returned subfolder is the listed
+    ``dir`` node matching ``source_path`` in restic's tree-path form
+    (:func:`_tree_path`); a snapshot without that directory is rejected
+    rather than guessed at.
+    """
+    entries = 0
+    total = 0
+    dirs: set[str] = set()
+    for node in nodes:
+        kind, path = node.get("type"), node.get("path")
+        if kind == "dir":
+            dirs.add(str(path))
+        elif kind == "file":
+            size = node.get("size")
+            if not isinstance(size, int):
+                raise RestoredTreeError(f"snapshot file node without a size: {path}")
+            total += size
+        else:
+            raise RestoredTreeError(f"snapshot contains a {kind} node: {path}")
+        entries += 1
+        if entries > max_files:
+            raise RestoredTreeError(f"snapshot exceeds {max_files} entries")
+        if total > max_bytes:
+            raise RestoredTreeError(f"snapshot exceeds {max_bytes} bytes")
+    subfolder = _tree_path(source_path)
+    if subfolder not in dirs:
+        raise RuntimeError(
+            f"restic restore: snapshot source path {source_path} (tree path "
+            f"{subfolder}) is not a directory in the snapshot"
+        )
+    return subfolder
+
+
+_WINDOWS_DRIVE_PATH = re.compile(r"^([A-Za-z]):[\\/](.*)$")
+
+
+def _tree_path(source_path: str) -> str:
+    r"""Map a snapshot's recorded source path to restic's in-tree path.
+
+    POSIX paths are stored verbatim. Restic stores a Windows source
+    ``C:\a\b`` under a root component named for the drive, ``/C/a/b``,
+    which is also the form ``ls`` prints and ``restore <id>:<subfolder>``
+    expects. ``_check_snapshot_nodes`` confirms the result against the
+    listing, so a mismatch fails loudly instead of restoring the wrong
+    thing.
+    """
+    match = _WINDOWS_DRIVE_PATH.match(source_path)
+    if match is None:
+        return source_path
+    drive, rest = match.groups()
+    return f"/{drive}/{rest.replace(chr(92), '/')}".rstrip("/")
 
 
 def _cap(paths: list[str], limit: int) -> tuple[list[str], int]:

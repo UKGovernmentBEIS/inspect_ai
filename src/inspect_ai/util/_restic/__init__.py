@@ -7,6 +7,8 @@ particular inspect_ai concept:
 - :mod:`.summary` — :class:`ResticBackupSummary` model (restic's JSON schema).
 - :mod:`.ops` — :func:`init_repo`, :func:`run_backup`,
   :func:`restore_repo`, :func:`restic_env`, :func:`list_changed_files`.
+- :mod:`.verify` — :func:`verify_regular_tree` (restored trees are
+  untrusted input) and :class:`RestoredTreeError`.
 """
 
 from .ops import (
@@ -23,9 +25,11 @@ from .resolver import (
     resolve_restic,
 )
 from .summary import ResticBackupSummary
+from .verify import RestoredTreeError, verify_regular_tree
 
 __all__ = [
     "Platform",
+    "RestoredTreeError",
     "ResticBackupSummary",
     "SUPPORTED_PLATFORMS",
     "cache_path",
@@ -35,4 +39,5 @@ __all__ = [
     "restic_env",
     "restore_repo",
     "run_backup",
+    "verify_regular_tree",
 ]

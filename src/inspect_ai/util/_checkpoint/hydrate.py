@@ -75,7 +75,7 @@ from ._layout.sample_checkpoints_dir import (
     ensure_sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
 )
-from ._layout.schemas import Checkpoint
+from ._layout.schemas import Checkpoint, ResticConfig
 from ._layout.staging_dir import (
     ensure_context_dir,
     ensure_sample_staging_dir,
@@ -103,6 +103,18 @@ from .config import ResolvedCheckpointConfig
 from .sandbox_paths import resolve_sandbox_backup_paths
 
 logger = getLogger(__name__)
+
+# Bounds for the restored host context tree (see `restore_repo`). The entry
+# bound covers every node restic lists: the context dir's ancestor
+# directories (a dozen or so for a deep staging path) plus the flat JSON
+# files `host_context` describes, the transcript-store sqlite file with its
+# journal side files, and at most a few `.tmp` leftovers from an interrupted
+# atomic write. The byte bound is a generous ceiling on one sample's
+# transcript.
+_HOST_CONTEXT_MAX_FILES = 256
+_HOST_CONTEXT_MAX_BYTES = 8 * 1024**3
+
+_RESTIC_CONFIG_SUBPATH = "restic/restic-config.json"
 
 
 @dataclass
@@ -410,7 +422,14 @@ async def _hydrate_host(
             host_restic, host_repo, restic_password, latest_committed_id
         )
     with trace_action(logger, action, "host restore"):
-        await restore_repo(host_restic, host_repo, restic_password, context_dir)
+        await restore_repo(
+            host_restic,
+            host_repo,
+            restic_password,
+            context_dir,
+            max_files=_HOST_CONTEXT_MAX_FILES,
+            max_bytes=_HOST_CONTEXT_MAX_BYTES,
+        )
     # Capture the live span id here (loop thread); the `_current_span_id`
     # ContextVar isn't propagated into the worker thread below.
     parent_span_id = current_span_id()
@@ -503,19 +522,35 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
     ``old_sample_dir`` may be local or remote (e.g. ``s3://``); the new
     sample dir is always local. Returns the list of paths written,
     relative to ``new_sample_dir``.
+
+    A copied ``restic-config.json`` that does not parse is rejected here,
+    naming the resume source. The adopted repos open only with the
+    password it carries, so there is no sensible continuation; without
+    this check the same corruption surfaces later as a bare validation
+    error from ``ensure_restic_config`` with no pointer to the source dir.
     """
     async_fs = get_async_filesystem()
     new = Path(new_sample_dir)
     written: list[str] = []
 
     with trace_action(logger, "Checkpoint Hydrate", "fs-copy cross-cutting"):
-        for subpath in ("restic/restic-config.json", STRATEGY_PIN_SUBPATH):
+        for subpath in (_RESTIC_CONFIG_SUBPATH, STRATEGY_PIN_SUBPATH):
             src = f"{old_sample_dir}/{subpath}"
             if await async_fs.exists(src):
                 dst = new / subpath
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 await async_fs.get_file(src, str(dst))
                 written.append(subpath)
+
+        if _RESTIC_CONFIG_SUBPATH in written:
+            config_path = new / _RESTIC_CONFIG_SUBPATH
+            try:
+                ResticConfig.model_validate_json(config_path.read_bytes())
+            except ValueError as ex:
+                raise RuntimeError(
+                    f"resume: {old_sample_dir}/{_RESTIC_CONFIG_SUBPATH} is not a "
+                    f"valid restic config: {ex}"
+                ) from ex
 
         async for uri in async_fs.iter_files(old_sample_dir, pattern="ckpt-*.json"):
             name = uri.rsplit("/", 1)[-1]

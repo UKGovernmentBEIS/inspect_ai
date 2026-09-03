@@ -19,11 +19,26 @@ cycle:
 This module owns the on-disk schema: filename constants, the
 serialization format, and the read shape. Keeping the schema centralized
 prevents drift between fire-time and resume-time code.
+
+Capture-side invariant: the host writes only regular files into the
+context dir — the JSON files above (``write_text_atomic`` /
+``write_transcript_files``) plus the checkpointer's transcript-store
+sqlite file and its journal side files — never symlinks or nested
+directories. An honest snapshot therefore never contains anything but
+regular files, and the resume-side checks — the snapshot listing gate
+and ``verify_regular_tree`` in ``restore_repo``, and the no-follow opens
+in :func:`read` — never fire on legitimate data. On resume the restored
+files come from an untrusted repo, so :func:`read` opens each one with
+``O_NOFOLLOW`` and checks the descriptor is a regular file rather than
+trusting the restored layout.
 """
 
 from __future__ import annotations
 
+import errno
 import json
+import os
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -74,30 +89,33 @@ class HostContext:
 def read(working_dir: str) -> HostContext:
     """Read all host-context files from ``working_dir``.
 
+    Every file is opened via :func:`_read_optional` (no symlink following
+    where the platform supports it, regular-file check always); a symlink
+    or other non-regular entry at any of the schema's filenames raises
+    rather than being read through.
+
     Synchronous (caller wraps in ``anyio.to_thread.run_sync`` if needed).
     """
     p = Path(working_dir)
-    condensed_events: list[Event] = validate_events_json((p / EVENTS).read_text())
-    raw_data = json.loads((p / EVENTS_DATA).read_text())
+    condensed_events: list[Event] = validate_events_json(_read_required(p / EVENTS))
+    raw_data = json.loads(_read_required(p / EVENTS_DATA))
     msg_pool: list[ChatMessage] = validate_chat_messages(raw_data.get("messages", []))
     call_pool: list[JsonValue] = raw_data.get("calls", [])
-    attachments: dict[str, str] = json.loads((p / ATTACHMENTS).read_text())
-    store_data: dict[str, Any] = json.loads((p / STORE).read_text())
-    agent_state_path = p / AGENT_STATE
+    attachments: dict[str, str] = json.loads(_read_required(p / ATTACHMENTS))
+    store_data: dict[str, Any] = json.loads(_read_required(p / STORE))
+    agent_state_text = _read_optional(p / AGENT_STATE)
     agent_state: dict[str, Any] | None = (
-        json.loads(agent_state_path.read_text()) if agent_state_path.is_file() else None
+        json.loads(agent_state_text) if agent_state_text is not None else None
     )
-    assistant_internal_path = p / ASSISTANT_INTERNAL
+    assistant_internal_text = _read_optional(p / ASSISTANT_INTERNAL)
     assistant_internal: JsonValue | None = (
-        json.loads(assistant_internal_path.read_text())
-        if assistant_internal_path.is_file()
+        json.loads(assistant_internal_text)
+        if assistant_internal_text is not None
         else None
     )
-    sample_runtime_path = p / SAMPLE_RUNTIME
+    sample_runtime_text = _read_optional(p / SAMPLE_RUNTIME)
     sample_runtime: JsonValue | None = (
-        json.loads(sample_runtime_path.read_text())
-        if sample_runtime_path.is_file()
-        else None
+        json.loads(sample_runtime_text) if sample_runtime_text is not None else None
     )
     return HostContext(
         condensed_events=condensed_events,
@@ -109,3 +127,45 @@ def read(working_dir: str) -> HostContext:
         assistant_internal=assistant_internal,
         sample_runtime=sample_runtime,
     )
+
+
+def _read_required(path: Path) -> str:
+    """Read a schema file that must exist; missing raises ``FileNotFoundError``."""
+    text = _read_optional(path)
+    if text is None:
+        raise FileNotFoundError(f"host context file missing: {path}")
+    return text
+
+
+def _read_optional(path: Path) -> str | None:
+    """Read a schema file without following symlinks; ``None`` if absent.
+
+    Opens with ``O_NOFOLLOW`` and requires the opened descriptor to be a
+    regular file, so a symlink (dangling or not) or a directory / FIFO at
+    ``path`` raises ``RuntimeError`` instead of being read through.
+    ``O_NONBLOCK`` keeps the open from parking on a FIFO with no writer
+    (it has no effect on reads of a regular file). ``O_NOFOLLOW`` is
+    unavailable on Windows, where a symlink *is* followed and only the
+    regular-file check applies; there the restore-time listing gate in
+    ``restore_repo`` is what keeps symlinks out of the context dir.
+    """
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        fd = os.open(path, flags)
+    except FileNotFoundError:
+        return None
+    except OSError as ex:
+        if ex.errno == errno.ELOOP:
+            raise RuntimeError(
+                f"host context file is a symlink; refusing to follow it: {path}"
+            ) from ex
+        raise
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise RuntimeError(f"host context file is not a regular file: {path}")
+    except BaseException:
+        os.close(fd)
+        raise
+    # `fdopen` owns `fd` from here (it closes it itself if wrapping fails).
+    with os.fdopen(fd, "r", encoding="utf-8") as f:
+        return f.read()
