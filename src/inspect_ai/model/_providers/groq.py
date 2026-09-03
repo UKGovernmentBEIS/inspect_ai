@@ -168,15 +168,12 @@ def groq_error_info(ex: APIError) -> GroqErrorInfo:
 def groq_classify_stream_error(ex: APIError) -> RetryDecision:
     """Classify an error payload delivered mid-stream (a plain `APIError`).
 
-    The SDK raises it without a status code, so the status rules can't apply
-    directly; the body is read instead. A numeric HTTP status in `code`
-    classifies through the standard status rules. Otherwise the `type`/`code`
-    spellings and the message identify the conditions a non-streamed request
-    would surface as a retried 429/5xx: rate limits, server errors, and the
-    "over capacity" condition the `x_groq.error` channel also reports. An
-    auto-streamed request (enabled by a display-only `on_stream` callback)
-    must not turn those into a permanently failed sample. Anything
-    unrecognized stays unretried.
+    The SDK raises it without a status code, so the body is read instead: a
+    numeric HTTP status in `code` classifies through the standard status
+    rules; otherwise the `type`/`code` spellings and the message identify
+    rate limits, server errors, and the "over capacity" condition (see
+    `GroqStreamError` for why that must retry). Anything unrecognized stays
+    unretried.
     """
     info = groq_error_info(ex)
     status = http_status_from_error_code(info.code)
@@ -377,14 +374,14 @@ class GroqAPI(ModelAPI):
             # sent) arrives as a plain APIError: convert a recognized
             # bad-request condition, otherwise re-raise so should_retry can
             # classify it; connection/validation errors keep their own semantics
+            model_call.set_error(
+                as_error_response(ex.body), self._http_hooks.end_request(request_id)
+            )
             if isinstance(ex, APIConnectionError | APIResponseValidationError):
                 raise
             converted = self.handle_bad_request(ex)
             if not isinstance(converted, ModelOutput):
                 raise
-            model_call.set_error(
-                as_error_response(ex.body), self._http_hooks.end_request(request_id)
-            )
             return converted, model_call
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:

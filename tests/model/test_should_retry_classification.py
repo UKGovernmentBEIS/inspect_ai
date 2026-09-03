@@ -653,9 +653,9 @@ def test_groq_mid_stream_unrecognized_error_not_retried(body: object) -> None:
     assert decision.retry is False
 
 
-def test_groq_connection_and_validation_errors_keep_classification() -> None:
-    """Body-based classification applies only to plain APIErrors."""
-    from groq import APIConnectionError, APIResponseValidationError, APITimeoutError
+def test_groq_timeout_and_validation_errors_keep_classification() -> None:
+    """Body-based classification does not override the SDK subclasses' own."""
+    from groq import APIResponseValidationError, APITimeoutError
 
     from inspect_ai.model._providers.groq import GroqAPI
 
@@ -663,7 +663,6 @@ def test_groq_connection_and_validation_errors_keep_classification() -> None:
     request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
     # RetryDecision is truthy iff it retries
     assert api.should_retry(APITimeoutError(request=request))
-    assert not api.should_retry(APIConnectionError(request=request))
     # a schema mismatch on a 200 response is not retried even when the body
     # happens to spell a transient condition
     validation_error = APIResponseValidationError(

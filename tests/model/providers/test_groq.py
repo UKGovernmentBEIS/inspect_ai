@@ -428,6 +428,43 @@ async def test_groq_mid_stream_unrecognized_error_raises(
         assert excinfo.value is error
         decision = api.should_retry(excinfo.value)
         assert isinstance(decision, RetryDecision) and decision.retry is False
+        # the failed request was closed out in the hooks bookkeeping
+        assert api._http_hooks._requests == {}
+    finally:
+        await api.aclose()
+
+
+async def test_groq_mid_stream_transient_error_drives_retry_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End to end: the model layer retries a mid-stream over-capacity error."""
+    from tenacity import wait_none
+
+    model = get_model(
+        "groq/llama-3.3-70b",
+        api_key="test",
+        streaming=True,
+        config=GenerateConfig(max_retries=2),
+    )
+    api = model.api
+    assert isinstance(api, GroqAPI)
+    attempts: list[int] = []
+
+    async def fake_create(**kwargs: Any) -> _ErroringChunkStream:
+        attempts.append(1)
+        return _ErroringChunkStream(
+            [_PARTIAL_CHUNK],
+            _mid_stream_error(
+                dict(message="Over capacity", type="internal_server_error")
+            ),
+        )
+
+    monkeypatch.setattr(api.client.chat.completions, "create", fake_create)
+    monkeypatch.setattr(api, "retry_wait", lambda: wait_none())
+    try:
+        with pytest.raises(Exception):
+            await model.generate([ChatMessageUser(content="hi")])
+        assert len(attempts) == 3
     finally:
         await api.aclose()
 
@@ -484,7 +521,8 @@ def test_groq_handle_bad_request_status_errors() -> None:
     )
     assert api.handle_bad_request(other) is other
 
-    # non-400 statuses are never converted, whatever the body says
+    # conversion is a bad-request concern: other statuses pass through
+    # unchanged whatever the body says (their retry handling lives elsewhere)
     unavailable = status_error(503)
     assert api.handle_bad_request(unavailable) is unavailable
 
