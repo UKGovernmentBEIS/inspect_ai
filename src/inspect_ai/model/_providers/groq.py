@@ -95,7 +95,7 @@ from .._model_output import (
     as_stop_reason,
     collect_stop_details,
 )
-from .._openai import http_status_from_error_code, openai_stop_details
+from .._openai import classify_error_body, openai_stop_details
 from .._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
@@ -165,37 +165,23 @@ def groq_error_info(ex: APIError) -> GroqErrorInfo:
     )
 
 
+GROQ_TRANSIENT_ERROR_NAMES = frozenset({"serviceunavailable", "overcapacity"})
+"""Groq's own transient `type`/`code` spellings (normalized for `classify_error_body`)."""
+
+
 def groq_classify_stream_error(ex: APIError) -> RetryDecision:
     """Classify an error payload delivered mid-stream (a plain `APIError`).
 
-    The SDK raises it without a status code, so the body is read instead: a
-    numeric HTTP status in `code` classifies through the standard status
-    rules; otherwise the `type`/`code` spellings and the message identify
-    rate limits, server errors, and the "over capacity" condition (see
+    The SDK raises it without a status code, so the body is read instead: the
+    shared `code`/`type` rules (`classify_error_body`) extended with Groq's
+    own spellings, then the message for the "over capacity" condition (see
     `GroqStreamError` for why that must retry). Anything unrecognized stays
     unretried.
     """
     info = groq_error_info(ex)
-    status = http_status_from_error_code(info.code)
-    if status is not None:
-        if status == 429:
-            return RetryDecision.rate_limit()
-        if is_retryable_http_status(status):
-            return RetryDecision.transient()
-        return RetryDecision.no()
-    names = {
-        v.lower().replace("_", "") for v in (info.code, info.type) if isinstance(v, str)
-    }
-    if names & {"ratelimitexceeded", "ratelimiterror"}:
-        return RetryDecision.rate_limit()
-    if names & {
-        "servererror",
-        "internalservererror",
-        "internalerror",
-        "serviceunavailable",
-        "overcapacity",
-    }:
-        return RetryDecision.transient()
+    decision = classify_error_body(info.code, info.type, GROQ_TRANSIENT_ERROR_NAMES)
+    if decision is not None:
+        return decision
     if "over capacity" in info.message.lower():
         return RetryDecision.transient()
     return RetryDecision.no()

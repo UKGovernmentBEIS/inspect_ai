@@ -335,6 +335,22 @@ def test_openai_classify_mid_stream_permanent_error_does_not_retry() -> None:
     assert openai_classify_retry(ex_no_body) is None
 
 
+def test_classify_error_body_provider_transient_names() -> None:
+    """Provider-specific transient spellings extend the shared vocabulary."""
+    from inspect_ai.model._openai import classify_error_body
+
+    # a provider's own spelling is transient only when it opts in
+    assert classify_error_body("over_capacity", None) is None
+    decision = classify_error_body("over_capacity", None, {"overcapacity"})
+    assert decision is not None and decision.kind == "transient"
+    # the shared spellings and numeric statuses still apply alongside it
+    rate_limit = classify_error_body(None, "RateLimitError", {"overcapacity"})
+    assert rate_limit is not None and rate_limit.kind == "rate_limit"
+    status = classify_error_body(503, None, {"overcapacity"})
+    assert status is not None and status.kind == "transient"
+    assert classify_error_body(404, "over_capacity", {"overcapacity"}) is None
+
+
 def test_openai_provider_quota_exceeded_does_not_retry() -> None:
     """OpenAI's monthly-quota error (RateLimitError with specific message) shouldn't retry."""
     from openai import RateLimitError
