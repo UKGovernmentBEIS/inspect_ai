@@ -82,7 +82,10 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._openai import openai_classify_error_body
+from .._openai import (
+    openai_classify_error_body,
+    openai_http_status_from_error_code,
+)
 from .._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
@@ -122,12 +125,11 @@ class MistralStreamError(Exception):
     The mistralai SDK has no error-event handling: a frame carrying an error
     object rather than a `CompletionEvent` fails pydantic validation in the
     SDK's decoder. The accumulator raises those as this error, carrying the
-    frame's `code`/`type` so `should_retry` can classify it the way a
-    non-streamed request's status would be (an error frame with neither is
-    treated as transient). Two error shapes are recognised: the error object
-    Mistral documents for its API (`{"object": "error", ...}`) and the
-    OpenAI-compatible `{"error": ...}` envelope; a validation failure
-    carrying neither is a schema mismatch and propagates unchanged.
+    frame's `code`/`type` for `should_retry` (see `_classify_stream_error`).
+    Two error shapes are recognised: the error object Mistral documents for
+    its API (`{"object": "error", ...}`) and the OpenAI-compatible
+    `{"error": ...}` envelope; a validation failure carrying neither is a
+    schema mismatch and propagates unchanged.
     """
 
     def __init__(self, error: object) -> None:
@@ -401,12 +403,7 @@ class MistralAPI(ModelAPI):
                 return RetryDecision.rate_limit()
             return RetryDecision.transient()
         if isinstance(ex, MistralStreamError):
-            decision = openai_classify_error_body(ex.code, ex.type)
-            if decision is not None:
-                return decision
-            if ex.code is None and ex.type is None:
-                return RetryDecision.transient()
-            return RetryDecision.no()
+            return _classify_stream_error(ex)
         decision = httpx_classify_retry(ex)
         return decision if decision is not None else RetryDecision.no()
 
@@ -456,6 +453,34 @@ class _StreamChoice:
         self.content: list[str | ContentChunk] = []
         self.tool_calls: dict[int, _StreamToolCall] = {}
         self.finish_reason: CompletionResponseStreamChoiceFinishReason | None = None
+
+
+# `type` values Mistral's API uses on its 429 error bodies (e.g. `{"object":
+# "error", "type": "service_tier_capacity_exceeded", "code": "3505"}`)
+_MISTRAL_RATE_LIMIT_TYPES = {"service_tier_capacity_exceeded", "rate_limited"}
+
+
+def _classify_stream_error(ex: MistralStreamError) -> RetryDecision:
+    """Classify an in-band stream error the way a non-streamed status would be.
+
+    Mistral's own error bodies carry a 4-digit internal id in `code` (never an
+    HTTP status) and `type` names outside the OpenAI vocabulary, so only its
+    rate-limit types are matched by name. Anything else on a Mistral-shaped or
+    OpenAI-compatible frame is treated as transient: after HTTP 200 the request
+    has already been validated, so an in-band failure is a server-side one
+    (capacity, internal error, timeout), and a genuinely permanent condition
+    just fails again with the same error once retries are exhausted. Only a
+    `code` that positively identifies a non-retryable HTTP status (an
+    OpenAI-compatible `{"code": 400}`) is not retried.
+    """
+    decision = openai_classify_error_body(ex.code, ex.type)
+    if decision is not None:
+        return decision
+    if openai_http_status_from_error_code(ex.code) is not None:
+        return RetryDecision.no()
+    if ex.type in _MISTRAL_RATE_LIMIT_TYPES:
+        return RetryDecision.rate_limit()
+    return RetryDecision.transient()
 
 
 def _stream_error_payload(ex: ValidationError) -> object | None:

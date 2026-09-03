@@ -791,16 +791,33 @@ _MISTRAL_CHUNK = dict(
 @pytest.mark.parametrize(
     ("error_frame", "kind"),
     [
-        # the error object Mistral documents for its API, classified by code
+        # the error object Mistral documents for its API: `code` is a 4-digit
+        # internal id and `type` uses Mistral's own vocabulary. Its 429 body:
         (
-            dict(object="error", message="Unavailable", type="unavailable", code=503),
-            "transient",
-        ),
-        (
-            dict(object="error", message="Slow down", type="rate_limited", code=429),
+            dict(
+                object="error",
+                message="Service tier capacity exceeded for this model.",
+                type="service_tier_capacity_exceeded",
+                param=None,
+                code="3505",
+            ),
             "rate_limit",
         ),
-        # the OpenAI-compatible envelope, classified by type
+        # any other Mistral-vocabulary error after HTTP 200 is server-side
+        (
+            dict(
+                object="error",
+                message="Internal error",
+                type="unexpected_error",
+                param=None,
+                code="9999",
+            ),
+            "transient",
+        ),
+        # the OpenAI-compatible envelope, classified by status-like code or
+        # by type
+        (dict(error=dict(message="Unavailable", code=503)), "transient"),
+        (dict(error=dict(message="Slow down", type="rate_limit_error")), "rate_limit"),
         (
             dict(error=dict(message="Unavailable", type="service_unavailable")),
             "transient",
@@ -808,11 +825,9 @@ _MISTRAL_CHUNK = dict(
         # no code/type at all: an error frame is assumed to be a server-side
         # failure
         (dict(error=dict(message="Unavailable")), "transient"),
-        # a permanent condition stays unretried
+        # only a code that positively identifies a client error stays unretried
         (
-            dict(
-                object="error", message="Bad request", type="invalid_request", code=400
-            ),
+            dict(error=dict(message="Bad request", type="invalid_request", code=400)),
             None,
         ),
     ],

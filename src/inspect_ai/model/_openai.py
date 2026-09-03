@@ -1344,7 +1344,7 @@ def openai_classify_error_body(
     """
     from inspect_ai.model._model import RetryDecision
 
-    code_status = _http_status_from_error_code(code)
+    code_status = openai_http_status_from_error_code(code)
     if code_status is not None:
         if code_status == 429:
             return RetryDecision.rate_limit()
@@ -1368,13 +1368,14 @@ def openai_classify_error_body(
     return None
 
 
-def _http_status_from_error_code(code: object) -> int | None:
+def openai_http_status_from_error_code(code: object) -> int | None:
     """Coerce an error body `code` to an HTTP status when it is one.
 
     OpenAI-compatible servers often put a numeric HTTP status in `code`
     (as an int or a digit string). The SDK annotates `APIError.code` as
     `Optional[str]` but passes body values through unconverted, so an int
-    arrives as an int at runtime.
+    arrives as an int at runtime. Providers whose own `code` vocabulary is
+    numeric but not an HTTP status (Mistral's 4-digit ids) get None.
     """
     if isinstance(code, int) or (isinstance(code, str) and code.isdecimal()):
         status = int(code)
