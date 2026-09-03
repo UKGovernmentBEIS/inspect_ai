@@ -45,13 +45,22 @@ def _switch(user: str | RunAs) -> None:
     """Switch identity; KeyError for an unknown username, OSError if denied."""
     if isinstance(user, str):
         pw = pwd.getpwnam(user)
-        os.initgroups(user, pw.pw_gid)
-        os.setgid(pw.pw_gid)
-        os.setuid(pw.pw_uid)
+        uid, gid = pw.pw_uid, pw.pw_gid
+    else:
+        uid, gid = user.uid, user.gid
+    if os.isatty(0):
+        # As docker exec --user does: claim the pty as controlling tty (else an
+        # interactive shell gets no job control) and hand it to the new user so
+        # programs that re-open their terminal by path still can.
+        with contextlib.suppress(OSError):
+            fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+            os.fchown(0, uid, gid)
+    if isinstance(user, str):
+        os.initgroups(user, gid)
     else:
         os.setgroups(user.groups)
-        os.setgid(user.gid)
-        os.setuid(user.uid)
+    os.setgid(gid)
+    os.setuid(uid)
 
 
 def switch_user(user: str | RunAs) -> None:
@@ -84,11 +93,6 @@ def make_preexec(user: str | RunAs | None) -> Callable[[], None]:
     def _preexec() -> None:
         set_oom_score_adj()
         if user is not None:
-            if os.isatty(0):
-                # Claim the pty as controlling tty before dropping privileges, else
-                # an interactive shell running as another user gets no job control.
-                with contextlib.suppress(OSError):
-                    fcntl.ioctl(0, termios.TIOCSCTTY, 0)
             try:
                 _switch(user)
             except KeyError:

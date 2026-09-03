@@ -250,12 +250,13 @@ def _identity_parity(check_root: bool = True) -> Solver:
         ref = (await sb.exec(["sh", "-c", _ID_CMD])).stdout
         uid, gid = ref.split()[:2]
         expected = " ".join(ref.split())
-        bash_id = f"({_ID_CMD}) | tr '\\n' ' '"
+        bash_id = f"({_ID_CMD}) | tr '\\n' ' '; stat -c T:%u:E \"$(tty)\""
 
         assert (await sb.exec_remote(["sh", "-c", _ID_CMD], stream=False)).stdout == ref
 
         out = str(await bash_session()(action="type_submit", input=bash_id))
         assert expected in out and "no job control" not in out, out
+        assert f"T:{uid}:E" in out, out
         await bash_session()(action="restart")
         await bash_session()(action="read")
         out = str(await bash_session()(action="type_submit", input=bash_id))

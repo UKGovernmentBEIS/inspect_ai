@@ -338,8 +338,13 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     """
     try:
         caps = await sandbox.exec(["/bin/sh", "-c", _ROOT_CAPS_CMD], user="root")
-        cap_eff, setgroups = caps.stdout.split()
-        if not caps.success or (
+        tokens = caps.stdout.split()
+        if not caps.success or len(tokens) != 2:
+            raise RuntimeError(
+                f"capability probe failed: {caps.stderr or caps.stdout!r}"
+            )
+        cap_eff, setgroups = tokens
+        if (
             int(cap_eff, 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
             or setgroups != "allow"
         ):

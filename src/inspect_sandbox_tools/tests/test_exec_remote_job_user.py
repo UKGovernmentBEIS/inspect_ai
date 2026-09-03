@@ -130,24 +130,27 @@ class TestRunAs:
             patch(_OOM_PATCH),
             patch("os.isatty", return_value=True),
             patch("fcntl.ioctl", side_effect=lambda *a: calls.append("ioctl")),
+            patch("os.fchown", side_effect=lambda *a: calls.append(f"fchown{a}")),
             patch("os.setgroups"),
             patch("os.setgid"),
             patch("os.setuid", side_effect=lambda *a: calls.append("setuid")),
         ):
             make_preexec(run_as)()
-        assert calls == ["ioctl", "setuid"]
+        assert calls == ["ioctl", "fchown(0, 1000, 5)", "setuid"]
 
     def test_preexec_skips_tty_claim_without_tty(self) -> None:
         with (
             patch(_OOM_PATCH),
             patch("os.isatty", return_value=False),
             patch("fcntl.ioctl") as mock_ioctl,
+            patch("os.fchown") as mock_fchown,
             patch("os.setgroups"),
             patch("os.setgid"),
             patch("os.setuid"),
         ):
             make_preexec(RunAs(uid=1000, gid=5, groups=[], home="/h"))()
         mock_ioctl.assert_not_called()
+        mock_fchown.assert_not_called()
 
     async def test_other_uid_without_root_raises(self) -> None:
         from inspect_sandbox_tools._remote_tools._exec_remote._job import Job

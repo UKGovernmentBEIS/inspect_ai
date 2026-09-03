@@ -718,22 +718,30 @@ async def test_detector_does_not_pin_root_when_identity_probe_fails() -> None:
 
 
 @pytest.mark.parametrize(
-    "cap_eff, setgroups",
+    "probe",
     [
-        pytest.param("0000000000000000", "allow", id="cap_drop-all"),
-        pytest.param("0000000000000040", "allow", id="setgid-without-setuid"),
-        pytest.param("000001ffffffffff", "deny", id="setgroups-denied"),
+        pytest.param(caps_probe_result("0000000000000000"), id="cap_drop-all"),
+        pytest.param(caps_probe_result("0000000000000040"), id="setgid-without-setuid"),
+        pytest.param(
+            caps_probe_result("000001ffffffffff", "deny"), id="setgroups-denied"
+        ),
+        pytest.param(
+            ExecResult(success=False, returncode=1, stdout="", stderr="exec failed"),
+            id="probe-failed",
+        ),
+        pytest.param(
+            ExecResult(success=True, returncode=0, stdout="allow\n", stderr=""),
+            id="probe-output-short",
+        ),
     ],
 )
 async def test_inject_falls_back_when_root_cannot_switch_users(
-    stub_artifact: dict[str, object], cap_eff: str, setgroups: str
+    stub_artifact: dict[str, object], probe: ExecResult[str]
 ) -> None:
-    """Root that cannot switch identity must not run tools as the default user."""
+    """Root that cannot (or cannot be shown to) switch identity is not used."""
 
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if is_caps_probe(cmd):
-            return caps_probe_result(cap_eff, setgroups)
-        return helper_ok(cmd, user)
+        return probe if is_caps_probe(cmd) else helper_ok(cmd, user)
 
     sandbox = CannedSandbox(policy)
     await sandbox_tools._inject_container_tools_code(sandbox)
