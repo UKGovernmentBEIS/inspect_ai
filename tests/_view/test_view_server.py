@@ -722,6 +722,32 @@ def test_api_log_headers_multiple(view_client: ViewTestClient) -> None:
     assert len(resp.json()) == 2
 
 
+def test_api_log_headers_forbidden() -> None:
+    class NoReadPolicy(AccessPolicy):
+        async def can_read(self, request: Request, file: str) -> bool:
+            return False
+
+        async def can_delete(self, request: Request, file: str) -> bool:
+            return False
+
+        async def can_list(self, request: Request, dir: str) -> bool:
+            return False
+
+        async def can_write(self, request: Request, file: str) -> bool:
+            return False
+
+    app = fastapi_server.view_server_app(access_policy=NoReadPolicy())
+    with fastapi.testclient.TestClient(
+        app, raise_server_exceptions=False
+    ) as restricted_client:
+        response = restricted_client.get(
+            "/log-headers", params={"file": "restricted.eval"}
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Forbidden"}
+
+
 @pytest.mark.parametrize(
     ["last_eval_time", "expected"],
     [

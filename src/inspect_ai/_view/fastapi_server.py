@@ -3,6 +3,7 @@ import logging
 import os
 import secrets
 import urllib.parse
+from functools import partial
 from io import BytesIO
 from logging import getLogger
 from pathlib import Path
@@ -26,6 +27,7 @@ from typing_extensions import override
 
 from inspect_ai._display.core.active import display
 from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
@@ -441,15 +443,12 @@ def view_server_app(
         request: Request, file: list[str] = Query([])
     ) -> list[EvalLog]:
         files = [normalize_uri(f) for f in file]
-        mapped_files: list[str] = [""] * len(files)
 
-        async def _validate_and_map(idx: int, f: str) -> None:
+        async def _validate_and_map(f: str) -> str:
             await _validate_read(request, f)
-            mapped_files[idx] = await _map_file(request, f)
+            return await _map_file(request, f)
 
-        async with anyio.create_task_group() as tg:
-            for i, f in enumerate(files):
-                tg.start_soon(_validate_and_map, i, f)
+        mapped_files = await tg_collect([partial(_validate_and_map, f) for f in files])
 
         return await read_eval_log_headers_async(mapped_files)
 
