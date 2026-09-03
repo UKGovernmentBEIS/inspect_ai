@@ -2285,7 +2285,7 @@ requires-dist = [
     { name = "exceptiongroup", marker = "python_full_version < '3.11'", specifier = ">=1.0.2" },
     { name = "fastapi", specifier = ">=0.119.0" },
     { name = "fsspec", specifier = ">=2023.1.0,<=2026.6.0" },
-    { name = "google-genai", marker = "extra == 'dev'", specifier = ">=1.69.0" },
+    { name = "google-genai", marker = "extra == 'dev'", specifier = ">=2.14.0" },
     { name = "griffe", marker = "extra == 'dev'", specifier = ">=2" },
     { name = "griffe", marker = "extra == 'doc'", specifier = ">=2" },
     { name = "groq", marker = "extra == 'dev'", specifier = ">=0.28.0" },
