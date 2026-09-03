@@ -1,3 +1,5 @@
+## Unreleased
+- Solver: `chain_of_thought()` now uses `format_template()` for prompt interpolation, matching the other prompt solvers: custom templates with extra `{name}` placeholders no longer raise `KeyError` (unknown placeholders pass through unchanged; JSON-style braces still need `{{ }}` escaping). (#5166)
 ## 0.3.262 (02 September 2026)
 
 - Util: Support datetime instances in UtcDatetimeStr. (#5157)
