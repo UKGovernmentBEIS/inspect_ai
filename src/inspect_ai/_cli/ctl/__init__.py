@@ -8,8 +8,8 @@ Commands are grouped by **resource noun**, mirroring the HTTP API's object
 model (see "CLI command hierarchy: noun groups" in the design doc):
 
 - ``task`` — a logical task in a running process (stable across retries):
-  ``list`` (implied by the bare noun), ``log-flush``, ``cancel``, ``pause``,
-  ``resume``; ``add`` / ``drain`` are planned.
+  ``list`` (implied by the bare noun), ``log-flush``, ``cancel``, ``drain``,
+  ``pause``, ``resume``; ``add`` is planned.
 - ``sample`` — one sample (``TASK SAMPLE_ID [EPOCH]``) or a task's samples:
   ``list`` (implied by the bare noun), ``show``, ``errors``, ``events``,
   ``messages``, ``cancel``, ``requeue``.

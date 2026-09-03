@@ -2,7 +2,7 @@ import math
 from pathlib import Path
 
 from inspect_ai.log._file import read_eval_log
-from inspect_ai.model._model import compute_model_cost
+from inspect_ai.model import compute_model_cost
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_output import ModelUsage
 

@@ -3,7 +3,7 @@ import logging
 import tempfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 from unittest import mock
 
 import anyio
@@ -634,6 +634,55 @@ def test_failed_log_start_returns_errored_log(
     assert logs[0].location  # the path the failed write was destined for
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_unserializable_score_metadata_does_not_abort_eval(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    """Score metadata the log writer cannot serialize degrades, end to end.
+
+    The same `Score` objects are logged in the sample record and again as
+    reductions at log finish, so stripping the record alone would still abort
+    the eval at finish (leaving the log `started` with no results). The
+    results must follow the logged record: metrics are still computed from
+    the values, the reductions are written, and the record and reductions
+    agree on the stripped scores.
+    """
+    from inspect_ai.scorer import Score, Target, accuracy, scorer
+    from inspect_ai.solver import TaskState
+
+    deep: dict[str, Any] = {"a": 1}
+    for _ in range(1000):
+        deep = {"a": deep}
+
+    @scorer(metrics=[accuracy()])
+    def deep_metadata():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1, answer="x", metadata={"deep": deep})
+
+        return score
+
+    task = Task(dataset=[Sample(id=1, input="x", target="x")], scorer=deep_metadata())
+    log = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path), log_format=log_format
+    )[0]
+
+    assert log.status == "success", log.error
+    assert log.results is not None
+    assert log.results.scores[0].metrics["accuracy"].value == 1
+    assert log.samples is not None and len(log.samples) == 1
+    sample = log.samples[0]
+    assert sample.scores is not None
+    assert sample.scores["deep_metadata"].value == 1
+    assert sample.scores["deep_metadata"].answer == "x"
+    assert sample.scores["deep_metadata"].metadata is None
+    assert sample.error is not None
+    assert "score metadata" in sample.error.message
+    assert log.reductions is not None
+    (reduced,) = log.reductions[0].samples
+    assert reduced.value == 1
+    assert reduced.metadata is None
+
+
 def test_failed_log_start_is_retried(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -663,6 +712,39 @@ def test_failed_log_start_is_retried(
     assert len(logs) == 1
     assert logs[0].status == "success"
     assert calls["n"] == 2
+
+
+def test_abandoned_attempt_not_traced_as_task_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An attempt abandoned by a task drain/cancel is not a task error.
+
+    The attempt-start bail (``TaskRetryAbandonedError``) is an
+    operator-requested outcome, so the dispatcher's "Run Task" trace action
+    must record a clean exit rather than an ``error`` event with a
+    stacktrace (which would show up in ``inspect trace dump`` as a failure).
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai._util.constants import TRACE
+
+    monkeypatch.setattr(task_run_module, "task_retry_abandoned", lambda _: True)
+    caplog.set_level(TRACE, logger="inspect_ai._eval.run")
+
+    logs = eval(
+        log_write_failure_task(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+    )
+
+    assert logs == []
+    run_task_events = [
+        getattr(r, "event")
+        for r in caplog.records
+        if getattr(r, "action", None) == "Run Task"
+    ]
+    assert run_task_events == ["enter", "exit"]
 
 
 async def test_retry_sample_source_tolerates_missing_log_file(tmp_path: Path) -> None:

@@ -103,7 +103,9 @@ async def test_write_recovered_eval_log_basic() -> None:
             buffer = [_make_sample(3)]
             crashed = _make_crashed_log(temp_dir, samples=flushed)
 
-            log = await write_recovered_eval_log(crashed, iter(buffer), output)
+            log = await write_recovered_eval_log(
+                crashed, iter([(sample, False) for sample in buffer]), output
+            )
 
             assert log.status == "error"
             assert log.error is not None
@@ -177,7 +179,9 @@ async def test_write_recovered_eval_log_mixed_scored() -> None:
 
             # Buffer has unscored sample
             unscored = [_make_sample(2, scored=False)]
-            await write_recovered_eval_log(crashed, iter(unscored), output)
+            await write_recovered_eval_log(
+                crashed, iter([(sample, False) for sample in unscored]), output
+            )
 
             read_log = await read_eval_log_async(output)
             assert read_log.samples is not None
