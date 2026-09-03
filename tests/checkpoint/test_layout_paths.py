@@ -81,11 +81,19 @@ def test_contained_component_rejects_non_segments(name: str) -> None:
 
 @pytest.mark.parametrize(
     "sample_id",
-    ["s7", "sample-7", "42", "a.b_c-d", "X", "0", "task_001.v2", "a" * 300],
+    ["s7", "sample-7", "42", "a.b_c-d", "X", "0", "task_001.v2", "a" * 200],
 )
 def test_sample_dir_segment_passes_through_safe_string_ids(sample_id: str) -> None:
     """Existing checkpoint dirs keep their names, so they stay resumable."""
     assert sample_dir_segment(sample_id) == sample_id
+
+
+def test_sample_dir_segment_hashes_over_long_safe_ids() -> None:
+    """Past 200 chars a plain-filename id is hashed so ``mkdir`` never hits NAME_MAX."""
+    sample_id = "a" * 201
+    segment = sample_dir_segment(sample_id)
+    assert segment == f"{'a' * 64}~{_hashed(sample_id)}"
+    assert len(f"{segment}__{10**6}") < 255
 
 
 @pytest.mark.parametrize("sample_id", [0, 1, 42, 10**12])

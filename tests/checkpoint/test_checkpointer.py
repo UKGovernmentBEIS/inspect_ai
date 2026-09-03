@@ -762,6 +762,26 @@ def test_validate_resume_state_allows_unreadable_interior_checkpoint_entry(
     _validate_resume_state(events, str(sample_root), 3)
 
 
+def test_validate_resume_state_ignores_names_outside_checkpoint_file_form(
+    tmp_path: Path,
+) -> None:
+    """Validation lists ``ckpt-*.json`` with the same regex as the scanner.
+
+    A stray ``ckpt-1.json`` (parseable by ``int`` but not the zero-padded
+    form the writer emits) is ignored, even when its content id disagrees
+    with its name, rather than tripping the file-id mismatch check on a
+    file ``scan_latest_committed_checkpoint`` never counts.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    (sample_root / "ckpt-1.json").write_text(_make_checkpoint(7).model_dump_json())
+    events = _checkpoint_resume_events(2)
+
+    _validate_resume_state(events, str(sample_root), 2)
+
+
 def test_validate_resume_state_accepts_failed_fire_retry_span(
     tmp_path: Path,
 ) -> None:

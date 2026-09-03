@@ -839,10 +839,10 @@ def _validate_resume_state(
     sample_dir = Path(local_path(sample_root))
     checkpoint_ids: list[int] = []
     for checkpoint_file in sample_dir.glob("ckpt-*.json"):
-        try:
-            filename_id = int(checkpoint_file.stem.removeprefix("ckpt-"))
-        except ValueError:
+        match = CHECKPOINT_FILE_RE.fullmatch(checkpoint_file.name)
+        if match is None:
             continue
+        filename_id = int(match.group(1))
 
         try:
             checkpoint = Checkpoint.model_validate_json(checkpoint_file.read_bytes())

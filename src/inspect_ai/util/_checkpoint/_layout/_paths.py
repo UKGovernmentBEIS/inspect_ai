@@ -34,6 +34,13 @@ _LEADING_NON_ALNUM_RE = re.compile(r"^[^A-Za-z0-9]+")
 """``safe_filename`` keeps a leading ``-``; the rewritten segment must
 satisfy the same leading-alphanumeric rule as the passthrough set."""
 
+_MAX_PASSTHROUGH_LEN = 200
+"""Longest id that passes through unchanged.
+
+Callers append ``__<epoch>`` to the segment, and the common NAME_MAX is
+255 bytes; a longer id is hashed rather than failing ``mkdir`` with
+``ENAMETOOLONG``."""
+
 _SAFE_PREFIX_LEN = 64
 _HASH_LEN = 12
 _HASH_JOINER = "~"
@@ -96,9 +103,10 @@ def sample_dir_segment(sample_id: int | str) -> str:
     """Return the single directory-name segment for a sample id.
 
     An id whose ``str()`` matches ``^[A-Za-z0-9][A-Za-z0-9._-]*$`` (every
-    non-negative int, and plain-filename strings) passes through
-    unchanged so existing checkpoint dirs for such ids keep their names
-    and stay resumable. Anything else, including a negative int, becomes
+    non-negative int, and plain-filename strings) and is at most 200
+    characters passes through unchanged so existing checkpoint dirs for
+    such ids keep their names and stay resumable. Anything else,
+    including a negative int or an over-long id, becomes
     ``safe_filename(id)[:64] + "~" + sha256(id)[:12]`` (with any leading
     non-alphanumerics dropped from the prefix): deterministic, collision
     resistant, bounded in length, and never a traversal. The ``~`` joiner
@@ -110,7 +118,7 @@ def sample_dir_segment(sample_id: int | str) -> str:
     derive the dir name here, so they agree by construction.
     """
     text = str(sample_id)
-    if _PASSTHROUGH_ID_RE.fullmatch(text):
+    if len(text) <= _MAX_PASSTHROUGH_LEN and _PASSTHROUGH_ID_RE.fullmatch(text):
         return text
     digest = hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
     prefix = _LEADING_NON_ALNUM_RE.sub("", safe_filename(text))
