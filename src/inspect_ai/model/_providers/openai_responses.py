@@ -236,10 +236,8 @@ async def generate_responses(
         # without parsing the raw model call
         response_metadata = getattr(model_response, "metadata", None)
 
-        # return output and call. `model` is typed as required but compatible
-        # services can omit it (Meta streams a refusal-only response with a
-        # null model), so fall back to the model we requested rather than
-        # failing validation.
+        # `model` is typed as required but compatible services can omit it
+        # (Meta's streamed refusal has a null model); fall back to the request
         return ModelOutput(
             model=model_response.model or model_name,
             choices=choices,

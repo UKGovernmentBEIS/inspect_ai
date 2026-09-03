@@ -12,7 +12,11 @@ from .._generate_config import GenerateConfig
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .openai_compatible import OpenAICompatibleAPI
-from .util import environment_prerequisite_error
+from .util import (
+    environment_prerequisite_error,
+    forced_tool_choice_degraded_metadata,
+    is_forced_tool_choice,
+)
 
 logger = getLogger(__name__)
 
@@ -27,11 +31,6 @@ META_TOOL_CHOICE_WARNING = (
     'API only accepts tool_choice="auto") and will be submitted as "auto".'
 )
 
-META_TOOL_CHOICE_NONE_WARNING = (
-    'tool_choice="none" is not supported by {model} (the Meta Model API only '
-    'accepts tool_choice="auto"); tools will be omitted from the request instead.'
-)
-
 META_REASONING_NONE_WARNING = (
     "Reasoning cannot be disabled for {model} (the Meta Model API rejects "
     'reasoning_effort="none"); the model default will be used instead.'
@@ -43,8 +42,7 @@ META_REASONING_MAX_WARNING = (
 )
 
 META_UNSUPPORTED_PARAM_WARNING = (
-    "The {parameter} parameter is not supported by {model} (Muse Spark is a "
-    "reasoning model) and will be ignored."
+    "The {parameter} parameter is not supported by {model} and will be ignored."
 )
 
 # Chat Completions params the API rejects with a 400 (the Responses path
@@ -55,10 +53,10 @@ META_CHAT_UNSUPPORTED_PARAMS = ("stop", "logit_bias", "n")
 def _flag_refusal_stop(output: ModelOutput) -> None:
     """Report a structurally-signalled refusal as a content_filter stop.
 
-    A policy block reaches us four ways depending on protocol and streaming: a
-    400 with `content_policy_violation`, a `content_filter` finish reason, or
-    (streamed Responses) a completed response whose only content is a
-    `refusal` part. The first three already stop as `content_filter`; the last
+    A policy block reaches us three ways depending on protocol and streaming:
+    a 400 with `content_policy_violation`, a `content_filter` finish reason,
+    or (streamed Responses) a completed response whose only content is a
+    `refusal` part. The first two already stop as `content_filter`; the last
     arrives as an ordinary `stop` that agent loops would treat as compliance,
     so promote it. Keyed on the API's own refusal field, never on message text.
     """
@@ -87,19 +85,19 @@ class MetaAPI(OpenAICompatibleAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
-        responses_api: bool | None = None,
+        responses_api: bool = True,
         strict_tools: bool = False,
         **model_args: Any,
     ) -> None:
-        api_key_var = META_API_KEY_VARS[0]
-        if not api_key:
-            for var in META_API_KEY_VARS:
-                value = os.environ.get(var)
-                if value:
-                    api_key, api_key_var = value, var
-                    break
-            else:
-                raise environment_prerequisite_error("Meta", list(META_API_KEY_VARS))
+        from inspect_ai.hooks._hooks import has_api_key_override
+
+        # name the env var the key came from; with neither set, defer to the
+        # base class only if an api_key hook may still supply one
+        api_key_var = next(
+            (var for var in META_API_KEY_VARS if os.environ.get(var)), None
+        )
+        if not api_key and api_key_var is None and not has_api_key_override():
+            raise environment_prerequisite_error("Meta", list(META_API_KEY_VARS))
 
         super().__init__(
             model_name=model_name,
@@ -108,8 +106,8 @@ class MetaAPI(OpenAICompatibleAPI):
             config=config,
             service="Meta",
             service_base_url=META_BASE_URL,
-            api_key_var=api_key_var,
-            responses_api=True if responses_api is None else responses_api,
+            api_key_var=api_key_var or META_API_KEY_VARS[0],
+            responses_api=responses_api,
             strict_tools=strict_tools,
             **model_args,
         )
@@ -123,12 +121,13 @@ class MetaAPI(OpenAICompatibleAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         result = await super().generate(input, tools, tool_choice, config)
-        if isinstance(result, tuple):
-            output, call = result
-            if isinstance(output, ModelOutput):
-                _flag_refusal_stop(output)
-            return output, call
-        _flag_refusal_stop(result)
+        output = result[0] if isinstance(result, tuple) else result
+        if isinstance(output, ModelOutput):
+            _flag_refusal_stop(output)
+            if tools and is_forced_tool_choice(tool_choice):
+                output.metadata = (
+                    output.metadata or {}
+                ) | forced_tool_choice_degraded_metadata(tool_choice)
         return result
 
     @override
@@ -168,11 +167,7 @@ class MetaAPI(OpenAICompatibleAPI):
         tools, tool_choice, config = super().resolve_tools(tools, tool_choice, config)
         config = self.resolve_config(config)
         model = self.service_model_name()
-        if tool_choice == "none":
-            if tools:
-                warn_once(logger, META_TOOL_CHOICE_NONE_WARNING.format(model=model))
-                tools = []
-        elif tool_choice == "any" or isinstance(tool_choice, ToolFunction):
+        if is_forced_tool_choice(tool_choice):
             choice = (
                 f'"{tool_choice.name}"'
                 if isinstance(tool_choice, ToolFunction)

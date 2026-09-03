@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 import pytest
@@ -10,10 +11,15 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
+    StopReason,
     get_model,
 )
 from inspect_ai.model._model_output import StopDetails
-from inspect_ai.model._providers.meta import MetaAPI, _flag_refusal_stop
+from inspect_ai.model._providers.meta import (
+    META_UNSUPPORTED_PARAM_WARNING,
+    MetaAPI,
+    _flag_refusal_stop,
+)
 from inspect_ai.tool import ToolFunction, ToolInfo, ToolParams
 from inspect_ai.util import json_schema
 
@@ -89,6 +95,21 @@ def test_meta_missing_api_key_names_both_vars(monkeypatch):
     assert "MODEL_API_KEY" in str(ex.value)
 
 
+def test_meta_api_key_hook_supplies_credentials(monkeypatch):
+    """With neither env var set, an api_key hook can still provide the key."""
+    monkeypatch.delenv("META_API_KEY", raising=False)
+    monkeypatch.delenv("MODEL_API_KEY", raising=False)
+    monkeypatch.setattr("inspect_ai.hooks._hooks.has_api_key_override", lambda: True)
+    monkeypatch.setattr(
+        "inspect_ai.hooks._hooks.override_api_key",
+        lambda env_var_name, value: "hook-key"
+        if env_var_name == "META_API_KEY"
+        else None,
+    )
+    api = MetaAPI(model_name="muse-spark-1.3")
+    assert api.api_key == "hook-key"
+
+
 def test_meta_model_info(mock_meta_env):
     from inspect_ai.model._model_info import get_model_info
 
@@ -113,14 +134,6 @@ def test_meta_forced_tool_choice_downgraded(mock_meta_env, _warn_once_messages):
     assert choice == "auto"
     assert any('"any"' in m for m in _warn_once_messages)
     assert any('"lookup"' in m for m in _warn_once_messages)
-
-
-def test_meta_tool_choice_none_drops_tools(mock_meta_env, _warn_once_messages):
-    api = MetaAPI(model_name="muse-spark-1.3")
-    resolved, choice, _ = api.resolve_tools([_tool()], "none", GenerateConfig())
-    assert resolved == []
-    assert choice == "none"
-    assert any('tool_choice="none"' in m for m in _warn_once_messages)
 
 
 def test_meta_tool_choice_auto_untouched(mock_meta_env, _warn_once_messages):
@@ -187,7 +200,12 @@ def test_meta_chat_completion_params(mock_meta_env, _warn_once_messages):
     assert "n" not in params
     assert params["temperature"] == 0.5
     for parameter in ("stop", "logit_bias", "n"):
-        assert any(parameter in m for m in _warn_once_messages)
+        assert (
+            META_UNSUPPORTED_PARAM_WARNING.format(
+                parameter=parameter, model="muse-spark-1.3"
+            )
+            in _warn_once_messages
+        )
 
 
 def test_meta_chat_tools_not_strict(mock_meta_env):
@@ -210,28 +228,46 @@ async def test_meta_generate_applies_request_shaping(mock_meta_env, monkeypatch)
     )
     api = MetaAPI(model_name="muse-spark-1.3")
     try:
-        await api.generate(
+        forced = await api.generate(
             input=[ChatMessageUser(content="hi")],
             tools=[_tool()],
             tool_choice="any",
             config=GenerateConfig(reasoning_effort="none", logprobs=True),
         )
+        assert captured["streaming"] is True
+        assert captured["tool_choice"] == "auto"
+        assert captured["config"].reasoning_effort is None
+        assert captured["config"].logprobs is None
+        assert captured["model_name"] == "muse-spark-1.3"
+        # the degraded forced choice is recorded per-request in the output
+        assert isinstance(forced, ModelOutput)
+        assert forced.metadata == {
+            "tool_choice_degraded": {
+                "requested": {"type": "any"},
+                "used": {"type": "auto"},
+            }
+        }
+        unforced = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+        assert isinstance(unforced, ModelOutput)
+        assert unforced.metadata is None
     finally:
         await api.aclose()
-    assert captured["streaming"] is True
-    assert captured["tool_choice"] == "auto"
-    assert captured["config"].reasoning_effort is None
-    assert captured["config"].logprobs is None
-    assert captured["model_name"] == "muse-spark-1.3"
 
 
-def _output(text: str, stop_reason: str, details: StopDetails | None) -> ModelOutput:
+def _output(
+    text: str, stop_reason: StopReason, details: StopDetails | None
+) -> ModelOutput:
     return ModelOutput(
         model="muse-spark-1.3",
         choices=[
             ChatCompletionChoice(
                 message=ChatMessageAssistant(content=text, model="muse-spark-1.3"),
-                stop_reason=stop_reason,  # type: ignore[arg-type]
+                stop_reason=stop_reason,
                 stop_details=details,
             )
         ],
@@ -273,6 +309,86 @@ def test_meta_refusal_stop_not_promoted(text, stop_reason, details):
     assert output.stop_reason == stop_reason
 
 
+async def test_meta_streamed_policy_block_is_content_filter(mock_meta_env, monkeypatch):
+    """The default (streamed Responses) path, end to end, on a policy block.
+
+    Meta's streamed refusal is a completed response whose only content is a
+    `refusal` part and whose `model` is null. It must survive `ModelOutput`
+    validation (falling back to the requested model) and stop as
+    `content_filter`.
+    """
+    from openai.types.responses import (
+        Response,
+        ResponseCompletedEvent,
+        ResponseOutputMessage,
+        ResponseOutputRefusal,
+    )
+
+    blocked = Response.model_construct(
+        id="resp_blocked",
+        created_at=0.0,
+        model=None,
+        object="response",
+        output=[
+            ResponseOutputMessage(
+                id="msg_1",
+                role="assistant",
+                status="completed",
+                type="message",
+                content=[
+                    ResponseOutputRefusal(
+                        type="refusal", refusal="This request violates our policies."
+                    )
+                ],
+            )
+        ],
+        tools=[],
+        status="completed",
+    )
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                yield ResponseCompletedEvent(
+                    response=blocked, sequence_number=0, type="response.completed"
+                )
+
+            return gen()
+
+    captured: dict[str, Any] = {}
+
+    async def create(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return _FakeStream()
+
+    api = MetaAPI(model_name="muse-spark-1.3")
+    monkeypatch.setattr(api.client.responses, "create", create)
+    try:
+        result = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+    finally:
+        await api.aclose()
+
+    assert captured["stream"] is True
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    assert output.model == "muse-spark-1.3"
+    assert output.stop_reason == "content_filter"
+    details = output.choices[0].stop_details
+    assert details is not None and details.type == "refusal"
+
+
 def test_meta_registered_provider(mock_meta_env):
     model = get_model("meta/muse-spark-1.3")
     assert isinstance(model.api, MetaAPI)
@@ -303,6 +419,14 @@ async def test_meta_live_reasoning_replay():
     assert "392" in second.completion
 
 
+# These prompts count as policy violations against the API key, and repeated
+# runs get the key restricted (HTTP 403 `user_blocked`), so they need an explicit
+# opt-in on top of --runapi.
+skip_unless_policy_block_tests = pytest.mark.skipif(
+    "META_POLICY_BLOCK_TESTS" not in os.environ,
+    reason="Set META_POLICY_BLOCK_TESTS=1 to send policy-violating prompts.",
+)
+
 # a prompt the Meta Model API blocks server-side (not merely one the model
 # declines in prose) -- the request is expected to be refused
 BLOCKED_PROMPT = (
@@ -318,6 +442,7 @@ SOFT_DECLINE_PROMPT = (
 
 
 @skip_if_no_meta
+@skip_unless_policy_block_tests
 @pytest.mark.parametrize(
     "model_args",
     [
@@ -341,6 +466,7 @@ async def test_meta_live_policy_block_is_content_filter(model_args):
 
 
 @skip_if_no_meta
+@skip_unless_policy_block_tests
 async def test_meta_live_soft_decline_is_a_normal_completion():
     """A decline the model writes itself carries no refusal signal.
 
