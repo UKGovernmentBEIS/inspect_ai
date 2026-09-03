@@ -598,6 +598,48 @@ async def test_detector_treats_provider_exception_as_not_installed() -> None:
     assert await sandbox_tools._sandbox_tools_installed(CannedSandbox(raising)) is False
 
 
+@pytest.mark.parametrize(
+    "result",
+    [
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=1,
+                stdout="",
+                stderr=f"{_VERIFIED_MARKER}\nstat: cannot statx 'inspect-sandbox-tools': Input/output error\n",
+            ),
+            id="stat-fails",
+        ),
+        pytest.param(
+            ExecResult(
+                success=True,
+                returncode=0,
+                stdout="regular file\n",
+                stderr=f"{_VERIFIED_MARKER}\n",
+            ),
+            id="stat-prints-no-mode",
+        ),
+    ],
+)
+async def test_detector_treats_unreadable_launcher_as_not_installed(
+    result: ExecResult[str],
+) -> None:
+    """A launcher whose type cannot be read counts as not installed, as before.
+
+    ``stat_in_framework_directory`` raises here where the old inline ``stat`` made
+    the check return False; the detector's broad catch keeps the outcome the same
+    (injection re-extracts) and the tools user is not pinned by the failure.
+    """
+    sandbox = CannedSandbox(lambda cmd, user: result)
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is False
+    assert sandbox._tools_user is None
+    assert sandbox._tools_user_resolved is False
+
+    # Same verdict once the tools user is already known.
+    sandbox._tools_user = "root"
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is False
+
+
 async def test_detector_records_no_transcript_events() -> None:
     """The per-tool-call probe must not add its script to the transcript each time."""
     transcript = Transcript()

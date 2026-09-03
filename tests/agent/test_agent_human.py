@@ -22,6 +22,7 @@ from inspect_ai import Task, eval
 from inspect_ai.agent._human import install as human_install
 from inspect_ai.agent._human.agent import human_cli
 from inspect_ai.agent._human.commands import submit
+from inspect_ai.agent._human.commands.command import HumanAgentCommand
 from inspect_ai.agent._human.commands.submit import QuitCommand, SubmitCommand
 from inspect_ai.agent._human.install import (
     _BASHRC_APPEND_SCRIPT,
@@ -122,6 +123,9 @@ def violation(message: str) -> ExecResult[str]:
 
 
 HUMAN_AGENT_LEAF = HUMAN_AGENT_DIR.rsplit("/", 1)[1]
+REAL_COMMANDS: list[HumanAgentCommand] = [QuitCommand(record_session=False)]
+"""A command list like production's: with none, the generated task.py has an `else`
+with no `if`, so tests that parse or run task.py must not pass ``[]``."""
 
 
 def is_helper_call(cmd: list[str]) -> bool:
@@ -450,6 +454,11 @@ async def test_failed_task_py_write_is_reported() -> None:
         await install_human_agent("root", [], None, False, sandbox_env=sandbox)
 
 
+def test_generated_task_py_is_valid_python() -> None:
+    """What the installer publishes for a real command list must at least parse."""
+    ast.parse(human_agent_commands(REAL_COMMANDS))
+
+
 def test_installer_source_runs_nothing_outside_the_helper_and_bashrc_scripts() -> None:
     """Mechanical guard: install.py issues no raw mkdir/chown/chmod/bash/rm/tee/cp.
 
@@ -499,6 +508,10 @@ def test_installer_source_runs_nothing_outside_the_helper_and_bashrc_scripts() -
 # ---------------------------------------------------------------------------
 
 
+UNKNOWN_USER = "nosuchuser"
+"""A login name the ``getent`` shim below reports as absent from passwd."""
+
+
 class _HomeSandbox(SandboxEnvironment):
     """Runs the .bashrc append script with ``getent`` reporting a chosen home.
 
@@ -517,8 +530,10 @@ class _HomeSandbox(SandboxEnvironment):
             assert found, f"{tool} not found on host"
             os.symlink(found, bindir / tool)
         self.getent_lookups = tmp_path / "getent-lookups"
+        # Like the real getent: exit 2 with no output for an unknown account.
         (bindir / "getent").write_text(
             f'#!/bin/sh\necho "$2" >> "{self.getent_lookups}"\n'
+            f'[ "$2" = "{UNKNOWN_USER}" ] && exit 2\n'
             f'echo "user:x:1000:1000::{home}:/bin/sh"\n'
         )
         (bindir / "getent").chmod(0o700)
@@ -594,6 +609,25 @@ async def test_bashrc_append_creates_or_extends_a_regular_file(
     await append_bashrc(sandbox, "someone", "third\n")
     assert sandbox.getent_lookups.read_text().splitlines()[-1] == "someone"
     assert (home / BASHRC).read_text() == "existing\nsecond\nthird\n"
+
+
+async def test_bashrc_append_refuses_a_login_user_missing_from_passwd(
+    home_sandbox: tuple[_HomeSandbox, Path],
+) -> None:
+    """A named user that passwd does not know is an error, not a fallback to $HOME.
+
+    Falling back would append to the home of whoever the command actually ran as
+    (root's, if the provider ignored ``user``).
+    """
+    sandbox, home = home_sandbox
+    own_bashrc = Path.home() / BASHRC
+    own_before = own_bashrc.read_text() if own_bashrc.is_file() else None
+    with pytest.raises(RuntimeError, match=f"unknown user {UNKNOWN_USER}"):
+        await append_bashrc(sandbox, UNKNOWN_USER, "payload\n")
+    assert sandbox.getent_lookups.read_text() == f"{UNKNOWN_USER}\n"
+    assert list(home.iterdir()) == []
+    own_after = own_bashrc.read_text() if own_bashrc.is_file() else None
+    assert own_after == own_before
 
 
 async def test_bashrc_append_is_skipped_when_the_block_is_already_there(
@@ -738,7 +772,9 @@ async def test_docker_install_for_nonroot_user_and_reinstall_is_skipped(
     docker_sandbox: SandboxEnvironment,
 ) -> None:
     before = await _root_sh(docker_sandbox, "cat /home/nonroot/.bashrc")
-    await install_human_agent("nonroot", [], None, True, sandbox_env=docker_sandbox)
+    await install_human_agent(
+        "nonroot", REAL_COMMANDS, None, True, sandbox_env=docker_sandbox
+    )
 
     # Root-owned traversable directory holding a root-owned 0755 task.py.
     assert await _stat(docker_sandbox, HUMAN_AGENT_DIR) == "41ed 0"
@@ -765,7 +801,9 @@ async def test_docker_install_for_nonroot_user_and_reinstall_is_skipped(
     )
 
     # A second installation finds task.py and appends nothing.
-    await install_human_agent("nonroot", [], None, True, sandbox_env=docker_sandbox)
+    await install_human_agent(
+        "nonroot", REAL_COMMANDS, None, True, sandbox_env=docker_sandbox
+    )
     assert await _root_sh(docker_sandbox, "cat /home/nonroot/.bashrc") == after
 
 
@@ -774,7 +812,9 @@ async def test_docker_install_for_nonroot_user_and_reinstall_is_skipped(
 async def test_docker_install_for_default_root_user(
     docker_sandbox: SandboxEnvironment,
 ) -> None:
-    await install_human_agent(None, [], None, False, sandbox_env=docker_sandbox)
+    await install_human_agent(
+        None, REAL_COMMANDS, None, False, sandbox_env=docker_sandbox
+    )
     assert await _stat(docker_sandbox, f"{HUMAN_AGENT_DIR}/{TASK_PY}") == "81ed 0"
     root_bashrc = await _root_sh(docker_sandbox, "cat /root/.bashrc")
     assert root_bashrc.count("### Inspect Human Agent Setup") == 1
@@ -805,7 +845,7 @@ async def test_docker_install_refuses_planted_human_agent_dir(
         before = await _stat(docker_sandbox, HUMAN_AGENT_DIR)
         with pytest.raises(FrameworkDirectoryError, match=expected):
             await install_human_agent(
-                "nonroot", [], None, True, sandbox_env=docker_sandbox
+                "nonroot", REAL_COMMANDS, None, True, sandbox_env=docker_sandbox
             )
         # The planted entry is untouched: no chown, no chmod, nothing written
         # through it, and the login user's .bashrc is unchanged.
@@ -833,7 +873,9 @@ async def test_docker_install_refuses_bashrc_symlink(
         "rm /home/nonroot/.bashrc && ln -s /root/target /home/nonroot/.bashrc",
     )
     with pytest.raises(RuntimeError, match="symbolic link"):
-        await install_human_agent("nonroot", [], None, True, sandbox_env=docker_sandbox)
+        await install_human_agent(
+            "nonroot", REAL_COMMANDS, None, True, sandbox_env=docker_sandbox
+        )
     assert await _root_sh(docker_sandbox, "cat /root/target") == ""
     assert await _stat(docker_sandbox, "/home/nonroot/.bashrc") == "a1ff 0"
     # Nothing was written into the (verified, root-owned) directory either.

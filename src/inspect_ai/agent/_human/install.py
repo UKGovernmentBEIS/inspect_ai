@@ -19,12 +19,14 @@ nothing here trusts a pathname the sandbox user could have planted:
   installation can be retried without duplicating the block.
 
 Rootless sandboxes (root cannot be used, or the provider silently runs commands as
-the default user) install with the default user as the directory owner. That is
-also the human's user, so there is no boundary between the two; if it cannot create
-the directory under ``/opt``, the installation fails with that error rather than
-silently skipping. Unlike the sandbox tools, a wrong-mode directory is refused even
-here: no earlier release left a rootless installation to repair, and the fallback
-may itself be running as root.
+the default user) install with the default user as the directory owner. When the
+human logs in as that user there is no boundary between the two; when ``user``
+names a different account, the default user owns ``task.py`` and the human runs it
+(as before, when ``install.sh`` wrote it as the default user). If the default user
+cannot create the directory under ``/opt``, the installation fails with that error
+rather than silently skipping. Unlike the sandbox tools, a wrong-mode directory is
+refused even here: no earlier release left a rootless installation to repair, and
+the fallback may itself be running as root.
 """
 
 import inspect
@@ -154,8 +156,11 @@ async def _task_py_installed(sb: SandboxEnvironment, owner: str | None) -> bool:
 # to it means the block is already there. The home directory comes from the passwd
 # database, by name when one was given (two accounts may share a uid) and by the uid
 # the command actually runs as otherwise (docker exec does not always set HOME for
-# -u), falling back to HOME. PATH is pinned to the base system directories for the
-# same reason the framework-directory helper pins it: this may run as root.
+# -u). A named user missing from passwd is an error: falling back to HOME would
+# write into whichever home the command happens to run in (root's, if the provider
+# ignored ``user``). Only the uid lookup falls back to HOME, for images without
+# getent. PATH is pinned to the base system directories for the same reason the
+# framework-directory helper pins it: this may run as root.
 _BASHRC_APPEND_SCRIPT = """
 set -u
 unset CDPATH
@@ -164,7 +169,13 @@ export PATH
 name=$1 login=$2 marker=$3
 uid=$(id -u) || { echo "cannot determine the current uid" >&2; exit 2; }
 home=$(getent passwd "${login:-$uid}" 2>/dev/null | cut -d: -f6)
-[ -n "$home" ] || home=${HOME-}
+if [ -z "$home" ]; then
+    if [ -n "$login" ]; then
+        echo "unknown user $login: no such account in the passwd database" >&2
+        exit 2
+    fi
+    home=${HOME-}
+fi
 case $home in
     /*) ;;
     *) echo "cannot determine the home directory of ${login:-uid $uid}" >&2; exit 2 ;;
@@ -195,7 +206,8 @@ async def append_bashrc(
     non-regular one is refused; one containing ``BASHRC_MARKER`` is left unchanged.
 
     Raises:
-        RuntimeError: The append was refused or failed.
+        RuntimeError: ``user`` is not in the sandbox's passwd database, or the
+            append was refused or failed.
     """
     result = await sb.exec(
         [
