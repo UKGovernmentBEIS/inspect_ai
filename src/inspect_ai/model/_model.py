@@ -2084,6 +2084,13 @@ next turn matches what the model originally emitted. Filters that only
 substitute outputs without depending on cross-turn consistency do not need
 this symmetric setup.
 
+Recording: the ``ModelEvent`` emitted by ``model.generate()`` keeps the
+model's original output (it is evidence of what the model actually produced),
+while the filtered output is what enters bridge state and the conversation
+recorded on subsequent turns. When a filter replaces the response, the event
+and the adjacent conversation therefore differ, and nothing in the log marks
+the substitution.
+
 A filter is eval logic, not a passive observer of the model response: an
 exception raised from it propagates and fails the sample (attributed to the
 filter), on both the in-process and sandboxed bridge paths, rather than
