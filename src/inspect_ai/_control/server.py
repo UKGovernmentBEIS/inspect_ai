@@ -63,6 +63,7 @@ from inspect_ai._control.cancel import (
     cancel_sample,
     cancel_task,
     cancel_tool_call,
+    drain_task,
 )
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import DEFAULT_PAGE_LIMIT, sample_events
@@ -874,6 +875,31 @@ class ControlServer:
                 action=cast(TaskCancelAction, action),
                 dry_run=dry_run,
             )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result["ok"] is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # Drain a running task (phase 3 — see design/ctl/task-drain.md):
+        # stop dispatching new samples, let in-flight samples finish
+        # naturally (scored on their own terms, no interrupts), then
+        # complete the task with an ordinary terminal log. Task-keyed like
+        # `cancel`; rides the cancel stamp without the interrupt sweep. Its
+        # own route (not a cancel action): drain inverts the cancel
+        # contract — the task ends on the samples' clock, unbounded, not
+        # the operator's — and the separate route gives the crisp version
+        # story (an older server 404s and the CLI reports "older inspect").
+        # Idempotent (`changed: false` on a repeat, on any pending
+        # resolution — drain is the weakest escalation rung — or on a
+        # finished task); a task between attempts abandons its pending
+        # retry, like a plain cancel; `dry_run=true` reports without acting.
+        @app.post("/tasks/{task_id}/drain")
+        async def task_drain(task_id: str, dry_run: bool = False) -> Any:
+            result = drain_task(task_id, dry_run=dry_run)
             if result is None:
                 return JSONResponse(
                     status_code=404,
