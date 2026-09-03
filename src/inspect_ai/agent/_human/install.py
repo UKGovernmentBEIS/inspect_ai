@@ -19,7 +19,7 @@ nothing here trusts a pathname the sandbox user could have planted:
   installation can be retried without duplicating the block. Because it carries
   only that user's authority, a ``.bashrc`` the user cannot write (one left
   root-owned by an image build) fails the installation instead of being written
-  by root as ``install.sh`` used to.
+  by the sandbox default user (root in most images) as ``install.sh`` used to.
 
 Rootless sandboxes (root cannot be used, or the provider silently runs commands as
 the default user) install with the default user as the directory owner. When the
