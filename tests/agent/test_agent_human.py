@@ -523,23 +523,29 @@ class _HomeSandbox(SandboxEnvironment):
     def __init__(self, inner: SandboxEnvironment, home: Path, tmp_path: Path) -> None:
         super().__init__()
         self.inner = inner
-        bindir = tmp_path / "bin"
-        bindir.mkdir()
+        self.bindir = tmp_path / "bin"
+        self.bindir.mkdir()
         for tool in ("id", "cut", "cat", "grep"):
             found = shutil.which(tool)
             assert found, f"{tool} not found on host"
-            os.symlink(found, bindir / tool)
+            os.symlink(found, self.bindir / tool)
         self.getent_lookups = tmp_path / "getent-lookups"
         # Like the real getent: exit 2 with no output for an unknown account.
-        (bindir / "getent").write_text(
+        (self.bindir / "getent").write_text(
             f'#!/bin/sh\necho "$2" >> "{self.getent_lookups}"\n'
             f'[ "$2" = "{UNKNOWN_USER}" ] && exit 2\n'
             f'echo "user:x:1000:1000::{home}:/bin/sh"\n'
         )
-        (bindir / "getent").chmod(0o700)
+        (self.bindir / "getent").chmod(0o700)
+        self.env: dict[str, str] | None = None
+        """Extra environment for the script (e.g. ``HOME`` for the no-getent fallback)."""
         path_line = "PATH=/usr/sbin:/usr/bin:/sbin:/bin"
         assert path_line in _BASHRC_APPEND_SCRIPT
-        self.script = _BASHRC_APPEND_SCRIPT.replace(path_line, f"PATH={bindir}")
+        self.script = _BASHRC_APPEND_SCRIPT.replace(path_line, f"PATH={self.bindir}")
+
+    def remove_getent(self) -> None:
+        """Make the script run as on an image without ``getent``."""
+        (self.bindir / "getent").unlink()
 
     async def exec(
         self,
@@ -553,7 +559,9 @@ class _HomeSandbox(SandboxEnvironment):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         assert cmd[:3] == [SHELL_PATH, "-c", _BASHRC_APPEND_SCRIPT]
-        return await self.inner.exec([SHELL_PATH, "-c", self.script, *cmd[3:]], input)
+        return await self.inner.exec(
+            [SHELL_PATH, "-c", self.script, *cmd[3:]], input, env=self.env
+        )
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
         raise NotImplementedError
@@ -628,6 +636,35 @@ async def test_bashrc_append_refuses_a_login_user_missing_from_passwd(
     assert list(home.iterdir()) == []
     own_after = own_bashrc.read_text() if own_bashrc.is_file() else None
     assert own_after == own_before
+
+
+async def test_bashrc_append_names_a_missing_getent_for_a_login_user(
+    home_sandbox: tuple[_HomeSandbox, Path],
+) -> None:
+    """Without ``getent`` a named login user fails saying so, not "unknown user"."""
+    sandbox, home = home_sandbox
+    sandbox.remove_getent()
+    own_bashrc = Path.home() / BASHRC
+    own_before = own_bashrc.read_text() if own_bashrc.is_file() else None
+    with pytest.raises(RuntimeError, match="getent not found") as excinfo:
+        await append_bashrc(sandbox, "someone", "payload\n")
+    assert "unknown user" not in str(excinfo.value)
+    assert not sandbox.getent_lookups.exists()
+    assert list(home.iterdir()) == []
+    own_after = own_bashrc.read_text() if own_bashrc.is_file() else None
+    assert own_after == own_before
+
+
+async def test_bashrc_append_falls_back_to_home_without_getent_for_default_user(
+    home_sandbox: tuple[_HomeSandbox, Path],
+) -> None:
+    """Only the uid lookup (default user) may fall back to ``HOME`` without getent."""
+    sandbox, home = home_sandbox
+    sandbox.remove_getent()
+    sandbox.env = {"HOME": str(home)}
+    await append_bashrc(sandbox, None, "payload\n")
+    assert (home / BASHRC).read_text() == "payload\n"
+    assert not sandbox.getent_lookups.exists()
 
 
 async def test_bashrc_append_is_skipped_when_the_block_is_already_there(

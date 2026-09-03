@@ -159,8 +159,9 @@ async def _task_py_installed(sb: SandboxEnvironment, owner: str | None) -> bool:
 # -u). A named user missing from passwd is an error: falling back to HOME would
 # write into whichever home the command happens to run in (root's, if the provider
 # ignored ``user``). Only the uid lookup falls back to HOME, for images without
-# getent. PATH is pinned to the base system directories for the same reason the
-# framework-directory helper pins it: this may run as root.
+# getent; a named login on such an image is an error that says getent is missing,
+# not that the account is. PATH is pinned to the base system directories for the
+# same reason the framework-directory helper pins it: this may run as root.
 _BASHRC_APPEND_SCRIPT = """
 set -u
 unset CDPATH
@@ -168,14 +169,18 @@ PATH=/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 name=$1 login=$2 marker=$3
 uid=$(id -u) || { echo "cannot determine the current uid" >&2; exit 2; }
-home=$(getent passwd "${login:-$uid}" 2>/dev/null | cut -d: -f6)
-if [ -z "$home" ]; then
-    if [ -n "$login" ]; then
+home=
+if command -v getent >/dev/null 2>&1; then
+    home=$(getent passwd "${login:-$uid}" 2>/dev/null | cut -d: -f6)
+    if [ -z "$home" ] && [ -n "$login" ]; then
         echo "unknown user $login: no such account in the passwd database" >&2
         exit 2
     fi
-    home=${HOME-}
+elif [ -n "$login" ]; then
+    echo "cannot look up the home directory of $login: getent not found" >&2
+    exit 2
 fi
+[ -n "$home" ] || home=${HOME-}
 case $home in
     /*) ;;
     *) echo "cannot determine the home directory of ${login:-uid $uid}" >&2; exit 2 ;;
@@ -206,8 +211,9 @@ async def append_bashrc(
     non-regular one is refused; one containing ``BASHRC_MARKER`` is left unchanged.
 
     Raises:
-        RuntimeError: ``user`` is not in the sandbox's passwd database, or the
-            append was refused or failed.
+        RuntimeError: ``user`` is not in the sandbox's passwd database (or the
+            sandbox has no ``getent`` to look it up with), or the append was
+            refused or failed.
     """
     result = await sb.exec(
         [
