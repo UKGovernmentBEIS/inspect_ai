@@ -13,12 +13,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import anyio
 import pytest
 
 from inspect_ai.util._restic import (
     RestoredTreeError,
     init_repo,
     resolve_restic,
+    restic_env,
     restore_repo,
     run_backup,
 )
@@ -107,6 +109,56 @@ async def test_restore_follows_source_path_across_attempts(tmp_path: Path) -> No
     )
 
     assert _tree(target) == {"store.json": '{"attempt": 2}'}
+
+
+async def test_restore_handles_relative_backup_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A relative ``checkpoints_location`` makes the backup source relative.
+
+    ``run_backup`` absolutizes it, so the snapshot's recorded path and
+    tree root agree and the restore lands the files directly in target.
+    """
+    restic, repo = await _init_repo(tmp_path)
+    source = tmp_path / "ckpts" / "1__1" / "context"
+    source.mkdir(parents=True)
+    (source / "store.json").write_text('{"rel": true}')
+    monkeypatch.chdir(tmp_path)
+    await run_backup(restic, repo, PASSWORD, "ckpts/1__1/context", "ckpt-00001")
+
+    target = tmp_path / "restored"
+    await restore_repo(
+        restic, repo, PASSWORD, str(target), max_files=MAX_FILES, max_bytes=MAX_BYTES
+    )
+
+    assert _tree(target) == {"store.json": '{"rel": true}'}
+
+
+async def test_restore_handles_legacy_relative_rooted_snapshot(tmp_path: Path) -> None:
+    """Snapshots older versions wrote from a relative source still restore.
+
+    Restic given a relative source records the absolute path in ``paths``
+    but roots the tree at the relative components; the restore must find
+    the source dir by that tree path, not fail on the recorded one.
+    """
+    restic, repo = await _init_repo(tmp_path)
+    source = tmp_path / "ckpts" / "1__1" / "context"
+    source.mkdir(parents=True)
+    (source / "store.json").write_text('{"legacy": true}')
+    # Invoke restic directly: the pre-fix run_backup passed the source verbatim.
+    await anyio.run_process(
+        [str(restic), "-r", repo, "backup", "ckpts/1__1/context", "--tag", "ckpt-1"],
+        env=restic_env(PASSWORD),
+        cwd=str(tmp_path),
+        check=True,
+    )
+
+    target = tmp_path / "restored"
+    await restore_repo(
+        restic, repo, PASSWORD, str(target), max_files=MAX_FILES, max_bytes=MAX_BYTES
+    )
+
+    assert _tree(target) == {"store.json": '{"legacy": true}'}
 
 
 async def test_restore_refuses_snapshot_with_symlinks(tmp_path: Path) -> None:

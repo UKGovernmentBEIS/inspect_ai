@@ -50,8 +50,13 @@ async def run_backup(
     """Run ``restic backup`` against ``source``; return the parsed summary.
 
     Accepts a single source path or a sequence of paths, mirroring
-    ``restic backup PATH1 [PATH2 ...]``. The resulting snapshot is tagged
-    with ``tag``. ``--compression max`` exploits high text-compressibility
+    ``restic backup PATH1 [PATH2 ...]``. Sources are passed to restic as
+    absolute paths: restic records the absolute path in the snapshot's
+    ``paths`` either way, but roots the tree at the argument *as given*,
+    so a relative source would leave the two disagreeing (see
+    :func:`_snapshot_subfolder`, which :func:`restore_repo` relies on).
+    The resulting snapshot is tagged with ``tag``.
+    ``--compression max`` exploits high text-compressibility
     (zstd-max ≈ 5–10× vs the default `auto` ≈ 2–3×) for JSON-heavy sources;
     ``--no-scan`` skips the up-front size-estimate walk. ``--quiet`` drops
     restic's periodic ``status`` JSON lines (one per progress tick): only
@@ -60,6 +65,7 @@ async def run_backup(
     in-memory pipe rather than against the sandbox output cap).
     """
     sources = [source] if isinstance(source, str) else list(source)
+    sources = [os.path.abspath(s) for s in sources]
     proc = await anyio.run_process(
         [
             str(restic),
@@ -189,7 +195,8 @@ async def _snapshot_nodes(
         check=True,
     )
     records = (json.loads(line) for line in proc.stdout.decode().splitlines() if line)
-    return [r for r in records if r.get("struct_type") == "node"]
+    # restic 0.17+ emits ``message_type``; ``struct_type`` is the pre-0.17 key.
+    return [r for r in records if r.get("message_type", r.get("struct_type")) == "node"]
 
 
 def _check_snapshot_nodes(
@@ -203,9 +210,9 @@ def _check_snapshot_nodes(
     which restic lists too) is bounded by ``max_files`` and the summed
     file sizes by ``max_bytes``; a file node without an integer ``size``
     is malformed and rejected. The returned subfolder is the listed
-    ``dir`` node matching ``source_path`` in restic's tree-path form
-    (:func:`_tree_path`); a snapshot without that directory is rejected
-    rather than guessed at.
+    ``dir`` node holding ``source_path``'s contents
+    (:func:`_snapshot_subfolder`); a snapshot without that directory is
+    rejected rather than guessed at.
     """
     entries = 0
     total = 0
@@ -226,13 +233,34 @@ def _check_snapshot_nodes(
             raise RestoredTreeError(f"snapshot exceeds {max_files} entries")
         if total > max_bytes:
             raise RestoredTreeError(f"snapshot exceeds {max_bytes} bytes")
-    subfolder = _tree_path(source_path)
-    if subfolder not in dirs:
-        raise RuntimeError(
-            f"restic restore: snapshot source path {source_path} (tree path "
-            f"{subfolder}) is not a directory in the snapshot"
-        )
-    return subfolder
+    return _snapshot_subfolder(source_path, dirs)
+
+
+def _snapshot_subfolder(source_path: str, dirs: set[str]) -> str:
+    """The listed directory holding the recorded ``source_path``'s contents.
+
+    Restic records the *absolute* source path in a snapshot's ``paths``
+    but roots the tree at the backup argument as given. For an absolute
+    source (every snapshot :func:`run_backup` writes) the tree path is
+    the recorded path itself. Snapshots written by earlier versions from a
+    relative source (a relative ``checkpoints_location``) are rooted at
+    the relative components instead, so their tree path is a trailing run
+    of the recorded path's components: ``/tmp/x/ckpts/context`` is listed
+    as ``/ckpts/context``. The longest suffix listed as a ``dir`` wins —
+    the honest tree has only ancestors above the source and files below
+    it, so a shorter match can only be an ancestor that happens to share
+    the source's name. No suffix matching is an error, not a guess.
+    """
+    tree_path = _tree_path(source_path)
+    parts = tree_path.strip("/").split("/")
+    for start in range(len(parts)):
+        candidate = "/" + "/".join(parts[start:])
+        if candidate in dirs:
+            return candidate
+    raise RuntimeError(
+        f"restic restore: snapshot source path {source_path} (tree path "
+        f"{tree_path}) is not a directory in the snapshot"
+    )
 
 
 _WINDOWS_DRIVE_PATH = re.compile(r"^([A-Za-z]):[\\/](.*)$")

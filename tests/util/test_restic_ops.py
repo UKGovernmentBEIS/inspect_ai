@@ -184,6 +184,30 @@ async def test_run_backup_passes_quiet(monkeypatch: pytest.MonkeyPatch) -> None:
     assert summary.snapshot_id == SUMMARY_SNAPSHOT_ID  # quiet summary still parses
 
 
+async def test_run_backup_absolutizes_relative_source(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A relative source reaches restic absolute.
+
+    That keeps the snapshot's tree root equal to the absolute path restic
+    records in ``paths``, which ``restore_repo`` restores by.
+    """
+    captured: dict[str, list[str]] = {}
+
+    async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["command"] = command
+        return SimpleNamespace(stdout=restic_summary_json().encode())
+
+    monkeypatch.setattr(anyio, "run_process", fake_run_process)
+    monkeypatch.chdir(tmp_path)
+
+    await run_backup(Path("/usr/bin/restic"), "/repo", "pw", "ckpts/context", "tag")
+
+    source = captured["command"][4]
+    assert os.path.isabs(source)
+    assert source == os.path.abspath("ckpts/context")
+
+
 # --- restore_repo invocation (restic mocked) ------------------------------
 
 _SNAPSHOT_PATH = "/host/sample/context"
@@ -194,11 +218,16 @@ _ONE_SNAPSHOT: list[dict[str, object]] = [
 
 
 def _ls_node(path: str, type: str, size: int | None = 0) -> dict[str, object]:
-    """One ``restic ls --json`` node; ``size=None`` omits the key (malformed file)."""
+    """One ``restic ls --json`` node; ``size=None`` omits the key (malformed file).
+
+    Emits both record-kind keys as restic 0.17+ does (``struct_type`` is
+    the deprecated pre-0.17 name).
+    """
     node: dict[str, object] = {
         "name": path.rsplit("/", 1)[-1],
         "type": type,
         "path": path,
+        "message_type": "node",
         "struct_type": "node",
     }
     if type == "file" and size is not None:
@@ -206,11 +235,19 @@ def _ls_node(path: str, type: str, size: int | None = 0) -> dict[str, object]:
     return node
 
 
+def _ls_header(source_path: str = _SNAPSHOT_PATH) -> dict[str, object]:
+    """The leading snapshot record of ``restic ls --json``."""
+    return {
+        "paths": [source_path],
+        "message_type": "snapshot",
+        "struct_type": "snapshot",
+    }
+
+
 def _ls_chain(*leaves: dict[str, object]) -> list[dict[str, object]]:
     """``restic ls --json`` records for the ``/host/sample/context`` chain + leaves."""
-    header: dict[str, object] = {"paths": [_SNAPSHOT_PATH], "struct_type": "snapshot"}
     return [
-        header,
+        _ls_header(),
         _ls_node("/host", "dir"),
         _ls_node("/host/sample", "dir"),
         _ls_node(_SNAPSHOT_PATH, "dir"),
@@ -327,7 +364,7 @@ async def test_restore_repo_rejects_source_path_missing_from_listing(
 ) -> None:
     """The recorded source path must be a listed directory, or nothing is restored."""
     listing: list[dict[str, object]] = [
-        {"paths": [_SNAPSHOT_PATH], "struct_type": "snapshot"},
+        _ls_header(),
         _ls_node("/elsewhere", "dir"),
         _ls_node("/elsewhere/store.json", "file", size=2),
     ]
@@ -342,7 +379,7 @@ async def test_restore_repo_rejects_source_path_listed_as_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     listing: list[dict[str, object]] = [
-        {"paths": [_SNAPSHOT_PATH], "struct_type": "snapshot"},
+        _ls_header(),
         _ls_node("/host", "dir"),
         _ls_node("/host/sample", "dir"),
         _ls_node(_SNAPSHOT_PATH, "file", size=2),
@@ -352,6 +389,71 @@ async def test_restore_repo_rejects_source_path_listed_as_file(
     with pytest.raises(RuntimeError, match="not a directory in the snapshot"):
         await _restore(tmp_path / "ctx")
     assert [c[3] for c in calls] == ["snapshots", "ls"]
+
+
+async def test_restore_repo_restores_legacy_relative_rooted_snapshot(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A snapshot backed up from a *relative* source restores by its tree path.
+
+    Older versions passed a relative ``checkpoints_location`` through to
+    ``restic backup`` verbatim; restic recorded the absolute path in
+    ``paths`` but rooted the tree at the relative components. The
+    subfolder is the longest suffix of the recorded path listed as a dir.
+    """
+    recorded = "/tmp/run/ckpts/1__1/context"
+    listing: list[dict[str, object]] = [
+        _ls_header(recorded),
+        _ls_node("/ckpts", "dir"),
+        _ls_node("/ckpts/1__1", "dir"),
+        _ls_node("/ckpts/1__1/context", "dir"),
+        _ls_node("/ckpts/1__1/context/store.json", "file", size=2),
+    ]
+    snapshots: list[dict[str, object]] = [{"id": _SNAPSHOT_ID, "paths": [recorded]}]
+    calls = _fake_restic(monkeypatch, snapshots, listing, _write_store)
+    target = tmp_path / "ctx"
+
+    await _restore(target)
+
+    assert calls[2][4] == f"{_SNAPSHOT_ID}:/ckpts/1__1/context"
+    assert [p.name for p in target.iterdir()] == ["store.json"]
+
+
+def test_snapshot_subfolder_prefers_longest_listed_suffix() -> None:
+    """An ancestor sharing the source's name is not mistaken for the source.
+
+    ``checkpoints_location="context"`` (relative) yields a tree whose top
+    dir and source dir are both named ``context``; only the longer match
+    is the source.
+    """
+    from inspect_ai.util._restic.ops import _snapshot_subfolder
+
+    recorded = "/w/context/e.checkpoints/1__1/context"
+    dirs = {
+        "/context",
+        "/context/e.checkpoints",
+        "/context/e.checkpoints/1__1",
+        "/context/e.checkpoints/1__1/context",
+    }
+    assert _snapshot_subfolder(recorded, dirs) == "/context/e.checkpoints/1__1/context"
+    assert _snapshot_subfolder(recorded, {recorded, "/context"}) == recorded
+    with pytest.raises(RuntimeError, match="not a directory in the snapshot"):
+        _snapshot_subfolder(recorded, {"/w", "/w/context"})
+
+
+async def test_restore_repo_reads_pre_0_17_struct_type_listing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A listing keyed only on the deprecated ``struct_type`` still parses."""
+    listing = [
+        {k: v for k, v in record.items() if k != "message_type"}
+        for record in _STORE_ONLY
+    ]
+    calls = _fake_restic(monkeypatch, _ONE_SNAPSHOT, listing, _write_store)
+
+    await _restore(tmp_path / "ctx")
+
+    assert [c[3] for c in calls] == ["snapshots", "ls", "restore"]
 
 
 async def test_restore_repo_rejects_file_node_without_size(
