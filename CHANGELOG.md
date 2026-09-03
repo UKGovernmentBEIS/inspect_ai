@@ -2,6 +2,7 @@
 
 - Eval Log: Sample summaries now keep `Score.reason`, so an explicit reason is no longer dropped (and a stale `metadata["unscored_reason"]` cannot replace it).
 - Agent bridge: A Chat Completions response truncated by the output-token limit now reports `finish_reason="length"` instead of `"stop"`.
+- Agent bridge: Bridged OpenAI and Google requests with a malformed `tool_choice`/`toolConfig` now return a 400 naming the bad field instead of a status-less error, and a non-string tool name no longer poisons the sample transcript.
 - Google: Batched evaluations with a system message now serialize `system_instruction` as REST `Content` instead of a bare JSON array, fixing batch submission failures; batch results are now parsed through the SDK converter so unknown REST fields (e.g. `usageMetadata.serviceTier`) no longer fail the whole batch. (#5100)
 - Solver: `chain_of_thought()` now uses `format_template()` for prompt interpolation, matching the other prompt solvers: custom templates with extra `{name}` placeholders no longer raise `KeyError` (unknown placeholders pass through unchanged; JSON-style braces still need `{{ }}` escaping). (#5166)
 - Util: Support datetime instances in UtcDatetimeStr. (#5157)

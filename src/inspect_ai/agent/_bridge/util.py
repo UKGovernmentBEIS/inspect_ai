@@ -293,6 +293,24 @@ def client_request_object(value: Any, dialect_field: str) -> dict[str, Any] | No
     )
 
 
+def client_request_string(value: Any, dialect_field: str) -> str:
+    """Require a client request field to be a string.
+
+    Guards leaf values that feed unvalidated dataclasses such as `ToolFunction`:
+    a non-string tool name is legal in memory, serializes into the `ModelEvent`,
+    and then fails transcript read-back for the whole sample (a failure
+    `validate_client_config` cannot backstop, since `tool_choice` is not on
+    `GenerateConfig`). A missing one used to escape as a status-less `KeyError`.
+    Answer the 400 the real APIs give instead.
+    """
+    if isinstance(value, str):
+        return value
+    raise BridgePolicyError(
+        f"invalid request field in bridged request ({dialect_field}: input "
+        f"should be a string, got {type(value).__name__})"
+    )
+
+
 _bridge_model_generate: ContextVar[bool] = ContextVar(
     "_bridge_model_generate", default=False
 )
