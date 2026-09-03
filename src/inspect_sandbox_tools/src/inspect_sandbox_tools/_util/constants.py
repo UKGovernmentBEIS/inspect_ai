@@ -1,4 +1,5 @@
 import errno
+import fcntl
 import hashlib
 import os
 import stat
@@ -179,16 +180,47 @@ def open_private_append(path: Path) -> TextIO:
 
 
 def _open_private(path: Path, flags: int) -> int:
+    """Open a control file that must be a regular file owned by this uid.
+
+    O_NOFOLLOW rejects a symlink at the path, but not a FIFO, device, or
+    directory planted there. A FIFO with no peer would block ``open()`` itself,
+    so the open is non-blocking: a read-open of a FIFO then returns at once and
+    a write-open fails with ENXIO, and the fstat that follows rejects anything
+    that is not a regular file. O_NONBLOCK is cleared before the descriptor is
+    returned (it has no effect on regular files anyway).
+    """
     try:
-        fd = os.open(path, flags | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        fd = os.open(path, flags | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK, 0o600)
     except OSError as ex:
         if ex.errno == errno.ELOOP:
             raise RuntimeError(
                 f"Sandbox-tools server file {path} is a symbolic link; refusing to follow it"
             ) from ex
+        if ex.errno in (errno.ENXIO, errno.EISDIR):
+            raise _not_regular_file(path) from ex
         raise
-    if flags & os.O_CREAT:
-        # The umask may have masked owner bits from the creation mode; the file
-        # must stay readable and writable by its owner for the next open.
-        os.fchmod(fd, 0o600)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise _not_regular_file(path)
+        if info.st_uid != os.geteuid():
+            raise RuntimeError(
+                f"Sandbox-tools server file {path} is owned by uid {info.st_uid}, "
+                f"not uid {os.geteuid()}; refusing to open it"
+            )
+        status_flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, status_flags & ~os.O_NONBLOCK)
+        if flags & os.O_CREAT:
+            # The umask may have masked owner bits from the creation mode; the
+            # file must stay readable and writable by its owner for the next open.
+            os.fchmod(fd, 0o600)
+    except BaseException:
+        os.close(fd)
+        raise
     return fd
+
+
+def _not_regular_file(path: Path) -> RuntimeError:
+    return RuntimeError(
+        f"Sandbox-tools server file {path} is not a regular file; refusing to open it"
+    )

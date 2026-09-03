@@ -1,4 +1,5 @@
 import asyncio
+import fcntl
 import json
 import os
 import re
@@ -8,8 +9,9 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -29,6 +31,7 @@ from inspect_sandbox_tools._remote_tools._mcp import json_rpc_methods as mcp_met
 from inspect_sandbox_tools._util.constants import (
     ensure_private_server_dir,
     open_private_append,
+    read_private_text,
     resolve_server_dir,
     server_socket_path,
     write_private_text,
@@ -413,6 +416,58 @@ def test_open_private_append_refuses_symlinked_control_file(tmp_path: Path) -> N
         file.write("line\n")
     assert (tmp_path / "fresh.log").stat().st_mode & 0o077 == 0
     assert victim.read_text() == ""
+
+
+def _run_with_hang_guard(action: Callable[[], object], timeout: float = 5) -> None:
+    """Run ``action`` and fail the test if it blocks instead of returning.
+
+    A regression here would block in ``open()`` forever, so the call runs in a
+    daemon thread and the test fails on timeout rather than wedging the worker.
+    """
+    outcome: list[BaseException | None] = []
+
+    def target() -> None:
+        try:
+            action()
+            outcome.append(None)
+        except BaseException as ex:
+            outcome.append(ex)
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        pytest.fail("private file open blocked instead of returning")
+    if outcome[0] is not None:
+        raise outcome[0]
+
+
+@pytest.mark.parametrize("planted", ("fifo", "directory"))
+@pytest.mark.parametrize(
+    "helper",
+    (
+        pytest.param(lambda p: read_private_text(p), id="read"),
+        pytest.param(lambda p: write_private_text(p, "{}"), id="write"),
+        pytest.param(lambda p: open_private_append(p).close(), id="append"),
+    ),
+)
+def test_private_file_helpers_refuse_non_regular_files(
+    tmp_path: Path, planted: str, helper: Callable[[Path], object]
+) -> None:
+    control_path = tmp_path / "server.pid"
+    if planted == "fifo":
+        os.mkfifo(control_path)
+    else:
+        control_path.mkdir()
+
+    with pytest.raises(RuntimeError, match="is not a regular file"):
+        _run_with_hang_guard(lambda: helper(control_path))
+
+
+def test_open_private_append_clears_nonblocking_flag(tmp_path: Path) -> None:
+    with open_private_append(tmp_path / "server-start.lock") as lock_file:
+        status_flags = fcntl.fcntl(lock_file.fileno(), fcntl.F_GETFL)
+    assert status_flags & os.O_NONBLOCK == 0
 
 
 def test_write_private_text_refuses_symlinked_control_file(tmp_path: Path) -> None:
