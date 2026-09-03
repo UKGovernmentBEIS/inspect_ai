@@ -16,16 +16,17 @@
 #      out the base branch: the delta script and the base ledger are the
 #      base repo's own trusted copies. A PR's changes to the script take
 #      effect only after a maintainer merges them.
-#   2. PR content is data, never code. The PR's suppressions.json is read
-#      with `git show` on the fetched head ref — that reads a blob and
-#      executes nothing. The PR head is never checked out.
+#   2. PR content is data, never code. The PR head is fetched but never
+#      checked out. `git merge-tree` computes the post-merge tree without
+#      touching the worktree or index, then `git show` reads only its
+#      suppressions.json blob.
 #   3. No dependency installs. The delta script is stdlib-only by design;
 #      installing the project (pip/uv) would execute PR-controllable
 #      setup and dependency code.
 #
-# Do NOT "fix" this workflow by checking out the PR head, running any
-# script from it, or adding an install step — any of those breaks the
-# security model.
+# Do NOT "fix" this workflow by checking out the PR head or computed merge
+# tree, running any script from it, or adding an install step — any of those
+# breaks the security model.
 name: Suppressions comment
 
 on:
@@ -48,8 +49,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # No `ref`: on pull_request_target this checks out the BASE branch
-      # (trusted script + base ledger). Never add ref: pull_request.head.
+      # (trusted script + base ledger). Full history lets merge-tree find the
+      # PR's merge base without ever checking out PR-controlled content.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Comment ledger delta on PR
         env:
@@ -57,24 +61,43 @@ jobs:
           GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          # The PR's ledger is fetched and read as DATA: `git show` reads
-          # a blob and executes nothing. The PR head is never checked out.
-          git fetch --depth=1 origin "pull/$PR/head"
-          git show FETCH_HEAD:suppressions.json > /tmp/head-suppressions.json 2>/dev/null \
-            || echo '{}' > /tmp/head-suppressions.json
           # The workspace is the base branch, so its ledger is the base side.
           if [ -f suppressions.json ]; then
             cp suppressions.json /tmp/base-suppressions.json
           else
             echo '{}' > /tmp/base-suppressions.json
           fi
-          # Base script, system python, stdlib only — no installs (see the
-          # security model above).
-          body=$(python3 .github/scripts/suppressions_pr_delta.py /tmp/base-suppressions.json /tmp/head-suppressions.json)
+          # Compute the post-merge ledger as DATA without checking out or
+          # executing anything from the PR. GitHub's synthetic merge ref can be
+          # stale, while comparing the raw head misreports base-only burn-downs.
+          git fetch origin "refs/pull/$PR/head"
+          if merge_output=$(git merge-tree --write-tree --name-only --no-messages HEAD FETCH_HEAD); then
+            merge_status=0
+          else
+            merge_status=$?
+          fi
+          if [ "$merge_status" -ne 0 ] && [ "$merge_status" -ne 1 ]; then
+            exit "$merge_status"
+          fi
+          merge_tree="${merge_output%%$'\n'*}"
+          conflicted_paths="${merge_output#"$merge_tree"}"
+          if grep -Fqx 'suppressions.json' <<< "$conflicted_paths"; then
+            body=$(printf '%s\n%s' \
+              '<!-- suppressions-delta -->' \
+              'Suppression delta unavailable because suppressions.json does not merge cleanly with the current base. Resolve the conflict and update the PR to rerun this check.')
+          else
+            git show "$merge_tree:suppressions.json" > /tmp/merged-suppressions.json 2>/dev/null \
+              || echo '{}' > /tmp/merged-suppressions.json
+            # Base script, system python, stdlib only — no installs (see the
+            # security model above).
+            body=$(python3 .github/scripts/suppressions_pr_delta.py /tmp/base-suppressions.json /tmp/merged-suppressions.json)
+          fi
           # Sticky comment: match on the marker, not --edit-last, so other
-          # bot comments on the PR are never clobbered.
+          # bot comments on the PR are never clobbered. Filter by author
+          # too — anyone can start a comment with the marker, and the
+          # write token must never edit a comment it doesn't own.
           cid=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
-            -q '.[] | select(.body | startswith("<!-- suppressions-delta -->")) | .id' | head -1)
+            -q '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- suppressions-delta -->"))) | .id' | head -1)
           if [ -n "$body" ] && [ -n "$cid" ]; then
             gh api -X PATCH "repos/$GH_REPO/issues/comments/$cid" -f body="$body" > /dev/null
           elif [ -n "$body" ]; then

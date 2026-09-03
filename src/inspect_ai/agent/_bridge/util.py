@@ -3,8 +3,10 @@ import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Iterator, Sequence, cast
+from typing import Any, Iterator, Sequence, cast
 
+from pydantic import ValidationError
+from pydantic_core import PydanticSerializationError
 from typing_extensions import TypeIs
 
 from inspect_ai._util.content import (
@@ -28,7 +30,11 @@ from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    ResponseSchema,
+    active_generate_config,
+)
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -50,6 +56,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
 )
+from inspect_ai.util._json import JSONSchema
 
 # Generation-tuning fields a scaffold may set on a bridged request that describe
 # *how* the underlying model generates. These are the Inspect model's province
@@ -74,6 +81,7 @@ _GENERATION_PARAM_FIELDS: tuple[str, ...] = (
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
+    "verbosity",
 )
 
 
@@ -86,6 +94,203 @@ def clear_generation_params(config: GenerateConfig) -> None:
     """
     for field in _GENERATION_PARAM_FIELDS:
         setattr(config, field, None)
+
+
+def validate_client_config(config: GenerateConfig) -> None:
+    """Re-validate a config built from a client request, raising on bad values.
+
+    The `generate_config_from_*` extractors assign request values straight onto
+    `GenerateConfig`, and pydantic does not validate on assignment, so a client
+    can put any value into a typed field. That value is legal in memory, is
+    serialized into the `ModelEvent`, and then fails `model_validate` when the
+    event is READ back -- which is not a per-event failure: it aborts the read of
+    the whole sample transcript (`inspect ctl sample events` returns 500, and any
+    log reader hits the same `ValidationError`). One bad request field therefore
+    costs the entire sample's transcript.
+
+    Reachable without any bridge configuration: `stop_seqs` and `seed` are not
+    generation params, so `stop_sequences: 5` or `seed: "x"` poisons the event
+    even when the bridge is dropping generation params. Forwarding them widens it
+    to `effort`, `temperature` and the rest.
+
+    Raising `BridgePolicyError` makes the bridge answer 400, which is what the
+    real provider APIs answer for these values -- so the client sees the same
+    rejection it would have seen unbridged, rather than a 200 whose transcript
+    cannot be read afterwards.
+    """
+    try:
+        GenerateConfig.model_validate(config.model_dump(mode="json", warnings=False))
+    except PydanticSerializationError as ex:
+        # The dump half can fail too, and its escape is worse than a bad value: the
+        # sandbox path logs a traceback and forwards status `None`, the in-process
+        # path raises into the SDK caller. Unreachable from a real JSON body, but the
+        # in-process Anthropic patch merges `options.extra_json` into `json_data`
+        # before SDK serialization, so a scaffold can put a live Python object here.
+        raise BridgePolicyError(
+            f"generation parameter in bridged request is not serializable ({ex})"
+        ) from ex
+    except ValidationError as ex:
+        raise BridgePolicyError(
+            "invalid generation parameter in bridged request "
+            f"({_validation_error_details(ex)})"
+        ) from ex
+
+
+def _validation_error_details(ex: ValidationError, prefix: str = "") -> str:
+    """Render a `ValidationError` as `loc: msg` pairs for a client-facing 400.
+
+    A top-level type failure (e.g. validating a plain string against a model)
+    has an empty `loc`; the path segment (and the prefix's trailing joiner) is
+    omitted then, rather than rendered as a dangling `:` separator.
+    """
+    details: list[str] = []
+    for err in ex.errors():
+        path = (prefix + ".".join(str(p) for p in err["loc"])).rstrip(".")
+        details.append(f"{path}: {err['msg']}" if path else err["msg"])
+    return "; ".join(details)
+
+
+# schema-valued positions `JSONSchema` models, i.e. where a nested schema (or a
+# collection of them) lives rather than arbitrary client JSON. `default`, `enum`
+# and `examples` hold client values that can themselves be objects with
+# schema-looking keys, so they are deliberately not walked.
+_NESTED_SCHEMA_FIELDS = ("items", "additionalProperties")
+_NESTED_SCHEMA_COLLECTIONS = ("properties", "anyOf")
+
+# annotations rather than constraints: dropping them costs the request nothing,
+# and `title` in particular is on every field of a pydantic-generated schema, so
+# reporting it would fire the warning for schemas that lost nothing at all.
+_ANNOTATIVE_SCHEMA_KEYWORDS = frozenset(
+    {"title", "$schema", "$id", "$comment", "deprecated", "readOnly", "writeOnly"}
+)
+
+
+def _unmodelled_schema_keywords(schema: Any) -> set[str]:
+    """Collect keywords in a client schema that `JSONSchema` does not model.
+
+    `JSONSchema` is a pydantic model with the default `extra="ignore"`, so any
+    keyword it lacks a field for is dropped on validation rather than rejected.
+    Walks the nested schema positions `JSONSchema` itself models; keys under
+    `properties` are client-chosen property names rather than keywords, so only
+    their values are inspected. Purely annotative keywords are not reported --
+    only ones whose loss actually weakens what the model is asked for.
+    """
+    if not isinstance(schema, dict):
+        return set()
+
+    dropped = {
+        key
+        for key in schema
+        if key not in JSONSchema.model_fields and key not in _ANNOTATIVE_SCHEMA_KEYWORDS
+    }
+
+    for field in _NESTED_SCHEMA_FIELDS:
+        dropped |= _unmodelled_schema_keywords(schema.get(field))
+    for field in _NESTED_SCHEMA_COLLECTIONS:
+        nested = schema.get(field)
+        values = (
+            nested.values()
+            if isinstance(nested, dict)
+            else nested
+            if isinstance(nested, list)
+            else ()
+        )
+        for value in values:
+            dropped |= _unmodelled_schema_keywords(value)
+
+    return dropped
+
+
+def client_json_schema(
+    schema: Any, dialect_field: str, *, dialect_keywords: frozenset[str] = frozenset()
+) -> JSONSchema:
+    """Parse a client-supplied JSON Schema, answering 400 rather than escaping.
+
+    `schema` is deliberately `Any`, not `dict`: a non-dict client value is
+    in-contract and must reach `model_validate` to produce the 400 -- callers
+    must not pre-enforce dict-ness.
+
+    `JSONSchema.model_validate` raises `ValidationError`, and an uncaught one here
+    is worse than the bad value that caused it: `provider_error_payload` reports
+    `status: None`, which the sandbox service treats as a translation failure --
+    traceback in the log, no status for the client. That is the same unreadable
+    outcome `validate_client_config` exists to prevent, so route it to the same 400.
+
+    Keywords `JSONSchema` does not model are dropped rather than rejected, so the
+    served model is constrained more weakly than the client asked. That is not an
+    edge case: pydantic emits `$defs`/`$ref` for any nested model or enum, and a
+    dropped `$ref` leaves the property an empty schema (`{}`) while it stays
+    `required`. Dropping beats a 400 here -- the real API accepts these keywords,
+    so rejecting would be a regression against talking to it unbridged -- but the
+    warning is what makes it diagnosable, since the client otherwise just sees a
+    response that fails its own validation.
+
+    Pass `dialect_keywords` when the input is not standard JSON Schema (e.g.
+    Gemini's OpenAPI-style `responseSchema`): keywords native to that dialect
+    appear on routine requests, so a JSON Schema-phrased warning about them
+    would misread the request as degraded. Keywords outside the set still warn
+    -- a dropped constraint the dialect shares with JSON Schema (e.g.
+    `minItems`) weakens the request just as much there.
+    """
+    if dropped := _unmodelled_schema_keywords(schema) - dialect_keywords:
+        warn_once(
+            logger,
+            f"The bridged request's {dialect_field} uses JSON Schema keywords "
+            f"Inspect does not model ({', '.join(sorted(dropped))}); they have "
+            "been dropped, so the model is constrained more weakly than the "
+            "request asked. A dropped '$ref' in particular leaves that property "
+            "unconstrained.",
+        )
+    try:
+        return JSONSchema.model_validate(schema)
+    except ValidationError as ex:
+        raise BridgePolicyError(
+            "invalid response schema in bridged request "
+            f"({dialect_field}: {_validation_error_details(ex)})"
+        ) from ex
+
+
+def client_response_schema(
+    *,
+    name: Any,
+    json_schema: JSONSchema,
+    dialect_field: str,
+    description: Any = None,
+    strict: Any = None,
+) -> ResponseSchema:
+    """Construct a `ResponseSchema` from client-supplied fields, answering 400.
+
+    `ResponseSchema` validates on construction, so a non-string `name` or
+    `description` (or a non-bool `strict`) read straight off the client request
+    escapes as a raw `ValidationError` -- the same status-less failure
+    `client_json_schema` exists to prevent for the sibling `schema` field. Route
+    it to the same 400 the real API answers.
+    """
+    try:
+        return ResponseSchema(
+            name=name, json_schema=json_schema, description=description, strict=strict
+        )
+    except ValidationError as ex:
+        raise BridgePolicyError(
+            "invalid response schema in bridged request "
+            f"({_validation_error_details(ex, f'{dialect_field}.')})"
+        ) from ex
+
+
+def client_request_object(value: Any, dialect_field: str) -> dict[str, Any] | None:
+    """Require a client request field to be a JSON object (or absent).
+
+    A non-dict container dereferenced with `.get` escapes as a raw
+    `AttributeError` -- the same status-less failure `client_json_schema`
+    prevents for the leaf values inside it -- so answer the 400 the real APIs
+    give for a mistyped container.
+    """
+    if value is None or isinstance(value, dict):
+        return value
+    raise BridgePolicyError(
+        f"invalid request field in bridged request ({dialect_field}: input "
+        f"should be an object, got {type(value).__name__})"
+    )
 
 
 _bridge_model_generate: ContextVar[bool] = ContextVar(
@@ -341,6 +546,9 @@ async def bridge_generate(
         # never sees the rejected response.
         reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
         if reviewed.rejection is None:
+            bridge.register_tool_execution_grants(
+                reviewed.output.message.tool_calls or []
+            )
             return reviewed.output, c_message
 
         rejections += 1
