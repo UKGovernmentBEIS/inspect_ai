@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent bridge: A Responses client that requests `message.output_text.logprobs` now receives the model's token and top-token logprobs instead of an empty list.
+
 ## 0.3.263 (03 September 2026)
 
 - OpenAI: Added support for GPT-6 Astra (`gpt-6-astra`).

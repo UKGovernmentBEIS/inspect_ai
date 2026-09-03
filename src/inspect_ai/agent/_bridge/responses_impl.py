@@ -60,6 +60,15 @@ from openai.types.responses.response_output_item import (
     McpListTools,
     McpListToolsTool,
 )
+from openai.types.responses.response_output_message import (
+    Content as OutputMessageContent,
+)
+from openai.types.responses.response_output_text import (
+    Logprob as LogprobResponses,
+)
+from openai.types.responses.response_output_text import (
+    LogprobTopLogprob,
+)
 from openai.types.responses.tool_param import CodeInterpreter
 from pydantic import TypeAdapter
 from shortuuid import uuid
@@ -90,7 +99,7 @@ from inspect_ai.model._internal import (
     parse_content_with_internal,
 )
 from inspect_ai.model._model import Model, ModelName
-from inspect_ai.model._model_output import StopReason
+from inspect_ai.model._model_output import Logprobs, StopReason
 from inspect_ai.model._openai_responses import (
     RESPONSES_NAMESPACE,
     RESPONSES_VERBATIM,
@@ -331,7 +340,7 @@ async def inspect_responses_api_request_impl(
         model=model_name,
         object="response",
         output=responses_output_items_from_assistant_message(
-            output.message, tool_namespaces
+            output.message, tool_namespaces, logprobs=output.choices[0].logprobs
         ),
         parallel_tool_calls=parallel_tool_calls,
         tool_choice=responses_tool_choice_param_to_tool_choice(responses_tool_choice),
@@ -1150,11 +1159,36 @@ output_item_adapter = TypeAdapter(list[ResponseOutputItem])
 mcp_tool_adapter = TypeAdapter(list[McpListToolsTool])
 
 
+def _responses_logprobs_from_logprobs(
+    logprobs: Logprobs,
+) -> list[LogprobResponses]:
+    return [
+        LogprobResponses(
+            token=lp.token,
+            logprob=lp.logprob,
+            bytes=lp.bytes or [],
+            top_logprobs=[
+                LogprobTopLogprob(
+                    token=tlp.token, logprob=tlp.logprob, bytes=tlp.bytes or []
+                )
+                for tlp in lp.top_logprobs or []
+            ],
+        )
+        for lp in logprobs.content
+    ]
+
+
 def responses_output_items_from_assistant_message(
     message: ChatMessageAssistant,
     tool_namespaces: dict[str, str] | None = None,
+    logprobs: Logprobs | None = None,
 ) -> list[ResponseOutputItem]:
     output: list[ResponseOutputItem] = []
+    # choice logprobs cover one generated token sequence: they attach to the first
+    # genuine output_text, not a reasoning think tag, a refusal, or a later block.
+    pending_logprobs = (
+        _responses_logprobs_from_logprobs(logprobs) if logprobs is not None else None
+    )
     # normalize message content to list
     message_content = (
         [ContentText(text=message.content)]
@@ -1172,21 +1206,25 @@ def responses_output_items_from_assistant_message(
             # apply internal to content
             content_text = f"{content.text}{internal}"
 
+            if content.refusal:
+                output_content: OutputMessageContent = ResponseOutputRefusal(
+                    type="refusal", refusal=content_text
+                )
+            else:
+                output_content = ResponseOutputText(
+                    type="output_text",
+                    text=content_text,
+                    annotations=[],
+                    logprobs=pending_logprobs or [],
+                )
+                pending_logprobs = None
+
             output.append(
                 ResponseOutputMessage(
                     type="message",
                     id=uuid(),
                     role="assistant",
-                    content=[
-                        ResponseOutputRefusal(type="refusal", refusal=content_text)
-                        if content.refusal
-                        else ResponseOutputText(
-                            type="output_text",
-                            text=content_text,
-                            annotations=[],
-                            logprobs=[],
-                        )
-                    ],
+                    content=[output_content],
                     status="completed",
                 )
             )
