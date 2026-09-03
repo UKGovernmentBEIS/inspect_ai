@@ -26,7 +26,7 @@ from inspect_ai.agent._bridge._approval import (
     apply_bridge_tool_approval,
     terminate_for_repeated_rejections,
 )
-from inspect_ai.agent._bridge._errors import BridgePolicyError
+from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -565,31 +565,42 @@ async def bridge_generate(
                     config=config,
                 )
 
+        # Update the compaction baseline with the actual input token count
+        # from the generate call (most accurate source of truth). This must
+        # happen before the response filter runs: a replacing filter changes
+        # what the scaffold sees, not what the call actually consumed, and a
+        # synthetic replacement (e.g. `ModelOutput.from_content()`) carries no
+        # usage at all, which would silently stall calibration on the
+        # count_tokens estimate for the rest of the run.
+        if compact is not None:
+            await compact.record_output(input_messages, output)
+
         # Apply response filter if configured.
         # Runs inside the refusal-retry loop so a filter that returns a
         # content_filter ModelOutput triggers a retry; the input arguments
         # passed are the same ones sent to model.generate() (post-request-filter
-        # mutation if applicable).
+        # mutation if applicable). A response_filter is eval logic, not a
+        # passive observer, so a failure in it fails the sample (attributed
+        # to the filter) instead of being reported to the scaffold as a
+        # model/provider error; see `ResponseFilterError`.
         if bridge.response_filter is not None:
             tool_info_for_response = [
                 tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
                 for tool in tools
             ]
-            filtered = await bridge.response_filter(
-                model,
-                output,
-                input_messages,
-                tool_info_for_response,
-                tool_choice,
-                config,
-            )
+            try:
+                filtered = await bridge.response_filter(
+                    model,
+                    output,
+                    input_messages,
+                    tool_info_for_response,
+                    tool_choice,
+                    config,
+                )
+            except Exception as ex:
+                raise ResponseFilterError(str(ex)) from ex
             if filtered is not None:
                 output = filtered
-
-        # Update the compaction baseline with the actual input token
-        # count from the generate call (most accurate source of truth)
-        if compact is not None:
-            await compact.record_output(input_messages, output)
 
         # Check for refusal and retry if needed
         if (

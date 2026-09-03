@@ -33,6 +33,20 @@ class BridgePolicyError(Exception):
     status_code = 400
 
 
+class ResponseFilterError(Exception):
+    """A `response_filter` raised while transforming a model's output.
+
+    A response filter is eval logic, not a passive observer of the model
+    response, so a failure in it should propagate and fail the sample
+    (attributed to the filter) rather than being reported to the scaffold as
+    a model/provider error. Wrapping the original exception gives both the
+    sandbox path (`_forward_provider_errors` excludes this type the way it
+    excludes `LimitExceededError`) and the in-process path one exception
+    type to raise, instead of each path handling filter failures
+    differently. The original exception is preserved as `__cause__`.
+    """
+
+
 class ProviderErrorPayload(TypedDict):
     """Forwardable provider-error detail carried under `PROVIDER_ERROR_KEY`."""
 
