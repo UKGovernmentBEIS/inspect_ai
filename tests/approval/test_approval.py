@@ -146,6 +146,19 @@ def test_approve_pattern():
     )
 
 
+def test_approve_exact_tool_name():
+    # Exact tool name "addition" matches the addition tool
+    check_approval(
+        ApprovalPolicy(approver=auto_approver(), tools="addition"), decision="approve"
+    )
+    # Prefix "add" without wildcard must not match "addition"
+    check_approval(
+        ApprovalPolicy(approver=auto_approver(), tools="add"),
+        decision="reject",
+        approver="policy",
+    )
+
+
 def test_approve_multi_pattern():
     check_approval(
         ApprovalPolicy(approver=auto_approver(), tools=["spoo*", "add*"]),

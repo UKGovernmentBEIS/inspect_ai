@@ -41,7 +41,9 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
         tools: list[str] = []
         for spec in tool_specs:
             tools.extend([t.strip() for t in spec.split(",") if t.strip()])
-        globs = [tool if tool.endswith("*") else f"{tool}*" for tool in tools]
+        globs = [
+            tool if tool.endswith("*") or "(" in tool else f"{tool}(*" for tool in tools
+        ]
         policy_matchers.append((globs, policy.approver))
 
     # generator for policies that match a tool_call
