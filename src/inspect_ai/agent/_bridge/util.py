@@ -311,6 +311,27 @@ def client_request_string(value: Any, dialect_field: str) -> str:
     )
 
 
+def tool_choice_from_openai_string(value: str, dialect_field: str) -> ToolChoice:
+    """Map an OpenAI string-form `tool_choice` (`auto`/`none`/`required`) to Inspect's.
+
+    Shared by the Chat Completions and Responses dialects, which accept the same
+    string set, so the accepted values and the 400 wording cannot drift apart.
+    Callers handle the object form; any other string answers 400.
+    """
+    match value:
+        case "auto":
+            return "auto"
+        case "none":
+            return "none"
+        case "required":
+            return "any"
+        case invalid:
+            raise BridgePolicyError(
+                f"invalid request field in bridged request ({dialect_field}: expected "
+                f"one of 'auto', 'none', 'required' or an object, got {invalid!r})"
+            )
+
+
 _bridge_model_generate: ContextVar[bool] = ContextVar(
     "_bridge_model_generate", default=False
 )

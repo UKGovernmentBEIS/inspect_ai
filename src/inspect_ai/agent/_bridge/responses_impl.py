@@ -179,6 +179,7 @@ from .util import (
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
+    tool_choice_from_openai_string,
     validate_bridge_media,
     validate_client_config,
     withheld_bridge_tool,
@@ -417,18 +418,7 @@ def tool_choice_from_responses_tool_choice(
     if tool_choice is None:
         return None
     if isinstance(tool_choice, str):
-        match tool_choice:
-            case "auto":
-                return "auto"
-            case "none":
-                return "none"
-            case "required":
-                return "any"
-            case invalid:
-                raise BridgePolicyError(
-                    "invalid request field in bridged request (tool_choice: expected "
-                    f"one of 'auto', 'none', 'required' or an object, got {invalid!r})"
-                )
+        return tool_choice_from_openai_string(tool_choice, "tool_choice")
     tool_choice = client_request_object(tool_choice, "tool_choice")
     tool_type = client_request_string(tool_choice.get("type", None), "tool_choice.type")
     match tool_type:
