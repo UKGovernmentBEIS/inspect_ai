@@ -78,7 +78,8 @@ class MCPServerSession:
             )
         env = server_params.env
         if user is not None:
-            env = {**(env or os.environ), "HOME": get_home_dir(user)}
+            home = get_home_dir(user)
+            env = {**os.environ, "HOME": home} if env is None else {"HOME": home, **env}
         return cls(
             await asyncio.create_subprocess_exec(
                 server_params.command,

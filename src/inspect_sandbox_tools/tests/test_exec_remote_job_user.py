@@ -173,10 +173,15 @@ class TestRunAs:
             mock_create.return_value = mock_proc
 
             await Job.create("echo hi", user=run_as, can_switch_user=True)
-
             _, kwargs = mock_create.call_args
             assert kwargs["env"]["HOME"] == "/elsewhere"
             assert kwargs["preexec_fn"] is not None
+
+            await Job.create(
+                "echo hi", env={"HOME": "/custom"}, user=run_as, can_switch_user=True
+            )
+            _, kwargs = mock_create.call_args
+            assert kwargs["env"]["HOME"] == "/custom"
 
 
 class TestMCPServerSessionUser:
@@ -191,15 +196,19 @@ class TestMCPServerSessionUser:
         )
 
         run_as = RunAs(uid=os.getuid() + 1, gid=0, groups=[], home="/elsewhere")
-        params = StdioServerParameters(command="srv", env={"KEEP": "1"})
         with patch(
             "asyncio.create_subprocess_exec", new_callable=AsyncMock
         ) as mock_create:
             mock_create.return_value = MagicMock(pid=1234, returncode=None)
-            await MCPServerSession.create(params, user=run_as, can_switch_user=True)
-        _, kwargs = mock_create.call_args
-        assert kwargs["env"] == {"KEEP": "1", "HOME": "/elsewhere"}
-        assert kwargs["preexec_fn"] is not None
+            for env, expected in [
+                ({"KEEP": "1"}, {"KEEP": "1", "HOME": "/elsewhere"}),
+                ({"HOME": "/custom"}, {"HOME": "/custom"}),
+            ]:
+                params = StdioServerParameters(command="srv", env=env)
+                await MCPServerSession.create(params, user=run_as, can_switch_user=True)
+                _, kwargs = mock_create.call_args
+                assert kwargs["env"] == expected
+                assert kwargs["preexec_fn"] is not None
 
     async def test_other_user_without_root_raises(self) -> None:
         from inspect_sandbox_tools._remote_tools._mcp.jsonrpc_types import (

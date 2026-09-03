@@ -82,13 +82,11 @@ class Job:
         # Use stdin=PIPE if we have input to send or if stdin should stay open
         stdin = asyncio.subprocess.PIPE if (input is not None or stdin_open) else None
 
-        # Merge additional env vars with current environment if provided.
-        # When switching user, set HOME from /etc/passwd to match docker exec --user.
+        # Merge additional env vars with current environment if provided. When
+        # switching user, HOME follows the user unless the caller set it explicitly.
         subprocess_env: dict[str, str] | None = {**os.environ, **env} if env else None
         if user is not None:
-            if subprocess_env is None:
-                subprocess_env = {**os.environ}
-            subprocess_env["HOME"] = get_home_dir(user)
+            subprocess_env = {**os.environ, "HOME": get_home_dir(user), **(env or {})}
 
         process = await asyncio.create_subprocess_shell(
             command,
