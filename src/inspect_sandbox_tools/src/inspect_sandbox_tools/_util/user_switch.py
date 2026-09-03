@@ -14,7 +14,8 @@ class RunAs(BaseModel):
     uid: int
     gid: int
     groups: list[int]
-    home: str
+    home: str | None = None
+    """HOME of the default exec; None when unset there (use the passwd home)."""
     model_config = {"extra": "forbid"}
 
 
@@ -49,11 +50,12 @@ def _switch(user: str | RunAs) -> None:
     else:
         uid, gid = user.uid, user.gid
     if os.isatty(0):
-        # As docker exec --user does: claim the pty as controlling tty (else an
-        # interactive shell gets no job control) and hand it to the new user so
-        # programs that re-open their terminal by path still can.
+        # As container runtimes do for an exec with a tty: claim the pty as
+        # controlling tty (else an interactive shell gets no job control) and hand
+        # it to the new user so programs that re-open their terminal by path can.
         with contextlib.suppress(OSError):
             fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+        with contextlib.suppress(OSError):
             os.fchown(0, uid, gid)
     if isinstance(user, str):
         os.initgroups(user, gid)
@@ -113,9 +115,10 @@ def make_preexec(user: str | RunAs | None) -> Callable[[], None]:
 
 def get_home_dir(user: str | RunAs) -> str:
     """Get the user's home directory (from /etc/passwd for a username, defaulting to '/')."""
-    if isinstance(user, RunAs):
+    if isinstance(user, RunAs) and user.home is not None:
         return user.home
     try:
-        return pwd.getpwnam(user).pw_dir
+        pw = pwd.getpwuid(user.uid) if isinstance(user, RunAs) else pwd.getpwnam(user)
+        return pw.pw_dir
     except KeyError:
         return "/"

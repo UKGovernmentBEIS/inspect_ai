@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import pwd
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -122,6 +123,14 @@ class TestRunAs:
         assert not is_current_user(me.model_copy(update={"uid": me.uid + 1}))
         assert not is_current_user(me.model_copy(update={"gid": me.gid + 1}))
         assert not is_current_user(me.model_copy(update={"groups": [*me.groups, 1]}))
+
+    def test_home_falls_back_to_passwd_when_unset(self) -> None:
+        from inspect_sandbox_tools._util.user_switch import get_home_dir
+
+        me = RunAs(uid=os.getuid(), gid=os.getgid(), groups=[], home=None)
+        assert get_home_dir(me) == pwd.getpwuid(os.getuid()).pw_dir
+        assert get_home_dir(me.model_copy(update={"home": ""})) == ""
+        assert get_home_dir(RunAs(uid=2**31 - 7, gid=0, groups=[], home=None)) == "/"
 
     def test_preexec_claims_tty_before_switching(self) -> None:
         run_as = RunAs(uid=1000, gid=5, groups=[], home="/h")

@@ -131,7 +131,8 @@ class SandboxDefaultUser(NamedTuple):
     uid: int
     gid: int
     groups: list[int]
-    home: str
+    home: str | None
+    """HOME as exec() sees it; None when unset (the passwd home applies)."""
 
 
 class SandboxEnvironment(abc.ABC):

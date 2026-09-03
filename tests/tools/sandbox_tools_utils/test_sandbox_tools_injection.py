@@ -113,7 +113,7 @@ def helper_flags(cmd: list[str]) -> HelperFlags:
 DEFAULT_USER = ExecResult(
     success=True,
     returncode=0,
-    stdout="Uid: 1111\t1111\t1111\t1111\nGid: 1111\t1111\t1111\t1111\nGroups: 1111 \nHOME: /home/nonroot\n",
+    stdout="Uid: 1111\t1111\t1111\t1111\nGid: 1111\t1111\t1111\t1111\nGroups: 1111 \nHOME: /home/nonroot\nHOME_SET: 1\n",
     stderr="",
 )
 """Result of the default-user identity probe (compose `user: nonroot`)."""
@@ -121,12 +121,17 @@ NONROOT = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/home/nonr
 
 
 def is_identity_probe(cmd: list[str]) -> bool:
-    return cmd[:2] == ["/bin/sh", "-c"] and "Uid:" in cmd[2]
+    return cmd[:2] == ["/bin/sh", "-c"] and "Groups:" in cmd[2]
 
 
-def caps_probe_result(cap_eff: str, setgroups: str = "allow") -> ExecResult[str]:
+def caps_probe_result(
+    cap_eff: str, setgroups: str = "allow", uid: str = "0", noise: str = ""
+) -> ExecResult[str]:
     return ExecResult(
-        success=True, returncode=0, stdout=f"{cap_eff}\n{setgroups}\n", stderr=""
+        success=True,
+        returncode=0,
+        stdout=f"{noise}Uid: {uid} {uid} {uid} {uid}\nCapEff: {cap_eff}\nsetgroups: {setgroups}\n",
+        stderr="",
     )
 
 
@@ -685,13 +690,19 @@ async def test_inject_fails_when_default_user_unknown(
 
 def test_parse_default_user() -> None:
     parse = sandbox_tools._parse_default_user
-    assert parse("Uid: 0\t0\t0\t0\nGid: 0\t0\t0\t0\nGroups: \nHOME: /root\n") == (
-        SandboxDefaultUser(uid=0, gid=0, groups=[], home="/root")
-    )
     assert parse(
-        "Uid: 1000 1000 1000 1000\nGid: 5 5 5 5\nGroups: 4 20 1000\nHOME: /\n"
+        "Uid: 0\t0\t0\t0\nGid: 0\t0\t0\t0\nGroups: \nHOME: /root\nHOME_SET: 1\n"
+    ) == (SandboxDefaultUser(uid=0, gid=0, groups=[], home="/root"))
+    assert parse(
+        "Uid: 1000 1000 1000 1000\nGid: 5 5 5 5\nGroups: 4 20 1000\nHOME: /\nHOME_SET: 1\n"
     ) == (SandboxDefaultUser(uid=1000, gid=5, groups=[4, 20, 1000], home="/"))
-    assert parse("Uid: 5 5 5 5\nGid: 5 5 5 5\nGroups: 5\nHOME: \n").home == ""
+    assert (
+        parse("Uid: 5 5 5 5\nGid: 5 5 5 5\nGroups: 5\nHOME: \nHOME_SET: 1\n").home == ""
+    )
+    assert (
+        parse("Uid: 5 5 5 5\nGid: 5 5 5 5\nGroups: 5\nHOME: \nHOME_SET: \n").home
+        is None
+    )
 
 
 async def test_detector_does_not_pin_root_when_identity_probe_fails() -> None:
@@ -733,6 +744,7 @@ async def test_detector_does_not_pin_root_when_identity_probe_fails() -> None:
             ExecResult(success=True, returncode=0, stdout="allow\n", stderr=""),
             id="probe-output-short",
         ),
+        pytest.param(caps_probe_result("000001ffffffffff", uid="1000"), id="not-root"),
     ],
 )
 async def test_inject_falls_back_when_root_cannot_switch_users(
@@ -753,3 +765,16 @@ async def test_inject_falls_back_when_root_cannot_switch_users(
         is_framework_dir_call(cmd) and user == "root"
         for cmd, user in sandbox.exec_calls
     )
+
+
+async def test_root_probe_tolerates_login_shell_noise(
+    stub_artifact: dict[str, object],
+) -> None:
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_caps_probe(cmd):
+            return caps_probe_result("000001ffffffffff", noise="Welcome to the VM\n")
+        return helper_ok(cmd, user)
+
+    sandbox = CannedSandbox(policy)
+    await sandbox_tools._inject_container_tools_code(sandbox)
+    assert sandbox._tools_user == "root"

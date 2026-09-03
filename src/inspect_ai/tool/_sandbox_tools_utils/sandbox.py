@@ -314,10 +314,11 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 # Root is only useful if it can switch users; e.g. `cap_drop: [ALL]` leaves root
 # without CAP_SETGID/CAP_SETUID, and a user namespace may deny setgroups(), so the
 # tools must run as the default user instead. Prints CapEff then the setgroups mode.
-_ROOT_CAPS_CMD = (
-    'while read k v; do case "$k" in CapEff:) echo "$v";; esac; done < /proc/self/status;'
+_ROOT_PROBE_CMD = (
+    'while read k v; do case "$k" in Uid:|CapEff:) echo "$k $v";; esac; done'
+    " < /proc/self/status;"
     " if [ -e /proc/self/setgroups ]; then read s < /proc/self/setgroups; else s=allow; fi;"
-    ' echo "$s"'
+    ' echo "setgroups: $s"'
 )
 _SWITCH_USER_CAPS = (1 << 6) | (1 << 7)  # CAP_SETGID | CAP_SETUID
 
@@ -337,13 +338,18 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     planted the entry decide which user the tools run as.
     """
     try:
-        caps = await sandbox.exec(["/bin/sh", "-c", _ROOT_CAPS_CMD], user="root")
-        tokens = caps.stdout.split()
-        if not caps.success or len(tokens) != 2:
-            raise RuntimeError(
-                f"capability probe failed: {caps.stderr or caps.stdout!r}"
+        probe = await sandbox.exec(["/bin/sh", "-c", _ROOT_PROBE_CMD], user="root")
+        fields = _fields(probe.stdout)
+        if not probe.success or fields.keys() < {"Uid", "CapEff", "setgroups"}:
+            raise RuntimeError(f"root probe failed: {probe.stderr or probe.stdout!r}")
+        if fields["Uid"].split()[0] != "0":
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                "sandbox does not run commands as root; using default user",
             )
-        cap_eff, setgroups = tokens
+            return False
+        cap_eff, setgroups = fields["CapEff"].strip(), fields["setgroups"].strip()
         if (
             int(cap_eff, 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
             or setgroups != "allow"
@@ -384,7 +390,7 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
 # Shell builtins only: numeric ids from /proc so uids with no passwd entry work.
 _DEFAULT_USER_CMD = (
     'while read k v; do case "$k" in Uid:|Gid:|Groups:) echo "$k $v";; esac; done'
-    ' < /proc/self/status; echo "HOME: ${HOME-/}"'
+    ' < /proc/self/status; echo "HOME: $HOME"; echo "HOME_SET: ${HOME+1}"'
 )
 
 
@@ -400,14 +406,19 @@ async def _detect_default_user(sandbox: SandboxEnvironment) -> SandboxDefaultUse
         ) from e
 
 
+def _fields(output: str) -> dict[str, str]:
+    """`key: value` lines of a probe, keyed by name; the first occurrence wins."""
+    lines = reversed(output.splitlines())
+    return {k: v for k, _, v in (ln.partition(":") for ln in lines) if _}
+
+
 def _parse_default_user(output: str) -> SandboxDefaultUser:
-    lines = reversed(output.splitlines())  # first occurrence of a key wins
-    fields = {k: v for k, _, v in (ln.partition(":") for ln in lines)}
+    fields = _fields(output)
     return SandboxDefaultUser(
         uid=int(fields["Uid"].split()[0]),
         gid=int(fields["Gid"].split()[0]),
         groups=[int(g) for g in fields["Groups"].split()],
-        home=fields["HOME"].strip(),
+        home=fields["HOME"].strip() if fields["HOME_SET"].strip() == "1" else None,
     )
 
 
