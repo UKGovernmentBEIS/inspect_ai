@@ -1280,14 +1280,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Creating and executing code within Docker containers can be expensive both in terms of memory and CPU utilisation. Inspect provides some automatic resource management to keep usage reasonable in the default case. This section describes that behaviour as well as how you can tune it for your use-cases.</p>
 <section id="max-sandboxes" class="level3">
 <h3 class="anchored" data-anchor-id="max-sandboxes">Max Sandboxes</h3>
-<p>The <code>max_sandboxes</code> option determines how many sandboxes can be executed in parallel. Individual sandbox providers can establish their own default limits (for example, the Docker provider has a default of <code>2 * os.cpu_count()</code>). You can modify this option as required, but be aware that container runtimes have resource limits, and pushing up against and beyond them can lead to instability and failed evaluations.</p>
+<p>The <code>max_sandboxes</code> option determines how many sandboxes can be executed in parallel. Individual sandbox providers can establish their own default limits (for example, the Docker provider defaults to twice the number of processors available to the eval — which under a container CPU limit such as <code>docker --cpus</code> or a Kubernetes <code>limits.cpu</code> is the limit rather than the host’s processor count). You can modify this option as required, but be aware that container runtimes have resource limits, and pushing up against and beyond them can lead to instability and failed evaluations.</p>
 <p>When a <code>max_sandboxes</code> is applied, an indicator at the bottom of the task status screen will be shown:</p>
 <p><a href="images/task-max-sandboxes.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/task-max-sandboxes.png" class="img-fluid"></a></p>
 <p>Note that when <code>max_sandboxes</code> is applied this effectively creates a global <code>max_samples</code> limit that is equal to the <code>max_sandboxes</code>.</p>
 </section>
 <section id="max-subprocesses" class="level3">
 <h3 class="anchored" data-anchor-id="max-subprocesses">Max Subprocesses</h3>
-<p>The <code>max_subprocesses</code> option determines how many subprocess calls can run in parallel. By default, this is set to <code>os.cpu_count()</code>. Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasing <code>max_subprocesses</code>.</p>
+<p>The <code>max_subprocesses</code> option determines how many subprocess calls can run in parallel. By default, this is the number of processors available to the eval (under a container CPU limit, that limit rather than the host’s processor count). Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasing <code>max_subprocesses</code>.</p>
 </section>
 <section id="max-samples" class="level3">
 <h3 class="anchored" data-anchor-id="max-samples">Max Samples</h3>

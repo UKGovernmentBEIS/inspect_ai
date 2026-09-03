@@ -24,9 +24,9 @@ The default model graded QA scorer is tuned to grade answers to open ended quest
 
 Model selection follows this precedence:
 
-1.  If `model` is provided, it is used (if a list is provided, each model grades independently and the final grade is by majority vote).
+1.  If `model` is provided, it is used (if a list is provided, each model grades independently and the grades are combined by `reducer`).
 
-2.  Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used (if a list of models is bound to the role, each model grades independently and the final grade is by majority vote, just as when a list is passed for `model`). Pass `ModelRole("grader", required=True)` (from `inspect_ai.model`) to raise an error when the role is not bound instead of falling back to the model being evaluated.
+2.  Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used (a list of models bound to the role is combined by `reducer`, as when a list is passed for `model`). Pass `ModelRole("grader", required=True)` (from `inspect_ai.model`) to raise an error when the role is not bound instead of falling back to the model being evaluated.
 
 3.  Else the model currently being evaluated is used.
 
@@ -38,7 +38,7 @@ There are a few ways you can customise the default behaviour:
 
 3.  Specify `partial_credit = True` to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default `instructions`.
 
-4.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.
+4.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the grades are combined by `reducer` (see [Multiple Models](#multiple-models)).
 
 5.  Bind a `model_role` (default: `"grader"`) at eval time. Pass `ModelRole("grader", required=True)` when the scorer must not fall back to the model being evaluated. See [Model Roles](./models.html.md#model-roles) for details.
 
@@ -142,7 +142,7 @@ If you want to understand how the default templates for [model_graded_qa()](./re
 
 ## Multiple Models
 
-The built-in model graded scorers also support using multiple grader models (whereby the final grade is chosen by majority vote). For example, here we specify that 3 models should be used for grading:
+The built-in model graded scorers also support using multiple grader models (whereby the final grade is decided by a majority of the panel). For example, here we specify that 3 models should be used for grading:
 
 ``` python
 model_graded_qa(
@@ -154,7 +154,13 @@ model_graded_qa(
 )
 ```
 
-The implementation of multiple grader models uses the [multi_scorer()](./reference/inspect_ai.scorer.html.md#multi_scorer) function with a `"mode"` (majority vote) reducer, which you can also use in your own scorers (see [Multiple Scorers](./multiple-scorers.html.md)).
+The implementation of multiple grader models uses the [multi_scorer()](./reference/inspect_ai.scorer.html.md#multi_scorer) function with the `"majority"` reducer, which you can also use in your own scorers (see [Multiple Scorers](./multiple-scorers.html.md)).
+
+A grade wins only when more than half of the panel returns it; a grader with no parseable grade withholds its vote without lowering that threshold, so a diminished panel yields an unscored sample rather than a grade decided by list order. Individual votes are recorded in the score’s `metadata` under `panel`. Pass `reducer="mode"` for the previous plurality behaviour:
+
+``` python
+model_graded_qa(model=[...], reducer="mode")
+```
 
 ## Grading Robustness
 

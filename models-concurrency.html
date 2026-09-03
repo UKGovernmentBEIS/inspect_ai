@@ -819,17 +819,17 @@ Note
 <h3 class="anchored" data-anchor-id="retry-types">Retry Types</h3>
 <p>The controller distinguishes two kinds of retries.</p>
 <ul>
-<li><p>Rate-limit retries (HTTP 429). These shrink the limit by <code>decrease_factor</code> (default 0.8) per episode, with a debounce so a single rate-limit burst produces only one cut.</p></li>
+<li><p>Rate-limit retries (HTTP 429). These shrink the limit by <code>decrease_factor</code> (default 0.8), with a debounce so a burst of retries produces at most one cut per <code>cooldown_seconds</code>.</p></li>
 <li><p>Transient retries (5xx, timeouts, and network errors). These pause scale-up (the eventual success won’t count toward growth) but do not shrink the limit. Provider 5xx and network blips are usually infra noise unrelated to your concurrency, and lowering concurrency doesn’t help an upstream outage.</p></li>
 </ul>
-<p>After a rate-limit cut, the controller waits at least <code>cooldown_seconds</code> (default 15s) before allowing another cut. If the response carries a <code>Retry-After</code> header, the cooldown extends to honor it. Cache hits and successful-after-retry calls are neutral: they neither grow nor shrink the limit.</p>
+<p>After a rate-limit cut, the controller waits <code>cooldown_seconds</code> (default 15s) before allowing another cut. Cache hits and successful-after-retry calls are neutral: they neither grow nor shrink the limit.</p>
 </section>
 <section id="advanced-tuning" class="level3">
 <h3 class="anchored" data-anchor-id="advanced-tuning">Advanced Tuning</h3>
 <p>The response curve is also tunable. These fields are Python-only (CLI shorthand stays at <code>min-max</code> / <code>min-start-max</code>):</p>
 <ul>
 <li><p><code>cooldown_seconds</code> (default 15): minimum debounce between scale-down cuts. Larger for long-running agent loops where each rate-limit episode takes longer to clear; smaller for short request workloads.</p></li>
-<li><p><code>decrease_factor</code> (default 0.8): multiplicative cut on each rate-limit episode. More aggressive (e.g.&nbsp;0.5) for volatile tiers where overshoots are common; gentler when tiers are stable.</p></li>
+<li><p><code>decrease_factor</code> (default 0.8): multiplicative cut applied each time the debounce allows a cut. More aggressive (e.g.&nbsp;0.5) for volatile tiers where overshoots are common; gentler when tiers are stable.</p></li>
 <li><p><code>scale_up_percent</code> (default 0.05): additive growth per clean round in steady state. Increase for short evals where slow ramp-up doesn’t have time to converge.</p></li>
 </ul>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> AdaptiveConcurrency</span>

@@ -84,11 +84,11 @@ See [Control Channel](./control-channel.html.md#configuration) for details.
 
 The controller distinguishes two kinds of retries.
 
-- Rate-limit retries (HTTP 429). These shrink the limit by `decrease_factor` (default 0.8) per episode, with a debounce so a single rate-limit burst produces only one cut.
+- Rate-limit retries (HTTP 429). These shrink the limit by `decrease_factor` (default 0.8), with a debounce so a burst of retries produces at most one cut per `cooldown_seconds`.
 
 - Transient retries (5xx, timeouts, and network errors). These pause scale-up (the eventual success won’t count toward growth) but do not shrink the limit. Provider 5xx and network blips are usually infra noise unrelated to your concurrency, and lowering concurrency doesn’t help an upstream outage.
 
-After a rate-limit cut, the controller waits at least `cooldown_seconds` (default 15s) before allowing another cut. If the response carries a `Retry-After` header, the cooldown extends to honor it. Cache hits and successful-after-retry calls are neutral: they neither grow nor shrink the limit.
+After a rate-limit cut, the controller waits `cooldown_seconds` (default 15s) before allowing another cut. Cache hits and successful-after-retry calls are neutral: they neither grow nor shrink the limit.
 
 ### Advanced Tuning
 
@@ -96,7 +96,7 @@ The response curve is also tunable. These fields are Python-only (CLI shorthand 
 
 - `cooldown_seconds` (default 15): minimum debounce between scale-down cuts. Larger for long-running agent loops where each rate-limit episode takes longer to clear; smaller for short request workloads.
 
-- `decrease_factor` (default 0.8): multiplicative cut on each rate-limit episode. More aggressive (e.g. 0.5) for volatile tiers where overshoots are common; gentler when tiers are stable.
+- `decrease_factor` (default 0.8): multiplicative cut applied each time the debounce allows a cut. More aggressive (e.g. 0.5) for volatile tiers where overshoots are common; gentler when tiers are stable.
 
 - `scale_up_percent` (default 0.05): additive growth per clean round in steady state. Increase for short evals where slow ramp-up doesn’t have time to converge.
 

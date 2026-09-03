@@ -1016,6 +1016,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>--attempt-timeout</code></td>
 <td>Timeout (in seconds) for any given generate attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
 </tr>
+<tr class="odd">
+<td><code>--stream-idle-timeout</code></td>
+<td>Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries). Setting it requests streaming; it has no effect on calls that do not stream.</td>
+</tr>
 </tbody>
 </table>
 </section>
@@ -1104,11 +1108,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>--max-subprocesses</code></td>
-<td>Maximum number of subprocesses to run in parallel (default is <code>os.cpu_count()</code>)</td>
+<td>Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)</td>
 </tr>
 <tr class="odd">
 <td><code>--max-sandboxes</code></td>
-<td>Maximum number of sandboxes (per-provider) to run in parallel (default is <code>2 * os.cpu_count()</code>; retunable mid-run via <a href="./control-channel.html#configuration"><code>inspect ctl config</code></a>)</td>
+<td>Maximum number of sandboxes (per-provider) to run in parallel (default is twice the number of processors available to the eval, which under a container CPU limit is that limit rather than the host’s processor count; retunable mid-run via <a href="./control-channel.html#configuration"><code>inspect ctl config</code></a>)</td>
 </tr>
 <tr class="even">
 <td><code>--max-tasks</code></td>

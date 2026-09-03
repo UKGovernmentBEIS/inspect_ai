@@ -725,6 +725,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#scorer-with-multiple-values" id="toc-scorer-with-multiple-values" class="nav-link" data-scroll-target="#scorer-with-multiple-values">Scorer with Multiple Values</a></li>
   <li><a href="#scorer-with-complex-metrics" id="toc-scorer-with-complex-metrics" class="nav-link" data-scroll-target="#scorer-with-complex-metrics">Scorer with Complex Metrics</a></li>
   <li><a href="#reducing-multiple-scores" id="toc-reducing-multiple-scores" class="nav-link" data-scroll-target="#reducing-multiple-scores">Reducing Multiple Scores</a></li>
+  <li><a href="#cascading-scorers" id="toc-cascading-scorers" class="nav-link" data-scroll-target="#cascading-scorers">Cascading Scorers</a></li>
   <li><a href="#sandbox-access" id="toc-sandbox-access" class="nav-link" data-scroll-target="#sandbox-access">Sandbox Access</a></li>
   <li><a href="#scanners-as-scorers" id="toc-scanners-as-scorers" class="nav-link" data-scroll-target="#scanners-as-scorers">Scanners as Scorers</a></li>
   </ul>
@@ -947,48 +948,58 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    scorers <span class="op">=</span> [model_graded_qa(model<span class="op">=</span>model) <span class="cf">for</span> model <span class="kw">in</span> models],</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    reducer <span class="op">=</span> <span class="st">"mode"</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Use of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#multi_scorer">multi_scorer()</a></span> requires both a list of scorers as well as a <em>reducer</em> which determines how a list of scores will be turned into a single score. In this case we use the “mode” reducer which returns the score that appeared most frequently in the answers (i.e.&nbsp;a majority vote). See <a href="./metrics.html#reducing-epochs">Reducing Epochs</a> for the full set of built-in reducers.</p>
+<p>Use of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#multi_scorer">multi_scorer()</a></span> requires both a list of scorers as well as a <em>reducer</em> which determines how a list of scores will be turned into a single score. In this case we use the “mode” reducer, which returns the most frequent score (a plurality — the “majority” reducer instead requires more than half). See <a href="./metrics.html#reducing-epochs">Reducing Epochs</a> for the full set of built-in reducers.</p>
 <p>To keep every scorer’s value rather than collapsing to one, use the <code>"collect"</code> reducer, which preserves the individual values as a list — for example to feed an inter-rater agreement metric like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#krippendorff_alpha">krippendorff_alpha()</a></span> (see <a href="./metrics.html#multi-judge-reliability">Multi-Judge Reliability</a>).</p>
+</section>
+<section id="cascading-scorers" class="level2">
+<h2 class="anchored" data-anchor-id="cascading-scorers">Cascading Scorers</h2>
+<p>Where <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#multi_scorer">multi_scorer()</a></span> runs every scorer and reduces their results, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#cascade">cascade()</a></span> runs scorers in the order given and stops at the first that settles the sample — so an expensive stage such as a grader model only runs on samples that cheaper scorers did not settle:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>cascade(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    exact<span class="op">=</span>match(location<span class="op">=</span><span class="st">"exact"</span>),</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    grader<span class="op">=</span>model_graded_qa(model<span class="op">=</span>grader_model),</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>A stage settles the sample when <code>value_to_float()</code> of its score is at least <code>threshold</code> (default <code>1.0</code>, i.e.&nbsp;CORRECT). Stages that decline (return <code>None</code>) or are unscored are skipped; if no stage settles, the last real score is returned, and if nothing scored the sample is unscored. The returned score records which stage decided under <code>decided_by</code> in its metadata.</p>
+<p>A cascade trusts a settling verdict from an earlier stage, so earlier scorers should not be prone to false positives (exact match qualifies; a lenient heuristic does not).</p>
 </section>
 <section id="sandbox-access" class="level2">
 <h2 class="anchored" data-anchor-id="sandbox-access">Sandbox Access</h2>
 <p>If your Solver is an <a href="./agents.html">Agent</a> with tool use, you might want to inspect the contents of the tool sandbox to score the task.</p>
 <p>The contents of the sandbox for the Sample are available to the scorer; simply call <code>await sandbox().read_file()</code> (or <code>.exec()</code>).</p>
 <p>For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> Score, Target, accuracy, scorer</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> Plan, TaskState, generate, use_tools</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> sandbox</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy()])</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> check_file_exists():</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>            _ <span class="op">=</span> <span class="cf">await</span> sandbox().read_file(target.text)</span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>            exists <span class="op">=</span> <span class="va">True</span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> <span class="pp">FileNotFoundError</span>:</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>            exists <span class="op">=</span> <span class="va">False</span></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Score(value<span class="op">=</span><span class="dv">1</span> <span class="cf">if</span> exists <span class="cf">else</span> <span class="dv">0</span>)</span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> score</span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> challenge() <span class="op">-&gt;</span> Task:</span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>[</span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>            Sample(</span>
-<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>                <span class="bu">input</span><span class="op">=</span><span class="st">"Create a file called hello-world.txt"</span>,</span>
-<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>                target<span class="op">=</span><span class="st">"hello-world.txt"</span>,</span>
-<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>        ],</span>
-<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[use_tools([bash()]), generate()],</span>
-<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span><span class="st">"local"</span>,</span>
-<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>check_file_exists(),</span>
-<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> Score, Target, accuracy, scorer</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> Plan, TaskState, generate, use_tools</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> sandbox</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy()])</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> check_file_exists():</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>            _ <span class="op">=</span> <span class="cf">await</span> sandbox().read_file(target.text)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>            exists <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> <span class="pp">FileNotFoundError</span>:</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>            exists <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Score(value<span class="op">=</span><span class="dv">1</span> <span class="cf">if</span> exists <span class="cf">else</span> <span class="dv">0</span>)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> score</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> challenge() <span class="op">-&gt;</span> Task:</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>[</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>            Sample(</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>                <span class="bu">input</span><span class="op">=</span><span class="st">"Create a file called hello-world.txt"</span>,</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>                target<span class="op">=</span><span class="st">"hello-world.txt"</span>,</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[use_tools([bash()]), generate()],</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span><span class="st">"local"</span>,</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>check_file_exists(),</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="scanners-as-scorers" class="level2">
 <h2 class="anchored" data-anchor-id="scanners-as-scorers">Scanners as Scorers</h2>

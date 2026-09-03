@@ -874,13 +874,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="google-gemini-3" class="level4">
 <h4 class="anchored" data-anchor-id="google-gemini-3">Google Gemini 3</h4>
-<p>Gemini 3 Flash exposes four thinking levels (<code>MINIMAL</code>, <code>LOW</code>, <code>MEDIUM</code>, <code>HIGH</code>); Gemini 3 Pro / Pro 3.1 omit <code>MINIMAL</code> and otherwise share the same scale.</p>
+<p>Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (<code>MINIMAL</code>, <code>LOW</code>, <code>MEDIUM</code>, <code>HIGH</code>). Gemini 3 Pro / Pro 3.1 and Gemini 3.7 Flash and later omit <code>MINIMAL</code> (the API rejects it), so Inspect maps <code>minimal</code> to <code>LOW</code> there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as <code>gemini-flash-latest</code>, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept <code>MINIMAL</code>.</p>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 26%">
+<col style="width: 44%">
+<col style="width: 28%">
+</colgroup>
 <thead>
 <tr class="header">
 <th>Inspect input</th>
-<th>API value (Flash)</th>
-<th>API value (Pro)</th>
+<th>API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5)</th>
+<th>API value (other Gemini 3)</th>
 </tr>
 </thead>
 <tbody>
@@ -1246,7 +1251,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>high</td>
 </tr>
 <tr class="even">
+<td>anthropic/claude-fable-5-1</td>
+<td>high</td>
+</tr>
+<tr class="odd">
 <td>anthropic/claude-mythos-5</td>
+<td>high</td>
+</tr>
+<tr class="even">
+<td>anthropic/claude-mythos-5-1</td>
 <td>high</td>
 </tr>
 <tr class="odd">
@@ -1311,6 +1324,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td>google/gemini-3.6-flash</td>
+<td>medium</td>
+</tr>
+<tr class="odd">
+<td>google/gemini-3.7-flash</td>
+<td>medium</td>
+</tr>
+<tr class="even">
+<td>google/gemini-3.8-flash</td>
 <td>medium</td>
 </tr>
 <tr class="odd">

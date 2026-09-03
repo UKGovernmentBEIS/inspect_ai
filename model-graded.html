@@ -769,8 +769,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The default model graded QA scorer is tuned to grade answers to open ended questions. The default <code>template</code> and <code>instructions</code> ask the model to produce a grade in the format <code>GRADE: C</code> or <code>GRADE: I</code>, and this grade is extracted using the default <code>grade_pattern</code> regular expression.</p>
 <p>Model selection follows this precedence:</p>
 <ol type="1">
-<li><p>If <code>model</code> is provided, it is used (if a list is provided, each model grades independently and the final grade is by majority vote).</p></li>
-<li><p>Else if <code>model_role</code> is provided (default: <code>"grader"</code>), the model bound to that role (via <code>eval(..., model_roles={...})</code> or <code>--model-role grader=...</code>) is used (if a list of models is bound to the role, each model grades independently and the final grade is by majority vote, just as when a list is passed for <code>model</code>). Pass <code>ModelRole("grader", required=True)</code> (from <code>inspect_ai.model</code>) to raise an error when the role is not bound instead of falling back to the model being evaluated.</p></li>
+<li><p>If <code>model</code> is provided, it is used (if a list is provided, each model grades independently and the grades are combined by <code>reducer</code>).</p></li>
+<li><p>Else if <code>model_role</code> is provided (default: <code>"grader"</code>), the model bound to that role (via <code>eval(..., model_roles={...})</code> or <code>--model-role grader=...</code>) is used (a list of models bound to the role is combined by <code>reducer</code>, as when a list is passed for <code>model</code>). Pass <code>ModelRole("grader", required=True)</code> (from <code>inspect_ai.model</code>) to raise an error when the role is not bound instead of falling back to the model being evaluated.</p></li>
 <li><p>Else the model currently being evaluated is used.</p></li>
 </ol>
 <p>There are a few ways you can customise the default behaviour:</p>
@@ -778,7 +778,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>Provide alternate <code>instructions</code>. The default instructions ask the model to use chain of thought reasoning and provide grades in the format <code>GRADE: C</code> or <code>GRADE: I</code>. Note that if you provide instructions that ask the model to format grades in a different way, you will also want to customise the <code>grade_pattern</code>.</p></li>
 <li><p>Specify <code>include_history = True</code> to include the full chat history in the presented question (by default only the original sample input is presented). With the default templates, the final assistant answer is also included in the submission field. You may optionally instead pass a function that enables customising the presentation of the chat history.</p></li>
 <li><p>Specify <code>partial_credit = True</code> to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default <code>instructions</code>.</p></li>
-<li><p>Specify an alternate <code>model</code> to perform the grading (e.g.&nbsp;a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.</p></li>
+<li><p>Specify an alternate <code>model</code> to perform the grading (e.g.&nbsp;a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the grades are combined by <code>reducer</code> (see <a href="#multiple-models">Multiple Models</a>).</p></li>
 <li><p>Bind a <code>model_role</code> (default: <code>"grader"</code>) at eval time. Pass <code>ModelRole("grader", required=True)</code> when the scorer must not fall back to the model being evaluated. See <a href="./models.html#model-roles">Model Roles</a> for details.</p></li>
 <li><p>Specify a different <code>template</code>. Templates are passed these variables: <code>question</code>, <code>criterion</code>, <code>answer</code>, and <code>instructions.</code></p></li>
 </ol>
@@ -899,7 +899,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="multiple-models" class="level2">
 <h2 class="anchored" data-anchor-id="multiple-models">Multiple Models</h2>
-<p>The built-in model graded scorers also support using multiple grader models (whereby the final grade is chosen by majority vote). For example, here we specify that 3 models should be used for grading:</p>
+<p>The built-in model graded scorers also support using multiple grader models (whereby the final grade is decided by a majority of the panel). For example, here we specify that 3 models should be used for grading:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>model_graded_qa(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> [</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">"google/gemini-2.5-pro"</span>,</span>
@@ -907,7 +907,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"together/meta-llama/Llama-3-70b-chat-hf"</span>,</span>
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    ]</span>
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The implementation of multiple grader models uses the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#multi_scorer">multi_scorer()</a></span> function with a <code>"mode"</code> (majority vote) reducer, which you can also use in your own scorers (see <a href="./multiple-scorers.html">Multiple Scorers</a>).</p>
+<p>The implementation of multiple grader models uses the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#multi_scorer">multi_scorer()</a></span> function with the <code>"majority"</code> reducer, which you can also use in your own scorers (see <a href="./multiple-scorers.html">Multiple Scorers</a>).</p>
+<p>A grade wins only when more than half of the panel returns it; a grader with no parseable grade withholds its vote without lowering that threshold, so a diminished panel yields an unscored sample rather than a grade decided by list order. Individual votes are recorded in the score’s <code>metadata</code> under <code>panel</code>. Pass <code>reducer="mode"</code> for the previous plurality behaviour:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>model_graded_qa(model<span class="op">=</span>[...], reducer<span class="op">=</span><span class="st">"mode"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="grading-robustness" class="level2">
 <h2 class="anchored" data-anchor-id="grading-robustness">Grading Robustness</h2>
@@ -919,12 +921,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="reproducible-grading">Reproducible Grading</h2>
 <p>By default the grader model runs with the provider’s default generation settings. In practice this often means a non-zero temperature (e.g.&nbsp;1.0) and no fixed seed, so grades for borderline answers can change from run to run and across epochs.</p>
 <p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span> do not take a generation <code>config</code> argument. To control the grader’s generation settings, configure the grader model with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> and pass it as <code>model</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> get_model, GenerateConfig</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_qa</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>grader <span class="op">=</span> get_model(<span class="st">"openai/gpt-4o"</span>, config<span class="op">=</span>GenerateConfig(temperature<span class="op">=</span><span class="dv">0</span>, seed<span class="op">=</span><span class="dv">42</span>))</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>model_graded_qa(model<span class="op">=</span>grader)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> get_model, GenerateConfig</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_qa</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>grader <span class="op">=</span> get_model(<span class="st">"openai/gpt-4o"</span>, config<span class="op">=</span>GenerateConfig(temperature<span class="op">=</span><span class="dv">0</span>, seed<span class="op">=</span><span class="dv">42</span>))</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>model_graded_qa(model<span class="op">=</span>grader)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can apply the same configuration through the <code>grader</code> model role instead of the <code>model</code> argument — see <a href="./models.html#model-roles">Model Roles</a>.</p>
 <p>For more reproducible grading:</p>
 <ol type="1">

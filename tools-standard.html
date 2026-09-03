@@ -1647,7 +1647,7 @@ Warning
 <span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="co"># with timeout</span></span>
 <span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>grep(timeout<span class="op">=</span><span class="dv">60</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The model can specify a <code>pattern</code>, <code>path</code>, optional <code>glob</code> filter (e.g.&nbsp;<code>"*.py"</code>), <code>fixed_strings</code> flag for literal matching, and <code>output_mode</code> (<code>"content"</code>, <code>"files_with_matches"</code>, or <code>"count"</code>). Results include file paths and line numbers by default.</p>
+<p>The model can specify a <code>pattern</code>, <code>path</code>, optional <code>glob</code> filter (e.g.&nbsp;<code>"*.py"</code>), <code>fixed_strings</code> flag for literal matching, <code>extended_regexp</code> flag for extended regex (ERE), and <code>output_mode</code> (<code>"content"</code>, <code>"files_with_matches"</code>, or <code>"count"</code>). Patterns use grep’s basic regex (BRE) by default. Results include file paths and line numbers by default.</p>
 </section>
 <section id="task-setup-5" class="level3">
 <h3 class="anchored" data-anchor-id="task-setup-5">Task Setup</h3>

@@ -63,15 +63,15 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Google Gemini 3
 
-Gemini 3 Flash exposes four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`); Gemini 3 Pro / Pro 3.1 omit `MINIMAL` and otherwise share the same scale.
+Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1 and Gemini 3.7 Flash and later omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
 
-| Inspect input            | API value (Flash) | API value (Pro)   |
-|--------------------------|-------------------|-------------------|
-| `none`                   | thinking disabled | thinking disabled |
-| `minimal`                | `MINIMAL`         | `LOW`             |
-| `low`                    | `LOW`             | `LOW`             |
-| `medium`                 | `MEDIUM`          | `MEDIUM`          |
-| `high` / `xhigh` / `max` | `HIGH`            | `HIGH`            |
+| Inspect input | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3) |
+|----|----|----|
+| `none` | thinking disabled | thinking disabled |
+| `minimal` | `MINIMAL` | `LOW` |
+| `low` | `LOW` | `LOW` |
+| `medium` | `MEDIUM` | `MEDIUM` |
+| `high` / `xhigh` / `max` | `HIGH` | `HIGH` |
 
 #### Google Gemini 2.5
 
@@ -194,7 +194,9 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | Model                                | Default effort  |
 |--------------------------------------|-----------------|
 | anthropic/claude-fable-5             | high            |
+| anthropic/claude-fable-5-1           | high            |
 | anthropic/claude-mythos-5            | high            |
+| anthropic/claude-mythos-5-1          | high            |
 | anthropic/claude-opus-4-6            | adaptive        |
 | anthropic/claude-opus-4-7            | adaptive        |
 | anthropic/claude-opus-4-8            | high            |
@@ -211,6 +213,8 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | google/gemini-3.5-flash              | medium          |
 | google/gemini-3.5-flash-lite         | minimal         |
 | google/gemini-3.6-flash              | medium          |
+| google/gemini-3.7-flash              | medium          |
+| google/gemini-3.8-flash              | medium          |
 | grok/grok-3-mini                     | low             |
 | grok/grok-4                          | no effort scale |
 | grok/grok-4.3                        | low             |

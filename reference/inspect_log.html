@@ -1337,6 +1337,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#incompleteaction" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">IncompleteAction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#recoverableevallog" class="sidebar-item-text sidebar-link">
  <span class="menu-text">RecoverableEvalLog</span></a>
   </div>
@@ -1345,6 +1351,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#recoverynotavailable" class="sidebar-item-text sidebar-link">
  <span class="menu-text">RecoveryNotAvailable</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#recoverythresholdexceeded" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RecoveryThresholdExceeded</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1912,6 +1924,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#compute_model_cost" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">compute_model_cost</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#modelinfo" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ModelInfo</span></a>
   </div>
@@ -2264,6 +2282,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#cascade" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cascade</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#precomputed_scores" class="sidebar-item-text sidebar-link">
  <span class="menu-text">precomputed_scores</span></a>
   </div>
@@ -2330,6 +2354,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#ci_wilson" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ci_wilson</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#perplexity_per_token" class="sidebar-item-text sidebar-link">
  <span class="menu-text">perplexity_per_token</span></a>
   </div>
@@ -2390,6 +2420,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#majority_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">majority_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#collect_score" class="sidebar-item-text sidebar-link">
  <span class="menu-text">collect_score</span></a>
   </div>
@@ -2410,6 +2446,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#score" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#reference" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -4007,6 +4049,18 @@ ul.task-list li input[type="checkbox"] {
 <td>boolean</td>
 <td>Exclude event transcript from recovered samples (reduces output size).</td>
 <td><code>False</code></td>
+</tr>
+<tr class="odd">
+<td><code>--incomplete-action</code></td>
+<td>choice (<code>retry</code> | <code>error</code>)</td>
+<td>Disposition for samples that were in progress at crash: ‘retry’ (default) marks them as cancelled errors that a later eval-retry re-runs; ‘error’ resolves them as operator terminations, finalizing the recovered log with status ‘success’ when every expected sample is final (nothing will retry it).</td>
+<td><code>retry</code></td>
+</tr>
+<tr class="even">
+<td><code>--incomplete-max</code></td>
+<td>float range (<code>0</code> and above)</td>
+<td>Safety threshold for –incomplete-action error (count if &gt;= 1, or proportion of expected samples if strictly less than 1): refuse to recover when more than this many samples are in progress. Has no effect (a warning is logged) with –incomplete-action retry.</td>
+<td>None</td>
 </tr>
 <tr class="odd">
 <td><code>--list</code></td>

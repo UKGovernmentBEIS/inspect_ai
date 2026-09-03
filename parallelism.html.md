@@ -101,7 +101,7 @@ By default, no memory limit is applied and all samples remain in memory.
 
 ### Max Sandboxes
 
-The `max_sandboxes` option determines how many sandboxes can be executed in parallel. Individual sandbox providers can establish their own default limits (for example, the Docker provider has a default of `2 * os.cpu_count()`). You can modify this option as required, but be aware that container runtimes have resource limits, and pushing up against and beyond them can lead to instability and failed evaluations.
+The `max_sandboxes` option determines how many sandboxes can be executed in parallel. Individual sandbox providers can establish their own default limits (for example, the Docker provider defaults to twice the number of processors available to the eval — which under a container CPU limit such as `docker --cpus` or a Kubernetes `limits.cpu` is the limit rather than the host’s processor count). You can modify this option as required, but be aware that container runtimes have resource limits, and pushing up against and beyond them can lead to instability and failed evaluations.
 
 When a `max_sandboxes` is applied, an indicator at the bottom of the task status screen will be shown:
 
@@ -111,7 +111,7 @@ Note that when `max_sandboxes` is applied this effectively creates a global `max
 
 ### Max Subprocesses
 
-The `max_subprocesses` option determines how many subprocess calls can run in parallel. By default, this is set to `os.cpu_count()`. Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasing `max_subprocesses`.
+The `max_subprocesses` option determines how many subprocess calls can run in parallel. By default, this is the number of processors available to the eval (under a container CPU limit, that limit rather than the host’s processor count). Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasing `max_subprocesses`.
 
 ### Max Samples
 
@@ -221,7 +221,7 @@ results = await asyncio.gather(*downloads)
 
 It’s possible that your custom solvers, tools, or scorers will need to launch child processes to perform various tasks. Subprocesses have similar considerations as calling APIs: you want to make sure that they don’t block the rest of the work in Inspect (so they should be invoked with `async`) and you also want to make sure they don’t provide *too much* concurrency (i.e. you wouldn’t want to launch 200 processes at once on a 4 core machine!)
 
-To assist with this, Inspect provides the [subprocess()](./reference/inspect_ai.util.html.md#subprocess) function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout and stderr. The [subprocess()](./reference/inspect_ai.util.html.md#subprocess) function also automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`). Here’s an example from the implementation of a [list_files()](./reference/inspect_ai.tool.html.md#list_files) tool:
+To assist with this, Inspect provides the [subprocess()](./reference/inspect_ai.util.html.md#subprocess) function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout and stderr. The [subprocess()](./reference/inspect_ai.util.html.md#subprocess) function also automatically limits concurrent child processes to the number of processors available to the eval (under a container CPU limit such as `docker --cpus` or a Kubernetes `limits.cpu`, that limit rather than the host’s processor count). Here’s an example from the implementation of a [list_files()](./reference/inspect_ai.tool.html.md#list_files) tool:
 
 ``` python
 @tool

@@ -54,7 +54,11 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
 - [ci()](./reference/inspect_ai.scorer.html.md#ci)
 
-  Confidence interval for the mean, reported as a mapping with `lower` and `upper` bounds. Defaults to a 95% Student-t interval (`mean ± t · stderr`, with `n - 1` degrees of freedom, or `clusters - 1` when `cluster=` is set); pass `level=` to change the confidence level or `method="bootstrap"` for a percentile (cluster) bootstrap interval. Useful for deciding, for example, whether two models’ accuracy intervals overlap.
+  Confidence interval for the mean, reported as a mapping with `lower` and `upper` bounds. Defaults to a 95% Student-t interval (`mean ± t · stderr`, with `n - 1` degrees of freedom, or `clusters - 1` when `cluster=` is set); pass `level=` to change the confidence level or `method="bootstrap"` for a percentile (cluster) bootstrap interval. Useful for deciding, for example, whether two models’ accuracy intervals overlap. For binary scores, prefer [ci_wilson()](./reference/inspect_ai.scorer.html.md#ci_wilson).
+
+- [ci_wilson()](./reference/inspect_ai.scorer.html.md#ci_wilson)
+
+  Wilson score confidence interval for the mean of binary (0/1) scores, treating it as a binomial proportion. Prefer this over [ci()](./reference/inspect_ai.scorer.html.md#ci) for binary scores such as accuracy: the bounds always stay within \[0, 1\] and remain well calibrated for small samples and proportions near 0 or 1. Pass `level=` to change the confidence level; with `cluster=` the interval uses an effective sample size derived from the clustered standard error.
 
 - [frequency()](./reference/inspect_ai.scorer.html.md#frequency)
 
@@ -369,6 +373,7 @@ Inspect includes several built in reducers which are summarised below.
 | mean | Reduce to the average of all scores. |
 | median | Reduce to the median of all scores |
 | mode | Reduce to the most common score. |
+| majority | Reduce to the score held by more than half of the scores being reduced, otherwise unscored. |
 | max | Reduce to the maximum of all scores. |
 | pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
 | pass_k\_{k} | Probability that all `k` epoch attempts succeed (<https://arxiv.org/pdf/2406.12045>) |

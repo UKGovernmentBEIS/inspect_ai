@@ -197,7 +197,7 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#september-2026" id="toc-september-2026" class="nav-link active" data-scroll-target="#september-2026">0.3.262 (02 September 2026)</a></li>
   <li><a href="#august-2026" id="toc-august-2026" class="nav-link" data-scroll-target="#august-2026">0.3.261 (30 August 2026)</a></li>
   <li><a href="#august-2026-1" id="toc-august-2026-1" class="nav-link" data-scroll-target="#august-2026-1">0.3.260 (21 August 2026)</a></li>
   <li><a href="#august-2026-2" id="toc-august-2026-2" class="nav-link" data-scroll-target="#august-2026-2">0.3.259 (16 August 2026)</a></li>
@@ -465,14 +465,72 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="september-2026" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026">0.3.262 (02 September 2026)</h2>
 <ul>
+<li>Scorer (breaking): Model-graded scorers with a panel of graders now require a strict majority: samples with no majority grade (even-split ties, three-way splits, or ties after a grader returns no parseable grade) come back unscored and leave the metric denominator, rather than the most common grade winning with ties broken by grader order. Pass <code>reducer="mode"</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span> to restore the previous behavior. (#4721)</li>
+<li>Scorer: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span> now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)</li>
+<li>Bugfix: Bump the <code>fsspec</code> upper bound from <code>&lt;=2025.9.0</code> to <code>&lt;=2026.6.0</code> to align with the current <code>huggingface/datasets</code> cap. (#4761)</li>
+<li>Concurrency: <code>max_sandboxes</code> and <code>max_subprocesses</code> now default off the processors the eval may actually use, so an eval in a CPU-limited container no longer oversubscribes its quota.</li>
+<li>Tools: The <code>grep</code> tool now supports extended regex via a new <code>extended_regexp</code> option (patterns remain basic regex by default).</li>
+<li>Tools: Tool call arguments nested deeper than 100 levels are now rejected with a parse error echoed back to the model (previously depths up to ~254 executed and deeper crashed eval logging, aborting the whole run).</li>
+<li>Agent Bridge: Bridged Anthropic requests now preserve <code>system</code> block boundaries, so instruction blocks are no longer silently discarded by the API.</li>
+<li>Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with “thinking … blocks in the latest assistant message cannot be modified”.</li>
+<li>Anthropic: Support for Claude Fable 5.1 and Mythos 5.1 — forced tool choice degrades to auto on both, and history edits no longer fail Fable 5.1’s replayed thinking blocks (first-party API).</li>
+<li>Google: Added model info for Gemini 3.8 Flash and Gemini 3.7 Flash; <code>reasoning_effort="minimal"</code> now maps to <code>low</code> (with a warning) on models that reject minimal thinking rather than failing the request.</li>
+<li>OpenAI: Chat Completions usage now preserves prompt-cache read and write tokens for accurate cache-aware costing.</li>
+<li>Scoring: <code>model_graded_qa</code>/<code>model_graded_fact</code> no longer score a malformed multi-character verdict such as <code>GRADE: CI</code> as correct; such verdicts now leave the sample unscored with <code>grade_parse_failure</code> recorded.</li>
+<li>OpenAI: Fixed background responses failing on transient connection and timeout errors.</li>
+<li>Eval Log: <code>local_path()</code> now percent-decodes <code>file://</code> URLs, restoring the <code>to_uri()</code> round trip for paths with spaces or other encoded characters (affects every consumer of file URLs: log recorders, control-channel state, checkpoint restore, approval policy files). (#5025)</li>
+<li>Bugfix: Sample <code>files</code> values that are empty strings now create empty files in the sandbox rather than recursively copying the runner’s working directory (or the dataset’s directory) into it.</li>
+<li>Scoring: Support tuples and non-list sequences in Target. (#5039)</li>
+<li>Analysis: Fixed <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#task_info">task_info()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#log_viewer">log_viewer()</a></span> raising <code>ValueError</code> when applied to an empty DataFrame. (#4826)</li>
 <li>Eval Set: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> now defaults <code>log_dir</code> to <code>INSPECT_LOG_DIR</code> or <code>./logs</code>, as <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> does, rather than requiring it.</li>
 <li>Eval Set: An external runner driving <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> can now override any argument that does not change task identity, rather than only five.</li>
 <li>Eval Set: An eval set driven by an external runner now honors the <code>INSPECT_EVAL_*</code> environment variables with the same meanings <code>inspect eval-set</code> gives them.</li>
+<li>Eval Set: Eval set selections now support specifying scanners.</li>
 <li>Control Channel: <code>inspect ctl config --max-samples</code> now works for tasks using adaptive connections — an integer pins sample concurrency, and <code>clear</code> resumes adaptive tracking.</li>
 <li>Eval logs: Header-only <code>.eval</code> log uploads to S3 now appear in <code>inspect trace</code> output.</li>
+<li>MCP: A shared <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolsource">ToolSource</a></span> no longer serves one sample’s tools to another; tools are now resolved fresh through the server on every call rather than cached. Sessions are scoped per async task rather than per sample, so a handoff or other subagent’s turn (which runs in its own task) now gets its own connection to a local MCP server rather than reusing its parent’s live session.</li>
+<li>Bugfix: Sustained rate limiting no longer pins the adaptive connection limit after a single reduction; it keeps adapting up and down as conditions change.</li>
+<li>Eval Log: Resolving a log’s attachments no longer discards model call payloads, which previously became unreadable when attachments were resolved.</li>
+<li>Eval Log: Fixed trio evals crashing with <code>ValueError: seek of closed file</code> when writing a <code>.eval</code> log smaller than 8MB to S3.</li>
+<li>Eval Log: Writing a sample whose content cannot be serialized (e.g.&nbsp;score metadata nested beyond pydantic’s depth limit) no longer aborts the eval at flush or finish; the sample is logged with the offending content removed and the removal recorded in its error.</li>
+<li>Eval Log: JSON values in logged events nested deeper than 240 levels are now truncated with a placeholder marker (previously depths up to ~254 were preserved and deeper crashed the eval).</li>
+<li>Inspect CTL: New <code>inspect ctl sample score</code> interim-scores a single running sample’s work-so-far on demand (briefly held while scored; the sample keeps running).</li>
+<li>Score: <code>inspect score</code> now reports samples that errored or were stopped early, so a re-scored partial run is no longer displayed as if it were complete.</li>
+<li>Scorers: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#cascade">cascade()</a></span> scorer runs scorers in order and reports the first that settles a sample, so an expensive grader only runs on samples cheaper scorers left unsettled.</li>
+<li>Agent bridge: Anthropic responses now report thinking tokens in <code>usage.output_tokens_details</code>, so bridged clients can distinguish a reasoning response from a plain one.</li>
+<li>Agent bridge: A bridged request asking for Anthropic <code>output_config.format</code>, OpenAI <code>text.verbosity</code>, or any of Gemini’s <code>thinkingConfig.thinkingBudget</code>, <code>presencePenalty</code>, <code>frequencyPenalty</code>, <code>responseLogprobs</code> and <code>logprobs</code> now gets it, instead of silently receiving the model default.</li>
+<li>Agent bridge: A bridged Gemini response now reports <code>thoughtsTokenCount</code>, so a client can see how many thinking tokens a request used.</li>
+<li>Agent bridge: An invalid generation parameter in a bridged request (e.g.&nbsp;<code>stop_sequences: 5</code>) is now rejected with a 400 instead of being recorded into an event that cannot be read back, which made the whole sample transcript unreadable.</li>
+<li>Agent bridge: A bridged Gemini response’s <code>candidatesTokenCount</code> no longer double-counts thinking tokens alongside <code>thoughtsTokenCount</code>.</li>
+<li>Agent bridge: A bridged structured-output request whose JSON Schema uses keywords Inspect does not model (e.g.&nbsp;<code>$ref</code>) now warns, instead of silently constraining the model more weakly than asked.</li>
+<li>Agent bridge: An invalid response schema or mistyped request field in a bridged OpenAI, Anthropic, or Google request is now rejected with a 400 instead of escaping as a status-less internal error.</li>
+<li>Eval Log: Buffer manifest segment entries are now <code>TypedDict</code>s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.</li>
+<li>Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every <code>log_shared</code> sync.</li>
+<li>Agent bridge: Fixed a tool-approval bypass where a sandboxed agent could run approval-gated <code>bridged_tools</code> by calling the bridge service directly; unapproved host tool calls are now denied.</li>
+<li>Bugfix: Approval policies set on a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> are now recorded in the eval log.</li>
+<li>OpenAI: Responses API requests now omit the <code>id</code> key on synthesized message and reasoning items rather than sending an explicit null, which backends like vLLM reject.</li>
+<li>Hooks: Fixed hooks published by extension packages silently not loading when another hook was already registered at startup.</li>
+<li>Bugfix: Model calls no longer time out during long samples with realtime logging or bounded transcripts enabled.</li>
+<li>Control Channel: <code>inspect ctl sample cancel --action cancel</code> now works on samples that haven’t started — cancelling a never-started sample before it runs and withdrawing (un-requeuing) a queued re-run so its prior outcome stands.</li>
+<li>Crash Recovery: <code>inspect log recover</code>, <code>eval-retry</code>, and <code>eval_set</code> gain <code>--incomplete-action error</code> (with an <code>--incomplete-max</code> guard) to resolve samples that were in progress at a crash as errors and finalize the eval as <code>success</code> instead of endlessly re-running hung samples.</li>
+<li>Crash Recovery: <code>inspect log recover --list</code> now reports <code>total_samples</code> for evals run with <code>--limit</code> or <code>--sample-id</code> as the selected samples times epochs, rather than the full dataset size.</li>
+<li>Metrics: Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#ci_wilson">ci_wilson()</a></span> metric reporting the Wilson score confidence interval for the mean of binary scores (as <code>{"lower", "upper"}</code>), with bounds always within [0, 1]; <code>cluster=</code> computes an effective-sample-size interval accounting for within-cluster correlation.</li>
+<li>Agent Bridge: Image tool results now reach sandboxed agents as MCP image content instead of being flattened to text.</li>
+<li>Scoring: <code>inspect_ai.scorer</code> now exports <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#reference">Reference</a></span>, the model for the message/event references that scanner scores store in metadata (previously importable only from Inspect Scout).</li>
+<li>Moonshot: Sampling parameters (<code>temperature</code>, <code>top_p</code>, penalties) set on Kimi models with thinking disabled are now warned about and ignored instead of causing a 400 error.</li>
+<li>Model API: New <code>stream_idle_timeout</code> option (also retunable live via <code>inspect ctl config</code>) abandons and retries a model call whose streaming response stalls, instead of waiting out the whole-attempt timeout.</li>
+<li>Together: Logprobs requests no longer fail with a 400 on newer models, and <code>top_logprobs</code> is now honored instead of being silently capped at 1.</li>
+<li>Models: <code>on_stream</code> now delivers stream events from the Bedrock, Groq, Mistral (completions API), and Azure AI providers.</li>
+<li>Moonshot: Forcing a tool (or <code>tool_choice="any"</code>) on Kimi models other than K3 no longer fails with a 400 — the request falls back to <code>"auto"</code> with a warning.</li>
+<li>OpenRouter: Requests now carry a per-sample session id, so sticky routing keeps a sample on the provider holding its warm prompt cache.</li>
+<li>Cloudflare: Requests now carry Cloudflare’s session affinity header, which improves prompt cache hit rates for multi-turn samples.</li>
+<li>Mistral: Requests now carry a per-sample prompt cache key, which improves prompt cache hit rates for multi-turn samples (chat completions only; the conversations API does not accept one).</li>
+<li>Scoring: <code>value_to_float()</code> now maps numeric custom <code>correct</code>/<code>incorrect</code>/<code>partial</code>/<code>noanswer</code> values to 1/0/0.5/0 as documented, instead of silently passing them through (e.g.&nbsp;a custom <code>incorrect=-1</code> no longer produces negative accuracy). Default string sentinels and non-finite values are unaffected. (#4928)</li>
+<li>Scoring: <code>value_to_float()</code> matches sentinels with <code>==</code>, so custom numeric sentinels also map equal bools (<code>True == 1.0</code>) and equal elements of list/dict values in score reducers — the same reach the default string sentinels already had; this is now documented. Mapped values are also always returned as floats (the <code>incorrect</code>/<code>noanswer</code> branch previously returned an <code>int</code>). (#4928)</li>
+<li>Fixed a sandbox service (including the sandbox agent bridge) permanently ceasing to answer requests after one slow request, which previously required destroying the sandbox to recover.</li>
 </ul>
 </section>
 <section id="august-2026" class="level2">
@@ -570,6 +628,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Eval Log: Flushing buffered samples to an <code>.eval</code> log now yields between samples, so a large flush no longer stalls in-flight samples and control-channel requests for the whole batch.</li>
 <li>ACP: Emit an <code>inspect/turn_state</code> extension notification (<code>started</code> / <code>ended</code> / <code>cancelled</code>) from the agent turn boundary so ACP clients have an exact “agent working” signal.</li>
 <li>Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in <code>inspect ctl</code> human-readable output, preventing spoofing of the operator’s terminal.</li>
+<li>DeepSeek: structured output (<code>response_schema</code>) no longer fails with a 400 — it now uses DeepSeek’s JSON mode, warning that the schema must be described in the prompt.</li>
 <li>Control Channel: New <code>--now</code> flag on <code>inspect ctl task|model|process pause</code> additionally holds in-flight samples at their next model call until resume, with held-sample counts reported in <code>inspect ctl task list</code>.</li>
 <li>Control Channel: <code>inspect ctl config</code> no longer version-gates individual knobs — current eval processes reject unsupported knobs atomically server-side, and only processes predating strict config validation are refused as a whole.</li>
 <li>Fixed sandbox tools (<code>text_editor</code>, <code>bash_session</code>) failing to install in non-root sandboxes (e.g.&nbsp;Kubernetes pods with <code>runAsNonRoot</code>).</li>
@@ -582,6 +641,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.</li>
 <li>Eval Log: A retry attempt killed before it finishes reusing the prior log’s completed samples no longer causes the next retry to re-run (and eventually lose) those samples.</li>
 <li>Docs: Clarify that the sandbox <code>exec()</code> output limit is enforced by front-truncating the output streams rather than by raising <code>OutputLimitExceededError</code> (which remains the behaviour for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#read_file">read_file()</a></span>). (#4778)</li>
+<li>Agent Bridge: A bridged client that sends the eval model’s concrete id instead of <code>inspect</code> (claude_code sends e.g.&nbsp;<code>claude-fable-5</code>) now resolves to the eval’s own <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#model">Model</a></span> instance rather than a second one built by <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span>, whose memoization key includes the config. Previously such a client got a distinct instance, and since the eval’s <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> is only applied to the active model, eval-level options such as <code>fallback_models</code> were silently dropped before the provider request. Aliases, model roles, and any other model the client names are unaffected.</li>
 </ul>
 </section>
 <section id="august-2026-2" class="level2">
@@ -1558,7 +1618,6 @@ ul.task-list li input[type="checkbox"] {
 <li>Anthropic: Use request level “auto” caching mode for improved prompt caching.</li>
 <li>vLLM: Allow vLLM provider to restart after close().</li>
 <li>Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.</li>
-<li>Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).</li>
 <li>Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).</li>
 <li>Inspect View: Use FastAPI server when <code>fastapi</code> and <code>uvicorn</code> packages are available.</li>
 <li>Inspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)</li>

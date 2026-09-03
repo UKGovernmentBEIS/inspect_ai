@@ -987,6 +987,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>) <span class="im">as</span> bridge:</span>
 <span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Rejection works by telling the model rather than by editing the response: the rejected call and an explanation are replayed to the model, which then generates again. The agent sees only the replacement, so its loop continues normally. See <a href="./approval.html#bridged-agents">Bridged Agents</a> for the full semantics.</p>
+<p>When combining approval policies with <code>bridged_tools</code>, give bridged tools names that are unique across bridged servers and distinct from the agent’s own tools: an approval identifies a call only by function name and arguments, so a name shared with an agent-local tool also authorizes one execution of the same-named bridged tool, and a name shared across bridged servers is ambiguous and will be denied.</p>
 </section>
 <section id="transcript" class="level2">
 <h2 class="anchored" data-anchor-id="transcript">Transcript</h2>

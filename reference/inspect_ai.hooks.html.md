@@ -21,7 +21,7 @@ Because there is exactly one instance, `self` is shared by every eval set, run, 
 
 Event objects passed via `on_sample_event` and the [EvalSample](../reference/inspect_ai.log.html.md#evalsample) passed via `on_sample_end` are owned by the framework. Hook implementations may read these objects and may retain references for inspection, but **must not mutate them in place**. The framework retains references to these objects and may serialize, copy, or further transform them after the hook returns; in-place mutation is undefined behavior. If a hook needs a mutable working copy, call `data.event.model_copy(deep=True)` (or the equivalent on the sample) inside the hook and operate on that copy.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L361)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L361)
 
 ``` python
 class Hooks
@@ -38,7 +38,7 @@ Hooks may wish to override this to e.g. check the presence of an environment va
 
 Will be called frequently, so consider caching the result if the computation is expensive.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L399)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L399)
 
 ``` python
 def enabled(self) -> bool
@@ -49,7 +49,7 @@ On eval set start.
 
 A “eval set” is an invocation of [eval_set()](../reference/inspect_ai.html.md#eval_set) for a log directory. Note that the `eval_set_id` will be stable across multiple invocations of [eval_set()](../reference/inspect_ai.html.md#eval_set) for the same log directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L412)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L412)
 
 ``` python
 async def on_eval_set_start(self, data: EvalSetStart) -> None
@@ -61,7 +61,7 @@ Eval set start data.
 on_eval_set_end  
 On eval set end.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L424)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L424)
 
 ``` python
 async def on_eval_set_end(self, data: EvalSetEnd) -> None
@@ -75,7 +75,7 @@ On run start.
 
 A “run” is a single invocation of [eval()](../reference/inspect_ai.html.md#eval) or [eval_retry()](../reference/inspect_ai.html.md#eval_retry) which may contain many Tasks, each with many Samples and many epochs. Note that [eval_retry()](../reference/inspect_ai.html.md#eval_retry) can be invoked multiple times within an [eval_set()](../reference/inspect_ai.html.md#eval_set).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L432)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L432)
 
 ``` python
 async def on_run_start(self, data: RunStart) -> None
@@ -87,7 +87,7 @@ Run start data.
 on_run_end  
 On run end.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L444)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L444)
 
 ``` python
 async def on_run_end(self, data: RunEnd) -> None
@@ -99,7 +99,7 @@ Run end data.
 on_task_start  
 On task start.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L452)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L452)
 
 ``` python
 async def on_task_start(self, data: TaskStart) -> None
@@ -111,7 +111,7 @@ Task start data.
 on_task_end  
 On task end.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L460)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L460)
 
 ``` python
 async def on_task_end(self, data: TaskEnd) -> None
@@ -129,7 +129,7 @@ If the sample errors and retries, this will not be called again.
 
 If a sample is run for multiple epochs, this will be called once per epoch.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L468)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L468)
 
 ``` python
 async def on_sample_init(self, data: SampleInit) -> None
@@ -145,7 +145,7 @@ Called when a sample is about to be start. If the sample errors and retries, thi
 
 If a sample is run for multiple epochs, this will be called once per epoch.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L484)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L484)
 
 ``` python
 async def on_sample_start(self, data: SampleStart) -> None
@@ -159,7 +159,7 @@ On sample event.
 
 Called when a sample event is emmitted. Pending events are not logged here (i.e. ToolEvent and ModelEvent are not logged until they are complete).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L497)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L497)
 
 ``` python
 async def on_sample_event(self, data: SampleEvent) -> None
@@ -175,7 +175,7 @@ Called when a sample has either completed successfully, or when a sample has err
 
 If a sample is run for multiple epochs, this will be called once per epoch.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L509)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L509)
 
 ``` python
 async def on_sample_end(self, data: SampleEnd) -> None
@@ -191,7 +191,7 @@ This is called before cache lookup and before model API access verification, so 
 
 Note that this fires inside the retry wrapper, so it will be called on each retry attempt, not just the first.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L522)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L522)
 
 ``` python
 async def on_before_model_generate(self, data: BeforeModelGenerate) -> None
@@ -205,7 +205,7 @@ Called before a model call is retried after a transient failure.
 
 Fires once per retry (i.e. not for the initial attempt), before the backoff sleep. Useful for surfacing how much time is spent in rate limiting and other retries (see `data.wait_time` for the upcoming backoff duration).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L537)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L537)
 
 ``` python
 async def on_model_retry(self, data: ModelRetry) -> None
@@ -219,7 +219,7 @@ On sample attempt start.
 
 Fired at the beginning of every attempt (including the first). Unlike on_sample_start which fires once per sample, this fires on retries too.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L550)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L550)
 
 ``` python
 async def on_sample_attempt_start(self, data: SampleAttemptStart) -> None
@@ -233,7 +233,7 @@ On sample attempt end.
 
 Fired at the end of every attempt (including the last). Unlike on_sample_end which fires once per sample, this fires on retries too.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L561)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L561)
 
 ``` python
 async def on_sample_attempt_end(self, data: SampleAttemptEnd) -> None
@@ -247,7 +247,7 @@ Called when a call to a model’s generate() method completes successfully witho
 
 Note that this is not called when Inspect’s local cache is used and is a cache hit (i.e. if no external API call was made). Provider-side caching will result in this being called.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L572)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L572)
 
 ``` python
 async def on_model_usage(self, data: ModelUsageData) -> None
@@ -259,7 +259,7 @@ Model usage data.
 on_model_cache_usage  
 Called when a call to a model’s generate() method completes successfully by hitting Inspect’s local cache.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L584)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L584)
 
 ``` python
 async def on_model_cache_usage(self, data: ModelCacheUsageData) -> None
@@ -273,7 +273,7 @@ Called before the sample is scored.
 
 Can be used by hooks to demarcate the end of solver execution and the start of scoring.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L592)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L592)
 
 ``` python
 async def on_sample_scoring(self, data: SampleScoring) -> None
@@ -287,7 +287,7 @@ Optionally override an API key.
 
 When overridden, this method may return a new API key value which will be used in place of the original one during the eval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L602)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L602)
 
 ``` python
 def override_api_key(self, data: ApiKeyOverride) -> str | None
@@ -304,7 +304,7 @@ Either decorate a subclass of [Hooks](../reference/inspect_ai.hooks.html.md#hook
 
 Instantiation happens eagerly, when the decorator runs (i.e. when the defining module is imported), and the resulting instance is reused for every event for the lifetime of the process. See [Hooks](../reference/inspect_ai.hooks.html.md#hooks) for what that implies for instance state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L620)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L620)
 
 ``` python
 def hooks(name: str, description: str) -> Callable[..., Type[T]]
@@ -322,7 +322,7 @@ Short description of the hook (e.g. “Copies eval files to S3 bucket for audit
 
 Api key override hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L351)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L351)
 
 ``` python
 @dataclass(frozen=True)
@@ -341,7 +341,7 @@ The original value of the environment variable.
 
 Model usage hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L245)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L245)
 
 ``` python
 @dataclass(frozen=True)
@@ -378,7 +378,7 @@ The number of HTTP retries made before the successful call.
 
 Model retry hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L310)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L310)
 
 ``` python
 @dataclass(frozen=True)
@@ -421,7 +421,7 @@ The HTTP status code of the failure that triggered the retry (e.g. 429 or 503),
 
 Eval set start hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L39)
 
 ``` python
 @dataclass(frozen=True)
@@ -440,7 +440,7 @@ The log directory for the eval set.
 
 Eval set end event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L51)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L51)
 
 ``` python
 @dataclass(frozen=True)
@@ -459,7 +459,7 @@ The log directory for the eval set.
 
 Run end hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L75)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L75)
 
 ``` python
 @dataclass(frozen=True)
@@ -484,7 +484,7 @@ All eval logs generated during the run. Can be headers only if the run was an [e
 
 Run start hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L63)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L63)
 
 ``` python
 @dataclass(frozen=True)
@@ -506,7 +506,7 @@ The names of the tasks which will be used in the run.
 
 Sample end hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L181)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L181)
 
 ``` python
 @dataclass(frozen=True)
@@ -534,7 +534,7 @@ The sample that has run.
 
 Sample init hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L133)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L133)
 
 ``` python
 @dataclass(frozen=True)
@@ -562,7 +562,7 @@ Summary of the sample to be initialized.
 
 Sample start hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L149)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L149)
 
 ``` python
 @dataclass(frozen=True)
@@ -592,7 +592,7 @@ Sample attempt start hook event data.
 
 Fired at the beginning of every attempt (including the first). Unlike on_sample_start which fires once per sample, this fires on retries too.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L197)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L197)
 
 ``` python
 @dataclass(frozen=True)
@@ -625,7 +625,7 @@ Sample attempt end hook event data.
 
 Fired at the end of every attempt (including the last). Unlike on_sample_end which fires once per sample, this fires on retries too.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L219)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L219)
 
 ``` python
 @dataclass(frozen=True)
@@ -662,7 +662,7 @@ Whether the sample will be retried after this attempt.
 
 Sample event hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L165)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L165)
 
 ``` python
 @dataclass(frozen=True)
@@ -690,7 +690,7 @@ Sample events.
 
 Task end hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L118)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L118)
 
 ``` python
 @dataclass(frozen=True)
@@ -715,7 +715,7 @@ The log generated for the task. Can be header only if the run was an [eval_set()
 
 Task start hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/40fdcf61fbc907fb52f473a01b7ec5a742d11e28/src/inspect_ai/hooks/_hooks.py#L91)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2fb4ad92ee557c24f45c59c76b7422c2deffaf7/src/inspect_ai/hooks/_hooks.py#L91)
 
 ``` python
 @dataclass(frozen=True)

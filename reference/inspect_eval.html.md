@@ -62,10 +62,11 @@ inspect eval [OPTIONS] [TASKS]...
 | `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | `Sentinel.UNSET` |
 | `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | `Sentinel.UNSET` |
 | `--attempt-timeout` | integer | Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries). | `Sentinel.UNSET` |
+| `--stream-idle-timeout` | integer | Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries). Setting it requests streaming; it has no effect on calls that do not stream. | `Sentinel.UNSET` |
 | `--max-samples` | integer | Maximum number of samples to run in parallel (default is running all samples in parallel) | `Sentinel.UNSET` |
 | `--max-dataset-memory` | integer range (`0` and above) | Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk. | `Sentinel.UNSET` |
 | `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set) | `Sentinel.UNSET` |
-| `--max-subprocesses` | integer | Maximum number of subprocesses to run in parallel (default is os.cpu_count()) | `Sentinel.UNSET` |
+| `--max-subprocesses` | integer | Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval) | `Sentinel.UNSET` |
 | `--max-sandboxes` | integer | Maximum number of sandboxes (per-provider) to run in parallel. | `Sentinel.UNSET` |
 | `--message-limit` | integer | Limit on total messages used for each sample. | `Sentinel.UNSET` |
 | `--token-limit` | text | Limit on tokens used for each sample (e.g. 500000, ‘500k’, or ‘1m’; prefix with ‘output:’ to limit only output tokens, e.g. ‘output:1m’, or with a formula over ‘input’/‘output’, e.g. ’(input\*0.1)+output:1m’). | `Sentinel.UNSET` |
