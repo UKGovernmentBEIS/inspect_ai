@@ -313,8 +313,13 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 
 
 # Root is only useful if it can switch users; e.g. `cap_drop: [ALL]` leaves root
-# without CAP_SETGID/CAP_SETUID, so the tools must run as the default user instead.
-_ROOT_CAPS_CMD = 'while read k v; do case "$k" in CapEff:) echo "$v";; esac; done < /proc/self/status'
+# without CAP_SETGID/CAP_SETUID, and a user namespace may deny setgroups(), so the
+# tools must run as the default user instead. Prints CapEff then the setgroups mode.
+_ROOT_CAPS_CMD = (
+    'while read k v; do case "$k" in CapEff:) echo "$v";; esac; done < /proc/self/status;'
+    " if [ -e /proc/self/setgroups ]; then read s < /proc/self/setgroups; else s=allow; fi;"
+    ' echo "$s"'
+)
 _SWITCH_USER_CAPS = (1 << 6) | (1 << 7)  # CAP_SETGID | CAP_SETUID
 
 
@@ -334,13 +339,15 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     """
     try:
         caps = await sandbox.exec(["/bin/sh", "-c", _ROOT_CAPS_CMD], user="root")
+        cap_eff, setgroups = caps.stdout.split()
         if not caps.success or (
-            int(caps.stdout.strip(), 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
+            int(cap_eff, 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
+            or setgroups != "allow"
         ):
             trace_message(
                 logger,
                 TRACE_SANDBOX_TOOLS,
-                f"root cannot switch users (CapEff {caps.stdout.strip()!r}); "
+                f"root cannot switch users (CapEff {cap_eff}, setgroups {setgroups}); "
                 "falling back to default user",
             )
             return False

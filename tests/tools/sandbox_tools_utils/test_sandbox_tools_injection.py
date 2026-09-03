@@ -124,8 +124,10 @@ def is_identity_probe(cmd: list[str]) -> bool:
     return cmd[:2] == ["/bin/sh", "-c"] and "Uid:" in cmd[2]
 
 
-def caps_probe_result(cap_eff: str) -> ExecResult[str]:
-    return ExecResult(success=True, returncode=0, stdout=f"{cap_eff}\n", stderr="")
+def caps_probe_result(cap_eff: str, setgroups: str = "allow") -> ExecResult[str]:
+    return ExecResult(
+        success=True, returncode=0, stdout=f"{cap_eff}\n{setgroups}\n", stderr=""
+    )
 
 
 ROOT_CAPS = caps_probe_result("000001ffffffffff")
@@ -692,21 +694,22 @@ def test_parse_default_user() -> None:
 
 
 @pytest.mark.parametrize(
-    "cap_eff",
+    "cap_eff, setgroups",
     [
-        pytest.param("0000000000000000", id="cap_drop-all"),
-        pytest.param("0000000000000040", id="setgid-without-setuid"),
+        pytest.param("0000000000000000", "allow", id="cap_drop-all"),
+        pytest.param("0000000000000040", "allow", id="setgid-without-setuid"),
+        pytest.param("000001ffffffffff", "deny", id="setgroups-denied"),
     ],
 )
 async def test_inject_falls_back_when_root_cannot_switch_users(
-    stub_artifact: dict[str, object], cap_eff: str
+    stub_artifact: dict[str, object], cap_eff: str, setgroups: str
 ) -> None:
-    """Root without CAP_SETUID/CAP_SETGID cannot run tools as the default user."""
+    """Root that cannot switch identity must not run tools as the default user."""
 
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        return (
-            caps_probe_result(cap_eff) if is_caps_probe(cmd) else helper_ok(cmd, user)
-        )
+        if is_caps_probe(cmd):
+            return caps_probe_result(cap_eff, setgroups)
+        return helper_ok(cmd, user)
 
     sandbox = CannedSandbox(policy)
     await sandbox_tools._inject_container_tools_code(sandbox)
