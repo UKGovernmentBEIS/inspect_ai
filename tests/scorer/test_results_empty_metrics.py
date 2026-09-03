@@ -41,3 +41,36 @@ def test_all_unscored_scalar_metric_still_flat_nan():
     assert len(metrics) == 1
     only = next(iter(metrics.values()))
     assert math.isnan(only.value)
+
+
+def test_all_unscored_list_path_grouped_reports_shaped_key():
+    # Same fence on the list path: an all-unscored run must not collapse to a
+    # single flat NaN row named after the metric.
+    from inspect_ai._eval.task.results import scorer_for_metrics
+
+    metric = grouped(mean(), group_key="group")
+    results = scorer_for_metrics(
+        scorer_name="test_scorer",
+        scorer_info=ScorerInfo(name="test_scorer", metrics=None),
+        sample_scores=_unscored(),
+        metrics=[metric],
+    )
+    names = {m.name for r in results for m in r.metrics.values()}
+    assert "all" in names
+    for r in results:
+        for m in r.metrics.values():
+            assert math.isnan(m.value)
+
+
+def test_all_unscored_list_path_scalar_metric_still_flat_nan():
+    from inspect_ai._eval.task.results import scorer_for_metrics
+
+    results = scorer_for_metrics(
+        scorer_name="test_scorer",
+        scorer_info=ScorerInfo(name="test_scorer", metrics=None),
+        sample_scores=_unscored(),
+        metrics=[accuracy()],
+    )
+    assert len(results) == 1
+    assert len(results[0].metrics) == 1
+    assert math.isnan(next(iter(results[0].metrics.values())).value)
