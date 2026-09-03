@@ -241,6 +241,8 @@ async with sandbox_agent_bridge(
 
 Rejection works by telling the model rather than by editing the response: the rejected call and an explanation are replayed to the model, which then generates again. The agent sees only the replacement, so its loop continues normally. See [Bridged Agents](approval.qmd#bridged-agents) for the full semantics.
 
+When combining approval policies with `bridged_tools`, give bridged tools names that are unique across bridged servers and distinct from the agent's own tools: an approval identifies a call only by function name and arguments, so a name shared with an agent-local tool also authorizes one execution of the same-named bridged tool, and a name shared across bridged servers is ambiguous and will be denied.
+
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.

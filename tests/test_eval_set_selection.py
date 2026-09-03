@@ -1,8 +1,10 @@
 import json
 import os
+import socket
 import subprocess
 import sys
 import textwrap
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -14,20 +16,27 @@ from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
     EvalSetCapture,
 )
+from inspect_ai._eval.eval_set_overrides import (
+    INSPECT_EVAL_SET_OVERRIDES,
+    EvalSetOverrides,
+)
 from inspect_ai._eval.eval_set_selection import (
     EVAL_SET_SELECTION_VERSION,
     INSPECT_EVAL_SET_SELECTION,
     EvalSetSelection,
-    EvalSetSelectionOverrides,
     EvalSetSelectionTask,
+    read_eval_set_selection,
 )
 from inspect_ai._eval.evalset import task_identifier
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import Score, Scorer, Target, exact, scorer
 from inspect_ai.scorer._metrics import accuracy
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util._checkpoint import CheckpointConfig
+from inspect_ai.util._checkpoint._triggers.types import TokenInterval
 
 MODELS = ["mockllm/model", "mockllm/model2"]
 
@@ -450,6 +459,170 @@ def test_eval_set_selection_forces_fail_on_error_off(
     assert logs[0].results.completed_samples == 1
 
 
+def _acp_probe_tasks(
+    observed: list[bool], discovered: list[tuple[int, str]] | None = None
+) -> list[Task]:
+    """One sample that records whether ACP is the live human channel."""
+
+    @solver
+    def observe_acp() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            from inspect_ai.agent._acp.discovery import list_discovered_evals
+            from inspect_ai.agent._acp.server import acp_server_accepting_clients
+
+            observed.append(acp_server_accepting_clients())
+            if discovered is not None:
+                discovered.extend(
+                    (e.pid, str(e.target.socket_path)) for e in list_discovered_evals()
+                )
+            return state
+
+        return solve
+
+    @scorer(metrics=[accuracy()])
+    def always_correct() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value="C")
+
+        return score
+
+    return [
+        Task(
+            dataset=[Sample(id="one", input="one")],
+            solver=observe_acp(),
+            scorer=always_correct(),
+            name="acp_probe",
+        )
+    ]
+
+
+@pytest.fixture
+def short_acp_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """Point the ACP discovery dir at /tmp so AF_UNIX paths fit in 104 bytes.
+
+    pytest's `tmp_path` is buried under `/private/var/folders/...` on macOS,
+    which is over the limit before the socket name is appended.
+    """
+    import shutil
+    import tempfile
+
+    dirpath = Path(tempfile.mkdtemp(prefix="acp_", dir="/tmp"))
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
+        lambda subdir: _mkdir(dirpath / (subdir or "")),
+    )
+    try:
+        yield dirpath
+    finally:
+        shutil.rmtree(dirpath, ignore_errors=True)
+
+
+@pytest.mark.skipif(
+    not hasattr(socket, "AF_UNIX"), reason="AF_UNIX sockets not available."
+)
+def test_eval_set_selection_binds_an_acp_server(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, short_acp_dir: Path
+) -> None:
+    """A selection-mode worker is reachable over ACP without being asked.
+
+    Detached, the human-input chain is ACP -> Textual panel -> console, and a
+    worker has neither of the last two. Binding the server is what turns
+    `approver: human` and `ask_user()` from an errored sample in a successful
+    log into a sample that parks for someone to attach to.
+    """
+    observed: list[bool] = []
+    discovered: list[tuple[int, str]] = []
+
+    kwargs: dict[str, Any] = dict(
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        display="plain",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest_path))
+    try:
+        with pytest.raises(SystemExit):
+            eval_set(tasks=_acp_probe_tasks([]), **kwargs)
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_CAPTURE)
+    capture = EvalSetCapture.model_validate_json(manifest_path.read_bytes())
+    # nothing bound during the enumeration pass -- it never runs a sample
+    assert observed == []
+
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        selection_for(capture.tasks[0].identifier).model_dump_json()
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+    try:
+        success, logs = eval_set(tasks=_acp_probe_tasks(observed, discovered), **kwargs)
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+
+    assert success
+    assert logs[0].status == "success"
+    # the routing shims commit to ACP rather than falling through to a panel
+    # and a console that are not there
+    assert observed == [True]
+    # and the socket is discoverable from the pid, which is all an external
+    # runner knows about the worker it spawned
+    expected = (short_acp_dir / "acp" / f"{os.getpid()}.sock").resolve()
+    assert discovered == [(os.getpid(), str(expected))]
+
+
+def test_eval_set_selection_fails_on_an_unbindable_acp_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A worker that cannot bind its ACP server fails at startup.
+
+    Worker mode is detached: ACP *is* the human channel, and the panel and
+    console the routing would otherwise fall through to are a display that
+    does not exist and a closed stdin. So a path that cannot be bound (here,
+    one past the `sun_path` limit) is not a lost surface with a fallback
+    behind it -- it is a worker that would run until something asked for a
+    person and then error a sample, which is worth refusing up front.
+    """
+    too_long = tmp_path / ("d" * 120)
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
+        lambda subdir: _mkdir(too_long / (subdir or "")),
+    )
+
+    observed: list[bool] = []
+    kwargs: dict[str, Any] = dict(
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        display="plain",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest_path))
+    try:
+        with pytest.raises(SystemExit):
+            eval_set(tasks=_acp_probe_tasks([]), **kwargs)
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_CAPTURE)
+    capture = EvalSetCapture.model_validate_json(manifest_path.read_bytes())
+
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        selection_for(capture.tasks[0].identifier).model_dump_json()
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+    try:
+        with pytest.raises(OSError, match="path too long"):
+            eval_set(tasks=_acp_probe_tasks(observed), **kwargs)
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+
+    # it failed before running a sample rather than while pretending to work
+    assert observed == []
+
+
+def _mkdir(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path.resolve()
+
+
 def test_eval_set_selection_honors_retry_on_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -527,7 +700,7 @@ def test_eval_set_selection_log_dir_override(
     definition_log_dir = tmp_path / "definition-logs"
     override_log_dir = tmp_path / "scratch" / "smoke"
     selection = selection_for(selected.identifier)
-    selection.overrides = EvalSetSelectionOverrides(log_dir=str(override_log_dir))
+    selection.overrides = EvalSetOverrides(log_dir=str(override_log_dir))
 
     success, logs = run_selection(monkeypatch, tmp_path, selection, definition_log_dir)
 
@@ -551,7 +724,7 @@ def test_eval_set_selection_max_samples_override(
     selected = capture.tasks[0]
 
     selection = selection_for(selected.identifier)
-    selection.overrides = EvalSetSelectionOverrides(max_samples=3)
+    selection.overrides = EvalSetOverrides(max_samples=3)
 
     success, logs = run_selection(
         monkeypatch,
@@ -563,6 +736,35 @@ def test_eval_set_selection_max_samples_override(
 
     assert success
     assert logs[0].eval.config.max_samples == 3
+
+
+def test_eval_set_selection_run_wide_overrides_reach_a_worker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The run-wide document reaches a worker, and the worker's own container wins.
+
+    The two halves of the split: what is true of the run is said once, where
+    capture sees it too, and what differs between workers is said in the
+    selection. A worker that names its own `max_samples` still inherits the
+    run's `max_sandboxes`.
+    """
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    selected = capture.tasks[0]
+
+    overrides_path = tmp_path / "overrides.json"
+    overrides_path.write_text(
+        json.dumps({"max_samples": 2, "max_sandboxes": 5}), encoding="utf-8"
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_OVERRIDES, str(overrides_path))
+
+    selection = selection_for(selected.identifier)
+    selection.overrides = EvalSetOverrides(max_samples=3)
+
+    success, logs = run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
+
+    assert success
+    assert logs[0].eval.config.max_samples == 3
+    assert logs[0].eval.config.max_sandboxes == 5
 
 
 def test_eval_set_selection_limit_override(
@@ -580,7 +782,7 @@ def test_eval_set_selection_limit_override(
     selected = next(t for t in capture.tasks if t.name == "selection_task_one")
 
     selection = selection_for(selected.identifier)
-    selection.overrides = EvalSetSelectionOverrides(limit=1)
+    selection.overrides = EvalSetOverrides(limit=1)
 
     success, logs = run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
 
@@ -598,7 +800,7 @@ def test_eval_set_selection_limit_override_as_a_range(
     selected = next(t for t in capture.tasks if t.name == "selection_task_one")
 
     selection = selection_for(selected.identifier)
-    selection.overrides = EvalSetSelectionOverrides(limit=(1, 2))
+    selection.overrides = EvalSetOverrides(limit=(1, 2))
 
     success, logs = run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
 
@@ -621,7 +823,7 @@ def test_eval_set_selection_max_sandboxes_override(
     selected = capture.tasks[0]
 
     selection = selection_for(selected.identifier)
-    selection.overrides = EvalSetSelectionOverrides(max_sandboxes=2)
+    selection.overrides = EvalSetOverrides(max_sandboxes=2)
 
     success, logs = run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
 
@@ -648,7 +850,7 @@ def test_eval_set_selection_max_tasks_override(
         version=EVAL_SET_SELECTION_VERSION,
         eval_set_id="worker-test",
         tasks=[EvalSetSelectionTask(identifier=t.identifier) for t in selected],
-        overrides=EvalSetSelectionOverrides(max_tasks=2),
+        overrides=EvalSetOverrides(max_tasks=2),
     )
 
     success, logs = run_selection(
@@ -700,7 +902,7 @@ def test_eval_set_selection_overrides_default_to_the_definition(
 
     # and a container present but silent about a field is the same answer, which
     # is the case a runner setting only `log_dir` actually writes
-    selection.overrides = EvalSetSelectionOverrides(log_dir=str(log_dir))
+    selection.overrides = EvalSetOverrides(log_dir=str(log_dir))
     success, logs = run_selection(
         monkeypatch, tmp_path, selection, log_dir, max_samples=7, name="partial"
     )
@@ -735,7 +937,7 @@ def test_eval_set_selection_invalid_override(
 ) -> None:
     """A nonsense override is a runner bug, reported rather than silently applied."""
     selection = selection_for("unused@unused#unused/unused/unused")
-    selection.overrides = EvalSetSelectionOverrides.model_validate({field: value})
+    selection.overrides = EvalSetOverrides.model_validate({field: value})
     with pytest.raises(PrerequisiteError, match=match):
         run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
 
@@ -1020,19 +1222,6 @@ def test_eval_set_selection_task_source_error(
         )
 
 
-def test_eval_set_selection_scanner_error(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    with pytest.raises(PrerequisiteError, match="Scanners are not supported"):
-        run_selection(
-            monkeypatch,
-            tmp_path,
-            selection_for("anything"),
-            tmp_path / "logs",
-            scanner=[],
-        )
-
-
 def test_eval_set_selection_parks_for_keep_alive(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1165,6 +1354,71 @@ _EXPECTED_SELECTION_FIELDS: dict[int, dict[str, set[str]]] = {
             "max_tasks",
         },
     },
+    # v6 stopped curating the override set and derived it. The rule -- an
+    # eval-set argument is overridable iff `task_identifier()` ignores it -- was
+    # already computed by evalset.py, so the five fields above were an arbitrary
+    # subset of a principled line rather than a line of their own. The container
+    # also moved to `eval_set_overrides.py`, because a run-wide document now
+    # carries the same shape and capture honours it; see
+    # `test_eval_set_overrides.py`, which fails by name when an `eval_set()`
+    # parameter lands in neither half of the partition.
+    6: {
+        "selection": {"version", "eval_set_id", "tasks", "overrides"},
+        "task": {"identifier", "resume", "registry_name", "args_hash"},
+        "overrides": {
+            "approval",
+            "checkpoint",
+            "debug_errors",
+            "display",
+            "epochs",
+            "generate_config",
+            "limit",
+            "log_buffer",
+            "log_dir",
+            "log_format",
+            "log_images",
+            "log_level",
+            "log_level_transcript",
+            "log_model_api",
+            "log_realtime",
+            "log_refusals",
+            "log_samples",
+            "log_shared",
+            "max_dataset_memory",
+            "max_samples",
+            "max_sandboxes",
+            "max_subprocesses",
+            "max_tasks",
+            "metadata",
+            "model_base_url",
+            "model_cost_config",
+            "notification",
+            "retry_on_error",
+            "sample_id",
+            "sample_shuffle",
+            "sandbox",
+            "sandbox_cleanup",
+            "sandbox_prebuilt",
+            "score",
+            "score_display",
+            "score_on_error",
+            "tags",
+            "trace",
+        },
+    },
+}
+
+# v7 added `scanners` to the selection itself: runner-injected scanner specs,
+# merged with the definition's own before per-sample dispatch. A selection
+# field rather than an override because the semantics are merge, not replace —
+# no definition value is displaced — and because it may make a worker scan in
+# a definition that declares no scanners at all. Arrived with record-only
+# scanning (workers dispatch and buffer; the runner owns the scan directory's
+# lifecycle), which is also when selection mode stopped rejecting `scanner`.
+_EXPECTED_SELECTION_FIELDS[7] = {
+    "selection": {"version", "eval_set_id", "tasks", "overrides", "scanners"},
+    "task": _EXPECTED_SELECTION_FIELDS[6]["task"],
+    "overrides": _EXPECTED_SELECTION_FIELDS[6]["overrides"],
 }
 
 
@@ -1173,13 +1427,153 @@ def test_eval_set_selection_schema_stability() -> None:
     expected = _EXPECTED_SELECTION_FIELDS[EVAL_SET_SELECTION_VERSION]
     assert set(EvalSetSelection.model_fields.keys()) == expected["selection"]
     assert set(EvalSetSelectionTask.model_fields.keys()) == expected["task"]
-    assert set(EvalSetSelectionOverrides.model_fields.keys()) == expected["overrides"]
+    assert set(EvalSetOverrides.model_fields.keys()) == expected["overrides"]
     # the field sets above are the whole format: loosening this would let a
     # runner's typo through as a silently dropped field
     assert EvalSetSelection.model_config.get("extra") == "forbid"
     assert EvalSetSelectionTask.model_config.get("extra") == "forbid"
-    assert EvalSetSelectionOverrides.model_config.get("extra") == "forbid"
+    assert EvalSetOverrides.model_config.get("extra") == "forbid"
     # and no override may participate in task identity, which is what stops one
     # desynchronizing a worker from the capture manifest. `time_limit` is the
-    # field this rules out, so its absence is the assertion worth making
-    assert "time_limit" not in EvalSetSelectionOverrides.model_fields
+    # field this rules out, so its absence is the assertion worth making --
+    # `test_eval_set_overrides.py` makes the general one, over the whole of
+    # `eval_set()`'s signature
+    assert "time_limit" not in EvalSetOverrides.model_fields
+
+
+# --- the override container's contents are gated one by one ------------------
+
+
+def test_every_override_field_has_a_version() -> None:
+    """Derived rather than listed, so a field added upstream is gated anyway.
+
+    The named entries are the historical ones; everything else arrived with the
+    identity-neutral expansion in version 6. If a future field needs a version
+    of its own, it goes in the dict — and this fails only if the dict names a
+    field the container does not have, which is the drift worth catching.
+    """
+    from inspect_ai._eval.eval_set_selection import _OVERRIDE_FIELD_INTRODUCED
+
+    unknown = set(_OVERRIDE_FIELD_INTRODUCED) - set(EvalSetOverrides.model_fields)
+    assert unknown == set(), sorted(unknown)
+
+
+VERSIONED: list[tuple[str, int, dict[str, Any], bool]] = [
+    ("a version 6 field under version 5", 5, {"metadata": {"a": 1}}, False),
+    ("a version 6 field under version 6", 6, {"metadata": {"a": 1}}, True),
+    ("a version 4 field under version 5", 5, {"max_tasks": 2}, True),
+    ("a version 4 field under version 3", 3, {"max_tasks": 2}, False),
+    ("a version 3 field under version 3", 3, {"log_dir": "/logs"}, True),
+    ("the container itself under version 2", 2, {"log_dir": "/logs"}, False),
+]
+
+
+@pytest.mark.parametrize(
+    ("version", "overrides", "accepted"),
+    [(version, overrides, ok) for _, version, overrides, ok in VERSIONED],
+    ids=[case for case, _, _, _ in VERSIONED],
+)
+def test_an_override_newer_than_the_declared_version_is_refused(
+    version: int, overrides: dict[str, Any], accepted: bool, tmp_path: Path
+) -> None:
+    """Gating the container alone left the check dishonest about its own rule.
+
+    An older inspect forbids extras, so it fails on an unknown override rather
+    than ignoring one — the outcome is safe either way. What was not safe is
+    *where* it fails: a document declaring version 5 and setting `metadata` was
+    accepted here and rejected there, so the split surfaced in the one
+    deployment still running an older inspect rather than on the machine that
+    wrote the document.
+    """
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": version,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a"}],
+                "overrides": overrides,
+            }
+        )
+    )
+
+    if accepted:
+        assert read_eval_set_selection(str(path)) is not None
+    else:
+        with pytest.raises(PrerequisiteError, match="schema version"):
+            read_eval_set_selection(str(path))
+
+
+@pytest.mark.parametrize(
+    ("version", "accepted"),
+    [(6, False), (7, True)],
+    ids=["scanners under version 6", "scanners under version 7"],
+)
+def test_selection_scanners_are_gated_at_version_7(
+    version: int, accepted: bool, tmp_path: Path
+) -> None:
+    """`scanners` is a selection field, so it gets the same on-the-writer's-machine gate the overrides container does."""
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": version,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a"}],
+                "scanners": {"probe_scanner": {"name": "probe_scanner"}},
+            }
+        )
+    )
+
+    if accepted:
+        assert read_eval_set_selection(str(path)) is not None
+    else:
+        with pytest.raises(PrerequisiteError, match="schema version"):
+            read_eval_set_selection(str(path))
+
+
+def test_selection_with_empty_scanners_mapping_is_refused(tmp_path: Path) -> None:
+    """An empty mapping says "inject scanners" and names none — a runner bug, reported rather than read as no injection."""
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": EVAL_SET_SELECTION_VERSION,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a"}],
+                "scanners": {},
+            }
+        )
+    )
+    with pytest.raises(PrerequisiteError, match="empty mapping"):
+        read_eval_set_selection(str(path))
+
+
+def test_a_whole_selection_survives_being_written_and_read_back(
+    tmp_path: Path,
+) -> None:
+    """The document a worker is handed is one a runner wrote with `model_dump_json()`.
+
+    So the round trip is the contract, not an incidental property — and it was
+    broken two ways at once: a `token` checkpoint trigger came back as `turn`,
+    and the nulls a full dump writes for every unset generate-config member
+    came back in `model_fields_set` and failed the identity check.
+    """
+    selection = EvalSetSelection(
+        version=EVAL_SET_SELECTION_VERSION,
+        eval_set_id="probe",
+        tasks=[EvalSetSelectionTask(identifier="a")],
+        overrides=EvalSetOverrides(
+            limit=5,
+            generate_config=GenerateConfig(max_connections=4),
+            checkpoint=CheckpointConfig(trigger=TokenInterval(every=500_000)),
+        ),
+    )
+    path = tmp_path / "selection.json"
+    path.write_text(selection.model_dump_json())
+
+    back = read_eval_set_selection(str(path))
+
+    assert back == selection
+    assert back.overrides is not None and selection.overrides is not None
+    assert back.overrides.checkpoint == selection.overrides.checkpoint

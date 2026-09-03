@@ -26,6 +26,7 @@ def grep(
         path: str = ".",
         glob: str | None = None,
         fixed_strings: bool = False,
+        extended_regexp: bool = False,
         output_mode: Literal["content", "files_with_matches", "count"] = "content",
     ) -> str:
         """Search for a pattern in files.
@@ -35,13 +36,16 @@ def grep(
 
         Args:
             pattern: Regular expression pattern to search for
-                (or literal string if fixed_strings is True).
+                (or literal string if fixed_strings is True). Uses
+                grep's basic regex (BRE) by default.
             path: File or directory to search (defaults to working
                 directory).
             glob: Glob pattern to filter which files to search
                 (e.g. "*.py").
             fixed_strings: If True, treat pattern as a literal string
                 rather than a regular expression.
+            extended_regexp: If True, use extended regex (ERE).
+                Mutually exclusive with fixed_strings.
             output_mode: Output format. "content" returns matching
                 lines with file paths and line numbers. "files_with_matches"
                 returns only file paths containing matches. "count"
@@ -50,6 +54,8 @@ def grep(
         cmd = ["grep", "-rn"]
         if fixed_strings:
             cmd.append("-F")
+        if extended_regexp:
+            cmd.append("-E")
         if glob:
             cmd.extend(["--include", glob])
         if output_mode == "files_with_matches":

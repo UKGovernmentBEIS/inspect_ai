@@ -129,21 +129,122 @@ async def test_limits_max_samples_not_adjustable_warns() -> None:
     assert any("max_samples is not adjustable" in w for w in result["warnings"])
 
 
-async def test_limits_adaptive_semaphore_not_adjustable() -> None:
-    """A DynamicSampleLimiter registry entry (adaptive path) is not a setpoint."""
+def _adaptive_limiter(key: str = "k") -> Any:
     from inspect_ai.util._concurrency import AdaptiveConcurrency, DynamicSampleLimiter
 
+    return DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=100, start=10), key)
+
+
+async def test_limits_adaptive_limiter_tracking_view() -> None:
+    """An unpinned DynamicSampleLimiter reports the tracking view."""
     register_eval("e1", 5, task_id="t1")
-    register_task_sample_semaphore(
-        "t1", DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=100, start=10), "k")
-    )
+    register_task_sample_semaphore("t1", _adaptive_limiter())
+
+    result = await task_limits("t1")
+    assert result is not None
+    assert result["max_samples"] == {
+        "limit": 15,  # start 10 + BUFFER 5
+        "in_use": 0,
+        "adjustable": True,
+        "tracks_adaptive": True,
+        "override": None,
+    }
+    # the never-matching "k" key surfaces the no-controller warning on a read
+    assert any("no matching connection controller" in w for w in result["warnings"])
+
+
+async def test_limits_adaptive_set_pins() -> None:
+    """An integer set pins sample concurrency at exactly that value."""
+    limiter = _adaptive_limiter()
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
 
     result = await task_limits("t1", max_samples=30)
     assert result is not None
-    assert result["max_samples"] == {"adjustable": False, "tracks_adaptive": True}
-    assert any("max_samples is not adjustable" in w for w in result["warnings"])
-    # the never-matching "k" key also surfaces the no-controller warning
-    assert any("no matching connection controller" in w for w in result["warnings"])
+    assert result["max_samples"] == {
+        "limit": 30,  # exact setpoint, no BUFFER
+        "in_use": 0,
+        "adjustable": True,
+        "tracks_adaptive": True,
+        "override": 30,
+    }
+    assert result["requested"] == {"max_samples": 30}
+    assert result["warnings"] == []
+    assert limiter.override == 30
+    assert limiter.total_tokens == 30
+    # the pin is the operator remedy for the stuck case — the
+    # no-matching-controller warning is suppressed while pinned
+    result = await task_limits("t1")
+    assert result is not None
+    assert result["warnings"] == []
+
+
+async def test_limits_adaptive_clear_unpins() -> None:
+    limiter = _adaptive_limiter()
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+    limiter.set_override(30)
+
+    result = await task_limits("t1", max_samples="clear")
+    assert result is not None
+    assert result["requested"] == {"max_samples": "clear"}
+    assert limiter.override is None
+    assert limiter.total_tokens == 15  # back to tracking (initial: no controller)
+    view = result["max_samples"]
+    assert view == {
+        "limit": 15,
+        "in_use": 0,
+        "adjustable": True,
+        "tracks_adaptive": True,
+        "override": None,
+    }
+
+
+async def test_limits_adaptive_dry_run_does_not_apply() -> None:
+    limiter = _adaptive_limiter()
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+
+    result = await task_limits("t1", max_samples=30, dry_run=True)
+    assert result is not None
+    assert result["dry_run"] is True
+    assert result["requested"] == {"max_samples": 30}
+    assert limiter.override is None
+    assert limiter.total_tokens == 15
+
+
+async def test_limits_static_clear_warns_and_applies_others() -> None:
+    """'clear' against a static setpoint warns; other knobs still apply."""
+    limiter = ResizableLimiter(20)
+    docker = ResizableSemaphore("docker", 4, True)
+    register_sandbox_limiter("docker", docker)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+
+    result = await task_limits("t1", max_samples="clear", max_sandboxes=8)
+    assert result is not None
+    assert any("max_samples is a fixed setpoint" in w for w in result["warnings"])
+    assert limiter.limit == 20  # untouched
+    assert docker.concurrency == 8  # the co-requested knob still landed
+    # the static view stays bare (no tracks_adaptive key)
+    assert result["max_samples"] == {"limit": 20, "in_use": 0, "adjustable": True}
+
+
+async def test_limits_adaptive_pin_survives_retry_registry_reuse() -> None:
+    """The pin lives on the task-scoped semaphore, shared across attempts."""
+    from inspect_ai.util._concurrency import task_sample_semaphore
+
+    limiter = _adaptive_limiter()
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+    await task_limits("t1", max_samples=8)
+
+    # an in-process retry re-registers the attempt but reuses the semaphore
+    register_eval("e2", 5, task_id="t1")
+    assert task_sample_semaphore("t1") is limiter
+    result = await task_limits("t1")
+    assert result is not None
+    assert result["max_samples"]["override"] == 8  # type: ignore[typeddict-item]
 
 
 async def test_limits_set_max_sandboxes() -> None:
@@ -446,7 +547,8 @@ async def test_process_limits_model_no_match_warns() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Retry-loop overrides (timeout / attempt_timeout / max_retries)
+# Retry-loop overrides (timeout / attempt_timeout / stream_idle_timeout /
+# max_retries)
 # ---------------------------------------------------------------------------
 
 
@@ -457,6 +559,7 @@ async def test_retry_overrides_default_view() -> None:
     assert result["retry"] == {
         "timeout": None,
         "attempt_timeout": None,
+        "stream_idle_timeout": None,
         "max_retries": None,
     }
 
@@ -464,21 +567,35 @@ async def test_retry_overrides_default_view() -> None:
 async def test_retry_overrides_set_and_clear() -> None:
     from inspect_ai._control.limits import process_limits
 
-    result = await process_limits(timeout=120, attempt_timeout=30, max_retries=5)
+    result = await process_limits(
+        timeout=120, attempt_timeout=30, stream_idle_timeout=15, max_retries=5
+    )
     assert result["requested"] == {
         "timeout": 120,
         "attempt_timeout": 30,
+        "stream_idle_timeout": 15,
         "max_retries": 5,
     }
-    assert result["retry"] == {"timeout": 120, "attempt_timeout": 30, "max_retries": 5}
+    assert result["retry"] == {
+        "timeout": 120,
+        "attempt_timeout": 30,
+        "stream_idle_timeout": 15,
+        "max_retries": 5,
+    }
     # always adjustable — the override layer exists regardless of launch config
     assert result["warnings"] == []
     assert generate_config_override("timeout") == 120
+    assert generate_config_override("stream_idle_timeout") == 15
 
     # "clear" removes an override (restoring launch config); the others stand
     result = await process_limits(timeout="clear")
     assert result["requested"] == {"timeout": "clear"}
-    assert result["retry"] == {"timeout": None, "attempt_timeout": 30, "max_retries": 5}
+    assert result["retry"] == {
+        "timeout": None,
+        "attempt_timeout": 30,
+        "stream_idle_timeout": 15,
+        "max_retries": 5,
+    }
     assert generate_config_override("timeout") is None
 
     # 0 is a real value, not a clear — max_retries 0 = no retries (fail fast)
@@ -1544,6 +1661,44 @@ async def test_limits_route_rejects_below_one() -> None:
         assert "max_samples" in bad.json()["error"]
 
 
+async def test_limits_route_max_samples_pin_and_clear() -> None:
+    """The route parses max_samples as int-or-'clear' (the adaptive pin)."""
+    limiter = _adaptive_limiter()
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        pinned = await client.patch("/tasks/t1/config", params={"max_samples": 8})
+        assert pinned.status_code == 200, pinned.text
+        assert pinned.json()["max_samples"]["override"] == 8
+        assert limiter.total_tokens == 8
+
+        cleared = await client.patch(
+            "/tasks/t1/config", params={"max_samples": "clear"}
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["max_samples"]["override"] is None
+        assert limiter.total_tokens == 15  # resumed tracking (initial)
+
+        # garbage 400s at the wire with the friendly error-keyed body
+        bad = await client.patch("/tasks/t1/config", params={"max_samples": "lots"})
+        assert bad.status_code == 400
+        assert "max_samples" in bad.json()["error"]
+        assert "'clear'" in bad.json()["error"]
+
+        # 0 400s at the wire too (not a 500 from the apply layer), and the
+        # negative-value rejection advertises the same >= 1 floor
+        for below_floor in (0, -1):
+            bad = await client.patch(
+                "/tasks/t1/config", params={"max_samples": below_floor}
+            )
+            assert bad.status_code == 400
+            assert "max_samples must be an integer >= 1" in bad.json()["error"]
+
+
 async def test_max_tasks_route_set_clear_and_floor() -> None:
     """max_tasks rides both PATCH routes, string-typed to admit `clear`.
 
@@ -1825,13 +1980,18 @@ async def test_retry_overrides_route_patch_and_clear() -> None:
         assert generate_config_override("timeout") == 90
 
         # the task-keyed route carries the same knobs (process-scoped)
-        patched = await client.patch("/tasks/t1/config", params={"max_retries": 4})
+        patched = await client.patch(
+            "/tasks/t1/config",
+            params={"max_retries": 4, "stream_idle_timeout": 20},
+        )
         assert patched.status_code == 200, patched.text
         assert patched.json()["retry"] == {
             "timeout": 90,
             "attempt_timeout": None,
+            "stream_idle_timeout": 20,
             "max_retries": 4,
         }
+        assert generate_config_override("stream_idle_timeout") == 20
 
         # "clear" removes an override; 0 is a real value (no retries)
         cleared = await client.patch("/config", params={"timeout": "clear"})
@@ -2110,6 +2270,51 @@ async def test_config_update_unadjustable_knob_records_nothing() -> None:
     assert result is not None
     assert result["persisted"] is None
     assert live.updates == []
+
+
+async def test_config_update_recorded_for_adaptive_pin_and_clear() -> None:
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    limiter = _adaptive_limiter()
+    register_task_sample_semaphore("t1", limiter)
+
+    # pin: recorded with previous=None ("no prior pin" — the recording layer
+    # falls back to the log's launch value, None for an adaptive task)
+    result = await task_limits("t1", max_samples=30)
+    assert result is not None
+    assert result["persisted"] == {"max_samples": True}
+    change = live.updates[0].changes[0]
+    assert (change.config, change.name) == ("eval", "max_samples")
+    assert (change.value, change.previous, change.cleared) == (30, None, False)
+
+    # re-send of the same value records nothing
+    live.updates.clear()
+    result = await task_limits("t1", max_samples=30)
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
+
+    # a repin records the honest previous
+    result = await task_limits("t1", max_samples=12)
+    assert result is not None
+    change = live.updates[0].changes[0]
+    assert (change.value, change.previous, change.cleared) == (12, 30, False)
+
+    # clear: cleared=True with the released pin as previous
+    live.updates.clear()
+    result = await task_limits("t1", max_samples="clear")
+    assert result is not None
+    assert result["persisted"] == {"max_samples": True}
+    change = live.updates[0].changes[0]
+    assert (change.value, change.previous, change.cleared) == (None, 12, True)
+
+    # no-op clear (nothing pinned) records nothing
+    live.updates.clear()
+    result = await task_limits("t1", max_samples="clear")
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
+    assert limiter.override is None
 
 
 async def test_config_update_process_scope_fans_out_to_all_live_logs() -> None:
@@ -2842,7 +3047,12 @@ def test_print_config_dry_run_unchanged_knob_has_no_arrow(
 
 
 def test_print_config_adaptive_section(capsys: pytest.CaptureFixture[str]) -> None:
-    """The adaptive path renders live controller state instead of a bare label."""
+    """The adaptive path renders live controller state instead of a bare label.
+
+    The max_samples view here is the *older server's* adaptive shape
+    (adjustable=False, no numbers) — current servers send the adjustable
+    tracking/pinned shape covered by the tests below.
+    """
     from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
@@ -2887,6 +3097,71 @@ def test_print_config_adaptive_section(capsys: pytest.CaptureFixture[str]) -> No
     assert "adaptive connections [process]:" in out
     assert "openai/gpt-4: 45 (40 in use), range 1–100" in out
     assert "last: 50→45 rate_limit" in out
+
+
+def _adaptive_max_samples_config(view: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "dry_run": False,
+        "knobs": {
+            "max_samples": {"scope": "task", **view},
+            "max_sandboxes": {"scope": "process", "providers": []},
+            "max_connections": {"scope": "process", "adaptive": []},
+        },
+        "requested": None,
+        "warnings": [],
+        "notes": [],
+    }
+
+
+def test_print_config_adaptive_tracking_arm(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unpinned adaptive limiter renders numbers + the tracking hint.
+
+    Guards the arm discriminator: the tracking view carries adjustable=True,
+    so an adjustable-first chain would misrender it with the static arm.
+    """
+    from inspect_ai._cli.ctl._render import _print_config
+
+    _print_config(
+        _adaptive_max_samples_config(
+            {
+                "limit": 25,
+                "in_use": 18,
+                "adjustable": True,
+                "tracks_adaptive": True,
+                "override": None,
+            }
+        ),
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert (
+        "max samples [task]:         25 (18 in use, tracking adaptive "
+        "connections — set to pin)" in out
+    )
+
+
+def test_print_config_adaptive_pinned_arm(capsys: pytest.CaptureFixture[str]) -> None:
+    from inspect_ai._cli.ctl._render import _print_config
+
+    _print_config(
+        _adaptive_max_samples_config(
+            {
+                "limit": 8,
+                "in_use": 8,
+                "adjustable": True,
+                "tracks_adaptive": True,
+                "override": 8,
+            }
+        ),
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert (
+        "max samples [task]:         8 (8 in use, pinned — 'clear' resumes "
+        "adaptive tracking)" in out
+    )
 
 
 def test_print_config_adaptive_dry_run_shows_ceiling_arrow(

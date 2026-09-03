@@ -4,6 +4,7 @@ import functools
 import hashlib
 import json
 import os
+import re
 from copy import copy
 from io import BytesIO
 from logging import getLogger
@@ -13,7 +14,6 @@ from typing import Any, Literal, NamedTuple, cast
 # SDK Docs: https://googleapis.github.io/python-genai/
 import aiohttp
 import anyio
-import httpx
 from google.genai import Client
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
@@ -74,6 +74,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
+from inspect_ai._util.http_defaults import default_async_client
 from inspect_ai._util.images import inline_media_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
@@ -115,11 +116,13 @@ from inspect_ai.model._providers._google_computer_use import (
     tool_call_from_gemini_computer_action,
 )
 from inspect_ai.model._reasoning import (
+    clamp_reasoning_effort_to_minimal_low_medium_high,
     effort_to_reasoning_tokens,
     reasoning_to_think_tag,
 )
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.model._stream import (
+    NoStreamDataError,
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
@@ -647,7 +650,7 @@ class GoogleGenAIAPI(ModelAPI):
                                 await _report_stream_part_delta(part)
 
         if last_chunk is None:
-            raise RuntimeError(
+            raise NoStreamDataError(
                 f"No response chunks received from streaming API for model {model}"
             )
 
@@ -814,7 +817,7 @@ class GoogleGenAIAPI(ModelAPI):
         # context window / compaction match. Bump when a newer frontier ships.
         # Mirrors OpenAI's and Anthropic's input_tokens_name() aliasing.
         if self.is_gemini() and _get_model_info_direct(self.canonical_name()) is None:
-            return "google/gemini-3.6-flash"
+            return "google/gemini-3.8-flash"
         return super().input_tokens_name()
 
     def is_latest(self) -> bool:
@@ -851,8 +854,33 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini_3(self) -> bool:
         return "gemini-3" in self.model_family()
 
-    def is_gemini_3_flash(self) -> bool:
-        return (self.is_gemini_3() or self.is_latest()) and self.is_gemini_flash()
+    def gemini_version(self) -> tuple[int, ...] | None:
+        """Numeric version parsed from a gemini-N[.N] model name (None if absent).
+
+        Only the final path segment is inspected so a vertex resource path
+        takes its version from the model, not the project id.
+        """
+        name = self.model_family().rsplit("/", 1)[-1]
+        match = re.search(r"gemini-(\d+(?:\.\d+)*)", name)
+        if match is None:
+            return None
+        return tuple(int(part) for part in match.group(1).split("."))
+
+    def supports_minimal_thinking(self) -> bool:
+        """Whether the model accepts thinking_level=MINIMAL.
+
+        True only for releases documented to accept it: Flash 3.0-3.6 and
+        Flash-Lite 3.1-3.5. Gemini 3 Pro never has, 3.7 Flash and later reject
+        it with a 400, and anything unverified (newer versions, codenames,
+        rolling aliases such as gemini-flash-lite-latest) is downgraded to LOW
+        rather than risk a 400. https://ai.google.dev/gemini-api/docs/thinking
+        """
+        version = self.gemini_version()
+        name = self.model_family().rsplit("/", 1)[-1]
+        if version is None or "flash" not in name:
+            return False
+        low, high = ((3, 1), (3, 6)) if "flash-lite" in name else ((3,), (3, 7))
+        return low <= version < high
 
     def is_gemini_3_plus(self) -> bool:
         return (
@@ -959,12 +987,14 @@ class GoogleGenAIAPI(ModelAPI):
             base_url=self.base_url,
             api_version=self.api_version,
         )
-        # aiohttp requires asyncio; use httpx under trio for compatibility
+        # aiohttp requires asyncio; use httpx under trio for compatibility.
+        # Only this path gets the shared HTTP defaults: the aiohttp path sets no
+        # connect deadline at all, so there is none there to be outlasted.
         if (
             current_async_backend() == "trio"
             and http_options.httpx_async_client is None
         ):
-            http_options.httpx_async_client = httpx.AsyncClient()
+            http_options.httpx_async_client = default_async_client()
         api_key = self.api_key
         if self._oauth and self._credentials is not None:
             # The dev-endpoint client requires a non-empty api_key; pass a
@@ -1040,23 +1070,19 @@ class GoogleGenAIAPI(ModelAPI):
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
             # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
             elif config.reasoning_effort is not None and self.is_gemini_3_plus():
-                # note: minimal currently only supported by flash model
-                is_flash = self.is_gemini_3_flash()
-                match config.reasoning_effort:
-                    case "minimal":
-                        thinking_level = (
-                            ThinkingLevel.MINIMAL if is_flash else ThinkingLevel.LOW
-                        )
-                    case "low":
-                        thinking_level = ThinkingLevel.LOW
-                    case "medium":
-                        thinking_level = ThinkingLevel.MEDIUM
-                    case "high" | "xhigh" | "max":
-                        thinking_level = ThinkingLevel.HIGH
-                    case _:
-                        thinking_level = None  # can't happen, keep mypy happy
+                tier = clamp_reasoning_effort_to_minimal_low_medium_high(
+                    config.reasoning_effort
+                )
+                if tier == "minimal" and not self.supports_minimal_thinking():
+                    warn_once(
+                        logger,
+                        f"Model {self.service_model_name()} does not "
+                        "support minimal thinking; using low instead.",
+                    )
+                    tier = "low"
                 return ThinkingConfig(
-                    include_thoughts=True, thinking_level=thinking_level
+                    include_thoughts=True,
+                    thinking_level=ThinkingLevel(tier.upper()) if tier else None,
                 )
 
             # enable thinking_budget if specified

@@ -20,6 +20,7 @@ from ._failure import _CtlFailure, _envelope_failures, _fail
 from ._group import (
     _INT_MIN_ONE_OR_CLEAR,
     _INT_OR_CLEAR,
+    _MAX_SAMPLES_INT_OR_CLEAR,
     _echo_no_running_evals,
     _json_option,
     _terse_line,
@@ -36,12 +37,13 @@ from ._render import _echo, _echo_raw, _print_config
 @click.argument("task", required=False)
 @click.option(
     "--max-samples",
-    type=click.IntRange(min=1),
+    type=_MAX_SAMPLES_INT_OR_CLEAR,
     metavar="INTEGER",
     default=None,
     help=(
-        f"[{_KNOB_SCOPE['max_samples']}] Max samples to run concurrently (under "
-        "adaptive connections, sample concurrency tracks the controller instead)."
+        f"[{_KNOB_SCOPE['max_samples']}] Max samples to run concurrently — "
+        "under adaptive connections this pins sample concurrency ('clear' "
+        "resumes tracking the controller)."
     ),
 )
 @click.option(
@@ -174,6 +176,18 @@ from ._render import _echo, _echo_raw, _print_config
     ),
 )
 @click.option(
+    "--stream-idle-timeout",
+    type=_INT_OR_CLEAR,
+    metavar="SECONDS",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['stream_idle_timeout']}] Override the streaming "
+        "stall timeout, in seconds — abandon and retry an attempt whose "
+        "streaming response goes silent this long ('clear' restores launch "
+        "config)."
+    ),
+)
+@click.option(
     "--max-retries",
     type=_INT_OR_CLEAR,
     metavar="INTEGER",
@@ -213,7 +227,7 @@ from ._render import _echo, _echo_raw, _print_config
 @_terse_option(note="Applies when setting a knob; a pure view always renders in full.")
 def config_command(
     task: str | None,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
     max_tasks: int | Literal["clear"] | None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
@@ -227,6 +241,7 @@ def config_command(
     message_limit: int | Literal["clear"] | None,
     timeout: int | Literal["clear"] | None,
     attempt_timeout: int | Literal["clear"] | None,
+    stream_idle_timeout: int | Literal["clear"] | None,
     max_retries: int | Literal["clear"] | None,
     reason: str | None,
     author: str | None,
@@ -251,6 +266,7 @@ def config_command(
     `--log-shared` are the retune side of `inspect ctl task log-flush`: they
     set the buffering policy for future writes, while log-flush writes
     what's already buffered now. `--timeout` / `--attempt-timeout` /
+    `--stream-idle-timeout` /
     `--max-retries` set live overrides read by the model retry loop, so a
     change reaches even generate calls already retrying (in-flight API
     requests still drain first); pass `clear` to remove an override.
@@ -262,7 +278,11 @@ def config_command(
     overrides on the task's per-sample limits, read where each sample's
     limits are checked — so a retune reaches in-flight samples (a lowered
     time limit cancels a sample already past it) as well as ones not yet
-    started; pass `clear` to restore launch config. Applied
+    started; pass `clear` to restore launch config. Under adaptive
+    connections `--max-samples N` pins sample concurrency at exactly N
+    (decoupling it from the connection controller, which `--max-connections`
+    still retunes independently); pass `clear` to unpin and resume tracking
+    the controller. Applied
     changes are recorded in each affected eval log (who / when / old → new);
     `--reason` annotates the record with why. TASK
     is required only for setting a task-scoped knob when several tasks run.
@@ -285,6 +305,7 @@ def config_command(
         message_limit=message_limit,
         timeout=timeout,
         attempt_timeout=attempt_timeout,
+        stream_idle_timeout=stream_idle_timeout,
         max_retries=max_retries,
         reason=reason,
         author=author,
@@ -311,7 +332,7 @@ def _as_task_view(
 def _applied_knob_names(
     limits_view: TaskConfigView | ProcessConfigView,
     *,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
     max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
@@ -319,6 +340,7 @@ def _applied_knob_names(
     key: tuple[str, int] | None,
     timeout: int | Literal["clear"] | None,
     attempt_timeout: int | Literal["clear"] | None,
+    stream_idle_timeout: int | Literal["clear"] | None,
     max_retries: int | Literal["clear"] | None,
     time_limit: int | Literal["clear"] | None,
     token_limit: int | Literal["clear"] | None,
@@ -339,13 +361,22 @@ def _applied_knob_names(
     """
     task_view = _as_task_view(limits_view)
     max_samples_view = task_view["max_samples"] if task_view is not None else None
+    # `adjustable` alone no longer implies a max_samples request landed: a
+    # `clear` against a static-limiter task warns without applying, yet the
+    # static view still reports adjustable — count a clear as applied only
+    # when the view also shows tracks_adaptive (there is a pin to release).
+    max_samples_adjustable = bool(max_samples_view and max_samples_view["adjustable"])
+    if max_samples == "clear":
+        max_samples_adjustable = max_samples_adjustable and bool(
+            max_samples_view and dict(max_samples_view).get("tracks_adaptive")
+        )
     return [
         name
         for name, value, adjustable in (
             (
                 "--max-samples",
                 max_samples,
-                bool(max_samples_view and max_samples_view["adjustable"]),
+                max_samples_adjustable,
             ),
             (
                 "--max-sandboxes",
@@ -376,6 +407,7 @@ def _applied_knob_names(
             ("--max-tasks", max_tasks, True),
             ("--timeout", timeout, True),
             ("--attempt-timeout", attempt_timeout, True),
+            ("--stream-idle-timeout", stream_idle_timeout, True),
             ("--max-retries", max_retries, True),
             ("--time-limit", time_limit, True),
             ("--token-limit", token_limit, True),
@@ -389,7 +421,7 @@ def _applied_knob_names(
 def _run_config(
     task: str | None,
     *,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
     max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
@@ -403,6 +435,7 @@ def _run_config(
     message_limit: int | Literal["clear"] | None = None,
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
+    stream_idle_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
     reason: str | None = None,
     author: str | None = None,
@@ -461,6 +494,7 @@ def _run_config(
         "log_shared": log_shared,
         "timeout": timeout,
         "attempt_timeout": attempt_timeout,
+        "stream_idle_timeout": stream_idle_timeout,
         "max_retries": max_retries,
         "time_limit": time_limit,
         "token_limit": token_limit,
@@ -512,6 +546,7 @@ def _run_config(
         message_limit=message_limit,
         timeout=timeout,
         attempt_timeout=attempt_timeout,
+        stream_idle_timeout=stream_idle_timeout,
         max_retries=max_retries,
         author=author,
         reason=reason,
@@ -543,6 +578,7 @@ def _run_config(
                 key=key,
                 timeout=timeout,
                 attempt_timeout=attempt_timeout,
+                stream_idle_timeout=stream_idle_timeout,
                 max_retries=max_retries,
                 time_limit=time_limit,
                 token_limit=token_limit,
@@ -898,7 +934,7 @@ def _exec_limits(
     socket_path: str,
     task_id: str | None,
     *,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
     max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None = None,
@@ -912,6 +948,7 @@ def _exec_limits(
     message_limit: int | Literal["clear"] | None = None,
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
+    stream_idle_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
     author: str | None = None,
     reason: str | None = None,
@@ -929,10 +966,13 @@ def _exec_limits(
     controllers (a read param, applies to both); ``key`` is the ``(name,
     limit)`` pair for a named ``concurrency()`` registry entry, carried on
     the wire as ``key`` / ``key_limit``. The retry overrides (``timeout`` /
-    ``attempt_timeout`` / ``max_retries``) and the per-sample limit
+    ``attempt_timeout`` / ``stream_idle_timeout`` / ``max_retries``) and the
+    per-sample limit
     overrides (``time_limit`` / ``token_limit`` / ``message_limit``,
     task-scoped) accept the keyword ``clear`` to
-    remove an override (``0`` is a real value for them). Any settable knob
+    remove an override (``0`` is a real value for them); ``max_samples``
+    accepts it too — under adaptive connections an integer pins sample
+    concurrency and ``clear`` unpins it. Any settable knob
     that is not ``None`` makes this a mutation: a single-shot PATCH given the
     full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
     caller-supplied, so a knob can never ride a GET as an ignored query
@@ -951,6 +991,7 @@ def _exec_limits(
         "log_shared": log_shared,
         "timeout": timeout,
         "attempt_timeout": attempt_timeout,
+        "stream_idle_timeout": stream_idle_timeout,
         "max_retries": max_retries,
         "time_limit": time_limit,
         "token_limit": token_limit,

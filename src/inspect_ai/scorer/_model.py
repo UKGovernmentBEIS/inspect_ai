@@ -24,6 +24,7 @@ from inspect_ai.util import resource
 from ._metric import Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
+from ._reducer.types import ScoreReducer
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -39,6 +40,7 @@ def model_graded_fact(
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
     model_role: str | ModelRole | None = "grader",
+    reducer: str | ScoreReducer = "majority",
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
 
@@ -77,18 +79,25 @@ def model_graded_fact(
          `grade_pattern` are authoritative and keep every grade
          they match.
       model: Model or models to use for grading. If a list is provided,
-        each model grades independently and the final grade is computed by
-        majority vote. When this parameter is provided, it takes precedence
+        each model grades independently and the grades are combined by
+        `reducer`. When this parameter is provided, it takes precedence
         over `model_role`.
       model_role: Named model role to use for grading (default: "grader").
         Pass `ModelRole(name, required=True)` to require a model to be bound
         to the role. Ignored if `model` is provided. If specified and a model
         is bound to this role (e.g. via the `model_roles` argument to `eval()`),
         that model is used. If a list of models is bound to this role, each
-        model grades independently and the final grade is computed by majority
-        vote (as when a list is passed for `model`). If no role-bound model is
+        model grades independently and the grades are combined by `reducer`
+        (as when a list is passed for `model`). If no role-bound model is
         available and the role is not required, the model being evaluated (the
         default model) is used.
+      reducer: How the grades of a grader panel are combined (used when
+        `model` — or the binding of `model_role` — is a list). Defaults to
+        `"majority"`: a grade must be returned by more than half of the
+        graders, and the sample is unscored otherwise, so a grader that
+        returns no parseable grade withholds a vote rather than shrinking the
+        panel. Pass `"mode"` for the previous behaviour, in which the most
+        common grade wins and a tie is broken by the order of `model`.
     """
     return model_graded_qa(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
@@ -98,6 +107,7 @@ def model_graded_fact(
         partial_credit=partial_credit,
         model=model,
         model_role=model_role,
+        reducer=reducer,
     )
 
 
@@ -110,6 +120,7 @@ def model_graded_qa(
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
     model_role: str | ModelRole | None = "grader",
+    reducer: str | ScoreReducer = "majority",
 ) -> Scorer:
     """Score a question/answer task using a model.
 
@@ -149,18 +160,25 @@ def model_graded_qa(
         `grade_pattern` are authoritative and keep every grade
         they match.
       model: Model or models to use for grading. If a list is provided,
-        each model grades independently and the final grade is computed by
-        majority vote. When this parameter is provided, it takes precedence
+        each model grades independently and the grades are combined by
+        `reducer`. When this parameter is provided, it takes precedence
         over `model_role`.
       model_role: Named model role to use for grading (default: "grader").
         Pass `ModelRole(name, required=True)` to require a model to be bound
         to the role. Ignored if `model` is provided. If specified and a model
         is bound to this role (e.g. via the `model_roles` argument to `eval()`),
         that model is used. If a list of models is bound to this role, each
-        model grades independently and the final grade is computed by majority
-        vote (as when a list is passed for `model`). If no role-bound model is
+        model grades independently and the grades are combined by `reducer`
+        (as when a list is passed for `model`). If no role-bound model is
         available and the role is not required, the model being evaluated (the
         default model) is used.
+      reducer: How the grades of a grader panel are combined (used when
+        `model` — or the binding of `model_role` — is a list). Defaults to
+        `"majority"`: a grade must be returned by more than half of the
+        graders, and the sample is unscored otherwise, so a grader that
+        returns no parseable grade withholds a vote rather than shrinking the
+        panel. Pass `"mode"` for the previous behaviour, in which the most
+        common grade wins and a tie is broken by the order of `model`.
     """
     # resolve a file/resource template to its content now, at factory time:
     # the deferred fan-out path below constructs its sub-scorers at scoring
@@ -198,7 +216,7 @@ def model_graded_qa(
 
     # explicit model(s): a list grades by majority vote
     if isinstance(model, list):
-        return multi_scorer([get_scorer(m) for m in model], "mode")
+        return multi_scorer([get_scorer(m) for m in model], reducer)
     if model is not None:
         return get_scorer(model)
 
@@ -217,7 +235,7 @@ def model_graded_qa(
         role_models = model_roles().get(role.name)
         if isinstance(role_models, list):
             graders = [get_scorer(m) for m in role_models]
-            return await multi_scorer(graders, "mode")(state, target)
+            return await multi_scorer(graders, reducer)(state, target)
         grader = get_model(role=role.name, required=role.required)
         return await get_scorer(grader)(state, target)
 
@@ -299,8 +317,17 @@ def _model_graded_qa_single(
         if value is not None and default_grade_pattern:
             # The permissive capture takes the whole word so that "GRADE:
             # Correct"/"GRADE: Incorrect"/"GRADE: Partial" keep resolving to
-            # their letter; only the first character is the verdict.
-            value = value[:1].upper()
+            # their letter. A multi-character verdict that is not one of the
+            # spelled-out grades (e.g. "GRADE: CI") is a protocol deviation,
+            # not evidence about the submission, so it is a parse failure
+            # rather than a silently laundered first letter.
+            normalized = value.strip().lower()
+            if normalized in _GRADE_WORD_VALUES:
+                value = _GRADE_WORD_VALUES[normalized]
+            elif len(value.strip()) == 1:
+                value = value.strip().upper()
+            else:
+                value = None
             if validate_offered_grades and value not in offered_grades:
                 # A verdict outside the grades the instructions offered is a
                 # protocol deviation, not evidence about the submission, so it
@@ -391,6 +418,17 @@ First, write out in a step by step manner your reasoning about the criterion to 
 # Whitespace plus zero-width / formatting marks that can appear around a
 # verdict separator in model output or pasted text.
 _GRADE_SPACING = r"[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*"
+
+# Spelled-out verdicts the default instructions may elicit, mapped to their
+# single-letter grade. Anything else multi-character is a parse failure.
+_GRADE_WORD_VALUES = {
+    "c": "C",
+    "correct": "C",
+    "i": "I",
+    "incorrect": "I",
+    "p": "P",
+    "partial": "P",
+}
 
 DEFAULT_GRADE_PATTERN = (
     rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}:{_GRADE_SPACING}([CPI])"

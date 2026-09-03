@@ -434,6 +434,89 @@ def test_model_graded_answer_set_on_grade_parse_failure():
     assert score.answer == subject_answer
 
 
+def _grader_panel(*completions: str) -> list[Any]:
+    return [
+        get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", [ContentText(text=text)])
+            ],
+        )
+        for text in completions
+    ]
+
+
+async def _grade_panel(completions: list[str], **kwargs: Any):
+    scorer = model_graded_qa(model=_grader_panel(*completions), **kwargs)
+    state = TaskState(
+        model=ModelName("mockllm/model"),
+        sample_id=1,
+        epoch=1,
+        input="What is the capital of France?",
+        messages=[],
+        output=ModelOutput.from_content("mockllm/model", "Paris"),
+    )
+    return await scorer(state, Target(["Paris"]))
+
+
+UNPARSEABLE = "I am not going to grade this."
+
+
+def test_model_graded_panel_unscored_when_no_majority():
+    # #4721: a grader that returns no parseable grade used to be filtered out
+    # of the vote, leaving an even panel whose tie `mode` broke by the order of
+    # `model`. The same three graders must not produce different grades.
+    forward = asyncio.run(_grade_panel(["GRADE: C", UNPARSEABLE, "GRADE: I"]))
+    reversed_ = asyncio.run(_grade_panel(["GRADE: I", UNPARSEABLE, "GRADE: C"]))
+
+    assert isinstance(forward.value, float) and math.isnan(forward.value)
+    assert isinstance(reversed_.value, float) and math.isnan(reversed_.value)
+
+    assert forward.metadata is not None
+    panel = forward.metadata["panel"]
+    assert panel["votes"] == [CORRECT, None, INCORRECT]
+    assert panel["size"] == 3
+    # the failing grader's own output survives into the combined score
+    assert panel["failures"][0]["index"] == 1
+    assert panel["failures"][0]["reason"] == "grader_failed"
+    assert UNPARSEABLE in panel["failures"][0]["explanation"]
+
+
+def test_model_graded_panel_majority_survives_a_grader_failure():
+    # A failed grader withholds its vote without lowering the bar: two of three
+    # is still a majority, and three different grades are not.
+    majority = asyncio.run(_grade_panel(["GRADE: C", UNPARSEABLE, "GRADE: C"]))
+    assert majority.value == CORRECT
+
+    split = asyncio.run(_grade_panel(["GRADE: C", "GRADE: I", "GRADE: P"]))
+    assert isinstance(split.value, float) and math.isnan(split.value)
+
+
+def test_model_graded_panel_intact_panel_unchanged():
+    # Control: a panel where every grader votes was never order-dependent and
+    # must keep scoring as it did. This one passes before the fix too.
+    assert asyncio.run(_grade_panel(["GRADE: C", "GRADE: C", "GRADE: I"])).value == (
+        CORRECT
+    )
+    assert asyncio.run(_grade_panel(["GRADE: I", "GRADE: C", "GRADE: C"])).value == (
+        CORRECT
+    )
+
+
+def test_model_graded_panel_legacy_mode_reducer():
+    # The escape hatch reproduces pre-existing scores, order-dependence included.
+    forward = asyncio.run(
+        _grade_panel(["GRADE: C", UNPARSEABLE, "GRADE: I"], reducer="mode")
+    )
+    reversed_ = asyncio.run(
+        _grade_panel(["GRADE: I", UNPARSEABLE, "GRADE: C"], reducer="mode")
+    )
+
+    assert forward.value == CORRECT
+    assert reversed_.value == INCORRECT
+    assert "panel" not in (forward.metadata or {})
+
+
 # Prompt injection tests (issue #3603)
 
 
@@ -550,6 +633,9 @@ def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> 
         pytest.param("ANSWER: C", id="wrong_word_answer"),
         pytest.param("**Answer: C**", id="markdown_decorated"),
         pytest.param("The submission is correct.", id="no_grade_marker_at_all"),
+        pytest.param("GRADE: CI", id="multi_letter_verdict"),
+        pytest.param("GRADE: Correctly", id="adverb_form"),
+        pytest.param("GRADE: IN", id="multi_letter_prefix_of_I"),
     ],
 )
 def test_grade_parse_failure_is_unscored(grader_output: str) -> None:

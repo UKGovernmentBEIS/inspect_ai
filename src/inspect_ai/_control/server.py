@@ -25,7 +25,9 @@ plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations,
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``,
 ``POST /evals/{id}/sample/cancel-tool-call``,
-``POST /evals/{id}/sample/requeue``, and
+``POST /evals/{id}/sample/requeue``,
+the interim-scoring pass (``POST``/``GET /tasks/{id}/score`` and the
+sample-scoped ``POST``/``GET /evals/{id}/sample/score``), and
 the pause/resume latches (``POST /tasks/{id}/pause`` / ``…/resume``,
 process-scoped ``POST /pause`` / ``POST /resume``, and model-scoped
 ``POST /models/pause`` / ``…/resume``).
@@ -505,17 +507,23 @@ class ControlServer:
             return None
 
         def _parse_override_knobs(
-            maximum: int, *knobs: tuple[str, str | None]
+            maximum: int | None,
+            *knobs: tuple[str, str | None],
+            minimum: int = 0,
         ) -> _ParsedOverrideKnobs:
-            """Parse override knobs' raw query values (retry + sample limits).
+            """Parse override knobs' raw values (retry/sample limits, max_samples).
 
             Unlike the limits knobs these are declared ``str`` on the route:
-            every integer >= 0 is a real value (0 = fail after the first
-            attempt / a zero budget), so clearing an override is spelled with
-            the keyword ``clear`` rather than a sentinel integer. Values above
+            every integer >= ``minimum`` is a real value, so clearing an
+            override is spelled with the keyword ``clear`` rather than a
+            sentinel integer. The default floor is 0 (0 = fail after the
+            first attempt / a zero budget for the retry/limit knobs);
+            ``max_samples`` passes ``minimum=1`` (its apply layer raises on
+            0), so both its rejections carry the same bound. Values above
             ``maximum`` (the store's own bound —
             :data:`MAX_GENERATE_CONFIG_OVERRIDE` /
-            :data:`MAX_SAMPLE_LIMIT_OVERRIDE`) are rejected here too: the
+            :data:`MAX_SAMPLE_LIMIT_OVERRIDE`; ``None`` for a knob with no
+            upper bound, like ``max_samples``) are rejected here too: the
             store enforces the same bound, but a 400 at the wire beats a 500.
             Returns the parsed values plus a 400 for the first invalid one
             (a ``None`` passes through as "not requested").
@@ -530,16 +538,20 @@ class ControlServer:
                     try:
                         value = int(raw)
                     except ValueError:
-                        value = -1
-                    if value < 0 or value > maximum:
+                        value = minimum - 1
+                    if value < minimum or (maximum is not None and value > maximum):
+                        bounds = (
+                            f"between {minimum} and {maximum}"
+                            if maximum is not None
+                            else f">= {minimum}"
+                        )
                         return _ParsedOverrideKnobs(
                             values=parsed,
                             error=JSONResponse(
                                 status_code=400,
                                 content={
                                     "error": f"{label} must be an integer "
-                                    f"between 0 and "
-                                    f"{maximum} or "
+                                    f"{bounds} or "
                                     f"'clear' (got {raw!r})"
                                 },
                             ),
@@ -946,6 +958,78 @@ class ControlServer:
                 return JSONResponse(status_code=404, content={"error": result["error"]})
             return result
 
+        # Interim scoring for one sample (the per-sample variant of the
+        # task-wide pass above — design/ctl/interim-scoring.md): the same
+        # start + poll pair, scoped to one `(sample_id, epoch)`. `sample_id`
+        # is a query param like the other per-sample routes (ids may contain
+        # URL-reserved characters); `epoch` is required on the POST — this is
+        # a mutation, and a defaulted epoch would silently score a different
+        # attempt. Shares the one-pass-per-task registry: a start while any
+        # pass runs for the task is the idempotent no-op with that pass's id
+        # and scope. A task with no scorers (or a superseded attempt's eval
+        # id) is a 409; a sample with no live or completed record is a 404.
+        @app.post("/evals/{eval_id}/sample/score")
+        async def sample_score(
+            eval_id: str,
+            sample_id: str,
+            epoch: int | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            from inspect_ai._control.scoring import start_sample_score_pass
+
+            if epoch is None:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "epoch is required — a defaulted epoch would "
+                            "silently score the epoch-1 attempt on a "
+                            "multi-epoch task"
+                        )
+                    },
+                )
+            result = await start_sample_score_pass(
+                eval_id, sample_id, epoch, dry_run=dry_run
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "error": (
+                            f"sample {sample_id} (epoch {epoch}) not found "
+                            "(it may not have started yet)"
+                        )
+                    },
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # `epoch` is required here too, unlike the other per-sample reads:
+        # this GET answers "is/was there a pass for this exact attempt", so
+        # a defaulted epoch wouldn't return harmless epoch-1 data — it would
+        # 404 a pass that is running normally on another epoch (or serve
+        # epoch 1's result as if it answered the caller's question).
+        @app.get("/evals/{eval_id}/sample/score")
+        async def sample_score_status(eval_id: str, sample_id: str, epoch: int) -> Any:
+            from inspect_ai._control.scoring import get_sample_score_pass
+
+            result = await get_sample_score_pass(eval_id, sample_id, epoch)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"eval {eval_id} not found"},
+                )
+            if result.get("ok") is False:
+                # a superseded attempt is a 409 (as on the POST) so the CLI
+                # surfaces this message instead of its static not-found text;
+                # a plain 404 here only ever means no pass for this sample
+                status = 409 if result.get("superseded") else 404
+                return JSONResponse(
+                    status_code=status, content={"error": result["error"]}
+                )
+            return result
+
         # Cancel one running sample (phase 3). `sample_id` is a query param
         # like the other per-sample routes (ids may contain URL-reserved
         # characters). `epoch` is required — this is a mutation, and a
@@ -1119,7 +1203,8 @@ class ControlServer:
         # after a `/`); `key`/`key_limit` retune a named concurrency() registry
         # entry by exact name (400 for a name with no entry — named limits are
         # created lazily on first use). The override knobs (max_tasks and the
-        # retry knobs timeout / attempt_timeout / max_retries) set live
+        # retry knobs timeout / attempt_timeout / stream_idle_timeout /
+        # max_retries) set live
         # overrides; the keyword
         # `clear` removes one. `author`/`reason` are provenance for the eval-log
         # record of any applied change (see EvalLog.config_updates); the
@@ -1139,6 +1224,7 @@ class ControlServer:
             key_limit: int | None = None,
             timeout: str | None = None,
             attempt_timeout: str | None = None,
+            stream_idle_timeout: str | None = None,
             max_retries: str | None = None,
             author: str | None = None,
             reason: str | None = None,
@@ -1161,6 +1247,7 @@ class ControlServer:
                 MAX_GENERATE_CONFIG_OVERRIDE,
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
+                ("stream_idle_timeout", stream_idle_timeout),
                 ("max_retries", max_retries),
             )
             if retry_error is not None:
@@ -1179,6 +1266,7 @@ class ControlServer:
                     key_limit=key_limit,
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
+                    stream_idle_timeout=retry_knobs["stream_idle_timeout"],
                     max_retries=retry_knobs["max_retries"],
                     author=author,
                     reason=reason,
@@ -1220,7 +1308,7 @@ class ControlServer:
         @app.patch("/tasks/{task_id}/config")
         async def patch_limits(
             task_id: str,
-            max_samples: int | None = None,
+            max_samples: str | None = None,
             max_tasks: str | None = None,
             max_sandboxes: int | None = None,
             max_subprocesses: int | None = None,
@@ -1232,6 +1320,7 @@ class ControlServer:
             log_shared: int | None = None,
             timeout: str | None = None,
             attempt_timeout: str | None = None,
+            stream_idle_timeout: str | None = None,
             max_retries: str | None = None,
             time_limit: str | None = None,
             token_limit: str | None = None,
@@ -1240,8 +1329,19 @@ class ControlServer:
             reason: str | None = None,
             dry_run: bool = False,
         ) -> Any:
+            # max_samples is declared str (it accepts the keyword `clear` —
+            # under adaptive connections an integer pins sample concurrency
+            # and `clear` unpins): minimum=1 because the apply layer raises
+            # on 0 (0 must 400 at the wire, not 500), and maximum=None
+            # because the knob has no upper bound, matching the static
+            # setpoint.
+            max_samples_knob, max_samples_error = _parse_override_knobs(
+                None, ("max_samples", max_samples), minimum=1
+            )
+            if max_samples_error is not None:
+                return max_samples_error
+            parsed_max_samples = max_samples_knob["max_samples"]
             if error := _limits_below_one(
-                ("max_samples", max_samples),
                 ("max_sandboxes", max_sandboxes),
                 ("max_subprocesses", max_subprocesses),
                 ("max_connections", max_connections),
@@ -1261,6 +1361,7 @@ class ControlServer:
                 MAX_GENERATE_CONFIG_OVERRIDE,
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
+                ("stream_idle_timeout", stream_idle_timeout),
                 ("max_retries", max_retries),
             )
             if retry_error is not None:
@@ -1279,7 +1380,7 @@ class ControlServer:
             try:
                 result = await task_limits(
                     task_id,
-                    max_samples=max_samples,
+                    max_samples=parsed_max_samples,
                     max_tasks=max_tasks_value,
                     max_sandboxes=max_sandboxes,
                     max_subprocesses=max_subprocesses,
@@ -1291,6 +1392,7 @@ class ControlServer:
                     log_shared=log_shared,
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
+                    stream_idle_timeout=retry_knobs["stream_idle_timeout"],
                     max_retries=retry_knobs["max_retries"],
                     time_limit=limit_knobs["time_limit"],
                     token_limit=limit_knobs["token_limit"],

@@ -24,15 +24,34 @@ ungated call site (construction itself can only be gated where it happens).
 Without `on_stream` only the heartbeat/token progress channel runs —
 partial-output snapshots included, since they are built from the delta
 stream.
+
+Providers differ deliberately in how a stream that ends without usage is
+handled, following each provider's contract and response type rather than a
+single house rule. Bedrock raises: ConverseStream guarantees a trailing
+metadata event, so its absence means a truncated stream. Groq, Mistral and
+Azure warn once and return the response, because their servers may
+legitimately omit usage. Of those, Groq and Azure report no usage at all
+(their response types make it optional); Mistral's requires a usage object,
+so it fabricates zeros. Don't unify these.
 """
 
 import contextlib
+import math
 import time
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from logging import getLogger
-from typing import TYPE_CHECKING, Awaitable, Callable, Iterator, Literal, Union
+from typing import (
+    TYPE_CHECKING,
+    Awaitable,
+    Callable,
+    Iterator,
+    Literal,
+    NamedTuple,
+    Union,
+)
 
+import anyio
 from pydantic import BaseModel, Field
 from typing_extensions import TypeAlias
 
@@ -118,6 +137,40 @@ StreamContentEvent: TypeAlias = Union[
 """Content delta reported by a provider streaming loop (internal)."""
 
 
+STALL_DEADLINE_BUMP_INTERVAL = 1.0
+"""Maximum seconds between stall-scope deadline bumps.
+
+Setting `CancelScope.deadline` reschedules a timer handle, so per-chunk
+rescheduling is needless work; 1-second granularity is noise against any
+sane `stream_idle_timeout` (see design/stream-idle-timeout.md). Throttling
+shrinks the effective silence tolerance by up to one interval (the deadline
+can be an interval staler than the last chunk), so `arm_stall_scope` caps
+the interval at a tenth of the timeout — a small timeout must not spend a
+meaningful fraction of its window on throttle slack.
+"""
+
+
+class _StallScope(NamedTuple):
+    """One attempt's stall-detection state (see `arm_stall_scope`)."""
+
+    scope: anyio.CancelScope
+    timeout: float
+    bump_interval: float
+
+
+class NoStreamDataError(RuntimeError):
+    """A streaming response completed (HTTP 200) without delivering any data.
+
+    Raised by provider streaming loops when a misbehaving server ends the
+    stream with zero chunks. Always retried by the model layer's retry
+    classifier (`Model.should_retry`) regardless of provider — an empty
+    stream carries no signal to classify from, and failing the sample would
+    score a server hiccup as an empty (wrong) completion. Subclass of
+    `RuntimeError` so pre-existing `except RuntimeError` handling still
+    applies.
+    """
+
+
 PARTIAL_OUTPUT_FLUSH_INTERVAL = 1.0
 """Minimum seconds between partial-output snapshot notifications.
 
@@ -193,6 +246,9 @@ class ModelStreamObserver:
         self._fragments: list[tuple[str, list[str]]] = []
         self._partial_published = False
         self._last_flush = 0.0
+        # stall-detection state for the current attempt (see arm_stall_scope)
+        self._stall: _StallScope | None = None
+        self._last_stall_bump = 0.0
 
     async def begin_attempt(self, event: "ModelEvent") -> None:
         """Bind the observer to a new attempt's pending event.
@@ -205,6 +261,10 @@ class ModelStreamObserver:
         """
         self._attempt += 1
         self._event = event
+        # drop the prior attempt's stall scope (exited with its attempt);
+        # the wrapper re-arms per attempt via arm_stall_scope — a cache-hit
+        # attempt runs no provider call, so it deliberately never re-arms
+        self._stall = None
         self._reset_output_state()
         if self._attempt > 1 and self._delivered:
             await self._deliver(StreamRetryEvent(attempt=self._attempt))
@@ -229,6 +289,9 @@ class ModelStreamObserver:
         if event is not None and event._progress is not None:
             event._progress.output_tokens = None
         self._reset_output_state()
+        # a provider-internal restart is progress — the replacement stream is
+        # being requested, so the stall clock resets like any other report
+        self._bump_stall_deadline()
         if self._delivered:
             await self._deliver(StreamRetryEvent(attempt=max(self._attempt, 1)))
 
@@ -287,7 +350,9 @@ class ModelStreamObserver:
         broken handler recovers there. Detaching also turns
         `model_stream_requested()` False for this call's later attempts
         (nothing consumes the deltas, so auto-mode providers needn't
-        stream). Only `Exception` is caught — cancellation propagates.
+        stream) — unless a `stream_idle_timeout` stall scope is armed,
+        which keeps the request alive (stall detection still needs
+        chunks). Only `Exception` is caught — cancellation propagates.
         """
         if self._on_stream is None:
             return
@@ -330,9 +395,53 @@ class ModelStreamObserver:
 
                 transcript()._event_updated(event)
 
+    def arm_stall_scope(self, scope: anyio.CancelScope, timeout: int | float) -> None:
+        """Hand the observer the attempt's stall-detection cancel scope.
+
+        Called by the wrapper before each provider attempt when the call's
+        config sets `stream_idle_timeout` (see design/stream-idle-timeout.md).
+        The scope's deadline starts infinite; the attempt's first report arms
+        it at now + `timeout` and every subsequent report pushes it forward
+        (throttled — see `_bump_stall_deadline`), so an attempt that never
+        streams can never fire. The reference is per-attempt state, dropped
+        by `begin_attempt`.
+        """
+        self._stall = _StallScope(
+            scope=scope,
+            timeout=float(timeout),
+            # cap throttle slack at a tenth of the window (see the
+            # STALL_DEADLINE_BUMP_INTERVAL docstring)
+            bump_interval=min(STALL_DEADLINE_BUMP_INTERVAL, float(timeout) / 10.0),
+        )
+
+    def _bump_stall_deadline(self) -> None:
+        """Push the stall scope's deadline forward: the stream is alive.
+
+        Runs on every report path (all of them funnel through
+        `_touch_progress`, plus `output_restarted`). The first report arms
+        the scope unconditionally — the still-infinite deadline is what
+        guarantees that, so `_last_stall_bump` needs no per-attempt reset —
+        and later bumps are throttled to one deadline write per
+        `bump_interval`. The throttle gate reads `time.monotonic()` so the
+        common throttled case skips the event-loop clock lookup; the
+        deadline itself is written on the loop clock.
+        """
+        stall = self._stall
+        if stall is None:
+            return
+        now = time.monotonic()
+        if (
+            stall.scope.deadline != math.inf
+            and now - self._last_stall_bump < stall.bump_interval
+        ):
+            return
+        self._last_stall_bump = now
+        stall.scope.deadline = anyio.current_time() + stall.timeout
+
     def _touch_progress(self) -> None:
         from inspect_ai.event._model import ModelEventProgress
 
+        self._bump_stall_deadline()
         event = self._event
         if event is None or event.pending is not True:
             return
@@ -416,24 +525,30 @@ def model_stream_observer(observer: ModelStreamObserver) -> Iterator[None]:
 
 
 def model_stream_requested() -> bool:
-    """True when the current generate call has an `on_stream` consumer.
+    """True when the current generate call asked for stream chunks.
 
-    Providers whose streaming setting is auto/unset consult this in their
-    stream decision so that passing `on_stream` to `Model.generate()` is by
-    itself sufficient to enable streaming (an explicit provider-level
-    streaming opt-out still wins). False when no observer is installed —
-    the monitoring consumers alone never turn streaming on (see the
-    non-goals in design/ctl/generate-progress.md).
+    Two callers request chunks: an `on_stream` consumer, and a
+    `stream_idle_timeout` in the call's config (stall detection cannot work
+    without chunks — see design/stream-idle-timeout.md). Providers whose
+    streaming setting is auto/unset consult this in their stream decision so
+    that either request is by itself sufficient to enable streaming (an
+    explicit provider-level streaming opt-out still wins). False when no
+    observer is installed — the monitoring consumers alone never turn
+    streaming on (see the non-goals in design/ctl/generate-progress.md).
 
     Provider streaming loops also consult this per chunk to gate delta
-    construction/reporting: when a call streams for reasons other than
-    `on_stream` (auto-streaming heuristics, an explicit streaming opt-in),
-    the loop reports bare heartbeats instead, so on_stream support code
-    never runs for callers that didn't pass a callback. Rechecking per chunk
-    also stops delta work once a raising handler is detached mid-call.
+    construction/reporting: when a call streams for reasons other than the
+    two above (auto-streaming heuristics, an explicit streaming opt-in), the
+    loop reports bare heartbeats instead, so on_stream support code never
+    runs for callers that didn't pass a callback. Rechecking per chunk also
+    stops delta work once a raising handler is detached mid-call — unless a
+    stall scope keeps the request alive, in which case constructed deltas
+    degrade to heartbeats at the reporting side (`report_delta`).
     """
     observer = _model_stream_observer.get()
-    return observer is not None and observer._on_stream is not None
+    return observer is not None and (
+        observer._on_stream is not None or observer._stall is not None
+    )
 
 
 def report_model_stream_start() -> None:
