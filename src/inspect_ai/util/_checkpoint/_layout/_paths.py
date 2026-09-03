@@ -19,23 +19,12 @@ single segment) instead of becoming a traversal.
 from __future__ import annotations
 
 import hashlib
-import re
 from pathlib import PurePosixPath
 
 from inspect_ai._util.file import safe_filename
 
-_PASSTHROUGH_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-"""Sample ids that are already a safe single dir segment.
-
-Requiring a leading alphanumeric excludes ``.``, ``..``, hidden names
-and dash-leading names (which read as flags to CLI tools)."""
-
-_LEADING_NON_ALNUM_RE = re.compile(r"^[^A-Za-z0-9]+")
-"""``safe_filename`` keeps a leading ``-``; the rewritten segment must
-satisfy the same leading-alphanumeric rule as the passthrough set."""
-
-_MAX_PASSTHROUGH_LEN = 200
-"""Longest id that passes through unchanged.
+_MAX_PASSTHROUGH_BYTES = 200
+"""Longest id (UTF-8 bytes) that passes through unchanged.
 
 Callers append ``__<epoch>`` to the segment, and the common NAME_MAX is
 255 bytes; a longer id is hashed rather than failing ``mkdir`` with
@@ -46,9 +35,9 @@ _HASH_LEN = 12
 _HASH_JOINER = "~"
 """Joins the safe prefix to the hash digest in a rewritten segment.
 
-Deliberately outside ``_PASSTHROUGH_ID_RE``'s character set so the
-passthrough and hashed namespaces are disjoint: an id that literally
-equals another id's hashed form cannot pass through to the same dir.
+Reserved: an id containing it never passes through, so the passthrough
+and hashed namespaces are disjoint and an id that literally equals
+another id's hashed form cannot pass through to the same dir.
 Unreserved in URLs and valid in POSIX and Windows filenames; the segment
 never starts with it, so no shell tilde expansion applies."""
 
@@ -102,24 +91,41 @@ def contained_relative(rel: str) -> PurePosixPath:
 def sample_dir_segment(sample_id: int | str) -> str:
     """Return the single directory-name segment for a sample id.
 
-    An id whose ``str()`` matches ``^[A-Za-z0-9][A-Za-z0-9._-]*$`` (every
-    non-negative int, and plain-filename strings) and is at most 200
-    characters passes through unchanged so existing checkpoint dirs for
-    such ids keep their names and stay resumable. Anything else,
-    including a negative int or an over-long id, becomes
-    ``safe_filename(id)[:64] + "~" + sha256(id)[:12]`` (with any leading
-    non-alphanumerics dropped from the prefix): deterministic, collision
-    resistant, bounded in length, and never a traversal. The ``~`` joiner
-    is outside the passthrough character set, so a hashed segment can
-    never equal the passthrough segment of some other id.
+    An id whose ``str()`` is a single path component (per
+    :func:`contained_component`), does not contain the reserved ``~``,
+    and is at most 200 UTF-8 bytes passes through unchanged, so every id
+    that was already usable as a dir name keeps its name and its
+    existing checkpoint dirs stay resumable. Anything else (an id with
+    a slash, a backslash, NUL or ``~``, an empty id, ``.``/``..``, or an
+    over-long id) becomes ``safe_filename(id)[:64] + "~" + sha256(id)[:12]``:
+    deterministic, collision resistant, bounded in length, ASCII, and
+    never a traversal. The ``~`` joiner is what keeps the two namespaces
+    disjoint: a hashed segment can never equal the passthrough segment
+    of some other id.
 
     Both the write path (``ensure_sample_checkpoints_dir``) and the
     resume lookup (``has_sample_checkpoint`` / ``sample_checkpoints_dir``)
     derive the dir name here, so they agree by construction.
     """
     text = str(sample_id)
-    if len(text) <= _MAX_PASSTHROUGH_LEN and _PASSTHROUGH_ID_RE.fullmatch(text):
+    if _is_passthrough_segment(text):
         return text
-    digest = hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
-    prefix = _LEADING_NON_ALNUM_RE.sub("", safe_filename(text))
+    encoded = text.encode("utf-8", "surrogatepass")
+    digest = hashlib.sha256(encoded).hexdigest()
+    # The prefix exists only for readability: `safe_filename` keeps a
+    # leading `-`/`_` and prepends `_` to a hidden name, so strip that
+    # debris (e.g. `../../escape` reads `escape~<hash>`, not `_.._.._escape~...`).
+    prefix = safe_filename(text).lstrip("._-")
     return f"{prefix[:_SAFE_PREFIX_LEN] or 'id'}{_HASH_JOINER}{digest[:_HASH_LEN]}"
+
+
+def _is_passthrough_segment(text: str) -> bool:
+    if _HASH_JOINER in text:
+        return False
+    if len(text.encode("utf-8", "surrogatepass")) > _MAX_PASSTHROUGH_BYTES:
+        return False
+    try:
+        contained_component(text)
+    except ValueError:
+        return False
+    return True

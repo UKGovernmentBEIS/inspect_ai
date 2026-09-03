@@ -43,10 +43,13 @@ def strategy_storage_subpath(strategy_name: str, sandbox_name: str) -> str:
     checkpoint dirs resume unchanged; other strategies use
     ``sandboxes/<name>/<strategy>``.
 
-    The sandbox name comes from user configuration (compose service
-    names, ``sandbox_paths`` keys) and is required to be a single path
-    component; a name that would escape the sample root raises
-    ``ValueError``.
+    The sandbox name is a live sandbox environment's name (a compose
+    service name, or the provider's default), which the eval user
+    controls; it is required to be a single path component, and a name
+    that would escape the sample root raises ``ValueError``. Only live
+    environment names reach here: ``resolve_sandbox_backup_paths``
+    iterates the running sandboxes, so a ``sandbox_paths`` key with no
+    matching environment is dropped before this point, not validated.
     """
     try:
         contained_component(sandbox_name)

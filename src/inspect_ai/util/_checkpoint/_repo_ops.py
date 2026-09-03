@@ -68,34 +68,41 @@ async def fs_copy_repo(
 
     The resume source is untrusted — an object store yields keys
     verbatim, so a key may carry ``..`` segments or a doubled slash (an
-    absolute remainder). Every entry must pass ``contained_relative``;
-    one that doesn't raises ``RuntimeError`` and fails hydration, since
-    it means the source is compromised or corrupt and skipping silently
-    would resume from a repo of unknown shape.
+    absolute remainder). Every entry must pass ``contained_relative``,
+    the single containment rule for the copy; one that doesn't is a
+    traversal attempt, so it raises ``RuntimeError`` and fails hydration
+    rather than being skipped: a source that carries one is compromised
+    or corrupt, and resuming from whatever else it holds would resume
+    from a repo of unknown shape.
 
     ``accept`` then scopes the copy to the caller's own storage layout:
     it is given each (contained) entry's path relative to the repo root
-    and returns whether to copy it. Entries it rejects are skipped with
-    a warning rather than failing hydration, because a prior attempt
+    and returns whether to copy it. Entries it rejects are contained but
+    off-layout; nothing is written for them, so they are skipped with a
+    warning rather than failing hydration, because a prior attempt
     killed mid-write legitimately leaves debris in its storage area
     (restic's ``<name>-tmp-*`` temp files, the archive strategy's
-    ``.<name>.partial``) that the next attempt must resume past.
+    ``.<name>.partial``) that the next attempt must resume past. (This
+    also skips a stray file a compromised source planted there; the
+    trade-off is resumability after a torn write over failing loudly on
+    a file that can't affect the resumed repo.)
 
     Directory-marker objects (zero-byte keys ending in ``/``, as written
     by the S3 console's "Create folder") carry no content and are
     skipped.
 
     Returns the list of paths written, relative to the new sample root
-    (i.e. each path starts with ``subpath``). Raises if the source
-    enumerated no files — S3 has no real directories, so existence is
-    only knowable via "any object with this prefix?", and a valid restic
-    repo always has at least one file (`config`).
+    (i.e. each path starts with ``subpath``). Raises if nothing was
+    copied — S3 has no real directories, so existence is only knowable
+    via "any object with this prefix?", and a valid restic repo always
+    has at least one file (`config`). The message distinguishes an empty
+    prefix from one whose every entry was skipped.
     """
     async_fs = get_async_filesystem()
     src_base = f"{old_sample_dir}/{subpath}"
     new_root = Path(new_repo)
-    new_root_resolved = new_root.resolve()
     written: list[str] = []
+    skipped = 0
     # `iter_files` yields URIs verbatim-prefixed by `src_base` for S3, but
     # fsspec-normalized (absolute) for local sources — so slicing by
     # `len(src_base)` mangles local relative sources. Relativize against the
@@ -106,6 +113,7 @@ async def fs_copy_repo(
     with trace_action(logger, "Checkpoint Hydrate", f"fs-copy {label}"):
         async for uri in async_fs.iter_files(src_base, recursive=True):
             if uri.endswith("/"):
+                skipped += 1
                 continue
             raw_rel = uri.rsplit(marker, 1)[-1]
             try:
@@ -119,22 +127,20 @@ async def fs_copy_repo(
                     f"resume: skipping {label} repo entry {uri!r}: "
                     f"{rel.as_posix()!r} is not part of the repo layout"
                 )
+                skipped += 1
                 continue
             dst = new_root / rel
-            # Backstop for anything the component checks above don't model
-            # (e.g. a Windows drive-relative remainder): the join must land
-            # under the new repo root.
-            if not dst.resolve().is_relative_to(new_root_resolved):
-                raise RuntimeError(
-                    f"resume: refusing {label} repo entry {uri!r}: "
-                    f"resolves outside {new_root}"
-                )
             dst.parent.mkdir(parents=True, exist_ok=True)
             await async_fs.get_file(uri, str(dst))
             written.append(f"{subpath}/{rel.as_posix()}")
         if not written:
+            detail = (
+                f"found {skipped} entries but none is part of the repo layout"
+                if skipped
+                else "no files were found"
+            )
             raise RuntimeError(
-                f"resume: expected {label} repo at {src_base}, but no files were found"
+                f"resume: expected {label} repo at {src_base}, but {detail}"
             )
     return written
 
