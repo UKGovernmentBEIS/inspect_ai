@@ -47,8 +47,8 @@ def copy_out_partial_path(dest: Path) -> Path:
 
     ``<dir>/.<name>.partial`` — hidden, beside ``dest``. A ``dest`` whose
     name is already hidden gets no second leading dot, so residue from a
-    hard kill (SIGKILL, OOM) stays under the same ``.<prefix>`` a caller's
-    sweep would glob for.
+    hard kill (SIGKILL, OOM) stays hidden beside ``dest`` where a
+    caller's sweep looks for it.
     """
     name = dest.name if dest.name.startswith(".") else f".{dest.name}"
     return dest.with_name(f"{name}.partial")

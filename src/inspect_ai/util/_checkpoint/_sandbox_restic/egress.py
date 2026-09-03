@@ -46,7 +46,8 @@ observed itself:
   never empty; an empty one is a protocol violation, not a no-op.
 - **The transfer is bounded** by ``max_bytes`` on bytes actually read
   (see :mod:`.._copy`), and extraction bounds member count (the diff
-  list's length, itself bounded by the tar cap) and cumulative bytes.
+  list's length, itself bounded by the tar cap) and cumulative bytes. A
+  delta already over the cap is refused in-sandbox before it is tarred.
 
 Any failure after extraction begins rolls back the files this fire
 wrote, so the destination is unchanged and the in-sandbox manifest —
@@ -68,6 +69,7 @@ import hashlib
 import io
 import os
 import re
+import shutil
 import tarfile
 from collections.abc import Collection, Sequence
 from functools import partial
@@ -207,6 +209,30 @@ def _build_repo_tar(repo: Path) -> bytes:
     return buf.getvalue()
 
 
+def _scratch_dir(dest_repo: str) -> Path:
+    """This sandbox's host scratch directory: ``.egress-<name>`` beside the repo.
+
+    Keyed by the destination repo's name (the sandbox name), which is
+    unique per sample, so no two sandboxes share a scratch directory.
+    """
+    dest_path = Path(dest_repo)
+    return dest_path.parent / f".egress-{dest_path.name}"
+
+
+def _reset_scratch_dir(scratch: Path) -> None:
+    """Recreate ``scratch`` empty, sweeping residue from a killed fire.
+
+    Only a hard kill (SIGKILL, OOM) leaves anything here: the scratch tar
+    or ``copy_out``'s ``.partial`` beside it. Swept before this fire's
+    copy so it never rides along with the next host egress to a remote
+    destination. Failures propagate: a sweep that silently fails would
+    ship the residue.
+    """
+    if scratch.exists():
+        shutil.rmtree(scratch)
+    scratch.mkdir()
+
+
 async def egress_sandbox(
     env: SandboxEnvironment,
     *,
@@ -255,7 +281,7 @@ async def egress_sandbox(
             f"destination (replayed id)"
         )
 
-    build = await _build_egress_tar(env, tag, paths)
+    build = await _build_egress_tar(env, tag, paths, max_bytes=max_bytes)
     if not build.new_files:
         raise EgressVerificationError(
             f"{label}: sandbox reported an empty diff after a backup; a restic "
@@ -263,27 +289,26 @@ async def egress_sandbox(
             f"protocol violation, not a no-op"
         )
 
-    # Host scratch copy of the tarball: beside (not inside) the repo so
-    # nothing partial ever sits where restic would see it. Residue from a
-    # killed fire (any tag; the tar or copy_out's `.partial` beside it,
-    # which shares this prefix) is swept first so it never rides along
-    # with the next host egress to a remote destination.
-    dest_path = Path(dest_repo)
-    for stale in dest_path.parent.glob(f".egress-{dest_path.name}-*"):
-        stale.unlink(missing_ok=True)
-    tar_host = dest_path.parent / f".egress-{dest_path.name}-{tag}.tar"
-    await copy_out(
-        env,
-        src=f"{paths.staging}/egress-{tag}.tar",
-        chunk_path=f"{paths.staging}/chunk",
-        size=build.tar_size,
-        dest=tar_host,
-        max_bytes=max_bytes,
-        label=label,
-        chunk_size=chunk_size,
-        dd_fullblock=dd_fullblock,
-    )
+    # Host scratch copy of the tarball lives in a per-sandbox directory
+    # beside (not inside) the repo, so nothing partial ever sits where
+    # restic would see it. Sandboxes egress concurrently and one name may
+    # prefix another (`web` / `web-db`), so the residue sweep is scoped to
+    # this sandbox's directory, not a name glob over the shared parent.
+    scratch = _scratch_dir(dest_repo)
+    await anyio.to_thread.run_sync(_reset_scratch_dir, scratch)
+    tar_host = scratch / f"{tag}.tar"
     try:
+        await copy_out(
+            env,
+            src=f"{paths.staging}/egress-{tag}.tar",
+            chunk_path=f"{paths.staging}/chunk",
+            size=build.tar_size,
+            dest=tar_host,
+            max_bytes=max_bytes,
+            label=label,
+            chunk_size=chunk_size,
+            dd_fullblock=dd_fullblock,
+        )
         extracted = await anyio.to_thread.run_sync(
             partial(
                 _extract_verified,
@@ -297,7 +322,7 @@ async def egress_sandbox(
             )
         )
     finally:
-        tar_host.unlink(missing_ok=True)
+        shutil.rmtree(scratch, ignore_errors=True)
 
     try:
         verified_id = await _verify_fresh_snapshot(
@@ -332,8 +357,12 @@ class _EgressBuild(NamedTuple):
     """The tarball's size in bytes as the sandbox reports it."""
 
 
+_OVERSIZE_MARKER = "oversize"
+"""First stdout line of the build script when the delta exceeds the cap."""
+
+
 async def _build_egress_tar(
-    env: SandboxEnvironment, tag: str, paths: _SandboxPaths
+    env: SandboxEnvironment, tag: str, paths: _SandboxPaths, *, max_bytes: int
 ) -> _EgressBuild:
     """Phase 1 (in-sandbox): diff vs manifest, build tarball.
 
@@ -341,6 +370,13 @@ async def _build_egress_tar(
     (relative to the repo root) and tarball size. An empty list means
     the sandbox produced no tar — which, after a backup, the caller
     treats as an error.
+
+    A delta whose files already total more than ``max_bytes`` is refused
+    before any tarring (``RuntimeError``): the tarball can only be
+    larger, ``copy_out`` would refuse it anyway, and — since a refused
+    egress never advances the manifest — the same oversized delta would
+    otherwise be re-tarred in the sandbox on every later fire. The tar's
+    true size is still what the copy-out cap binds on.
 
     The scratch listings live in the root-only staging dir rather than
     ``/tmp``, where they would be world-readable and advertise the
@@ -352,7 +388,9 @@ async def _build_egress_tar(
     # see them. Order: config + keys (small, only first cycle anyway),
     # then data (referenced by index/snapshots), then index, then
     # snapshots — so the destination is valid at every intermediate
-    # state if extraction crashes mid-way.
+    # state if extraction crashes mid-way. Restic file names are hex, so
+    # the unquoted `xargs` over `new.txt` is safe; `ls -ln` column 5 is the
+    # byte size on GNU, busybox and BSD alike (`stat`'s flags are not).
     script = f"""\
 set -e
 cd {paths.repo}
@@ -370,6 +408,8 @@ rm -f {paths.staging}/egress-*.tar {paths.staging}/chunk
 }} | LC_ALL=C sort > {paths.staging}/current.txt
 LC_ALL=C comm -23 {paths.staging}/current.txt {paths.manifest} > {paths.staging}/new.txt
 if [ ! -s {paths.staging}/new.txt ]; then exit 0; fi
+total=$(xargs ls -ln < {paths.staging}/new.txt | awk '{{ s += $5 }} END {{ print s + 0 }}')
+if [ "$total" -gt {max_bytes} ]; then echo "{_OVERSIZE_MARKER} $total"; exit 0; fi
 tar -cf {paths.staging}/egress-{tag}.tar -T {paths.staging}/new.txt
 wc -c < {paths.staging}/egress-{tag}.tar
 cat {paths.staging}/new.txt
@@ -380,6 +420,13 @@ cat {paths.staging}/new.txt
     lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     if not lines:
         return _EgressBuild(new_files=[], tar_size=0)
+    marker, _, total = lines[0].partition(" ")
+    if marker == _OVERSIZE_MARKER:
+        raise RuntimeError(
+            f"sandbox egress (build): this cycle's new repo files total {total} "
+            f"bytes, over the max_sandbox_snapshot_bytes cap of {max_bytes} bytes; "
+            f"nothing was tarred"
+        )
     try:
         tar_size = int(lines[0])
     except ValueError as exc:

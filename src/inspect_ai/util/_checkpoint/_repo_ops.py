@@ -147,7 +147,7 @@ def match_snapshot_id(full_ids: Collection[str], recorded: str) -> str | None:
     """
     if not SNAPSHOT_ID_RE.fullmatch(recorded):
         return None
-    matches = [f for f in full_ids if f == recorded or f.startswith(recorded)]
+    matches = [f for f in full_ids if f.startswith(recorded)]
     return matches[0] if len(matches) == 1 else None
 
 

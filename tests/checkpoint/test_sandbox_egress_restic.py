@@ -26,7 +26,7 @@ import anyio
 import pytest
 from test_helpers.local_shell_sandbox import LocalShellSandbox
 
-from inspect_ai.util._checkpoint._copy import copy_out_partial_path
+from inspect_ai.util._checkpoint._copy import copy_out, copy_out_partial_path
 from inspect_ai.util._checkpoint._repo_ops import (
     forget_unrecorded_snapshots,
     list_snapshots,
@@ -45,20 +45,27 @@ CAP = 1 << 30
 
 
 class _Repos:
-    """A real "in-sandbox" restic repo plus an (initially empty) destination."""
+    """A real "in-sandbox" restic repo plus an (initially empty) destination.
 
-    def __init__(self, tmp_path: Path, restic: Path) -> None:
+    ``name`` is the sandbox name: it keys the destination under the shared
+    ``restic/sandboxes/`` parent, so two instances built from the same
+    ``tmp_path`` model two sandboxes of one sample.
+    """
+
+    def __init__(self, tmp_path: Path, restic: Path, name: str = "default") -> None:
         self.restic = restic
-        self.sandbox_dir = tmp_path / "sandbox"
+        root = tmp_path / name
+        root.mkdir()
+        self.sandbox_dir = root / "sandbox"
         self.sandbox_dir.mkdir()
         # `ingress_sandbox` runs `<sandbox_dir>/restic`; egress never does.
         (self.sandbox_dir / "restic").symlink_to(restic)
         self.repo = self.sandbox_dir / "repo"
         self.repo.mkdir()
-        self.src = tmp_path / "capture"
+        self.src = root / "capture"
         self.src.mkdir()
         (self.src / "notes.txt").write_text("v1\n")
-        self.dest = tmp_path / "sample" / "restic" / "sandboxes" / "default"
+        self.dest = tmp_path / "sample" / "restic" / "sandboxes" / name
         self.env = LocalShellSandbox()
         self._run("init", "-q")
 
@@ -309,8 +316,9 @@ async def test_egress_rejects_unreadable_tarball(repos: _Repos) -> None:
 async def test_egress_sweeps_stale_scratch_files(repos: _Repos) -> None:
     """Residue a hard kill leaves (the scratch tar and copy_out's partial) is swept."""
     id1 = repos.backup("ckpt-00001")
-    repos.dest.parent.mkdir(parents=True, exist_ok=True)
-    stale_tar = repos.dest.parent / ".egress-default-ckpt-00000.tar"
+    scratch = repos.dest.parent / ".egress-default"
+    scratch.mkdir(parents=True)
+    stale_tar = scratch / "ckpt-00000.tar"
     stale_partial = copy_out_partial_path(stale_tar)
     stale_tar.write_bytes(b"residue of a fire killed during extraction")
     stale_partial.write_bytes(b"residue of a fire killed mid-transfer")
@@ -320,7 +328,52 @@ async def test_egress_sweeps_stale_scratch_files(repos: _Repos) -> None:
     assert not stale_tar.exists()
     assert not stale_partial.exists()
     assert not list(repos.dest.parent.glob(".egress-*"))
-    assert not list(repos.dest.parent.glob("..egress-*"))
+
+
+async def test_egress_sweep_spares_sibling_sandbox_in_flight_transfer(
+    tmp_path: Path,
+) -> None:
+    """One sandbox's residue sweep never touches a concurrently egressing sibling.
+
+    ``_fire_once`` egresses every sandbox concurrently and sandbox names
+    may prefix one another (``a`` / ``a-b``), so ``a``'s sweep runs while
+    ``a-b`` has its scratch tar or ``copy_out`` partial on disk.
+    """
+    restic = await resolve_restic()
+    a = _Repos(tmp_path, restic, name="a")
+    ab = _Repos(tmp_path, restic, name="a-b")
+    id_a = a.backup("ckpt-00001")
+    id_ab = ab.backup("ckpt-00001")
+    ab_mid_transfer = anyio.Event()
+    a_done = anyio.Event()
+
+    async def copy_out_stalled_for_ab(
+        env: LocalShellSandbox, *, dest: Path, label: str, **kwargs: Any
+    ) -> None:
+        if str(ab.dest) in label:
+            partial = copy_out_partial_path(dest)
+            partial.write_bytes(b"a-b's transfer, in flight")
+            dest.write_bytes(b"a-b's landed tar, awaiting extraction")
+            ab_mid_transfer.set()
+            await a_done.wait()
+            assert partial.exists() and dest.exists()
+            partial.unlink()
+            dest.unlink()
+        await copy_out(env, dest=dest, label=label, **kwargs)
+
+    with patch(
+        "inspect_ai.util._checkpoint._sandbox_restic.egress.copy_out",
+        new=copy_out_stalled_for_ab,
+    ):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(ab.egress, "ckpt-00001", id_ab)
+            await ab_mid_transfer.wait()
+            assert await a.egress("ckpt-00001", id_a) == id_a
+            a_done.set()
+
+    assert await a.dest_snapshots() == {id_a: ["ckpt-00001"]}
+    assert await ab.dest_snapshots() == {id_ab: ["ckpt-00001"]}
+    assert not list(a.dest.parent.glob(".egress-*"))
 
 
 async def test_egress_rejects_replayed_snapshot_id(repos: _Repos) -> None:
@@ -353,10 +406,27 @@ async def test_egress_rejects_malformed_snapshot_id(repos: _Repos) -> None:
         await repos.egress("ckpt-00001", "latest")
 
 
-async def test_egress_enforces_transfer_cap(repos: _Repos) -> None:
+async def test_egress_refuses_oversized_delta_before_tarring(repos: _Repos) -> None:
+    """A delta already over the cap is refused in-sandbox, with no tar built."""
     id1 = repos.backup("ckpt-00001")
-    with pytest.raises(RuntimeError, match="max_sandbox_snapshot_bytes"):
+    with pytest.raises(RuntimeError, match="nothing was tarred"):
         await repos.egress("ckpt-00001", id1, max_bytes=512)
+    assert not list((repos.sandbox_dir / "staging").glob("egress-*.tar"))
+    assert repos.dest_files() == set()
+    assert not list(repos.dest.parent.glob(".egress-*"))
+    assert repos.manifest() == set()
+
+
+async def test_egress_enforces_transfer_cap(repos: _Repos) -> None:
+    """The cap binds on the tar's true size, not just the summed file sizes."""
+    id1 = repos.backup("ckpt-00001")
+    # Headers and padding make the tar larger than its members: a cap
+    # exactly at the members' total passes the pre-check and lets the
+    # copy-out refuse the tar.
+    members_total = sum((repos.repo / f).stat().st_size for f in repos.repo_files())
+    with pytest.raises(RuntimeError, match="exceeds the max_sandbox_snapshot_bytes"):
+        await repos.egress("ckpt-00001", id1, max_bytes=members_total)
+    assert list((repos.sandbox_dir / "staging").glob("egress-*.tar"))
     assert repos.dest_files() == set()
     assert not list(repos.dest.parent.glob(".egress-*"))
     assert repos.manifest() == set()
