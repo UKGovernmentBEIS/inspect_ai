@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from pydantic import BaseModel, ValidationError
 
@@ -53,6 +55,30 @@ def test_timezone_normalization(input_str: str, expected_utc: str) -> None:
     assert m.timestamp == expected_utc
     assert isinstance(m.timestamp, str)
     validate_model(m, input_str)
+
+
+def test_datetime_instance_coercion() -> None:
+    """Should convert datetime instances (aware and naive) to UTC ISO string."""
+    from datetime import datetime, timedelta, timezone
+
+    class Model(BaseModel):
+        timestamp: UtcDatetimeStr
+
+    # Aware UTC datetime
+    dt1: Any = datetime(2025, 1, 24, 12, 0, 0, tzinfo=timezone.utc)
+    m1 = Model(timestamp=dt1)
+    assert m1.timestamp == "2025-01-24T12:00:00+00:00"
+
+    # Aware with offset
+    tz_minus_5 = timezone(timedelta(hours=-5))
+    dt2: Any = datetime(2025, 1, 24, 12, 0, 0, tzinfo=tz_minus_5)
+    m2 = Model(timestamp=dt2)
+    assert m2.timestamp == "2025-01-24T17:00:00+00:00"
+
+    # Naive datetime (treated as UTC)
+    dt3: Any = datetime.fromisoformat("2025-01-24T12:00:00")
+    m3 = Model(timestamp=dt3)
+    assert m3.timestamp == "2025-01-24T12:00:00+00:00"
 
 
 @pytest.mark.parametrize(

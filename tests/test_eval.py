@@ -714,6 +714,39 @@ def test_failed_log_start_is_retried(
     assert calls["n"] == 2
 
 
+def test_abandoned_attempt_not_traced_as_task_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An attempt abandoned by a task drain/cancel is not a task error.
+
+    The attempt-start bail (``TaskRetryAbandonedError``) is an
+    operator-requested outcome, so the dispatcher's "Run Task" trace action
+    must record a clean exit rather than an ``error`` event with a
+    stacktrace (which would show up in ``inspect trace dump`` as a failure).
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai._util.constants import TRACE
+
+    monkeypatch.setattr(task_run_module, "task_retry_abandoned", lambda _: True)
+    caplog.set_level(TRACE, logger="inspect_ai._eval.run")
+
+    logs = eval(
+        log_write_failure_task(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+    )
+
+    assert logs == []
+    run_task_events = [
+        getattr(r, "event")
+        for r in caplog.records
+        if getattr(r, "action", None) == "Run Task"
+    ]
+    assert run_task_events == ["enter", "exit"]
+
+
 async def test_retry_sample_source_tolerates_missing_log_file(tmp_path: Path) -> None:
     """A retry whose prior log was never written yields no reusable samples.
 
