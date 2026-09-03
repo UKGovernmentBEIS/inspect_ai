@@ -116,8 +116,8 @@ carrying one as *cancelled, absent from the log*. So the design adds no second s
    raising; `_fire_on_interrupt` and the scope cancel run when the interrupt actually
    fires, so a binder (the live ACP session) sees the same sequence it sees for a running
    sample. Contract: "interrupt now if the sample has started, otherwise as it starts".
-   The `RuntimeError` was a programming-error guard for a state no caller reached; the
-   deferral makes the state meaningful instead.
+   The `RuntimeError` was a programming-error guard that only the unguarded ACP handler
+   reaches today (see Failure modes); the deferral makes the state meaningful instead.
 2. **The start-time self-check consults the per-sample intent first — and exclusively.**
    Immediately after `active.start(tg)`: if `active.interrupt_action` is set, call
    `active.interrupt(active.interrupt_action)` — now with a task group, it fires — and
