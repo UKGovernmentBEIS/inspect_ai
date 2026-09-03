@@ -59,6 +59,10 @@ def _build_payload(sample_dir: Path, *, checkpoint_ids: list[int]) -> None:
     (sample_dir / "restic" / "snapshot-strategies.json").write_text(
         '{"strategies":{"default":"restic-incremental","bulk":"archive"}}'
     )
+    # the live host-context working dir: not payload (its committed
+    # contents are in the host repo)
+    (sample_dir / "context").mkdir()
+    (sample_dir / "context" / "events.json").write_text("[]")
     for n in checkpoint_ids:
         (sample_dir / f"ckpt-{n:05d}.json").write_text(_checkpoint_json(n))
 
@@ -80,6 +84,7 @@ def _assert_payload_copied(dest: Path, *, checkpoint_ids: list[int]) -> None:
     ).read_text() == '{"strategies":{"default":"restic-incremental","bulk":"archive"}}'
     for n in checkpoint_ids:
         assert (dest / f"ckpt-{n:05d}.json").read_text() == _checkpoint_json(n)
+    assert not (dest / "context").exists()
 
 
 async def test_copy_resume_payloads_replicates_every_sample_dir(
@@ -146,12 +151,12 @@ async def test_copy_resume_payloads_failure_raises(
     _build_payload(source_eval / "s1__1", checkpoint_ids=[1])
     dest_eval = tmp_path / "new.checkpoints"
 
-    async def failing_copy_repo(
-        old_sample_dir: str, subpath: str, new_repo: str, *, label: str
+    async def failing_copy(
+        source_dir: str, destination_dir: str, rels: list[str]
     ) -> list[str]:
         raise OSError("simulated transient failure")
 
-    monkeypatch.setattr(resume_copy, "_fs_copy_repo", failing_copy_repo)
+    monkeypatch.setattr(resume_copy, "_copy_payload_data", failing_copy)
 
     with pytest.raises(OSError):
         await copy_resume_payloads(
@@ -160,44 +165,23 @@ async def test_copy_resume_payloads_failure_raises(
         )
 
 
-async def test_copy_resume_payloads_skips_sample_dir_without_host_repo(
+async def test_copy_resume_payloads_copies_incomplete_sample_dirs_verbatim(
     tmp_path: Path,
 ) -> None:
-    """A structurally incomplete sample dir is skipped, not fatal.
+    """A sample dir is copied as whatever it holds; nothing is required.
 
-    A dir whose provisioning died before `restic init` finished holds
-    nothing committed; it must not poison the source attempt forever.
-    """
-    source_eval = tmp_path / "old.checkpoints"
-    _build_payload(source_eval / "s1__1", checkpoint_ids=[1])
-    (source_eval / "s2__1" / "context").mkdir(parents=True)  # no restic/host
-    dest_eval = tmp_path / "new.checkpoints"
-
-    await copy_resume_payloads(
-        source_eval_dir=str(source_eval),
-        destination_eval_dir=str(dest_eval),
-    )
-
-    _assert_payload_copied(dest_eval / "s1__1", checkpoint_ids=[1])
-
-
-async def test_copy_resume_payloads_tolerates_empty_sandbox_storage_dir(
-    tmp_path: Path,
-) -> None:
-    """An empty sandbox storage area in a logged attempt must not poison retries.
-
-    A fire interrupted between a strategy's mkdir of its storage area
-    and its first write there leaves an empty area on local
-    filesystems (restic: between the sandbox egress's mkdir and its
-    extract; archive: between the mkdir and the partial-file write).
-    No committed checkpoint can reference it (checkpoint files write
-    only after every snapshot completes), so the copy skips it instead
-    of failing every future retry of the attempt.
+    The copy has no opinion about a sample dir's shape: a dir whose
+    provisioning died before `restic init` finished, or a storage area
+    that is an empty directory, copies as-is (an empty dir contributes
+    no files). Neither holds a committed checkpoint, so resume detection
+    runs such a sample fresh — and neither can poison the source
+    attempt.
     """
     source_eval = tmp_path / "old.checkpoints"
     _build_payload(source_eval / "s1__1", checkpoint_ids=[1])
     (source_eval / "s1__1" / "restic" / "sandboxes" / "torn").mkdir()
-    (source_eval / "s1__1" / "sandboxes" / "torn" / "archive").mkdir(parents=True)
+    (source_eval / "s2__1" / "restic").mkdir(parents=True)  # no restic/host
+    (source_eval / "s2__1" / "restic" / "restic-config.json").write_text("{}")
     dest_eval = tmp_path / "new.checkpoints"
 
     await copy_resume_payloads(
@@ -207,7 +191,8 @@ async def test_copy_resume_payloads_tolerates_empty_sandbox_storage_dir(
 
     _assert_payload_copied(dest_eval / "s1__1", checkpoint_ids=[1])
     assert not (dest_eval / "s1__1" / "restic" / "sandboxes" / "torn").exists()
-    assert not (dest_eval / "s1__1" / "sandboxes" / "torn").exists()
+    assert (dest_eval / "s2__1" / "restic" / "restic-config.json").read_text() == "{}"
+    assert not list((dest_eval / "s2__1").glob("ckpt-*.json"))
 
 
 async def test_copy_payload_files_commit_point_order(tmp_path: Path) -> None:

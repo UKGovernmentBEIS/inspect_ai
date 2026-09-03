@@ -373,8 +373,8 @@ configured one, with the remedy stated (restore the original
 configuration and resume, or start a fresh eval). A pinned strategy
 name unknown to the current build errors the same way, as does a
 configured sandbox with no pin entry — the sandbox set changed between
-attempts, which today surfaces only as a downstream copy failure
-(`_fs_copy_repo` raising on an empty source); the pin check turns it
+attempts, which would otherwise surface only as a downstream restore
+failure (no storage area to restore from); the pin check turns it
 into the same clear, named error. The mirror case — a pin entry whose
 sandbox is absent from this attempt's configuration (removed, or
 opted out via an empty `sandbox_paths` entry) — hard-errors too:
@@ -419,14 +419,11 @@ Today: `restic/host/`, `restic/sandboxes/<name>/`,
   `SnapshotContext`.
 - The §4.7 pin (from Phase 2) is core-owned and lives at
   `restic/snapshot-strategies.json`, beside `restic-config.json`. A
-  strategy-agnostic file under `restic/` is deliberate: it rides the
-  same cross-cutting leg of the retry startup copy
-  (`_resume_copy._fs_copy_cross_cutting`) that carries
-  `restic-config.json` out of that directory (that leg is name-scoped,
-  not directory-scoped — it copies exactly `restic/restic-config.json`
-  and the pin), and `restic/` is already the home of core-owned
-  per-sample files (the host repo, the config) rather than
-  restic-strategy state.
+  strategy-agnostic file under `restic/` is deliberate: `restic/` is
+  already the home of core-owned per-sample files (the host repo, the
+  config) rather than restic-strategy state. The retry startup copy
+  (`_resume_copy`) replicates the whole sample dir, so the pin needs no
+  carry-over of its own.
 
 ## 6. Configuration
 

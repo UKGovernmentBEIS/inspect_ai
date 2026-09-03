@@ -5,12 +5,13 @@ Run as a script by the interrupted-resume e2e test::
     python hydrate_interrupt_harness.py <log_dir> <retry_from>
 
 Reuses ``resume_kill_harness``'s task/model registrations and wraps
-``_resume_copy._fs_copy_repo`` so a real signal — ``SIGNAL_ENV``
+``_resume_copy._copy_payload_data`` (the pass that copies a sample
+dir's repos and storage areas) so a real signal — ``SIGNAL_ENV``
 selects ``SIGINT`` (what Ctrl-C delivers) or ``SIGKILL`` (an
-unanticipated death) — lands *while a repo copy is in flight*, before
-the checkpoint files that would commit the new dir. The greedy startup
-copy (``copy_resume_payloads``) is the first caller, so the interrupt
-lands there, before any sample runs.
+unanticipated death) — lands *while that data copy is in flight*,
+before the checkpoint files that would commit the new dir. The greedy
+startup copy (``copy_resume_payloads``) is the first caller, so the
+interrupt lands there, before any sample runs.
 
 The wrapped first copy sends the signal and then parks instead of
 copying. ``SIGKILL`` never returns from the kill; parking is what pins
@@ -33,12 +34,12 @@ import anyio
 import inspect_ai.util._checkpoint._resume_copy as resume_copy
 from checkpoint.resume_kill_harness import crash_signal, run_eval
 
-_original_fs_copy_repo = resume_copy._fs_copy_repo
+_original_copy_payload_data = resume_copy._copy_payload_data
 _fired = False
 
 
-async def _interrupting_fs_copy_repo(
-    old_sample_dir: str, subpath: str, new_repo: str, *, label: str
+async def _interrupting_copy_payload_data(
+    source_dir: str, destination_dir: str, rels: list[str]
 ) -> list[str]:
     global _fired
     if not _fired:
@@ -48,24 +49,24 @@ async def _interrupting_fs_copy_repo(
         # call would have performed is "still in flight" when the
         # interrupt's cancellation arrives here
         await anyio.sleep_forever()
-    return await _original_fs_copy_repo(old_sample_dir, subpath, new_repo, label=label)
+    return await _original_copy_payload_data(source_dir, destination_dir, rels)
 
 
 # Distinct exit code asserted by the test: the hook never fired, so the
 # child ran an ordinary uninterrupted resume. Guards against a refactor
-# that moves the repo copies and silently turns the patch into a no-op —
+# that moves the data copy and silently turns the patch into a no-op —
 # without this, the test would fail downstream pointing at the product.
 HOOK_NEVER_FIRED_EXIT_CODE = 17
 
 
 def main() -> None:
-    resume_copy._fs_copy_repo = _interrupting_fs_copy_repo
+    resume_copy._copy_payload_data = _interrupting_copy_payload_data
     try:
         run_eval(sys.argv[1], sys.argv[2])
     finally:
         if not _fired:
             print(
-                "hydrate_interrupt_harness: the _fs_copy_repo hook never fired",
+                "hydrate_interrupt_harness: the _copy_payload_data hook never fired",
                 file=sys.stderr,
             )
             os._exit(HOOK_NEVER_FIRED_EXIT_CODE)

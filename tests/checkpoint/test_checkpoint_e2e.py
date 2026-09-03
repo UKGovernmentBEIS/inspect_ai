@@ -640,7 +640,7 @@ def _run_hydrate_interrupted_resume(
 ) -> None:
     """Resume in a child process that signals itself mid-copy.
 
-    The signal lands on the first repo copy of the startup pass
+    The signal lands on the first sample-dir data copy of the startup pass
     (``copy_resume_payloads``), which runs before the destination
     log's first write — so the interrupted attempt leaves no log at
     all. ``SIGKILL`` dies on the spot; ``SIGINT`` unwinds gracefully
@@ -668,7 +668,7 @@ def _run_hydrate_interrupted_resume(
         )
     else:
         assert proc.returncode != HOOK_NEVER_FIRED_EXIT_CODE, (
-            "the harness's hydration hook never fired — the repo-copy seam it "
+            "the harness's hydration hook never fired — the data-copy seam it "
             "patches has moved; this run was an ordinary uninterrupted resume"
         )
 
