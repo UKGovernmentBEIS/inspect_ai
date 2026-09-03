@@ -205,11 +205,10 @@ async def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None
     With a root tools user, also capture the default exec identity so tool calls
     without an explicit user can run as it (see ``_detect_default_user``).
     """
+    default_user = await _detect_default_user(sandbox) if user == "root" else None
     sandbox._tools_user = user
     sandbox._tools_user_resolved = True
-    sandbox._tools_default_user = (
-        await _detect_default_user(sandbox) if user == "root" else None
-    )
+    sandbox._tools_default_user = default_user
 
 
 def _expected_uid(user: str | None) -> int | None:
@@ -380,7 +379,7 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
 # Shell builtins only: numeric ids from /proc so uids with no passwd entry work.
 _DEFAULT_USER_CMD = (
     'while read k v; do case "$k" in Uid:|Gid:|Groups:) echo "$k $v";; esac; done'
-    ' < /proc/self/status; echo "HOME: ${HOME:-/}"'
+    ' < /proc/self/status; echo "HOME: ${HOME-/}"'
 )
 
 

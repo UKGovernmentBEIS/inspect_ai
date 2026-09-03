@@ -691,6 +691,30 @@ def test_parse_default_user() -> None:
     assert parse(
         "Uid: 1000 1000 1000 1000\nGid: 5 5 5 5\nGroups: 4 20 1000\nHOME: /\n"
     ) == (SandboxDefaultUser(uid=1000, gid=5, groups=[4, 20, 1000], home="/"))
+    assert parse("Uid: 5 5 5 5\nGid: 5 5 5 5\nGroups: 5\nHOME: \n").home == ""
+
+
+async def test_detector_does_not_pin_root_when_identity_probe_fails() -> None:
+    """A failed identity probe leaves nothing cached, so the next call retries it."""
+    probes = {"n": 0}
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_identity_probe(cmd):
+            probes["n"] += 1
+            if probes["n"] == 1:
+                raise RuntimeError("docker exec: transient failure")
+            return DEFAULT_USER
+        return REGULAR_FILE
+
+    sandbox = CannedSandbox(policy)
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is False
+    assert sandbox._tools_user is None
+    assert sandbox._tools_user_resolved is False
+    assert sandbox._tools_default_user is None
+
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
+    assert sandbox._tools_user == "root"
+    assert sandbox._tools_default_user == NONROOT
 
 
 @pytest.mark.parametrize(
