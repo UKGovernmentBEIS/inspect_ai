@@ -1,14 +1,18 @@
 """Tests for bridge header extraction and filtering."""
 
+import importlib
 import json
 
-import brotli  # type: ignore[import-untyped]  # brotli ships no type stubs
 import httpx
 
 from inspect_ai.agent._bridge.bridge import (
     _ALLOWED_BRIDGE_HEADERS,
     filter_bridge_headers,
 )
+
+# brotli ships no type stubs; binding it via importlib keeps mypy clean without a
+# suppression, and still fails loudly if httpx[brotli] stops pulling it in.
+brotli = importlib.import_module("brotli")
 
 
 class TestFilterBridgeHeaders:
