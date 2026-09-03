@@ -39,6 +39,19 @@ def test_json_unicode_replace_preserves_exclude():
     assert json.loads(result) == {"keep": "\\ud800"}
 
 
+def test_json_unicode_replace_surrogate_keys():
+    data = {
+        "key_\ud800": "value1",
+        "nested": {"nested_key_\ud83c": "value2"},
+    }
+    json_str = to_json_str_safe(data)
+    deserialized = json.loads(json_str)
+    assert deserialized == {
+        "key_\\ud800": "value1",
+        "nested": {"nested_key_\\ud83c": "value2"},
+    }
+
+
 def test_json_changes_tracks_replaced_value_through_array_shifts():
     before = {"x": ["a", "b"]}
     after = {"x": ["c", "a", "d"]}

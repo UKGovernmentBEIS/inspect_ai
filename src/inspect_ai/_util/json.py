@@ -171,16 +171,22 @@ def to_json_safe(
     exclude: _IncEx | None = None,
     indent: int | None = 2,
 ) -> bytes:
-    normalized = jsonable_python(x)
-
     def clean_utf8_json(obj: Any) -> Any:
         if isinstance(obj, str):
             return obj.encode("utf-8", errors="backslashreplace").decode("utf-8")
         elif isinstance(obj, dict):
-            return {k: clean_utf8_json(v) for k, v in obj.items()}
+            return {clean_utf8_json(k): clean_utf8_json(v) for k, v in obj.items()}
         elif isinstance(obj, list):
             return [clean_utf8_json(item) for item in obj]
         return obj
+
+    try:
+        normalized = jsonable_python(x)
+    except (UnicodeEncodeError, PydanticSerializationError) as ex:
+        if "surrogates not allowed" in str(ex):
+            normalized = jsonable_python(clean_utf8_json(x))
+        else:
+            raise
 
     try:
         return to_json(
