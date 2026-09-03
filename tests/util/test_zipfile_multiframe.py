@@ -21,7 +21,8 @@ from test_helpers.zstd import (
 
 # Importing this module installs the zstd compression patches (both the
 # zipfile_zstd delegation on Python < 3.14 and our multi-frame wrapper).
-import inspect_ai._util.zipfile  # noqa: F401
+import inspect_ai._util.zipfile
+from inspect_ai._util.zipfile import _MultiFrameZstdDecompressObj
 
 MAX_INPUT_PER_FRAME = 200 * 1024 * 1024  # must match the value in _util/zipfile.py
 
@@ -117,24 +118,29 @@ def _two_frame_stream(payload: bytes, split: int) -> bytes:
     return cctx.compress(payload[:split]) + cctx.compress(payload[split:])
 
 
-def _decompressor_for_zstd() -> object:
-    return zipfile._get_decompressor(ZIP_ZSTANDARD)  # type: ignore[attr-defined]
+def _decompressor_for_zstd() -> _MultiFrameZstdDecompressObj:
+    # zipfile._get_decompressor is private and absent from the typeshed stubs.
+    get_decompressor = getattr(zipfile, "_get_decompressor", None)
+    assert get_decompressor is not None
+    decomp = get_decompressor(ZIP_ZSTANDARD)
+    assert isinstance(decomp, _MultiFrameZstdDecompressObj)
+    return decomp
 
 
 def test_registered_zstd_decompressor_exposes_needs_input() -> None:
     """The stdlib's ``_decompressor_needs_input`` probes ``needs_input`` first."""
     decomp = _decompressor_for_zstd()
-    assert decomp.needs_input is True  # type: ignore[attr-defined]
+    assert decomp.needs_input is True
 
 
 def test_unbounded_decompress_returns_everything() -> None:
     """The pre-gh-156002 call shape ``decompress(data)`` is unchanged."""
     payload = moderately_compressible_payload(64 * 1024)
     decomp = _decompressor_for_zstd()
-    out = decomp.decompress(_two_frame_stream(payload, 20_000))  # type: ignore[attr-defined]
+    out = decomp.decompress(_two_frame_stream(payload, 20_000))
     assert out == payload
-    assert decomp.needs_input is True  # type: ignore[attr-defined]
-    assert decomp.eof is False  # type: ignore[attr-defined]
+    assert decomp.needs_input is True
+    assert decomp.eof is False
 
 
 MIN_READ_SIZE = 4096  # zipfile.ZipExtFile.MIN_READ_SIZE
@@ -185,8 +191,8 @@ def test_partial_input_across_a_frame_boundary() -> None:
 
     out = b""
     for i in range(0, len(stream), 100):
-        out += decomp.decompress(stream[i : i + 100], 4096)  # type: ignore[attr-defined]
-        assert decomp.needs_input is True  # type: ignore[attr-defined]
+        out += decomp.decompress(stream[i : i + 100], 4096)
+        assert decomp.needs_input is True
     assert out == payload
 
 
