@@ -124,12 +124,26 @@ def is_identity_probe(cmd: list[str]) -> bool:
     return cmd[:2] == ["/bin/sh", "-c"] and "Uid:" in cmd[2]
 
 
+def caps_probe_result(cap_eff: str) -> ExecResult[str]:
+    return ExecResult(success=True, returncode=0, stdout=f"{cap_eff}\n", stderr="")
+
+
+ROOT_CAPS = caps_probe_result("000001ffffffffff")
+"""Result of the root capability probe when root can switch users."""
+
+
+def is_caps_probe(cmd: list[str]) -> bool:
+    return cmd[:2] == ["/bin/sh", "-c"] and "CapEff:" in cmd[2]
+
+
 def helper_ok(cmd: list[str], user: str | None) -> ExecResult[str]:
     """Every helper call verifies; every other command succeeds."""
     if is_framework_dir_call(cmd):
         return VERIFIED
     if is_identity_probe(cmd):
         return DEFAULT_USER
+    if is_caps_probe(cmd):
+        return ROOT_CAPS
     return OK
 
 
@@ -181,9 +195,9 @@ async def test_inject_falls_back_to_default_user_when_root_probe_raises(
     assert sandbox._tools_user is None
     assert sandbox._tools_default_user is None
     assert stub_artifact["extracted_as"] is None
-    # The root probe went through the verified-directory helper, not a bare mkdir.
+    # Root was probed, but never with a bare mkdir.
     root_calls = [cmd for cmd, user in sandbox.exec_calls if user == "root"]
-    assert root_calls and all(is_framework_dir_call(cmd) for cmd in root_calls)
+    assert root_calls and not any(cmd[:1] == ["mkdir"] for cmd in root_calls)
     assert ([SANDBOX_CLI, "start-server"], None) in sandbox.exec_calls
 
 
@@ -566,7 +580,7 @@ async def test_transient_root_failure_cannot_pin_a_planted_tree(
             return violation(
                 f"{SANDBOX_TOOLS_DIR} is owned by uid 1111, expected uid 0"
             )
-        return REGULAR_FILE if is_framework_dir_call(cmd) else OK
+        return REGULAR_FILE if is_framework_dir_call(cmd) else helper_ok(cmd, user)
 
     sandbox = CannedSandbox(policy)
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
@@ -675,3 +689,32 @@ def test_parse_default_user() -> None:
     assert parse(
         "Uid: 1000 1000 1000 1000\nGid: 5 5 5 5\nGroups: 4 20 1000\nHOME: /\n"
     ) == (SandboxDefaultUser(uid=1000, gid=5, groups=[4, 20, 1000], home="/"))
+
+
+@pytest.mark.parametrize(
+    "cap_eff",
+    [
+        pytest.param("0000000000000000", id="cap_drop-all"),
+        pytest.param("0000000000000040", id="setgid-without-setuid"),
+    ],
+)
+async def test_inject_falls_back_when_root_cannot_switch_users(
+    stub_artifact: dict[str, object], cap_eff: str
+) -> None:
+    """Root without CAP_SETUID/CAP_SETGID cannot run tools as the default user."""
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        return (
+            caps_probe_result(cap_eff) if is_caps_probe(cmd) else helper_ok(cmd, user)
+        )
+
+    sandbox = CannedSandbox(policy)
+    await sandbox_tools._inject_container_tools_code(sandbox)
+
+    assert sandbox._tools_user is None
+    assert sandbox._tools_default_user is None
+    assert stub_artifact["extracted_as"] is None
+    assert not any(
+        is_framework_dir_call(cmd) and user == "root"
+        for cmd, user in sandbox.exec_calls
+    )

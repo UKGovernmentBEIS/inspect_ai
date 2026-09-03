@@ -312,6 +312,12 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         ) from e
 
 
+# Root is only useful if it can switch users; e.g. `cap_drop: [ALL]` leaves root
+# without CAP_SETGID/CAP_SETUID, so the tools must run as the default user instead.
+_ROOT_CAPS_CMD = 'while read k v; do case "$k" in CapEff:) echo "$v";; esac; done < /proc/self/status'
+_SWITCH_USER_CAPS = (1 << 6) | (1 << 7)  # CAP_SETGID | CAP_SETUID
+
+
 async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     """Prepare the tools dir as root; False if the sandbox cannot exec as root.
 
@@ -327,6 +333,17 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     planted the entry decide which user the tools run as.
     """
     try:
+        caps = await sandbox.exec(["/bin/sh", "-c", _ROOT_CAPS_CMD], user="root")
+        if not caps.success or (
+            int(caps.stdout.strip(), 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
+        ):
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                f"root cannot switch users (CapEff {caps.stdout.strip()!r}); "
+                "falling back to default user",
+            )
+            return False
         await ensure_framework_directory(
             sandbox, SANDBOX_TOOLS_DIR, user="root", expected_uid=0
         )

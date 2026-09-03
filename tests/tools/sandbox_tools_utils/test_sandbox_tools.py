@@ -228,10 +228,12 @@ for line in sys.stdin:
 
 
 def _compose(
-    tmp_path: Path, user: str | None, group_add: str | None
+    tmp_path: Path, user: str | None, group_add: str | None, cap_drop: bool = False
 ) -> tuple[str, str]:
-    extra = (f"    user: '{user}'\n" if user else "") + (
-        f"    group_add: ['{group_add}']\n" if group_add else ""
+    extra = (
+        (f"    user: '{user}'\n" if user else "")
+        + (f"    group_add: ['{group_add}']\n" if group_add else "")
+        + ("    cap_drop: [ALL]\n" if cap_drop else "")
     )
     compose = tmp_path / "compose.yaml"
     compose.write_text(
@@ -242,7 +244,7 @@ def _compose(
 
 
 @solver
-def _identity_parity() -> Solver:
+def _identity_parity(check_root: bool = True) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         sb = sandbox()
         ref = (await sb.exec(["sh", "-c", _ID_CMD])).stdout
@@ -272,6 +274,9 @@ def _identity_parity() -> Solver:
             result = await whoami()
         assert isinstance(result, list) and isinstance(result[0], ContentText), result
         assert " ".join(result[0].text.split()) == expected, result
+
+        if not check_root:
+            return state
 
         # explicit user= still overrides the default
         root = ExecRemoteAwaitableOptions(user="root")
@@ -315,6 +320,19 @@ def test_tools_match_default_exec_identity(
         dataset=[Sample(input="x")],
         solver=_identity_parity(),
         sandbox=_compose(tmp_path, user, group_add),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+# `cap_drop: [ALL]` leaves root unable to switch users, so injection must take the
+# rootless path: the server runs as the default user and no user switching happens.
+@pytest.mark.slow
+def test_tools_match_default_exec_identity_without_setuid_caps(tmp_path: Path) -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_identity_parity(check_root=False),
+        sandbox=_compose(tmp_path, "nonroot", None, cap_drop=True),
     )
     log = eval(task, model=get_model("mockllm/model"))[0]
     assert log.status == "success", log.error
