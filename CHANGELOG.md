@@ -13,7 +13,7 @@
 - Control Channel: `inspect ctl task list` rows now report a pending graceful resolution (`resolving`: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as `pending`.
 - Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
 - Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
-- Security: Checkpoint resume refuses source entries that would write outside the sample directory, and sample ids that are not plain filenames now get a safe hashed checkpoint directory name; checkpoints written by earlier versions for ids containing spaces, `+`, `:`, parentheses, or non-ASCII characters are no longer found on resume, so those samples restart from scratch.
+- Security: Checkpoint resume refuses source entries that would write outside the sample directory; sample ids that are not plain filenames get a hashed checkpoint directory name, so earlier checkpoints for such ids restart from scratch.
 
 ## 0.3.262 (02 September 2026)
 

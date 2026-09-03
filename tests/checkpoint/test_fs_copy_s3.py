@@ -398,10 +398,10 @@ def test_is_restic_repo_file(rel: str, expected: bool) -> None:
     assert is_restic_repo_file(rel) is expected
 
 
-async def test_fs_copy_cross_cutting_refuses_malformed_checkpoint_name(
-    tmp_path: Path, mock_s3: None
+async def test_fs_copy_cross_cutting_skips_malformed_checkpoint_name(
+    tmp_path: Path, mock_s3: None, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A ``ckpt-*.json`` listing entry must be exactly ``ckpt-NNNNN.json``."""
+    """A non-conforming ``ckpt-*.json`` basename is off-layout: skipped with a warning."""
     src = f"{S3_BUCKET}/bad-ckpt.checkpoints/s__0"
     new = tmp_path / "staging"
     new.mkdir()
@@ -409,11 +409,23 @@ async def test_fs_copy_cross_cutting_refuses_malformed_checkpoint_name(
     async with AsyncFilesystem() as fs:
         await _put(fs, f"{src}/ckpt-00001.json", b'{"checkpoint_id":1}')
         await _put(fs, f"{src}/ckpt-x.json", b"evil")
+        await _put(fs, f"{src}/ckpt-00001 (1).json", b"dup")
 
-        with pytest.raises(RuntimeError, match="ckpt-x.json"):
-            await _fs_copy_cross_cutting(src, str(new))
+        with caplog.at_level("WARNING", logger="inspect_ai"):
+            written = await _fs_copy_cross_cutting(src, str(new))
 
+    assert written == ["ckpt-00001.json"]
+    assert (new / "ckpt-00001.json").exists()
     assert not (new / "ckpt-x.json").exists()
+    assert not (new / "ckpt-00001 (1).json").exists()
+    skipped = [
+        r.getMessage()
+        for r in caplog.records
+        if "skipping checkpoint file entry" in r.getMessage()
+    ]
+    assert len(skipped) == 2
+    assert any("ckpt-x.json" in m for m in skipped)
+    assert any("ckpt-00001 (1).json" in m for m in skipped)
 
 
 async def test_fs_copy_repo_raises_when_source_missing(

@@ -507,9 +507,12 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
     relative to ``new_sample_dir``.
 
     The checkpoint-file basenames come from an untrusted listing (an
-    object store yields keys verbatim), so each must match the exact
-    ``ckpt-NNNNN.json`` form before it is joined onto the new sample
-    dir; anything else raises and fails hydration.
+    object store yields keys verbatim), so each must fully match
+    ``CHECKPOINT_FILE_RE`` before it is joined onto the new sample dir.
+    A basename cannot traverse, so a non-conforming name (e.g. an S3
+    console duplicate ``ckpt-00001 (1).json``) is off-layout rather than
+    hostile: it is skipped with a warning, the same way
+    ``_list_checkpoint_ids`` ignores it on a local dir.
     """
     async_fs = get_async_filesystem()
     new = Path(new_sample_dir)
@@ -527,10 +530,11 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
         async for uri in async_fs.iter_files(old_sample_dir, pattern="ckpt-*.json"):
             name = uri.rsplit("/", 1)[-1]
             if not CHECKPOINT_FILE_RE.fullmatch(name):
-                raise RuntimeError(
-                    f"resume: refusing checkpoint file entry {uri!r}: "
+                logger.warning(
+                    f"resume: skipping checkpoint file entry {uri!r}: "
                     f"{name!r} is not a ckpt-NNNNN.json name"
                 )
+                continue
             dst = new / name
             await async_fs.get_file(uri, str(dst))
             written.append(name)

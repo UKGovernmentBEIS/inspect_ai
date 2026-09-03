@@ -88,13 +88,21 @@ def test_sample_dir_segment_passes_through_safe_string_ids(sample_id: str) -> No
     assert sample_dir_segment(sample_id) == sample_id
 
 
-@pytest.mark.parametrize("sample_id", [0, 1, 42, -1, 10**12])
-def test_sample_dir_segment_passes_through_int_ids(sample_id: int) -> None:
+@pytest.mark.parametrize("sample_id", [0, 1, 42, 10**12])
+def test_sample_dir_segment_passes_through_non_negative_int_ids(
+    sample_id: int,
+) -> None:
     assert sample_dir_segment(sample_id) == str(sample_id)
 
 
 def _hashed(sample_id: str) -> str:
     return hashlib.sha256(sample_id.encode()).hexdigest()[:12]
+
+
+def test_sample_dir_segment_negative_int_id_is_hashed_like_its_string() -> None:
+    """A negative int is dash-leading, so it follows the same rule as the string ``"-1"``."""
+    assert sample_dir_segment(-1) == f"1-{_hashed('-1')}"
+    assert sample_dir_segment(-1) == sample_dir_segment("-1")
 
 
 @pytest.mark.parametrize(

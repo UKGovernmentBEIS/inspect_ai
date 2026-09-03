@@ -87,9 +87,10 @@ def contained_relative(rel: str) -> PurePosixPath:
 def sample_dir_segment(sample_id: int | str) -> str:
     """Return the single directory-name segment for a sample id.
 
-    Ints, and strings matching ``^[A-Za-z0-9][A-Za-z0-9._-]*$``, pass
-    through unchanged so existing checkpoint dirs for such ids keep
-    their names and stay resumable. Anything else becomes
+    An id whose ``str()`` matches ``^[A-Za-z0-9][A-Za-z0-9._-]*$`` (every
+    non-negative int, and plain-filename strings) passes through
+    unchanged so existing checkpoint dirs for such ids keep their names
+    and stay resumable. Anything else, including a negative int, becomes
     ``safe_filename(id)[:64] + "-" + sha256(id)[:12]`` (with any leading
     non-alphanumerics dropped from the prefix): deterministic, collision
     resistant, bounded in length, and never a traversal.
@@ -98,10 +99,9 @@ def sample_dir_segment(sample_id: int | str) -> str:
     resume lookup (``has_sample_checkpoint`` / ``sample_checkpoints_dir``)
     derive the dir name here, so they agree by construction.
     """
-    if isinstance(sample_id, int):
-        return str(sample_id)
-    if _PASSTHROUGH_ID_RE.fullmatch(sample_id):
-        return sample_id
-    digest = hashlib.sha256(sample_id.encode("utf-8", "surrogatepass")).hexdigest()
-    prefix = _LEADING_NON_ALNUM_RE.sub("", safe_filename(sample_id))
+    text = str(sample_id)
+    if _PASSTHROUGH_ID_RE.fullmatch(text):
+        return text
+    digest = hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
+    prefix = _LEADING_NON_ALNUM_RE.sub("", safe_filename(text))
     return f"{prefix[:_SAFE_PREFIX_LEN] or 'id'}-{digest[:_HASH_LEN]}"
