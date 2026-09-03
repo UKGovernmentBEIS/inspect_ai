@@ -19,13 +19,10 @@ The optional ``_<retry>`` suffix on the dir name is omitted until
 from __future__ import annotations
 
 import secrets
-from functools import partial
 from typing import TypeVar
 
-import anyio
 from pydantic import BaseModel, ValidationError
 
-from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import get_async_filesystem
 
 from .._async_fs import async_mkdir
@@ -33,12 +30,6 @@ from .schemas import Checkpoint, ResticConfig
 from .staging_dir import restic_config_path, restic_dir
 
 _M = TypeVar("_M", bound=BaseModel)
-
-_SCAN_READ_CONCURRENCY = 16
-"""Concurrent checkpoint-file reads in :func:`scan_committed_checkpoints`.
-
-Bounds the GET fan-out against a remote location so a sample with
-hundreds of checkpoint files does not trip request throttling."""
 
 
 def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
@@ -141,17 +132,12 @@ async def scan_committed_checkpoints(sample_checkpoints_dir: str) -> list[Checkp
     than passing as absent (see :func:`_read_checkpoint_file`).
     """
     ids = await _list_checkpoint_ids(sample_checkpoints_dir)
-    limiter = anyio.Semaphore(_SCAN_READ_CONCURRENCY)
-
-    async def read_one(n: int) -> Checkpoint | None:
-        async with limiter:
-            return await _read_checkpoint_file(sample_checkpoints_dir, n)
-
-    # Concurrent reads: with a remote location and a turn trigger a sample
-    # can hold hundreds of checkpoint files, and serial GETs would dominate
-    # resume. tg_collect preserves input order, so the result stays ascending.
-    results = await tg_collect([partial(read_one, n) for n in sorted(ids)])
-    return [checkpoint for checkpoint in results if checkpoint is not None]
+    committed: list[Checkpoint] = []
+    for n in sorted(ids):
+        checkpoint = await _read_checkpoint_file(sample_checkpoints_dir, n)
+        if checkpoint is not None:
+            committed.append(checkpoint)
+    return committed
 
 
 async def _read_checkpoint_file(

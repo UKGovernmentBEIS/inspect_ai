@@ -14,7 +14,7 @@
 - Control Channel: `inspect ctl task list` rows now report a pending graceful resolution (`resolving`: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as `pending`.
 - Bugfix: Changing `attempt_timeout` or `cache_prompt` no longer misses the model cache, since neither changes what the provider returns.
 - Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
-- Checkpointing: Sandbox snapshot transfers are now verified host-side and capped by the new `max_sandbox_snapshot_bytes` option (default 4 GiB); resume restores the recorded snapshot rather than the repo's latest.
+- Checkpointing: Sandbox snapshot transfers are now verified host-side and capped by the new `max_sandbox_snapshot_bytes` option (default 4 GiB; a sample whose capture exceeds it stops checkpointing until the cap is raised); resume restores the recorded snapshot rather than the repo's latest.
 - Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
 
 ## 0.3.262 (02 September 2026)

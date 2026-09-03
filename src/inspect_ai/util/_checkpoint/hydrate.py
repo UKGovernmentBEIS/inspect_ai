@@ -507,6 +507,11 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
     ``old_sample_dir`` may be local or remote (e.g. ``s3://``); the new
     sample dir is always local. Returns the list of paths written,
     relative to ``new_sample_dir``.
+
+    The checkpoint files are fetched concurrently, bounded by
+    :data:`_CROSS_CUTTING_COPY_CONCURRENCY`: with a remote location and
+    a turn trigger a sample can hold hundreds of them, and serial GETs
+    would dominate resume.
     """
     async_fs = get_async_filesystem()
     new = Path(new_sample_dir)
@@ -521,12 +526,29 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
                 await async_fs.get_file(src, str(dst))
                 written.append(subpath)
 
-        async for uri in async_fs.iter_files(old_sample_dir, pattern="ckpt-*.json"):
+        limiter = anyio.Semaphore(_CROSS_CUTTING_COPY_CONCURRENCY)
+
+        async def get_one(uri: str) -> str:
             name = uri.rsplit("/", 1)[-1]
-            dst = new / name
-            await async_fs.get_file(uri, str(dst))
-            written.append(name)
+            async with limiter:
+                await async_fs.get_file(uri, str(new / name))
+            return name
+
+        checkpoint_uris = [
+            uri
+            async for uri in async_fs.iter_files(old_sample_dir, pattern="ckpt-*.json")
+        ]
+        written.extend(
+            await tg_collect([partial(get_one, uri) for uri in checkpoint_uris])
+        )
     return written
+
+
+_CROSS_CUTTING_COPY_CONCURRENCY = 16
+"""Concurrent checkpoint-file GETs in :func:`_fs_copy_cross_cutting`.
+
+Bounds the fan-out against a remote location so a sample with hundreds
+of checkpoint files does not trip request throttling."""
 
 
 def _load_host_state(

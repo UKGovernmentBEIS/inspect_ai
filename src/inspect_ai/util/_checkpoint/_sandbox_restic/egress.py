@@ -322,7 +322,13 @@ async def egress_sandbox(
             )
         )
     finally:
-        shutil.rmtree(scratch, ignore_errors=True)
+        # Threaded: the scratch dir holds a tarball of up to `max_bytes`
+        # and unlinking it is not free. Shielded: this `finally` also runs
+        # under cancellation, where an unshielded await would abort.
+        with anyio.CancelScope(shield=True):
+            await anyio.to_thread.run_sync(
+                partial(shutil.rmtree, scratch, ignore_errors=True)
+            )
 
     try:
         verified_id = await _verify_fresh_snapshot(
@@ -390,7 +396,10 @@ async def _build_egress_tar(
     # snapshots — so the destination is valid at every intermediate
     # state if extraction crashes mid-way. Restic file names are hex, so
     # the unquoted `xargs` over `new.txt` is safe; `ls -ln` column 5 is the
-    # byte size on GNU, busybox and BSD alike (`stat`'s flags are not).
+    # byte size on GNU, busybox and BSD alike (`stat`'s flags are not). The
+    # total is printed with `%.0f`: `print` on older awks (mawk 1.3.3)
+    # emits sums above the C int range in scientific notation, which `test
+    # -gt` rejects and the `if` then silently skips the pre-check.
     script = f"""\
 set -e
 cd {paths.repo}
@@ -408,7 +417,7 @@ rm -f {paths.staging}/egress-*.tar {paths.staging}/chunk
 }} | LC_ALL=C sort > {paths.staging}/current.txt
 LC_ALL=C comm -23 {paths.staging}/current.txt {paths.manifest} > {paths.staging}/new.txt
 if [ ! -s {paths.staging}/new.txt ]; then exit 0; fi
-total=$(xargs ls -ln < {paths.staging}/new.txt | awk '{{ s += $5 }} END {{ print s + 0 }}')
+total=$(xargs ls -ln < {paths.staging}/new.txt | awk '{{ s += $5 }} END {{ printf "%.0f\\n", s + 0 }}')
 if [ "$total" -gt {max_bytes} ]; then echo "{_OVERSIZE_MARKER} $total"; exit 0; fi
 tar -cf {paths.staging}/egress-{tag}.tar -T {paths.staging}/new.txt
 wc -c < {paths.staging}/egress-{tag}.tar

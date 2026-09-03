@@ -26,6 +26,7 @@ from inspect_ai.util._checkpoint._repo_ops import (
     fs_copy_repo as _fs_copy_repo,
 )
 from inspect_ai.util._checkpoint.hydrate import (
+    _CROSS_CUTTING_COPY_CONCURRENCY,
     _fs_copy_cross_cutting,
 )
 
@@ -60,9 +61,11 @@ def _checkpoint_bytes(checkpoint_id: int) -> bytes:
 async def test_fs_copy_cross_cutting_downloads_from_s3(
     tmp_path: Path, mock_s3: None
 ) -> None:
+    """Every checkpoint file lands, with more files than the GET fan-out bound."""
     src = f"{S3_BUCKET}/old-eval.checkpoints/s__0"
     new = tmp_path / "staging"
     new.mkdir()
+    checkpoint_ids = range(1, 2 * _CROSS_CUTTING_COPY_CONCURRENCY + 2)
 
     async with AsyncFilesystem() as fs:
         await _put(
@@ -70,21 +73,19 @@ async def test_fs_copy_cross_cutting_downloads_from_s3(
             f"{src}/restic/restic-config.json",
             b'{"restic_password":"the-pw"}',
         )
-        await _put(fs, f"{src}/ckpt-00001.json", b'{"checkpoint_id":1}')
-        await _put(fs, f"{src}/ckpt-00002.json", b'{"checkpoint_id":2}')
+        for n in checkpoint_ids:
+            await _put(fs, f"{src}/ckpt-{n:05d}.json", _checkpoint_bytes(n))
 
         written = await _fs_copy_cross_cutting(src, str(new))
 
-    assert set(written) == {
-        "restic/restic-config.json",
-        "ckpt-00001.json",
-        "ckpt-00002.json",
+    assert set(written) == {"restic/restic-config.json"} | {
+        f"ckpt-{n:05d}.json" for n in checkpoint_ids
     }
     assert (
         new / "restic" / "restic-config.json"
     ).read_bytes() == b'{"restic_password":"the-pw"}'
-    assert (new / "ckpt-00001.json").read_bytes() == b'{"checkpoint_id":1}'
-    assert (new / "ckpt-00002.json").read_bytes() == b'{"checkpoint_id":2}'
+    for n in checkpoint_ids:
+        assert (new / f"ckpt-{n:05d}.json").read_bytes() == _checkpoint_bytes(n)
 
 
 async def test_fs_copy_cross_cutting_noop_when_source_missing(
