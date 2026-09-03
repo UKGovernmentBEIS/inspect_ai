@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import ssl
 from copy import copy
 from io import BytesIO
 from logging import getLogger
@@ -980,6 +981,36 @@ class GoogleGenAIAPI(ModelAPI):
         if self._oauth and self._credentials is not None:
             await self._credentials.ensure_valid()
 
+    @staticmethod
+    @functools.cache
+    def _ssl_context() -> ssl.SSLContext:
+        """The shared SSL context for genai clients, built once per process.
+
+        `Client()` is constructed per `generate()` call (deliberately — a shared client
+        would share a principal). Each construction otherwise rebuilds a default context
+        from `certifi.where()`, synchronously on the event loop. A context carries only
+        CA trust, not credentials, so unlike the client itself it is safe to share across
+        principals.
+        """
+        import certifi
+
+        return ssl.create_default_context(
+            cafile=os.environ.get("SSL_CERT_FILE", certifi.where()),
+            capath=os.environ.get("SSL_CERT_DIR"),
+        )
+
+    @staticmethod
+    @functools.lru_cache
+    def _ssl_context_for_path(path: str) -> ssl.SSLContext:
+        """An SSLContext built from a caller-supplied CA-bundle path.
+
+        httpx's `verify` legally accepts a CA-bundle path (`str` or `os.PathLike`), but
+        aiohttp's `ssl` param only accepts `SSLContext | bool | Fingerprint | None` —
+        `aiohttp.client_reqrep` raises `TypeError` on a bare path. Cached per path since
+        `model_client()` is constructed per `generate()` call.
+        """
+        return ssl.create_default_context(cafile=path)
+
     def model_client(self, http_options: HttpOptions | None = None) -> Client:
         from inspect_ai._util._async import current_async_backend
 
@@ -987,6 +1018,31 @@ class GoogleGenAIAPI(ModelAPI):
             base_url=self.base_url,
             api_version=self.api_version,
         )
+        # Seed both `client_args` and `async_client_args`: genai's SSL-context
+        # resolution reads only the sync dict when it is non-empty, ignoring the
+        # async dict entirely, so a value supplied on one side must be copied to
+        # the other explicitly to keep sync and async verification consistent.
+        # Never override a value the caller already supplied.
+        context = self._ssl_context()
+        client_args = dict(http_options.client_args or {})
+        async_client_args = dict(http_options.async_client_args or {})
+        if "verify" in client_args:
+            verify = client_args["verify"]
+        elif "verify" in async_client_args:
+            verify = async_client_args["verify"]
+        else:
+            verify = context
+        if "verify" not in client_args:
+            client_args["verify"] = verify
+        if "verify" not in async_client_args:
+            async_client_args["verify"] = verify
+        if "ssl" not in async_client_args:
+            if isinstance(verify, (str, os.PathLike)):
+                async_client_args["ssl"] = self._ssl_context_for_path(os.fspath(verify))
+            else:
+                async_client_args["ssl"] = verify
+        http_options.client_args = client_args
+        http_options.async_client_args = async_client_args
         # aiohttp requires asyncio; use httpx under trio for compatibility.
         # Only this path gets the shared HTTP defaults: the aiohttp path sets no
         # connect deadline at all, so there is none there to be outlasted.
