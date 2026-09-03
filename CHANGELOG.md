@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Grok: Oversized prompts now return `stop_reason="model_length"` instead of failing with a generation error under xAI's current context-overflow wording.
 - Eval Log: Reading zstd-compressed `.eval` members no longer fails with `AttributeError: ... has no attribute '_needs_input'` on Pythons that carry CPython's gh-156002 zipfile hardening (already in Docker Hardened Images' 3.13, queued for every maintained release): the multi-frame zstd decompressor now exposes `needs_input` and accepts `decompress(data, max_length)`.
 - Eval Log: Sample summaries now keep `Score.reason`, so an explicit reason is no longer dropped (and a stale `metadata["unscored_reason"]` cannot replace it).
 - Agent bridge: A Chat Completions response truncated by the output-token limit now reports `finish_reason="length"` instead of `"stop"`.
