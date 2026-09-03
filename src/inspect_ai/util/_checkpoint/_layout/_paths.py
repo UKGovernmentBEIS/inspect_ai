@@ -36,6 +36,14 @@ satisfy the same leading-alphanumeric rule as the passthrough set."""
 
 _SAFE_PREFIX_LEN = 64
 _HASH_LEN = 12
+_HASH_JOINER = "~"
+"""Joins the safe prefix to the hash digest in a rewritten segment.
+
+Deliberately outside ``_PASSTHROUGH_ID_RE``'s character set so the
+passthrough and hashed namespaces are disjoint: an id that literally
+equals another id's hashed form cannot pass through to the same dir.
+Unreserved in URLs and valid in POSIX and Windows filenames; the segment
+never starts with it, so no shell tilde expansion applies."""
 
 
 def contained_component(name: str) -> str:
@@ -91,9 +99,11 @@ def sample_dir_segment(sample_id: int | str) -> str:
     non-negative int, and plain-filename strings) passes through
     unchanged so existing checkpoint dirs for such ids keep their names
     and stay resumable. Anything else, including a negative int, becomes
-    ``safe_filename(id)[:64] + "-" + sha256(id)[:12]`` (with any leading
+    ``safe_filename(id)[:64] + "~" + sha256(id)[:12]`` (with any leading
     non-alphanumerics dropped from the prefix): deterministic, collision
-    resistant, bounded in length, and never a traversal.
+    resistant, bounded in length, and never a traversal. The ``~`` joiner
+    is outside the passthrough character set, so a hashed segment can
+    never equal the passthrough segment of some other id.
 
     Both the write path (``ensure_sample_checkpoints_dir``) and the
     resume lookup (``has_sample_checkpoint`` / ``sample_checkpoints_dir``)
@@ -104,4 +114,4 @@ def sample_dir_segment(sample_id: int | str) -> str:
         return text
     digest = hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
     prefix = _LEADING_NON_ALNUM_RE.sub("", safe_filename(text))
-    return f"{prefix[:_SAFE_PREFIX_LEN] or 'id'}-{digest[:_HASH_LEN]}"
+    return f"{prefix[:_SAFE_PREFIX_LEN] or 'id'}{_HASH_JOINER}{digest[:_HASH_LEN]}"

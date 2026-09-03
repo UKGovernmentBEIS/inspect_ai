@@ -101,7 +101,7 @@ def _hashed(sample_id: str) -> str:
 
 def test_sample_dir_segment_negative_int_id_is_hashed_like_its_string() -> None:
     """A negative int is dash-leading, so it follows the same rule as the string ``"-1"``."""
-    assert sample_dir_segment(-1) == f"1-{_hashed('-1')}"
+    assert sample_dir_segment(-1) == f"1~{_hashed('-1')}"
     assert sample_dir_segment(-1) == sample_dir_segment("-1")
 
 
@@ -131,14 +131,14 @@ def test_sample_dir_segment_rewrites_unsafe_ids_to_one_safe_segment(
 ) -> None:
     segment = sample_dir_segment(sample_id)
     assert segment != sample_id
-    assert segment.endswith(f"-{_hashed(sample_id)}")
+    assert segment.endswith(f"~{_hashed(sample_id)}")
     # Exactly one path component, never a traversal, never hidden/flag-like.
     assert "/" not in segment and "\\" not in segment and "\x00" not in segment
     assert segment not in (".", "..")
     # Same leading-alphanumeric rule as the passthrough set: never hidden,
     # never flag-like.
     assert re.match(r"[A-Za-z0-9]", segment)
-    # Bounded: 64-char safe prefix + "-" + 12 hex.
+    # Bounded: 64-char safe prefix + "~" + 12 hex.
     assert len(segment) <= 64 + 1 + 12
     # The safe prefix is filename-safe ASCII.
     prefix = segment[: -(1 + 12)]
@@ -152,20 +152,32 @@ def test_sample_dir_segment_is_deterministic_and_collision_resistant() -> None:
     assert sample_dir_segment("a/b") != sample_dir_segment("a b")
 
 
+def test_sample_dir_segment_hashed_form_never_collides_with_a_passthrough_id() -> None:
+    """The ``~`` joiner is outside the passthrough set, so the namespaces are disjoint."""
+    hashed = sample_dir_segment("a b")
+    assert "~" in hashed
+    # An id that literally equals the hashed form is itself rewritten (and
+    # to something else), so two distinct ids cannot share a dir.
+    assert sample_dir_segment(hashed) != hashed
+    assert sample_dir_segment(hashed) != sample_dir_segment("a b")
+    # Same for the negative-int case: "1~<hash>" is not a passthrough id.
+    assert sample_dir_segment(sample_dir_segment(-1)) != sample_dir_segment(-1)
+
+
 def test_sample_dir_segment_traversal_id_readable_prefix() -> None:
     segment = sample_dir_segment("../../escape")
-    assert segment == f"escape-{_hashed('../../escape')}"
+    assert segment == f"escape~{_hashed('../../escape')}"
 
 
 def test_sample_dir_segment_flag_like_id_drops_leading_dashes() -> None:
-    assert sample_dir_segment("--rf /") == f"rf-{_hashed('--rf /')}"
+    assert sample_dir_segment("--rf /") == f"rf~{_hashed('--rf /')}"
     # Nothing usable left after sanitizing: a fixed stand-in keeps the
     # segment alphanumeric-leading.
-    assert sample_dir_segment("---") == f"id-{_hashed('---')}"
+    assert sample_dir_segment("---") == f"id~{_hashed('---')}"
 
 
 def test_sample_dir_segment_huge_id_is_bounded() -> None:
     huge = "/" + "y" * 10_240
     segment = sample_dir_segment(huge)
     assert len(segment) == 64 + 1 + 12
-    assert segment == "y" * 64 + "-" + _hashed(huge)
+    assert segment == "y" * 64 + "~" + _hashed(huge)
