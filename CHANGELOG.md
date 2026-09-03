@@ -11,6 +11,7 @@
 - Control Channel: `inspect ctl task cancel` of a task between retry attempts (including one still writing its errored attempt's final log) now abandons the queued retry (the task ends with its last attempt's error log) instead of asking to re-issue once the retry starts.
 - Control Channel: `inspect ctl task list` rows now report a pending graceful resolution (`resolving`: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as `pending`.
 - Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
+- Groq: An error delivered inside a streamed response (e.g. over capacity or a rate limit) is now retried like its non-streamed equivalent, and a streamed context-length rejection yields `model_length` output, instead of failing the sample outright.
 
 ## 0.3.262 (02 September 2026)
 

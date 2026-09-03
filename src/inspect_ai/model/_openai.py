@@ -1328,7 +1328,7 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
         # (vLLM/SGLang: {"type": "InternalServerError", "code": 500},
         # OpenRouter: {"code": 502}), which classifies through the standard
         # status rules. Anything unrecognized stays unretried.
-        code_status = _http_status_from_error_code(ex.code)
+        code_status = http_status_from_error_code(ex.code)
         if code_status is not None:
             if code_status == 429:
                 return RetryDecision.rate_limit()
@@ -1347,7 +1347,7 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     return None
 
 
-def _http_status_from_error_code(code: object) -> int | None:
+def http_status_from_error_code(code: object) -> int | None:
     """Coerce an error body `code` to an HTTP status when it is one.
 
     OpenAI-compatible servers often put a numeric HTTP status in `code`

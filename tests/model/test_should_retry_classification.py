@@ -588,6 +588,91 @@ def test_groq_500_classifies_as_transient() -> None:
     assert decision.kind == "transient"
 
 
+def _groq_mid_stream_error(body: object) -> Exception:
+    """The exception groq's stream iterator raises for an in-band error payload.
+
+    A plain `APIError` (no status code) whose body is the payload's `error`
+    value: the inner error object, or a bare string.
+    """
+    import groq
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    return groq.APIError(
+        message="An error occurred during streaming", request=request, body=body
+    )
+
+
+@pytest.mark.parametrize(
+    "body,kind",
+    [
+        # canonical over-capacity shapes (the x_groq.error channel's message
+        # delivered as a top-level error payload instead)
+        (dict(message="Over capacity", type="internal_server_error"), "transient"),
+        ("over capacity", "transient"),
+        (dict(message="Service Unavailable", type="service_unavailable"), "transient"),
+        # numeric HTTP statuses in `code` follow the standard status rules
+        (dict(message="Service Unavailable", code=503), "transient"),
+        (dict(message="Too Many Requests", code="429"), "rate_limit"),
+        (
+            dict(
+                message="Rate limit reached", type="tokens", code="rate_limit_exceeded"
+            ),
+            "rate_limit",
+        ),
+    ],
+)
+def test_groq_mid_stream_error_classifies_by_body(body: object, kind: str) -> None:
+    from inspect_ai.model._providers.groq import GroqAPI
+
+    api = GroqAPI.__new__(GroqAPI)
+    decision = api.should_retry(_groq_mid_stream_error(body))
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == kind
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        dict(
+            message="Invalid API key",
+            type="invalid_request_error",
+            code="invalid_api_key",
+        ),
+        dict(message="Not Found", code=404),
+        "something unexpected",
+        None,
+    ],
+)
+def test_groq_mid_stream_unrecognized_error_not_retried(body: object) -> None:
+    from inspect_ai.model._providers.groq import GroqAPI
+
+    api = GroqAPI.__new__(GroqAPI)
+    decision = api.should_retry(_groq_mid_stream_error(body))
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is False
+
+
+def test_groq_connection_and_validation_errors_keep_classification() -> None:
+    """Body-based classification applies only to plain APIErrors."""
+    from groq import APIConnectionError, APIResponseValidationError, APITimeoutError
+
+    from inspect_ai.model._providers.groq import GroqAPI
+
+    api = GroqAPI.__new__(GroqAPI)
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    # RetryDecision is truthy iff it retries
+    assert api.should_retry(APITimeoutError(request=request))
+    assert not api.should_retry(APIConnectionError(request=request))
+    # a schema mismatch on a 200 response is not retried even when the body
+    # happens to spell a transient condition
+    validation_error = APIResponseValidationError(
+        response=_http_response(200),
+        body=dict(message="Over capacity", type="internal_server_error"),
+    )
+    assert not api.should_retry(validation_error)
+
+
 # ---------- Mistral ----------
 
 
