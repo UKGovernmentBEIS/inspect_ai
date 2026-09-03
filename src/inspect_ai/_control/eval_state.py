@@ -47,6 +47,7 @@ logger = getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from inspect_ai._control.scoring import TaskScoring
     from inspect_ai._display.core.display import TaskCancel
     from inspect_ai._eval.task.scheduler import SampleRequeue
     from inspect_ai.log._config_update import ConfigUpdate
@@ -237,6 +238,15 @@ class EvalState:
     :func:`register_eval` time); ``None`` for reused/synthetic evals, and
     detached alongside :attr:`live` when a retry supersedes the attempt."""
 
+    task_scoring: "TaskScoring | None" = None
+    """The running attempt's interim-scoring capability — the task's scorers
+    and scoring inputs as resolved at eval start, published for the control
+    channel's ``task score`` directive (see :mod:`inspect_ai._control.scoring`
+    and ``design/ctl/interim-scoring.md``). Set by :func:`set_task_scoring`
+    from the task runner; ``None`` for reused/synthetic evals (nothing is
+    running, so there is nothing to score in-process), and detached alongside
+    :attr:`live` when a retry supersedes the attempt."""
+
     deferred_sample_stats: DeferredStatsProvider | None = None
     """Lazy accessor for a reused eval's summaries-derived stats
     (:class:`DeferredSampleStats`). Resolved once — on the first
@@ -325,16 +335,24 @@ class EvalState:
     it) rather than ``cancelled`` (terminal — no retry coming)."""
 
     retry_pending: bool = False
-    """Whether this attempt finished with an error and a retry has been queued.
+    """Whether this attempt is ending with an error and a retry will follow.
 
-    Stamped by :func:`mark_eval_retry_pending` at the eval-set's retry
-    decision point, so directives that would otherwise read a stamped
-    :attr:`completed_at` as "task finished" (eg. task cancel) can answer
-    honestly during the window between attempts — the retry registers its
-    own :class:`EvalState` only when it actually starts, and until then
-    this errored attempt is the task's latest. Never cleared: once the
-    retry starts, :func:`latest_eval_for_task` resolves to its fresh
-    state and this one is no longer consulted."""
+    Stamped by :func:`mark_eval_retry_pending` — first by the task runner
+    the moment it decides the attempt's terminal status (before the final
+    log write, which on a remote log dir takes seconds), then again by the
+    eval-set's retry decision point — so directives that would otherwise
+    read a stamped :attr:`completed_at` as "task finished" (eg. task cancel)
+    can answer honestly for the whole window between attempts: from the
+    last sample's terminal record, through the final log write, until the
+    retry registers its own :class:`EvalState` when it actually starts
+    (until then this errored attempt is the task's latest). Cleared by
+    :func:`abandon_task_retry` (a task drain/cancel abandoning the retry, so
+    the task reads terminal the moment the directive returns) or by
+    :func:`clear_eval_retry_pending` when the dispatcher decides *not* to
+    retry after all (a cancel stamp superseded the pre-marked retry while
+    the log was being written); otherwise never — once the retry starts,
+    :func:`latest_eval_for_task` resolves to its fresh state and this one is
+    no longer consulted."""
 
     total_tokens: int = 0
     """Cumulative model tokens used by this eval's terminal samples.
@@ -386,6 +404,18 @@ class EvalState:
         can't be added to one and missed by the other.
         """
         return self.completed + self.errored + self.cancelled
+
+    def queued(self, in_flight: int) -> int:
+        """Samples not yet dispatched, given the live ``in_flight`` count.
+
+        Everything :attr:`total` doesn't account for as terminal or in flight
+        — ``in_flight`` is read from ``active_samples`` (see the class
+        docstring), so callers pass it in. Clamped at zero: the two reads
+        aren't one snapshot, so a sample finishing between them can briefly
+        be counted in both. The single derivation behind the task rows'
+        ``queued`` and the drain result's, so the two can't drift.
+        """
+        return max(0, self.total - self.terminal - in_flight)
 
     @property
     def is_finished(self) -> bool:
@@ -626,8 +656,24 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def _requeue_bucket(
+    prior_status: Literal["error", "cancelled"],
+) -> Literal["errored", "cancelled"]:
+    """The counter bucket a requeueable prior status bumped at its recording.
+
+    The single source for both directions — the requeue accept's decrement
+    (:func:`record_sample_requeued`) and the un-requeue's restore
+    (:func:`record_sample_unrequeued`) — so the mapping can't drift and
+    restore a different bucket than was decremented.
+    """
+    return "errored" if prior_status == "error" else "cancelled"
+
+
 def record_sample_requeued(
-    eval_id: str, prior_status: Literal["error", "cancelled"]
+    eval_id: str,
+    prior_status: Literal["error", "cancelled"],
+    *,
+    op: str = "requeue",
 ) -> None:
     """Re-open a terminal sample's slot when a requeue is accepted.
 
@@ -639,28 +685,52 @@ def record_sample_requeued(
     re-run torn down before recording). Cumulative usage
     (``total_tokens`` / ``total_messages``) is *not* rolled back — the
     prior attempt's spend was real. Called synchronously in the requeue
-    accept path (see ``design/ctl/sample-requeue.md``). Silently no-ops if
-    the eval isn't registered.
+    accept path (see ``design/ctl/sample-requeue.md``) and, with
+    ``op="un-cancel"``, in the requeue resolver's withdrawal of a
+    cancel-before-start (``design/ctl/queued-sample-cancel.md`` — the same
+    decrement, re-opening the ``cancelled`` slot). Silently no-ops if the
+    eval isn't registered.
 
     Guarded against decrementing a bucket below zero: that would mean the
-    caller's message-based classification of the prior record diverged from
-    the bucket its terminal recording actually bumped, so fail loudly (a
-    warning naming the divergence) rather than corrupting the counters.
+    caller's classification of the prior outcome diverged from the bucket
+    its recording actually bumped, so fail loudly (a warning naming the
+    diverging operation, ``op``) rather than corrupting the counters.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
-            bucket = "errored" if prior_status == "error" else "cancelled"
+            bucket = _requeue_bucket(prior_status)
             count = getattr(state, bucket)
             if count <= 0:
                 logger.warning(
-                    f"requeue accepted a prior with status '{prior_status}' "
+                    f"{op} accepted for a prior with status '{prior_status}' "
                     f"but the eval's {bucket} count is {count} (eval "
                     f"{eval_id}) — classification/bucket divergence; not "
                     "decremented"
                 )
             else:
                 setattr(state, bucket, count - 1)
+
+
+def record_sample_unrequeued(
+    eval_id: str, prior_status: Literal["error", "cancelled"]
+) -> None:
+    """Re-close a sample's slot when its accepted requeue is withdrawn.
+
+    The increment inverse of :func:`record_sample_requeued`: an un-requeue
+    (``design/ctl/queued-sample-cancel.md``) withdraws the pending re-run and
+    the prior terminal record stands again, so its bucket is restored —
+    including :func:`_maybe_mark_finished`, so an eval whose withdrawn re-run
+    was the last outstanding work finishes as the discarded run drains.
+    ``prior_status`` is remembered from the requeue accept, never
+    re-classified. Silently no-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            bucket = _requeue_bucket(prior_status)
+            setattr(state, bucket, getattr(state, bucket) + 1)
+            _maybe_mark_finished(state)
 
 
 def set_sample_requeue(eval_id: str, handle: "SampleRequeue | None") -> None:
@@ -674,6 +744,20 @@ def set_sample_requeue(eval_id: str, handle: "SampleRequeue | None") -> None:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.sample_requeue = handle
+
+
+def set_task_scoring(eval_id: str, handle: "TaskScoring | None") -> None:
+    """Register the running attempt's interim-scoring capability.
+
+    Called by ``task_run`` alongside registration, with the task's scorers
+    and scoring inputs as resolved at eval start (the interim-scoring pass
+    uses the task's own scorers — a control-channel non-goal to override
+    them mid-flight). Silently no-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.task_scoring = handle
 
 
 def record_samples_added(
@@ -746,19 +830,122 @@ def latest_eval_for_task(task_id: str) -> "EvalState | None":
 
 
 def mark_eval_retry_pending(eval_id: str) -> None:
-    """Record that a retry of this (errored, finished) attempt has been queued.
+    """Record that a retry of this (errored) attempt will be / has been queued.
 
-    Called by the eval-set runner at the point it decides to re-queue a
-    failed task — after the attempt's ``finalize_eval`` (which stamped
-    ``completed_at``) and before the retry attempt starts (which registers
-    a fresh :class:`EvalState`). See :attr:`EvalState.retry_pending` for
-    why the window between those two events needs the flag. No-ops if the
+    Called twice per retried attempt, idempotently: by the task runner the
+    moment it decides the attempt's terminal status is an error the eval-set
+    will retry (before the final log write — ``completed_at`` is typically
+    already stamped by the last sample's terminal record, and without the
+    flag a task cancel/drain landing during the log write would read the
+    attempt as "task finished" while the retry then dispatched anyway), and
+    by the eval-set runner at the point it actually re-queues the task.
+    Neither marks a retry the registry already records as abandoned (see
+    :func:`abandon_task_retry`) — re-marking would read the task as between
+    attempts for a retry that will never dispatch. The
+    flag stands until the retry attempt starts (which registers a fresh
+    :class:`EvalState`), is cleared by :func:`abandon_task_retry`, or is
+    unwound by :func:`clear_eval_retry_pending` when the runner decides not
+    to retry after all. See :attr:`EvalState.retry_pending`. No-ops if the
     eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.retry_pending = True
+
+
+def clear_eval_retry_pending(eval_id: str) -> None:
+    """Unwind a pre-marked retry the dispatcher decided not to queue.
+
+    The task runner marks :attr:`EvalState.retry_pending` as soon as it
+    decides an error status with retry budget remaining; the dispatcher owns
+    the final decision. A drain/cancel landing during the log write takes
+    the retry-abandon branch and clears the flag itself (see
+    :func:`abandon_task_retry`), so this is the backstop for any other way
+    the dispatcher's retry predicate can come out false: the flag must not
+    stand when no retry follows, or the task would read as between attempts
+    forever (listed as active, requeue rejected as "between attempts", a
+    repeat cancel claiming to abandon a retry that was never coming). No-ops
+    if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.retry_pending = False
+
+
+# Tasks whose queued/requested eval-set retry has been abandoned by a task
+# drain/cancel (see design/ctl/task-drain.md "Tasks between attempts").
+# Task-id keyed (the stable across-retry handle) and reset at the run
+# boundary like the pause-gate registries.
+_retry_abandoned_tasks: set[str] = set()
+
+
+def abandon_task_retry(task_id: str) -> None:
+    """Abandon a task's queued/requested eval-set retry (task drain/cancel).
+
+    Stamps the task in the retry-abandoned registry — consumed by the run
+    dispatcher, which drops a queued retry at its next pick, skips
+    constructing one at its retry decision, and bails a retry attempt that
+    was dequeued but has not yet registered its :class:`EvalState` (see
+    ``_eval/run.py``). Synchronously clears :attr:`EvalState.retry_pending`
+    on the task's attempts (so the task reads terminal on the read surface
+    the moment the directive returns, and a repeat request takes the
+    idempotent no-op) and :attr:`EvalState.will_retry` (no re-run is coming,
+    so cancelled samples must render terminal rather than ``pending``).
+    Fires the dispatch wakers so a queued retry is dropped promptly.
+    """
+    from inspect_ai._control.pause import fire_dispatch_wakers
+
+    with _lock:
+        _retry_abandoned_tasks.add(task_id)
+        for state in _eval_states.values():
+            if state.task_id == task_id:
+                state.retry_pending = False
+                state.will_retry = False
+    fire_dispatch_wakers()
+
+
+def task_retry_abandoned(task_id: str) -> bool:
+    """Whether a task drain/cancel has abandoned this task's pending retry."""
+    with _lock:
+        return task_id in _retry_abandoned_tasks
+
+
+def reset_retry_abandoned() -> None:
+    """Reset the retry-abandoned registry (run boundary — see :func:`reset_run_registries`)."""
+    with _lock:
+        _retry_abandoned_tasks.clear()
+
+
+# Tasks resolved by a graceful cancel/drain (a stamped "score" / "error" /
+# "drain") in this process. Their success logs deliberately hold fewer
+# samples than planned, so eval-set's completeness check consults this
+# registry to keep honoring the resolution for the life of the run — without
+# it, a `retry_immediate=False` eval-set's outer retry pass would re-classify
+# the resolved log as incomplete (via its logged-samples count) and
+# re-dispatch the abandoned remainder in-process. Task-id keyed and reset at
+# the run boundary like the retry-abandoned registry; a later invocation
+# (fresh process) sees the shortfall and re-runs the remainder as designed.
+_gracefully_resolved_tasks: set[str] = set()
+
+
+def mark_task_gracefully_resolved(task_id: str) -> None:
+    """Record a graceful cancel/drain resolution of this task (see design/ctl/task-drain.md)."""
+    with _lock:
+        _gracefully_resolved_tasks.add(task_id)
+
+
+def task_gracefully_resolved(task_id: str) -> bool:
+    """Whether a graceful cancel/drain resolved this task in this process."""
+    with _lock:
+        return task_id in _gracefully_resolved_tasks
+
+
+def reset_gracefully_resolved() -> None:
+    """Reset the graceful-resolution registry (run boundary — see :func:`reset_run_registries`)."""
+    with _lock:
+        _gracefully_resolved_tasks.clear()
 
 
 def detach_eval_live(eval_id: str) -> None:
@@ -778,7 +965,13 @@ def detach_eval_live(eval_id: str) -> None:
 
     The attempt-scoped :attr:`sample_requeue` handle is detached here too: a
     requeue aimed at a superseded attempt's ``eval_id`` must be rejected, not
-    mutate a dead attempt's scheduler.
+    mutate a dead attempt's scheduler. Likewise :attr:`task_scoring` — a
+    scoring pass aimed at a superseded attempt must not run against a dead
+    attempt's recorder (the retry attempt registers a fresh handle) — and a
+    scoring pass already *running* against this attempt is cancelled: left
+    alone it would keep presenting itself as the task's current pass and,
+    via the one-pass-per-task guard, block ``ctl task score`` against the
+    new attempt until it drained.
 
     No-ops if the eval isn't registered.
     """
@@ -787,6 +980,11 @@ def detach_eval_live(eval_id: str) -> None:
         if state is not None:
             state.live = None
             state.sample_requeue = None
+            state.task_scoring = None
+    if state is not None and state.task_id:
+        from inspect_ai._control.scoring import cancel_score_pass
+
+        cancel_score_pass(state.task_id, eval_id)
 
 
 def invalidate_log_sample_summaries(eval_id: str) -> None:
@@ -908,18 +1106,26 @@ def reset_run_registries() -> None:
     here, not at the call sites.
     """
     from inspect_ai._control.config_record import reset_process_config_updates
+    from inspect_ai._control.max_tasks import reset_max_tasks_override
     from inspect_ai._control.pause import (
         reset_process_pause,
         reset_task_pause_gates,
     )
+    from inspect_ai._control.scoring import reset_score_passes
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
+    from inspect_ai.model._throughput import init_model_throughput
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
+    reset_retry_abandoned()
+    reset_gracefully_resolved()
     reset_generate_config_overrides()
+    reset_max_tasks_override()
     reset_sample_limit_overrides()
     reset_process_config_updates()
     reset_task_pause_gates()
+    init_model_throughput()
     reset_process_pause()
+    reset_score_passes()

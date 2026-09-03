@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import NamedTuple
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -12,10 +13,11 @@ from inspect_ai.approval import (
     auto_approver,
     read_approval_policies,
 )
+from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import ChatMessage, ModelOutput, get_model
+from inspect_ai.model import ChatMessage, Model, ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool._tool import tool
@@ -42,27 +44,27 @@ def addition():
     return execute
 
 
-def check_approval(
+class ApprovalEval(NamedTuple):
+    log: EvalLog
+    task: Task
+
+
+def resolve_policy(
     policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
-    decision: ApprovalDecision,
-    approver: str = "auto",
-    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
-) -> ApprovalEvent:
-    if policy is not None:
-        if isinstance(policy, str):
-            policy = (Path(__file__).parent / policy).as_posix()
+) -> str | list[ApprovalPolicy] | None:
+    if policy is None:
+        return None
 
-        policy = policy if isinstance(policy, list | str) else [policy]
+    if isinstance(policy, str):
+        return (Path(__file__).parent / policy).as_posix()
 
-    if task_policy is not None:
-        if isinstance(task_policy, str):
-            task_policy = (Path(__file__).parent / task_policy).as_posix()
+    return policy if isinstance(policy, list) else [policy]
 
-        task_policy = (
-            task_policy if isinstance(task_policy, list | str) else [task_policy]
-        )
 
-    model = get_model(
+def approval_model() -> Model:
+    # mockllm consumes custom_outputs as a one-shot iterator, so don't memoize
+    # (tests which run two evals need a fresh model for each)
+    return get_model(
         "mockllm/model",
         custom_outputs=[
             ModelOutput.for_tool_call(
@@ -72,16 +74,39 @@ def check_approval(
             ),
             ModelOutput.from_content("mockllm/model", content="2"),
         ],
+        memoize=False,
     )
 
-    task = Task(
+
+def approval_task(
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> Task:
+    return Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=[use_tools(addition()), generate()],
         scorer=match(numeric=True),
-        approval=task_policy,
+        approval=resolve_policy(task_policy),
     )
 
-    log = eval(task, model=model, approval=policy)[0]
+
+def eval_with_approval(
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> ApprovalEval:
+    task = approval_task(task_policy)
+
+    return ApprovalEval(
+        eval(task, model=approval_model(), approval=resolve_policy(policy))[0], task
+    )
+
+
+def check_approval(
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
+    decision: ApprovalDecision,
+    approver: str = "auto",
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> ApprovalEvent:
+    log = eval_with_approval(policy, task_policy).log
 
     approval = find_approval(log)
     assert approval
@@ -93,6 +118,11 @@ def check_approval(
 
 approve_all_policy = ApprovalPolicy(approver=auto_approver(), tools="*")
 reject_all_policy = ApprovalPolicy(approver=auto_approver("reject"), tools="*")
+reject_all_config = ApprovalPolicyConfig(
+    approvers=[
+        ApproverPolicyConfig(name="auto", tools="*", params={"decision": "reject"})
+    ]
+)
 
 
 def test_approve():
@@ -143,6 +173,50 @@ def test_approve_no_reject():
             ApprovalPolicy(approver=auto_approver("approve"), tools="add*"),
         ],
     )
+
+
+def test_task_approval_recorded_in_config():
+    log = eval_with_approval(task_policy=reject_all_policy).log
+    assert log.eval.config.approval == reject_all_config
+
+
+def test_task_approval_config_file_recorded_in_config():
+    log = eval_with_approval(task_policy="reject.yaml").log
+    approval = log.eval.config.approval
+    assert approval
+    assert [(a.name, a.tools, a.params) for a in approval.approvers] == [
+        ("auto", "foo*", {"decision": "reject"}),
+        ("auto", "*", {"decision": "escalate"}),
+        ("auto", ["foo*", "add*"], {"decision": "reject"}),
+    ]
+
+
+def test_eval_approval_takes_precedence_in_config():
+    result = eval_with_approval(
+        policy=reject_all_policy, task_policy=approve_all_policy
+    )
+    assert result.log.eval.config.approval == reject_all_config
+    # the merge runs against a copy, so the caller's task keeps its own policy
+    assert result.task.approval == [approve_all_policy]
+    approval = find_approval(result.log)
+    assert approval and approval.decision == "reject"
+
+
+def test_eval_approval_not_leaked_to_reused_task():
+    task = approval_task()
+
+    first = eval(task, model=approval_model(), approval=[reject_all_policy])[0]
+    assert first.eval.config.approval == reject_all_config
+    first_approval = find_approval(first)
+    assert first_approval and first_approval.decision == "reject"
+
+    second = eval(task, model=approval_model())[0]
+    assert second.eval.config.approval is None
+    assert find_approval(second) is None
+
+
+def test_no_approval_recorded_in_config():
+    assert eval_with_approval().log.eval.config.approval is None
 
 
 def test_approve_config():
@@ -433,6 +507,20 @@ async def test_approver_inference_exempt_from_limits():
     # ...but its generation was not metered
     assert tokens.usage == 0
     assert turns.usage == 0
+
+
+def test_approval_policy_comma_separated_tools():
+    policy = ApprovalPolicy(
+        approver=auto_approver(), tools="web_browser*, addition, python"
+    )
+    check_approval(policy, decision="approve")
+
+
+def test_approval_policy_comma_separated_list():
+    policy = ApprovalPolicy(
+        approver=auto_approver(), tools=["web_browser*", "addition, python"]
+    )
+    check_approval(policy, decision="approve")
 
 
 if __name__ == "__main__":

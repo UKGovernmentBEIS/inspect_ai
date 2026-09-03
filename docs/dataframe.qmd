@@ -95,10 +95,10 @@ evals_df(
 ``` default
 <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 9 entries, 0 to 8
-Columns: 23 entries, eval_id to score_headline_value
+Columns: 25 entries, eval_set_id to score_headline_stderr
 ```
 
-This dataframe has 23 columns rather than the 51 we saw when using the default `evals_df()` congiruation, reflecting the explicit columns groups specified.
+This dataframe has 25 columns rather than the 51 we saw when using the default `evals_df()` congiruation, reflecting the explicit columns groups specified.
 
 You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:
 
@@ -119,11 +119,11 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 28 entries, sample_id to fallbacks
 ```
 
-This dataframe has 28 columns rather than than the 14 we saw for the default `samples_df()` behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
+This dataframe has 28 columns rather than the 14 we saw for the default `samples_df()` behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
 
 ### Filtering Logs
 
-The above examples read all of the logs within a given directory. You can also use the `list_eval_logs()` function to filter the list of logs based on arbitrary criteria as well control whether log listings are recursive.
+The above examples read all of the logs within a given directory. You can also use the `list_eval_logs()` function to filter the list of logs based on arbitrary criteria as well as control whether log listings are recursive.
 
 For example, here we read only log files with a `status` of "success":
 
@@ -350,11 +350,11 @@ EvalTask: list[Column] = [
 ]
 ```
 
-Columns are defined with a `name`, a `path` (location within JSON to read their value from), and other options (e.g. `required`, `type`, etc.) . Column paths use [JSON Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how they should be read from JSON.
+Columns are defined with a `name`, a `path` (location within JSON to read their value from), and other options (e.g. `required`, `type`, etc.). Column paths use [JSON Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how they should be read from JSON.
 
 Many fields within eval logs are optional, and path expressions will automatically resolve to `None` when they include a missing field (unless the `required=True` option is specified).
 
-Here are are all of the options available for `Column` definitions:
+Here are all of the options available for `Column` definitions:
 
 #### Column Options
 
@@ -417,7 +417,7 @@ if len(errors) > 0:
 | `EvalModel` | Model name, args, generation config, etc. |
 | `EvalDataset` | Dataset name, location, sample ids, etc. |
 | `EvalConfiguration` | Epochs, approval, sample limits, etc. |
-| `EvalResults` | Status, errors, samples completed, headline metric. |
+| `EvalResults` | Status, errors, samples completed, headline metric (see [`headline_metric`](metrics.qmd#headline-metric) to control which metric that is). |
 | `EvalScores` | All scores and metrics broken into separate columns. |
 
 The `eval_id` field is automatically included in all eval data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
@@ -449,7 +449,7 @@ evals_df(
 
 The example above demonstrates the use of custom extraction functions, which take an `EvalLog` and return a `JsonValue`.
 
-For example, here is the default extraction function for the the dictionary of scores/metrics:
+For example, here is the default extraction function for the dictionary of scores/metrics:
 
 ``` python
 def scores_dict(log: EvalLog) -> JsonValue:
@@ -499,6 +499,7 @@ SampleSummary: list[Column] = [
     SampleColumn("token_limit_usage", path="token_limit_usage", default=None),
     SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
+    SampleColumn("limit_reason", path="limit_reason", default=None),
     SampleColumn("retries", path="retries"),
     SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]
@@ -573,6 +574,10 @@ You could also write a custom [extraction](#custom-extraction-1) handler to read
 SampleColumn("limit_type", path="limit.type", full=True)
 SampleColumn("limit_value", path="limit.limit", full=True)
 ```
+
+Note that the limit's human-readable reason is available from the summary as
+`limit_reason` (included in `SampleSummary` above), so reading it does not
+require `full=True`.
 
 If you are only interested in reading full values for `metadata`, you can use `full=True` when calling `samples_df()` as shorthand for this:
 

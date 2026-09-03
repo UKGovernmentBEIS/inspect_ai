@@ -8,7 +8,7 @@ rendering of a pending requeue, and an end-to-end requeue through a live
 eval.
 """
 
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import anyio
 import httpx
@@ -16,7 +16,7 @@ import pytest
 from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai import SampleSource, Task, enqueue_sample, eval_async
-from inspect_ai._control.cancel import cancel_sample
+from inspect_ai._control.cancel import cancel_sample, cancel_task
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
     detach_eval_live,
@@ -38,17 +38,19 @@ from inspect_ai._control.state import (
 from inspect_ai._display.core.display import TaskCancel
 from inspect_ai._eval.task.error import SampleErrorHandler
 from inspect_ai._eval.task.scheduler import (
+    SampleQueueView,
     SampleRequeue,
     SampleScheduler,
-    _ScheduledRun,
+    _SampleRun,
 )
 from inspect_ai._util._async import Wake
 from inspect_ai._util.error import EvalError, is_cancellation_message
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, read_eval_log_async
-from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.scorer import CORRECT, Score, Target, accuracy, scorer
+from inspect_ai.log._log import EvalSample, EvalSampleSummary, EvalSpec
+from inspect_ai.scorer import CORRECT, SampleScore, Score, Target, accuracy, scorer
 from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.util import EarlyStop
 from inspect_ai.util._display import init_display_type
 
 
@@ -102,18 +104,36 @@ class _FakeRequeueHandle:
         pending: set[tuple[str, int]] | None = None,
         accept_outcome: str = "accepted",
         checkpoint: bool = False,
+        cancelled: Literal["parked", "discarded"] | None = None,
     ) -> None:
         self.open = open
         self._pending = pending or set()
         self.accept_outcome = accept_outcome
         self.accepts: list[tuple[EvalSample, str]] = []
         self._checkpoint = checkpoint
+        self._cancelled: Literal["parked", "discarded"] | None = cancelled
+        self.uncancels: list[tuple[str, int]] = []
 
-    def is_pending(self, sample_id: str, epoch: int) -> bool:
-        return (sample_id, epoch) in self._pending
+    def sample_view(self, sample_id: str, epoch: int) -> SampleQueueView:
+        pending = (sample_id, epoch) in self._pending
+        return SampleQueueView(
+            pending=pending,
+            prior_status="error" if pending else None,
+            pending_departed=False,
+            queue=None,
+            cancelled=self._cancelled,
+            typed_id=sample_id,
+        )
 
     def pending_keys(self) -> frozenset[tuple[str, int]]:
         return frozenset(self._pending)
+
+    def uncancel(self, sample_id: str, epoch: int) -> None:
+        self.uncancels.append((sample_id, epoch))
+        self._cancelled = None
+
+    def cancelled_keys(self) -> frozenset[tuple[str, int]]:
+        return frozenset()
 
     async def checkpoint_available(self, sample_id: str | int, epoch: int) -> bool:
         return self._checkpoint
@@ -272,6 +292,200 @@ async def test_requeue_never_started_sample_is_noop(
     assert handle.accepts == []
 
 
+async def test_requeue_uncancels_parked_cancel_before_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Requeue of a parked cancelled-before-start key is the un-cancel accept.
+
+    `_is_planned`'s "will run without help" would be a lie for a cancelled
+    key (design/ctl/queued-sample-cancel.md).
+    """
+    _patch_active_samples(monkeypatch, [])
+    handle = _register_requeueable(handle=_FakeRequeueHandle(cancelled="parked"))
+
+    dry = await requeue_sample("e1", "s2", 1, dry_run=True)
+    assert dry is not None
+    assert dry["ok"] is True and dry["changed"] is True
+    assert dry["status"] == "pending"
+    # conditional-tense reason: the CLI's "Would requeue …" line
+    # interpolates it verbatim
+    assert "would be withdrawn" in dry["reason"]
+    assert handle.uncancels == []  # dry run does not mutate
+
+    result = await requeue_sample("e1", "s2", 1)
+    assert result is not None
+    assert result["ok"] is True and result["changed"] is True
+    assert result["status"] == "pending"
+    assert "withdrawn" in result["reason"]
+    assert handle.uncancels == [("s2", 1)]
+
+
+async def test_requeue_discarded_cancel_before_start_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A discarded key can't be un-cancelled — the coroutine is gone."""
+    _patch_active_samples(monkeypatch, [])
+    handle = _register_requeueable(handle=_FakeRequeueHandle(cancelled="discarded"))
+
+    result = await requeue_sample("e1", "s2", 1)
+    assert result is not None
+    assert result["ok"] is False
+    assert "discarded" in result["error"] and "eval-retry" in result["error"]
+    assert handle.uncancels == []
+
+
+async def test_requeue_cancel_during_terminal_read_rerouted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cancel-before-start accepted during the terminal read is re-routed.
+
+    The cancelled-key routing runs before the `_full_sample` await, and the
+    cancel resolver is fully synchronous — a cancel accepted during that
+    await must be caught by the post-await re-snapshot (parked → un-cancel,
+    discarded → 409) rather than falling through to `_is_planned`'s "will
+    run without help".
+    """
+    _patch_active_samples(monkeypatch, [])
+
+    cases: list[tuple[Literal["parked", "discarded"], bool]] = [
+        ("parked", True),
+        ("discarded", False),
+    ]
+    for cancelled, expect_uncancel in cases:
+        clear_all_eval_states()
+        handle = _FakeRequeueHandle()
+
+        async def read(
+            id: str | int,
+            epoch: int,
+            *,
+            exclude_fields: set[str] | None = None,
+            handle: _FakeRequeueHandle = handle,
+            cancelled: Literal["parked", "discarded"] = cancelled,
+        ) -> EvalSample | None:
+            # the cancel lands while the resolver awaits the terminal read
+            handle._cancelled = cancelled
+            return None
+
+        register_eval(
+            "e1",
+            2,
+            task_id="t1",
+            task="my_task",
+            live=FakeLiveEvalData(sample=read),
+            sample_ids=["s1", "s2"],
+            epochs=1,
+        )
+        set_sample_requeue("e1", cast(SampleRequeue, handle))
+
+        result = await requeue_sample("e1", "s2", 1)
+        assert result is not None, cancelled
+        if expect_uncancel:
+            assert result["ok"] is True and result["changed"] is True
+            assert result["status"] == "pending"
+            assert "withdrawn" in result["reason"]
+            assert handle.uncancels == [("s2", 1)]
+        else:
+            assert result["ok"] is False
+            assert "discarded" in result["error"]
+            assert handle.uncancels == []
+
+
+async def test_requeue_uncancel_during_terminal_read_gate_rechecked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A task-level gate closing during the terminal read blocks the un-cancel.
+
+    The post-await reroute mutates (``uncancel``), so it must re-check the
+    task-level gates: a cancel-before-start accepted during ``_full_sample``
+    can count the last outstanding sample and finish the eval — un-cancelling
+    past that would revive a run inside a finished eval that no directive can
+    reach (and decrement the cancelled bucket below the finished sum). Same
+    for a task cancel starting during the read.
+    """
+    from inspect_ai._control.eval_state import (
+        record_sample_cancelled,
+        record_sample_completed,
+    )
+
+    _patch_active_samples(monkeypatch, [])
+
+    def finish_eval() -> None:
+        # the sibling completes and the cancel accept counts the last
+        # outstanding sample: terminal sum == total, completed_at stamped
+        record_sample_completed("e1")
+        record_sample_cancelled("e1")
+
+    def start_task_cancel() -> None:
+        state = get_eval_state("e1")
+        assert state is not None and state.task_cancel is not None
+        state.task_cancel.cancel_type = "abort"
+
+    cases: list[tuple[Any, str]] = [
+        (finish_eval, "task already finished"),
+        (start_task_cancel, "cancel is in flight"),
+    ]
+    for close_gate, expected in cases:
+        clear_all_eval_states()
+        handle = _FakeRequeueHandle()
+
+        async def read(
+            id: str | int,
+            epoch: int,
+            *,
+            exclude_fields: set[str] | None = None,
+            handle: _FakeRequeueHandle = handle,
+            close_gate: Any = close_gate,
+        ) -> EvalSample | None:
+            # the cancel-before-start accept and the gate close both land
+            # while the resolver awaits the terminal read
+            handle._cancelled = "parked"
+            close_gate()
+            return None
+
+        register_eval(
+            "e1",
+            2,
+            task_id="t1",
+            task="my_task",
+            live=FakeLiveEvalData(sample=read),
+            sample_ids=["s1", "s2"],
+            epochs=1,
+            task_cancel=TaskCancel(can_retry=False, cancel_task=lambda _: None),
+        )
+        set_sample_requeue("e1", cast(SampleRequeue, handle))
+
+        result = await requeue_sample("e1", "s2", 1)
+        assert result is not None, expected
+        assert result["ok"] is False and expected in result["error"]
+        assert handle.uncancels == []
+
+
+def test_record_sample_unrequeued_restores_bucket() -> None:
+    from inspect_ai._control.eval_state import (
+        record_sample_completed,
+        record_sample_unrequeued,
+    )
+
+    register_eval("e1", 2, task_id="t1")
+    record_sample_errored("e1")
+    record_sample_requeued("e1", "error")
+    state = get_eval_state("e1")
+    assert state is not None and state.errored == 0
+
+    # the sibling finishes while the re-run is pending: not finished yet
+    record_sample_completed("e1")
+    assert state.completed_at is None
+
+    # withdraw: the bucket is restored, and — as the last outstanding work —
+    # the eval finishes (the last-outstanding-work carve-out)
+    record_sample_unrequeued("e1", "error")
+    assert state.errored == 1
+    assert state.completed_at is not None
+
+    record_sample_unrequeued("nope", "error")  # must not raise
+
+
 async def test_requeue_unknown_sample_is_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -392,6 +606,7 @@ async def test_requeue_dry_run_does_not_accept(
     assert result is not None
     assert result["ok"] is True
     assert result["changed"] is True and result["dry_run"] is True
+    assert result["status"] == "error"
     assert result["resume_from_checkpoint"] is True
     assert handle.accepts == []
 
@@ -509,9 +724,7 @@ def test_record_sample_requeued_never_goes_negative() -> None:
 async def test_scheduler_runs_plan_keyed() -> None:
     scheduler = SampleScheduler()
 
-    async def run_sample(
-        sample_index: int, epoch: int, prior: EvalSample | None
-    ) -> str:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> str:
         return f"{sample_index}:{epoch}"
 
     results = await scheduler.run([(0, 1), (1, 1), (0, 2)], run_sample)
@@ -528,9 +741,7 @@ async def test_scheduler_returns_results_in_plan_order() -> None:
     scheduler = SampleScheduler()
     second_done = anyio.Event()
 
-    async def run_sample(
-        sample_index: int, epoch: int, prior: EvalSample | None
-    ) -> str:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> str:
         if epoch == 1:
             with anyio.fail_after(30):
                 await second_done.wait()
@@ -546,14 +757,12 @@ async def test_scheduler_returns_results_in_plan_order() -> None:
 async def test_scheduler_rejects_requeue_after_drain() -> None:
     scheduler = SampleScheduler()
 
-    async def run_sample(
-        sample_index: int, epoch: int, prior: EvalSample | None
-    ) -> str:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> str:
         return "done"
 
     await scheduler.run([(0, 1)], run_sample)
     accepted = scheduler.requeue(
-        _ScheduledRun(
+        _SampleRun(
             sample_index=0, epoch=1, prior=_errored_sample(), on_terminal=lambda: None
         )
     )
@@ -566,12 +775,10 @@ async def test_scheduler_rerun_replaces_result_and_closes() -> None:
     release_waiter = anyio.Event()
     rerun_priors: list[EvalSample | None] = []
 
-    async def run_sample(
-        sample_index: int, epoch: int, prior: EvalSample | None
-    ) -> str:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> str:
         if sample_index == 0:
-            if prior is not None:
-                rerun_priors.append(prior)
+            if entry.prior is not None:
+                rerun_priors.append(entry.prior)
                 return "fresh"
             flaky_done.set()
             return "failed"
@@ -593,7 +800,7 @@ async def test_scheduler_rerun_replaces_result_and_closes() -> None:
         assert scheduler.open  # the waiter keeps the fanout open
         terminal: list[bool] = []
         accepted = scheduler.requeue(
-            _ScheduledRun(
+            _SampleRun(
                 sample_index=0,
                 epoch=1,
                 prior=prior,
@@ -621,16 +828,14 @@ async def test_scheduler_teardown_drains_undispatched_reruns() -> None:
     scheduler = SampleScheduler()
     terminal: list[bool] = []
 
-    async def run_sample(
-        sample_index: int, epoch: int, prior: EvalSample | None
-    ) -> str:
-        if prior is not None:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> str:
+        if entry.prior is not None:
             return "fresh"
         # accept a re-run, then fail the task: the group tears down before
         # the dispatcher (parked at its wake, cancelled with it) can start
         # the re-run
         accepted = scheduler.requeue(
-            _ScheduledRun(
+            _SampleRun(
                 sample_index=0,
                 epoch=1,
                 prior=_errored_sample(),
@@ -651,9 +856,7 @@ async def test_scheduler_feeder_adds_entries_in_plan_order() -> None:
     """Entries a feeder adds run and extend the plan-ordered results."""
     scheduler = SampleScheduler()
 
-    async def run_sample(
-        sample_index: int, epoch: int, prior: EvalSample | None
-    ) -> str:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> str:
         return f"{sample_index}:{epoch}"
 
     async def feeder() -> None:
@@ -681,10 +884,8 @@ async def test_scheduler_feeder_holds_fanout_open_for_requeue() -> None:
     feeder_release = anyio.Event()
     terminal: list[bool] = []
 
-    async def run_sample(
-        sample_index: int, epoch: int, prior: EvalSample | None
-    ) -> str:
-        return "fresh" if prior is not None else "seed"
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> str:
+        return "fresh" if entry.prior is not None else "seed"
 
     async def feeder() -> None:
         while scheduler.outstanding > 0:
@@ -711,7 +912,7 @@ async def test_scheduler_feeder_holds_fanout_open_for_requeue() -> None:
         assert scheduler.outstanding == 0
         assert scheduler.open  # the feeder hold alone keeps it open
         accepted = scheduler.requeue(
-            _ScheduledRun(
+            _SampleRun(
                 sample_index=0,
                 epoch=1,
                 prior=_errored_sample(),
@@ -733,9 +934,7 @@ async def test_scheduler_feeder_exception_fails_run() -> None:
     """A feeder failure (duplicate id, sandbox startup) tears the run down."""
     scheduler = SampleScheduler()
 
-    async def run_sample(
-        sample_index: int, epoch: int, prior: EvalSample | None
-    ) -> str:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> str:
         return "ok"
 
     async def feeder() -> None:
@@ -761,16 +960,15 @@ async def test_sample_requeue_accept_reconciles_counters() -> None:
         sample_indexes={"s1": 0, "s2": 1},
         checkpoints_dir=None,
         on_accept=lambda sample_id, epoch: accepted_keys.append((sample_id, epoch)),
+        on_withdraw=lambda sample_id, epoch, score: None,
     )
     prior = _errored_sample()
 
     flaky_done = anyio.Event()
     release_waiter = anyio.Event()
 
-    async def run_sample(
-        sample_index: int, epoch: int, prior_arg: EvalSample | None
-    ) -> str:
-        if sample_index == 0 and prior_arg is None:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> str:
+        if sample_index == 0 and entry.prior is None:
             flaky_done.set()
             return "failed"
         if sample_index == 0:
@@ -790,7 +988,7 @@ async def test_sample_requeue_accept_reconciles_counters() -> None:
             await flaky_done.wait()
 
         assert handle.accept(prior, "error") == "accepted"
-        assert handle.is_pending("s1", 1)
+        assert handle.sample_view("s1", 1).pending
         assert handle.pending_keys() == frozenset({("s1", 1)})
         # the double-queue guard fires synchronously inside accept
         assert handle.accept(prior, "error") == "already_pending"
@@ -804,7 +1002,7 @@ async def test_sample_requeue_accept_reconciles_counters() -> None:
 
         # the pending key clears when the re-run reaches a terminal outcome
         with anyio.fail_after(30):
-            while handle.is_pending("s1", 1):
+            while handle.sample_view("s1", 1).pending:
                 await anyio.sleep(0.01)
         release_waiter.set()
 
@@ -833,6 +1031,7 @@ async def test_sample_requeue_accept_stale_prior_refused() -> None:
         sample_indexes={"s1": 0, "s2": 1},
         checkpoints_dir=None,
         on_accept=lambda sample_id, epoch: None,
+        on_withdraw=lambda sample_id, epoch, score: None,
     )
     prior = EvalSample(
         id="s1", epoch=1, input="q", target="a", error=_error(), uuid="prior-attempt"
@@ -840,11 +1039,9 @@ async def test_sample_requeue_accept_stale_prior_refused() -> None:
 
     release_waiter = anyio.Event()
 
-    async def run_sample(
-        sample_index: int, epoch: int, prior_arg: EvalSample | None
-    ) -> str:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> str:
         if sample_index == 0:
-            return "fresh" if prior_arg is not None else "failed"
+            return "fresh" if entry.prior is not None else "failed"
         with anyio.fail_after(30):
             await release_waiter.wait()
         return "waited"
@@ -862,7 +1059,7 @@ async def test_sample_requeue_accept_stale_prior_refused() -> None:
         assert handle.accept(prior, "error") == "accepted"
         # wait for the re-run to reach its terminal outcome
         with anyio.fail_after(30):
-            while handle.is_pending("s1", 1):
+            while handle.sample_view("s1", 1).pending:
                 await anyio.sleep(0.01)
 
         # the same record again is stale — and reconciles nothing
@@ -894,6 +1091,7 @@ async def test_sample_requeue_accept_unknown_sample() -> None:
         sample_indexes={"s1": 0},
         checkpoints_dir=None,
         on_accept=lambda sample_id, epoch: None,
+        on_withdraw=lambda sample_id, epoch, score: None,
     )
     assert handle.accept(_errored_sample("not-planned"), "error") == "unknown"
 
@@ -908,12 +1106,13 @@ async def test_sample_requeue_accept_closed_scheduler() -> None:
         sample_indexes={"s1": 0},
         checkpoints_dir=None,
         on_accept=lambda sample_id, epoch: None,
+        on_withdraw=lambda sample_id, epoch, score: None,
     )
     assert handle.accept(_errored_sample(), "error") == "closed"
     # nothing was reconciled and no pending key leaked
     state = get_eval_state("e1")
     assert state is not None and state.errored == 1
-    assert not handle.is_pending("s1", 1)
+    assert not handle.sample_view("s1", 1).pending
 
 
 # ---------------------------------------------------------------------------
@@ -1348,6 +1547,7 @@ async def test_requeue_second_requeue_with_buffered_records() -> None:
         first = await requeue_sample(eval_id, "flaky", 1)
         assert first is not None
         assert first["ok"] is True and first["changed"] is True
+        assert first["status"] == "error"
         assert first["attempt"] == 2
 
         # the re-run fails again; its record supersedes the prior in the
@@ -1357,6 +1557,7 @@ async def test_requeue_second_requeue_with_buffered_records() -> None:
         assert second is not None
         assert second["ok"] is True, f"second requeue rejected: {second}"
         assert second["changed"] is True
+        assert second["status"] == "error"
         assert second["attempt"] == 3
 
         _E2E_TWICE_RELEASE.set()
@@ -1444,7 +1645,8 @@ async def test_requeue_after_operator_errored_sample() -> None:
         eval_id = states[0].eval_id
 
         cancelled = await cancel_sample(eval_id, "victim", 1, action="error")
-        assert cancelled is not None and cancelled["changed"] is True
+        assert cancelled is not None and cancelled["ok"] is True
+        assert cancelled["changed"] is True
 
         with anyio.fail_after(60):
             while True:
@@ -1694,3 +1896,135 @@ async def test_requeue_dynamic_while_awaiting_source() -> None:
     flaky = next(s for s in log.samples if s.id == "flaky")
     assert flaky.error is None
     assert flaky.error_retries is not None and len(flaky.error_retries) == 1
+
+
+# ---------------------------------------------------------------------------
+# End to end: the task-finished gates during a suspended early-stopping hook
+# ---------------------------------------------------------------------------
+
+_GATE_HOOK_ENTERED: anyio.Event | None = None
+_GATE_HOOK_RELEASE: anyio.Event | None = None
+
+
+class _SuspendingEarlyStopping:
+    """Parks in `complete_sample` until released (an unbounded hook await)."""
+
+    async def start_task(
+        self, task: EvalSpec, samples: list[Sample], epochs: int
+    ) -> str:
+        return "suspender"
+
+    async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
+        return None
+
+    async def complete_sample(
+        self, id: str | int, epoch: int, scores: dict[str, SampleScore]
+    ) -> None:
+        assert _GATE_HOOK_ENTERED is not None and _GATE_HOOK_RELEASE is not None
+        _GATE_HOOK_ENTERED.set()
+        with anyio.fail_after(60):
+            await _GATE_HOOK_RELEASE.wait()
+
+    async def complete_task(self) -> dict[str, Any]:
+        return {}
+
+
+@solver
+def _boom_then_ok():
+    """Errors the "boom" sample terminally; everything else succeeds.
+
+    A non-boom sample completes only after boom's error is terminal-counted:
+    the suspended-hook test needs the hook to park on the *final* terminal
+    outcome, and task start order is backend-dependent (trio starts the
+    later-scheduled sample first), so the ordering is enforced here rather
+    than assumed from dispatch order.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == "boom":
+            raise RuntimeError("terminal boom")
+        with anyio.fail_after(60):
+            while not any(s.errored for s in get_eval_states()):
+                await anyio.sleep(0.01)
+        return state
+
+    return solve
+
+
+async def test_requeue_and_cancel_rejected_during_suspended_hook() -> None:
+    """Directives during the last sample's suspended hook see a finished task.
+
+    Terminal state (counter + `completed_at`) stamps before the
+    metrics/early-stopping await (design/sample-lifecycle.md), so a requeue
+    of the errored sample and a task cancel arriving while
+    `EarlyStopping.complete_sample` is suspended on the last sample's
+    completion are rejected as "task already finished" — not accepted
+    against a de facto finished task (an accepted requeue would re-run the
+    sample; an accepted cancel would stamp a user-cancel that suppresses an
+    eval-set retry).
+    """
+    global _GATE_HOOK_ENTERED, _GATE_HOOK_RELEASE
+    _GATE_HOOK_ENTERED = anyio.Event()
+    _GATE_HOOK_RELEASE = anyio.Event()
+
+    task = Task(
+        dataset=[
+            Sample(id="boom", input="x", target="y"),
+            Sample(id="last", input="x", target="y"),
+        ],
+        solver=_boom_then_ok(),
+        scorer=_always_correct(),
+        early_stopping=_SuspendingEarlyStopping(),
+        name="finished_gates_e2e",
+    )
+
+    init_display_type("none")
+    logs: list[EvalLog] = []
+
+    async with anyio.create_task_group() as tg:
+
+        async def run_eval() -> None:
+            logs.extend(
+                await eval_async(
+                    task,
+                    model="mockllm/model",
+                    fail_on_error=False,
+                    ctl_server=False,
+                    # both samples run concurrently: last's solver waits for
+                    # boom's terminal count (see _boom_then_ok), so serializing
+                    # them on the sample semaphore would deadlock
+                    max_samples=2,
+                )
+            )
+
+        tg.start_soon(run_eval)
+
+        # the last sample's completion suspends in the hook; every sample is
+        # terminal-counted by then, so the finish stamp must already be set
+        with anyio.fail_after(60):
+            await _GATE_HOOK_ENTERED.wait()
+
+        states = get_eval_states()
+        assert len(states) == 1
+        state = states[0]
+        assert (state.completed, state.errored) == (1, 1)
+        assert state.completed_at is not None
+
+        requeue = await requeue_sample(state.eval_id, "boom", 1)
+        assert requeue is not None
+        assert requeue["ok"] is False
+        assert "task already finished" in requeue["error"]
+
+        cancel = cancel_task(state.task_id)
+        assert cancel is not None
+        assert cancel["ok"] is True and cancel["changed"] is False
+        assert cancel["reason"] == "task already finished"
+
+        _GATE_HOOK_RELEASE.set()
+
+    (log,) = logs
+    assert log.status == "success"
+    log = await read_eval_log_async(log.location)
+    assert log.samples is not None
+    boom = next(s for s in log.samples if s.id == "boom")
+    assert boom.error is not None  # the rejected requeue never re-ran it

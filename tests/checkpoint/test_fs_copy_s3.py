@@ -1,6 +1,6 @@
 """Tests for the resume-side FS-copy helpers.
 
-Mostly against a moto-backed S3: ``_fs_copy_restic_config`` /
+Mostly against a moto-backed S3: ``_fs_copy_cross_cutting`` /
 ``_fs_copy_checkpoint_files`` and ``_fs_copy_repo`` downloading a
 remote sample dir's contents into a local staging dir, plus the remote
 resume flow (``copy_resume_payloads`` replicating the old attempt's
@@ -27,8 +27,8 @@ from inspect_ai.util._checkpoint._host_egress import (
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint._resume_copy import (
     _fs_copy_checkpoint_files,
+    _fs_copy_cross_cutting,
     _fs_copy_repo,
-    _fs_copy_restic_config,
     copy_payload_files,
     copy_resume_payloads,
 )
@@ -74,22 +74,31 @@ async def test_fs_copy_config_and_checkpoint_files_download_from_s3(
             f"{src}/restic/restic-config.json",
             b'{"restic_password":"the-pw"}',
         )
+        await _put(
+            fs,
+            f"{src}/restic/snapshot-strategies.json",
+            b'{"strategies":{"default":"archive"}}',
+        )
         await _put(fs, f"{src}/ckpt-00001.json", b'{"checkpoint_id":1}')
         await _put(fs, f"{src}/ckpt-00002.json", b'{"checkpoint_id":2}')
 
-        written = await _fs_copy_restic_config(src, str(new))
+        written = await _fs_copy_cross_cutting(src, str(new))
         written += await _fs_copy_checkpoint_files(src, str(new))
 
     # checkpoint files copy newest first: this copy is multi-write, and a
     # torn prefix must contain the latest checkpoint, not a stale one
     assert written == [
         "restic/restic-config.json",
+        "restic/snapshot-strategies.json",
         "ckpt-00002.json",
         "ckpt-00001.json",
     ]
     assert (
         new / "restic" / "restic-config.json"
     ).read_bytes() == b'{"restic_password":"the-pw"}'
+    assert (
+        new / "restic" / "snapshot-strategies.json"
+    ).read_bytes() == b'{"strategies":{"default":"archive"}}'
     assert (new / "ckpt-00001.json").read_bytes() == b'{"checkpoint_id":1}'
     assert (new / "ckpt-00002.json").read_bytes() == b'{"checkpoint_id":2}'
 
@@ -103,7 +112,7 @@ async def test_fs_copy_config_and_checkpoint_files_noop_when_source_missing(
     new.mkdir()
 
     async with AsyncFilesystem():
-        written = await _fs_copy_restic_config(src, str(new))
+        written = await _fs_copy_cross_cutting(src, str(new))
         written += await _fs_copy_checkpoint_files(src, str(new))
 
     assert written == []

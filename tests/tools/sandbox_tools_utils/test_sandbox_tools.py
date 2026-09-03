@@ -19,6 +19,7 @@ from inspect_ai.solver import (
     use_tools,
 )
 from inspect_ai.tool import ToolCallError, bash_session, text_editor
+from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_DIR
 
 
 # The Alpine variant exercises the musl injectable: detection routes musl sandboxes
@@ -276,6 +277,110 @@ def test_text_editor_user():
 
     assert editor_response
     assert flag not in editor_response.content
+
+
+NONROOT_COMPOSE = str(Path(__file__).parent / ".." / "test_sandbox_compose.yaml")
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "setup, expected_error",
+    [
+        pytest.param(
+            f"mkdir -p {SANDBOX_TOOLS_DIR}",
+            "owned by uid 1111, expected uid 0",
+            id="nonroot-owned-directory",
+        ),
+        pytest.param(
+            f"ln -s /home/nonroot {SANDBOX_TOOLS_DIR}",
+            "is a symbolic link",
+            id="symlink",
+        ),
+        pytest.param(
+            f"touch {SANDBOX_TOOLS_DIR}",
+            "is not a directory",
+            id="regular-file",
+        ),
+    ],
+)
+def test_injection_refuses_tools_dir_planted_by_default_user(
+    setup: str, expected_error: str
+):
+    """A non-root default user pre-creates the tools path before injection.
+
+    Root exec works in this sandbox, so injection must fail before extracting or
+    running anything as root rather than adopting the planted entry (or quietly
+    downgrading to a default-user install).
+    """
+    task = Task(
+        dataset=[Sample(input="whoami", setup=f"#!/bin/sh\n{setup}\n")],
+        solver=[use_tools([bash_session()]), generate()],
+        scorer=match(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="bash_session",
+                tool_arguments={"action": "type_submit", "input": "whoami"},
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="All done."),
+        ],
+    )
+    log = eval(task, model=model)[0]
+
+    assert log.status == "error"
+    assert log.error
+    assert "Failed to inject sandbox tools" in log.error.message
+    assert SANDBOX_TOOLS_DIR in log.error.message
+    assert expected_error in log.error.message
+
+
+@pytest.mark.slow
+def test_tools_tree_is_inaccessible_to_default_user_after_root_injection():
+    task = Task(
+        dataset=[Sample(input="probe the tools directory")],
+        solver=[use_tools([bash_session(user="nonroot")]), generate()],
+        scorer=match(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="bash_session",
+                tool_arguments={
+                    "action": "type_submit",
+                    "input": (
+                        f"stat -c 'owner=%u mode=%a' {SANDBOX_TOOLS_DIR}; "
+                        f"ls {SANDBOX_TOOLS_DIR} && echo LISTED; "
+                        f"touch {SANDBOX_TOOLS_DIR}/planted && echo CREATED; "
+                        f"mv {SANDBOX_TOOLS_DIR} {SANDBOX_TOOLS_DIR}.moved && echo MOVED; "
+                        f"rm -rf {SANDBOX_TOOLS_DIR} && echo REMOVED; echo probe-done"
+                    ),
+                },
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="All done."),
+        ],
+    )
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    assert log.samples
+    messages = log.samples[0].messages
+    tool_call = get_tool_call(messages, "bash_session")
+    assert tool_call
+    response = get_tool_response(messages, tool_call)
+    assert response
+    assert response.error is None, f"Tool call returns error: {response.error}"
+    output = response.text
+    assert "probe-done" in output
+    assert "owner=0 mode=700" in output
+    for marker in ("LISTED", "CREATED", "MOVED", "REMOVED"):
+        assert marker not in output, f"default user could act on tools tree: {output}"
 
 
 @pytest.mark.slow

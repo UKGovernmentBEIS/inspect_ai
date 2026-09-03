@@ -38,14 +38,26 @@ def _checkpoint_json(checkpoint_id: int) -> str:
 
 
 def _build_payload(sample_dir: Path, *, checkpoint_ids: list[int]) -> None:
-    """Materialize a complete sample payload: repos, config, checkpoint files."""
+    """Materialize a complete sample payload.
+
+    Host repo, a restic sandbox repo, an archive-strategy sandbox
+    storage area, the restic config, the strategy pin, and the
+    checkpoint files.
+    """
     (sample_dir / "restic" / "host" / "data" / "ab").mkdir(parents=True)
     (sample_dir / "restic" / "host" / "config").write_text("host-config")
     (sample_dir / "restic" / "host" / "data" / "ab" / "cd").write_text("pack")
     (sample_dir / "restic" / "sandboxes" / "default").mkdir(parents=True)
     (sample_dir / "restic" / "sandboxes" / "default" / "config").write_text("sb-config")
+    (sample_dir / "sandboxes" / "bulk" / "archive").mkdir(parents=True)
+    (sample_dir / "sandboxes" / "bulk" / "archive" / "ckpt-00001.tar.gz").write_text(
+        "tarball"
+    )
     (sample_dir / "restic" / "restic-config.json").write_text(
         '{"restic_password":"pw"}'
+    )
+    (sample_dir / "restic" / "snapshot-strategies.json").write_text(
+        '{"strategies":{"default":"restic-incremental","bulk":"archive"}}'
     )
     for n in checkpoint_ids:
         (sample_dir / f"ckpt-{n:05d}.json").write_text(_checkpoint_json(n))
@@ -58,8 +70,14 @@ def _assert_payload_copied(dest: Path, *, checkpoint_ids: list[int]) -> None:
         dest / "restic" / "sandboxes" / "default" / "config"
     ).read_text() == "sb-config"
     assert (
+        dest / "sandboxes" / "bulk" / "archive" / "ckpt-00001.tar.gz"
+    ).read_text() == "tarball"
+    assert (
         dest / "restic" / "restic-config.json"
     ).read_text() == '{"restic_password":"pw"}'
+    assert (
+        dest / "restic" / "snapshot-strategies.json"
+    ).read_text() == '{"strategies":{"default":"restic-incremental","bulk":"archive"}}'
     for n in checkpoint_ids:
         assert (dest / f"ckpt-{n:05d}.json").read_text() == _checkpoint_json(n)
 
@@ -163,20 +181,23 @@ async def test_copy_resume_payloads_skips_sample_dir_without_host_repo(
     _assert_payload_copied(dest_eval / "s1__1", checkpoint_ids=[1])
 
 
-async def test_copy_resume_payloads_tolerates_empty_sandbox_repo_dir(
+async def test_copy_resume_payloads_tolerates_empty_sandbox_storage_dir(
     tmp_path: Path,
 ) -> None:
-    """An empty sandbox repo dir in a logged attempt must not poison retries.
+    """An empty sandbox storage area in a logged attempt must not poison retries.
 
-    A fire interrupted between the sandbox egress's mkdir and its
-    extract leaves an empty ``restic/sandboxes/<name>/`` on local
-    filesystems. No committed checkpoint can reference it (checkpoint
-    files write only after the egress completes), so the copy skips it
-    instead of failing every future retry of the attempt.
+    A fire interrupted between a strategy's mkdir of its storage area
+    and its first write there leaves an empty area on local
+    filesystems (restic: between the sandbox egress's mkdir and its
+    extract; archive: between the mkdir and the partial-file write).
+    No committed checkpoint can reference it (checkpoint files write
+    only after every snapshot completes), so the copy skips it instead
+    of failing every future retry of the attempt.
     """
     source_eval = tmp_path / "old.checkpoints"
     _build_payload(source_eval / "s1__1", checkpoint_ids=[1])
     (source_eval / "s1__1" / "restic" / "sandboxes" / "torn").mkdir()
+    (source_eval / "s1__1" / "sandboxes" / "torn" / "archive").mkdir(parents=True)
     dest_eval = tmp_path / "new.checkpoints"
 
     await copy_resume_payloads(
@@ -186,6 +207,7 @@ async def test_copy_resume_payloads_tolerates_empty_sandbox_repo_dir(
 
     _assert_payload_copied(dest_eval / "s1__1", checkpoint_ids=[1])
     assert not (dest_eval / "s1__1" / "restic" / "sandboxes" / "torn").exists()
+    assert not (dest_eval / "s1__1" / "sandboxes" / "torn").exists()
 
 
 async def test_copy_payload_files_commit_point_order(tmp_path: Path) -> None:

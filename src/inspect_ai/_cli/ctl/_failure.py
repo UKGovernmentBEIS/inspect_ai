@@ -27,6 +27,13 @@ from ._render import _echo, _echo_raw
 # prevent. On --json, every terminal failure emits
 # `{"error": {kind, exception, message, status}}` on stdout, with the exit
 # code still non-zero; human (non---json) output is unchanged.
+#
+# Consequently, every terminal error site in this package must raise
+# _CtlFailure — usually via _fail() — never a bare click.exceptions.Exit:
+# _structured_failures deliberately passes a plain Exit through un-enveloped
+# (it is click control flow, e.g. --help), so a bare Exit at an error site
+# silently breaks the contract (issue #69 — the config version gates did
+# exactly that). test_no_bare_click_exit_in_ctl_error_sites enforces this.
 
 
 # The envelope's closed `kind` vocabulary (the field agents branch on).
@@ -179,7 +186,8 @@ def _structured_failures(as_json: bool) -> Iterator[None]:
     prose) to carry the structured fields here; an unexpected exception
     still gets an envelope (kind ``internal``), with its traceback preserved
     on stderr for debugging. Other click control-flow exceptions (a plain
-    ``Exit``, usage errors, Ctrl+C) pass through untouched.
+    ``Exit``, usage errors, Ctrl+C) pass through untouched — which is why an
+    error site must never raise a bare ``Exit`` (see the module comment).
     """
     if not as_json:
         yield

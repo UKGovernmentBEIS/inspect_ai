@@ -810,7 +810,7 @@ def test_keep_alive_works_when_all_logs_reused(
 def test_runtime_keep_parks_eval_set_launched_without_flag(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A runtime `inspect ctl keep` parks an eval-set started without the flag.
+    """A runtime `inspect ctl process keep` parks an eval-set started without the flag.
 
     Launched without ``ctl_server="keep"`` the process would normally exit
     when the run finishes. Latching keep-alive during the run (what ``POST
@@ -2796,6 +2796,128 @@ def test_ctl_sample_cancel_scores_work_so_far(short_data_dir: Path) -> None:
     assert cancelled.scores  # the scorer ran on the work done so far
 
 
+def test_ctl_cancel_tool_call_unsticks_hung_tool(short_data_dir: Path) -> None:
+    """Cancelling a hung tool call mid-run lets the sample continue.
+
+    Sample 1 parks at the gate as the observer; sample 2's model requests a
+    tool that hangs on an await that never resolves (the common hang shape).
+    The observer waits for the pending ``ToolEvent`` to appear, fires the
+    tool-call-cancel directive with the discovered id (plus a no-id repeat
+    pinning the "cancel already requested" no-op), and releases. The tool
+    unwinds at its await checkpoint, the model sees an ordinary tool timeout,
+    the agent loop continues to a plain completion, and the eval finishes
+    successfully — no sample errored, nothing was torn down.
+    """
+    import anyio
+
+    from inspect_ai._control.cancel import cancel_tool_call
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log import read_eval_log
+    from inspect_ai.model import ModelOutput, get_model
+    from inspect_ai.solver import use_tools
+    from inspect_ai.tool import tool
+
+    @tool
+    def hang():
+        async def execute() -> str:
+            """Wait forever (bounded by a safety timeout).
+
+            Returns:
+                A marker string, only if the cancel never arrives.
+            """
+            with anyio.move_on_after(15):
+                await anyio.Event().wait()
+            return "finished without being cancelled"
+
+        return execute
+
+    @task
+    def hung_tool_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2)],
+            solver=[gate(), use_tools(hang()), generate()],
+            name="hung_tool_task",
+        )
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            # sample 2's first generate (sample 1 is parked until the tool
+            # call is pending, so this cannot be consumed by the observer)
+            ModelOutput.for_tool_call("mockllm/model", "hang", {}),
+            # sample 2 post-timeout and sample 1 post-release, either order
+            ModelOutput.from_content("mockllm/model", "done"),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+    )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    def find_pending_tool() -> "tuple[Any, ToolEvent] | None":
+        for s in active_samples():
+            for ev in s.transcript.pending_events:
+                if isinstance(ev, ToolEvent) and ev.pending:
+                    return (s, ev)
+        return None
+
+    def ready() -> bool:
+        return find_pending_tool() is not None
+
+    async def capture() -> dict:
+        entry = (await current_eval_summaries(0.0))[0]
+        found = find_pending_tool()
+        assert found is not None
+        s, ev = found
+        result = await cancel_tool_call(
+            entry["eval_id"], str(s.sample.id), s.epoch, tool_call_id=ev.id
+        )
+        # no await since the cancel: the event is still pending (the tool
+        # hasn't unwound yet) with `cancelled` set, so the no-id repeat
+        # deterministically lands in the "cancel already requested" no-op
+        repeat = await cancel_tool_call(entry["eval_id"], str(s.sample.id), s.epoch)
+        return {"sample_id": s.sample.id, "result": result, "repeat": repeat}
+
+    with probe(ready, capture, park=lambda sid: sid == 1) as p:
+        success, logs = eval_set(
+            tasks=[hung_tool_task()],
+            log_dir=log_dir,
+            model=model,
+            retry_attempts=0,
+            max_samples=2,
+        )
+
+    assert p.result is not None, "no pending tool call was ever observed"
+    result = p.result["result"]
+    assert result["ok"] is True and result["changed"] is True
+    assert result["function"] == "hang"
+    repeat = p.result["repeat"]
+    assert repeat["ok"] is True and repeat["changed"] is False
+    assert repeat["reason"] == "cancel already requested"
+
+    # the cancel is per-call: the sample continued and the eval completed
+    assert success
+    assert logs[0].status == "success"
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and len(log.samples) == 2
+    hung_sample = next(s for s in log.samples if s.id == p.result["sample_id"])
+    assert hung_sample.error is None
+    # the model saw the operator cancel as an ordinary tool timeout
+    tool_message = next(m for m in hung_sample.messages if m.role == "tool")
+    assert tool_message.error is not None and tool_message.error.type == "timeout"
+    assert "finished without being cancelled" not in str(tool_message.content)
+    # the transcript finalized per the operator-cancel convention and
+    # recorded the InfoEvent that distinguishes it from an organic timeout
+    tool_event = next(e for e in hung_sample.events if e.event == "tool")
+    assert tool_event.pending is not True
+    assert tool_event.error is not None and tool_event.error.type == "timeout"
+    assert tool_event.failed is None
+    assert any(
+        e.event == "info" and "was cancelled by operator" in str(e.data)
+        for e in hung_sample.events
+    )
+
+
 def test_ctl_task_cancel_aborts_run(short_data_dir: Path) -> None:
     """Cancelling a task tears down its in-flight samples and finalizes the log.
 
@@ -2856,3 +2978,772 @@ def test_ctl_task_cancel_aborts_run(short_data_dir: Path) -> None:
     assert logs[0].status == "error"
     assert logs[0].error is not None
     assert "cancelled by user (abort)" in logs[0].error.message
+
+
+def test_ctl_task_drain_finishes_in_flight_and_abandons_queued(
+    short_data_dir: Path,
+) -> None:
+    """Drain stamps without interrupting: in-flight finishes, queued abandons.
+
+    With one slot and three samples, the drain lands while sample 1 is in
+    flight and 2/3 are queued. Sample 1 finishes naturally (scored, in the
+    log), samples 2/3 abandon at the queue-exit check (terminal `cancelled`,
+    absent from the log), and the task completes with an ordinary success
+    log carrying the actually-logged count — which a later `eval_set`
+    re-invocation reads as incomplete, re-running only the abandoned
+    remainder (design/ctl/task-drain.md).
+    """
+    from inspect_ai._control.cancel import drain_task
+    from inspect_ai.log import read_eval_log
+
+    @task
+    def drain_whole_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[gate()],
+            name="drain_whole_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        if not evals:
+            return False
+        samples = evals[0]["samples"]
+        return samples["in_flight"] == 1 and samples["queued"] == 2
+
+    async def capture() -> dict:
+        entry = (await current_eval_summaries(0.0))[0]
+        dry = drain_task(entry["task_id"], dry_run=True)
+        result = drain_task(entry["task_id"])
+        repeat = drain_task(entry["task_id"])
+        row = (await current_eval_summaries(0.0))[0]
+        return {"dry": dry, "result": result, "repeat": repeat, "row": row}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[drain_whole_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            max_samples=1,
+        )
+
+    assert p.result is not None, "one-in-flight/two-queued never observed"
+    dry = p.result["dry"]
+    assert dry is not None and dry["changed"] is True and dry["dry_run"] is True
+    assert dry["in_flight"] == 1 and dry["queued"] == 2
+    result = p.result["result"]
+    assert result["ok"] is True and result["changed"] is True
+    repeat = p.result["repeat"]
+    assert repeat is not None and repeat["changed"] is False
+    assert repeat["reason"] == "drain already requested"
+    # the read surface says the drain is in effect while the tail runs
+    assert p.result["row"]["resolving"] == "drain"
+
+    # drained: an ordinary success log with only the in-flight sample —
+    # eval_set does not retry it, and the log records how many samples it
+    # actually contains (results.total_samples records the *planned* count)
+    assert success
+    assert len(logs) == 1
+    assert logs[0].status == "success"
+    drained = read_eval_log(logs[0].location)
+    assert drained.samples is not None and len(drained.samples) == 1
+    assert drained.results is not None
+    assert drained.results.total_samples == 3
+    assert drained.results.logged_samples == 1
+
+    # the abandoned remainder stays explicitly resumable: a re-invocation on
+    # the same log_dir classifies the drained log incomplete (via the
+    # logged-samples count) and re-runs only the never-dispatched samples,
+    # reusing the completed one
+    success2, logs2 = eval_set(
+        tasks=[drain_whole_task()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        max_samples=1,
+    )
+    assert success2
+    resumed = read_eval_log(logs2[0].location)
+    assert resumed.samples is not None and len(resumed.samples) == 3
+
+
+def test_ctl_task_drain_no_log_samples_reads_incomplete(short_data_dir: Path) -> None:
+    """A drained `log_samples=False` log records the resolved-sample count.
+
+    The logger saw no samples, so the stamp comes from the attempt's terminal
+    counters (one resolved, two abandoned). Nothing in such a log can seed a
+    partial resume, so the honest classification is "incomplete": a later
+    `eval_set` re-invocation re-runs the task in full rather than reusing it
+    as complete with the abandoned remainder never run.
+    """
+    from inspect_ai._control.cancel import drain_task
+    from inspect_ai.log import read_eval_log
+
+    @task
+    def drain_unlogged_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[gate()],
+            name="drain_unlogged_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        if not evals:
+            return False
+        samples = evals[0]["samples"]
+        return samples["in_flight"] == 1 and samples["queued"] == 2
+
+    async def capture() -> dict:
+        entry = (await current_eval_summaries(0.0))[0]
+        return {"result": drain_task(entry["task_id"])}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[drain_unlogged_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            max_samples=1,
+            log_samples=False,
+        )
+
+    assert p.result is not None, "one-in-flight/two-queued never observed"
+    assert p.result["result"]["changed"] is True
+    assert success and len(logs) == 1 and logs[0].status == "success"
+    drained = read_eval_log(logs[0].location)
+    assert not drained.samples
+    assert drained.results is not None
+    assert drained.results.total_samples == 3
+    assert drained.results.logged_samples == 1
+
+    # re-invoking on the same log_dir re-runs the whole task (no drain this
+    # time: all three samples complete, and the stamp is absent)
+    success2, logs2 = eval_set(
+        tasks=[drain_unlogged_task()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        max_samples=1,
+        log_samples=False,
+    )
+    assert success2
+    rerun = read_eval_log(logs2[0].location)
+    assert rerun.location != drained.location
+    assert rerun.results is not None
+    assert rerun.results.completed_samples == 3
+    assert rerun.results.logged_samples is None
+
+
+def test_ctl_task_drain_no_log_samples_nothing_abandoned_reads_complete(
+    short_data_dir: Path,
+) -> None:
+    """A `log_samples=False` drain that abandons nothing leaves a complete log.
+
+    With every sample already dispatched when the drain lands (`queued: 0`),
+    all planned samples resolve — the stamp derived from the terminal counters
+    says so, and a later `eval_set` re-invocation reuses the log rather than
+    re-running the task (the logger's own count would have been 0 here).
+    """
+    from inspect_ai._control.cancel import drain_task
+    from inspect_ai.log import read_eval_log
+
+    @task
+    def drain_late_unlogged_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[gate()],
+            name="drain_late_unlogged_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        if not evals:
+            return False
+        samples = evals[0]["samples"]
+        return samples["in_flight"] == 3 and samples["queued"] == 0
+
+    async def capture() -> dict:
+        entry = (await current_eval_summaries(0.0))[0]
+        return {"result": drain_task(entry["task_id"])}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[drain_late_unlogged_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            max_samples=3,
+            log_samples=False,
+        )
+
+    assert p.result is not None, "three-in-flight/none-queued never observed"
+    assert p.result["result"]["changed"] is True
+    assert p.result["result"]["queued"] == 0
+    assert success and len(logs) == 1 and logs[0].status == "success"
+    drained = read_eval_log(logs[0].location)
+    assert not drained.samples
+    assert drained.results is not None
+    assert drained.results.total_samples == 3
+    assert drained.results.completed_samples == 3
+    assert drained.results.logged_samples == 3
+
+    # complete: a re-invocation on the same log_dir reuses the log as-is
+    success2, logs2 = eval_set(
+        tasks=[drain_late_unlogged_task()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        max_samples=3,
+        log_samples=False,
+    )
+    assert success2 and len(logs2) == 1
+    # (a reused log's location comes back as a file:// URI)
+    assert (
+        Path(logs2[0].location.removeprefix("file://")).name
+        == Path(drained.location).name
+    )
+
+
+def test_ctl_task_drain_honored_across_outer_retry_pass(short_data_dir: Path) -> None:
+    """A drained log stays reused within the run under `retry_immediate=False`.
+
+    With `retry_immediate=False`, a sibling failure sends eval-set back
+    through its run-vs-reuse classification in the same invocation — and the
+    drained task's success log deliberately holds fewer samples than planned.
+    The in-process graceful-resolution registry keeps it classified complete,
+    so the abandoned remainder is not re-dispatched mid-run (drain is honored
+    for the life of the run — design/ctl/task-drain.md); a later invocation
+    (fresh process, empty registry) still re-runs it.
+    """
+    from inspect_ai._control.cancel import drain_task
+    from inspect_ai.log import read_eval_log
+
+    calls = {"drained": 0}
+
+    @solver
+    def counting_gate() -> Solver:
+        inner = gate()
+
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls["drained"] += 1
+            return await inner(state, generate)
+
+        return solve
+
+    @task
+    def task_drained() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[counting_gate()],
+            name="task_drained",
+        )
+
+    @solver
+    def always_fail() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            raise RuntimeError("synthetic failure")
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[always_fail()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        drained = next((e for e in evals if e["task"] == "task_drained"), None)
+        if drained is None:
+            return False
+        samples = drained["samples"]
+        return samples["in_flight"] == 1 and samples["queued"] == 2
+
+    async def capture() -> dict:
+        evals = await current_eval_summaries(0.0)
+        drained = next(e for e in evals if e["task"] == "task_drained")
+        return {"result": drain_task(drained["task_id"])}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[task_drained(), task_flaky()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            max_tasks=2,
+            max_samples=1,
+            retry_attempts=2,
+            retry_wait=0.05,
+            retry_immediate=False,
+        )
+
+    assert p.result is not None, "one-in-flight/two-queued never observed"
+    result = p.result["result"]
+    assert result is not None and result["changed"] is True
+
+    # the drain held for the life of the run: the in-flight sample ran once
+    # and the abandoned remainder was never re-dispatched, even though the
+    # sibling's failure drove a second classification pass
+    assert calls["drained"] == 1
+    assert not success
+    drained_log = next(log for log in logs if log.eval.task == "task_drained")
+    assert drained_log.status == "success"
+    read = read_eval_log(drained_log.location)
+    assert read.samples is not None and len(read.samples) == 1
+    flaky_log = next(log for log in logs if log.eval.task == "task_flaky")
+    assert flaky_log.status == "error"
+
+
+def test_ctl_task_cancel_between_attempts_abandons_retry(
+    short_data_dir: Path,
+) -> None:
+    """A plain cancel of a between-attempts task abandons its queued retry.
+
+    The failing task pauses itself so its queued retry parks at the
+    dispatcher (holding the between-attempts window open); a sibling task's
+    observer then cancels it. The retry never runs — the task ends with its
+    last attempt's error log, exactly the shape an exhausted retry budget
+    produces.
+    """
+    from inspect_ai._control.cancel import cancel_task
+    from inspect_ai._control.pause import pause_task
+
+    fail = {"calls": 0}
+
+    @solver
+    def fail_and_pause() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            fail["calls"] += 1
+            states = get_eval_states()
+            me = next(s for s in states if s.task == "task_flaky")
+            # park the queued retry at the dispatcher so the
+            # between-attempts window stays open for the cancel
+            await pause_task(me.task_id)
+            raise RuntimeError("synthetic failure")
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[fail_and_pause()],
+            name="task_flaky",
+        )
+
+    @task
+    def task_holder() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[gate()],
+            name="task_holder",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    def ready() -> bool:
+        flaky = next((s for s in get_eval_states() if s.task == "task_flaky"), None)
+        return flaky is not None and flaky.retry_pending
+
+    async def capture() -> dict:
+        flaky = next(s for s in get_eval_states() if s.task == "task_flaky")
+        result = cancel_task(flaky.task_id)
+        repeat = cancel_task(flaky.task_id)
+        return {"result": result, "repeat": repeat}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[task_flaky(), task_holder()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            max_tasks=2,
+            retry_attempts=2,
+            retry_wait=0.05,
+            retry_immediate=True,
+        )
+
+    assert p.result is not None, "between-attempts window never observed"
+    result = p.result["result"]
+    assert result is not None
+    assert result["ok"] is True
+    assert result["changed"] is True and result["retry_abandoned"] is True
+    repeat = p.result["repeat"]
+    assert repeat is not None and repeat["changed"] is False
+    assert repeat["reason"] == "pending retry already abandoned"
+
+    # the retry never ran: one attempt, ending with its error log
+    assert fail["calls"] == 1
+    assert not success
+    flaky_log = next(log for log in logs if log.eval.task == "task_flaky")
+    assert flaky_log.status == "error"
+    holder_log = next(log for log in logs if log.eval.task == "task_holder")
+    assert holder_log.status == "success"
+
+
+def test_ctl_task_cancel_during_final_log_write_abandons_retry(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cancel landing while the errored attempt finishes abandons its retry.
+
+    ``completed_at`` is stamped by the last sample's terminal record, but the
+    dispatcher only flags ``retry_pending`` after the attempt's whole
+    ``finish_task_log`` — so a cancel in between used to read "task already
+    finished" and the retry dispatched anyway. The task runner now flags the
+    pending retry as it decides the error status, ahead of the log write. The
+    cancel is issued from inside that write (the runner's ``_finish_task_log``
+    is wrapped — on the eval loop, as a control-server route would run): it
+    must be told the retry is abandoned, and the retry must never run.
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai._control.cancel import cancel_task
+    from inspect_ai._control.eval_state import get_eval_state
+
+    fail = {"calls": 0}
+    observed: dict[str, Any] = {}
+    original_finish = task_run_module._finish_task_log
+
+    async def cancelling_finish(*args: Any, **kwargs: Any) -> Any:
+        logger = kwargs["logger"]
+        if kwargs["status"] == "error" and not observed:
+            state = get_eval_state(logger.eval.eval_id)
+            assert state is not None
+            observed["before"] = {
+                "completed_at_stamped": state.completed_at is not None,
+                "retry_pending": state.retry_pending,
+            }
+            observed["result"] = cancel_task(state.task_id)
+            observed["repeat"] = cancel_task(state.task_id)
+        return await original_finish(*args, **kwargs)
+
+    monkeypatch.setattr(task_run_module, "_finish_task_log", cancelling_finish)
+
+    @solver
+    def always_fail() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            fail["calls"] += 1
+            raise RuntimeError("synthetic failure")
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[always_fail()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    success, logs = eval_set(
+        tasks=[task_flaky()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.05,
+        retry_immediate=True,
+    )
+
+    assert observed, "the errored attempt's final log write was never observed"
+    # the cancel landed inside the window: all samples terminal, retry flagged
+    # by the runner ahead of the dispatcher's decision
+    assert observed["before"] == {"completed_at_stamped": True, "retry_pending": True}
+    result = observed["result"]
+    assert result is not None and result["ok"] is True
+    assert result["changed"] is True and result["retry_abandoned"] is True
+    repeat = observed["repeat"]
+    assert repeat is not None and repeat["changed"] is False
+    assert repeat["reason"] == "pending retry already abandoned"
+
+    # the retry never ran: one attempt, ending with its error log
+    assert fail["calls"] == 1
+    assert not success
+    assert len(logs) == 1 and logs[0].status == "error"
+
+
+def test_ctl_task_cancel_before_final_log_write_stays_abandoned(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry abandoned while the attempt tears down is not re-flagged pending.
+
+    The attempt requests a re-run (a ``"retry"`` stamp with budget remaining)
+    and a cancel lands before it reaches its final log write: the directive
+    abandons the retry and clears ``retry_pending``. The runner's pre-mark
+    ahead of the log write must not set the flag again — for the length of
+    the write (seconds on a remote log dir) the read surface would report
+    the task as between attempts, with a retry queued that the operator had
+    just abandoned.
+    """
+    import anyio
+
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai._control.cancel import cancel_task
+    from inspect_ai._control.eval_state import get_eval_state
+
+    fail = {"calls": 0}
+    observed: dict[str, Any] = {}
+    original_finish = task_run_module._finish_task_log
+
+    async def observing_finish(*args: Any, **kwargs: Any) -> Any:
+        logger = kwargs["logger"]
+        if kwargs["status"] == "error" and "during_write" not in observed:
+            state = get_eval_state(logger.eval.eval_id)
+            assert state is not None
+            observed["during_write"] = {
+                "retry_pending": state.retry_pending,
+                "will_retry": state.will_retry,
+            }
+        return await original_finish(*args, **kwargs)
+
+    monkeypatch.setattr(task_run_module, "_finish_task_log", observing_finish)
+
+    @solver
+    def request_retry_then_cancel() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            fail["calls"] += 1
+            me = next(s for s in get_eval_states() if s.task == "task_flaky")
+            assert me.task_cancel is not None
+            # the attempt requests its own re-run (as the TUI's retry action
+            # does) and the operator's cancel lands before it has torn down
+            me.task_cancel.cancel_task("retry")
+            observed["result"] = cancel_task(me.task_id)
+            # the retry stamp cancelled the task's scope; deliver it here
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[request_retry_then_cancel()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    success, logs = eval_set(
+        tasks=[task_flaky()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.05,
+        retry_immediate=True,
+    )
+
+    result = observed.get("result")
+    assert result is not None and result["ok"] is True
+    assert result["changed"] is True and result["retry_abandoned"] is True
+    # the errored attempt's log write saw the abandonment stand
+    assert observed.get("during_write") == {
+        "retry_pending": False,
+        "will_retry": False,
+    }
+
+    # the retry never ran: one attempt, ending with its error log
+    assert fail["calls"] == 1
+    assert not success
+    assert len(logs) == 1 and logs[0].status == "error"
+
+
+# --- config --max-tasks: live dispatch-limit retune -------------------------
+
+
+def test_ctl_config_max_tasks_raise_starts_pending_task(
+    short_data_dir: Path,
+) -> None:
+    """Raising max_tasks mid-run starts a pending task immediately.
+
+    Three single-sample tasks launch with ``max_tasks=2``: two dispatch (their
+    samples park at the gate) and one pends. The observer raises the limit to
+    3 via the ``process_limits`` directive — the set fires the dispatch
+    wakers, so the waiting dispatcher re-evaluates and starts the third task
+    without any completion happening. Lowering afterwards never preempts:
+    ``in_flight`` (3) rides above the new limit (1) and every task still
+    completes. The retune lands in the eval logs and the override does not
+    outlive the run.
+    """
+    import anyio
+
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import (
+        max_tasks_override,
+        task_dispatcher_stats,
+    )
+
+    @task
+    def mt_task_a() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")], solver=[gate()], name="mt_task_a"
+        )
+
+    @task
+    def mt_task_b() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")], solver=[gate()], name="mt_task_b"
+        )
+
+    @task
+    def mt_task_c() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")], solver=[gate()], name="mt_task_c"
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    def ready() -> bool:
+        stats = task_dispatcher_stats()
+        return stats is not None and stats.in_flight == 2 and stats.pending == 1
+
+    async def capture() -> dict:
+        before = (await process_limits())["max_tasks"]
+        raised = await process_limits(max_tasks=3, reason="connections underused")
+        # the set woke the dispatcher; wait for it to start the pending task
+        # (no sample completes meanwhile — every started sample is parked)
+        started = False
+        for _ in range(500):
+            stats = task_dispatcher_stats()
+            if stats is not None and stats.in_flight == 3:
+                started = True
+                break
+            await anyio.sleep(0.02)
+        lowered = await process_limits(max_tasks=1)
+        return {
+            "before": before,
+            "raised": raised["max_tasks"],
+            "raised_persisted": raised["persisted"],
+            "started": started,
+            "lowered": lowered["max_tasks"],
+        }
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[mt_task_a(), mt_task_b(), mt_task_c()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            max_tasks=2,
+            retry_attempts=0,
+        )
+
+    assert p.result is not None, "never reached 'two in flight, one pending'"
+    assert p.result["before"] == {
+        "limit": 2,
+        "launch": 2,
+        "override": None,
+        "in_flight": 2,
+        "pending": 1,
+        "adjustable": True,
+    }
+    raised = p.result["raised"]
+    assert raised["limit"] == 3 and raised["override"] == 3 and raised["launch"] == 2
+    # recorded in every live task log
+    assert p.result["raised_persisted"] == {"max_tasks": True}
+    assert p.result["started"], "raising max_tasks did not start the pending task"
+    # lowering never preempts: in-flight stays above the new limit
+    lowered = p.result["lowered"]
+    assert lowered["limit"] == 1 and lowered["in_flight"] == 3
+
+    # every task completed despite the lowered limit (drain, don't preempt)
+    assert success and len(logs) == 3
+    # the raise was recorded (who / old → new) in the affected logs
+    changes = [
+        change
+        for log in logs
+        for update in log.config_updates or []
+        for change in update.changes
+    ]
+    assert any(
+        c.name == "max_tasks" and c.value == 3 and c.previous == 2 for c in changes
+    )
+    # the override is run-scoped: reset at the eval_set boundary
+    assert max_tasks_override() is None
+
+
+def test_ctl_config_max_tasks_raise_reaches_sequential_launch(
+    short_data_dir: Path,
+) -> None:
+    """Raising max_tasks reaches a run launched with ``max_tasks=1``.
+
+    ``parallel == 1`` used to carve a fresh dispatcher per sequence group, so
+    the queued tasks were invisible to the dispatcher (``in_flight: 1,
+    pending: 0``) and a raise could never start them. The unified batch keeps
+    them pending in one dispatcher: the ready predicate asserting
+    ``pending == 2`` is itself the regression check, and the raise then
+    starts both queued tasks without any completion happening.
+    """
+    import anyio
+
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import task_dispatcher_stats
+
+    @task
+    def seq_task_a() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")], solver=[gate()], name="seq_task_a"
+        )
+
+    @task
+    def seq_task_b() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")], solver=[gate()], name="seq_task_b"
+        )
+
+    @task
+    def seq_task_c() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")], solver=[gate()], name="seq_task_c"
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    def ready() -> bool:
+        stats = task_dispatcher_stats()
+        return stats is not None and stats.in_flight == 1 and stats.pending == 2
+
+    async def capture() -> dict:
+        before = (await process_limits())["max_tasks"]
+        await process_limits(max_tasks=3)
+        started = False
+        for _ in range(500):
+            stats = task_dispatcher_stats()
+            if stats is not None and stats.in_flight == 3:
+                started = True
+                break
+            await anyio.sleep(0.02)
+        return {"before": before, "started": started}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[seq_task_a(), seq_task_b(), seq_task_c()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            max_tasks=1,
+            retry_attempts=0,
+        )
+
+    assert p.result is not None, "never reached 'one in flight, two pending'"
+    assert p.result["before"] == {
+        "limit": 1,
+        "launch": 1,
+        "override": None,
+        "in_flight": 1,
+        "pending": 2,
+        "adjustable": True,
+    }
+    assert p.result["started"], "raising max_tasks did not start the queued tasks"
+    assert success and len(logs) == 3

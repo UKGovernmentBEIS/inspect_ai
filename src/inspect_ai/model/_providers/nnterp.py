@@ -22,6 +22,7 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.model._model_output import Logprob, Logprobs, TopLogprob
+from inspect_ai.model._providers.util.hidden_states import hidden_states_to_jsonable
 from inspect_ai.model._reasoning import emulate_reasoning_history
 from inspect_ai.tool import (
     ToolChoice,
@@ -210,10 +211,19 @@ class NNterpAPI(ModelAPI):
             ),
         )
 
-        # build metadata
+        # build metadata (materialize tensors to lists so they survive the log;
+        # raw tensors would be dropped to None during serialization). nnterp's
+        # layer tensors come off layers_output[layer] with a leading batch dim
+        # and nnterp only ever runs batch=1, so select sample 0 to drop that
+        # wrapper — keeping the [step][layer] shape consistent with the hf
+        # provider (which slices per sample) under the same metadata key.
         metadata = None
         if processed_hidden_states is not None:
-            metadata = {"hidden_states": processed_hidden_states}
+            metadata = {
+                "hidden_states": hidden_states_to_jsonable(
+                    processed_hidden_states, sample_index=0
+                )
+            }
 
         # return output
         return ModelOutput(
