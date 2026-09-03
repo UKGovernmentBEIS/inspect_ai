@@ -19,7 +19,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 from unittest.mock import patch
 
 import anyio
@@ -34,6 +34,8 @@ from inspect_ai.util._checkpoint._repo_ops import (
 from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     EgressVerificationError,
     _EgressBuild,
+    _remove_files,
+    _write_member,
     egress_sandbox,
     ingress_sandbox,
 )
@@ -462,6 +464,59 @@ async def test_egress_reshipped_config_is_never_rewritten(repos: _Repos) -> None
     assert await repos.egress("ckpt-00002", id2) == id2
     assert dest_config.stat().st_mtime_ns == before
     assert "config" in repos.manifest()
+
+
+_LAYOUT_ORDER = ["keys", "config", "data", "index", "snapshots"]
+
+
+async def test_egress_first_cycle_writes_keys_before_config(repos: _Repos) -> None:
+    """The first-cycle sentinel (``config``) lands after its key; snapshots last.
+
+    A hard kill between two renames must leave the destination either
+    still first-cycle (re-bootstrapped next fire) or openable; a repo
+    with ``config`` and no ``keys/*`` is neither.
+    """
+    id1 = repos.backup("ckpt-00001")
+    order: list[str] = []
+
+    def spy(src: IO[bytes], dest_repo: str, name: str, label: str) -> None:
+        order.append(name)
+        _write_member(src, dest_repo, name, label)
+
+    with patch(
+        "inspect_ai.util._checkpoint._sandbox_restic.egress._write_member",
+        new=spy,
+    ):
+        await repos.egress("ckpt-00001", id1)
+
+    kinds = [name.split("/")[0] for name in order]
+    assert kinds[:2] == ["keys", "config"]
+    assert kinds[-1] == "snapshots"
+    assert kinds == sorted(kinds, key=_LAYOUT_ORDER.index)
+
+
+def test_remove_files_unwinds_last_written_first(tmp_path: Path) -> None:
+    """Rollback removes in reverse write order.
+
+    A kill mid-rollback then never leaves a snapshot without its packs or
+    a ``config`` without its key.
+    """
+    names = ["keys/k", "config", "data/ab/p", "index/i", "snapshots/s"]
+    for name in names:
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text("x")
+    removed: list[str] = []
+    real_unlink = Path.unlink
+
+    def spy(self: Path, missing_ok: bool = False) -> None:
+        removed.append(self.relative_to(tmp_path).as_posix())
+        real_unlink(self, missing_ok=missing_ok)
+
+    with patch.object(Path, "unlink", spy):
+        _remove_files(str(tmp_path), names)
+
+    assert removed == list(reversed(names))
+    assert not any((tmp_path / name).exists() for name in names)
 
 
 # --- resume side ------------------------------------------------------
