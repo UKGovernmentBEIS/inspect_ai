@@ -149,10 +149,20 @@ class ConverseGuardContent(BaseModel):
 
 class ConverseReasoningText(BaseModel):
     text: str
+    signature: str | None = None
 
 
 class ConverseReasoningContent(BaseModel):
-    reasoningText: ConverseReasoningText
+    """A Converse API reasoningContent block.
+
+    Either `reasoningText` (plaintext reasoning, as returned by Anthropic
+    Claude models) or `redactedContent` (an opaque, provider-encrypted
+    reasoning trace with no plaintext to surface -- returned by, e.g.,
+    OpenAI's GPT-5.6 family on Bedrock) is present, never both.
+    """
+
+    reasoningText: ConverseReasoningText | None = None
+    redactedContent: bytes | None = None
 
 
 class ConverseCachePoint(BaseModel):
@@ -1322,9 +1332,19 @@ def model_output_from_response(
                 )
             )
         elif c.reasoningContent is not None:
-            # Handle reasoning content
-            reasoning_text = c.reasoningContent.reasoningText.text
-            content.append(ContentReasoning(reasoning=reasoning_text))
+            # Handle reasoning content. Some models (e.g. OpenAI's GPT-5.6
+            # family on Bedrock) return an opaque `redactedContent` block
+            # instead of plaintext `reasoningText` -- there is no text to
+            # surface, so record it as redacted rather than crashing.
+            if c.reasoningContent.reasoningText is not None:
+                content.append(
+                    ContentReasoning(
+                        reasoning=c.reasoningContent.reasoningText.text,
+                        signature=c.reasoningContent.reasoningText.signature,
+                    )
+                )
+            else:
+                content.append(ContentReasoning(reasoning="", redacted=True))
         else:
             raise ValueError("Unexpected message response in Bedrock provider")
 
