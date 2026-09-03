@@ -304,7 +304,6 @@ async def test_requeue_initializing_sample_with_pending_cancel_names_it(
     assert result["changed"] is False and result["status"] == "queued"
     assert "pending cancel (cancel)" in result["reason"]
     assert handle.accepts == []
-    assert handle.accepts == []
 
 
 async def test_requeue_never_started_sample_is_noop(

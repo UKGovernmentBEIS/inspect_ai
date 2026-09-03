@@ -12,7 +12,10 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import click
 
-from inspect_ai._control.cancel import SAMPLE_ALREADY_FINISHED_REASON
+from inspect_ai._control.cancel import (
+    SAMPLE_ALREADY_FINISHED_REASON,
+    SAMPLE_CANCEL_OUTCOME,
+)
 from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT, SAMPLE_STATUSES
 
 # Patch seam: tests monkeypatch functions on their defining module
@@ -957,11 +960,7 @@ def _run_sample_cancel(
     terse: bool | None = None,
     model: str | None = None,
 ) -> None:
-    outcome = {
-        "score": "scored on the work done so far",
-        "error": "marked as errored",
-        "cancel": "recorded as cancelled",
-    }[action]
+    outcome = SAMPLE_CANCEL_OUTCOME[action]
 
     # the queued rows (cancel-before-start / un-requeue — see
     # design/ctl/queued-sample-cancel.md) and the initializing row (a

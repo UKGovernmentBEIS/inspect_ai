@@ -697,11 +697,11 @@ class SampleRequeue:
         The drain records the cancel in the counters but writes no record,
         so without this stamp no read surface ever sees the outcome: the
         listing keeps rendering the key ``pending`` and the cancel
-        resolver's departed branch advises "retry in a moment" forever. ``departed`` is set alongside so the run reads
-        ``"discarded"`` directly — the coroutine is returning, so there is
-        no parked window to un-cancel. Re-runs take no stamp: clearing their
-        pending key (``on_terminal``) reverts them to their prior terminal
-        record.
+        resolver's departed branch advises "retry in a moment" forever.
+        ``departed`` is set alongside so the run reads ``"discarded"``
+        directly — the coroutine is returning, so there is no parked window
+        to un-cancel. Re-runs take no stamp: clearing their pending key
+        (``on_terminal``) reverts them to their prior terminal record.
         """
         if run.prior is not None:
             return

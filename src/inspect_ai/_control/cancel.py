@@ -523,13 +523,15 @@ CancelSampleResult = (
 )
 
 
-_DEFERRED_OUTCOME: dict[str, str] = {
+SAMPLE_CANCEL_OUTCOME: dict[SampleCancelAction, str] = {
     "score": "scored on the work done so far",
     "error": "marked as errored",
     "cancel": "recorded as cancelled",
 }
-"""How a deferred interrupt's ``reason`` names the outcome (mirrors the CLI's
-outcome vocabulary for a delivered interrupt)."""
+"""How each ``SampleCancelAction`` resolves the sample, as prose.
+
+Shared by the deferred-interrupt ``reason`` here and the CLI's rendering of
+a delivered interrupt, so the two surfaces cannot drift."""
 
 
 async def cancel_sample(
@@ -615,7 +617,7 @@ async def cancel_sample(
             "changed": True,
         }
         if initializing:
-            outcome = _DEFERRED_OUTCOME[action]
+            outcome = SAMPLE_CANCEL_OUTCOME[action]
             result["reason"] = (
                 "cancel would be deferred: the sample is initializing and "
                 f"would be {outcome} as soon as it starts"

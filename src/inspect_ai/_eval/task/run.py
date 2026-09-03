@@ -2375,9 +2375,12 @@ async def _task_run_sample_attempt(
                 msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
                 # a stamped interrupt suppresses the retry (the attempt is
                 # abandoned as cancelled instead — see the retry decision at
-                # the tail), so don't promise one
-                if attempt.retries_remaining > 0 and active.interrupt_action is None:
-                    msg = f"{msg}. Sample will be retried."
+                # the tail), so promise neither a retry nor a score
+                if attempt.retries_remaining > 0:
+                    if active.interrupt_action is None:
+                        msg = f"{msg}. Sample will be retried."
+                    else:
+                        msg = f"{msg}. Sample will be cancelled."
                 elif score_on_error:
                     msg = f"{msg}. Sample will be scored."
                 py_logger.warning(msg)

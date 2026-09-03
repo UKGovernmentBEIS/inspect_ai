@@ -953,7 +953,8 @@ def test_sample_cancel_while_initializing_then_init_failure_abandons(
     The retry predicate requires no interrupt, so the errored attempt takes
     the drain-window branch: resolved as cancelled (never errored), absent
     from the log, its buffered events removed, and not retried — and the
-    error warning must not promise the retry that will not happen.
+    error warning must say so rather than promise the retry (or, with
+    ``score_on_error``, the scoring) that will not happen.
     """
     caplog.set_level("WARNING", logger="inspect_ai._eval.task.run")
     from inspect_ai._control.cancel import cancel_sample as ctl_cancel_sample
@@ -999,6 +1000,7 @@ def test_sample_cancel_while_initializing_then_init_failure_abandons(
             log_dir=str(tmp_path),
             model="mockllm/model",
             retry_on_error=2,
+            score_on_error=True,
         )
 
     # one init attempt, no retry; counted cancelled, never errored
@@ -1010,12 +1012,15 @@ def test_sample_cancel_while_initializing_then_init_failure_abandons(
     log = logs[0]
     assert log.status == "success"
     assert not log.samples
-    # the init error was logged, without promising a retry
+    # the init error was logged, naming the cancel rather than promising the
+    # retry or the score that will not happen
     errors = [
         r.getMessage() for r in caplog.records if "Sample error" in r.getMessage()
     ]
     assert len(errors) == 1
+    assert errors[0].endswith("Sample will be cancelled.")
     assert "will be retried" not in errors[0]
+    assert "will be scored" not in errors[0]
 
 
 def test_errored_attempt_marked_retry_pending() -> None:
