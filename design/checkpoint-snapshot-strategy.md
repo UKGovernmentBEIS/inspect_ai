@@ -145,12 +145,8 @@ class SandboxSnapshotStrategy(Protocol):
 
     async def discard_orphans(
         self, latest_committed_id: int, ctx: SnapshotContext
-    ) -> list[str]:
-        """Drop snapshots with checkpoint_id > latest_committed_id.
-
-        Returns the storage-relative paths removed, so the core can
-        mirror the removal at a remote destination (§4.5).
-        """
+    ) -> None:
+        """Drop snapshots with checkpoint_id > latest_committed_id (§4.5)."""
 
     async def apply_retention(
         self,
@@ -283,12 +279,12 @@ The core, not the strategy, carries strategy state across retry
 attempts. At retry startup — before the new attempt's log is first
 written — `_resume_copy.copy_resume_payloads` replicates every sample
 dir of the attempt being retried into the new attempt's eval
-checkpoints dir, storage areas included, as opaque file trees
-(checkpoint files last, so no intermediate state has a checkpoint
-file without its data). A retry's log is therefore its checkpoint
-commit point: a copy that fails or is interrupted leaves no log, the
-next retry sources the newest log that exists, and every sample dir
-reachable from a log is complete. Consequences for a strategy:
+checkpoints dir, storage areas included, as opaque file trees. A
+retry's log is its checkpoint commit point: a copy that fails or is
+interrupted leaves no log, the next retry sources the newest log that
+exists, and every sample dir reachable from a log is complete (nothing
+reads a dir while it is being copied, so the copy itself needs no
+internal ordering). Consequences for a strategy:
 
 - It never copies prior-attempt state itself; by the time `setup`
   runs on resume, its storage area already holds what the prior

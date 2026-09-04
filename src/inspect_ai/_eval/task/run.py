@@ -1474,13 +1474,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         # non-clean prior (errored, cancelled, or absent from
                         # the log): resume from a checkpoint in this attempt's
                         # own dir when one exists, else carry the prior
-                        # errors and run fresh from an empty dir. A requeued
-                        # sample's dir is its own prior run's; a retried
-                        # sample's holds what the startup copy brought, so
-                        # samples the copy didn't bring skip the probes. An
+                        # errors and run fresh from an empty dir. An
                         # invalidated prior never resumes. Hydration runs
                         # inside `_CheckpointerSetup.__aenter__`; agent code
-                        # can branch on `cp.attempt`. The probes take the
+                        # can branch on `cp.attempt`. Cost only: a retried
+                        # sample whose dir the startup copy didn't bring has
+                        # nothing on disk, so its probes are skipped (both
+                        # are no-ops on a missing dir); the probes take the
                         # reuse read throttle so probes and body reads
                         # together stay within the shared connection pool.
                         own_dir_may_exist = eval_checkpoints_dir is not None and (
@@ -3681,10 +3681,17 @@ def eval_log_sample_source(
         async def memory_error_history() -> set[tuple[int | str, int]]:
             return memory_error_ids
 
+        # an in-memory log with no samples at all (the errored EvalLog an
+        # attempt that died before its first log write returns — a failed
+        # log_start, or a failed checkpoint startup copy) has nothing to
+        # reuse and a checkpoints dir that may be a partial copy; a retry
+        # from it runs fresh rather than certify that dir with a new log
         return EvalSampleSource(
             read_from_memory,
             memory_error_history,
-            prior_checkpoints_dir=eval_checkpoints_dir,
+            prior_checkpoints_dir=(
+                eval_checkpoints_dir if eval_log.samples is not None else None
+            ),
         )
 
 

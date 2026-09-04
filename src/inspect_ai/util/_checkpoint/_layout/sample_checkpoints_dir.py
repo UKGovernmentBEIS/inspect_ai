@@ -169,26 +169,28 @@ async def delete_sample_checkpoints_dir(
 
     Used when a sample runs fresh in an attempt whose dir for it is not
     empty: an invalidated prior's copied checkpoints, or repos from an
-    attempt that never committed a checkpoint file. Checkpoint files go
-    first on every scheme: they are the dir's commit point, so an
-    interrupted delete leaves no committed checkpoint behind. The
-    host-local staging dir a remote destination stages through is
-    cleared too, so fresh provisioning starts from nothing on both sides.
+    attempt that never committed a checkpoint file. A local dir is
+    renamed aside before removal, so an interrupted delete can never
+    leave a partly deleted dir that still resolves as committed; on s3
+    the checkpoint files go first, newest first, so an interruption
+    leaves at most an older checkpoint behind. The host-local staging
+    dir a remote destination stages through is cleared too, so fresh
+    provisioning starts from nothing on both sides.
     """
     await clear_sample_staging_dir(log_location, sample_id, epoch)
     target = sample_checkpoints_dir(eval_dir, sample_id, epoch)
     if not is_s3_filename(target):
 
-        def rmtree_checkpoints_first() -> None:
+        def rename_then_rmtree() -> None:
             root = Path(local_path(target))
-            for checkpoint_file in root.glob("ckpt-*.json"):
-                checkpoint_file.unlink(missing_ok=True)
-            shutil.rmtree(root)
+            discarded = root.with_name(f"{root.name}.discarded-{secrets.token_hex(4)}")
+            try:
+                root.rename(discarded)
+            except FileNotFoundError:
+                return
+            shutil.rmtree(discarded)
 
-        try:
-            await anyio.to_thread.run_sync(rmtree_checkpoints_first)
-        except FileNotFoundError:
-            pass
+        await anyio.to_thread.run_sync(rename_then_rmtree)
         return
     async_fs = get_async_filesystem()
     # collect first: deleting while iterating a paginated S3 listing is
@@ -198,7 +200,12 @@ async def delete_sample_checkpoints_dir(
     except FileNotFoundError:
         files = []
     prefix_len = len(target.rstrip("/")) + 1
-    files.sort(key=lambda uri: not _is_checkpoint_file(uri[prefix_len:]))
+    files.sort(
+        key=lambda uri: (
+            not _is_checkpoint_file(uri[prefix_len:]),
+            -(checkpoint_file_id(uri[prefix_len:]) or 0),
+        )
+    )
     for uri in files:
         await async_fs.delete_file(uri)
 

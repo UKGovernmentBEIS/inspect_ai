@@ -30,7 +30,7 @@ async def init_repo(restic: Path, repo: str, password: str) -> None:
     Path(repo).mkdir(parents=True, exist_ok=True)
     if (Path(repo) / "config").exists():
         return
-    await run_restic([str(restic), "-r", repo, "init"], password=password)
+    await run_restic(restic, repo, "init", password=password)
 
 
 async def run_backup(
@@ -54,20 +54,17 @@ async def run_backup(
     """
     sources = [source] if isinstance(source, str) else list(source)
     proc = await run_restic(
-        [
-            str(restic),
-            "-r",
-            repo,
-            "backup",
-            *sources,
-            "--compression",
-            "max",
-            "--no-scan",
-            "--tag",
-            tag,
-            "--json",
-            "--quiet",
-        ],
+        restic,
+        repo,
+        "backup",
+        *sources,
+        "--compression",
+        "max",
+        "--no-scan",
+        "--tag",
+        tag,
+        "--json",
+        "--quiet",
         password=password,
     )
     return ResticBackupSummary.from_stdout(proc.stdout.decode())
@@ -90,7 +87,12 @@ async def restore_repo(restic: Path, repo: str, password: str, target: str) -> N
     target_dir.mkdir(parents=True, exist_ok=True)
 
     await run_restic(
-        [str(restic), "-r", repo, "restore", "latest", "--target", str(target_dir)],
+        restic,
+        repo,
+        "restore",
+        "latest",
+        "--target",
+        str(target_dir),
         password=password,
     )
 
@@ -197,36 +199,35 @@ async def list_changed_files(
     the diff output is bounded by the number of changes, not the total file
     count.
     """
-    snapshots = await run_restic(
-        [str(restic), "-r", repo, "snapshots", "--json"], password=password
-    )
+    snapshots = await run_restic(restic, repo, "snapshots", "--json", password=password)
     parent = _previous_id(json.loads(snapshots.stdout.decode()), snapshot_id)
     if parent is None:
         proc = await run_restic(
-            [str(restic), "-r", repo, "ls", snapshot_id, "--json"], password=password
+            restic, repo, "ls", snapshot_id, "--json", password=password
         )
         return _parse_listed_files(proc.stdout.decode(), limit)
     proc = await run_restic(
-        [str(restic), "-r", repo, "diff", parent, snapshot_id, "--json"],
-        password=password,
+        restic, repo, "diff", parent, snapshot_id, "--json", password=password
     )
     return _parse_changed_files(proc.stdout.decode(), limit)
 
 
 async def run_restic(
-    command: Sequence[str], *, password: str
+    restic: Path, repo: str, verb: str, *args: str, password: str
 ) -> subprocess.CompletedProcess[bytes]:
-    """Run a restic command; a non-zero exit raises with restic's stderr.
+    """Run ``restic -r <repo> <verb> <args>``; a non-zero exit raises with stderr.
 
     ``anyio.run_process(check=True)`` raises ``CalledProcessError`` whose
     message carries only the command and exit status — restic's reason
     ("repository is already locked by ...", "repository does not exist")
     is on stderr, and without it a failed operation is undiagnosable.
     """
-    proc = await anyio.run_process(list(command), env=restic_env(password), check=False)
+    proc = await anyio.run_process(
+        [str(restic), "-r", repo, verb, *args], env=restic_env(password), check=False
+    )
     if proc.returncode != 0:
         raise RuntimeError(
-            f"restic {command[3]} failed (exit {proc.returncode}) on {command[2]}: "
+            f"restic {verb} failed (exit {proc.returncode}) on {repo}: "
             f"{proc.stderr.decode(errors='replace').strip()}"
         )
     return proc

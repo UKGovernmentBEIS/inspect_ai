@@ -110,21 +110,6 @@ async def test_copy_resume_payloads_replicates_every_sample_dir(
     _assert_payload_copied(dest_eval / "s2__1", checkpoint_ids=[1])
 
 
-async def test_copy_resume_payloads_same_eval_dir_is_noop(tmp_path: Path) -> None:
-    """A same-dir retry (reused log location) leaves the payload untouched."""
-    source_eval = tmp_path / "same.checkpoints"
-    _build_payload(source_eval / "s1__1", checkpoint_ids=[1])
-    before = {p: p.read_bytes() for p in source_eval.rglob("*") if p.is_file()}
-
-    await copy_resume_payloads(
-        source_eval_dir=str(source_eval),
-        destination_eval_dir=str(source_eval),
-    )
-
-    after = {p: p.read_bytes() for p in source_eval.rglob("*") if p.is_file()}
-    assert after == before
-
-
 async def test_copy_resume_payloads_missing_source_eval_dir(tmp_path: Path) -> None:
     """A prior attempt that never checkpointed leaves no eval dir at all."""
     dest_eval = tmp_path / "new.checkpoints"

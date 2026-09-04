@@ -26,7 +26,10 @@ The design is one rule with two supports:
   source has is copied — completed samples included. Checkpoints are a
   permanent record (planned work allows branching from arbitrary
   checkpoints), so each attempt with a log is a complete,
-  self-contained archive and everything older is superseded.
+  self-contained archive and everything older is superseded. The one
+  exception: a sample that re-runs from scratch in this attempt (an
+  invalidated prior, or a dir with no committed checkpoint) has its
+  copied dir discarded before it starts.
 
 Resume detection then never looks past a sample's own dir
 (``resolve_resume_checkpoint``): a sample either has a committed
@@ -51,8 +54,10 @@ from ._async_fs import async_mkdir
 logger = getLogger(__name__)
 
 # How many samples copy concurrently during the startup copy, and how
-# many files copy concurrently within one sample dir. The product must
-# stay under the shared S3 client's 50-connection pool.
+# many files copy concurrently within one sample dir. Their product is
+# one task's share of the process-wide S3 client's 50-connection pool;
+# concurrent tasks (eval_set max_tasks) share it, and requests queue on
+# the pool when they exceed it.
 _STARTUP_COPY_CONCURRENCY = 8
 _SAMPLE_FILE_COPY_CONCURRENCY = 6
 
@@ -75,14 +80,12 @@ async def copy_resume_payloads(
     newest log that exists (whose checkpoint dirs are complete by the
     same rule).
 
-    Returns the names of the sample dirs the destination now holds, so
-    resume detection can skip samples known to have nothing on disk. A
-    same-dir retry (source and destination eval dirs coincide, e.g. a
-    log location reused within the same second) copies nothing and
-    reports the dir's existing contents.
+    Returns the names of the sample dirs copied, so resume detection can
+    skip samples known to have nothing on disk. Source and destination
+    never coincide: a log location repeats only when the prior attempt
+    wrote no log, and retries never source such an attempt.
     """
-    if source_eval_dir == destination_eval_dir:
-        return frozenset(await _dir_names(source_eval_dir))
+    assert source_eval_dir != destination_eval_dir
 
     with trace_action(
         logger,

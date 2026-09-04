@@ -41,12 +41,8 @@ async def drop_orphan_snapshots(
     them makes ``restic restore latest`` pick the committed snapshot and
     lets the next fire write its tag without colliding with a stale one.
     """
-    await run_restic(
-        [str(restic), "-r", repo, "unlock", "--remove-all"], password=password
-    )
-    proc = await run_restic(
-        [str(restic), "-r", repo, "snapshots", "--json"], password=password
-    )
+    await run_restic(restic, repo, "unlock", "--remove-all", password=password)
+    proc = await run_restic(restic, repo, "snapshots", "--json", password=password)
     snapshots = json.loads(proc.stdout.decode())
     orphan_ids: list[str] = []
     for snap in snapshots:
@@ -61,6 +57,4 @@ async def drop_orphan_snapshots(
                 orphan_ids.append(snap["id"])
                 break
     if orphan_ids:
-        await run_restic(
-            [str(restic), "-r", repo, "forget", *orphan_ids], password=password
-        )
+        await run_restic(restic, repo, "forget", *orphan_ids, password=password)
