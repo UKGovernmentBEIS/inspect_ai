@@ -47,6 +47,7 @@ from mistralai.client.models import UserMessage as MistralUserMessage
 from mistralai.client.models.chatcompletionresponse import (
     ChatCompletionResponse as MistralChatCompletionResponse,
 )
+from pydantic import ValidationError
 from shortuuid import uuid
 from typing_extensions import override
 
@@ -81,6 +82,10 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
+from .._openai import (
+    classify_error_body,
+    http_status_from_error_code,
+)
 from .._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
@@ -112,6 +117,25 @@ MISTRAL_API_KEY = "MISTRAL_API_KEY"
 
 
 AZURE_MISTRAL_BASE_URL_VARS = ["AZUREAI_MISTRAL_BASE_URL", "AZURE_MISTRAL_BASE_URL"]
+
+
+class MistralStreamError(Exception):
+    """The server delivered an error frame on a chat-completions stream.
+
+    The mistralai SDK has no error-event handling: a frame carrying an error
+    object rather than a `CompletionEvent` fails pydantic validation in the
+    SDK's decoder. The accumulator raises those as this error, carrying the
+    frame's `code`/`type` for `should_retry` (see `_classify_stream_error`).
+    Two error shapes are recognised: the error object Mistral documents for
+    its API (`{"object": "error", ...}`) and the OpenAI-compatible
+    `{"error": ...}` envelope; a validation failure carrying neither is a
+    schema mismatch and propagates unchanged.
+    """
+
+    def __init__(self, error: object) -> None:
+        super().__init__(f"Streaming response delivered an error: {error}")
+        self.code: object = error.get("code") if isinstance(error, dict) else None
+        self.type: object = error.get("type") if isinstance(error, dict) else None
 
 
 @functools.cache
@@ -322,6 +346,12 @@ class MistralAPI(ModelAPI):
                     return self.handle_bad_request(ex), model_call
                 else:
                     raise ex
+            except MistralStreamError as ex:
+                model_call.set_error(
+                    {"error": {"message": str(ex)}},
+                    http_hooks.end_request(request_id),
+                )
+                raise
 
             # return model output (w/ tool calls if they exist)
             choices = await completion_choices_from_response(completion, tools)
@@ -372,6 +402,8 @@ class MistralAPI(ModelAPI):
             if ex.status_code == 429:
                 return RetryDecision.rate_limit()
             return RetryDecision.transient()
+        if isinstance(ex, MistralStreamError):
+            return _classify_stream_error(ex)
         decision = httpx_classify_retry(ex)
         return decision if decision is not None else RetryDecision.no()
 
@@ -423,6 +455,71 @@ class _StreamChoice:
         self.finish_reason: CompletionResponseStreamChoiceFinishReason | None = None
 
 
+# `type` values Mistral's API uses on its 429 error bodies (e.g. `{"object":
+# "error", "type": "service_tier_capacity_exceeded", "code": "3505"}`)
+_MISTRAL_RATE_LIMIT_TYPES = {"service_tier_capacity_exceeded", "rate_limited"}
+
+
+def _classify_stream_error(ex: MistralStreamError) -> RetryDecision:
+    """Classify an in-band stream error the way a non-streamed status would be.
+
+    Mistral's own error bodies carry a 4-digit internal id in `code` (never an
+    HTTP status) and `type` names outside the OpenAI vocabulary, so only its
+    rate-limit types are matched by name. Anything else on a Mistral-shaped or
+    OpenAI-compatible frame is treated as transient: after HTTP 200 the request
+    has already been validated, so an in-band failure is a server-side one
+    (capacity, internal error, timeout), and a genuinely permanent condition
+    just fails again with the same error once retries are exhausted. Only a
+    `code` that positively identifies a non-retryable HTTP status (an
+    OpenAI-compatible `{"code": 400}`) is not retried.
+    """
+    decision = classify_error_body(ex.code, ex.type)
+    if decision is not None:
+        return decision
+    if http_status_from_error_code(ex.code) is not None:
+        return RetryDecision.no()
+    if ex.type in _MISTRAL_RATE_LIMIT_TYPES:
+        return RetryDecision.rate_limit()
+    return RetryDecision.transient()
+
+
+def _stream_error_payload(ex: ValidationError) -> object | None:
+    """The `error` payload of a stream frame that failed validation, if any."""
+    for detail in ex.errors():
+        value = detail.get("input")
+        if not isinstance(value, dict):
+            continue
+        if value.get("object") == "error":
+            return value
+        if "error" in value:
+            error: object = value["error"]
+            return error
+    return None
+
+
+async def _stream_events(
+    events: AsyncIterator[CompletionEvent],
+) -> AsyncIterator[CompletionEvent]:
+    """Iterate an event stream, raising server error frames as `MistralStreamError`.
+
+    Only validation failures raised by the iterator itself (the SDK's frame
+    decoder) are inspected — see `MistralStreamError`; the accumulator's own
+    errors propagate unchanged.
+    """
+    iterator = events.__aiter__()
+    while True:
+        try:
+            event = await iterator.__anext__()
+        except StopAsyncIteration:
+            return
+        except ValidationError as ex:
+            error = _stream_error_payload(ex)
+            if error is None:
+                raise
+            raise MistralStreamError(error) from ex
+        yield event
+
+
 async def mistral_completion_from_stream(
     events: AsyncIterator[CompletionEvent],
 ) -> MistralChatCompletionResponse:
@@ -444,7 +541,7 @@ async def mistral_completion_from_stream(
     usage: UsageInfo | None = None
     choices: dict[int, _StreamChoice] = {}
 
-    async for event in events:
+    async for event in _stream_events(events):
         chunk: CompletionChunk = event.data
         completion_id = completion_id or chunk.id
         created = created if created is not None else chunk.created

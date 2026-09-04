@@ -23,7 +23,6 @@ from groq import (
     APIError,
     APIResponseValidationError,
     APIStatusError,
-    APITimeoutError,
     AsyncGroq,
     AsyncStream,
 )
@@ -67,6 +66,7 @@ from inspect_ai._util.http_defaults import (
     default_limits,
     default_timeout,
 )
+from inspect_ai._util.httpx import httpx_classify_retry
 from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
@@ -128,7 +128,9 @@ class GroqStreamError(Exception):
     ("over capacity") is the same condition a non-streamed request surfaces
     as a retryable 429/503, and auto-streaming enabled by a display-only
     `on_stream` callback must not turn a retried condition into a
-    permanently failed sample.
+    permanently failed sample. (An error delivered as a top-level `error`
+    payload or an `event: error` frame is raised by the SDK itself as a bare
+    `APIError`; `should_retry` classifies that by its body `code`/`type`.)
     """
 
 
@@ -358,19 +360,21 @@ class GroqAPI(ModelAPI):
 
             # return
             return output, model_call
-        except APIStatusError as ex:
-            model_call.set_error(
-                as_error_response(ex.body), self._http_hooks.end_request(request_id)
-            )
-            return self.handle_bad_request(ex), model_call
         except APIError as ex:
+            model_call.set_error(
+                as_error_response(
+                    ex.body
+                    if ex.body is not None
+                    else {"error": {"message": ex.message}}
+                ),
+                self._http_hooks.end_request(request_id),
+            )
+            if isinstance(ex, APIStatusError):
+                return self.handle_bad_request(ex), model_call
             # an error payload delivered in the stream body (HTTP 200 already
             # sent) arrives as a plain APIError: convert a recognized
             # bad-request condition, otherwise re-raise so should_retry can
             # classify it; connection/validation errors keep their own semantics
-            model_call.set_error(
-                as_error_response(ex.body), self._http_hooks.end_request(request_id)
-            )
             if isinstance(ex, APIConnectionError | APIResponseValidationError):
                 raise
             converted = self.handle_bad_request(ex)
@@ -464,7 +468,7 @@ class GroqAPI(ModelAPI):
             if ex.status_code == 429:
                 return RetryDecision.rate_limit(retry_after=retry_after)
             return RetryDecision.transient(retry_after=retry_after)
-        if isinstance(ex, APITimeoutError):
+        if isinstance(ex, APIConnectionError):  # includes APITimeoutError
             return RetryDecision.transient()
         if isinstance(ex, GroqStreamError):
             return RetryDecision.transient()
@@ -472,7 +476,10 @@ class GroqAPI(ModelAPI):
             ex, APIConnectionError | APIResponseValidationError
         ):
             return groq_classify_stream_error(ex)
-        return RetryDecision.no()
+        # a connection dropped while reading the stream body surfaces as a raw
+        # httpx transport error (the SDK only wraps request-time failures)
+        decision = httpx_classify_retry(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
