@@ -183,6 +183,7 @@ from inspect_ai.model._model_output import (
     TopLogprob,
     collect_stop_details,
 )
+from inspect_ai.model._openai import is_gpt_5_model
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -229,8 +230,10 @@ class ResponsesModelInfo(Protocol):
     def is_gpt(self) -> bool: ...
     def is_gpt_5(self) -> bool: ...
     def is_gpt_5_plus(self) -> bool: ...
+    def is_gpt_6(self) -> bool: ...
     def is_gpt_5_pro(self) -> bool: ...
     def supports_max_reasoning_effort(self) -> bool: ...
+    def reasons_by_default(self) -> bool: ...
     def is_gpt_5_chat(self) -> bool: ...
     def is_o_series(self) -> bool: ...
     def is_o1(self) -> bool: ...
@@ -2297,11 +2300,14 @@ def is_namespace_tool_param(tool_param: ToolParam) -> TypeGuard[NamespaceToolPar
 def maybe_code_interpreter_tool(
     model_name: str, tool: ToolInfo
 ) -> CodeInterpreter | None:
-    COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", "gpt-5"]
+    COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini"]
     if (
         tool.name == "code_execution"
         and tool.options
-        and any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
+        and (
+            is_gpt_5_model(model_name)
+            or any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
+        )
     ):
         providers: dict[str, Any] = tool.options.get("providers", {})
         options: dict[str, Any] | bool = providers.get("openai", False)
