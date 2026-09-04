@@ -93,11 +93,12 @@ def sample_dir_segment(sample_id: int | str) -> str:
 
     An id whose ``str()`` is a single path component (per
     :func:`contained_component`), does not contain the reserved ``~``,
-    and is at most 200 UTF-8 bytes passes through unchanged, so every id
-    that was already usable as a dir name keeps its name and its
-    existing checkpoint dirs stay resumable. Anything else (an id with
-    a slash, a backslash, NUL or ``~``, an empty id, ``.``/``..``, or an
-    over-long id) becomes ``safe_filename(id)[:64] + "~" + sha256(id)[:12]``:
+    and is at most 200 UTF-8 bytes passes through unchanged, so such an
+    id keeps its name and its existing checkpoint dirs stay resumable.
+    Anything else (an id with a slash, a backslash, NUL or ``~``, an
+    empty id, ``.``/``..``, or an id over 200 bytes, even one that
+    previously fit under NAME_MAX) becomes
+    ``safe_filename(id)[:64] + "~" + sha256(id)[:12]``:
     deterministic, collision resistant, bounded in length, ASCII, and
     never a traversal. The ``~`` joiner is what keeps the two namespaces
     disjoint: a hashed segment can never equal the passthrough segment
