@@ -1483,24 +1483,19 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         # are no-ops on a missing dir); the probes take the
                         # reuse read throttle so probes and body reads
                         # together stay within the shared connection pool.
-                        own_dir_may_exist = eval_checkpoints_dir is not None and (
+                        # the copy reports top-level names; a sample id
+                        # containing "/" nests its dir under one of them
+                        if eval_checkpoints_dir is not None and (
                             requeue_prior is not None
-                            or sample_dir_name(sample_id, epoch) in copied_sample_dirs
-                        )
-                        if own_dir_may_exist and not isinstance(
-                            previous_sample, InvalidatedPrior
+                            or sample_dir_name(sample_id, epoch).split("/", 1)[0]
+                            in copied_sample_dirs
                         ):
-                            async with reuse_read_throttle:
-                                resume_checkpoint = await resolve_resume_checkpoint(
-                                    eval_checkpoints_dir, sample_id, epoch
-                                )
-                        if resume_checkpoint is None:
-                            if isinstance(previous_sample, PreviousError):
-                                previous_attempt_errors = _seed_error_retries(
-                                    previous_sample.sample
-                                )
-                            if own_dir_may_exist:
-                                assert eval_checkpoints_dir is not None
+                            if not isinstance(previous_sample, InvalidatedPrior):
+                                async with reuse_read_throttle:
+                                    resume_checkpoint = await resolve_resume_checkpoint(
+                                        eval_checkpoints_dir, sample_id, epoch
+                                    )
+                            if resume_checkpoint is None:
                                 async with reuse_read_throttle:
                                     await delete_sample_checkpoints_dir(
                                         eval_checkpoints_dir,
@@ -1508,6 +1503,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                         epoch,
                                         log_location=logger.location,
                                     )
+                        if resume_checkpoint is None and isinstance(
+                            previous_sample, PreviousError
+                        ):
+                            previous_attempt_errors = _seed_error_retries(
+                                previous_sample.sample
+                            )
 
                     # factory to create sample+state lazily (after semaphore)
                     # so only concurrently executing samples consume memory
@@ -3681,17 +3682,10 @@ def eval_log_sample_source(
         async def memory_error_history() -> set[tuple[int | str, int]]:
             return memory_error_ids
 
-        # an in-memory log with no samples at all (the errored EvalLog an
-        # attempt that died before its first log write returns — a failed
-        # log_start, or a failed checkpoint startup copy) has nothing to
-        # reuse and a checkpoints dir that may be a partial copy; a retry
-        # from it runs fresh rather than certify that dir with a new log
         return EvalSampleSource(
             read_from_memory,
             memory_error_history,
-            prior_checkpoints_dir=(
-                eval_checkpoints_dir if eval_log.samples is not None else None
-            ),
+            prior_checkpoints_dir=eval_checkpoints_dir,
         )
 
 

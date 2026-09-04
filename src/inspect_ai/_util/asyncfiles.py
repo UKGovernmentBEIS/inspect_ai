@@ -635,7 +635,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             await _s3_put_with_retry(do_copy, location=destination)
         elif src_local and dst_local:
             await anyio.to_thread.run_sync(
-                shutil.copyfile, local_path(source), local_path(destination)
+                _copy_local_file, local_path(source), local_path(destination)
             )
         elif dst_local:
             await self.get_file(source, local_path(destination))
@@ -1103,7 +1103,7 @@ def _log_s3_retry_attempt(location: str) -> Callable[[RetryCallState], None]:
         report_http_retry("transient")
         logger.log(
             HTTP,
-            "%sS3 write to %s hit RequestTimeTooSkewed on attempt %d; "
+            "%sS3 request to %s hit RequestTimeTooSkewed on attempt %d; "
             "retrying in %.0fs (request id %s)",
             sample_context_prefix(),
             location,
@@ -1138,6 +1138,22 @@ async def _s3_put_with_retry(
         with attempt:
             return await do_put()
     raise AssertionError("S3 retry loop exited without returning or raising")
+
+
+def _copy_local_file(source: str, destination: str) -> None:
+    """Copy via a sibling temp file and rename, replacing any existing target.
+
+    An existing read-only target (restic writes repo files ``0400``) is
+    replaced rather than opened for writing, and a partial copy never
+    masquerades as the file.
+    """
+    partial_path = f"{destination}.{uuid.uuid4().hex}.part"
+    try:
+        shutil.copyfile(source, partial_path)
+        os.replace(partial_path, destination)
+    finally:
+        with suppress(FileNotFoundError):
+            os.remove(partial_path)
 
 
 def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:

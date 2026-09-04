@@ -306,7 +306,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             # No committed checkpoint records a snapshot for this sandbox —
             # e.g. the kill tore the only checkpoint file mid-write. Restic
             # parity (see ``ResticStrategy.restore``): orphan discard is
-            # skipped in exactly this case, so restore the newest adopted
+            # skipped in exactly this case, so restore the newest inherited
             # archive — the best available capture, digest-verified when it
             # was copied out. Transit into the sandbox is still verified
             # below, against a digest computed during copy-in.
@@ -417,7 +417,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             )
 
     def _latest_archive_name(self, ctx: SnapshotContext) -> str:
-        """Newest adopted archive, for restores with no committed record."""
+        """Newest inherited archive, for restores with no committed record."""
         candidates = [
             entry.name
             for entry in Path(ctx.storage_dir).glob("ckpt-*")
@@ -426,7 +426,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         if not candidates:
             raise RuntimeError(
                 f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                f"no committed checkpoint records a snapshot and no adopted "
+                f"no committed checkpoint records a snapshot and no inherited "
                 f"archives exist in {ctx.storage_dir}"
             )
         return max(candidates, key=lambda name: _archive_checkpoint_id(name) or 0)

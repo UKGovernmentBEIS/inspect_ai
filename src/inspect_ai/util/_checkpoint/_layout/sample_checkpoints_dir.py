@@ -28,7 +28,11 @@ from typing import TypeVar
 import anyio.to_thread
 from pydantic import BaseModel
 
-from inspect_ai._util.asyncfiles import get_async_filesystem, is_s3_filename
+from inspect_ai._util.asyncfiles import (
+    get_async_filesystem,
+    is_s3_filename,
+    s3_bucket_and_key,
+)
 from inspect_ai._util.file import local_path
 
 from .._async_fs import async_mkdir
@@ -38,11 +42,6 @@ from .staging_dir import clear_sample_staging_dir, restic_config_path, restic_di
 logger = getLogger(__name__)
 
 _M = TypeVar("_M", bound=BaseModel)
-
-
-def _is_checkpoint_file(rel_path: str) -> bool:
-    """Whether a sample-dir-relative path is a top-level ``ckpt-NNNNN.json``."""
-    return "/" not in rel_path and checkpoint_file_id(rel_path) is not None
 
 
 _CHECKPOINT_FILE_RE = re.compile(r"^ckpt-(\d+)\.json$")
@@ -130,22 +129,6 @@ async def scan_latest_committed_checkpoint(
     were present).
     """
     ids = await _list_checkpoint_ids(sample_checkpoints_dir)
-    checkpoint = await _first_parseable_checkpoint(sample_checkpoints_dir, ids)
-    if checkpoint is None and ids:
-        # checkpoint files present but none parse: callers treat the dir
-        # as holding nothing committed, and that should not pass silently
-        # — a torn write of the only checkpoint file is the likeliest cause
-        logger.warning(
-            f"Checkpoint files exist in {sample_checkpoints_dir} but none "
-            "parse as a valid checkpoint; treating the dir as holding no "
-            "committed checkpoint."
-        )
-    return checkpoint
-
-
-async def _first_parseable_checkpoint(
-    sample_checkpoints_dir: str, ids: list[int]
-) -> Checkpoint | None:
     async_fs = get_async_filesystem()
     for n in sorted(ids, reverse=True):
         path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
@@ -159,6 +142,15 @@ async def _first_parseable_checkpoint(
             # propagates: this scan is a sample's only shot at resuming,
             # and swallowing an I/O failure would silently run it fresh.
             continue
+    if ids:
+        # checkpoint files present but none parse: callers treat the dir
+        # as holding nothing committed, and that should not pass silently
+        # — a torn write of the only checkpoint file is the likeliest cause
+        logger.warning(
+            f"Checkpoint files exist in {sample_checkpoints_dir} but none "
+            "parse as a valid checkpoint; treating the dir as holding no "
+            "committed checkpoint."
+        )
     return None
 
 
@@ -183,11 +175,16 @@ async def delete_sample_checkpoints_dir(
 
         def rename_then_rmtree() -> None:
             root = Path(local_path(target))
-            discarded = root.with_name(f"{root.name}.discarded-{secrets.token_hex(4)}")
-            try:
-                root.rename(discarded)
-            except FileNotFoundError:
+            if not root.is_dir():
                 return
+            # a sibling of the eval dir, not inside it: the startup copy
+            # treats every subdirectory of the eval dir as a sample dir.
+            # The sibling is shared by concurrent discards and left in place.
+            eval_dir_path = Path(local_path(eval_dir))
+            discarded_root = eval_dir_path.with_name(f"{eval_dir_path.name}.discarded")
+            discarded_root.mkdir(exist_ok=True)
+            discarded = discarded_root / f"{root.name}-{secrets.token_hex(4)}"
+            root.rename(discarded)
             shutil.rmtree(discarded)
 
         await anyio.to_thread.run_sync(rename_then_rmtree)
@@ -199,10 +196,13 @@ async def delete_sample_checkpoints_dir(
         files = [uri async for uri in async_fs.iter_files(target, recursive=True)]
     except FileNotFoundError:
         files = []
-    prefix_len = len(target.rstrip("/")) + 1
+    bucket, key = s3_bucket_and_key(target)
+    prefix_len = len(f"s3://{bucket}/{key}".rstrip("/")) + 1
+    # top-level checkpoint files first (the anchored name pattern rejects
+    # any nested path), newest first
     files.sort(
         key=lambda uri: (
-            not _is_checkpoint_file(uri[prefix_len:]),
+            checkpoint_file_id(uri[prefix_len:]) is None,
             -(checkpoint_file_id(uri[prefix_len:]) or 0),
         )
     )

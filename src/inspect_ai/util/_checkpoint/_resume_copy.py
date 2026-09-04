@@ -45,7 +45,11 @@ from typing import Callable, Iterable
 import anyio
 
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.asyncfiles import get_async_filesystem, is_s3_filename
+from inspect_ai._util.asyncfiles import (
+    get_async_filesystem,
+    is_s3_filename,
+    s3_bucket_and_key,
+)
 from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.trace import trace_action
 
@@ -144,9 +148,9 @@ async def copy_payload_files(source_dir: str, destination_dir: str) -> list[str]
 
     Returns the list of paths written, relative to ``destination_dir``.
     """
-    return await _copy_payload_data(
-        source_dir, destination_dir, await _list_payload(source_dir)
-    )
+    rels = await _list_payload(source_dir)
+    await _copy_payload_data(source_dir, destination_dir, rels)
+    return rels
 
 
 async def _list_payload(source_dir: str) -> list[str]:
@@ -163,6 +167,12 @@ async def _list_payload(source_dir: str) -> list[str]:
     ]
 
 
+def _normalize_s3_uri(uri: str) -> str:
+    """The form ``iter_files`` yields: bucket and key with no leading slashes."""
+    bucket, key = s3_bucket_and_key(uri)
+    return f"s3://{bucket}/{key}"
+
+
 def _relativize(base: str, uris: Iterable[str]) -> list[str]:
     """Paths of ``uris`` relative to ``base``.
 
@@ -174,20 +184,19 @@ def _relativize(base: str, uris: Iterable[str]) -> list[str]:
     unavailable under the trio backend.)
     """
     normalize: Callable[[str], str] = (
-        str if is_s3_filename(base) else filesystem(base).fs._strip_protocol
+        _normalize_s3_uri
+        if is_s3_filename(base)
+        else filesystem(base).fs._strip_protocol
     )
     prefix = normalize(base).rstrip("/") + "/"
-    rels: list[str] = []
-    for uri in uris:
-        stripped = normalize(uri)
-        assert stripped.startswith(prefix), (stripped, prefix)
-        rels.append(stripped[len(prefix) :])
-    return rels
+    stripped = [normalize(uri) for uri in uris]
+    assert all(path.startswith(prefix) for path in stripped), (stripped, prefix)
+    return [path[len(prefix) :] for path in stripped]
 
 
 async def _copy_payload_data(
     source_dir: str, destination_dir: str, rels: list[str]
-) -> list[str]:
+) -> None:
     """Bounded-parallel copy of ``rels`` from one sample dir to another."""
     async_fs = get_async_filesystem()
     with trace_action(logger, "Checkpoint Resume Copy", "fs-copy payload"):
@@ -202,4 +211,3 @@ async def _copy_payload_data(
                 )
 
         await tg_collect([partial(copy_one, rel) for rel in rels])
-    return list(rels)

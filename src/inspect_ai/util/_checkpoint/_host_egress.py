@@ -57,7 +57,9 @@ MANIFEST_FILENAME = ".egress-manifest.txt"
 # captured inside the restic repos and not part of the checkpoint
 # state at the destination. The manifest itself is host-local
 # bookkeeping.
-_EXCLUDED_TOP_LEVEL: frozenset[str] = frozenset({"context", MANIFEST_FILENAME})
+_EXCLUDED_TOP_LEVEL: frozenset[str] = frozenset(
+    {"context", MANIFEST_FILENAME, f"{MANIFEST_FILENAME}.tmp"}
+)
 
 # Tier ordering: (priority, regex matching the path's relative form).
 # A new file's tier is the lowest-priority matching pattern, defaulting

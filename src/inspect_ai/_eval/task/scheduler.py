@@ -535,9 +535,9 @@ class SampleRequeue:
     async def checkpoint_available(self, sample_id: str | int, epoch: int) -> bool:
         """Whether the re-run would resume from an on-disk checkpoint.
 
-        Uses the same own-dir resolution as the re-run itself
-        (`resolve_resume_checkpoint`), so the answer matches what the
-        requeue will actually do.
+        Resolves against the sample's own checkpoints dir the same way
+        the re-run does (`resolve_resume_checkpoint`), so the answer
+        matches what the requeue will actually do.
         """
         if self._checkpoints_dir is None:
             return False

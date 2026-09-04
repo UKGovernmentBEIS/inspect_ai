@@ -224,6 +224,11 @@ async def hydrate(
 
     # Sample root: where restic + checkpoint files are first materialized.
     # Remote destination → host-local staging; local → destination directly.
+    # On resume each branch first resets to the committed state: staging
+    # is a cache of the destination, and an in-eval requeue re-runs in
+    # the dir its prior run used, whose live context dir may hold that
+    # run's last uncommitted write (restore_repo stops descending at the
+    # first dir with files).
     if is_remote_destination(new_sample_checkpoints_dir):
         if resume_checkpoint:
             await clear_sample_staging_dir(log_location, sample_id, epoch)
@@ -232,16 +237,14 @@ async def hydrate(
     else:
         sample_staging = None
         sample_root = new_sample_checkpoints_dir
-
-    if resume_checkpoint:
-        # an in-eval requeue re-runs in the dir its prior run used: the
-        # live context dir may hold that run's last (uncommitted) write,
-        # and restore_repo stops descending at the first dir with files
-        await anyio.to_thread.run_sync(
-            partial(
-                shutil.rmtree, local_path(context_dir(sample_root)), ignore_errors=True
+        if resume_checkpoint:
+            await anyio.to_thread.run_sync(
+                partial(
+                    shutil.rmtree,
+                    local_path(context_dir(sample_root)),
+                    ignore_errors=True,
+                )
             )
-        )
     sample_context_dir = await ensure_context_dir(sample_root)
 
     # remote destination: pull the payload into local staging (restic
@@ -269,8 +272,10 @@ async def hydrate(
     latest_committed_id: int | None = None
     if resume_checkpoint:
         latest_checkpoint = await scan_latest_committed_checkpoint(sample_root)
-        if latest_checkpoint is not None:
-            latest_committed_id = latest_checkpoint.checkpoint_id
+        # resume detection parsed a committed checkpoint in this very dir
+        # (or the destination this staging dir was just pulled from)
+        assert latest_checkpoint is not None
+        latest_committed_id = latest_checkpoint.checkpoint_id
 
     # Phase 2: host + sandboxes in parallel. Host work runs alongside
     # the per-sandbox fan-out; each sandbox's work is independent of
@@ -410,12 +415,8 @@ async def _hydrate_host(
             await init_repo(host_restic, host_repo, restic_password)
         return _HostHydrationResult()
 
-    # Resume (repo already in the sample root — the startup copy put it
-    # there, and for remote destinations the staging pull above): drop
-    # any orphan snapshots beyond the latest committed checkpoint file,
-    # restic-restore the latest snapshot into the new context subdir,
-    # then load the JSON files and push framework state into the live
-    # Transcript + Store.
+    # Resume: the repo is already in the sample root (the startup copy
+    # put it there; for remote destinations the staging pull above).
     if latest_committed_id is not None:
         await drop_orphan_snapshots(
             host_restic, host_repo, restic_password, latest_committed_id

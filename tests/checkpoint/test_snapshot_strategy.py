@@ -348,7 +348,7 @@ async def test_archive_restore_without_ref_and_no_archives_errors(
 ) -> None:
     env = _LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
-    with pytest.raises(RuntimeError, match="no adopted archives"):
+    with pytest.raises(RuntimeError, match="no inherited archives"):
         await strategy.restore(env, None, _context(tmp_path / "sample"))
 
 

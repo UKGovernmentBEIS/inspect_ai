@@ -40,7 +40,7 @@ _fired = False
 
 async def _interrupting_copy_payload_data(
     source_dir: str, destination_dir: str, rels: list[str]
-) -> list[str]:
+) -> None:
     global _fired
     if not _fired:
         _fired = True
@@ -49,7 +49,7 @@ async def _interrupting_copy_payload_data(
         # call would have performed is "still in flight" when the
         # interrupt's cancellation arrives here
         await anyio.sleep_forever()
-    return await _original_copy_payload_data(source_dir, destination_dir, rels)
+    await _original_copy_payload_data(source_dir, destination_dir, rels)
 
 
 # Distinct exit code asserted by the test: the hook never fired, so the

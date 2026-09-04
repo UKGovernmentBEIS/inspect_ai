@@ -8,7 +8,6 @@ from typing import Any, Awaitable, Callable, Iterable, NamedTuple, Set, cast
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._util._async import Wake
-from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
@@ -618,8 +617,9 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
             f"or writing its log: {inner}"
         )
         # location points at the log file the write was destined for — it may
-        # not exist (a failed log_start() header flush) or may hold a partial
-        # log (a failed error-status log_finish())
+        # not exist (a failed log_start() header flush, or a retry's failed
+        # checkpoint startup copy) or may hold a partial log (a failed
+        # error-status log_finish())
         result = EvalLog(
             status="error",
             eval=options.logger.eval,
@@ -871,34 +871,15 @@ async def run_task_retry_attempts(
 
                         # build sample_source from the failed log so completed
                         # samples are reused on retry (mirrors legacy eval_set
-                        # retry). An attempt that died before its deferred
-                        # destination log landed (e.g. its checkpoint startup
-                        # copy failed pre-log_start) left no file — chain the
-                        # retry from whatever *it* was retrying instead, so
-                        # reuse and checkpoints fall back a hop rather than
-                        # sourcing an attempt that holds nothing.
+                        # retry). An attempt that died before anything reached
+                        # its destination log (e.g. its checkpoint startup copy
+                        # failed pre-log_start) left no file — chain the retry
+                        # from whatever *it* was retrying instead, so reuse and
+                        # checkpoints fall back a hop rather than sourcing an
+                        # attempt that holds nothing. The logger knows whether
+                        # it wrote anything; no storage probe is needed.
                         sample_source: EvalSampleSource | None
-                        async_fs = get_async_filesystem()
-                        try:
-                            failed_log_exists = await async_fs.exists(
-                                options.logger.location
-                            )
-                        except Exception as probe_ex:
-                            # can't tell (log storage still flaky — the very
-                            # condition being retried): retry from the attempt
-                            # this one was retrying. The cost is bounded (at
-                            # worst the failed attempt's own progress is
-                            # redone); assuming the log exists would copy the
-                            # dead attempt's possibly partial checkpoint dirs
-                            # forward and certify them with this attempt's log
-                            log.warning(
-                                f"Could not determine whether the failed "
-                                f"attempt's log {options.logger.location} "
-                                f"exists ({probe_ex}); retrying from the "
-                                "attempt it was retrying"
-                            )
-                            failed_log_exists = False
-                        if failed_log_exists:
+                        if options.logger.destination_written:
                             failed_log_info = EvalLogInfo(
                                 name=options.logger.location,
                                 type="file",
