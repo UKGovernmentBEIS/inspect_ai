@@ -1,5 +1,6 @@
 """Tests for model_info lookup functionality."""
 
+from datetime import date
 from typing import Any
 
 import pytest
@@ -62,6 +63,15 @@ class TestGetModelInfo:
         assert info is not None
         assert info.context_length is not None
         assert info.organization == "OpenAI"
+
+    def test_gpt_6_astra_model_info(self):
+        info = get_model_info("openai/gpt-6-astra")
+        assert info is not None
+        assert info.context_length == 1050000
+        assert info.output_tokens == 128000
+        assert info.input_tokens == 922000
+        assert info.reasoning is True
+        assert info.knowledge_cutoff_date == date(2026, 4, 30)
 
     def test_known_kimi_model(self):
         """Test lookup of a known Moonshot AI Kimi model."""
@@ -593,6 +603,21 @@ class TestGetModelInputTokens:
         assert info is not None
         assert info.snapshot == "20260901"
         assert str(info.knowledge_cutoff_date) == "2026-06-01"
+
+    def test_claude_mythos_preview(self):
+        """Test that Claude Mythos Preview reports 1MM input tokens."""
+        model = get_model("anthropic/claude-mythos-preview")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-mythos-preview")
+        assert info is not None
+        assert info.model == "Claude Mythos Preview"
+        # the preview is a distinct entry, not a fuzzy match onto mythos-5
+        # (which would report a 2026-06-09 release and a `high` effort default)
+        assert str(info.release_date) == "2026-04-07"
+        # deliberately unset rather than guessed (see anthropic.yml)
+        assert info.knowledge_cutoff_date is None
+        assert info.reasoning_effort_default is None
 
     @pytest.mark.parametrize(
         "model_name,release_date",
