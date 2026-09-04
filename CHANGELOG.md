@@ -18,6 +18,7 @@
 - Control Channel: `inspect ctl task list` rows now report a pending graceful resolution (`resolving`: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as `pending`.
 - Bugfix: Changing `attempt_timeout` or `cache_prompt` no longer misses the model cache, since neither changes what the provider returns.
 - Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
+- Bugfix: Hugging Face and nnterp providers now record `hidden_states` (from `-M hidden_states`) as JSON-serializable nested lists instead of silently dropping them to `None` in the log; the batched Hugging Face path now records each sample's own activations rather than the whole batch's. Note: code reading `ModelOutput.metadata["hidden_states"]` live (in a solver or scorer) now receives nested lists rather than tensors — wrap with `torch.tensor(...)` if tensor operations are needed. (#2860)
 - Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
 
 ## 0.3.262 (02 September 2026)
@@ -191,7 +192,6 @@
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Eval Log: A retry attempt killed before it finishes reusing the prior log's completed samples no longer causes the next retry to re-run (and eventually lose) those samples.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
-- Bugfix: Hugging Face and nnterp providers now record `hidden_states` (from `-M hidden_states`) as JSON-serializable nested lists instead of silently dropping them to `None` in the log; the batched Hugging Face path now records each sample's own activations rather than the whole batch's. Note: code reading `ModelOutput.metadata["hidden_states"]` live (in a solver or scorer) now receives nested lists rather than tensors — wrap with `torch.tensor(...)` if tensor operations are needed. (#2860)
 
 ## 0.3.259 (16 August 2026)
 
