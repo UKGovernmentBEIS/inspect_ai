@@ -1,6 +1,15 @@
+import json
 from typing import Any, Literal, cast
 
+import httpx
 import pytest
+from groq import (
+    APIConnectionError,
+    APIError,
+    APIStatusError,
+    APITimeoutError,
+    AsyncStream,
+)
 from groq.types.chat import ChatCompletionChunk
 from pydantic import BaseModel
 from test_helpers.utils import skip_if_no_groq
@@ -8,10 +17,12 @@ from test_helpers.utils import skip_if_no_groq
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
+    ModelOutput,
     ResponseSchema,
     RetryDecision,
     get_model,
 )
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers.groq import (
     GroqAPI,
     GroqStreamError,
@@ -281,6 +292,351 @@ async def test_groq_completion_from_stream_error() -> None:
     # auto-streaming must not turn it into a permanently failed sample
     decision = _groq_api().should_retry(ex.value)
     assert isinstance(decision, RetryDecision) and decision.retry is True
+
+
+def _sdk_stream(api: GroqAPI, body: bytes) -> AsyncStream[ChatCompletionChunk]:
+    """A real SDK chunk stream over a canned SSE body (HTTP 200)."""
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    response = httpx.Response(
+        200,
+        headers={"content-type": "text/event-stream"},
+        content=body,
+        request=request,
+    )
+    return AsyncStream(
+        cast_to=ChatCompletionChunk, response=response, client=api.client
+    )
+
+
+def _sse(payload: dict[str, Any], event: str | None = None) -> bytes:
+    frame = f"data: {json.dumps(payload)}\n\n"
+    return ((f"event: {event}\n" if event else "") + frame).encode()
+
+
+_CHUNK = dict(
+    id="chatcmpl-1",
+    object="chat.completion.chunk",
+    created=123,
+    model="llama-3.3-70b",
+    choices=[dict(index=0, delta=dict(content="hel"), finish_reason=None)],
+)
+
+
+@pytest.mark.parametrize(
+    ("error", "event", "kind"),
+    [
+        # server-side failure frames are transient
+        (
+            dict(message="Service Unavailable", type="internal_server_error"),
+            None,
+            "transient",
+        ),
+        (
+            dict(message="over capacity", type="service_unavailable"),
+            "error",
+            "transient",
+        ),
+        # rate limits scale the adaptive controller down
+        (
+            dict(
+                message="Rate limit reached", type="tokens", code="rate_limit_exceeded"
+            ),
+            None,
+            "rate_limit",
+        ),
+        # OpenAI-compatible servers often put the HTTP status in `code`
+        (dict(message="upstream error", code=502), None, "transient"),
+    ],
+)
+async def test_groq_stream_top_level_error_retries(
+    error: dict[str, Any], event: str | None, kind: str
+) -> None:
+    """An in-band error frame (top-level `error` or `event: error`) is retried.
+
+    The SDK raises these from the stream iterator as a bare `APIError` (no
+    status code) — the same shape as a mid-stream failure on the OpenAI SDK —
+    so retry classification must read the error body.
+    """
+    api = _groq_api()
+    stream = _sdk_stream(api, _sse(_CHUNK) + _sse(dict(error=error), event=event))
+    with pytest.raises(APIError) as excinfo:
+        await groq_completion_from_stream(stream)
+    assert not isinstance(excinfo.value, APIStatusError)
+    assert excinfo.value.body == error
+
+    decision = api.should_retry(excinfo.value)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == kind
+
+
+async def test_groq_stream_unrecognized_error_not_retried() -> None:
+    """An in-band error with no retryable code/type still fails the request."""
+    api = _groq_api()
+    error = dict(message="invalid request", type="invalid_request_error")
+    stream = _sdk_stream(api, _sse(dict(error=error)))
+    with pytest.raises(APIError) as excinfo:
+        await groq_completion_from_stream(stream)
+    assert bool(api.should_retry(excinfo.value)) is False
+
+
+def test_groq_should_retry_stream_transport_errors() -> None:
+    """Connection failures while reading a stream body are transient.
+
+    The SDK wraps only request-time failures as `APIConnectionError`; a
+    connection dropped mid-stream surfaces as a raw httpx transport error.
+    """
+    api = _groq_api()
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    for ex in (
+        APIConnectionError(request=request),
+        httpx.ReadError("connection reset"),
+        httpx.RemoteProtocolError("peer closed connection"),
+    ):
+        decision = api.should_retry(ex)
+        assert isinstance(decision, RetryDecision)
+        assert decision.retry is True and decision.kind == "transient"
+    assert bool(api.should_retry(ValueError("unrelated"))) is False
+
+
+# -- Mid-stream error payloads (plain APIError) ---------------------------------
+
+
+def _mid_stream_error(body: object) -> APIError:
+    """The exception the SDK's stream iterator raises for an in-band error payload.
+
+    A plain `APIError` with no status code; `body` is the payload's `error`
+    value (the inner error object, or a bare string).
+    """
+    message = body.get("message") if isinstance(body, dict) else None
+    return APIError(
+        message=str(message) if message else "An error occurred during streaming",
+        request=httpx.Request(
+            "POST", "https://api.groq.com/openai/v1/chat/completions"
+        ),
+        body=body,
+    )
+
+
+class _ErroringChunkStream:
+    """A chunk stream (as returned by `create(stream=True)`) that raises mid-iteration."""
+
+    def __init__(self, chunks: list[ChatCompletionChunk], error: Exception) -> None:
+        self._chunks = chunks
+        self._error = error
+
+    async def __aenter__(self) -> "_ErroringChunkStream":
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+    def __aiter__(self) -> Any:
+        async def gen() -> Any:
+            for chunk in self._chunks:
+                yield chunk
+            raise self._error
+
+        return gen()
+
+
+_PARTIAL_CHUNK = _groq_chunk(
+    dict(
+        choices=[
+            dict(
+                index=0, delta=dict(role="assistant", content="par"), finish_reason=None
+            )
+        ]
+    )
+)
+
+
+async def _generate_streamed(
+    api: GroqAPI, stream: _ErroringChunkStream, monkeypatch: pytest.MonkeyPatch
+) -> tuple[ModelOutput | Exception, ModelCall]:
+    async def fake_create(**kwargs: Any) -> _ErroringChunkStream:
+        assert kwargs.get("stream") is True
+        return stream
+
+    monkeypatch.setattr(api.client.chat.completions, "create", fake_create)
+    return await api.generate(
+        input=[ChatMessageUser(content="hi")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+
+
+async def test_groq_mid_stream_transient_error_raises_for_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A transient in-band error propagates (not returned) so the retry loop sees it.
+
+    The model layer treats an exception *returned* from generate() as terminal,
+    so a retryable condition must be raised, and classified by should_retry.
+    """
+    api = _groq_api(streaming=True)
+    error = _mid_stream_error(
+        dict(message="Over capacity", type="internal_server_error")
+    )
+    try:
+        with pytest.raises(APIError) as excinfo:
+            await _generate_streamed(
+                api, _ErroringChunkStream([_PARTIAL_CHUNK], error), monkeypatch
+            )
+        assert excinfo.value is error
+        decision = api.should_retry(excinfo.value)
+        assert isinstance(decision, RetryDecision) and decision.retry is True
+    finally:
+        await api.aclose()
+
+
+async def test_groq_mid_stream_context_length_error_converts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A context-length rejection delivered in-band converts like the 400 path."""
+    api = _groq_api(streaming=True)
+    error = _mid_stream_error(
+        dict(
+            message="Please reduce the length of the messages or completion.",
+            type="invalid_request_error",
+            code="context_length_exceeded",
+        )
+    )
+    try:
+        output, model_call = await _generate_streamed(
+            api, _ErroringChunkStream([], error), monkeypatch
+        )
+        assert isinstance(output, ModelOutput)
+        assert output.choices[0].stop_reason == "model_length"
+        assert "reduce the length" in output.completion
+        assert model_call.error is True
+        assert model_call.response == dict(
+            message="Please reduce the length of the messages or completion.",
+            type="invalid_request_error",
+            code="context_length_exceeded",
+        )
+    finally:
+        await api.aclose()
+
+
+async def test_groq_mid_stream_unrecognized_error_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An in-band error that is neither transient nor a known rejection still fails."""
+    api = _groq_api(streaming=True)
+    error = _mid_stream_error(
+        dict(
+            message="Invalid API key",
+            type="invalid_request_error",
+            code="invalid_api_key",
+        )
+    )
+    try:
+        with pytest.raises(APIError) as excinfo:
+            await _generate_streamed(
+                api, _ErroringChunkStream([_PARTIAL_CHUNK], error), monkeypatch
+            )
+        assert excinfo.value is error
+        decision = api.should_retry(excinfo.value)
+        assert isinstance(decision, RetryDecision) and decision.retry is False
+        # the failed request was closed out in the hooks bookkeeping
+        assert api._http_hooks._requests == {}
+    finally:
+        await api.aclose()
+
+
+async def test_groq_mid_stream_transient_error_drives_retry_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End to end: the model layer retries a mid-stream over-capacity error."""
+    from tenacity import wait_none
+
+    model = get_model(
+        "groq/llama-3.3-70b",
+        api_key="test",
+        streaming=True,
+        config=GenerateConfig(max_retries=2),
+    )
+    api = model.api
+    assert isinstance(api, GroqAPI)
+    attempts: list[int] = []
+
+    async def fake_create(**kwargs: Any) -> _ErroringChunkStream:
+        attempts.append(1)
+        return _ErroringChunkStream(
+            [_PARTIAL_CHUNK],
+            _mid_stream_error(
+                dict(message="Over capacity", type="internal_server_error")
+            ),
+        )
+
+    monkeypatch.setattr(api.client.chat.completions, "create", fake_create)
+    monkeypatch.setattr(api, "retry_wait", lambda: wait_none())
+    try:
+        with pytest.raises(Exception):
+            await model.generate([ChatMessageUser(content="hi")])
+        assert len(attempts) == 3
+    finally:
+        await api.aclose()
+
+
+async def test_groq_mid_stream_connection_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Connection errors raised while streaming keep their own classification."""
+    api = _groq_api(streaming=True)
+    error = APITimeoutError(
+        request=httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    )
+    try:
+        with pytest.raises(APITimeoutError) as excinfo:
+            await _generate_streamed(
+                api, _ErroringChunkStream([_PARTIAL_CHUNK], error), monkeypatch
+            )
+        assert excinfo.value is error
+        decision = api.should_retry(excinfo.value)
+        assert isinstance(decision, RetryDecision) and decision.retry is True
+    finally:
+        await api.aclose()
+
+
+def test_groq_handle_bad_request_status_errors() -> None:
+    """Status errors: only a 400 is inspected, and its body is the full `{"error": ...}` payload."""
+    api = _groq_api()
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    body = dict(
+        error=dict(
+            message="Please reduce the length of the messages or completion.",
+            type="invalid_request_error",
+            code="context_length_exceeded",
+        )
+    )
+
+    def status_error(status: int) -> APIStatusError:
+        return APIStatusError(
+            message="Error code: 400",
+            response=httpx.Response(status_code=status, request=request),
+            body=body,
+        )
+
+    converted = api.handle_bad_request(status_error(400))
+    assert isinstance(converted, ModelOutput)
+    assert converted.choices[0].stop_reason == "model_length"
+    assert "reduce the length" in converted.completion
+
+    # a 400 that isn't a context-length rejection is returned unchanged
+    other = APIStatusError(
+        message="Error code: 400",
+        response=httpx.Response(status_code=400, request=request),
+        body=dict(error=dict(message="bad request", type="invalid_request_error")),
+    )
+    assert api.handle_bad_request(other) is other
+
+    # conversion is a bad-request concern: other statuses pass through
+    # unchanged whatever the body says (their retry handling lives elsewhere)
+    unavailable = status_error(503)
+    assert api.handle_bad_request(unavailable) is unavailable
 
 
 async def test_groq_stream_gated_without_on_stream(
