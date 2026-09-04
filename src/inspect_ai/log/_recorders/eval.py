@@ -399,23 +399,23 @@ class EvalRecorder(FileRecorder):
         uuid: str | None = None,
         exclude_fields: set[str] | None = None,
     ) -> EvalSample:
-        try:
-            # if a uuid was specified then read the summaries and find the matching sample
-            if id is None:
-                if uuid is None:
-                    raise ValueError("You must specify an 'id' or 'uuid' to read")
-                summaries, _ = await _read_all_summaries_async(reader)
-                sample = next(
-                    (summary for summary in summaries if summary.uuid == uuid),
-                    None,
+        # if a uuid was specified then read the summaries and find the matching sample
+        if id is None:
+            if uuid is None:
+                raise ValueError("You must specify an 'id' or 'uuid' to read")
+            summaries, _ = await _read_all_summaries_async(reader)
+            sample = next(
+                (summary for summary in summaries if summary.uuid == uuid),
+                None,
+            )
+            if sample is None:
+                raise IndexError(
+                    f"Sample with uuid '{uuid}' not found in log {location}"
                 )
-                if sample is None:
-                    raise IndexError(
-                        f"Sample with uuid '{uuid}' not found in log {location}"
-                    )
-                id = sample.id
-                epoch = sample.epoch
+            id = sample.id
+            epoch = sample.epoch
 
+        try:
             if exclude_fields:
                 data = await _read_member_json_excluding(
                     reader,
@@ -426,11 +426,18 @@ class EvalRecorder(FileRecorder):
                 data = json.loads(
                     await reader.read_member_fully(_sample_filename(id, epoch))
                 )
-            return EvalSample.model_validate(data, context=get_deserializing_context())
         except KeyError:
-            raise IndexError(
-                f"Sample id {id} for epoch {epoch} not found in log {location}"
-            )
+            # imported here: the chunked package's converter imports this module
+            from .chunked.format import classify_sample_shape
+            from .chunked.read import read_chunked_sample
+
+            names = {entry.filename for entry in (await reader.entries()).entries}
+            if classify_sample_shape(names, id, epoch) != "chunked":
+                raise IndexError(
+                    f"Sample id {id} for epoch {epoch} not found in log {location}"
+                ) from None
+            return await read_chunked_sample(reader, names, id, epoch, exclude_fields)
+        return EvalSample.model_validate(data, context=get_deserializing_context())
 
     @classmethod
     @override
