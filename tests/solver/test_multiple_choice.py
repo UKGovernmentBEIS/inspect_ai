@@ -1,5 +1,5 @@
 from random import Random
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from test_helpers.utils import simple_task_state
@@ -9,7 +9,7 @@ from inspect_ai.dataset._dataset import MemoryDataset, Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelOutput
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer._choice import choice
-from inspect_ai.scorer._metric import CORRECT
+from inspect_ai.scorer._metric import CORRECT, INCORRECT
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import MultipleChoiceTemplate, TaskState, multiple_choice
 from inspect_ai.solver._task_state import Choice
@@ -634,3 +634,25 @@ def test_choices_multiple_shuffles_preserve_original_positions() -> None:
     choices.shuffle(Random(123))
     val_to_orig = {c.value: c.original_position for c in choices}
     assert val_to_orig == {"A": 0, "B": 1, "C": 2, "D": 3}
+
+
+@pytest.mark.anyio
+async def test_model_answer_zero_scores_incorrect() -> None:
+    async def generate_zero(state: TaskState, **kwargs: Any) -> TaskState:
+        content = "ANSWER: 0"
+        state.messages.append(ChatMessageAssistant(content=content))
+        state.output = ModelOutput.from_content(model="model", content=content)
+        return state
+
+    solver = multiple_choice()
+    state = simple_task_state(
+        choices=["Option A", "Option B", "Option C", "Option D"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+
+    new_state = await solver(state=state, generate=cast(Any, generate_zero))
+    assert choices_marked_correct(list(new_state.choices)) == set()
+
+    scorer = choice()
+    result = await scorer(new_state, Target("A"))
+    assert result is not None and result.value == INCORRECT

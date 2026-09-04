@@ -155,7 +155,12 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
 def set_choices_based_on_generated_response(
     state: TaskState, answers: set[str]
 ) -> None:
-    true_answers = [answer_index(letter) for letter in answers]
+    true_answers: list[int] = []
+    for letter in answers:
+        try:
+            true_answers.append(answer_index(letter))
+        except ValueError:
+            pass
 
     for i in range(len(state.choices)):
         if i in true_answers:
