@@ -572,26 +572,24 @@ class _ConversationMessageFingerprint(NamedTuple):
     """Stable identity for accumulating one conversation's non-system messages.
 
     Message IDs, source, metadata, and model name are transport details that may change
-    as a scaffold replays history. The full content retains non-text parts, while the
-    remaining model fields retain tool-call and tool-result identity.
+    as a scaffold replays history. Every remaining field participates, preserving
+    non-text content plus tool-call and tool-result identity.
     """
 
     role: str
-    content_hash: str
-    tool_identity_hash: str
+    identity_hash: str
 
 
 def _conversation_message_fingerprint(
     message: ChatMessage,
 ) -> _ConversationMessageFingerprint:
-    tool_identity = message.model_dump(
-        exclude={"id", "content", "metadata", "model", "source"},
+    message_identity = message.model_dump(
+        exclude={"id", "metadata", "model", "source"},
         exclude_none=True,
     )
     return _ConversationMessageFingerprint(
         role=message.role,
-        content_hash=mm3_hash(to_json_str_safe(message.content)),
-        tool_identity_hash=mm3_hash(to_json_str_safe(tool_identity)),
+        identity_hash=mm3_hash(to_json_str_safe(message_identity)),
     )
 
 
