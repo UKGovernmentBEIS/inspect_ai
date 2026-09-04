@@ -64,19 +64,3 @@ test attempt in a 5-minute timeout, sync tests get none. If a test hangs,
 rerun with `--timeout=<seconds>`; the conftest watchdog then dumps every
 thread stack 300 seconds before the kill, or at the threshold in
 `INSPECT_TEST_HANG_DUMP_SECONDS` if you set one.
-
-## Reporting a run in a PR
-
-AGENTS.md requires a PR that touches gated-test areas to report its run.
-Under "Other information" in the PR description, add a `### Slow tests`
-section with:
-
-- the exact command(s) run
-- what ran, per class or provider, with the passed and skipped counts from
-  the summary
-- what you could not run, and why (no key, no Docker, no model access,
-  needs a local server)
-
-A test that skipped did not run. Say so rather than counting it. If you ran
-nothing, say that, so a maintainer with the keys or Docker runs the tests
-before merge.

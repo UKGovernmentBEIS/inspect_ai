@@ -165,14 +165,21 @@ tests, flaky tests, and trio variants. PR CI runs only the slow tests under
 provider tests, because they need API keys. So a PR that changes model
 providers, sandbox or tool code, agents, or async plumbing must run the gated
 tests that cover the change locally, and the PR description must report the
-run.
+run. The `slow-tests` skill (`.claude/skills/slow-tests/SKILL.md`) says which
+flags and directories go with which change and what each class needs.
 
-The `slow-tests` skill (`.claude/skills/slow-tests/SKILL.md`) says which flags
-and directories go with which change, what each class needs (Docker, a key),
-and how to read the skip summary. Follow it, then add a `### Slow tests`
-section under "Other information" in the PR description listing the command(s)
-run, what ran with passed/skipped counts, and what you could not run and why.
-A skipped test did not run; say so.
+Report the run under "Other information" in the PR description, in a
+`### Slow tests` section with:
+
+- the exact command(s) run
+- what ran, per class or provider, with the passed and skipped counts from
+  the summary
+- what you could not run, and why (no key, no Docker, no model access,
+  needs a local server)
+
+A test that skipped did not run. Say so rather than counting it. If you ran
+nothing, say that, so a maintainer with the keys or Docker runs the tests
+before merge.
 
 ## Subsystem Documentation
 
