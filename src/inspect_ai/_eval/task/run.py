@@ -158,9 +158,8 @@ from inspect_ai.util._checkpoint._layout import (
     delete_sample_checkpoints_dir,
     eval_checkpoints_dir_from_config,
 )
-from inspect_ai.util._checkpoint._layout.staging_dir import (
-    clear_sample_staging_dir,
-    is_remote_destination,
+from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
+    sample_dir_name,
 )
 from inspect_ai.util._checkpoint._resume_copy import copy_resume_payloads
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
@@ -960,21 +959,19 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         logger.location, checkpoint, eval_checkpoint
     )
 
-    # on a retry, replicate the retried attempt's checkpoint sample dirs
-    # into this attempt's checkpoints dir. This must precede `log_start`
-    # below (nothing writes the destination log before it), so a copy
-    # failure raises out of `task_run` without producing a destination log
-    # at all: the next retry then falls back to the newest log that
-    # exists, whose checkpoint dirs are complete by the same rule — a
-    # log's existence proves its startup copy finished. Runs before the
+    # the startup copy must precede `log_start` (a retry's log is its
+    # checkpoint commit point — see `_resume_copy`) and runs before the
     # dataset is paged to disk so a failed copy has no temp file to leak.
+    # The names it reports let `run_sample` skip resume probes for samples
+    # with nothing on disk.
+    copied_sample_dirs: frozenset[str] = frozenset()
     if (
         sample_source is not None
         and sample_source.prior_checkpoints_dir
         and eval_checkpoints_dir is not None
     ):
         try:
-            await copy_resume_payloads(
+            copied_sample_dirs = await copy_resume_payloads(
                 source_eval_dir=sample_source.prior_checkpoints_dir,
                 destination_eval_dir=eval_checkpoints_dir,
             )
@@ -1479,40 +1476,40 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     ):
                         # non-clean prior (errored, cancelled, or absent from
                         # the log): resume from a checkpoint in this attempt's
-                        # own dir when one exists (a retry's startup copy put
-                        # the retried attempt's payload there — see
-                        # `copy_resume_payloads`; a requeue's is this
-                        # attempt's own), else carry the prior errors. An
-                        # invalidated prior never resumes: invalidation means
-                        # start over. Hydration runs inside
-                        # `_CheckpointerSetup.__aenter__`; agent code can
-                        # branch on `cp.attempt`. The probe takes the reuse
-                        # read throttle so probes and body reads together stay
-                        # within the shared connection pool.
-                        if not isinstance(previous_sample, InvalidatedPrior):
+                        # own dir when one exists, else carry the prior
+                        # errors and run fresh from an empty dir. A requeued
+                        # sample's dir is its own prior run's; a retried
+                        # sample's holds what the startup copy brought, so
+                        # samples the copy didn't bring skip the probes. An
+                        # invalidated prior never resumes. Hydration runs
+                        # inside `_CheckpointerSetup.__aenter__`; agent code
+                        # can branch on `cp.attempt`. The probes take the
+                        # reuse read throttle so probes and body reads
+                        # together stay within the shared connection pool.
+                        own_dir_may_exist = eval_checkpoints_dir is not None and (
+                            requeue_prior is not None
+                            or sample_dir_name(sample_id, epoch) in copied_sample_dirs
+                        )
+                        if own_dir_may_exist and not isinstance(
+                            previous_sample, InvalidatedPrior
+                        ):
                             async with reuse_read_throttle:
                                 resume_checkpoint = await resolve_resume_checkpoint(
-                                    requeue_checkpoints_dir, sample_id, epoch
+                                    eval_checkpoints_dir, sample_id, epoch
                                 )
                         if resume_checkpoint is None:
                             if isinstance(previous_sample, PreviousError):
                                 previous_attempt_errors = _seed_error_retries(
                                     previous_sample.sample
                                 )
-                            if requeue_checkpoints_dir is not None:
-                                # running fresh: whatever this sample's dir
-                                # holds (an invalidated prior's copied
-                                # checkpoints, or repos from an attempt that
-                                # never committed a checkpoint file) goes
-                                # first — fresh provisioning would otherwise
-                                # adopt or merge into those repos
+                            if own_dir_may_exist:
+                                assert eval_checkpoints_dir is not None
                                 async with reuse_read_throttle:
                                     await delete_sample_checkpoints_dir(
-                                        requeue_checkpoints_dir, sample_id, epoch
-                                    )
-                                if is_remote_destination(requeue_checkpoints_dir):
-                                    await clear_sample_staging_dir(
-                                        logger.location, sample_id, epoch
+                                        eval_checkpoints_dir,
+                                        sample_id,
+                                        epoch,
+                                        log_location=logger.location,
                                     )
 
                     # factory to create sample+state lazily (after semaphore)
@@ -1768,8 +1765,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         on_settle=feeder_wake.set,
                     )
 
-                requeue_checkpoints_dir = eval_checkpoints_dir
-
                 # the sample fanout: an injectable scheduler rather than a
                 # one-shot tg_collect, so the control channel's requeue
                 # directive can re-add an errored/cancelled sample to the
@@ -1810,7 +1805,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     scheduler=sample_scheduler,
                     sample_error=sample_error_handler,
                     sample_indexes=sample_indexes,
-                    checkpoints_dir=requeue_checkpoints_dir,
+                    checkpoints_dir=eval_checkpoints_dir,
                     on_accept=on_requeue_accept,
                     on_withdraw=on_requeue_withdrawn,
                 )

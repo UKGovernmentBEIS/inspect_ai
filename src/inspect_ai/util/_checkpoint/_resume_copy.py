@@ -5,10 +5,9 @@ into the new attempt's eval checkpoints dir, verbatim: every file a
 sample dir holds (the host restic repo, each sandbox strategy's storage
 area, the restic config, the strategy pin, the checkpoint files) except
 the live ``context/`` working dir, whose contents are already inside
-the host repo, and restic lock files (process state, see below). The
-copy knows nothing about the layout beneath a sample dir — strategy
-storage areas are opaque file trees — which is what lets ``hydrate``
-skip any per-strategy "adopt prior state" step. It is
+the host repo. The copy knows nothing about the layout beneath a sample
+dir — strategy storage areas are opaque file trees — which is what
+lets ``hydrate`` skip any per-strategy "adopt prior state" step. It is
 pure file transport — no sandboxes, no live framework state; that is
 hydration's restore side (``hydrate.py``), which runs later, at sample
 start, and never writes anything a future retry needs.
@@ -21,7 +20,8 @@ The design is one rule with two supports:
   destination log written, and the attempt dies without one. Retries
   only ever source the newest log that *exists*, so a log's existence
   proves its checkpoint dirs are complete; a dead attempt's partial
-  copies are unreachable orphans.
+  copies are unreachable orphans. Nothing reads a dir while it is being
+  copied, so the copy needs no internal ordering.
 - **The copy replicates the whole attempt.** Every sample dir the
   source has is copied — completed samples included. Checkpoints are a
   permanent record (planned work allows branching from arbitrary
@@ -29,28 +29,24 @@ The design is one rule with two supports:
   self-contained archive and everything older is superseded.
 
 Resume detection then never looks past a sample's own dir
-(``scan_latest_committed_checkpoint``): a sample either has a committed
-checkpoint in this attempt or it runs fresh. Within one sample, files
-still copy in commit-point order (checkpoint files last, newest-first)
-so every intermediate state stays honest, though recovery no longer
-depends on it.
+(``resolve_resume_checkpoint``): a sample either has a committed
+checkpoint in this attempt or it runs fresh.
 """
 
 from __future__ import annotations
 
 from functools import partial
 from logging import getLogger
-from typing import Callable, Iterable, NamedTuple
+from typing import Callable, Iterable
 
 import anyio
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import get_async_filesystem, is_s3_filename
-from inspect_ai._util.file import dirname, filesystem
+from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
-from ._layout.sample_checkpoints_dir import checkpoint_file_id
 
 logger = getLogger(__name__)
 
@@ -65,23 +61,12 @@ _SAMPLE_FILE_COPY_CONCURRENCY = 6
 # host repo, and restore re-materializes it from there.
 _EXCLUDED_TOP_LEVEL: frozenset[str] = frozenset({"context"})
 
-# A restic repo's ``locks/`` entries are process state, not repo state: a
-# lock names a process that held the repo, a process killed mid-operation
-# (its parent's SIGKILL closes its output pipe) leaves one behind, and no
-# process can legitimately hold a lock on the copy this pass creates.
-# Copied forward, a lock whose PID happens to be live again makes every
-# later restic operation on the repo fail to lock. Only the restic areas
-# (``restic/host``, ``restic/sandboxes/<name>``) are subject to this;
-# other strategies' storage areas stay opaque.
-_RESTIC_AREA = "restic"
-_RESTIC_LOCKS_DIR = "locks"
-
 
 async def copy_resume_payloads(
     *,
     source_eval_dir: str,
     destination_eval_dir: str,
-) -> None:
+) -> frozenset[str]:
     """Copy every sample dir from the retried attempt into this one.
 
     Runs at retry startup, before the destination log's first write —
@@ -90,11 +75,14 @@ async def copy_resume_payloads(
     newest log that exists (whose checkpoint dirs are complete by the
     same rule).
 
-    A same-dir retry (source and destination eval dirs coincide, e.g. a
-    log location reused within the same second) has nothing to copy.
+    Returns the names of the sample dirs the destination now holds, so
+    resume detection can skip samples known to have nothing on disk. A
+    same-dir retry (source and destination eval dirs coincide, e.g. a
+    log location reused within the same second) copies nothing and
+    reports the dir's existing contents.
     """
     if source_eval_dir == destination_eval_dir:
-        return
+        return frozenset(await _dir_names(source_eval_dir))
 
     with trace_action(
         logger,
@@ -120,6 +108,7 @@ async def copy_resume_payloads(
                     for name in sample_dirs
                 ]
             )
+        return frozenset(sample_dirs)
 
 
 async def _copy_sample_dir(
@@ -134,7 +123,7 @@ async def _dir_names(base: str) -> list[str]:
     names: list[str] = []
     try:
         async for uri in get_async_filesystem().iter_dirs(base):
-            names.append(uri.rstrip("/").rsplit("/", 1)[-1])
+            names.append(basename(uri.rstrip("/")))
     except FileNotFoundError:
         pass
     return names
@@ -144,61 +133,31 @@ async def copy_payload_files(source_dir: str, destination_dir: str) -> list[str]
     """Copy one sample dir's checkpoint payload to another sample dir.
 
     Either side may be local or remote. Copies every file under the
-    source except the live ``context/`` dir, in two passes: everything
-    that is not a checkpoint file (bounded-parallel — restic repos hold
-    many small pack files, and one awaited round-trip per file would
-    serialize the startup path that gates the whole retry), then the
-    ``ckpt-*.json`` files, newest first. Interrupt recovery does not
-    depend on this order — the attempt's log, written only after the
-    whole pass, gates it — but it keeps every intermediate state honest
-    (no checkpoint file ever precedes the bytes it indexes), matching
-    the order the fire path and ``host_egress`` follow.
-
-    Also used by ``hydrate`` to pull a remote destination's payload
-    into its local staging dir. A missing or empty source copies
-    nothing.
+    source except the live ``context/`` dir, bounded-parallel — restic
+    repos hold many small pack files, and one awaited round-trip per
+    file would serialize the startup path that gates the whole retry.
+    Also used by ``hydrate`` to pull a remote destination's payload into
+    its local staging dir. A missing or empty source copies nothing.
 
     Returns the list of paths written, relative to ``destination_dir``.
     """
-    payload = await _list_payload(source_dir)
-    written = await _copy_payload_data(source_dir, destination_dir, payload.data)
-    written += await _copy_checkpoint_files(
-        source_dir, destination_dir, payload.checkpoints
+    return await _copy_payload_data(
+        source_dir, destination_dir, await _list_payload(source_dir)
     )
-    return written
 
 
-class _Payload(NamedTuple):
-    """A sample dir's files, relative to it, split at the commit point."""
-
-    data: list[str]
-    """Everything that is not a checkpoint file (excluded dirs dropped)."""
-
-    checkpoints: list[str]
-    """The ``ckpt-*.json`` files, newest first."""
-
-
-async def _list_payload(source_dir: str) -> _Payload:
-    """Files under ``source_dir``, relative to it, minus excluded dirs/components."""
+async def _list_payload(source_dir: str) -> list[str]:
+    """Files under ``source_dir``, relative to it, minus the excluded top-level dirs."""
     async_fs = get_async_filesystem()
     try:
         uris = [uri async for uri in async_fs.iter_files(source_dir, recursive=True)]
     except FileNotFoundError:
         uris = []
-    rels = _relativize(source_dir, uris)
-    data = [
+    return [
         rel
-        for rel in rels
+        for rel in _relativize(source_dir, uris)
         if rel.split("/", 1)[0] not in _EXCLUDED_TOP_LEVEL
-        and not _is_restic_lock(rel)
-        and _checkpoint_id(rel) is None
     ]
-    checkpoints = sorted(
-        (rel for rel in rels if _checkpoint_id(rel) is not None),
-        key=lambda rel: _checkpoint_id(rel) or 0,
-        reverse=True,
-    )
-    return _Payload(data=data, checkpoints=checkpoints)
 
 
 def _relativize(base: str, uris: Iterable[str]) -> list[str]:
@@ -223,20 +182,10 @@ def _relativize(base: str, uris: Iterable[str]) -> list[str]:
     return rels
 
 
-def _is_restic_lock(rel: str) -> bool:
-    parts = rel.split("/")
-    return parts[0] == _RESTIC_AREA and _RESTIC_LOCKS_DIR in parts[1:-1]
-
-
-def _checkpoint_id(rel: str) -> int | None:
-    """The id of a top-level ``ckpt-NNNNN.json`` path, else ``None``."""
-    return checkpoint_file_id(rel) if "/" not in rel else None
-
-
 async def _copy_payload_data(
     source_dir: str, destination_dir: str, rels: list[str]
 ) -> list[str]:
-    """Bounded-parallel copy of the non-checkpoint payload files."""
+    """Bounded-parallel copy of ``rels`` from one sample dir to another."""
     async_fs = get_async_filesystem()
     with trace_action(logger, "Checkpoint Resume Copy", "fs-copy payload"):
         for parent in {dirname(f"{destination_dir}/{rel}") for rel in rels}:
@@ -250,23 +199,4 @@ async def _copy_payload_data(
                 )
 
         await tg_collect([partial(copy_one, rel) for rel in rels])
-    return list(rels)
-
-
-async def _copy_checkpoint_files(
-    source_dir: str, destination_dir: str, rels: list[str]
-) -> list[str]:
-    """Sequential copy of the checkpoint files, in the order given (newest first).
-
-    The commit point of the payload copy: called after the data pass,
-    so a checkpoint file's presence always implies the bytes it indexes
-    are in place. Landing the latest first means a torn prefix still
-    resolves to the newest checkpoint rather than a stale one.
-    """
-    async_fs = get_async_filesystem()
-    with trace_action(logger, "Checkpoint Resume Copy", "fs-copy checkpoint files"):
-        if rels:
-            await async_mkdir(destination_dir)
-        for rel in rels:
-            await async_fs.copy_file(f"{source_dir}/{rel}", f"{destination_dir}/{rel}")
     return list(rels)

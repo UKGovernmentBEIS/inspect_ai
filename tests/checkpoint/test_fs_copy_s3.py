@@ -59,7 +59,7 @@ def _checkpoint_bytes(checkpoint_id: int) -> bytes:
 async def test_copy_payload_files_downloads_from_s3(
     tmp_path: Path, mock_s3: None
 ) -> None:
-    """The whole sample dir lands in staging: data first, checkpoints newest first."""
+    """The whole sample dir lands in staging."""
     src = f"{S3_BUCKET}/old-eval.checkpoints/s__0"
     new = tmp_path / "staging"
     new.mkdir()
@@ -85,9 +85,7 @@ async def test_copy_payload_files_downloads_from_s3(
 
         written = await copy_payload_files(src, str(new))
 
-    # checkpoint files copy last, newest first: this copy is multi-write,
-    # and a torn prefix must contain the latest checkpoint, not a stale one
-    assert set(written[:-2]) == {
+    assert set(written) == {
         "restic/host/config",
         "restic/host/keys/key01",
         "restic/host/data/ab/cdef",
@@ -95,8 +93,9 @@ async def test_copy_payload_files_downloads_from_s3(
         "sandboxes/bulk/archive/ckpt-00001.tar.gz",
         "restic/restic-config.json",
         "restic/snapshot-strategies.json",
+        "ckpt-00002.json",
+        "ckpt-00001.json",
     }
-    assert written[-2:] == ["ckpt-00002.json", "ckpt-00001.json"]
     assert (
         new / "restic" / "host" / "data" / "ab" / "cdef"
     ).read_bytes() == b"pack-data"

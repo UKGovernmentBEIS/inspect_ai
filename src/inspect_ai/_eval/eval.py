@@ -1475,6 +1475,14 @@ def eval_retry(
     return result
 
 
+def _log_file_exists(location: str) -> bool:
+    """Whether a log file is present; ``True`` when storage can't answer."""
+    try:
+        return filesystem(location).exists(location)
+    except Exception:
+        return True
+
+
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
@@ -1629,7 +1637,7 @@ async def eval_retry_async(
             eval_log.status == "error"
             and eval_log.samples is None
             and eval_log.location
-            and not filesystem(eval_log.location).exists(eval_log.location)
+            and not _log_file_exists(eval_log.location)
         ):
             raise PrerequisiteError(
                 f"Cannot retry task '{eval_log.eval.task}': its log was never "

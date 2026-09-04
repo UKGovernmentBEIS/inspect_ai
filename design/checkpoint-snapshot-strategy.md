@@ -285,8 +285,7 @@ written — `_resume_copy.copy_resume_payloads` replicates every sample
 dir of the attempt being retried into the new attempt's eval
 checkpoints dir, storage areas included, as opaque file trees
 (checkpoint files last, so no intermediate state has a checkpoint
-file without its data; a restic repo's `locks/` entries — process
-state a killed restic leaves behind — are the one thing dropped). A retry's log is therefore its checkpoint
+file without its data). A retry's log is therefore its checkpoint
 commit point: a copy that fails or is interrupted leaves no log, the
 next retry sources the newest log that exists, and every sample dir
 reachable from a log is complete. Consequences for a strategy:
@@ -295,11 +294,11 @@ reachable from a log is complete. Consequences for a strategy:
   runs on resume, its storage area already holds what the prior
   attempt captured. Everything a restore needs must therefore live
   inside the storage area.
-- `discard_orphans` returns the storage-relative paths it removed. For
-  a remote destination the storage area was copied there verbatim
-  before the discard ran against the local staging copy, so the core
-  mirrors the removal at the destination; without it a stale orphan
-  would ride forward on every later retry.
+- For a remote destination the storage area was copied there verbatim
+  before `discard_orphans` ran against the local staging copy; the core
+  mirrors the removal at the destination by deleting whatever the pull
+  brought in that the discard removed, so a stale orphan does not ride
+  forward on every later retry.
 - Retained snapshots are durable at this attempt's destination before
   any agent work runs, by construction: the startup copy put them
   there.
@@ -355,7 +354,8 @@ persisted records enforce this:
   stated ordering requirement: **the pin ships no later than the first
   `ckpt-*.json`** — i.e. before the checkpoint-file tier in the safe
   order. A fresh sample with a remote destination ships nothing at
-  hydration end (`hydrate` runs `host_egress` only on resume), so the
+  hydration end (the retry startup copy, not hydrate, populates a
+  resumed sample's destination), so the
   pin first travels with fire 1's egress; if it shipped after the
   checkpoint file, a crash in that window would leave a resumable dir
   (has `ckpt-00001.json`) with no pin, and the absent-file default

@@ -323,7 +323,10 @@ async def test_delete_sample_checkpoints_dir(tmp_path: Path) -> None:
         ),
     )
 
-    await delete_sample_checkpoints_dir(eval_dir, "s", 0)
+    log_location = str(tmp_path / "a.eval")
+    await delete_sample_checkpoints_dir(eval_dir, "s", 0, log_location=log_location)
 
     assert not Path(sample_dir).exists()
-    await delete_sample_checkpoints_dir(eval_dir, "s", 0)  # idempotent
+    await delete_sample_checkpoints_dir(  # idempotent
+        eval_dir, "s", 0, log_location=log_location
+    )

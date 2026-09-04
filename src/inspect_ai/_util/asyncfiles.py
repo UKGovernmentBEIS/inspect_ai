@@ -655,13 +655,17 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            if current_async_backend() == "asyncio":
-                client = await self.s3_client_async()
-                await client.delete_object(Bucket=bucket, Key=key)
-            else:
-                await anyio.to_thread.run_sync(
-                    s3_delete_object, self.s3_client(), bucket, key
-                )
+
+            async def do_delete() -> None:
+                if current_async_backend() == "asyncio":
+                    client = await self.s3_client_async()
+                    await client.delete_object(Bucket=bucket, Key=key)
+                else:
+                    await anyio.to_thread.run_sync(
+                        s3_delete_object, self.s3_client(), bucket, key
+                    )
+
+            await _s3_put_with_retry(do_delete, location=filename)
         else:
             fs = filesystem(filename)
             if fs.is_local():

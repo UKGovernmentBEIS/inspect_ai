@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import NamedTuple
 
 import anyio
 from test_helpers.utils import failing_solver_deterministic, identity_solver
@@ -366,11 +367,15 @@ def test_resume_detection_when_checkpoint_exists(tmp_path: Path) -> None:
     dataset = MemoryDataset([Sample(id=errored_sample.id, input="hi", target="hi")])
     source = eval_log_sample_source(log, None, dataset, str(eval_ckpt_dir))
 
-    async def call() -> tuple[object, object]:
+    class _Resolved(NamedTuple):
+        lookup: object
+        resume: object
+
+    async def call() -> _Resolved:
         async with AsyncFilesystem():
-            return (
-                await source.lookup(errored_sample.id, errored_sample.epoch),
-                await resolve_resume_checkpoint(
+            return _Resolved(
+                lookup=await source.lookup(errored_sample.id, errored_sample.epoch),
+                resume=await resolve_resume_checkpoint(
                     str(eval_ckpt_dir), errored_sample.id, errored_sample.epoch
                 ),
             )

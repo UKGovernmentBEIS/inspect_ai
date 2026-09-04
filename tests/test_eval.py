@@ -1092,10 +1092,13 @@ def test_retry_attempt_dying_in_checkpoint_copy_leaves_no_log(
 
     copies: list[tuple[str, str]] = []
 
-    async def flaky_copy(*, source_eval_dir: str, destination_eval_dir: str) -> None:
+    async def flaky_copy(
+        *, source_eval_dir: str, destination_eval_dir: str
+    ) -> frozenset[str]:
         copies.append((source_eval_dir, destination_eval_dir))
         if len(copies) == 1:
             raise OSError("simulated copy failure")
+        return frozenset()
 
     monkeypatch.setattr(task_run_module, "copy_resume_payloads", flaky_copy)
 
@@ -1131,3 +1134,103 @@ def test_retry_attempt_dying_in_checkpoint_copy_leaves_no_log(
     # to the log attempt 2 was retrying rather than attempt 2's own dir
     assert len(copies) == 2
     assert copies[0][0] == copies[1][0]
+
+
+def _committed_checkpoint_json(checkpoint_id: int, trigger: str) -> str:
+    from datetime import datetime, timezone
+
+    from inspect_ai.util._checkpoint._layout.schemas import (
+        Checkpoint,
+        SnapshotDetails,
+    )
+
+    return Checkpoint(
+        checkpoint_id=checkpoint_id,
+        trigger=trigger,  # type: ignore[arg-type]
+        turn=checkpoint_id,
+        created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
+        duration_ms=10,
+        size_bytes=100,
+        host=SnapshotDetails(snapshot_id="snap", size_bytes=100, duration_ms=10),
+        sandboxes={},
+    ).model_dump_json()
+
+
+@task
+def _retry_precedence_task(counter_file: str) -> Task:
+    """Fails its sample on the first attempt only.
+
+    eval_retry re-creates the task from the registry (re-importing this
+    module), so the attempt counter lives in a file named by a task arg.
+    """
+    from inspect_ai.solver import Generate, TaskState, solver
+    from inspect_ai.util import CheckpointConfig, TurnInterval
+
+    @solver
+    def fail_first():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            counter = Path(counter_file)
+            attempts = int(counter.read_text() or "0") if counter.exists() else 0
+            counter.write_text(str(attempts + 1))
+            if attempts == 0:
+                raise RuntimeError("first attempt fails")
+            return state
+
+        return solve
+
+    return Task(
+        dataset=[Sample(id="s", input="x", target="x")],
+        solver=fail_first(),
+        checkpoint=CheckpointConfig(trigger=TurnInterval(every=1)),
+    )
+
+
+def test_retry_resumes_from_own_checkpoint_or_discards_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """run_sample's resume decision on a retry, without docker or restic.
+
+    An errored prior sample with a committed checkpoint in the copied dir
+    resumes (checkpoint outranks the error seed); an invalidated prior
+    with the same checkpoint runs fresh and its copied dir is deleted
+    first, so provisioning starts from an empty dir.
+    """
+    import inspect_ai.log._samples as samples_module
+    from inspect_ai import eval_retry
+    from inspect_ai.log import ProvenanceData, invalidate_samples
+    from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
+        eval_checkpoints_dir,
+    )
+    from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+    seen: list[object] = []
+
+    def fake_create_checkpointer(**kwargs: Any) -> _NoopCheckpointer:
+        seen.append(kwargs["resume_checkpoint"])
+        return _NoopCheckpointer()
+
+    monkeypatch.setattr(samples_module, "create_checkpointer", fake_create_checkpointer)
+
+    first = eval(
+        _retry_precedence_task(counter_file=str(tmp_path / "attempts.txt")),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    assert first.status == "error"
+
+    # a committed checkpoint the (noop) checkpointer never wrote itself
+    sample_dir = Path(eval_checkpoints_dir(first.location, None)) / "s__1"
+    sample_dir.mkdir(parents=True)
+    (sample_dir / "ckpt-00001.json").write_text(_committed_checkpoint_json(1, "turn"))
+
+    # errored prior + committed checkpoint → resume
+    retried = eval_retry(first, log_dir=str(tmp_path / "logs"))[0]
+    assert retried.status == "success"
+    assert seen[-1] is not None and getattr(seen[-1], "attempt") == "resume"
+
+    # invalidated prior + the same checkpoint → fresh, copied dir deleted
+    invalidated = invalidate_samples(first, "all", ProvenanceData(author="test"))
+    retried = eval_retry(invalidated, log_dir=str(tmp_path / "logs"))[0]
+    assert retried.status == "success"
+    assert seen[-1] is None
+    assert not (Path(eval_checkpoints_dir(retried.location, None)) / "s__1").exists()

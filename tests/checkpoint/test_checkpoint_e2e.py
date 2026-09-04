@@ -808,6 +808,12 @@ def test_checkpoint_retry_preserves_queued_sample_checkpoints(
         _run_interrupted_attempt(log_dir, first_log, tests_dir)
         second_log = _latest_log(log_dir)
         assert second_log != first_log, "the retry attempt wrote no log"
+        # the premise: B was still queued when attempt #1 died, so its dir
+        # there can only have come from the startup copy
+        second = read_eval_log(second_log)
+        assert not any(
+            s.id == B_SAMPLE_ID and s.error is None for s in second.samples or []
+        ), "sample B ran in the retry attempt; the test premise did not hold"
 
         # The #4870 property: the dead retry's checkpoints dir holds B's
         # payload — copied at startup — even though B never ran.

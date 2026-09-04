@@ -9,12 +9,9 @@ strategies — a cycle). ``hydrate`` still uses it for the host repo.
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
-import anyio
-
-from inspect_ai.util._restic.ops import restic_env
+from inspect_ai.util._restic.ops import run_restic
 
 
 def checkpoint_tag(checkpoint_id: int) -> str:
@@ -30,20 +27,24 @@ def checkpoint_tag(checkpoint_id: int) -> str:
 
 async def drop_orphan_snapshots(
     restic: Path, repo: str, password: str, latest_id: int
-) -> list[str]:
-    """Forget restic snapshots tagged ``ckpt-NNNNN`` where NNNNN > latest_id.
+) -> None:
+    """Prepare a copied repo for resume: clear locks, forget orphan snapshots.
 
-    A fire that completed its restic backup but was interrupted before
-    ``write_checkpoint_file`` leaves an orphan snapshot in the repo
-    with no corresponding ``ckpt-NNNNN.json`` to acknowledge it. On resume we
-    drop those so ``restic restore latest`` picks the committed
-    snapshot — and so the next fire can write its tag without colliding
-    with a stale tag of the same id. Returns the dropped snapshots'
-    full ids — a snapshot object's file name is its full id, so the
-    caller can mirror the drop at a remote destination by deleting
-    ``snapshots/<id>`` (see ``hydrate._delete_destination_files``).
+    Runs once per repo at resume, before anything else touches it. Any
+    ``locks/`` entry is process state a killed restic left behind (a
+    dead parent closes its output pipe mid-operation) — no process can
+    legitimately hold a lock on a repo this attempt has just copied or
+    is about to restore from — and left in place it makes the exclusive
+    ``forget`` below fail. Orphan snapshots are those tagged
+    ``ckpt-NNNNN`` with NNNNN > ``latest_id``: a fire that completed its
+    backup but was interrupted before ``write_checkpoint_file``. Dropping
+    them makes ``restic restore latest`` pick the committed snapshot and
+    lets the next fire write its tag without colliding with a stale one.
     """
-    proc = await _run_restic(
+    await run_restic(
+        [str(restic), "-r", repo, "unlock", "--remove-all"], password=password
+    )
+    proc = await run_restic(
         [str(restic), "-r", repo, "snapshots", "--json"], password=password
     )
     snapshots = json.loads(proc.stdout.decode())
@@ -60,26 +61,6 @@ async def drop_orphan_snapshots(
                 orphan_ids.append(snap["id"])
                 break
     if orphan_ids:
-        await _run_restic(
+        await run_restic(
             [str(restic), "-r", repo, "forget", *orphan_ids], password=password
         )
-    return orphan_ids
-
-
-async def _run_restic(
-    command: list[str], *, password: str
-) -> subprocess.CompletedProcess[bytes]:
-    """Run a restic command; a non-zero exit raises with restic's stderr.
-
-    ``anyio.run_process(check=True)`` raises ``CalledProcessError`` whose
-    message carries only the command and exit status — restic's reason
-    ("repository is already locked by ...", "repository does not exist")
-    is on stderr, and without it a failed resume is undiagnosable.
-    """
-    proc = await anyio.run_process(command, env=restic_env(password), check=False)
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"restic {command[3]} failed (exit {proc.returncode}) on {command[2]}: "
-            f"{proc.stderr.decode(errors='replace').strip()}"
-        )
-    return proc

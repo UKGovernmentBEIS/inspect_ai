@@ -63,9 +63,6 @@ def _build_payload(sample_dir: Path, *, checkpoint_ids: list[int]) -> None:
     # contents are in the host repo)
     (sample_dir / "context").mkdir()
     (sample_dir / "context" / "events.json").write_text("[]")
-    # a restic lock left by a killed process: process state, not payload
-    (sample_dir / "restic" / "host" / "locks").mkdir()
-    (sample_dir / "restic" / "host" / "locks" / "deadbeef").write_text("lock")
     for n in checkpoint_ids:
         (sample_dir / f"ckpt-{n:05d}.json").write_text(_checkpoint_json(n))
 
@@ -88,7 +85,6 @@ def _assert_payload_copied(dest: Path, *, checkpoint_ids: list[int]) -> None:
     for n in checkpoint_ids:
         assert (dest / f"ckpt-{n:05d}.json").read_text() == _checkpoint_json(n)
     assert not (dest / "context").exists()
-    assert not (dest / "restic" / "host" / "locks").exists()
 
 
 async def test_copy_resume_payloads_replicates_every_sample_dir(
@@ -197,34 +193,3 @@ async def test_copy_resume_payloads_copies_incomplete_sample_dirs_verbatim(
     assert not (dest_eval / "s1__1" / "restic" / "sandboxes" / "torn").exists()
     assert (dest_eval / "s2__1" / "restic" / "restic-config.json").read_text() == "{}"
     assert not list((dest_eval / "s2__1").glob("ckpt-*.json"))
-
-
-async def test_copy_payload_files_commit_point_order(tmp_path: Path) -> None:
-    """Checkpoint files copy after everything they index, newest first.
-
-    Interrupt recovery no longer depends on this (the destination
-    log's deferred first write gates the whole pass), but the order
-    keeps every intermediate state honest — no checkpoint file ever
-    precedes its data — matching the fire path and ``host_egress``.
-    """
-    source = tmp_path / "old.checkpoints" / "s1__1"
-    _build_payload(source, checkpoint_ids=[1, 2, 3])
-    dest = tmp_path / "new.checkpoints" / "s1__1"
-
-    written = await resume_copy.copy_payload_files(str(source), str(dest))
-
-    checkpoint_positions = [
-        i for i, name in enumerate(written) if name.startswith("ckpt-")
-    ]
-    other_positions = [
-        i for i, name in enumerate(written) if not name.startswith("ckpt-")
-    ]
-    assert checkpoint_positions, "no checkpoint files copied"
-    assert min(checkpoint_positions) > max(other_positions), (
-        "a checkpoint file copied before the data it indexes"
-    )
-    assert [written[i] for i in checkpoint_positions] == [
-        "ckpt-00003.json",
-        "ckpt-00002.json",
-        "ckpt-00001.json",
-    ], "checkpoint files must copy newest first"

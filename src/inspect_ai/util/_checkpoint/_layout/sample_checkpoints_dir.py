@@ -33,7 +33,7 @@ from inspect_ai._util.file import local_path
 
 from .._async_fs import async_mkdir
 from .schemas import Checkpoint, ResticConfig
-from .staging_dir import restic_config_path, restic_dir
+from .staging_dir import clear_sample_staging_dir, restic_config_path, restic_dir
 
 logger = getLogger(__name__)
 
@@ -163,16 +163,19 @@ async def _first_parseable_checkpoint(
 
 
 async def delete_sample_checkpoints_dir(
-    eval_dir: str, sample_id: int | str, epoch: int
+    eval_dir: str, sample_id: int | str, epoch: int, *, log_location: str
 ) -> None:
-    """Delete a sample's checkpoints dir (local or s3; idempotent).
+    """Delete a sample's checkpoints dir and its staging twin (idempotent).
 
     Used when a sample runs fresh in an attempt whose dir for it is not
     empty: an invalidated prior's copied checkpoints, or repos from an
     attempt that never committed a checkpoint file. Checkpoint files go
     first on every scheme: they are the dir's commit point, so an
-    interrupted delete de-commits the dir before touching its data.
+    interrupted delete de-commits the dir before touching its data. The
+    host-local staging dir a remote destination stages through is
+    cleared too, so fresh provisioning starts from nothing on both sides.
     """
+    await clear_sample_staging_dir(log_location, sample_id, epoch)
     target = sample_checkpoints_dir(eval_dir, sample_id, epoch)
     if not is_s3_filename(target):
 
@@ -197,10 +200,7 @@ async def delete_sample_checkpoints_dir(
     prefix_len = len(target.rstrip("/")) + 1
     files.sort(key=lambda uri: not _is_checkpoint_file(uri[prefix_len:]))
     for uri in files:
-        try:
-            await async_fs.delete_file(uri)
-        except FileNotFoundError:
-            pass
+        await async_fs.delete_file(uri)
 
 
 async def write_checkpoint_file(

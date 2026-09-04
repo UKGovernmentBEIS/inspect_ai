@@ -18,10 +18,9 @@ sandbox's bulk state for checkpointing, honoring these guarantees:
   capture time at their original absolute paths.
 - **Storage areas travel verbatim (§4.5)**: the core carries a
   strategy's storage area across retry attempts as an opaque file
-  tree (the retry startup copy — see ``_resume_copy``; the one thing
-  it drops is a restic repo's ``locks/``), so a strategy never copies
-  prior-attempt state itself and must keep everything a restore needs
-  inside its storage area.
+  tree (the retry startup copy — see ``_resume_copy``), so a strategy
+  never copies prior-attempt state itself and must keep everything a
+  restore needs inside its storage area.
 - **Security (§4.6)**: tooling placed in the sandbox must be root-only
   and invisible to the agent; bytes read out of the sandbox are
   untrusted; secrets reach the sandbox only via per-exec environment
@@ -138,14 +137,13 @@ class SandboxSnapshotStrategy(Protocol):
 
     async def discard_orphans(
         self, latest_committed_id: int, ctx: SnapshotContext
-    ) -> list[str]:
+    ) -> None:
         """Drop snapshots with ``checkpoint_id > latest_committed_id``.
 
         Orphans come from fires that completed their capture but never
-        committed a checkpoint file. Returns the paths of the files this
-        removed, relative to the storage area — for a remote destination
-        the core mirrors the removal there, since the storage area was
-        copied to the destination verbatim before the discard ran.
+        committed a checkpoint file. Remove them from the storage area;
+        for a remote destination the core mirrors whatever the pull
+        brought in and this call removed.
         """
         ...
 

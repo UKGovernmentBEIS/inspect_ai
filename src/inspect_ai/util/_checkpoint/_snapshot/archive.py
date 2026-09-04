@@ -433,17 +433,14 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
 
     async def discard_orphans(
         self, latest_committed_id: int, ctx: SnapshotContext
-    ) -> list[str]:
+    ) -> None:
         storage = Path(ctx.storage_dir)
         if not storage.is_dir():
-            return []
-        removed: list[str] = []
+            return
         for entry in storage.iterdir():
             checkpoint_id = _archive_checkpoint_id(entry.name)
             if checkpoint_id is None or checkpoint_id > latest_committed_id:
                 entry.unlink(missing_ok=True)
-                removed.append(entry.name)
-        return removed
 
     async def _clean_staging(self, env: SandboxEnvironment) -> None:
         """Best-effort removal of the in-sandbox staging root.

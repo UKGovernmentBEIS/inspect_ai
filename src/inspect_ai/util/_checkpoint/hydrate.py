@@ -45,6 +45,7 @@ using the returned :class:`HydrationResult`.
 
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -84,6 +85,7 @@ from ._layout.sample_checkpoints_dir import (
 from ._layout.schemas import Checkpoint
 from ._layout.staging_dir import (
     clear_sample_staging_dir,
+    context_dir,
     ensure_context_dir,
     ensure_sample_staging_dir,
     host_repo_dir,
@@ -222,14 +224,6 @@ async def hydrate(
 
     # Sample root: where restic + checkpoint files are first materialized.
     # Remote destination → host-local staging; local → destination directly.
-    # The destination is the committed state and staging a cache of it: a
-    # resume clears whatever an earlier run of this sample left in staging
-    # (an in-eval requeue reuses the path) before the pull below repopulates
-    # it, so restore and resume detection agree on the latest checkpoint. A
-    # fire whose egress never landed is dropped by that clear — uncommitted
-    # by definition, since the destination checkpoint file is the commit
-    # point. The fresh path keeps staging: a sample-level retry_on_error
-    # re-entry continues the same lineage there.
     if is_remote_destination(new_sample_checkpoints_dir):
         if resume_checkpoint:
             await clear_sample_staging_dir(log_location, sample_id, epoch)
@@ -239,6 +233,13 @@ async def hydrate(
         sample_staging = None
         sample_root = new_sample_checkpoints_dir
 
+    if resume_checkpoint:
+        # an in-eval requeue re-runs in the dir its prior run used: the
+        # live context dir may hold that run's last (uncommitted) write,
+        # and restore_repo stops descending at the first dir with files
+        await anyio.to_thread.run_sync(
+            partial(shutil.rmtree, context_dir(sample_root), ignore_errors=True)
+        )
     sample_context_dir = await ensure_context_dir(sample_root)
 
     # remote destination: pull the payload into local staging (restic
@@ -335,13 +336,6 @@ async def hydrate(
             paths=paths,
         )
 
-    # for remote destinations, orphan discards must also delete the
-    # discarded files at the destination — the payload copy replicated
-    # them verbatim and the discard only ran against the staging copy
-    remote_destination_dir = (
-        new_sample_checkpoints_dir if sample_staging is not None else None
-    )
-
     async def _run_host() -> None:
         nonlocal host_result
         host_result = await _hydrate_host(
@@ -352,7 +346,6 @@ async def hydrate(
             sample_root=sample_root,
             context_dir=sample_context_dir,
             latest_committed_id=latest_committed_id,
-            remote_destination_dir=remote_destination_dir,
             action=action,
         )
 
@@ -364,26 +357,24 @@ async def hydrate(
             sandbox_sessions,
             latest_committed_id,
             latest_checkpoint,
-            remote_destination_dir,
             action,
         )
     assert host_result is not None  # task group ran _run_host to completion
 
     if resume_checkpoint and sample_staging is not None:
-        # prime the egress manifest with the payload pulled above, so the
-        # first post-resume fire ships only its delta — the payload is
-        # already at the destination and must not be re-uploaded. Only
-        # files still present count: a discarded orphan's path may be
-        # re-fired under the same checkpoint id (the archive strategy's
-        # names are deterministic), and a manifest entry for it would make
-        # the egress skip the new file while its checkpoint file ships.
-        # (`seed_manifest` likewise skips a torn checkpoint file, whose id
-        # the next fire re-uses.)
+        # Phase 2's orphan discards ran against the staging copy; mirror
+        # them at the destination (which holds the same files, copied
+        # verbatim), then seed the egress manifest with what remains so
+        # the first post-resume fire ships only its delta. A discarded
+        # path can be re-fired under the same checkpoint id (archive
+        # names are deterministic), which is why a stale destination
+        # object or manifest entry for it must not survive.
         staging_root = Path(sample_staging)
-        seed_manifest(
-            sample_staging,
-            [rel for rel in downloaded if (staging_root / rel).exists()],
-        )
+        kept = [rel for rel in downloaded if (staging_root / rel).exists()]
+        async_fs = get_async_filesystem()
+        for rel in set(downloaded) - set(kept):
+            await async_fs.delete_file(f"{new_sample_checkpoints_dir}/{rel}")
+        seed_manifest(sample_staging, kept)
 
     trace_message(
         logger, "Checkpoint", f"{verb} complete: sample={sample_id} epoch={epoch}"
@@ -411,7 +402,6 @@ async def _hydrate_host(
     sample_root: str,
     context_dir: str,
     latest_committed_id: int | None,
-    remote_destination_dir: str | None,
     action: str,
 ) -> _HostHydrationResult:
     if resume is None:
@@ -426,14 +416,9 @@ async def _hydrate_host(
     # then load the JSON files and push framework state into the live
     # Transcript + Store.
     if latest_committed_id is not None:
-        dropped = await drop_orphan_snapshots(
+        await drop_orphan_snapshots(
             host_restic, host_repo, restic_password, latest_committed_id
         )
-        if remote_destination_dir is not None:
-            await _delete_destination_files(
-                f"{remote_destination_dir}/restic/host",
-                [f"snapshots/{snapshot_id}" for snapshot_id in dropped],
-            )
     with trace_action(logger, action, "host restore"):
         await restore_repo(host_restic, host_repo, restic_password, context_dir)
     # Capture the live span id here (loop thread); the `_current_span_id`
@@ -457,7 +442,6 @@ async def _hydrate_sandboxes(
     sandbox_sessions: dict[str, SandboxSnapshotSession],
     latest_committed_id: int | None,
     latest_checkpoint: Checkpoint | None,
-    remote_destination_dir: str | None,
     action: str,
 ) -> None:
     if not sandbox_sessions:
@@ -471,7 +455,6 @@ async def _hydrate_sandboxes(
                 resume=resume,
                 latest_committed_id=latest_committed_id,
                 latest_checkpoint=latest_checkpoint,
-                remote_destination_dir=remote_destination_dir,
                 action=action,
             )
             for name, session in sandbox_sessions.items()
@@ -486,7 +469,6 @@ async def _hydrate_sandbox(
     resume: ResumeCheckpoint | None,
     latest_committed_id: int | None,
     latest_checkpoint: Checkpoint | None,
-    remote_destination_dir: str | None,
     action: str,
 ) -> None:
     """Provision (and on resume, restore) one sandbox via its strategy.
@@ -506,36 +488,10 @@ async def _hydrate_sandbox(
         return
 
     if latest_committed_id is not None:
-        discarded = await strategy.discard_orphans(latest_committed_id, ctx)
-        if remote_destination_dir is not None:
-            await _delete_destination_files(
-                f"{remote_destination_dir}/{ctx.storage_subpath}", discarded
-            )
+        await strategy.discard_orphans(latest_committed_id, ctx)
     ref = latest_checkpoint.sandboxes.get(name) if latest_checkpoint else None
     with trace_action(logger, action, f"sandbox {name} restore"):
         await strategy.restore(env, ref, ctx)
-
-
-async def _delete_destination_files(storage_dir: str, rel_paths: list[str]) -> None:
-    """Mirror an orphan discard at a (remote) destination the discard couldn't reach.
-
-    Orphan discards run against the local staging copy of a
-    remote-destination storage area (restic can't operate on S3
-    directly here), but the resume payload copy replicated the orphan
-    files to the destination verbatim — and the egress manifest marks
-    them shipped, so nothing would ever remove them. Without this, a
-    later retry re-copies the stale snapshot alongside the re-fired one
-    of the same ``ckpt-N`` id, and a restore that resolves "latest" by
-    timestamp could pick the stale one. The egress manifest is seeded
-    after these discards (see ``hydrate``), so it never lists a
-    discarded path.
-    """
-    async_fs = get_async_filesystem()
-    for rel in rel_paths:
-        try:
-            await async_fs.delete_file(f"{storage_dir}/{rel}")
-        except FileNotFoundError:
-            pass
 
 
 def _load_host_state(

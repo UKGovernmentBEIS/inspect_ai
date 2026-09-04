@@ -99,11 +99,10 @@ class ResticIncrementalStrategy(SandboxSnapshotStrategy):
 
     async def discard_orphans(
         self, latest_committed_id: int, ctx: SnapshotContext
-    ) -> list[str]:
-        dropped = await drop_orphan_snapshots(
+    ) -> None:
+        await drop_orphan_snapshots(
             await self._host_restic(), ctx.storage_dir, ctx.secret, latest_committed_id
         )
-        return [f"snapshots/{snapshot_id}" for snapshot_id in dropped]
 
     async def _host_restic(self) -> Path:
         # `resolve_restic()` caches the resolved binary path internally;
