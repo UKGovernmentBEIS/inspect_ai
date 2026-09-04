@@ -604,6 +604,21 @@ class TestGetModelInputTokens:
         assert info.snapshot == "20260901"
         assert str(info.knowledge_cutoff_date) == "2026-06-01"
 
+    def test_claude_mythos_preview(self):
+        """Test that Claude Mythos Preview reports 1MM input tokens."""
+        model = get_model("anthropic/claude-mythos-preview")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-mythos-preview")
+        assert info is not None
+        assert info.model == "Claude Mythos Preview"
+        # the preview is a distinct entry, not a fuzzy match onto mythos-5
+        # (which would report a 2026-06-09 release and a `high` effort default)
+        assert str(info.release_date) == "2026-04-07"
+        # deliberately unset rather than guessed (see anthropic.yml)
+        assert info.knowledge_cutoff_date is None
+        assert info.reasoning_effort_default is None
+
     @pytest.mark.parametrize(
         "model_name,release_date",
         [("gemini-3.8-flash", "2026-09-02"), ("gemini-3.7-flash", "2026-08-13")],
