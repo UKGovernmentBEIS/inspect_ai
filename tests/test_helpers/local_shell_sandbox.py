@@ -42,7 +42,16 @@ class LocalShellSandbox(SandboxEnvironment):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         input_bytes = input.encode() if isinstance(input, str) else input
-        run_env = {**os.environ, **(self._extra_env or {}), **(env or {})}
+        # macOS bsdtar emits AppleDouble ``._*`` members for files with
+        # extended attributes; a Linux sandbox never does, and the egress
+        # member validation rightly rejects them. COPYFILE_DISABLE is a no-op
+        # elsewhere.
+        run_env = {
+            **os.environ,
+            "COPYFILE_DISABLE": "1",
+            **(self._extra_env or {}),
+            **(env or {}),
+        }
         proc = subprocess.run(
             cmd,
             input=input_bytes,
