@@ -47,3 +47,8 @@
 | openai/gpt-5.4-pro | high |
 | openai/gpt-5.5 | medium |
 | openai/gpt-5.5-pro | high |
+| openai/gpt-5.6 | medium |
+| openai/gpt-5.6-luna | medium |
+| openai/gpt-5.6-sol | medium |
+| openai/gpt-5.6-terra | medium |
+| openai/gpt-6-astra | medium |

@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import functools
 import importlib.util
+import inspect
 import os
 import signal
 import subprocess
@@ -285,6 +286,68 @@ def skip_if_no_openai_reasoning_summaries(func):
     )
 
 
+# model name -> skip reason (None when the account has access); probed once per
+# process so stacking the gate on several tests costs a single request.
+_openai_model_access: dict[str, str | None] = {}
+
+
+async def _openai_model_access_error(model: str) -> str | None:
+    """Return why the current OpenAI account can't use `model`, or None if it can.
+
+    Access-gated models (e.g. gpt-6-astra) answer the models endpoint with a
+    404 `model_not_found` (or a 403) for accounts without entitlement, so
+    retrieving the model is a cheap, token-free way to tell access apart from a
+    real provider failure. Anything else -- a bad key, a network error, a 404
+    from a gateway that doesn't implement the endpoint -- propagates so the
+    test fails loudly instead of skipping forever.
+    """
+    if model not in _openai_model_access:
+        import openai
+
+        client = openai.AsyncOpenAI()
+        try:
+            await client.models.retrieve(model)
+            _openai_model_access[model] = None
+        except openai.PermissionDeniedError as ex:
+            _openai_model_access[model] = _no_access_reason(model, ex)
+        except openai.NotFoundError as ex:
+            if ex.code != "model_not_found":
+                raise
+            _openai_model_access[model] = _no_access_reason(model, ex)
+        finally:
+            await client.close()
+    return _openai_model_access[model]
+
+
+def _no_access_reason(model: str, ex: Exception) -> str:
+    return f"OpenAI account has no access to model {model}: {ex}"
+
+
+def skip_if_no_openai_model(model: str):
+    """Skip an async live test at runtime if the OpenAI account can't use `model`.
+
+    Unlike an env-var gate this needs no configuration: an account that gains
+    access to the model regains the coverage automatically. Stack it under
+    `skip_if_no_openai`, which supplies the `api` marker, flaky retry, and the
+    package/key check the probe relies on.
+    """
+
+    def decorator(func):
+        if not inspect.iscoroutinefunction(func):
+            raise TypeError("skip_if_no_openai_model only supports async tests")
+
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            reason = await _openai_model_access_error(model)
+            if reason is not None:
+                pytest.skip(reason)
+            return await func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def skip_if_no_anthropic(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("ANTHROPIC_API_KEY", exists=False)(func))
@@ -442,8 +505,6 @@ def skip_if_async_backend(backend):
 
     For sync functions this is a no-op — they never run under an async backend.
     """
-    import inspect
-
     import sniffio
 
     def decorator(func):

@@ -7,15 +7,19 @@ stream observer along the way.
 
 from __future__ import annotations
 
-from typing import Any
+import json
+import struct
+import zlib
+from typing import Any, Iterable, Iterator
 
 import pytest
 from test_helpers.utils import skip_if_no_bedrock
 
-from inspect_ai.model import ChatMessageUser, get_model
+from inspect_ai.model import ChatMessageUser, RetryDecision, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers.bedrock import (
     BedrockAPI,
+    bedrock_error_code,
     converse_response_from_stream,
     model_output_from_response,
 )
@@ -213,34 +217,141 @@ async def test_bedrock_stream_gated_without_on_stream(
     assert observer._tokens_current == 7
 
 
-async def test_bedrock_stream_error_event_raises_client_error() -> None:
-    """Exception members of the event union raise classified ClientErrors."""
+def _event_stream_frame(headers: dict[str, str], payload: dict[str, Any]) -> bytes:
+    """Encode one AWS event-stream message (all headers as strings)."""
+    encoded_headers = b""
+    for name, value in headers.items():
+        name_bytes, value_bytes = name.encode(), value.encode()
+        encoded_headers += (
+            struct.pack("!B", len(name_bytes))
+            + name_bytes
+            + b"\x07"  # string header value type
+            + struct.pack("!H", len(value_bytes))
+            + value_bytes
+        )
+    body = json.dumps(payload).encode()
+    prelude = struct.pack(
+        "!II", 16 + len(encoded_headers) + len(body), len(encoded_headers)
+    )
+    message = prelude + struct.pack("!I", zlib.crc32(prelude)) + encoded_headers + body
+    return message + struct.pack("!I", zlib.crc32(message))
+
+
+def _sdk_stream(frames: list[bytes]) -> Any:
+    """A botocore EventStream over encoded ConverseStream frames.
+
+    Runs the real service model and event-stream parser, so exception frames
+    surface exactly as they do from aiobotocore (whose `_parse_event` is the
+    same code): raised as `EventStreamError` before any event is yielded.
+    """
+    import botocore.session
+    from botocore.eventstream import EventStream
+    from botocore.model import StructureShape
+    from botocore.parsers import EventStreamJSONParser
+
+    class _RawStream:
+        def stream(self) -> Iterator[bytes]:
+            yield from frames
+
+    model = botocore.session.get_session().get_service_model("bedrock-runtime")
+    output_shape = model.operation_model("ConverseStream").output_shape
+    assert output_shape is not None
+    stream_shape = output_shape.members["stream"]
+    assert isinstance(stream_shape, StructureShape)
+    events: Iterable[Any] = EventStream(
+        _RawStream(), stream_shape, EventStreamJSONParser(), "ConverseStream"
+    )
+
+    async def _aiter() -> Any:
+        for event in events:
+            yield event
+
+    return _aiter()
+
+
+def _exception_frame(exception_type: str, message: str) -> bytes:
+    return _event_stream_frame(
+        {
+            ":message-type": "exception",
+            ":exception-type": exception_type,
+            ":content-type": "application/json",
+        },
+        {"message": message},
+    )
+
+
+_MESSAGE_START = _event_stream_frame(
+    {
+        ":message-type": "event",
+        ":event-type": "messageStart",
+        ":content-type": "application/json",
+    },
+    {"role": "assistant"},
+)
+
+
+@pytest.mark.parametrize(
+    ("exception_type", "kind"),
+    [
+        ("throttlingException", "rate_limit"),
+        ("serviceUnavailableException", "transient"),
+        # stream-only; AWS documents it as "Retry your request."
+        ("modelStreamErrorException", "transient"),
+    ],
+)
+async def test_bedrock_stream_exception_frame_retries(
+    exception_type: str, kind: str
+) -> None:
+    """A throttling/transient exception frame mid-stream is retried.
+
+    The frame's `:exception-type` header is the event union's member name
+    (lowercase-first), which botocore uses verbatim as the error code — not
+    the PascalCase shape name the non-streaming operation raises.
+    """
+    from botocore.exceptions import EventStreamError
+
+    frames = [_MESSAGE_START, _exception_frame(exception_type, "Too many requests")]
+    with pytest.raises(EventStreamError) as excinfo:
+        await converse_response_from_stream(_sdk_stream(frames))
+    assert excinfo.value.response["Error"]["Code"] == exception_type
+    assert excinfo.value.response["Error"]["Message"] == "Too many requests"
+
+    decision = _make_api().should_retry(excinfo.value)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == kind
+
+
+async def test_bedrock_stream_validation_frame_maps_to_shape_name() -> None:
+    """The stream-path validation error is recognised like the non-streaming one."""
+    from botocore.exceptions import EventStreamError
+
+    frames = [_exception_frame("validationException", "Input is too long")]
+    with pytest.raises(EventStreamError) as excinfo:
+        await converse_response_from_stream(_sdk_stream(frames))
+    assert bedrock_error_code(excinfo.value) == "ValidationException"
+    assert bool(_make_api().should_retry(excinfo.value)) is False
+
+
+def test_bedrock_error_code_normalises_case() -> None:
     from botocore.exceptions import ClientError
 
-    events: list[dict[str, Any]] = [
-        {"messageStart": {"role": "assistant"}},
-        {"throttlingException": {"message": "Too many requests"}},
-    ]
+    def client_error(code: str) -> ClientError:
+        return ClientError({"Error": {"Code": code, "Message": ""}}, "Converse")
 
-    with pytest.raises(ClientError) as excinfo:
-        await converse_response_from_stream(_events(events))
-    assert excinfo.value.response["Error"]["Code"] == "ThrottlingException"
-
-    # the raised code is one the provider classifies as a rate limit
+    # non-streaming codes pass through unchanged
+    assert (
+        bedrock_error_code(client_error("ThrottlingException")) == "ThrottlingException"
+    )
+    assert bedrock_error_code(client_error("")) == ""
+    # stream member names map to the shape name the retry sets use
+    assert (
+        bedrock_error_code(client_error("throttlingException")) == "ThrottlingException"
+    )
     api = _make_api()
-    decision = api.should_retry(excinfo.value)
-    assert bool(decision) is True
-
-    # the stream-only ModelStreamErrorException (documented by AWS as
-    # "Retry your request") classifies as retryable too
-    events = [
-        {"messageStart": {"role": "assistant"}},
-        {"modelStreamErrorException": {"message": "stream interrupted"}},
-    ]
-    with pytest.raises(ClientError) as excinfo:
-        await converse_response_from_stream(_events(events))
-    assert excinfo.value.response["Error"]["Code"] == "ModelStreamErrorException"
-    assert bool(api.should_retry(excinfo.value)) is True
+    assert bool(api.should_retry(client_error("throttlingException"))) is True
+    assert bool(api.should_retry(client_error("internalServerException"))) is False
+    assert api.is_auth_failure(client_error("ExpiredTokenException")) is True
 
 
 async def test_bedrock_stream_without_stop_reason_raises() -> None:

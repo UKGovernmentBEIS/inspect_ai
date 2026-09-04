@@ -26,7 +26,6 @@ from .registry import (
 )
 from .restic import ResticIncrementalStrategy
 from .types import (
-    PriorAttempt,
     SandboxSnapshotSession,
     SandboxSnapshotStrategy,
     SnapshotContext,
@@ -35,7 +34,6 @@ from .types import (
 
 __all__ = [
     "ArchiveStrategy",
-    "PriorAttempt",
     "ResticIncrementalStrategy",
     "STRATEGY_ARCHIVE",
     "STRATEGY_RESTIC",
