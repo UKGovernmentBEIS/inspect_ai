@@ -41,7 +41,6 @@ from openai.types.responses import (
     ResponseToolSearchCall,
     ResponseUsage,
     ToolChoiceFunctionParam,
-    ToolChoiceMcpParam,
     ToolChoiceTypesParam,
     ToolParam,
     ToolSearchToolParam,
@@ -808,24 +807,6 @@ def content_from_response_input_content_param(
         return ContentDocument(document=input["file_data"], filename=input["filename"])
     else:
         raise RuntimeError(f"Unexpected input from responses API: {input}")
-
-
-def is_tool_choice_function_param(
-    tool_choice: ResponsesToolChoiceParam,
-) -> TypeGuard[ToolChoiceFunctionParam]:
-    if not isinstance(tool_choice, str):
-        return tool_choice.get("type") == "function"
-    else:
-        return False
-
-
-def is_tool_choice_mcp_param(
-    tool_choice: ResponsesToolChoiceParam,
-) -> TypeGuard[ToolChoiceMcpParam]:
-    if not isinstance(tool_choice, str):
-        return tool_choice.get("type") == "mcp"
-    else:
-        return False
 
 
 def responses_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
