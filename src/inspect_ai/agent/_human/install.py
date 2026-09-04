@@ -34,6 +34,7 @@ the fallback may itself be running as root.
 """
 
 import inspect
+import json
 import stat
 from textwrap import dedent
 
@@ -259,6 +260,7 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     # standard imports (including any dependencies that call methods carry)
     imports = dedent("""
     import argparse
+    import json
     import sys
     from argparse import Namespace
     from pathlib import Path
@@ -272,12 +274,9 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
         return f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
     """)
 
-    # command handler source code (extracted from call methods)
+    # command handler source code and state (extracted from call methods)
     command_handlers = "\n\n".join(
-        dedent(
-            inspect.getsource(command.cli).replace("cli(self, ", f"{command.name}(", 1)
-        )
-        for command in commands
+        human_agent_command_handler(command) for command in commands
     )
 
     # parse commands
@@ -324,6 +323,20 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     """) + "\n".join(command_dispatchers)
 
     return "\n".join([imports, command_handlers, parse, dispatch]) + "\n"
+
+
+def human_agent_command_handler(command: HumanAgentCommand) -> str:
+    name = command.name
+    handler = dedent(
+        inspect.getsource(command.cli).replace("cli(self, ", f"_{name}_cli(self, ", 1)
+    )
+    state = repr(json.dumps(command.cli_state))
+    return (
+        f"{handler}\n"
+        f"_{name}_state = Namespace(**json.loads({state}))\n"
+        f"def {name}(args):\n"
+        f"    _{name}_cli(_{name}_state, args)"
+    )
 
 
 def human_agent_bashrc(

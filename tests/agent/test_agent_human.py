@@ -15,6 +15,7 @@ from typing import Callable, Literal, NamedTuple, overload
 from uuid import uuid4
 
 import pytest
+from pydantic import JsonValue
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_docker
 
@@ -29,6 +30,9 @@ from inspect_ai.agent._human import install as human_install
 from inspect_ai.agent._human.commands import human_agent_commands, submit
 from inspect_ai.agent._human.commands.instructions import InstructionsCommand
 from inspect_ai.agent._human.commands.submit import QuitCommand, SubmitCommand
+from inspect_ai.agent._human.install import (
+    human_agent_commands as human_agent_task_commands,
+)
 from inspect_ai.agent._human.state import HumanAgentState
 from inspect_ai.agent._human.install import (
     _BASHRC_APPEND_SCRIPT,
@@ -102,6 +106,18 @@ class _AdditionalCommand(HumanAgentCommand):
         return "Additional test command."
 
 
+class _StatefulAdditionalCommand(_AdditionalCommand):
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+    @property
+    def cli_state(self) -> dict[str, JsonValue]:
+        return {"value": self.value}
+
+    def cli(self, args: Namespace) -> None:
+        print(self.value)
+
+
 def test_human_cli_accepts_public_commands_filter():
     def commands_filter(
         commands: list[HumanAgentCommand],
@@ -111,6 +127,38 @@ def test_human_cli_accepts_public_commands_filter():
     filter_: HumanAgentCommandsFilter = commands_filter
 
     assert callable(human_cli(commands_filter=filter_))
+
+
+def test_human_cli_runs_stateful_appended_command(tmp_path: Path) -> None:
+    def commands_filter(
+        commands: list[HumanAgentCommand],
+    ) -> list[HumanAgentCommand]:
+        return [*commands, _StatefulAdditionalCommand("custom value")]
+
+    commands = human_agent_commands(
+        AgentState(messages=[]),
+        answer=True,
+        intermediate_scoring=False,
+        record_session=False,
+        instructions=None,
+        commands_filter=commands_filter,
+    )
+    (tmp_path / "human_agent.py").write_text(
+        "def call_human_agent(method: str, **params: object) -> None:\n    pass\n"
+    )
+    task_py = tmp_path / "task.py"
+    task_py.write_text(human_agent_task_commands(commands))
+
+    result = subprocess.run(
+        [sys.executable, task_py.as_posix(), "additional"],
+        capture_output=True,
+        check=False,
+        cwd=tmp_path,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "custom value\n"
 
 
 async def test_human_cli_commands_filter_seen_by_instructions() -> None:
