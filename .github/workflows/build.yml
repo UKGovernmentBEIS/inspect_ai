@@ -400,6 +400,9 @@ jobs:
           filters: |
             checkpoint:
               - "src/inspect_ai/util/_checkpoint/**"
+              # tests/checkpoint/ exercises restore_repo against a real restic
+              # binary, so restic-only changes must trigger the area too.
+              - "src/inspect_ai/util/_restic/**"
               - "tests/checkpoint/**"
 
   # Fast gate: confirm sandbox_tools_version.txt is bumped to exactly N+1

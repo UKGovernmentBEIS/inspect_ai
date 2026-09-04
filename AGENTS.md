@@ -157,6 +157,30 @@ All async test functions automatically run under both asyncio and trio backends 
   task) is owned by whichever component created it — cleanup belongs there,
   not in a caller or bridge that merely passes it through.
 
+## Gated tests (slow, api, flaky, trio)
+
+Plain `pytest` skips the Docker-based slow tests, the live model-provider
+tests, flaky tests, and trio variants. PR CI runs only the slow tests under
+`tests/tools/` and a short list of other areas; it never runs the live
+provider tests, because they need API keys. So a PR that changes model
+providers, sandbox or tool code, agents, or async plumbing must run the gated
+tests that cover the change locally, and the PR description must report the
+run. The `slow-tests` skill (`.claude/skills/slow-tests/SKILL.md`) says which
+flags and directories go with which change and what each class needs.
+
+Report the run under "Other information" in the PR description, in a
+`### Slow tests` section with:
+
+- the exact command(s) run
+- what ran, per class or provider, with the passed and skipped counts from
+  the summary
+- what you could not run, and why (no key, no Docker, no model access,
+  needs a local server)
+
+A test that skipped did not run. Say so rather than counting it. If you ran
+nothing, say that, so a maintainer with the keys or Docker runs the tests
+before merge.
+
 ## Subsystem Documentation
 
 Additional files provide context when working in specific areas:
