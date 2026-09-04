@@ -47,6 +47,7 @@ from inspect_ai._util.trace import trace_action
 from ._async_fs import async_mkdir
 from ._layout.sample_checkpoints_dir import checkpoint_file_id
 from ._layout.schemas import Checkpoint
+from ._layout.staging_dir import RESTIC_CONFIG_SUBPATH
 
 logger = getLogger(__name__)
 
@@ -60,12 +61,6 @@ MANIFEST_FILENAME = ".egress-manifest.txt"
 _EXCLUDED_TOP_LEVEL: frozenset[str] = frozenset(
     {"context", MANIFEST_FILENAME, f"{MANIFEST_FILENAME}.tmp"}
 )
-
-# Tier ordering: (priority, regex matching the path's relative form).
-# A new file's tier is the lowest-priority matching pattern, defaulting
-# to a catch-all bucket if none match (which shouldn't happen for
-# well-formed restic content).
-_RESTIC_CONFIG = "restic/restic-config.json"
 
 
 async def host_egress(*, staging_dir: str, destination_dir: str) -> None:
@@ -169,7 +164,7 @@ def _safe_order(files: list[str]) -> list[str]:
     other: list[str] = []
     for f in files:
         parts = f.split("/")
-        if f == _RESTIC_CONFIG:
+        if f == RESTIC_CONFIG_SUBPATH:
             restic_config.append(f)
         elif checkpoint_file_id(parts[-1]) is not None:
             checkpoint_files.append(f)

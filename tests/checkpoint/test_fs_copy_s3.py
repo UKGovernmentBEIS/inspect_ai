@@ -27,6 +27,7 @@ from inspect_ai.util._checkpoint._resume_copy import (
     copy_payload_files,
     copy_resume_payloads,
 )
+from inspect_ai.util._checkpoint.hydrate import _inherit_restic_config
 
 S3_BUCKET = "s3://test-bucket"
 
@@ -230,3 +231,22 @@ async def test_remote_resume_copies_payload_to_new_destination(
         await host_egress(staging_dir=str(staging), destination_dir=new_root)
 
         assert await fs.read_file(f"{new_root}/restic/host/config") == b"untouched"
+
+
+async def test_inherit_restic_config_names_resume_source_when_corrupt(
+    tmp_path: Path,
+) -> None:
+    """A copied restic-config.json that doesn't parse fails resume, naming the source.
+
+    The adopted repos open only with the password that file carries, so
+    continuing would just fail later with an opaque restic error; the
+    error points at the resume source dir holding the bad file.
+    """
+    new = tmp_path / "staging"
+    (new / "restic").mkdir(parents=True)
+    (new / "restic" / "restic-config.json").write_bytes(b'{"not": "a config"}')
+
+    with pytest.raises(
+        RuntimeError, match=r"s3://bucket/old/s__0/restic/.*not a valid"
+    ):
+        await _inherit_restic_config(str(new), "s3://bucket/old/s__0")

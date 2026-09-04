@@ -27,6 +27,13 @@ from inspect_ai._util.asyncfiles import is_s3_filename
 
 from .eval_checkpoints_dir import log_basename
 
+RESTIC_CONFIG_SUBPATH = "restic/restic-config.json"
+"""Sample-root-relative path of the per-sample restic config (password store).
+
+Shared by the writer (`restic_config_path`), the resume-time cross-cutting
+copy, and the host egress tier ordering so the three cannot drift apart.
+"""
+
 
 def is_remote_destination(checkpoints_path: str) -> bool:
     """Whether the resolved sample checkpoints dir requires a staging dir."""
@@ -89,7 +96,7 @@ def host_repo_dir(sample_root: str) -> str:
 
 def restic_config_path(sample_root: str) -> str:
     """Path to the per-sample restic config file (password store)."""
-    return f"{sample_root}/restic/restic-config.json"
+    return f"{sample_root}/{RESTIC_CONFIG_SUBPATH}"
 
 
 def context_dir(sample_root: str) -> str:

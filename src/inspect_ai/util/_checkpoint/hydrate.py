@@ -82,8 +82,9 @@ from ._layout.sample_checkpoints_dir import (
     ensure_sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
 )
-from ._layout.schemas import Checkpoint
+from ._layout.schemas import Checkpoint, ResticConfig
 from ._layout.staging_dir import (
+    RESTIC_CONFIG_SUBPATH,
     clear_sample_staging_dir,
     context_dir,
     ensure_context_dir,
@@ -111,6 +112,20 @@ from .config import ResolvedCheckpointConfig
 from .sandbox_paths import resolve_sandbox_backup_paths
 
 logger = getLogger(__name__)
+
+# Bounds for the restored host context tree (see `restore_repo`). The entry
+# bound covers every node restic lists: the context dir's ancestor
+# directories (a dozen or so for a deep staging path) plus the flat JSON
+# files `host_context` describes, the transcript-store sqlite file with its
+# journal side files, and at most a few `.tmp` leftovers from an interrupted
+# atomic write — a few dozen nodes. It is set well above that because
+# earlier versions restored into a non-empty `context/` on in-run requeue
+# and left restic's mirrored source-path chain nested inside it, so each
+# requeue's snapshots grew by roughly twenty nodes; those lineages must
+# still resume. The byte bound is a generous ceiling on one sample's
+# transcript.
+_HOST_CONTEXT_MAX_FILES = 4096
+_HOST_CONTEXT_MAX_BYTES = 8 * 1024**3
 
 
 @dataclass
@@ -257,7 +272,12 @@ async def hydrate(
         )
     # after the payload copy so a resume reads the source's inherited
     # password rather than minting a fresh one
-    restic_config = await ensure_restic_config(sample_root)
+    if resume_checkpoint:
+        restic_config = await _inherit_restic_config(
+            sample_root, new_sample_checkpoints_dir
+        )
+    else:
+        restic_config = await ensure_restic_config(sample_root)
     host_restic = await resolve_restic()
     host_repo = host_repo_dir(sample_root)
 
@@ -422,7 +442,14 @@ async def _hydrate_host(
             host_restic, host_repo, restic_password, latest_committed_id
         )
     with trace_action(logger, action, "host restore"):
-        await restore_repo(host_restic, host_repo, restic_password, context_dir)
+        await restore_repo(
+            host_restic,
+            host_repo,
+            restic_password,
+            context_dir,
+            max_files=_HOST_CONTEXT_MAX_FILES,
+            max_bytes=_HOST_CONTEXT_MAX_BYTES,
+        )
     # Capture the live span id here (loop thread); the `_current_span_id`
     # ContextVar isn't propagated into the worker thread below.
     parent_span_id = current_span_id()
@@ -494,6 +521,25 @@ async def _hydrate_sandbox(
     ref = latest_checkpoint.sandboxes.get(name) if latest_checkpoint else None
     with trace_action(logger, action, f"sandbox {name} restore"):
         await strategy.restore(env, ref, ctx)
+
+
+async def _inherit_restic_config(sample_root: str, resume_source: str) -> ResticConfig:
+    """``ensure_restic_config`` on resume, naming the resume source if the copy is corrupt.
+
+    On resume the config in ``sample_root`` came from ``resume_source``
+    (the retry startup copy put it at the destination; for a remote
+    destination ``copy_payload_files`` then pulled it into staging). The
+    adopted repos open only with the password it carries, so a copy that
+    does not parse has no sensible continuation. Bare, the validation
+    error would not say which dir holds the bad file.
+    """
+    try:
+        return await ensure_restic_config(sample_root)
+    except ValueError as ex:  # pydantic's ValidationError is a ValueError
+        raise RuntimeError(
+            f"resume: {resume_source}/{RESTIC_CONFIG_SUBPATH} is not a valid "
+            f"restic config: {ex}"
+        ) from ex
 
 
 def _load_host_state(
