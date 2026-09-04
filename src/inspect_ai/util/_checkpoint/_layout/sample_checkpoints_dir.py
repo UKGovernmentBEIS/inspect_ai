@@ -165,13 +165,13 @@ async def _first_parseable_checkpoint(
 async def delete_sample_checkpoints_dir(
     eval_dir: str, sample_id: int | str, epoch: int, *, log_location: str
 ) -> None:
-    """Delete a sample's checkpoints dir and its staging twin (idempotent).
+    """Delete a sample's checkpoints dir and its staging dir (idempotent).
 
     Used when a sample runs fresh in an attempt whose dir for it is not
     empty: an invalidated prior's copied checkpoints, or repos from an
     attempt that never committed a checkpoint file. Checkpoint files go
     first on every scheme: they are the dir's commit point, so an
-    interrupted delete de-commits the dir before touching its data. The
+    interrupted delete leaves no committed checkpoint behind. The
     host-local staging dir a remote destination stages through is
     cleared too, so fresh provisioning starts from nothing on both sides.
     """

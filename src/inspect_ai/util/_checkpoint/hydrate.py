@@ -238,7 +238,9 @@ async def hydrate(
         # live context dir may hold that run's last (uncommitted) write,
         # and restore_repo stops descending at the first dir with files
         await anyio.to_thread.run_sync(
-            partial(shutil.rmtree, context_dir(sample_root), ignore_errors=True)
+            partial(
+                shutil.rmtree, local_path(context_dir(sample_root)), ignore_errors=True
+            )
         )
     sample_context_dir = await ensure_context_dir(sample_root)
 
@@ -364,11 +366,10 @@ async def hydrate(
     if resume_checkpoint and sample_staging is not None:
         # Phase 2's orphan discards ran against the staging copy; mirror
         # them at the destination (which holds the same files, copied
-        # verbatim), then seed the egress manifest with what remains so
-        # the first post-resume fire ships only its delta. A discarded
-        # path can be re-fired under the same checkpoint id (archive
-        # names are deterministic), which is why a stale destination
-        # object or manifest entry for it must not survive.
+        # verbatim) before seeding the manifest. A discarded path can be
+        # re-fired under the same checkpoint id (archive names are
+        # deterministic), so neither a stale destination object nor a
+        # manifest entry for it may survive.
         staging_root = Path(sample_staging)
         kept = [rel for rel in downloaded if (staging_root / rel).exists()]
         async_fs = get_async_filesystem()

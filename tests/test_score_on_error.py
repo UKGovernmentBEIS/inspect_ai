@@ -410,7 +410,7 @@ def test_resume_detection_scoring_resume_for_agent_complete_checkpoint(
     assert resume.attempt == "resume_for_scoring"
 
 
-def test_eval_log_sample_source_invalidated_yields_invalidated_prior():
+def test_eval_log_sample_source_invalidated_yields_invalidated_prior() -> None:
     # an invalidated prior sample restarts from scratch: the lookup
     # signals it so the re-run discards the sample's copied checkpoints
     # instead of resuming from them

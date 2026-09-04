@@ -1080,7 +1080,7 @@ def test_retry_attempt_dying_in_checkpoint_copy_leaves_no_log(
     import inspect_ai._eval.task.run as task_run_module
     import inspect_ai.log._samples as samples_module
     from inspect_ai.log import list_eval_logs
-    from inspect_ai.solver import Generate, TaskState, solver
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
     from inspect_ai.util import CheckpointConfig, TurnInterval
     from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 
@@ -1105,7 +1105,7 @@ def test_retry_attempt_dying_in_checkpoint_copy_leaves_no_log(
     attempts = {"n": 0}
 
     @solver
-    def fail_first():
+    def fail_first() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             attempts["n"] += 1
             if attempts["n"] == 1:
@@ -1163,11 +1163,11 @@ def _retry_precedence_task(counter_file: str) -> Task:
     eval_retry re-creates the task from the registry (re-importing this
     module), so the attempt counter lives in a file named by a task arg.
     """
-    from inspect_ai.solver import Generate, TaskState, solver
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
     from inspect_ai.util import CheckpointConfig, TurnInterval
 
     @solver
-    def fail_first():
+    def fail_first() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             counter = Path(counter_file)
             attempts = int(counter.read_text() or "0") if counter.exists() else 0

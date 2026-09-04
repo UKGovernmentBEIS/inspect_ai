@@ -959,11 +959,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         logger.location, checkpoint, eval_checkpoint
     )
 
-    # the startup copy must precede `log_start` (a retry's log is its
-    # checkpoint commit point — see `_resume_copy`) and runs before the
-    # dataset is paged to disk so a failed copy has no temp file to leak.
-    # The names it reports let `run_sample` skip resume probes for samples
-    # with nothing on disk.
+    # before `log_start` (see `_resume_copy`), and before the dataset is
+    # paged to disk so a failed copy has no temp file to leak
     copied_sample_dirs: frozenset[str] = frozenset()
     if (
         sample_source is not None
