@@ -1,6 +1,8 @@
+import json
 import logging
 from typing import Any
 
+import httpx
 import pytest
 from test_helpers.utils import skip_if_no_mistral, skip_if_no_mistral_package
 
@@ -754,6 +756,130 @@ async def test_mistral_streaming_true_warns_on_conversation_api(
         "no effect on the Conversation API" in record.message
         for record in caplog.records
     )
+
+
+def _mistral_sdk_stream(body: bytes) -> Any:
+    """A real SDK event stream over a canned SSE body (HTTP 200)."""
+    from mistralai.client.models import CompletionEvent
+    from mistralai.client.utils import unmarshal_json
+    from mistralai.client.utils.eventstreaming import EventStreamAsync
+
+    response = httpx.Response(
+        200,
+        headers={"content-type": "text/event-stream"},
+        content=body,
+        request=httpx.Request("POST", "https://api.mistral.ai/v1/chat/completions"),
+    )
+    return EventStreamAsync(
+        response, lambda raw: unmarshal_json(raw, CompletionEvent), sentinel="[DONE]"
+    )
+
+
+def _sse(payload: dict[str, Any]) -> bytes:
+    return f"data: {json.dumps(payload)}\n\n".encode()
+
+
+_MISTRAL_CHUNK = dict(
+    id="cmpl-1",
+    model="mistral-large-latest",
+    created=123,
+    choices=[dict(index=0, delta=dict(content="hel"), finish_reason=None)],
+)
+
+
+@skip_if_no_mistral_package
+@pytest.mark.parametrize(
+    ("error_frame", "kind"),
+    [
+        # the error object Mistral documents for its API: `code` is a 4-digit
+        # internal id and `type` uses Mistral's own vocabulary. Its 429 body:
+        (
+            dict(
+                object="error",
+                message="Service tier capacity exceeded for this model.",
+                type="service_tier_capacity_exceeded",
+                param=None,
+                code="3505",
+            ),
+            "rate_limit",
+        ),
+        # any other Mistral-vocabulary error after HTTP 200 is server-side
+        (
+            dict(
+                object="error",
+                message="Internal error",
+                type="unexpected_error",
+                param=None,
+                code="9999",
+            ),
+            "transient",
+        ),
+        # the OpenAI-compatible envelope, classified by status-like code or
+        # by type
+        (dict(error=dict(message="Unavailable", code=503)), "transient"),
+        (dict(error=dict(message="Slow down", type="rate_limit_error")), "rate_limit"),
+        (
+            dict(error=dict(message="Unavailable", type="service_unavailable")),
+            "transient",
+        ),
+        # no code/type at all: an error frame is assumed to be a server-side
+        # failure
+        (dict(error=dict(message="Unavailable")), "transient"),
+        # only a code that positively identifies a client error stays unretried
+        (
+            dict(error=dict(message="Bad request", type="invalid_request", code=400)),
+            None,
+        ),
+    ],
+)
+async def test_mistral_stream_error_frame_classified(
+    error_frame: dict[str, Any], kind: str | None
+) -> None:
+    """A server error frame mid-stream is classified like a status would be.
+
+    The mistralai SDK decodes every frame as a `CompletionEvent` and has no
+    error-event handling, so an error frame surfaces as a raw pydantic
+    `ValidationError` from the stream iterator.
+    """
+    from pydantic import ValidationError
+
+    from inspect_ai.model import RetryDecision
+    from inspect_ai.model._providers.mistral import (
+        MistralAPI,
+        MistralStreamError,
+        mistral_completion_from_stream,
+    )
+
+    stream = _mistral_sdk_stream(_sse(_MISTRAL_CHUNK) + _sse(error_frame))
+    with pytest.raises(MistralStreamError, match="delivered an error") as ex:
+        await mistral_completion_from_stream(stream)
+    assert isinstance(ex.value.__cause__, ValidationError)
+
+    api = MistralAPI(model_name="mistral-large-latest", api_key="test")
+    decision = api.should_retry(ex.value)
+    assert isinstance(decision, RetryDecision)
+    if kind is None:
+        assert decision.retry is False
+    else:
+        assert decision.retry is True and decision.kind == kind
+
+
+@skip_if_no_mistral_package
+async def test_mistral_stream_schema_mismatch_not_retried() -> None:
+    """A frame that fails validation without an error payload propagates as-is."""
+    from pydantic import ValidationError
+
+    from inspect_ai.model._providers.mistral import (
+        MistralAPI,
+        mistral_completion_from_stream,
+    )
+
+    stream = _mistral_sdk_stream(_sse(dict(unexpected=True)))
+    with pytest.raises(ValidationError) as ex:
+        await mistral_completion_from_stream(stream)
+
+    api = MistralAPI(model_name="mistral-large-latest", api_key="test")
+    assert bool(api.should_retry(ex.value)) is False
 
 
 @skip_if_no_mistral_package

@@ -449,14 +449,17 @@ def completion_params_responses(
     if config.seed is not None:
         unsupported_warning("seed")
 
-    # models with reasoning enabled don't do sampling params
+    # models with reasoning enabled don't do sampling params (gpt-6+ always
+    # reasons: `none` effort is rejected, so sampling params never apply)
     reasoning_enabled = (
         model_info.is_o_series()
+        or model_info.is_gpt_6()
         or (model_info.is_gpt_5() and not model_info.is_gpt_5_plus())
         or (
             model_info.is_gpt_5_plus()
             and (
                 config.reasoning_effort not in [None, "none"]
+                or (config.reasoning_effort is None and model_info.reasons_by_default())
                 or config.reasoning_mode == "pro"
             )
         )
@@ -518,8 +521,8 @@ def completion_params_responses(
         )
     if config.reasoning_mode is not None:
         # passed through for all models: the API accepts "pro" wherever it can
-        # be honored (gpt-5.6+ and legacy -pro models) and rejects it with a
-        # clear param-naming error otherwise.
+        # be honored (gpt-5.6 and legacy -pro models; gpt-6 rejects it) and
+        # rejects it with a clear param-naming error otherwise.
         reasoning["mode"] = config.reasoning_mode
     if config.reasoning_summary != "none":
         reasoning["summary"] = config.reasoning_summary or "auto"
