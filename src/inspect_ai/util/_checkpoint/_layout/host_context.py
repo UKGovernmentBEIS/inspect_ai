@@ -27,12 +27,10 @@ sqlite file and its journal side files — never symlinks. (Nested
 directories occur only in lineages that earlier versions restored into a
 non-empty ``context/`` on in-run requeue; see the bounds comment in
 ``hydrate``.) An honest snapshot therefore never contains anything but
-regular files and directories, and the resume-side checks — the snapshot
-listing check in ``restore_repo`` and the regular-file check in
-:func:`read` — never fire on legitimate data. On resume the restored files come from an
-untrusted repo, so :func:`read` checks each entry is a regular file
-(``lstat``, so a symlink is seen as such) rather than trusting the
-restored layout.
+regular files and directories. The restored files come from an untrusted
+repo, so the resume-side checks — the snapshot listing check in
+``restore_repo`` and the ``lstat`` regular-file check in :func:`read` —
+reject anything else, and never fire on legitimate data.
 """
 
 from __future__ import annotations
