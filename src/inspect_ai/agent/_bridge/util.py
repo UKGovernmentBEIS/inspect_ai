@@ -591,7 +591,7 @@ async def bridge_generate(
             try:
                 filtered = await bridge.response_filter(
                     model,
-                    output,
+                    output.model_copy(deep=True),
                     input_messages,
                     tool_info_for_response,
                     tool_choice,
