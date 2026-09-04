@@ -157,6 +157,40 @@ All async test functions automatically run under both asyncio and trio backends 
   task) is owned by whichever component created it — cleanup belongs there,
   not in a caller or bridge that merely passes it through.
 
+## Live provider tests
+
+A PR that changes a model provider must have run that provider's live tests
+before it opens, and the PR description must say which ones ran. Provider
+files are `src/inspect_ai/model/_providers/**` and the provider-specific
+conversion modules beside them (`_anthropic_convert.py`, `_google_convert.py`,
+`_openai*.py`, `_openrouter_reasoning.py` in `src/inspect_ai/model/`). CI does
+not run these tests on pull requests: they call the real provider API and need
+that provider's key, which CI does not have.
+
+Live tests carry the `api` marker (added by the `skip_if_no_<provider>`
+decorators in `tests/test_helpers/utils.py`) and run only with `--runapi`; a
+few are also marked `slow` and need `--runslow` too. Each one skips when its
+gating variable is unset, so a run with no key passes with everything skipped.
+Set the key, pass both flags, and read the `-ra` skip summary to confirm the
+tests ran:
+
+```bash
+OPENAI_API_KEY=... pytest --runapi --runslow tests/model/providers/test_openai*.py
+```
+
+The gating variable is the provider's API key (`OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `GROQ_API_KEY`, ...) or an opt-in switch
+where credentials live outside the environment (`ENABLE_BEDROCK_TESTS`,
+`ENABLE_VERTEX_TESTS`); the decorator names it. A change to shared code
+(`_providers/util/`, `openai_compatible.py`, `providers.py`) touches every
+provider built on it, so run the live tests for each provider that depends on
+the changed code, not only the one you set out to fix.
+
+In the PR description, under "Other information", add a `### Live tests`
+section with: the exact command(s) run, the providers exercised with the
+passed/skipped counts from the summary, and each provider you could not run
+and why (no key, no model access). A test that skipped did not run; say so.
+
 ## Subsystem Documentation
 
 Additional files provide context when working in specific areas:
