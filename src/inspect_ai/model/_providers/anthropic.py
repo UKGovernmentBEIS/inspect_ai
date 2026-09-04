@@ -1144,13 +1144,14 @@ class AnthropicAPI(ModelAPI):
             # this key, so an explicit Inspect-level setting wins; otherwise the
             # client's directive is honoured untouched. The beta is appended here
             # rather than relying on the caller's `anthropic-beta` header, so the
-            # directive cannot be silently ignored by the API. Skipped on
-            # bedrock/vertex/azure, which do not accept the field at all (the same
-            # endpoints `fallback_models` warns about above) -- forwarding it
-            # there would fail the request rather than degrade gracefully.
+            # directive cannot be silently ignored by the API. Skipped on batch
+            # requests and bedrock/vertex/azure, which do not accept the field
+            # (the same conditions `fallback_models` guards above); forwarding
+            # it would fail the request rather than degrade gracefully.
             if (
                 FALLBACKS_FIELD in config.extra_body
                 and FALLBACKS_FIELD not in extra_body
+                and not normalized_batch_config(config.batch)
                 and not (self.is_bedrock() or self.is_vertex() or self.is_azure())
             ):
                 extra_body[FALLBACKS_FIELD] = config.extra_body[FALLBACKS_FIELD]
