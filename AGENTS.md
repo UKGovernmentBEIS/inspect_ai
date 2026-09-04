@@ -159,50 +159,21 @@ All async test functions automatically run under both asyncio and trio backends 
 
 ## Live provider tests
 
-A PR that changes a model provider must have run that provider's live tests
-before it opens, and the PR description must say which ones ran. Provider
-files are `src/inspect_ai/model/_providers/**` and the provider-specific
-conversion modules in `src/inspect_ai/model/` (`_anthropic_convert.py`,
-`_google_convert.py`, `_openai*.py`, `_openrouter_reasoning.py`). CI does not
-run these tests on pull requests: they call the real provider API and need that
-provider's key, which CI does not have.
+CI cannot run the live provider tests. They call real provider APIs and need
+API keys. So a PR that changes `src/inspect_ai/model/_providers/**`, or the
+provider conversion modules in `src/inspect_ai/model/`, must run them locally,
+and the PR description must report the run.
 
-Live tests are the ones gated by a `skip_if_no_<provider>` decorator from
-`tests/test_helpers/utils.py`. They carry the `api` marker and run only with
-`--runapi` (the Azure-hosted OpenAI and Mistral gates skip on the env var
-alone); some are also marked `slow` and need `--runslow`. Each one skips when
-its gating variable is unset, so a run with no key passes with everything
-skipped. Set the key, pass both flags, and read the skip summary pytest prints
-(`-ra` is on by default here) to confirm the tests ran:
-
-```bash
-OPENAI_API_KEY=... pytest --runapi --runslow tests/model/providers/test_openai*.py
-```
-
-Skips from other gates in the same files (Together, Bedrock, reasoning
-summaries, vLLM) are expected; a skip whose reason names the key you set means
-that test did not run. The gating variable is the provider's API key
-(`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `GROQ_API_KEY`, ...)
-or, where credentials live outside the environment, an opt-in switch such as
-`ENABLE_BEDROCK_TESTS` or `ENABLE_VERTEX_TESTS`; the decorator names it.
-
-The provider's own suite is `tests/model/providers/test_<provider>*.py`. Tests
-in `tests/model/`, `tests/tools/`, and `tests/agent/` gate on the same keys, so
-a change to shared code (`_providers/util/`, `openai_compatible.py`,
-`providers.py`) calls for those directories too, for every provider that
-depends on the changed code:
-
-```bash
-pytest --runapi --runslow tests/model tests/tools tests/agent
-```
+Live tests are the ones decorated with `skip_if_no_<provider>` in
+`tests/test_helpers/utils.py`. That file names each provider's key or opt-in
+variable, and `tests/conftest.py` defines the `--runapi` and `--runslow` flags
+they need. A run without the key skips them and still exits green, so read the
+skip summary.
 
 In the PR description, under "Other information", add a `### Live tests`
-section with: the exact command(s) run, the providers exercised with the
-passed/skipped counts from the summary, and each provider you could not run
-and why (no key, no model access, needs a local server, no live tests exist for
-it). A test that skipped did not run; say so. A PR with no live run at all may
-still open, but must say so, so a maintainer with the key runs them before
-merge.
+section listing the command(s) run, each provider exercised with its
+passed/skipped counts, and each provider not run and why. A skipped test did
+not run; say so.
 
 ## Subsystem Documentation
 
