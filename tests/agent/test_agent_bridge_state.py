@@ -19,7 +19,7 @@ def output(model: str, content: str) -> ModelOutput:
 async def test_track_state_adopts_main_model_after_side_model_arrives_first() -> None:
     task = ChatMessageUser(content="What is the answer?")
     bridge = AgentBridge(AgentState(messages=[task]))
-    side_input = [
+    side_input: list[ChatMessage] = [
         ChatMessageSystem(content="You generate titles."),
         ChatMessageUser(content="Generate a title."),
         task,
@@ -28,7 +28,10 @@ async def test_track_state_adopts_main_model_after_side_model_arrives_first() ->
 
     await bridge._track_state(side_input, side_output, "openai/title")
 
-    main_input = [ChatMessageSystem(content="You are an agent."), task]
+    main_input: list[ChatMessage] = [
+        ChatMessageSystem(content="You are an agent."),
+        task,
+    ]
     main_output = output("openai/agent", "The answer.")
     await bridge._track_state(main_input, main_output, "openai/agent")
 
@@ -41,7 +44,7 @@ async def test_track_state_adopts_stronger_descending_main_model() -> None:
         content="Explain the answer to this sufficiently detailed request."
     )
     bridge = AgentBridge(AgentState(messages=[task]))
-    side_input = [
+    side_input: list[ChatMessage] = [
         ChatMessageSystem(content="You generate titles."),
         ChatMessageUser(content=f"Generate a title for: {task.text}"),
     ]
@@ -49,7 +52,7 @@ async def test_track_state_adopts_stronger_descending_main_model() -> None:
 
     await bridge._track_state(side_input, side_output, "openai/title")
 
-    main_input = [
+    main_input: list[ChatMessage] = [
         ChatMessageSystem(content="You are an agent."),
         ChatMessageUser(content=f'"{task.text}"'),
     ]
