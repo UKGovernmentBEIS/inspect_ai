@@ -25,6 +25,7 @@ from inspect_ai.model._stream import (
     model_stream_observer,
 )
 from inspect_ai.solver import generate, use_tools, user_message
+from inspect_ai.tool._tool_info import ToolInfo
 
 
 def get_responses_model(config: GenerateConfig = GenerateConfig()):
@@ -1344,6 +1345,7 @@ def _make_mock_model_info():
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
     model_info.is_gpt_5_plus.return_value = False
+    model_info.is_gpt_6.return_value = False
     model_info.is_gpt_5_pro.return_value = False
     model_info.is_gpt_5_chat.return_value = False
     model_info.is_o_series.return_value = False
@@ -2691,3 +2693,26 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
     assert output.choices[0].stop_reason == "content_filter"
     assert "blocked" in output.completion
     assert model_call.error is True
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gpt-4o", True),
+        ("gpt-5", True),
+        ("gpt-5.6-sol", True),
+        ("gpt-6-astra", True),
+        ("my-gpt-6-deployment", True),
+        ("gpt-35-turbo", False),
+        ("gpt-4", False),
+    ],
+)
+def test_maybe_code_interpreter_tool_model_gating(model_name, expected):
+    from inspect_ai.model._openai_responses import maybe_code_interpreter_tool
+
+    tool = ToolInfo(
+        name="code_execution",
+        description="Execute code",
+        options={"providers": {"openai": True}},
+    )
+    assert (maybe_code_interpreter_tool(model_name, tool) is not None) is expected

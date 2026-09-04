@@ -48,6 +48,8 @@ from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIResponseError,
     is_gpt_5_model,
+    is_gpt_5_plus_model,
+    is_gpt_6_model,
     is_o_series_model,
     messages_to_openai,
     model_output_from_openai,
@@ -557,7 +559,10 @@ class ModelInfo(ResponsesModelInfo):
         return "gpt" in self.model_family
 
     def is_gpt_5_plus(self) -> bool:
-        return "gpt-5." in self.model_family
+        return is_gpt_5_plus_model(self.model_family)
+
+    def is_gpt_6(self) -> bool:
+        return is_gpt_6_model(self.model_family)
 
     def is_gpt_5(self) -> bool:
         return is_gpt_5_model(self.model_family)
