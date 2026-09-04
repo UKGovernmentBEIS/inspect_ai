@@ -49,6 +49,17 @@ class HumanAgentCommand(abc.ABC):
         """Positional command line arguments."""
         return []
 
+    @property
+    def cli_state(self) -> dict[str, JsonValue]:
+        """State serialized into the sandbox for `cli`.
+
+        `cli` runs in a generated sandbox script, so it receives a
+        `Namespace` whose attributes are the JSON values returned here rather
+        than this command instance. Override this property when `cli` needs
+        command state.
+        """
+        return {}
+
     def cli(self, args: Namespace) -> None:
         """CLI command (runs in container). Required for context "cli"."""
         pass
