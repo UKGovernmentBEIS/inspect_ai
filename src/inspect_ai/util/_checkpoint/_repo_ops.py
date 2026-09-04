@@ -10,8 +10,11 @@ hydration orchestrator (which imports the strategies — a cycle).
 from __future__ import annotations
 
 import json
+import re
+from collections.abc import Collection
 from logging import getLogger
 from pathlib import Path
+from typing import Any
 
 import anyio
 
@@ -87,12 +90,7 @@ async def drop_orphan_snapshots(
     with a stale tag of the same id. Returns the list of dropped tag
     names for logging.
     """
-    proc = await anyio.run_process(
-        [str(restic), "-r", repo, "snapshots", "--json"],
-        env=restic_env(password),
-        check=True,
-    )
-    snapshots = json.loads(proc.stdout.decode())
+    snapshots = await list_snapshots(restic, repo, password)
     orphan_ids: list[str] = []
     orphan_tags: list[str] = []
     for snap in snapshots:
@@ -114,3 +112,90 @@ async def drop_orphan_snapshots(
             check=True,
         )
     return orphan_tags
+
+
+SNAPSHOT_ID_RE = re.compile(r"^[0-9a-f]{8,64}$")
+"""A restic snapshot id as reported by ``restic backup`` (full 64-hex in
+practice; a unique prefix is accepted the way restic's CLI accepts one)."""
+
+
+async def list_snapshots(
+    restic: Path, repo: str, password: str
+) -> list[dict[str, Any]]:
+    """``restic snapshots --json`` on ``repo`` (host-side metadata read).
+
+    ``--no-lock``: a metadata read needs no repository lock, and a lock
+    file left by a killed listing would otherwise ride along to the
+    destination and block ``forget`` on a resume from another host.
+    """
+    proc = await anyio.run_process(
+        [str(restic), "-r", repo, "snapshots", "--json", "--no-lock"],
+        env=restic_env(password),
+        check=True,
+    )
+    snapshots: list[dict[str, Any]] = json.loads(proc.stdout.decode())
+    return snapshots
+
+
+def match_snapshot_id(full_ids: Collection[str], recorded: str) -> str | None:
+    """The one full id in ``full_ids`` that ``recorded`` names, else ``None``.
+
+    Records hold what restic reported — a full 64-hex id in practice, but
+    a unique prefix is accepted the way restic's own CLI accepts one. An
+    ambiguous prefix, or a ``recorded`` value that is not a snapshot id
+    at all (see ``SNAPSHOT_ID_RE``), names nothing.
+    """
+    if not SNAPSHOT_ID_RE.fullmatch(recorded):
+        return None
+    matches = [f for f in full_ids if f.startswith(recorded)]
+    return matches[0] if len(matches) == 1 else None
+
+
+async def forget_unrecorded_snapshots(
+    restic: Path,
+    repo: str,
+    password: str,
+    *,
+    recorded_ids: Collection[str],
+    required_id: str,
+) -> list[str]:
+    """Forget every snapshot in ``repo`` that no committed checkpoint records.
+
+    The sandbox strategy's orphan discard. ``recorded_ids`` are the
+    sandbox snapshot ids from every committed ``ckpt-*.json``;
+    ``required_id`` is the latest committed one — the snapshot
+    ``restore`` will materialize — and its absence from the adopted
+    repo is an error, raised before anything is forgotten. Everything
+    else is dropped: the ordinary orphan (a fire that captured but never
+    committed) and anything the sandbox wrote into its repo that no
+    checkpoint file acknowledges. Returns the forgotten snapshots' tags
+    for logging.
+    """
+    malformed = [
+        i for i in {*recorded_ids, required_id} if not SNAPSHOT_ID_RE.fullmatch(i)
+    ]
+    if malformed:
+        raise RuntimeError(
+            f"resume: committed checkpoint(s) record malformed sandbox snapshot "
+            f"id(s) {sorted(malformed)!r} for repo {repo}"
+        )
+    snapshots = await list_snapshots(restic, repo, password)
+    full_ids = [snap["id"] for snap in snapshots]
+    if match_snapshot_id(full_ids, required_id) is None:
+        raise RuntimeError(
+            f"resume: repo {repo} does not contain snapshot {required_id}, the "
+            f"latest committed checkpoint's recorded snapshot"
+        )
+    keep = {
+        full
+        for recorded in recorded_ids
+        if (full := match_snapshot_id(full_ids, recorded)) is not None
+    }
+    orphans = [snap for snap in snapshots if snap["id"] not in keep]
+    if orphans:
+        await anyio.run_process(
+            [str(restic), "-r", repo, "forget", *(snap["id"] for snap in orphans)],
+            env=restic_env(password),
+            check=True,
+        )
+    return [tag for snap in orphans for tag in (snap.get("tags") or [])]

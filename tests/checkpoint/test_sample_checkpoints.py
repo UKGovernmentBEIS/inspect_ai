@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
+import pytest
+
+from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     _read_restic_config,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
     sample_checkpoints_dir,
+    scan_committed_checkpoints,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
 )
@@ -255,3 +262,83 @@ async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
     assert checkpoint is not None
     assert checkpoint.checkpoint_id == 2
     assert checkpoint.trigger == "agent_complete"
+
+
+async def test_scan_committed_checkpoints_skips_torn_files_in_order(
+    tmp_path: Path,
+) -> None:
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.checkpoints"), "s", 0
+    )
+    for checkpoint_id in (3, 1):
+        await write_checkpoint_file(
+            sample_checkpoints_dir=sample_dir,
+            checkpoint=_checkpoint(
+                checkpoint_id=checkpoint_id,
+                trigger="turn",
+                turn=checkpoint_id,
+                host=_info(f"snap-{checkpoint_id}"),
+            ),
+        )
+    (Path(sample_dir) / "ckpt-00002.json").write_text("{")
+    (Path(sample_dir) / "ckpt-00004.json").write_text("{")
+
+    committed = await scan_committed_checkpoints(sample_dir)
+
+    assert [c.checkpoint_id for c in committed] == [1, 3]
+    latest = await scan_latest_committed_checkpoint(sample_dir)
+    assert latest is not None and latest.checkpoint_id == committed[-1].checkpoint_id
+    assert await scan_committed_checkpoints(str(tmp_path / "missing")) == []
+
+
+async def test_scan_committed_checkpoints_propagates_read_errors(
+    tmp_path: Path,
+) -> None:
+    """An unreadable (not unparseable) file fails the scan instead of vanishing.
+
+    The list drives orphan discard on resume, which deletes every snapshot
+    not in it, so a transient remote read failure must not read as "this
+    checkpoint was never committed".
+    """
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.checkpoints"), "s", 0
+    )
+    for checkpoint_id in (1, 2, 3):
+        await write_checkpoint_file(
+            sample_checkpoints_dir=sample_dir,
+            checkpoint=_checkpoint(
+                checkpoint_id=checkpoint_id,
+                trigger="turn",
+                turn=checkpoint_id,
+                host=_info(f"snap-{checkpoint_id}"),
+            ),
+        )
+    real_fs = get_async_filesystem()
+
+    class _FlakyFs:
+        def __getattr__(self, name: str) -> Any:
+            return getattr(real_fs, name)
+
+        async def read_file(self, filename: str) -> bytes:
+            if filename.endswith("ckpt-00003.json"):
+                raise OSError("connection reset by peer")
+            return await real_fs.read_file(filename)
+
+    # Resolve the submodule explicitly: the `_layout` package re-exports a
+    # *function* named `sample_checkpoints_dir`, so a dotted `patch` target
+    # (or `from _layout import sample_checkpoints_dir`) lands on that
+    # function instead of the module on Python 3.10.
+    module = importlib.import_module(
+        "inspect_ai.util._checkpoint._layout.sample_checkpoints_dir"
+    )
+    with patch.object(
+        module,
+        "get_async_filesystem",
+        return_value=_FlakyFs(),
+    ):
+        with pytest.raises(OSError, match="connection reset"):
+            await scan_committed_checkpoints(sample_dir)
+        # The latest-only scan must not fall back to checkpoint 2 either:
+        # the next fire would reuse id 3 and overwrite the committed file.
+        with pytest.raises(OSError, match="connection reset"):
+            await scan_latest_committed_checkpoint(sample_dir)

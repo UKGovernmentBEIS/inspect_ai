@@ -32,6 +32,19 @@
 >    rather than a declared schema field (same absent ⇒
 >    `restic-incremental` rule): declaring it would change the
 >    generated public event schema / viewer types.
+> 4. **`discard_orphans` receives the committed snapshot records**
+>    (`Sequence[CommittedSnapshot]`, one per committed checkpoint that
+>    records this sandbox) rather than a bare `latest_committed_id`.
+>    The sandbox writes into its own restic repo, so "orphan" for the
+>    restic strategy means *any* snapshot no committed checkpoint
+>    records — not just ids past the latest — and the strategy must
+>    raise if the latest committed record's snapshot is absent from the
+>    adopted storage area. `restore` restores the recorded
+>    `ref.snapshot_id` (host-verified during egress), never `latest`.
+>    The shared chunked copy-out (`_checkpoint/_copy.py`, capped by
+>    `SnapshotContext.max_snapshot_bytes` from
+>    `CheckpointConfig.max_sandbox_snapshot_bytes`) landed with this
+>    change; both strategies use it.
 >
 > Strategy selection is accepted at every config layer — sample, task,
 > and eval: `sandbox_paths` values are `list[str] |
@@ -87,7 +100,7 @@ The interface already exists in the code, inlined at two call sites:
 | Fresh sample | `hydrate._hydrate_sandbox` (resume=None): `inject_restic(env)` → `init_sandbox_repo(env, password)` |
 | Fire | `checkpointer_impl._backup_and_egress_sandbox`: `run_sandbox_backup(env, ...)` → `egress_sandbox(env, dest_repo=sandbox_repo_dir(sample_root, name), ...)`; then `_fire_once` runs `list_changed_files` host-side and records a `SnapshotDetails` per sandbox |
 | Remote shipping | `_host_egress.host_egress`: manifest-diff the staging dir, ship in restic-aware safe order (`config`/`keys` → `data` → `index` → `snapshots` → catch-all (everything unmatched) → `restic-config.json` → `ckpt-*.json` last) |
-| Resume | `hydrate._hydrate_sandbox` (resume set): `_fs_copy_repo` (old sample dir → new sample root) → `_drop_orphan_snapshots` → `ingress_sandbox` (tar repo into container, `restic restore latest --target /`) |
+| Resume | `hydrate._hydrate_sandbox` (resume set): `fs_copy_repo` (old sample dir → new sample root) → `forget_unrecorded_snapshots` (keep exactly the snapshots committed checkpoints record; the latest committed one must be present) → `ingress_sandbox` (tar repo into container, `restic restore <recorded snapshot id> --target /`) |
 | Retention | `retention: "delete" \| "retain"` — all-or-nothing at eval end *(defined and merged in `config.py`, but not yet enforced — no eval-end delete is implemented)* |
 
 Two pieces of restic knowledge currently leak outside this boundary and
@@ -147,9 +160,10 @@ class SandboxSnapshotStrategy(Protocol):
         """Carry strategy state from a prior attempt into this one (§4.5)."""
 
     async def discard_orphans(
-        self, latest_committed_id: int, ctx: SnapshotContext
+        self, committed: Sequence[CommittedSnapshot], ctx: SnapshotContext
     ) -> None:
-        """Drop snapshots with checkpoint_id > latest_committed_id."""
+        """Drop every snapshot not recorded in `committed`; raise if the
+        latest committed record's snapshot is absent."""
 
     async def apply_retention(
         self,
@@ -197,7 +211,7 @@ Call-site mapping (extraction, not redesign):
 | `snapshot` | `run_sandbox_backup` + `egress_sandbox` + the sandbox-repo tiers of `host_egress` + `list_changed_files` |
 | `restore` | `ingress_sandbox` |
 | `adopt` | `_fs_copy_repo` |
-| `discard_orphans` | `_drop_orphan_snapshots` |
+| `discard_orphans` | `_drop_orphan_snapshots` (now `forget_unrecorded_snapshots`, keyed on the committed records rather than a latest id) |
 | `apply_retention` | *(new — restic no-op until generation rotation)* |
 | `cleanup` | eval-end retention delete, scoped to the storage area *(net-new enforcement — the `retention` option is defined in `config.py` today but nothing reads it outside config resolution; no eval-end delete exists yet)* |
 
@@ -566,7 +580,8 @@ kept here as a future strategy so the config surface (§6) and the
 
 ## 8. Enabling infrastructure: streaming copy-out and copy-in
 
-`egress_sandbox` already carries a TODO: `read_file` on a single big
+`egress_sandbox` carried a TODO (since retired by the shared
+`_checkpoint/_copy.py` primitive): `read_file` on a single big
 tar peaks host RAM at tarball size and can hit per-call timeouts on
 slow providers. The archive strategy makes this unavoidable, so Phase 2
 builds the shared primitive both need:

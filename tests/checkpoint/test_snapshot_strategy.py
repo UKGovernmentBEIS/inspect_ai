@@ -1,27 +1,35 @@
 """Unit tests for the pluggable sandbox snapshot strategies.
 
-Covers the §4.7 strategy pin semantics and the ``archive`` strategy's
-mechanics (snapshot → restore roundtrip, hash verification, orphan
-discard) against a *local shell* sandbox fake: ``exec`` runs
-the scripts with the host's ``sh`` and file APIs map to host paths, so
-the strategy's real shell pipelines (tar | compress, dd chunking,
-sha256 verify-then-extract) execute for real — no Docker required. The
-strategy's in-sandbox root-only area is pointed at a temp dir via its
-``sandbox_dir`` parameter; ``user="root"`` is ignored by the fake.
+Covers the §4.7 strategy pin semantics, the shared chunked copy-out
+primitive, and the ``archive`` strategy's mechanics (snapshot → restore
+roundtrip, hash verification, orphan discard) against a *local shell*
+sandbox fake: ``exec`` runs the scripts with the host's ``sh`` and file
+APIs map to host paths, so the strategy's real shell pipelines (tar |
+compress, dd chunking, sha256 verify-then-extract) execute for real — no
+Docker required. The strategy's in-sandbox root-only area is pointed at
+a temp dir via its ``sandbox_dir`` parameter; ``user="root"`` is ignored
+by the fake.
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
-import subprocess
+from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Union, overload
 
+import anyio
 import pytest
+from test_helpers.local_shell_sandbox import LocalShellSandbox
 
-from inspect_ai.util._checkpoint._layout.schemas import SnapshotDetails
-from inspect_ai.util._checkpoint._snapshot import snapshot_strategy_name
+from inspect_ai.util._checkpoint._copy import copy_out, copy_out_partial_path
+from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
+from inspect_ai.util._checkpoint._snapshot import (
+    committed_snapshots_for,
+    snapshot_strategy_name,
+)
 from inspect_ai.util._checkpoint._snapshot.archive import (
     ArchiveStrategy,
     _archive_checkpoint_id,
@@ -38,88 +46,51 @@ from inspect_ai.util._checkpoint._snapshot.registry import (
     STRATEGY_RESTIC,
 )
 from inspect_ai.util._checkpoint._snapshot.types import (
+    CommittedSnapshot,
     PriorAttempt,
     SnapshotContext,
 )
 from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
-from inspect_ai.util._sandbox.environment import (
-    SandboxEnvironment,
-    SandboxEnvironmentConfigType,
-)
 from inspect_ai.util._subprocess import ExecResult
 
 
-class _LocalShellSandbox(SandboxEnvironment):
-    """Sandbox fake that executes ``exec`` on the host shell.
-
-    ``extra_env`` overlays the inherited environment (e.g. a ``PATH``
-    with a shim dir prepended) for every ``exec``.
-    """
-
-    def __init__(self, extra_env: dict[str, str] | None = None) -> None:
-        self._extra_env = extra_env
-
-    async def exec(
-        self,
-        cmd: list[str],
-        input: str | bytes | None = None,
-        cwd: str | None = None,
-        env: dict[str, str] | None = None,
-        user: str | None = None,
-        timeout: int | None = None,
-        timeout_retry: bool = True,
-        concurrency: bool = True,
-    ) -> ExecResult[str]:
-        input_bytes = input.encode() if isinstance(input, str) else input
-        run_env = {**os.environ, **self._extra_env} if self._extra_env else None
-        proc = subprocess.run(
-            cmd, input=input_bytes, capture_output=True, timeout=120, env=run_env
-        )
-        return ExecResult(
-            success=proc.returncode == 0,
-            returncode=proc.returncode,
-            stdout=proc.stdout.decode(errors="replace"),
-            stderr=proc.stderr.decode(errors="replace"),
-        )
-
-    async def write_file(self, file: str, contents: str | bytes) -> None:
-        data = contents.encode() if isinstance(contents, str) else contents
-        Path(file).write_bytes(data)
-
-    @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
-
-    @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
-
-    async def read_file(self, file: str, text: bool = True) -> Union[str, bytes]:
-        if text:
-            return Path(file).read_text()
-        return Path(file).read_bytes()
-
-    @classmethod
-    async def sample_cleanup(
-        cls,
-        task_name: str,
-        config: SandboxEnvironmentConfigType | None,
-        environments: dict[str, SandboxEnvironment],
-        interrupted: bool,
-    ) -> None:
-        pass
-
-
-def _context(sample_root: Path, *, resuming: bool = False) -> SnapshotContext:
+def _context(
+    sample_root: Path, *, resuming: bool = False, max_snapshot_bytes: int | None = None
+) -> SnapshotContext:
     subpath = f"sandboxes/default/{STRATEGY_ARCHIVE}"
-    return SnapshotContext(
+    ctx = SnapshotContext(
         sandbox_name="default",
         storage_dir=str(sample_root / subpath),
         storage_subpath=subpath,
         secret="test-secret",
         resuming=resuming,
     )
+    if max_snapshot_bytes is not None:
+        ctx = replace(ctx, max_snapshot_bytes=max_snapshot_bytes)
+    return ctx
 
 
-async def _strategy(env: _LocalShellSandbox, tmp_path: Path) -> ArchiveStrategy:
+def _committed(*records: tuple[int, str]) -> list[CommittedSnapshot]:
+    """Committed archive records as ``(checkpoint_id, archive filename)``."""
+    return [
+        CommittedSnapshot(
+            checkpoint_id=checkpoint_id,
+            details=SnapshotDetails.model_validate(
+                dict(
+                    snapshot_id=f"ckpt-{checkpoint_id:05d}",
+                    size_bytes=1,
+                    duration_ms=1,
+                    strategy=STRATEGY_ARCHIVE,
+                    archive=archive,
+                    content_sha256="0" * 64,
+                )
+            ),
+        )
+        for checkpoint_id, archive in records
+    ]
+
+
+async def _strategy(env: LocalShellSandbox, tmp_path: Path) -> ArchiveStrategy:
     strategy = ArchiveStrategy(
         chunk_size=256 * 1024, sandbox_dir=str(tmp_path / "sandbox-tools")
     )
@@ -150,7 +121,7 @@ def _write_data(data_dir: Path) -> dict[str, bytes]:
 
 
 async def test_archive_snapshot_restore_roundtrip(tmp_path: Path) -> None:
-    env = _LocalShellSandbox()
+    env = LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
     ctx = _context(tmp_path / "sample")
     data_dir = tmp_path / "capture" / "data"
@@ -187,7 +158,7 @@ async def test_archive_snapshot_restore_roundtrip(tmp_path: Path) -> None:
 
 async def test_archive_snapshot_handles_paths_with_spaces(tmp_path: Path) -> None:
     """Include/exclude tokens are shell-quoted into the capture script."""
-    env = _LocalShellSandbox()
+    env = LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
     ctx = _context(tmp_path / "sample")
     data_dir = tmp_path / "capture" / "my data"
@@ -220,7 +191,7 @@ async def test_archive_snapshot_tolerates_tar_exit_1(tmp_path: Path) -> None:
     shim = shim_dir / "tar"
     shim.write_text(f'#!/bin/sh\n"{real_tar}" "$@"\nexit 1\n')
     shim.chmod(0o755)
-    env = _LocalShellSandbox(
+    env = LocalShellSandbox(
         extra_env={"PATH": f"{shim_dir}{os.pathsep}{os.environ['PATH']}"}
     )
     strategy = await _strategy(env, tmp_path)
@@ -235,7 +206,7 @@ async def test_archive_snapshot_tolerates_tar_exit_1(tmp_path: Path) -> None:
     # capture-time "file changed as we read it" warning.
     for rel in files:
         (data_dir / rel).unlink()
-    await strategy.restore(_LocalShellSandbox(), details, ctx)
+    await strategy.restore(LocalShellSandbox(), details, ctx)
     for rel, content in files.items():
         assert (data_dir / rel).read_bytes() == content
 
@@ -252,7 +223,7 @@ async def test_archive_snapshot_tolerates_staging_cleanup_exception(
     fail the capture or mask a propagating error.
     """
 
-    class _CleanupRaisingSandbox(_LocalShellSandbox):
+    class _CleanupRaisingSandbox(LocalShellSandbox):
         cleanup_script: str | None = None
         cleanup_attempted = False
 
@@ -288,13 +259,13 @@ async def test_archive_snapshot_tolerates_staging_cleanup_exception(
     assert details.snapshot_id == "ckpt-00001"
     for rel in files:
         (data_dir / rel).unlink()
-    await strategy.restore(_LocalShellSandbox(), details, ctx)
+    await strategy.restore(LocalShellSandbox(), details, ctx)
     for rel, content in files.items():
         assert (data_dir / rel).read_bytes() == content
 
 
 async def test_archive_restore_rejects_corrupt_archive(tmp_path: Path) -> None:
-    env = _LocalShellSandbox()
+    env = LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
     ctx = _context(tmp_path / "sample")
     data_dir = tmp_path / "capture" / "data"
@@ -325,7 +296,7 @@ async def test_archive_restore_without_ref_uses_latest_archive(tmp_path: Path) -
     E.g. the kill tore the only checkpoint file mid-write; restic-parity
     degenerate-case semantics.
     """
-    env = _LocalShellSandbox()
+    env = LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
     ctx = _context(tmp_path / "sample")
     data_dir = tmp_path / "capture" / "data"
@@ -347,7 +318,7 @@ async def test_archive_restore_without_ref_uses_latest_archive(tmp_path: Path) -
 async def test_archive_restore_without_ref_and_no_archives_errors(
     tmp_path: Path,
 ) -> None:
-    env = _LocalShellSandbox()
+    env = LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
     with pytest.raises(RuntimeError, match="no adopted archives"):
         await strategy.restore(env, None, _context(tmp_path / "sample"))
@@ -365,7 +336,7 @@ async def test_archive_restore_rejects_malformed_record(
     tmp_path: Path, field: str, value: str, match: str
 ) -> None:
     """Corrupted records fail validation before path joins / root scripts."""
-    env = _LocalShellSandbox()
+    env = LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
     record = {
         "snapshot_id": "ckpt-00001",
@@ -381,19 +352,265 @@ async def test_archive_restore_rejects_malformed_record(
 
 
 async def test_archive_discard_orphans(tmp_path: Path) -> None:
+    """Every archive no committed checkpoint records is deleted."""
     strategy = ArchiveStrategy(sandbox_dir=str(tmp_path / "sandbox-tools"))
     ctx = _context(tmp_path / "sample")
     storage = Path(ctx.storage_dir)
     storage.mkdir(parents=True)
-    for checkpoint_id in (1, 2, 3):
+    for checkpoint_id in (1, 2, 3, 4):
         (storage / f"ckpt-{checkpoint_id:05d}.tar.gz").write_bytes(b"x")
+    (storage / "stray.bin").write_bytes(b"x")
 
-    await strategy.discard_orphans(2, ctx)
+    # Checkpoint 2's file was lost (unparseable), so its archive is an
+    # orphan just like the uncommitted tail (4).
+    await strategy.discard_orphans(
+        _committed((1, "ckpt-00001.tar.gz"), (3, "ckpt-00003.tar.gz")), ctx
+    )
 
     assert sorted(p.name for p in storage.iterdir()) == [
         "ckpt-00001.tar.gz",
-        "ckpt-00002.tar.gz",
+        "ckpt-00003.tar.gz",
     ]
+
+
+async def test_archive_discard_orphans_requires_latest_archive(tmp_path: Path) -> None:
+    strategy = ArchiveStrategy(sandbox_dir=str(tmp_path / "sandbox-tools"))
+    ctx = _context(tmp_path / "sample")
+    storage = Path(ctx.storage_dir)
+    storage.mkdir(parents=True)
+    (storage / "ckpt-00001.tar.gz").write_bytes(b"x")
+
+    with pytest.raises(RuntimeError, match="absent"):
+        await strategy.discard_orphans(
+            _committed((1, "ckpt-00001.tar.gz"), (2, "ckpt-00002.tar.gz")), ctx
+        )
+    # Nothing was deleted before the check failed.
+    assert [p.name for p in storage.iterdir()] == ["ckpt-00001.tar.gz"]
+    # A missing storage area is the same contract violation, not a no-op.
+    with pytest.raises(RuntimeError, match="absent"):
+        await strategy.discard_orphans(
+            _committed((1, "ckpt-00001.tar.gz")), _context(tmp_path / "nowhere")
+        )
+
+
+async def test_archive_snapshot_rejects_oversized_archive(tmp_path: Path) -> None:
+    """An archive over ``max_snapshot_bytes`` fails the fire, leaving no file."""
+    env = LocalShellSandbox()
+    strategy = await _strategy(env, tmp_path)
+    ctx = _context(tmp_path / "sample", max_snapshot_bytes=1024)
+    data_dir = tmp_path / "capture" / "data"
+    _write_data(data_dir)
+    paths = SandboxBackupPaths(include=[str(data_dir)])
+
+    with pytest.raises(RuntimeError, match="max_sandbox_snapshot_bytes"):
+        await strategy.snapshot(env, paths, 1, ctx)
+    storage = Path(ctx.storage_dir)
+    assert not storage.exists() or list(storage.iterdir()) == []
+    assert not (Path(strategy._staging_root)).exists()
+
+
+# --- shared chunked copy-out -----------------------------------------
+
+
+_COPY_CHUNK = 64 * 1024
+
+
+def _copy_fixture(tmp_path: Path, size: int) -> tuple[Path, bytes]:
+    sandbox_dir = tmp_path / "sandbox"
+    sandbox_dir.mkdir()
+    payload = bytes(bytearray((i * 7919 + i // 251) % 256 for i in range(size)))
+    (sandbox_dir / "blob").write_bytes(payload)
+    return sandbox_dir, payload
+
+
+def test_copy_out_partial_path_hides_once(tmp_path: Path) -> None:
+    """A hidden dest gets no second leading dot, so a `.prefix-*` sweep still matches."""
+    assert (
+        copy_out_partial_path(tmp_path / "blob.out") == tmp_path / ".blob.out.partial"
+    )
+    assert (
+        copy_out_partial_path(tmp_path / ".egress-default-ckpt-00001.tar")
+        == tmp_path / ".egress-default-ckpt-00001.tar.partial"
+    )
+
+
+async def test_copy_out_roundtrip_multi_chunk(tmp_path: Path) -> None:
+    sandbox_dir, payload = _copy_fixture(tmp_path, 5 * _COPY_CHUNK + 123)
+    dest = tmp_path / "host" / "blob.out"
+
+    result = await copy_out(
+        LocalShellSandbox(),
+        src=str(sandbox_dir / "blob"),
+        chunk_path=str(sandbox_dir / "chunk"),
+        size=len(payload),
+        dest=dest,
+        max_bytes=len(payload),
+        label="test copy",
+        chunk_size=_COPY_CHUNK,
+        expected_sha256=hashlib.sha256(payload).hexdigest(),
+    )
+
+    assert dest.read_bytes() == payload
+    assert result.size == len(payload)
+    assert result.sha256 == hashlib.sha256(payload).hexdigest()
+    assert not dest.with_name(".blob.out.partial").exists()
+
+
+async def test_copy_out_rejects_reported_size_over_cap_before_reading(
+    tmp_path: Path,
+) -> None:
+    sandbox_dir, payload = _copy_fixture(tmp_path, 2 * _COPY_CHUNK)
+    dest = tmp_path / "host" / "blob.out"
+
+    class _CountingSandbox(LocalShellSandbox):
+        execs = 0
+
+        async def exec(
+            self,
+            cmd: list[str],
+            input: str | bytes | None = None,
+            cwd: str | None = None,
+            env: dict[str, str] | None = None,
+            user: str | None = None,
+            timeout: int | None = None,
+            timeout_retry: bool = True,
+            concurrency: bool = True,
+        ) -> ExecResult[str]:
+            _CountingSandbox.execs += 1
+            return await super().exec(
+                cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+            )
+
+    with pytest.raises(RuntimeError, match="exceeds the max_sandbox_snapshot_bytes"):
+        await copy_out(
+            _CountingSandbox(),
+            src=str(sandbox_dir / "blob"),
+            chunk_path=str(sandbox_dir / "chunk"),
+            size=len(payload),
+            dest=dest,
+            max_bytes=len(payload) - 1,
+            label="test copy",
+            chunk_size=_COPY_CHUNK,
+        )
+    assert _CountingSandbox.execs == 0
+    assert not dest.exists()
+    assert not dest.with_name(".blob.out.partial").exists()
+
+
+async def test_copy_out_aborts_mid_transfer_when_bytes_exceed_cap(
+    tmp_path: Path,
+) -> None:
+    """The cap binds on bytes actually read, not on the sandbox's size claim."""
+    sandbox_dir, payload = _copy_fixture(tmp_path, 4 * _COPY_CHUNK)
+    dest = tmp_path / "host" / "blob.out"
+    # The sandbox under-reports the size (and the cap trusts that claim
+    # only to the extent of letting the copy start).
+    claimed = 2 * _COPY_CHUNK - 1
+
+    with pytest.raises(RuntimeError, match="exceeded the max_sandbox_snapshot_bytes"):
+        await copy_out(
+            LocalShellSandbox(),
+            src=str(sandbox_dir / "blob"),
+            chunk_path=str(sandbox_dir / "chunk"),
+            size=claimed,
+            dest=dest,
+            max_bytes=claimed,
+            label="test copy",
+            chunk_size=_COPY_CHUNK,
+        )
+    assert not dest.exists()
+    assert not dest.with_name(".blob.out.partial").exists()
+
+
+async def test_copy_out_rejects_short_file_and_digest_mismatch(tmp_path: Path) -> None:
+    sandbox_dir, payload = _copy_fixture(tmp_path, 3 * _COPY_CHUNK)
+    dest = tmp_path / "host" / "blob.out"
+    partial = dest.with_name(".blob.out.partial")
+
+    # Sandbox over-reports the size: the file runs out first.
+    with pytest.raises(RuntimeError, match="unexpected EOF"):
+        await copy_out(
+            LocalShellSandbox(),
+            src=str(sandbox_dir / "blob"),
+            chunk_path=str(sandbox_dir / "chunk"),
+            size=len(payload) + _COPY_CHUNK,
+            dest=dest,
+            max_bytes=1 << 30,
+            label="test copy",
+            chunk_size=_COPY_CHUNK,
+        )
+    assert not dest.exists() and not partial.exists()
+
+    with pytest.raises(RuntimeError, match="corrupted in transit"):
+        await copy_out(
+            LocalShellSandbox(),
+            src=str(sandbox_dir / "blob"),
+            chunk_path=str(sandbox_dir / "chunk"),
+            size=len(payload),
+            dest=dest,
+            max_bytes=1 << 30,
+            label="test copy",
+            chunk_size=_COPY_CHUNK,
+            expected_sha256="0" * 64,
+        )
+    assert not dest.exists() and not partial.exists()
+
+
+async def test_copy_out_cancelled_mid_transfer_leaves_no_partial(
+    tmp_path: Path,
+) -> None:
+    """Cancellation between chunks removes the partial file (asyncio and trio)."""
+    sandbox_dir, payload = _copy_fixture(tmp_path, 4 * _COPY_CHUNK)
+    dest = tmp_path / "host" / "blob.out"
+    partial = dest.with_name(".blob.out.partial")
+    second_chunk_started = anyio.Event()
+
+    class _StallingSandbox(LocalShellSandbox):
+        """Blocks forever on the second chunk's ``dd``."""
+
+        dd_calls = 0
+
+        async def exec(
+            self,
+            cmd: list[str],
+            input: str | bytes | None = None,
+            cwd: str | None = None,
+            env: dict[str, str] | None = None,
+            user: str | None = None,
+            timeout: int | None = None,
+            timeout_retry: bool = True,
+            concurrency: bool = True,
+        ) -> ExecResult[str]:
+            if "dd if=" in cmd[-1]:
+                _StallingSandbox.dd_calls += 1
+                if _StallingSandbox.dd_calls == 2:
+                    second_chunk_started.set()
+                    await anyio.sleep_forever()
+            return await super().exec(
+                cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+            )
+
+    async def _copy() -> None:
+        await copy_out(
+            _StallingSandbox(),
+            src=str(sandbox_dir / "blob"),
+            chunk_path=str(sandbox_dir / "chunk"),
+            size=len(payload),
+            dest=dest,
+            max_bytes=1 << 30,
+            label="test copy",
+            chunk_size=_COPY_CHUNK,
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_copy)
+        await second_chunk_started.wait()
+        # One chunk has landed in the partial file by now.
+        assert partial.exists() and partial.stat().st_size == _COPY_CHUNK
+        tg.cancel_scope.cancel()
+
+    assert not dest.exists()
+    assert not partial.exists()
 
 
 async def test_archive_adopt_copies_prior_attempt(tmp_path: Path) -> None:
@@ -427,7 +644,7 @@ async def test_archive_adopt_raises_on_empty_prior(tmp_path: Path) -> None:
 
 
 async def test_archive_setup_reports_missing_tool(tmp_path: Path) -> None:
-    class _NoZstdNoGzip(_LocalShellSandbox):
+    class _NoZstdNoGzip(LocalShellSandbox):
         async def exec(self, cmd: list[str], **kwargs: object) -> ExecResult[str]:  # type: ignore[override]
             return ExecResult(
                 success=False,
@@ -451,6 +668,41 @@ def test_archive_checkpoint_id_parsing() -> None:
 def test_tar_pattern_conversion() -> None:
     assert _tar_pattern("**/.cache") == ".cache"
     assert _tar_pattern("/home/user/.cache") == "home/user/.cache"
+
+
+# --- committed snapshot records --------------------------------------
+
+
+def test_committed_snapshots_for_selects_one_sandbox_in_order() -> None:
+    def _checkpoint(checkpoint_id: int, sandboxes: dict[str, str]) -> Checkpoint:
+        return Checkpoint(
+            checkpoint_id=checkpoint_id,
+            trigger="turn",
+            turn=checkpoint_id,
+            created_at=datetime.now(timezone.utc),
+            duration_ms=0,
+            size_bytes=0,
+            host=SnapshotDetails(snapshot_id="host", size_bytes=0, duration_ms=0),
+            sandboxes={
+                name: SnapshotDetails(snapshot_id=sid, size_bytes=0, duration_ms=0)
+                for name, sid in sandboxes.items()
+            },
+        )
+
+    checkpoints = [
+        _checkpoint(1, {"default": "d1", "web": "w1"}),
+        _checkpoint(2, {"web": "w2"}),
+        _checkpoint(3, {"default": "d3", "web": "w3"}),
+    ]
+
+    assert [
+        (c.checkpoint_id, c.details.snapshot_id)
+        for c in committed_snapshots_for(checkpoints, "default")
+    ] == [(1, "d1"), (3, "d3")]
+    assert [
+        c.details.snapshot_id for c in committed_snapshots_for(checkpoints, "web")
+    ] == ["w1", "w2", "w3"]
+    assert committed_snapshots_for(checkpoints, "other") == []
 
 
 # --- snapshot details strategy identity ------------------------------

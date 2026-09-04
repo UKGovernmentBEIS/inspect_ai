@@ -21,6 +21,7 @@ from inspect_ai.util._checkpoint import (
 )
 from inspect_ai.util._checkpoint.config import (
     DEFAULT_CHECKPOINT_TRIGGER,
+    DEFAULT_MAX_SANDBOX_SNAPSHOT_BYTES,
     CheckpointDisabled,
     merge_checkpoint_configs,
 )
@@ -235,6 +236,36 @@ def test_retention_eval_wide_precedence(
 
 
 # --- falsy-but-set edges (None means inherit, not 0 / {}) -----------
+
+
+def test_max_sandbox_snapshot_bytes_defaults_and_eval_wide_precedence() -> None:
+    out = merge_checkpoint_configs(CheckpointConfig(trigger=Manual()))
+    assert out is not None
+    assert out.max_sandbox_snapshot_bytes == DEFAULT_MAX_SANDBOX_SNAPSHOT_BYTES
+
+    task_only = merge_checkpoint_configs(
+        CheckpointConfig(trigger=Manual(), max_sandbox_snapshot_bytes=1_000)
+    )
+    assert task_only is not None
+    assert task_only.max_sandbox_snapshot_bytes == 1_000
+
+    eval_wins = merge_checkpoint_configs(
+        CheckpointConfig(trigger=Manual(), max_sandbox_snapshot_bytes=1_000),
+        eval_=CheckpointConfig(max_sandbox_snapshot_bytes=2_000),
+    )
+    assert eval_wins is not None
+    assert eval_wins.max_sandbox_snapshot_bytes == 2_000
+
+    # The sample layer has no such field: the cap bounds host disk written
+    # on a sandbox's behalf, so only the task/eval layers may set it.
+    assert not hasattr(CheckpointSampleConfig(), "max_sandbox_snapshot_bytes")
+
+
+def test_max_sandbox_snapshot_bytes_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="max_sandbox_snapshot_bytes"):
+        merge_checkpoint_configs(
+            CheckpointConfig(trigger=Manual(), max_sandbox_snapshot_bytes=0)
+        )
 
 
 def test_explicit_empty_sandbox_paths_overrides_lower() -> None:

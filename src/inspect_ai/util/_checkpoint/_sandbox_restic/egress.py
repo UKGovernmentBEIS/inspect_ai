@@ -7,8 +7,56 @@ commit. The destination is *not* pre-initialized — the first cycle's
 tarball carries ``config``+``keys/*``, which makes the destination a
 valid restic repo on extraction.
 
+Everything the sandbox reports on this path — the diff list, the tar,
+the tar's size, the backup's snapshot id — is untrusted: where the
+sandbox default user is root the agent controls all of it directly, and
+the container owns its own filesystem, so a "forged" snapshot of its
+own state is indistinguishable from a real one. What the host verifies
+is therefore the narrower set of properties it *can* establish from
+host-side truth, and it establishes each of them from state it
+observed itself:
+
+- **Committed history is immutable.** A member may not replace a file
+  already in the destination (an identical re-ship after a failed
+  phase-2 commit is tolerated: both copies must hash to the name, and
+  the existing bytes are left untouched). Restic names ``data/``,
+  ``index/``, ``snapshots/`` and ``keys/`` files by the SHA-256 of their
+  content, and every such member must hash to its own name — so
+  rewriting history would take a SHA-256 collision, whatever the
+  container ships. ``config`` (not content-addressed) and ``keys/*`` are
+  accepted only while the destination has no ``config`` yet.
+- **The member set is exactly the diff list**, every member a regular
+  file in the restic layout (``filter="data"`` stays as the path-safety
+  layer beneath the layout check), so a ``ckpt-N.json`` that names a
+  snapshot means exactly the files this fire accepted were added.
+- **Freshness, not membership.** The snapshot ids the destination
+  gains must be exactly the ``snapshots/`` files this fire wrote (so no
+  snapshot appears that the host did not watch land), the reported id
+  must be among them, and that snapshot's tags must be exactly this
+  cycle's tag. A replayed old id fails. Any other new snapshot is
+  tolerated as an orphan: a fire that failed between its backup and
+  its commit leaves its snapshot unshipped in the sandbox repo, so the
+  next fire's diff legitimately carries it (it may even share this
+  cycle's tag, since a failed fire's checkpoint id is reused). No
+  checkpoint file records an orphan, so resume forgets it
+  (``forget_unrecorded_snapshots``). The host-verified full id is what
+  the strategy records.
+- **A fire that captured nothing is an error.** A restic backup always
+  writes a new ``snapshots/`` file, so an honest post-backup diff is
+  never empty; an empty one is a protocol violation, not a no-op.
+- **The transfer is bounded** by ``max_bytes`` on bytes actually read
+  (see :mod:`.._copy`), and extraction bounds member count (the diff
+  list's length, itself bounded by the tar cap) and cumulative bytes. A
+  delta already over the cap is refused in-sandbox before it is tarred.
+
+Any failure after extraction begins rolls back the files this fire
+wrote, so the destination is unchanged and the in-sandbox manifest —
+advanced only in phase 2, from the host-validated member list — still
+lists the files as unshipped for the next fire.
+
 Ingress is the inverse: on resume, copy a host-side repo back into the
-sandbox and restic-restore the files at their original absolute paths.
+sandbox and restic-restore the recorded snapshot at its original
+absolute paths.
 
 Layout under the same ``/root/.cache/inspect/`` root as :mod:`.repo`:
 - ``./egress-manifest.txt`` — sorted list of files already shipped
@@ -17,27 +65,66 @@ Layout under the same ``/root/.cache/inspect/`` root as :mod:`.repo`:
 
 from __future__ import annotations
 
+import hashlib
 import io
-import json
-import sys
+import os
+import re
+import shutil
 import tarfile
+from collections.abc import Collection, Sequence
+from functools import partial
 from pathlib import Path
+from typing import IO, Any, NamedTuple
 
 import anyio
 
-from inspect_ai.util._restic.ops import restic_env
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
-from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
 from .._async_fs import async_mkdir
-from .repo import _SANDBOX_RESTIC_DIR, _SANDBOX_RESTIC_PATH, _SANDBOX_RESTIC_REPO
+from .._copy import DEFAULT_COPY_CHUNK_SIZE, copy_out
+from .._repo_ops import SNAPSHOT_ID_RE, list_snapshots, match_snapshot_id
+from .repo import _SANDBOX_RESTIC_DIR
 
-_EGRESS_MANIFEST = f"{_SANDBOX_RESTIC_DIR}/egress-manifest.txt"
-_EGRESS_STAGING = f"{_SANDBOX_RESTIC_DIR}/staging"
+_HEX64 = r"[0-9a-f]{64}"
+_MEMBER_RE = re.compile(
+    rf"^(?:config|keys/{_HEX64}|data/[0-9a-f]{{2}}/{_HEX64}|index/{_HEX64}"
+    rf"|snapshots/{_HEX64})$"
+)
+"""The restic repo layout: the only member names egress accepts."""
+
+_FIRST_CYCLE_ONLY = ("config", "keys/")
+_HASH_CHUNK = 1024 * 1024
+
+
+class EgressVerificationError(RuntimeError):
+    """A sandbox egress failed one of the host-side verification checks."""
+
+
+class _SandboxPaths(NamedTuple):
+    """In-sandbox paths the egress/ingress protocol uses, under one root."""
+
+    restic: str
+    repo: str
+    manifest: str
+    staging: str
+
+
+def _sandbox_paths(sandbox_dir: str) -> _SandboxPaths:
+    return _SandboxPaths(
+        restic=f"{sandbox_dir}/restic",
+        repo=f"{sandbox_dir}/repo",
+        manifest=f"{sandbox_dir}/egress-manifest.txt",
+        staging=f"{sandbox_dir}/staging",
+    )
 
 
 async def ingress_sandbox(
-    env: SandboxEnvironment, src_repo: str, password: str
+    env: SandboxEnvironment,
+    src_repo: str,
+    password: str,
+    snapshot_id: str | None = None,
+    *,
+    sandbox_dir: str = _SANDBOX_RESTIC_DIR,
 ) -> None:
     """Copy a host-side restic repo into the sandbox + restore from it.
 
@@ -48,9 +135,12 @@ async def ingress_sandbox(
     2. Stream the tarball into the sandbox via root ``sh`` so the agent
        never sees the bytes in flight, extracting into the standard
        in-sandbox repo location (``/root/.cache/inspect/repo``).
-    3. Run ``restic restore latest --target /`` inside the sandbox so
-       restored files land at their original absolute paths, replacing
-       whatever the fresh sandbox came up with.
+    3. Run ``restic restore <snapshot_id> --target /`` inside the
+       sandbox so restored files land at their original absolute paths,
+       replacing whatever the fresh sandbox came up with.
+       ``snapshot_id`` is the latest committed checkpoint's recorded
+       (host-verified) id; ``None`` restores ``latest`` — the degenerate
+       resume with no committed record for this sandbox.
 
     Egress's two-phase manifest is reseeded by writing a manifest line
     for every file in the freshly-populated repo, so the next fire's
@@ -61,25 +151,31 @@ async def ingress_sandbox(
         raise RuntimeError(
             f"resume: expected sandbox repo at {src}, but it doesn't exist"
         )
+    if snapshot_id is not None and not SNAPSHOT_ID_RE.fullmatch(snapshot_id):
+        raise RuntimeError(
+            f"resume: checkpoint record has malformed sandbox snapshot id "
+            f"{snapshot_id!r}"
+        )
+    paths = _sandbox_paths(sandbox_dir)
 
     tar_bytes = _build_repo_tar(src)
 
     extract_script = (
         f"set -e; "
-        f"install -d -m 0700 {_SANDBOX_RESTIC_DIR}; "
-        f"rm -rf {_SANDBOX_RESTIC_REPO}; "
-        f"mkdir -p {_SANDBOX_RESTIC_REPO}; "
-        f"tar -xf - -C {_SANDBOX_RESTIC_REPO}; "
+        f"install -d -m 0700 {sandbox_dir}; "
+        f"rm -rf {paths.repo}; "
+        f"mkdir -p {paths.repo}; "
+        f"tar -xf - -C {paths.repo}; "
         # Seed the manifest with every inherited file so the next
         # egress only ships forward-progress entries.
-        f"mkdir -p {_EGRESS_STAGING}; "
-        f"(cd {_SANDBOX_RESTIC_REPO} && "
+        f"mkdir -p {paths.staging}; "
+        f"(cd {paths.repo} && "
         f"  {{ find config -type f 2>/dev/null; "
         f"     find keys -type f 2>/dev/null; "
         f"     find data -type f 2>/dev/null; "
         f"     find index -type f 2>/dev/null; "
         f"     find snapshots -type f 2>/dev/null; }} | "
-        f"  LC_ALL=C sort > {_EGRESS_MANIFEST})"
+        f"  LC_ALL=C sort > {paths.manifest})"
     )
     result = await env.exec(["sh", "-c", extract_script], input=tar_bytes, user="root")
     if not result.success:
@@ -87,11 +183,11 @@ async def ingress_sandbox(
 
     restore = await env.exec(
         [
-            _SANDBOX_RESTIC_PATH,
+            paths.restic,
             "-r",
-            _SANDBOX_RESTIC_REPO,
+            paths.repo,
             "restore",
-            "latest",
+            snapshot_id if snapshot_id is not None else "latest",
             "--target",
             "/",
         ],
@@ -113,6 +209,30 @@ def _build_repo_tar(repo: Path) -> bytes:
     return buf.getvalue()
 
 
+def _scratch_dir(dest_repo: str) -> Path:
+    """This sandbox's host scratch directory: ``.egress-<name>`` beside the repo.
+
+    Keyed by the destination repo's name (the sandbox name), which is
+    unique per sample, so no two sandboxes share a scratch directory.
+    """
+    dest_path = Path(dest_repo)
+    return dest_path.parent / f".egress-{dest_path.name}"
+
+
+def _reset_scratch_dir(scratch: Path) -> None:
+    """Recreate ``scratch`` empty, sweeping residue from a killed fire.
+
+    Only a hard kill (SIGKILL, OOM) leaves anything here: the scratch tar
+    or ``copy_out``'s ``.partial`` beside it. Swept before this fire's
+    copy so it never rides along with the next host egress to a remote
+    destination. Failures propagate: a sweep that silently fails would
+    ship the residue.
+    """
+    if scratch.exists():
+        shutil.rmtree(scratch)
+    scratch.mkdir()
+
+
 async def egress_sandbox(
     env: SandboxEnvironment,
     *,
@@ -121,125 +241,522 @@ async def egress_sandbox(
     host_restic: Path,
     tag: str,
     snapshot_id: str,
-) -> None:
+    max_bytes: int,
+    chunk_size: int = DEFAULT_COPY_CHUNK_SIZE,
+    dd_fullblock: bool = False,
+    sandbox_dir: str = _SANDBOX_RESTIC_DIR,
+) -> str:
     """Ship new pack files from the in-sandbox buffer to ``dest_repo``.
 
     ``tag`` names the per-cycle staging tarball and must be unique per
-    cycle; ``snapshot_id`` is the restic snapshot id produced by the
-    backup that immediately preceded this call, used to verify the
-    destination accepted the new snapshot before advancing the manifest.
+    cycle; it is also the tag the backup that immediately preceded this
+    call carried, and ``snapshot_id`` is the id that backup reported.
+    Both are verified against the destination — see the module
+    docstring for the full set of host-side checks — and the
+    host-verified full snapshot id is returned for the caller to
+    record. ``max_bytes`` caps the tarball transfer and the bytes
+    extracted; ``chunk_size``/``dd_fullblock`` tune the chunked
+    copy-out (see :func:`.._copy.copy_out`).
+
+    Raises :class:`EgressVerificationError` when a check fails (the
+    destination is left unchanged) and ``RuntimeError`` for transport
+    or in-sandbox failures.
     """
-    new_files = await _build_egress_tar(env, tag)
-    if not new_files:
-        return
+    if not SNAPSHOT_ID_RE.fullmatch(snapshot_id):
+        raise EgressVerificationError(
+            f"sandbox reported a malformed snapshot id {snapshot_id!r}"
+        )
+    paths = _sandbox_paths(sandbox_dir)
+    label = f"sandbox egress {tag} -> {dest_repo}"
 
-    # TODO(checkpointing-phase-3): for very large per-cycle deltas on
-    # slow providers (Proxmox, Daytona, k8s), `read_file` on a single
-    # big tar can hit per-call timeouts and peaks host RAM at the
-    # tarball size. If that becomes a real problem, swap to a streaming
-    # primitive (`cat <tar> | exec stdout`, chunked) — same protocol,
-    # different copy-out mechanism. Typical inspect deltas are small
-    # enough that a one-shot read_file is the right default.
-    tar_path = f"{_EGRESS_STAGING}/egress-{tag}.tar"
-    # The tarball carries the full initial pack set and can
-    # legitimately exceed the default read cap.
-    with override_max_read_file_size(sys.maxsize):
-        tar_bytes = await env.read_file(tar_path, text=False)
     await async_mkdir(dest_repo)
-    await anyio.to_thread.run_sync(_extract_tar, tar_bytes, dest_repo)
+    before_files = await anyio.to_thread.run_sync(_scan_repo_files, dest_repo)
+    first_cycle = "config" not in before_files
+    before_ids: dict[str, list[str]] = (
+        {} if first_cycle else await _snapshot_tags(host_restic, dest_repo, password)
+    )
+    if match_snapshot_id(before_ids, snapshot_id) is not None:
+        raise EgressVerificationError(
+            f"{label}: reported snapshot {snapshot_id} already exists in the "
+            f"destination (replayed id)"
+        )
 
-    await _verify_destination(host_restic, dest_repo, password, snapshot_id)
+    build = await _build_egress_tar(env, tag, paths, max_bytes=max_bytes)
+    if not build.new_files:
+        raise EgressVerificationError(
+            f"{label}: sandbox reported an empty diff after a backup; a restic "
+            f"backup always writes a new snapshot file, so nothing to ship is a "
+            f"protocol violation, not a no-op"
+        )
 
-    await _commit_egress(env, tag, new_files)
+    # Host scratch copy of the tarball lives in a per-sandbox directory
+    # beside (not inside) the repo, so nothing partial ever sits where
+    # restic would see it. Sandboxes egress concurrently and one name may
+    # prefix another (`web` / `web-db`), so the residue sweep is scoped to
+    # this sandbox's directory, not a name glob over the shared parent.
+    scratch = _scratch_dir(dest_repo)
+    await anyio.to_thread.run_sync(_reset_scratch_dir, scratch)
+    tar_host = scratch / f"{tag}.tar"
+    try:
+        await copy_out(
+            env,
+            src=f"{paths.staging}/egress-{tag}.tar",
+            chunk_path=f"{paths.staging}/chunk",
+            size=build.tar_size,
+            dest=tar_host,
+            max_bytes=max_bytes,
+            label=label,
+            chunk_size=chunk_size,
+            dd_fullblock=dd_fullblock,
+        )
+        extracted = await anyio.to_thread.run_sync(
+            partial(
+                _extract_verified,
+                tar_host,
+                dest_repo,
+                new_files=build.new_files,
+                existing=before_files,
+                first_cycle=first_cycle,
+                max_bytes=max_bytes,
+                label=label,
+            )
+        )
+    finally:
+        # Threaded: the scratch dir holds a tarball of up to `max_bytes`
+        # and unlinking it is not free. Shielded: this `finally` also runs
+        # under cancellation, where an unshielded await would abort.
+        with anyio.CancelScope(shield=True):
+            await anyio.to_thread.run_sync(
+                partial(shutil.rmtree, scratch, ignore_errors=True)
+            )
+
+    try:
+        verified_id = await _verify_fresh_snapshot(
+            host_restic,
+            dest_repo,
+            password,
+            before_ids=before_ids,
+            written=extracted.written,
+            snapshot_id=snapshot_id,
+            tag=tag,
+            label=label,
+        )
+    except BaseException:
+        # Shielded so a cancellation arriving during verification still
+        # rolls the destination back (a cancelled scope would otherwise
+        # abort the rollback's own await).
+        with anyio.CancelScope(shield=True):
+            await anyio.to_thread.run_sync(_remove_files, dest_repo, extracted.written)
+        raise
+
+    await _commit_egress(env, tag, extracted.members, paths)
+    return verified_id
 
 
-async def _build_egress_tar(env: SandboxEnvironment, tag: str) -> list[str]:
+class _EgressBuild(NamedTuple):
+    """Phase 1's sandbox-reported result (advisory: verified host-side)."""
+
+    new_files: list[str]
+    """Repo-relative paths the sandbox staged into this cycle's tarball."""
+
+    tar_size: int
+    """The tarball's size in bytes as the sandbox reports it."""
+
+
+_OVERSIZE_MARKER = "oversize"
+"""First stdout line of the build script when the delta exceeds the cap."""
+
+
+async def _build_egress_tar(
+    env: SandboxEnvironment, tag: str, paths: _SandboxPaths, *, max_bytes: int
+) -> _EgressBuild:
     """Phase 1 (in-sandbox): diff vs manifest, build tarball.
 
-    Returns the list of newly-staged file paths (relative to the repo
-    root). Empty list ⇒ nothing new this cycle, no tar produced.
+    Returns the sandbox-reported list of newly-staged file paths
+    (relative to the repo root) and tarball size. An empty list means
+    the sandbox produced no tar — which, after a backup, the caller
+    treats as an error.
+
+    A delta whose files already total more than ``max_bytes`` is refused
+    before any tarring (``RuntimeError``): the tarball can only be
+    larger, ``copy_out`` would refuse it anyway, and — since a refused
+    egress never advances the manifest — the same oversized delta would
+    otherwise be re-tarred in the sandbox on every later fire. The tar's
+    true size is still what the copy-out cap binds on.
 
     The scratch listings live in the root-only staging dir rather than
     ``/tmp``, where they would be world-readable and advertise the
     repo's existence to the agent.
     """
-    # `comm -23` requires both inputs sorted; `find` output is sorted via
-    # `LC_ALL=C sort`. `tar -T -` reads the file list from stdin in the
-    # given order — the order in which the host-side extraction will
-    # see them. Order: config + keys (small, only first cycle anyway),
-    # then data (referenced by index/snapshots), then index, then
-    # snapshots — so the destination is valid at every intermediate
-    # state if extraction crashes mid-way.
+    # `comm -23` requires both inputs sorted (`LC_ALL=C sort`), so the diff
+    # list is then re-ranked into the order `tar -T` writes members — the
+    # order in which the host-side extraction lands them: keys, then
+    # config (first cycle only; `config` is the first-cycle sentinel, so
+    # it lands last of the two — a repo with `config` but no key cannot
+    # be opened and would never be re-bootstrapped), then data (referenced
+    # by index/snapshots), then index, then snapshots — so the destination
+    # is valid at every intermediate state if extraction crashes mid-way.
+    # Restic file names are hex, so the unquoted `xargs` over `new.txt` is
+    # safe; `ls -ln` column 5 is the byte size on GNU, busybox and BSD
+    # alike (`stat`'s flags are not). The total is printed with `%.0f`:
+    # `print` on older awks (mawk 1.3.3) emits sums above the C int range
+    # in scientific notation, which `test -gt` rejects and the `if` then
+    # silently skips the pre-check.
     script = f"""\
 set -e
-cd {_SANDBOX_RESTIC_REPO}
-mkdir -p {_EGRESS_STAGING}
-touch {_EGRESS_MANIFEST}
-# Drop any orphan tarballs from prior cycles whose phase-2 commit
-# failed — their content is regenerated by this cycle's diff.
-rm -f {_EGRESS_STAGING}/egress-*.tar
+cd {paths.repo}
+mkdir -p {paths.staging}
+touch {paths.manifest}
+# Drop any orphan tarballs (and copy-out chunks) from prior cycles whose
+# phase-2 commit failed — their content is regenerated by this cycle's diff.
+rm -f {paths.staging}/egress-*.tar {paths.staging}/chunk
 {{
-  find config -type f 2>/dev/null
   find keys -type f 2>/dev/null
+  find config -type f 2>/dev/null
   find data -type f 2>/dev/null
   find index -type f 2>/dev/null
   find snapshots -type f 2>/dev/null
-}} | LC_ALL=C sort > {_EGRESS_STAGING}/current.txt
-LC_ALL=C comm -23 {_EGRESS_STAGING}/current.txt {_EGRESS_MANIFEST} > {_EGRESS_STAGING}/new.txt
-if [ ! -s {_EGRESS_STAGING}/new.txt ]; then exit 0; fi
-tar -cf {_EGRESS_STAGING}/egress-{tag}.tar -T {_EGRESS_STAGING}/new.txt
-cat {_EGRESS_STAGING}/new.txt
+}} | LC_ALL=C sort > {paths.staging}/current.txt
+LC_ALL=C comm -23 {paths.staging}/current.txt {paths.manifest} > {paths.staging}/new.txt
+if [ ! -s {paths.staging}/new.txt ]; then exit 0; fi
+total=$(xargs ls -ln < {paths.staging}/new.txt | awk '{{ s += $5 }} END {{ printf "%.0f\\n", s + 0 }}')
+if [ "$total" -gt {max_bytes} ]; then echo "{_OVERSIZE_MARKER} $total"; exit 0; fi
+awk '{{ r = 5; if ($0 ~ /^keys\\//) r = 1; else if ($0 == "config") r = 2; \\
+  else if ($0 ~ /^data\\//) r = 3; else if ($0 ~ /^index\\//) r = 4; print r, $0 }}' \\
+  {paths.staging}/new.txt | LC_ALL=C sort | cut -d" " -f2- > {paths.staging}/order.txt
+tar -cf {paths.staging}/egress-{tag}.tar -T {paths.staging}/order.txt
+wc -c < {paths.staging}/egress-{tag}.tar
+cat {paths.staging}/new.txt
 """
     result = await env.exec(["sh", "-c", script], user="root")
     if not result.success:
         raise RuntimeError(f"sandbox egress (build) failed: {result.stderr}")
-    return [line for line in result.stdout.splitlines() if line]
-
-
-def _extract_tar(tar_bytes: bytes, dest_repo: str) -> None:
-    # The tarball bytes originate inside the sandbox (read via `read_file`),
-    # so they are untrusted: a sandboxed agent can plant a malicious tar at
-    # the egress staging path. `filter="data"` rejects absolute paths, `..`
-    # traversal, and outside-pointing links, preventing host-side writes
-    # outside `dest_repo` (CVE-2007-4559 class). See PEP 706.
-    with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:") as tar:
-        tar.extractall(dest_repo, filter="data")
-
-
-async def _verify_destination(
-    host_restic: Path, dest_repo: str, password: str, snapshot_id: str
-) -> None:
-    """Confirm the destination repo lists the new snapshot.
-
-    Cheap metadata read (`restic snapshots --json`); catches torn
-    extractions before we advance the in-sandbox manifest.
-    """
-    proc = await anyio.run_process(
-        [str(host_restic), "-r", dest_repo, "snapshots", "--json"],
-        env=restic_env(password),
-        check=True,
-    )
-    snapshots = json.loads(proc.stdout.decode())
-    if snapshot_id not in {s["id"] for s in snapshots}:
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not lines:
+        return _EgressBuild(new_files=[], tar_size=0)
+    marker, _, total = lines[0].partition(" ")
+    if marker == _OVERSIZE_MARKER:
         raise RuntimeError(
-            f"destination repo {dest_repo} doesn't list snapshot "
-            f"{snapshot_id} after egress"
+            f"sandbox egress (build): this cycle's new repo files total {total} "
+            f"bytes, over the max_sandbox_snapshot_bytes cap of {max_bytes} bytes; "
+            f"nothing was tarred"
+        )
+    try:
+        tar_size = int(lines[0])
+    except ValueError as exc:
+        raise RuntimeError(
+            f"sandbox egress (build): could not parse tar size from {lines[0]!r}"
+        ) from exc
+    return _EgressBuild(new_files=lines[1:], tar_size=tar_size)
+
+
+def _scan_repo_files(dest_repo: str) -> set[str]:
+    """Repo-relative paths of every file in ``dest_repo`` (host truth).
+
+    Also removes ``*.partial`` residue a killed extraction may have left
+    (restic ignores such files, but they would otherwise ride along to a
+    remote destination).
+    """
+    files: set[str] = set()
+    root = Path(dest_repo)
+    for entry in root.rglob("*"):
+        if not entry.is_file():
+            continue
+        if entry.name.endswith(".partial"):
+            entry.unlink(missing_ok=True)
+            continue
+        files.add(entry.relative_to(root).as_posix())
+    return files
+
+
+class _Extracted(NamedTuple):
+    """What ``_extract_verified`` accepted from one cycle's tarball."""
+
+    members: list[str]
+    """Every validated member (sorted) — what the manifest advances by."""
+
+    written: list[str]
+    """The subset actually written to the destination this cycle."""
+
+
+def _extract_verified(
+    tar_path: Path,
+    dest_repo: str,
+    *,
+    new_files: Sequence[str],
+    existing: Collection[str],
+    first_cycle: bool,
+    max_bytes: int,
+    label: str,
+) -> _Extracted:
+    """Validate and extract the egress tarball member by member.
+
+    Every member must pass ``tarfile.data_filter`` (path safety), be a
+    regular file, match the restic layout, be listed in ``new_files``,
+    and appear once (which bounds the member count by the diff list's
+    length); the member set must equal ``new_files``; cumulative member
+    bytes must stay within ``max_bytes``. Each member streams through a
+    hash to a temp name beside its destination and is renamed into
+    place only if the hash equals its basename (``config`` excepted).
+    New ``config``/``keys/*`` files are accepted only on the first
+    cycle. A member already present in ``dest_repo`` is accepted
+    without writing only when the shipped bytes are the existing bytes
+    (both hash to the name; ``config`` compared byte-for-byte) — a
+    re-ship after a failed phase-2 commit — and the existing file is
+    never replaced.
+
+    On any failure, every file this call wrote is removed before the
+    error propagates, so ``dest_repo`` is left as it was found.
+    """
+    expected = set(new_files)
+    if len(expected) != len(new_files):
+        raise EgressVerificationError(f"{label}: diff list contains duplicates")
+    seen: set[str] = set()
+    written: list[str] = []
+    total = 0
+    try:
+        # One TarError mapping for the whole walk: a corrupt header
+        # surfaces from iteration, truncated member data from the reads
+        # inside the loop body. (FilterError is a TarError too, but
+        # _check_member has already mapped it by the time it gets here.)
+        try:
+            with tarfile.open(tar_path, mode="r:") as tar:
+                for member in tar:
+                    name = member.name
+                    _check_member(member, dest_repo, expected, label)
+                    if name in seen:
+                        raise EgressVerificationError(
+                            f"{label}: member {name!r} appears more than once"
+                        )
+                    seen.add(name)
+                    total += member.size
+                    if total > max_bytes:
+                        raise EgressVerificationError(
+                            f"{label}: extracted bytes would exceed the "
+                            f"max_sandbox_snapshot_bytes cap of {max_bytes}"
+                        )
+                    src = tar.extractfile(member)
+                    if src is None:
+                        raise EgressVerificationError(
+                            f"{label}: member {name!r} has no readable content"
+                        )
+                    with src:
+                        if name in existing:
+                            _accept_identical_reship(src, dest_repo, name, label)
+                        elif not first_cycle and name.startswith(_FIRST_CYCLE_ONLY):
+                            raise EgressVerificationError(
+                                f"{label}: member {name!r} is only accepted while "
+                                f"the destination repo is uninitialized"
+                            )
+                        else:
+                            _write_member(src, dest_repo, name, label)
+                            written.append(name)
+        except tarfile.TarError as exc:
+            raise EgressVerificationError(
+                f"{label}: unreadable tarball: {exc}"
+            ) from exc
+        missing = expected - seen
+        if missing:
+            raise EgressVerificationError(
+                f"{label}: diff list names {len(missing)} file(s) absent from the "
+                f"tarball, e.g. {sorted(missing)[:3]}"
+            )
+    except BaseException:
+        _remove_files(dest_repo, written)
+        raise
+    return _Extracted(members=sorted(seen), written=written)
+
+
+def _check_member(
+    member: tarfile.TarInfo,
+    dest_repo: str,
+    expected: Collection[str],
+    label: str,
+) -> None:
+    """Reject a member that fails path safety, layout, or diff-list checks."""
+    name = member.name
+    try:
+        tarfile.data_filter(member, dest_repo)
+    except tarfile.FilterError as exc:
+        raise EgressVerificationError(
+            f"{label}: unsafe member {name!r}: {exc}"
+        ) from exc
+    if not member.isreg():
+        raise EgressVerificationError(f"{label}: member {name!r} is not a regular file")
+    if not _MEMBER_RE.fullmatch(name) or (
+        name.startswith("data/") and name.split("/")[1] != name.split("/")[2][:2]
+    ):
+        raise EgressVerificationError(
+            f"{label}: member {name!r} is not a restic repository file"
+        )
+    if name not in expected:
+        raise EgressVerificationError(
+            f"{label}: member {name!r} is not in the sandbox's diff list"
         )
 
 
-async def _commit_egress(
-    env: SandboxEnvironment, tag: str, new_files: list[str]
+def _write_member(src: IO[bytes], dest_repo: str, name: str, label: str) -> None:
+    """Stream ``src`` to ``dest_repo/name`` via a temp file, hashing in-flight.
+
+    The rename happens only after the content hash matches the name
+    (restic's content addressing; ``config`` is the one exception), so
+    a mismatching member never appears at its final path.
+    """
+    final = Path(dest_repo) / name
+    final.parent.mkdir(parents=True, exist_ok=True)
+    tmp = final.with_name(f"{final.name}.partial")
+    digest = hashlib.sha256()
+    try:
+        with open(tmp, "wb") as out:
+            while chunk := src.read(_HASH_CHUNK):
+                digest.update(chunk)
+                out.write(chunk)
+        if name != "config" and digest.hexdigest() != final.name:
+            raise EgressVerificationError(
+                f"{label}: member {name!r} content hashes to {digest.hexdigest()}, "
+                f"not to its name"
+            )
+        os.replace(tmp, final)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def _accept_identical_reship(
+    src: IO[bytes], dest_repo: str, name: str, label: str
 ) -> None:
-    """Phase 2 (in-sandbox): advance the manifest, drop the tarball."""
+    """Accept a member already in ``dest_repo`` only as a byte-identical no-op.
+
+    Both the existing file and the shipped bytes must hash to the name;
+    ``config`` is not content-addressed, so its shipped bytes must equal
+    the existing bytes exactly. Nothing is written either way.
+    """
+    existing_path = Path(dest_repo) / name
+    if name == "config":
+        if _sha256_stream(src) != _sha256_file(existing_path):
+            raise EgressVerificationError(
+                f"{label}: member 'config' would overwrite the destination's "
+                f"config with different content"
+            )
+        return
+    basename = existing_path.name
+    if _sha256_file(existing_path) != basename:
+        raise EgressVerificationError(
+            f"{label}: member {name!r} would overwrite an existing destination "
+            f"file whose content does not match its name"
+        )
+    if _sha256_stream(src) != basename:
+        raise EgressVerificationError(
+            f"{label}: member {name!r} would overwrite an existing destination "
+            f"file with different content"
+        )
+
+
+def _sha256_file(path: Path) -> str:
+    with open(path, "rb") as f:
+        return _sha256_stream(f)
+
+
+def _sha256_stream(src: IO[bytes]) -> str:
+    digest = hashlib.sha256()
+    while chunk := src.read(_HASH_CHUNK):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _remove_files(dest_repo: str, names: Sequence[str]) -> None:
+    """Unwind ``names`` (in write order) from ``dest_repo``, last-written first.
+
+    Reversing the tar order keeps the destination valid if this itself is
+    killed mid-way: a snapshot never outlives its index and packs, and
+    ``config`` (the first-cycle sentinel) goes before ``keys/*``, so the
+    repo cannot be left with a config and no key.
+    """
+    for name in reversed(names):
+        (Path(dest_repo) / name).unlink(missing_ok=True)
+
+
+async def _snapshot_tags(
+    host_restic: Path, dest_repo: str, password: str
+) -> dict[str, list[str]]:
+    """Full snapshot id → tags for every snapshot the destination lists."""
+    snapshots: list[dict[str, Any]] = await list_snapshots(
+        host_restic, dest_repo, password
+    )
+    return {snap["id"]: list(snap.get("tags") or []) for snap in snapshots}
+
+
+async def _verify_fresh_snapshot(
+    host_restic: Path,
+    dest_repo: str,
+    password: str,
+    *,
+    before_ids: Collection[str],
+    written: Collection[str],
+    snapshot_id: str,
+    tag: str,
+    label: str,
+) -> str:
+    """Require the destination's new snapshots to be the ones this fire wrote.
+
+    The snapshot ids the destination gained must equal the
+    ``snapshots/`` members in ``written`` (what the host itself placed
+    this cycle), must include the reported ``snapshot_id``, and that
+    snapshot must carry exactly ``[tag]``. Other new ids are in-sandbox
+    orphans from fires that failed between backup and commit; they are
+    accepted here and forgotten on resume because no checkpoint file
+    records them. Returns the reported snapshot's full id — the
+    host-verified value the checkpoint file records.
+    """
+    after = await _snapshot_tags(host_restic, dest_repo, password)
+    lost = set(before_ids) - set(after)
+    if lost:
+        raise EgressVerificationError(
+            f"{label}: destination no longer lists snapshot(s) {sorted(lost)}"
+        )
+    new_ids = set(after) - set(before_ids)
+    shipped = {
+        name.removeprefix("snapshots/")
+        for name in written
+        if name.startswith("snapshots/")
+    }
+    if new_ids != shipped:
+        raise EgressVerificationError(
+            f"{label}: destination gained snapshot(s) "
+            f"{sorted(i[:8] for i in new_ids)} but this fire wrote snapshot "
+            f"file(s) {sorted(i[:8] for i in shipped)}"
+        )
+    verified_id = match_snapshot_id(new_ids, snapshot_id)
+    if verified_id is None:
+        raise EgressVerificationError(
+            f"{label}: reported snapshot {snapshot_id} is not among the "
+            f"snapshot(s) the destination gained: {sorted(i[:8] for i in new_ids)}"
+        )
+    if after[verified_id] != [tag]:
+        raise EgressVerificationError(
+            f"{label}: snapshot {verified_id[:8]} carries tags "
+            f"{after[verified_id]}, expected [{tag!r}]"
+        )
+    return verified_id
+
+
+async def _commit_egress(
+    env: SandboxEnvironment, tag: str, members: Sequence[str], paths: _SandboxPaths
+) -> None:
+    """Phase 2 (in-sandbox): advance the manifest, drop the tarball.
+
+    ``members`` is the host-validated member list, so the manifest can
+    only advance by files the host actually accepted.
+    """
     script = f"""\
 set -e
-cat {_EGRESS_MANIFEST} - | LC_ALL=C sort -u > {_EGRESS_MANIFEST}.tmp
-mv {_EGRESS_MANIFEST}.tmp {_EGRESS_MANIFEST}
-rm -f {_EGRESS_STAGING}/egress-{tag}.tar
+cat {paths.manifest} - | LC_ALL=C sort -u > {paths.manifest}.tmp
+mv {paths.manifest}.tmp {paths.manifest}
+rm -f {paths.staging}/egress-{tag}.tar {paths.staging}/chunk
 """
     result = await env.exec(
         ["sh", "-c", script],
-        input="\n".join(new_files) + "\n",
+        input="\n".join(members) + "\n",
         user="root",
     )
     if not result.success:
