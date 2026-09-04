@@ -83,8 +83,8 @@ from .._model_output import (
     StopReason,
 )
 from .._openai import (
-    openai_classify_error_body,
-    openai_http_status_from_error_code,
+    classify_error_body,
+    http_status_from_error_code,
 )
 from .._stream import (
     StreamReasoningEvent,
@@ -473,10 +473,10 @@ def _classify_stream_error(ex: MistralStreamError) -> RetryDecision:
     `code` that positively identifies a non-retryable HTTP status (an
     OpenAI-compatible `{"code": 400}`) is not retried.
     """
-    decision = openai_classify_error_body(ex.code, ex.type)
+    decision = classify_error_body(ex.code, ex.type)
     if decision is not None:
         return decision
-    if openai_http_status_from_error_code(ex.code) is not None:
+    if http_status_from_error_code(ex.code) is not None:
         return RetryDecision.no()
     if ex.type in _MISTRAL_RATE_LIMIT_TYPES:
         return RetryDecision.rate_limit()

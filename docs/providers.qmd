@@ -68,7 +68,7 @@ eval(
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and o-series models and the `computer_use_preview` model.
+By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6 Astra), o-series models, and the `computer_use_preview` model.
 
 If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
@@ -188,7 +188,7 @@ Authentication uses an AWS Bedrock bearer token. There are two ways to provide o
 |---------------------------|---------------------------------------------|
 | `AWS_BEARER_TOKEN_BEDROCK` | Bedrock bearer API key — the AWS-standard name, as used in the AWS and OpenAI documentation. |
 | `BEDROCK_OPENAI_API_KEY` | Bedrock bearer API key — Inspect-convention alias (takes precedence if both are set). |
-| `BEDROCK_OPENAI_BASE_URL` | Custom endpoint override (optional; the AWS-standard `AWS_BEDROCK_BASE_URL` is also accepted). By default Inspect targets the region's Mantle endpoint, choosing the model-appropriate path automatically (`/openai/v1` for frontier models like GPT-5.x and Codex, `/v1` for open-weight models like gpt-oss). |
+| `BEDROCK_OPENAI_BASE_URL` | Custom endpoint override (optional; the AWS-standard `AWS_BEDROCK_BASE_URL` is also accepted). By default Inspect targets the region's Mantle endpoint, choosing the model-appropriate path automatically (`/openai/v1` for frontier models like GPT-5 and later and Codex, `/v1` for open-weight models like gpt-oss). |
 | `AWS_REGION` / `AWS_DEFAULT_REGION` | AWS region (optional; defaults to `us-east-2`). |
 
 The first option is a static bearer key. Generate an [Amazon Bedrock API key](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) and set it via `AWS_BEARER_TOKEN_BEDROCK` (the name used in the AWS and OpenAI docs; Inspect also accepts `BEDROCK_OPENAI_API_KEY`).
