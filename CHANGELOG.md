@@ -1,3 +1,7 @@
+## Unreleased
+
+- Groq: An over-capacity, server, or rate-limit error delivered inside a streamed response is now retried instead of failing the sample, and a streamed context-length rejection yields `model_length` output.
+
 ## 0.3.263 (03 September 2026)
 
 - OpenAI: Added support for GPT-6 Astra (`gpt-6-astra`).
