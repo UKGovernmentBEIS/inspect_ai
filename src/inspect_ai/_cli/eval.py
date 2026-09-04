@@ -882,7 +882,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--reasoning-mode",
         type=click.Choice(["standard", "pro"]),
-        help='Reasoning mode. "pro" performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only ("standard" is the default).',
+        help='Reasoning mode. "pro" performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6 models only ("standard" is the default; GPT-6 does not support "pro").',
         envvar="INSPECT_EVAL_REASONING_MODE",
     )
     @click.option(

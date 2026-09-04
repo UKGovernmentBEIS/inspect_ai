@@ -129,10 +129,39 @@ class OpenAIResponseError(OpenAIError):
         return f"{self.code}: {self.message}"
 
 
-# is_o_series etc. have been moved to the OpenAIAPI class
-# in _providers/openai.py to enable proper overriding by subclasses
+# single-digit major so Azure's dot-less `gpt-35-turbo` doesn't parse as major 35
+# (a future `gpt-10` would need this widened)
+_GPT_VERSION_RE = re.compile(r"gpt-(\d)(?!\d)(?:\.(\d+))?")
+
+
+def openai_gpt_version(model_name: str) -> tuple[int, int] | None:
+    """(major, minor) of the `gpt-N[.M]` token in a model name, or None.
+
+    Searches rather than anchors so hosting prefixes (`openai.gpt-6-astra`) and
+    Azure deployment names (`my-gpt-6-deployment`) resolve too.
+    """
+    match = _GPT_VERSION_RE.search(model_name.lower())
+    if match is None:
+        return None
+    return (int(match.group(1)), int(match.group(2) or 0))
+
+
 def is_gpt_5_model(model_name: str) -> bool:
-    return "gpt-5" in model_name.lower()
+    """gpt-5 or any later major version (frontier request shape and reasoning)."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 0)
+
+
+def is_gpt_5_plus_model(model_name: str) -> bool:
+    """gpt-5.1 or later: reasoning can be turned off with `none` effort (until gpt-6, see `is_gpt_6_model`)."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 1)
+
+
+def is_gpt_6_model(model_name: str) -> bool:
+    """gpt-6 or later: always reasons, so sampling params are rejected outright."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (6, 0)
 
 
 def is_o_series_model(model_name: str) -> bool:
@@ -142,15 +171,10 @@ def is_o_series_model(model_name: str) -> bool:
     return "gpt" not in name and bool(re.search(r"o\d+", name))
 
 
-_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
-
-
 def supports_native_max_reasoning_effort(model_name: str) -> bool:
     """`max` reasoning effort shipped with gpt-5.6; earlier gpt-5.x top out at `xhigh`."""
-    match = _GPT_VERSION_RE.match(model_name.lower())
-    if match is None:
-        return False
-    return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 6)
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 6)
 
 
 def reasons_by_default_model(model_name: str) -> bool:
