@@ -44,11 +44,15 @@ class Recorder(abc.ABC):
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None: ...
 
     def destination_written(self, eval: EvalSpec) -> bool:
-        """Whether anything has reached the eval's destination log file.
+        """Whether anything has reached the eval's in-progress destination log.
 
-        ``False`` only when the recorder knows nothing was written (an
-        attempt that failed before its first flush); recorders that
-        cannot tell report ``True``.
+        Asked only for a log that is still in progress (after ``log_init``,
+        before ``log_finish``); a finished log is known to be written
+        without consulting the recorder. ``False`` when nothing has been
+        flushed yet (an attempt that failed before its first flush). A
+        recorder that tracks this should override and raise for an eval it
+        is not tracking; this default is legacy behaviour for recorders
+        that cannot tell, and always reports ``True``.
         """
         return True
 

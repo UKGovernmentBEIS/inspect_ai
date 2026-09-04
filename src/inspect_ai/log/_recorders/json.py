@@ -113,8 +113,12 @@ class JSONRecorder(FileRecorder):
     @override
     def destination_written(self, eval: EvalSpec) -> bool:
         log = self.data.get(self._log_file_key(eval))
-        # popped by log_finish: the file was written
-        return log.written if log is not None else True
+        if log is None:
+            raise RuntimeError(
+                f"No log in progress for eval {eval.eval_id} "
+                "(finished, discarded, or never initialised)"
+            )
+        return log.written
 
     @override
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
