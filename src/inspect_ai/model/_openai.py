@@ -153,6 +153,18 @@ def supports_native_max_reasoning_effort(model_name: str) -> bool:
     return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 6)
 
 
+def reasons_by_default_model(model_name: str) -> bool:
+    """gpt-5.5+ reason at the server default effort when none is requested.
+
+    In that state the API rejects sampling params (`temperature`, `top_p`,
+    logprobs); gpt-5.1 through gpt-5.4 accept them when no effort is set.
+    """
+    match = _GPT_VERSION_RE.match(model_name.lower())
+    if match is None:
+        return False
+    return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 5)
+
+
 def needs_max_completion_tokens(model_name: str) -> bool:
     return is_gpt_5_model(model_name) or is_o_series_model(model_name)
 

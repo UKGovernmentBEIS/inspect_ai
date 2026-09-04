@@ -58,6 +58,7 @@ from .._openai import (
     openai_handle_bad_request,
     openai_handle_stream_error,
     openai_media_filter,
+    reasons_by_default_model,
     supports_native_max_reasoning_effort,
 )
 from .._stream import model_stream_requested
@@ -567,6 +568,9 @@ class ModelInfo(ResponsesModelInfo):
 
     def supports_max_reasoning_effort(self) -> bool:
         return supports_native_max_reasoning_effort(self.model_family)
+
+    def reasons_by_default(self) -> bool:
+        return reasons_by_default_model(self.model_family) and not self.is_gpt_5_chat()
 
     def is_gpt_5_chat(self) -> bool:
         return self.is_gpt_5() and "-chat" in self.model_family

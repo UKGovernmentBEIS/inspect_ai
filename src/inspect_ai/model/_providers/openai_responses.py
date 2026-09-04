@@ -457,6 +457,7 @@ def completion_params_responses(
             model_info.is_gpt_5_plus()
             and (
                 config.reasoning_effort not in [None, "none"]
+                or (config.reasoning_effort is None and model_info.reasons_by_default())
                 or config.reasoning_mode == "pro"
             )
         )

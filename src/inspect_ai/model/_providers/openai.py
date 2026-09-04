@@ -43,6 +43,7 @@ from .._openai import (
     is_o_series_model,
     openai_classify_retry,
     openai_should_retry,
+    reasons_by_default_model,
     supports_native_max_reasoning_effort,
 )
 from .._openai_responses import (
@@ -476,6 +477,11 @@ class OpenAIAPI(ModelAPI):
         return supports_native_max_reasoning_effort(self.model_family()) or (
             self.is_latest()
         )
+
+    def reasons_by_default(self) -> bool:
+        return (
+            reasons_by_default_model(self.model_family()) or self.is_latest()
+        ) and not self.is_gpt_5_chat()
 
     def is_gpt_5_chat(self) -> bool:
         name = self.model_family()
