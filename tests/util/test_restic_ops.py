@@ -316,6 +316,7 @@ async def test_restore_repo_restores_known_subfolder(
         f"{_SNAPSHOT_ID}:{_SNAPSHOT_PATH}",
         "--target",
         str(target),
+        "--verify",
     ]
     assert [p.name for p in target.iterdir()] == ["store.json"]
 
@@ -629,13 +630,53 @@ async def test_restore_repo_surfaces_target_emptying_failure(
 async def test_restore_repo_propagates_restic_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    def fail(target: Path) -> None:
+    """A failed restore propagates and leaves its partial tree; the next restore empties it."""
+    target = tmp_path / "ctx"
+
+    def fail_midway(path: Path) -> None:
+        (path / "partial.json").write_text("{")
         raise subprocess.CalledProcessError(1, ["restic", "restore"])
 
-    _fake_restic(monkeypatch, _STORE_ONLY, fail)
-
+    _fake_restic(monkeypatch, _STORE_ONLY, fail_midway)
     with pytest.raises(subprocess.CalledProcessError):
-        await _restore(tmp_path / "ctx")
+        await _restore(target)
+    assert [p.name for p in target.iterdir()] == ["partial.json"]
+
+    _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+    await _restore(target)
+    assert [p.name for p in target.iterdir()] == ["store.json"]
+
+
+async def test_restore_repo_cancelled_mid_restore_then_retried(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Cancellation while restic writes propagates; the retry starts from an empty target."""
+    target = tmp_path / "ctx"
+
+    async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
+        if "ls" in command:
+            lines = "\n".join(json.dumps(record) for record in _STORE_ONLY)
+            return SimpleNamespace(stdout=lines.encode())
+        (target / "partial.json").write_text("{")
+        await anyio.sleep_forever()
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr(anyio, "run_process", fake_run_process)
+    with anyio.move_on_after(0.2) as scope:
+        await _restore(target)
+    assert scope.cancelled_caught
+    assert [p.name for p in target.iterdir()] == ["partial.json"]
+
+    seen_at_restore: list[list[str]] = []
+
+    def restore(path: Path) -> None:
+        seen_at_restore.append(sorted(p.name for p in path.iterdir()))
+        _write_store(path)
+
+    _fake_restic(monkeypatch, _STORE_ONLY, restore)
+    await _restore(target)
+    assert seen_at_restore == [[]]
+    assert [p.name for p in target.iterdir()] == ["store.json"]
 
 
 def test_tree_path_maps_windows_drive_to_root_component() -> None:

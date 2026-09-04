@@ -24,7 +24,7 @@ from .summary import ResticBackupSummary
 
 
 class RestoredTreeError(RuntimeError):
-    """A snapshot to be restored violates the regular-files-only contract."""
+    """A snapshot to be restored holds non-regular nodes or exceeds the bounds."""
 
 
 async def init_repo(restic: Path, repo: str, password: str) -> None:
@@ -114,6 +114,10 @@ async def restore_repo(
     (:func:`_check_snapshot_nodes`). The source directory is then restored
     with restic's ``<snapshot>:<subfolder>`` syntax, which places its
     contents directly in ``target`` with no path chain to walk or rename.
+    The listing's sizes are the repo's own claims, so the restore runs with
+    ``--verify``: restic reads each restored file back and fails if its
+    size or content disagrees with the node, which is what makes the byte
+    bound hold for what actually lands on disk.
 
     ``target`` must be a directory or absent; a symlink is refused without
     being followed (:func:`_prepare_target`). It is emptied before restic
@@ -130,7 +134,9 @@ async def restore_repo(
         RuntimeError: ``target`` is a symlink or not a directory, the repo
             has no snapshot, the snapshot records no/several source paths,
             or its source path is not a directory in the listing.
-        OSError: ``target`` could not be emptied.
+        OSError: ``target`` could not be created or emptied.
+        subprocess.CalledProcessError: ``restic restore`` failed, including
+            a ``--verify`` mismatch.
     """
     target_dir = _prepare_target(target)
     snapshot, nodes = await _list_latest_snapshot(
@@ -155,6 +161,7 @@ async def restore_repo(
             f"{snapshot['id']}:{subfolder}",
             "--target",
             str(target_dir),
+            "--verify",
         ],
         env=restic_env(password),
         check=True,
@@ -164,10 +171,11 @@ async def restore_repo(
 def _prepare_target(target: str) -> Path:
     """``target`` as an absolute path, created if absent.
 
-    Checked with ``lstat`` before anything resolves the path: the caller's
-    ``mkdir(exist_ok=True)`` accepts a symlink to an existing directory,
-    and resolving one would redirect both the restore and the pre-restore
-    emptying at wherever it points on the host. A symlink or a
+    Checked with ``lstat`` before anything resolves the path: the
+    ``mkdir(exist_ok=True)`` that creates the context dir on the caller's
+    side (``ensure_context_dir``) accepts a symlink to an existing
+    directory, and resolving one would redirect both the restore and the
+    pre-restore emptying at wherever it points on the host. A symlink or a
     non-directory at ``target`` is refused.
     """
     path = Path(os.path.abspath(target))
@@ -231,9 +239,9 @@ async def _list_latest_snapshot(
         )
     except CalledProcessError as ex:
         stderr = ex.stderr.decode(errors="replace").strip() if ex.stderr else ""
+        detail = "no snapshot to restore" if "no snapshot found" in stderr else "failed"
         raise RuntimeError(
-            f"restic restore: listing the latest snapshot in {repo} failed "
-            f"(no snapshot to restore?): {stderr}"
+            f"restic restore: listing the latest snapshot in {repo} {detail}: {stderr}"
         ) from ex
     snapshot: dict[str, Any] | None = None
     nodes: list[dict[str, Any]] = []
@@ -265,8 +273,9 @@ def _check_snapshot_nodes(
 
     Every node must be a ``dir`` or ``file`` — a symlink, fifo, socket, or
     device node is rejected here, before restic materializes anything.
-    ``ls`` and ``restore`` read the same tree blobs, so what restic would
-    write is exactly what is listed here.
+    ``ls`` and ``restore`` read the same tree blobs, so the nodes restic
+    goes on to write are the ones listed here (restic itself refuses
+    malformed node names such as ``..``).
     The node count (including the source path's ancestor directories,
     which restic lists too) is bounded by ``max_files`` and the summed
     file sizes by ``max_bytes``; a file node without an integer ``size``
@@ -280,11 +289,13 @@ def _check_snapshot_nodes(
     dirs: set[str] = set()
     for node in nodes:
         kind, path = node.get("type"), node.get("path")
+        if not isinstance(path, str):
+            raise RestoredTreeError(f"snapshot node without a path: {node}")
         if kind == "dir":
-            dirs.add(str(path))
+            dirs.add(path)
         elif kind == "file":
             size = node.get("size")
-            if not isinstance(size, int):
+            if not isinstance(size, int) or isinstance(size, bool):
                 raise RestoredTreeError(f"snapshot file node without a size: {path}")
             total += size
         else:
