@@ -542,12 +542,12 @@ class SampleRequeue:
         if self._checkpoints_dir is None:
             return False
         from inspect_ai.util._checkpoint._layout import (
-            resolve_resumable_sample_dir,
             sample_checkpoints_dir,
+            scan_latest_committed_checkpoint,
         )
 
         return (
-            await resolve_resumable_sample_dir(
+            await scan_latest_committed_checkpoint(
                 sample_checkpoints_dir(self._checkpoints_dir, sample_id, epoch)
             )
             is not None

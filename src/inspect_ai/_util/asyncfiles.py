@@ -4,9 +4,11 @@ import errno
 import functools
 import io
 import logging
+import os
 import shutil
 import time
-from contextlib import AbstractAsyncContextManager, contextmanager
+import uuid
+from contextlib import AbstractAsyncContextManager, contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
@@ -557,13 +559,28 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             return None
 
     async def get_file(self, remote: str, local: str) -> None:
-        """Download `remote` to local path `local`."""
+        """Download `remote` to local path `local`, replacing any existing file.
+
+        Downloads land in a sibling temp file and are renamed into place,
+        so a partial download never masquerades as the file and an
+        existing read-only target (restic writes repo files ``0400``) is
+        replaced rather than opened for writing. boto3's ``download_file``
+        does this itself; aioboto3's opens the target in place.
+        """
         if is_s3_filename(remote):
             bucket, key = s3_bucket_and_key(remote)
             with _map_missing_s3_object(remote):
                 if current_async_backend() == "asyncio":
                     client = await self.s3_client_async()
-                    await client.download_file(Bucket=bucket, Key=key, Filename=local)
+                    partial_path = f"{local}.{uuid.uuid4().hex}.part"
+                    try:
+                        await client.download_file(
+                            Bucket=bucket, Key=key, Filename=partial_path
+                        )
+                        os.replace(partial_path, local)
+                    finally:
+                        with suppress(FileNotFoundError):
+                            os.remove(partial_path)
                 else:
                     await anyio.to_thread.run_sync(
                         s3_get_file, self.s3_client(), bucket, key, local
@@ -574,14 +591,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def copy_file(self, source: str, destination: str) -> None:
         """Copy `source` to `destination`; either side may be local or remote.
 
-        An s3 → s3 pair copies server-side (single `CopyObject` — capped
-        at 5GB per object by S3, well above any file this codebase
-        copies; restic pack files top out at 128MiB). A local
-        destination's parent directory must already exist. Pairs
-        involving a non-s3 remote (gs://, az://, ...) buffer the file
-        through memory — never `to_thread` over fsspec's own event-loop
-        thread (deadlock hazard; see AGENTS.md), and fine for the file
-        sizes above.
+        An s3 → s3 pair copies server-side: a single `CopyObject` up to
+        S3's 5GiB per-request cap, multipart (`UploadPartCopy`) above it
+        — the archive snapshot strategy writes one tar per checkpoint
+        with no size cap. A local destination's parent directory must
+        already exist. Pairs involving a non-s3 remote (gs://, az://,
+        ...) buffer the file through memory — never `to_thread` over
+        fsspec's own event-loop thread (deadlock hazard; see AGENTS.md).
         """
         src_s3 = is_s3_filename(source)
         dst_s3 = is_s3_filename(destination)
@@ -594,10 +610,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             async def do_copy() -> None:
                 if current_async_backend() == "asyncio":
                     client = await self.s3_client_async()
-                    await client.copy_object(
+                    await client.copy(
                         CopySource={"Bucket": src_bucket, "Key": src_key},
                         Bucket=dst_bucket,
                         Key=dst_key,
+                        Config=_s3_copy_transfer_config(),
                     )
                 else:
                     await anyio.to_thread.run_sync(
@@ -700,7 +717,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     kwargs["Delimiter"] = "/"
                 async for page in paginator.paginate(**kwargs):
                     for obj in page.get("Contents", []):
-                        if fnmatchcase(obj["Key"].rsplit("/", 1)[-1], pattern):
+                        if _is_s3_file_key(obj["Key"], pattern):
                             yield (
                                 _s3_obj_to_file_info(bucket, obj)
                                 if detail
@@ -1120,15 +1137,26 @@ def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
 def s3_copy_object(
     s3: Any, src_bucket: str, src_key: str, dst_bucket: str, dst_key: str
 ) -> None:
-    s3.copy_object(
+    s3.copy(
         CopySource={"Bucket": src_bucket, "Key": src_key},
         Bucket=dst_bucket,
         Key=dst_key,
+        Config=_s3_copy_transfer_config(),
     )
 
 
 def s3_delete_object(s3: Any, bucket: str, key: str) -> None:
     s3.delete_object(Bucket=bucket, Key=key)
+
+
+def _is_s3_file_key(key: str, pattern: str) -> bool:
+    """Whether a listed key is a file whose basename matches ``pattern``.
+
+    Zero-byte "directory marker" keys (``prefix/``, created by the S3
+    console's "Create folder" and by some sync tools) are not files —
+    their empty basename would otherwise match ``*``.
+    """
+    return not key.endswith("/") and fnmatchcase(key.rsplit("/", 1)[-1], pattern)
 
 
 def s3_iter_files(
@@ -1146,7 +1174,7 @@ def s3_iter_files(
     results: list[str | FileInfo] = []
     for page in paginator.paginate(**kwargs):
         for obj in page.get("Contents", []):
-            if fnmatchcase(obj["Key"].rsplit("/", 1)[-1], pattern):
+            if _is_s3_file_key(obj["Key"], pattern):
                 results.append(
                     _s3_obj_to_file_info(bucket, obj)
                     if detail
@@ -1265,6 +1293,22 @@ def bind_async_filesystem(fs: AsyncFilesystem) -> Iterator[None]:
 
 
 @functools.cache
+def _s3_copy_transfer_config() -> TransferConfig:
+    """Transfer config for server-side copies.
+
+    A single ``CopyObject`` for everything S3 allows one for (5GiB);
+    only larger objects go multipart, so the many small restic pack
+    files stay one request each.
+    """
+    from boto3.s3.transfer import TransferConfig
+
+    return TransferConfig(
+        multipart_threshold=5 * 1024 * 1024 * 1024,
+        multipart_chunksize=256 * 1024 * 1024,
+        max_concurrency=10,
+    )
+
+
 def _s3_transfer_config() -> TransferConfig:
     # boto3 S3 multipart upload configuration for streaming writes.
     # Values are the boto3.s3.transfer.TransferConfig library defaults

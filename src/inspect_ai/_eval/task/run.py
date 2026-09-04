@@ -157,8 +157,8 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint._layout import (
     delete_sample_checkpoints_dir,
     eval_checkpoints_dir_from_config,
-    resolve_resumable_sample_dir,
     sample_checkpoints_dir,
+    scan_latest_committed_checkpoint,
 )
 from inspect_ai.util._checkpoint._resume_copy import copy_resume_payloads
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
@@ -257,7 +257,8 @@ class PreviousError:
     sample: EvalSample
 
 
-class InvalidatedPrior(NamedTuple):
+@dataclass(frozen=True)
+class InvalidatedPrior:
     """The prior sample was invalidated.
 
     Invalidation means the sample restarts from scratch: the re-run
@@ -949,6 +950,31 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     if task_retry_abandoned(logger.eval.task_id):
         raise TaskRetryAbandonedError()
 
+    # this attempt's own eval checkpoints dir (None when checkpointing is
+    # off or vetoed): the startup copy's destination, and where a retried
+    # or requeued sample's checkpoint (if any) is later looked for
+    eval_checkpoints_dir = eval_checkpoints_dir_from_config(
+        logger.location, checkpoint, eval_checkpoint
+    )
+
+    # on a retry, replicate the retried attempt's checkpoint sample dirs
+    # into this attempt's checkpoints dir. This must precede `log_start`
+    # below (nothing writes the destination log before it), so a copy
+    # failure raises out of `task_run` without producing a destination log
+    # at all: the next retry then falls back to the newest log that
+    # exists, whose checkpoint dirs are complete by the same rule — a
+    # log's existence proves its startup copy finished. Runs before the
+    # dataset is paged to disk so a failed copy has no temp file to leak.
+    if (
+        sample_source is not None
+        and sample_source.prior_checkpoints_dir
+        and eval_checkpoints_dir is not None
+    ):
+        await copy_resume_payloads(
+            source_eval_dir=sample_source.prior_checkpoints_dir,
+            destination_eval_dir=eval_checkpoints_dir,
+        )
+
     # optionally page dataset to disk if it exceeds the memory budget
     sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
 
@@ -1065,23 +1091,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # time, so there is no early settle event to key the release to.
         if sample_source is not None and store_len * epochs > 0:
             logger.hold_destination_writes()
-        # on a retry, replicate the retried attempt's checkpoint sample
-        # dirs into this attempt's checkpoints dir — before the
-        # destination log's first write (the hold above defers it), and
-        # before log_start so a copy failure raises out of `task_run`
-        # without producing a destination log at all. The next retry then
-        # falls back to the newest log that exists, whose checkpoint dirs
-        # are complete by the same rule: a log's existence proves its
-        # startup copy finished.
-        if sample_source is not None and sample_source.prior_checkpoints_dir:
-            copy_destination = eval_checkpoints_dir_from_config(
-                logger.location, checkpoint, eval_checkpoint
-            )
-            if copy_destination is not None:
-                await copy_resume_payloads(
-                    source_eval_dir=sample_source.prior_checkpoints_dir,
-                    destination_eval_dir=copy_destination,
-                )
         await logger.log_start(eval_plan)
 
         try:
@@ -1475,23 +1484,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         and sample_source is not None
                         and sample_id is not None
                     ):
-                        if isinstance(previous_sample, InvalidatedPrior):
-                            # invalidation means start over: discard the
-                            # sample's copied checkpoints (the startup copy
-                            # replicated them) and run fresh
-                            if requeue_checkpoints_dir is not None:
-                                async with resume_probe_limiter:
-                                    await delete_sample_checkpoints_dir(
-                                        requeue_checkpoints_dir, sample_id, epoch
-                                    )
-                        else:
-                            # non-clean prior (errored or absent from the
-                            # log): prefer resuming from a checkpoint in
-                            # this attempt's own dir (the startup copy put
-                            # the payload there — see
-                            # `copy_resume_payloads`). Hydration runs inside
-                            # `_CheckpointerSetup.__aenter__`; agent code
-                            # can branch on `cp.attempt`.
+                        # non-clean prior (errored or absent from the log):
+                        # prefer resuming from a checkpoint in this attempt's
+                        # own dir (the startup copy put the payload there —
+                        # see `copy_resume_payloads`). An invalidated prior
+                        # never resumes: invalidation means start over.
+                        # Hydration runs inside `_CheckpointerSetup.
+                        # __aenter__`; agent code can branch on `cp.attempt`.
+                        if not isinstance(previous_sample, InvalidatedPrior):
                             async with resume_probe_limiter:
                                 resume_checkpoint = await _resume_if_checkpointed(
                                     requeue_checkpoints_dir, sample_id, epoch
@@ -1502,6 +1502,23 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 previous_attempt_errors = _seed_error_retries(
                                     previous_sample.sample
                                 )
+
+                    if (
+                        resume_checkpoint is None
+                        and requeue_checkpoints_dir is not None
+                        and sample_id is not None
+                        and (requeue_prior is not None or sample_source is not None)
+                    ):
+                        # running fresh: whatever this sample's dir holds
+                        # (an invalidated prior's copied checkpoints, or
+                        # repos from an attempt that never committed a
+                        # checkpoint file) is discarded first — fresh
+                        # provisioning into a populated dir would merge a
+                        # second restic repo into the first and corrupt it
+                        async with resume_probe_limiter:
+                            await delete_sample_checkpoints_dir(
+                                requeue_checkpoints_dir, sample_id, epoch
+                            )
 
                     # factory to create sample+state lazily (after semaphore)
                     # so only concurrently executing samples consume memory
@@ -1756,13 +1773,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         on_settle=feeder_wake.set,
                     )
 
-                # this attempt's own eval checkpoints dir: where a requeued
-                # or retried sample's checkpoint (if any) lives — the
-                # startup copy (before log_start above) put the retried
-                # attempt's payloads there
-                requeue_checkpoints_dir = eval_checkpoints_dir_from_config(
-                    logger.location, checkpoint, eval_checkpoint
-                )
+                requeue_checkpoints_dir = eval_checkpoints_dir
 
                 # the sample fanout: an injectable scheduler rather than a
                 # one-shot tg_collect, so the control channel's requeue
@@ -3497,18 +3508,16 @@ async def _resume_if_checkpointed(
     """
     if eval_checkpoints_dir is None:
         return None
-    resolved = await resolve_resumable_sample_dir(
+    checkpoint = await scan_latest_committed_checkpoint(
         sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
     )
-    if resolved is None:
+    if checkpoint is None:
         return None
     # Latest parseable checkpoint with ``trigger == "agent_complete"`` =
     # agent finished cleanly, scoring is the next thing → retry can
     # skip the agent loop (the ``"resume_for_scoring"`` attempt).
     attempt: Literal["initial", "resume", "resume_for_scoring"] = (
-        "resume_for_scoring"
-        if resolved.checkpoint.trigger == "agent_complete"
-        else "resume"
+        "resume_for_scoring" if checkpoint.trigger == "agent_complete" else "resume"
     )
     return ResumeCheckpoint(attempt=attempt)
 

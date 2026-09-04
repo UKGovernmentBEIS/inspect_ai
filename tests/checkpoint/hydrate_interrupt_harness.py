@@ -9,7 +9,7 @@ Reuses ``resume_kill_harness``'s task/model registrations and wraps
 dir's repos and storage areas) so a real signal — ``SIGNAL_ENV``
 selects ``SIGINT`` (what Ctrl-C delivers) or ``SIGKILL`` (an
 unanticipated death) — lands *while that data copy is in flight*,
-before the checkpoint files that would commit the new dir. The greedy
+before the checkpoint files that would commit the new dir. The
 startup copy (``copy_resume_payloads``) is the first caller, so the
 interrupt lands there, before any sample runs.
 

@@ -8,7 +8,7 @@ For fresh samples (no :class:`ResumeCheckpoint`) ``_hydrate`` mints a
 password, inits an empty host restic repo, and has each sandbox's
 snapshot strategy provision its sandbox. For resumed samples, the
 payload copy into this attempt's sample checkpoints dir has already
-happened — greedily, at retry startup, before any sample ran (see
+happened — at retry startup, before any sample ran (see
 ``_resume_copy``) — so hydration is the *restore* half: restic-restore
 the latest host snapshot into the new context subdir, have each
 sandbox strategy restore its latest committed snapshot into the fresh
@@ -229,24 +229,13 @@ async def hydrate(
 
     sample_context_dir = await ensure_context_dir(sample_root)
 
+    # remote destination: pull the payload into local staging (restic
+    # can't run against S3). The egress manifest is seeded after Phase 2
+    # below, once orphan discards have settled what the staging dir holds.
+    downloaded: list[str] = []
     if resume_checkpoint and sample_staging is not None:
-        # remote destination: pull the payload into local staging
-        # (restic can't run against S3) and prime the egress
-        # manifest to match, so the first post-resume fire ships
-        # only its delta — the payload is already at the
-        # destination and must not be re-uploaded
         downloaded = await copy_payload_files(
             new_sample_checkpoints_dir, sample_staging
-        )
-        seed_manifest(sample_staging, downloaded)
-        # an in-eval requeue reuses this attempt's staging dir, which
-        # can hold state newer than the destination (a fire cancelled
-        # between its staging write and its egress). Ship that delta
-        # now — the seeded manifest keeps the pulled payload out — so
-        # the destination is whole before any agent work runs.
-        await host_egress(
-            staging_dir=sample_staging,
-            destination_dir=new_sample_checkpoints_dir,
         )
     # after the payload copy so a resume reads the source's inherited
     # password rather than minting a fresh one
@@ -368,6 +357,29 @@ async def hydrate(
         )
     assert host_result is not None  # task group ran _run_host to completion
 
+    if resume_checkpoint and sample_staging is not None:
+        # prime the egress manifest with the payload pulled above, so the
+        # first post-resume fire ships only its delta — the payload is
+        # already at the destination and must not be re-uploaded. Only
+        # files still present count: a discarded orphan's path may be
+        # re-fired under the same checkpoint id (the archive strategy's
+        # names are deterministic), and a manifest entry for it would make
+        # the egress skip the new file while its checkpoint file ships.
+        staging_root = Path(sample_staging)
+        seed_manifest(
+            sample_staging,
+            [rel for rel in downloaded if (staging_root / rel).exists()],
+        )
+        # an in-eval requeue reuses this attempt's staging dir, which can
+        # hold state newer than the destination (a fire cancelled between
+        # its staging write and its egress). Ship that delta now — the
+        # seeded manifest keeps the pulled payload out — so the
+        # destination is whole before any agent work runs.
+        await host_egress(
+            staging_dir=sample_staging,
+            destination_dir=new_sample_checkpoints_dir,
+        )
+
     trace_message(
         logger, "Checkpoint", f"{verb} complete: sample={sample_id} epoch={epoch}"
     )
@@ -408,6 +420,12 @@ async def _hydrate_host(
     # restic-restore the latest snapshot into the new context subdir,
     # then load the JSON files and push framework state into the live
     # Transcript + Store.
+    if not (Path(local_path(host_repo)) / "config").is_file():
+        raise RuntimeError(
+            f"resume: expected the host restic repo at {host_repo}, but no repo "
+            "is there — the sample's checkpoint dir has a committed checkpoint "
+            "file without the repo it indexes"
+        )
     if latest_committed_id is not None:
         dropped = await drop_orphan_snapshots(
             host_restic, host_repo, restic_password, latest_committed_id
@@ -509,9 +527,9 @@ async def _delete_destination_files(storage_dir: str, rel_paths: list[str]) -> N
     them shipped, so nothing would ever remove them. Without this, a
     later retry re-copies the stale snapshot alongside the re-fired one
     of the same ``ckpt-N`` id, and a restore that resolves "latest" by
-    timestamp could pick the stale one. (The stale manifest entries are
-    harmless: the files are gone from staging too, so they are never
-    re-shipped.)
+    timestamp could pick the stale one. The egress manifest is seeded
+    after these discards (see ``hydrate``), so it never lists a
+    discarded path.
     """
     async_fs = get_async_filesystem()
     for rel in rel_paths:

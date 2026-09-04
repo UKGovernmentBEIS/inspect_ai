@@ -15,13 +15,12 @@ start, and never writes anything a future retry needs.
 The design is one rule with two supports:
 
 - **A retry's log is its checkpoint commit point.** ``copy_resume_payloads``
-  runs at retry startup *before the destination log's first write* — a
-  retry attempt defers every destination log write until its reuse
-  sweep settles (see ``design/retry-deferred-destination-log.md``), and
-  a copy failure raises before ``log_start``, so the attempt dies
-  without a destination log. Retries only ever source the newest log
-  that *exists*, so a log's existence proves its checkpoint dirs are
-  complete; a dead attempt's partial copies are unreachable orphans.
+  runs at retry startup before ``log_start`` — nothing writes the
+  destination log before that — so a copy failure raises with no
+  destination log written, and the attempt dies without one. Retries
+  only ever source the newest log that *exists*, so a log's existence
+  proves its checkpoint dirs are complete; a dead attempt's partial
+  copies are unreachable orphans.
 - **The copy replicates the whole attempt.** Every sample dir the
   source has is copied — completed samples included. Checkpoints are a
   permanent record (planned work allows branching from arbitrary
@@ -29,7 +28,7 @@ The design is one rule with two supports:
   self-contained archive and everything older is superseded.
 
 Resume detection then never looks past a sample's own dir
-(``resolve_resumable_sample_dir``): a sample either has a committed
+(``scan_latest_committed_checkpoint``): a sample either has a committed
 checkpoint in this attempt or it runs fresh. Within one sample, files
 still copy in commit-point order (checkpoint files last, newest-first)
 so every intermediate state stays honest, though recovery no longer
@@ -40,7 +39,7 @@ from __future__ import annotations
 
 from functools import partial
 from logging import getLogger
-from typing import Iterable
+from typing import Iterable, NamedTuple
 
 import anyio
 
@@ -50,6 +49,7 @@ from inspect_ai._util.file import dirname, filesystem
 from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
+from ._layout.sample_checkpoints_dir import checkpoint_file_id
 
 logger = getLogger(__name__)
 
@@ -137,8 +137,8 @@ async def copy_payload_files(source_dir: str, destination_dir: str) -> list[str]
     many small pack files, and one awaited round-trip per file would
     serialize the startup path that gates the whole retry), then the
     ``ckpt-*.json`` files, newest first. Interrupt recovery does not
-    depend on this order — the destination log's deferred first write
-    gates the whole pass — but it keeps every intermediate state honest
+    depend on this order — the attempt's log, written only after the
+    whole pass, gates it — but it keeps every intermediate state honest
     (no checkpoint file ever precedes the bytes it indexes), matching
     the order the fire path and ``host_egress`` follow.
 
@@ -148,18 +148,25 @@ async def copy_payload_files(source_dir: str, destination_dir: str) -> list[str]
 
     Returns the list of paths written, relative to ``destination_dir``.
     """
-    data, checkpoints = await _list_payload(source_dir)
-    written = await _copy_payload_data(source_dir, destination_dir, data)
-    written += await _copy_checkpoint_files(source_dir, destination_dir, checkpoints)
+    payload = await _list_payload(source_dir)
+    written = await _copy_payload_data(source_dir, destination_dir, payload.data)
+    written += await _copy_checkpoint_files(
+        source_dir, destination_dir, payload.checkpoints
+    )
     return written
 
 
-async def _list_payload(source_dir: str) -> tuple[list[str], list[str]]:
-    """Relative paths under ``source_dir``: (non-checkpoint files, checkpoint files).
+class _Payload(NamedTuple):
+    """A sample dir's files, relative to it, split at the commit point."""
 
-    Checkpoint files come back newest first. Names under an excluded
-    top-level dir are dropped.
-    """
+    data: list[str]
+    """Everything that is not a checkpoint file (excluded dirs dropped)."""
+
+    checkpoints: list[str]
+    """The ``ckpt-*.json`` files, newest first."""
+
+
+async def _list_payload(source_dir: str) -> _Payload:
     async_fs = get_async_filesystem()
     try:
         uris = [uri async for uri in async_fs.iter_files(source_dir, recursive=True)]
@@ -177,7 +184,7 @@ async def _list_payload(source_dir: str) -> tuple[list[str], list[str]]:
         key=lambda rel: _checkpoint_id(rel) or 0,
         reverse=True,
     )
-    return data, checkpoints
+    return _Payload(data=data, checkpoints=checkpoints)
 
 
 def _relativize(base: str, uris: Iterable[str]) -> list[str]:
@@ -200,12 +207,7 @@ def _relativize(base: str, uris: Iterable[str]) -> list[str]:
 
 def _checkpoint_id(rel: str) -> int | None:
     """The id of a top-level ``ckpt-NNNNN.json`` path, else ``None``."""
-    if "/" in rel or not (rel.startswith("ckpt-") and rel.endswith(".json")):
-        return None
-    try:
-        return int(rel.removeprefix("ckpt-").removesuffix(".json"))
-    except ValueError:
-        return None
+    return checkpoint_file_id(rel) if "/" not in rel else None
 
 
 async def _copy_payload_data(

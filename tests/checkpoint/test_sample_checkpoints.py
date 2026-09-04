@@ -8,10 +8,10 @@ from pathlib import Path
 
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     _read_restic_config,
+    checkpoint_file_id,
     delete_sample_checkpoints_dir,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
-    resolve_resumable_sample_dir,
     sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
@@ -280,25 +280,32 @@ async def _dir_with_checkpoint(root: Path, name: str) -> str:
     return sample_dir
 
 
-async def test_resolve_committed_checkpoint_resolves_to_dir(tmp_path: Path) -> None:
-    """A dir with a committed checkpoint resolves to itself."""
+async def test_scan_committed_checkpoint(tmp_path: Path) -> None:
+    """A dir with a committed checkpoint scans to that checkpoint."""
     sample_dir = await _dir_with_checkpoint(tmp_path, "a")
 
-    resolved = await resolve_resumable_sample_dir(sample_dir)
+    checkpoint = await scan_latest_committed_checkpoint(sample_dir)
 
-    assert resolved is not None
-    assert resolved.sample_dir == sample_dir
-    assert resolved.checkpoint.checkpoint_id == 1
+    assert checkpoint is not None
+    assert checkpoint.checkpoint_id == 1
 
 
-async def test_resolve_none_when_nothing_committed(tmp_path: Path) -> None:
-    """No committed checkpoint (empty or torn dir) → None (fall through)."""
+async def test_scan_none_when_nothing_committed(tmp_path: Path) -> None:
+    """No committed checkpoint (empty or missing dir) → None (run fresh)."""
     sample_dir = await ensure_sample_checkpoints_dir(
         str(tmp_path / "a.checkpoints"), "s", 0
     )
-    assert await resolve_resumable_sample_dir(sample_dir) is None
+    assert await scan_latest_committed_checkpoint(sample_dir) is None
     # missing dir behaves the same as an empty one
-    assert await resolve_resumable_sample_dir(str(tmp_path / "missing")) is None
+    assert await scan_latest_committed_checkpoint(str(tmp_path / "missing")) is None
+
+
+def test_checkpoint_file_id() -> None:
+    assert checkpoint_file_id("ckpt-00007.json") == 7
+    assert checkpoint_file_id("ckpt-123456.json") == 123456
+    assert checkpoint_file_id("ckpt-foo.json") is None
+    assert checkpoint_file_id("ckpt-00007.json.tmp") is None
+    assert checkpoint_file_id("restic-config.json") is None
 
 
 async def test_delete_sample_checkpoints_dir(tmp_path: Path) -> None:

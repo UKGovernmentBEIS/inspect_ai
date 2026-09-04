@@ -1619,6 +1619,21 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
+    # an EvalLog passed in memory may describe an attempt that never wrote
+    # its log (a retry whose checkpoint startup copy failed). Nothing can be
+    # retried from it: its completed samples are in the attempt it was
+    # retrying, and its checkpoint dir may be a partial copy that a further
+    # retry would carry forward and certify.
+    for eval_log in retry_eval_logs:
+        if eval_log.location and not filesystem(eval_log.location).exists(
+            eval_log.location
+        ):
+            raise PrerequisiteError(
+                f"Cannot retry task '{eval_log.eval.task}': its log was never "
+                f"written to {eval_log.location} (the attempt failed before its "
+                "first log write). Retry from the attempt it was retrying "
+                "instead — the newest log that exists."
+            )
 
     # opportunistically recover crashed logs before retrying
     from inspect_ai.log._recover import (

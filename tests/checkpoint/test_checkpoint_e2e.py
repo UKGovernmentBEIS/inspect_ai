@@ -770,7 +770,7 @@ def test_checkpoint_retry_preserves_queued_sample_checkpoints(
     checkpoints steadily and never crashes; sample A crashes the process
     once B has a committed checkpoint. Attempt #1 retries with
     ``max_samples=1``: A resumes first and crashes again — B is still
-    queued, having run *nothing* in attempt #1. Before the greedy startup
+    queued, having run *nothing* in attempt #1. Before the startup
     copy existed, attempt #1 left no trace of B (per-sample copying only
     happened when a sample started), so the final retry — which resolves
     attempt #1's dirs — silently re-ran B from scratch. Now the copy runs
@@ -810,13 +810,13 @@ def test_checkpoint_retry_preserves_queued_sample_checkpoints(
         assert second_log != first_log, "the retry attempt wrote no log"
 
         # The #4870 property: the dead retry's checkpoints dir holds B's
-        # payload — copied greedily at startup — even though B never ran.
+        # payload — copied at startup — even though B never ran.
         b_dir = Path(local_path(eval_checkpoints_dir(second_log, None))) / (
             f"{B_SAMPLE_ID}__1"
         )
         assert list(b_dir.glob("ckpt-*.json")), (
             "the retry left no checkpoint payload for the queued sample — "
-            "the greedy startup copy regressed; a further retry would re-run "
+            "the startup copy regressed; a further retry would re-run "
             "the sample from scratch"
         )
 

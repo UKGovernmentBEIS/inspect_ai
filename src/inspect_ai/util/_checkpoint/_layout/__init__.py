@@ -17,8 +17,8 @@ from .eval_checkpoints_dir import (
 )
 from .sample_checkpoints_dir import (
     delete_sample_checkpoints_dir,
-    resolve_resumable_sample_dir,
     sample_checkpoints_dir,
+    scan_latest_committed_checkpoint,
 )
 
 # `host_context` is intentionally NOT imported here. It imports
@@ -34,6 +34,6 @@ __all__ = [
     "delete_sample_checkpoints_dir",
     "eval_checkpoints_dir",
     "eval_checkpoints_dir_from_config",
-    "resolve_resumable_sample_dir",
     "sample_checkpoints_dir",
+    "scan_latest_committed_checkpoint",
 ]

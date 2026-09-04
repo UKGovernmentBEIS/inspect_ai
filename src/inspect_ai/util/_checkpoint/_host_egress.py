@@ -5,7 +5,7 @@ each fire, and once at the end of a resume's staging pull. Mirrors the
 in-sandbox egress protocol: manifest of files already shipped, diff
 against the live staging dir, ship new files in a safe order, then
 atomically update the manifest. On resume the payload itself is
-already at the destination (copied there greedily at retry startup;
+already at the destination (copied there at retry startup;
 see ``_resume_copy``) — hydrate seeds the manifest with the payload it
 pulls into staging (:func:`seed_manifest`), so the resume-time egress
 ships only staging state *newer* than the destination (a fire

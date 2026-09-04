@@ -100,6 +100,13 @@ class ResticIncrementalStrategy(SandboxSnapshotStrategy):
     async def discard_orphans(
         self, latest_committed_id: int, ctx: SnapshotContext
     ) -> list[str]:
+        if not (Path(ctx.storage_dir) / "config").is_file():
+            raise RuntimeError(
+                f"resume: expected sandbox {ctx.sandbox_name!r} restic repo at "
+                f"{ctx.storage_dir}, but no repo is there — the sample's "
+                "checkpoint dir has a committed checkpoint file without the "
+                "repo it indexes"
+            )
         dropped = await drop_orphan_snapshots(
             await self._host_restic(), ctx.storage_dir, ctx.secret, latest_committed_id
         )
