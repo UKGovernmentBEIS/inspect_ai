@@ -30,8 +30,9 @@ from .eval_checkpoints_dir import log_basename
 RESTIC_CONFIG_SUBPATH = "restic/restic-config.json"
 """Sample-root-relative path of the per-sample restic config (password store).
 
-Shared by the writer (`restic_config_path`), the resume-time cross-cutting
-copy, and the host egress tier ordering so the three cannot drift apart.
+Shared by the writer (`restic_config_path`), the host egress tier ordering,
+and the resume-time config validation error in `hydrate` so they cannot
+drift apart.
 """
 
 

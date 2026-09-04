@@ -45,7 +45,6 @@ using the returned :class:`HydrationResult`.
 
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -86,7 +85,6 @@ from ._layout.schemas import Checkpoint, ResticConfig
 from ._layout.staging_dir import (
     RESTIC_CONFIG_SUBPATH,
     clear_sample_staging_dir,
-    context_dir,
     ensure_context_dir,
     ensure_sample_staging_dir,
     host_repo_dir,
@@ -239,11 +237,9 @@ async def hydrate(
 
     # Sample root: where restic + checkpoint files are first materialized.
     # Remote destination → host-local staging; local → destination directly.
-    # On resume each branch first resets to the committed state: staging
-    # is a cache of the destination, and an in-eval requeue re-runs in
-    # the dir its prior run used, whose live context dir may hold that
-    # run's last uncommitted write (restore_repo stops descending at the
-    # first dir with files).
+    # Staging is a cache of the destination, so on resume it is cleared
+    # first and repopulated from the destination below, letting restore
+    # and resume detection read the same committed checkpoint.
     if is_remote_destination(new_sample_checkpoints_dir):
         if resume_checkpoint:
             await clear_sample_staging_dir(log_location, sample_id, epoch)
@@ -252,14 +248,6 @@ async def hydrate(
     else:
         sample_staging = None
         sample_root = new_sample_checkpoints_dir
-        if resume_checkpoint:
-            await anyio.to_thread.run_sync(
-                partial(
-                    shutil.rmtree,
-                    local_path(context_dir(sample_root)),
-                    ignore_errors=True,
-                )
-            )
     sample_context_dir = await ensure_context_dir(sample_root)
 
     # remote destination: pull the payload into local staging (restic
