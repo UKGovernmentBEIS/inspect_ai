@@ -158,9 +158,6 @@ from inspect_ai.util._checkpoint._layout import (
     delete_sample_checkpoints_dir,
     eval_checkpoints_dir_from_config,
 )
-from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
-    sample_dir_name,
-)
 from inspect_ai.util._checkpoint._resume_copy import copy_resume_payloads
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.config import (
@@ -961,14 +958,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
     # before `log_start` (see `_resume_copy`), and before the dataset is
     # paged to disk so a failed copy has no temp file to leak
-    copied_sample_dirs: frozenset[str] = frozenset()
     if (
         sample_source is not None
         and sample_source.prior_checkpoints_dir
         and eval_checkpoints_dir is not None
     ):
         try:
-            copied_sample_dirs = await copy_resume_payloads(
+            await copy_resume_payloads(
                 source_eval_dir=sample_source.prior_checkpoints_dir,
                 destination_eval_dir=eval_checkpoints_dir,
             )
@@ -1477,19 +1473,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         # errors and run fresh from an empty dir. An
                         # invalidated prior never resumes. Hydration runs
                         # inside `_CheckpointerSetup.__aenter__`; agent code
-                        # can branch on `cp.attempt`. Cost only: a retried
-                        # sample whose dir the startup copy didn't bring has
-                        # nothing on disk, so its probes are skipped (both
-                        # are no-ops on a missing dir); the probes take the
+                        # can branch on `cp.attempt`. The probes take the
                         # reuse read throttle so probes and body reads
                         # together stay within the shared connection pool.
-                        # the copy reports top-level names; a sample id
-                        # containing "/" nests its dir under one of them
-                        if eval_checkpoints_dir is not None and (
-                            requeue_prior is not None
-                            or sample_dir_name(sample_id, epoch).split("/", 1)[0]
-                            in copied_sample_dirs
-                        ):
+                        if eval_checkpoints_dir is not None:
                             if not isinstance(previous_sample, InvalidatedPrior):
                                 async with reuse_read_throttle:
                                     resume_checkpoint = await resolve_resume_checkpoint(

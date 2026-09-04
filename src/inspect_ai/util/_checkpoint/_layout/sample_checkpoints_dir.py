@@ -161,33 +161,30 @@ async def delete_sample_checkpoints_dir(
 
     Used when a sample runs fresh in an attempt whose dir for it is not
     empty: an invalidated prior's copied checkpoints, or repos from an
-    attempt that never committed a checkpoint file. A local dir is
-    renamed aside before removal, so an interrupted delete can never
-    leave a partly deleted dir that still resolves as committed; on s3
-    the checkpoint files go first, newest first, so an interruption
-    leaves at most an older checkpoint behind. The host-local staging
-    dir a remote destination stages through is cleared too, so fresh
-    provisioning starts from nothing on both sides.
+    attempt that never committed a checkpoint file. Checkpoint files go
+    first, newest first: they are the dir's commit point, so an
+    interrupted delete leaves at most an older checkpoint behind. The
+    host-local staging dir a remote destination stages through is
+    cleared too, so fresh provisioning starts from nothing on both sides.
     """
     await clear_sample_staging_dir(log_location, sample_id, epoch)
     target = sample_checkpoints_dir(eval_dir, sample_id, epoch)
     if not is_s3_filename(target):
 
-        def rename_then_rmtree() -> None:
+        def rmtree_checkpoints_first() -> None:
             root = Path(local_path(target))
-            if not root.is_dir():
-                return
-            # a sibling of the eval dir, not inside it: the startup copy
-            # treats every subdirectory of the eval dir as a sample dir.
-            # The sibling is shared by concurrent discards and left in place.
-            eval_dir_path = Path(local_path(eval_dir))
-            discarded_root = eval_dir_path.with_name(f"{eval_dir_path.name}.discarded")
-            discarded_root.mkdir(exist_ok=True)
-            discarded = discarded_root / f"{root.name}-{secrets.token_hex(4)}"
-            root.rename(discarded)
-            shutil.rmtree(discarded)
+            for checkpoint_file in sorted(
+                root.glob("ckpt-*.json"),
+                key=lambda f: checkpoint_file_id(f.name) or 0,
+                reverse=True,
+            ):
+                checkpoint_file.unlink(missing_ok=True)
+            shutil.rmtree(root)
 
-        await anyio.to_thread.run_sync(rename_then_rmtree)
+        try:
+            await anyio.to_thread.run_sync(rmtree_checkpoints_first)
+        except FileNotFoundError:
+            pass
         return
     async_fs = get_async_filesystem()
     # collect first: deleting while iterating a paginated S3 listing is

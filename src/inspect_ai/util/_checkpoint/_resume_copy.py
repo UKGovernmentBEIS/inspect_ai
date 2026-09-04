@@ -75,19 +75,16 @@ async def copy_resume_payloads(
     *,
     source_eval_dir: str,
     destination_eval_dir: str,
-) -> frozenset[str]:
+) -> None:
     """Copy every sample dir from the retried attempt into this one.
 
     Runs at retry startup, before the destination log's first write —
     a failure here must raise before ``log_start`` so the attempt dies
     without a destination log and the next retry falls back to the
     newest log that exists (whose checkpoint dirs are complete by the
-    same rule).
-
-    Returns the names of the sample dirs copied, so resume detection can
-    skip samples known to have nothing on disk. Source and destination
-    never coincide: a log location repeats only when the prior attempt
-    wrote no log, and retries never source such an attempt.
+    same rule). Source and destination never coincide: a log location
+    repeats only when the prior attempt wrote no log, and retries never
+    source such an attempt.
     """
     assert source_eval_dir != destination_eval_dir
 
@@ -115,7 +112,6 @@ async def copy_resume_payloads(
                     for name in sample_dirs
                 ]
             )
-        return frozenset(sample_dirs)
 
 
 async def _copy_sample_dir(

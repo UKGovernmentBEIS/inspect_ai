@@ -1092,13 +1092,10 @@ def test_retry_attempt_dying_in_checkpoint_copy_leaves_no_log(
 
     copies: list[tuple[str, str]] = []
 
-    async def flaky_copy(
-        *, source_eval_dir: str, destination_eval_dir: str
-    ) -> frozenset[str]:
+    async def flaky_copy(*, source_eval_dir: str, destination_eval_dir: str) -> None:
         copies.append((source_eval_dir, destination_eval_dir))
         if len(copies) == 1:
             raise OSError("simulated copy failure")
-        return frozenset()
 
     monkeypatch.setattr(task_run_module, "copy_resume_payloads", flaky_copy)
 
