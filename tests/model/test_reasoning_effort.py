@@ -513,6 +513,7 @@ def _openai_responses_params(effort, supports_max):
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = True
     model_info.is_gpt_5_plus.return_value = True
+    model_info.is_gpt_6.return_value = False
     model_info.is_gpt_5_pro.return_value = False
     model_info.is_gpt_5_chat.return_value = False
     model_info.is_o_series.return_value = False
@@ -672,7 +673,9 @@ def test_openai_responses_explicit_none_effort_keeps_sampling_params():
         ("gpt-5.6-chat", False, False),  # -chat variants don't reason
         ("gpt-4o", False, False),
         ("o3", False, False),
-        ("foo-bar-22", True, False),  # codename frontier (OpenAIAPI only)
+        ("computer-use-preview", False, False),
+        ("foo-bar-22", False, False),  # codename: strict version check only
+        ("openai.gpt-5.5", True, True),  # bedrock api_model_name prefix
     ],
 )
 def test_openai_reasons_by_default(model_name, api_expected, compat_expected):
@@ -804,3 +807,37 @@ def test_grok_4_original_excluded_from_reasoning_effort():
     ):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert not api.is_grok_4_original(), f"{name} must not be original"
+
+
+# -- GPT-6 always reasons: sampling params rejected regardless of effort --
+
+
+@pytest.mark.parametrize("model_name", ["gpt-6-astra", "gpt-6"])
+def test_openai_responses_gpt_6_drops_sampling_params_without_effort(model_name):
+    params = _responses_params_for(
+        model_name,
+        GenerateConfig(temperature=0.7, top_p=0.9, logprobs=True, top_logprobs=3),
+    )
+    assert "temperature" not in params
+    assert "top_p" not in params
+    assert "top_logprobs" not in params
+    assert "message.output_text.logprobs" not in params["include"]
+
+
+@pytest.mark.parametrize("model_name", ["gpt-5.4", "computer-use-preview"])
+def test_openai_responses_non_gpt_6_keeps_sampling_params_without_effort(model_name):
+    params = _responses_params_for(model_name, GenerateConfig(temperature=0.7))
+    assert params["temperature"] == 0.7
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [("gpt-6-astra", True), ("gpt-6", True), ("gpt-5.6-sol", False), ("gpt-5", False)],
+)
+def test_openai_compatible_model_info_is_gpt_6(model_name, expected):
+    from inspect_ai.model._providers.openai_compatible import ModelInfo
+
+    info = ModelInfo(model_family=model_name)
+    assert info.is_gpt_6() is expected
+    assert info.is_gpt_5() is True
+    assert info.is_gpt_5_plus() is (model_name != "gpt-5")
