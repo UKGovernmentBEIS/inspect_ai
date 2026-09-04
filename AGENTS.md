@@ -157,23 +157,22 @@ All async test functions automatically run under both asyncio and trio backends 
   task) is owned by whichever component created it — cleanup belongs there,
   not in a caller or bridge that merely passes it through.
 
-## Live provider tests
+## Gated tests (slow, api, flaky, trio)
 
-CI cannot run the live provider tests. They call real provider APIs and need
-API keys. So a PR that changes `src/inspect_ai/model/_providers/**`, or the
-provider conversion modules in `src/inspect_ai/model/`, must run them locally,
-and the PR description must report the run.
+Plain `pytest` skips the Docker-based slow tests, the live model-provider
+tests, flaky tests, and trio variants. PR CI runs only the slow tests under
+`tests/tools/` and a short list of other areas; it never runs the live
+provider tests, because they need API keys. So a PR that changes model
+providers, sandbox or tool code, agents, or async plumbing must run the gated
+tests that cover the change locally, and the PR description must report the
+run.
 
-Live tests are the ones decorated with `skip_if_no_<provider>` in
-`tests/test_helpers/utils.py`. That file names each provider's key or opt-in
-variable, and `tests/conftest.py` defines the `--runapi` and `--runslow` flags
-they need. A run without the key skips them and still exits green, so read the
-skip summary.
-
-In the PR description, under "Other information", add a `### Live tests`
-section listing the command(s) run, each provider exercised with its
-passed/skipped counts, and each provider not run and why. A skipped test did
-not run; say so.
+The `slow-tests` skill (`.claude/skills/slow-tests/SKILL.md`) says which flags
+and directories go with which change, what each class needs (Docker, a key),
+and how to read the skip summary. Follow it, then add a `### Slow tests`
+section under "Other information" in the PR description listing the command(s)
+run, what ran with passed/skipped counts, and what you could not run and why.
+A skipped test did not run; say so.
 
 ## Subsystem Documentation
 
