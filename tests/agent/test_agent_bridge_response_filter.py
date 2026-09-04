@@ -14,6 +14,7 @@ from inspect_ai.agent._bridge.sandbox.bridge import sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate
+from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
@@ -207,6 +208,34 @@ def test_response_filter_replaces_output(tmp_path: Path) -> None:
     log = _run_eval_with_filters(tmp_path, response_filter=my_filter)
     log_json = log.model_dump_json()
     assert REPLACED_SENTINEL in log_json
+
+
+def test_response_filter_cannot_mutate_recorded_model_event(tmp_path: Path) -> None:
+    """A mutating filter must not rewrite the provider ModelEvent output."""
+    provider_output: ModelOutput | None = None
+
+    async def mutating_filter(
+        model: Model,
+        output: ModelOutput,
+        input_messages: list[ChatMessage],
+        tool_info: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        nonlocal provider_output
+        provider_output = output.model_copy(deep=True)
+        output.message.content = REPLACED_SENTINEL
+        return None
+
+    log = _run_eval_with_filters(tmp_path, response_filter=mutating_filter)
+
+    assert provider_output is not None
+    assert log.samples is not None
+    model_events = [
+        event for event in log.samples[0].events if isinstance(event, ModelEvent)
+    ]
+    assert len(model_events) == 1
+    assert model_events[0].output == provider_output
 
 
 def test_response_filter_refusal_triggers_retry(tmp_path: Path) -> None:
