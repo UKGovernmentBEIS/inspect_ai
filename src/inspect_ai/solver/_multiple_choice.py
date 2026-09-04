@@ -90,6 +90,19 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     However, if the answer isn't in the expected format the model has
     failed in the task so we'll ultimately just mark it as incorrect
     """
+    # Remove wrappers before matching so trailing text still reaches the lenient fallback.
+    completion = re.sub(
+        r"\x24\s*([A-Za-z\d][A-Za-z\d ,]*?)\s*\x24",
+        r"\1",
+        state.output.completion,
+    )
+    completion = re.sub(r"\*\*\s*([A-Za-z\d][A-Za-z\d ,]*?)\s*\*\*", r"\1", completion)
+    completion = re.sub(
+        r"(?i)(^|[:,])(\s*)\(([A-Za-z\d])\)(?=\s*(?:,|\.|\Z))",
+        r"\1\2\3",
+        completion,
+    )
+
     # First check whether the string strictly ends with the expected answer
     # In this case, we're looking for a single line which contains the expected
     # ANSWER: <answer> string with only whitespace or a period/full stop at the end.
@@ -97,7 +110,7 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     # so if there are multiple matching lines we take the last one.
     matches = re.findall(
         r"(?i)^ANSWER\s*:\s*([A-Za-z\d ,]+)\s*(?:$|\n|\.)",
-        state.output.completion,
+        completion,
         flags=re.MULTILINE,
     )
 
@@ -106,7 +119,7 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     if not matches:
         matches = re.findall(
             r"(?i)ANSWER\s*:\s*([A-Za-z\d ,]+)(?:[^\w]|\n|$|\.)",
-            state.output.completion,
+            completion,
         )
 
     if not matches:
