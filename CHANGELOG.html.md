@@ -1,5 +1,28 @@
 # changelog – Inspect
 
+## 0.3.263 (03 September 2026)
+
+- OpenAI: Added support for GPT-6 Astra (`gpt-6-astra`).
+- OpenAI: Fixed `temperature`, `top_p`, and `logprobs` causing a 400 error on GPT-5.5+ models when no `reasoning_effort` is set (they are now dropped with a warning).
+- Grok: Oversized prompts now return `stop_reason="model_length"` instead of failing with a generation error under xAI’s current context-overflow wording.
+- Eval Log: Sample summaries now keep `Score.reason`, so an explicit reason is no longer dropped (and a stale `metadata["unscored_reason"]` cannot replace it).
+- Agent bridge: A Chat Completions response truncated by the output-token limit now reports `finish_reason="length"` instead of `"stop"`.
+- Google: Batched evaluations with a system message now serialize `system_instruction` as REST [Content](./reference/inspect_ai.model.html.md#content) instead of a bare JSON array, fixing batch submission failures; batch results are now parsed through the SDK converter so unknown REST fields (e.g. `usageMetadata.serviceTier`) no longer fail the whole batch. (#5100)
+- Google/Gemini: Faster client setup under high sandbox concurrency, with custom CA bundles now preserved on both sync and async requests.
+- Solver: [chain_of_thought()](./reference/inspect_ai.solver.html.md#chain_of_thought) now uses `format_template()` for prompt interpolation, matching the other prompt solvers: custom templates with extra `{name}` placeholders no longer raise `KeyError` (unknown placeholders pass through unchanged; JSON-style braces still need `{ }` escaping). (#5166)
+- Model Info: Explicit model info database entries for GLM 5.2 and 5.3.
+- Model Info: `claude-mythos-preview` now reports its release date, context window and output limit instead of resolving to no model info.
+- Util: Support datetime instances in UtcDatetimeStr. (#5157)
+- Control Channel: New `inspect ctl task drain` command stops dispatching a task’s queued samples while in-flight samples finish naturally, completing the task with an ordinary log whose abandoned remainder a later `inspect eval-set` re-invocation or `inspect eval-retry` still runs.
+- Control Channel: A later `inspect eval-set` re-invocation now re-runs samples left queued (never dispatched) when a task was ended with `inspect ctl task cancel --action score|error`; previously the cancelled task’s log read as complete and was reused, so those samples never ran.
+- Eval Log: [EvalResults](./reference/inspect_ai.log.html.md#evalresults) gains an optional `logged_samples` field, set on logs finished by a graceful `inspect ctl task cancel` or `inspect ctl task drain`, recording how many samples the log actually resolved.
+- Control Channel: `inspect ctl task cancel` of a task between retry attempts (including one still writing its errored attempt’s final log) now abandons the queued retry (the task ends with its last attempt’s error log) instead of asking to re-issue once the retry starts.
+- Control Channel: `inspect ctl task list` rows now report a pending graceful resolution (`resolving`: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as `pending`.
+- Bugfix: Changing `attempt_timeout` or `cache_prompt` no longer misses the model cache, since neither changes what the provider returns.
+- Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
+- Bugfix: Hugging Face and nnterp providers now record `hidden_states` (from `-M hidden_states`) as JSON-serializable nested lists instead of silently dropping them to `None` in the log; the batched Hugging Face path now records each sample’s own activations rather than the whole batch’s. Note: code reading `ModelOutput.metadata["hidden_states"]` live (in a solver or scorer) now receives nested lists rather than tensors — wrap with `torch.tensor(...)` if tensor operations are needed. (#2860)
+- Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
+
 ## 0.3.262 (02 September 2026)
 
 - Scorer (breaking): Model-graded scorers with a panel of graders now require a strict majority: samples with no majority grade (even-split ties, three-way splits, or ties after a grader returns no parseable grade) come back unscored and leave the metric denominator, rather than the most common grade winning with ties broken by grader order. Pass `reducer="mode"` to [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa)/[model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact) to restore the previous behavior. (#4721)
@@ -171,7 +194,6 @@
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Eval Log: A retry attempt killed before it finishes reusing the prior log’s completed samples no longer causes the next retry to re-run (and eventually lose) those samples.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for [read_file()](./reference/inspect_ai.tool.html.md#read_file)). (#4778)
-- Agent Bridge: A bridged client that sends the eval model’s concrete id instead of `inspect` (claude_code sends e.g. `claude-fable-5`) now resolves to the eval’s own [Model](./reference/inspect_ai.model.html.md#model) instance rather than a second one built by [get_model()](./reference/inspect_ai.model.html.md#get_model), whose memoization key includes the config. Previously such a client got a distinct instance, and since the eval’s [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) is only applied to the active model, eval-level options such as `fallback_models` were silently dropped before the provider request. Aliases, model roles, and any other model the client names are unaffected.
 
 ## 0.3.259 (16 August 2026)
 

@@ -197,7 +197,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#september-2026" id="toc-september-2026" class="nav-link active" data-scroll-target="#september-2026">0.3.262 (02 September 2026)</a></li>
+  <li><a href="#september-2026" id="toc-september-2026" class="nav-link active" data-scroll-target="#september-2026">0.3.263 (03 September 2026)</a></li>
+  <li><a href="#september-2026-1" id="toc-september-2026-1" class="nav-link" data-scroll-target="#september-2026-1">0.3.262 (02 September 2026)</a></li>
   <li><a href="#august-2026" id="toc-august-2026" class="nav-link" data-scroll-target="#august-2026">0.3.261 (30 August 2026)</a></li>
   <li><a href="#august-2026-1" id="toc-august-2026-1" class="nav-link" data-scroll-target="#august-2026-1">0.3.260 (21 August 2026)</a></li>
   <li><a href="#august-2026-2" id="toc-august-2026-2" class="nav-link" data-scroll-target="#august-2026-2">0.3.259 (16 August 2026)</a></li>
@@ -466,7 +467,32 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="september-2026" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026">0.3.262 (02 September 2026)</h2>
+<h2 class="anchored" data-anchor-id="september-2026">0.3.263 (03 September 2026)</h2>
+<ul>
+<li>OpenAI: Added support for GPT-6 Astra (<code>gpt-6-astra</code>).</li>
+<li>OpenAI: Fixed <code>temperature</code>, <code>top_p</code>, and <code>logprobs</code> causing a 400 error on GPT-5.5+ models when no <code>reasoning_effort</code> is set (they are now dropped with a warning).</li>
+<li>Grok: Oversized prompts now return <code>stop_reason="model_length"</code> instead of failing with a generation error under xAI’s current context-overflow wording.</li>
+<li>Eval Log: Sample summaries now keep <code>Score.reason</code>, so an explicit reason is no longer dropped (and a stale <code>metadata["unscored_reason"]</code> cannot replace it).</li>
+<li>Agent bridge: A Chat Completions response truncated by the output-token limit now reports <code>finish_reason="length"</code> instead of <code>"stop"</code>.</li>
+<li>Google: Batched evaluations with a system message now serialize <code>system_instruction</code> as REST <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#content">Content</a></span> instead of a bare JSON array, fixing batch submission failures; batch results are now parsed through the SDK converter so unknown REST fields (e.g.&nbsp;<code>usageMetadata.serviceTier</code>) no longer fail the whole batch. (#5100)</li>
+<li>Google/Gemini: Faster client setup under high sandbox concurrency, with custom CA bundles now preserved on both sync and async requests.</li>
+<li>Solver: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#chain_of_thought">chain_of_thought()</a></span> now uses <code>format_template()</code> for prompt interpolation, matching the other prompt solvers: custom templates with extra <code>{name}</code> placeholders no longer raise <code>KeyError</code> (unknown placeholders pass through unchanged; JSON-style braces still need <code>{ }</code> escaping). (#5166)</li>
+<li>Model Info: Explicit model info database entries for GLM 5.2 and 5.3.</li>
+<li>Model Info: <code>claude-mythos-preview</code> now reports its release date, context window and output limit instead of resolving to no model info.</li>
+<li>Util: Support datetime instances in UtcDatetimeStr. (#5157)</li>
+<li>Control Channel: New <code>inspect ctl task drain</code> command stops dispatching a task’s queued samples while in-flight samples finish naturally, completing the task with an ordinary log whose abandoned remainder a later <code>inspect eval-set</code> re-invocation or <code>inspect eval-retry</code> still runs.</li>
+<li>Control Channel: A later <code>inspect eval-set</code> re-invocation now re-runs samples left queued (never dispatched) when a task was ended with <code>inspect ctl task cancel --action score|error</code>; previously the cancelled task’s log read as complete and was reused, so those samples never ran.</li>
+<li>Eval Log: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalresults">EvalResults</a></span> gains an optional <code>logged_samples</code> field, set on logs finished by a graceful <code>inspect ctl task cancel</code> or <code>inspect ctl task drain</code>, recording how many samples the log actually resolved.</li>
+<li>Control Channel: <code>inspect ctl task cancel</code> of a task between retry attempts (including one still writing its errored attempt’s final log) now abandons the queued retry (the task ends with its last attempt’s error log) instead of asking to re-issue once the retry starts.</li>
+<li>Control Channel: <code>inspect ctl task list</code> rows now report a pending graceful resolution (<code>resolving</code>: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as <code>pending</code>.</li>
+<li>Bugfix: Changing <code>attempt_timeout</code> or <code>cache_prompt</code> no longer misses the model cache, since neither changes what the provider returns.</li>
+<li>Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.</li>
+<li>Bugfix: Hugging Face and nnterp providers now record <code>hidden_states</code> (from <code>-M hidden_states</code>) as JSON-serializable nested lists instead of silently dropping them to <code>None</code> in the log; the batched Hugging Face path now records each sample’s own activations rather than the whole batch’s. Note: code reading <code>ModelOutput.metadata["hidden_states"]</code> live (in a solver or scorer) now receives nested lists rather than tensors — wrap with <code>torch.tensor(...)</code> if tensor operations are needed. (#2860)</li>
+<li>Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).</li>
+</ul>
+</section>
+<section id="september-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-1">0.3.262 (02 September 2026)</h2>
 <ul>
 <li>Scorer (breaking): Model-graded scorers with a panel of graders now require a strict majority: samples with no majority grade (even-split ties, three-way splits, or ties after a grader returns no parseable grade) come back unscored and leave the metric denominator, rather than the most common grade winning with ties broken by grader order. Pass <code>reducer="mode"</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span> to restore the previous behavior. (#4721)</li>
 <li>Scorer: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span> now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)</li>
@@ -641,7 +667,6 @@ ul.task-list li input[type="checkbox"] {
 <li>Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.</li>
 <li>Eval Log: A retry attempt killed before it finishes reusing the prior log’s completed samples no longer causes the next retry to re-run (and eventually lose) those samples.</li>
 <li>Docs: Clarify that the sandbox <code>exec()</code> output limit is enforced by front-truncating the output streams rather than by raising <code>OutputLimitExceededError</code> (which remains the behaviour for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#read_file">read_file()</a></span>). (#4778)</li>
-<li>Agent Bridge: A bridged client that sends the eval model’s concrete id instead of <code>inspect</code> (claude_code sends e.g.&nbsp;<code>claude-fable-5</code>) now resolves to the eval’s own <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#model">Model</a></span> instance rather than a second one built by <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span>, whose memoization key includes the config. Previously such a client got a distinct instance, and since the eval’s <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> is only applied to the active model, eval-level options such as <code>fallback_models</code> were silently dropped before the provider request. Aliases, model roles, and any other model the client names are unaffected.</li>
 </ul>
 </section>
 <section id="august-2026-2" class="level2">

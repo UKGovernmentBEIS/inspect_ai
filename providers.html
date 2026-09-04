@@ -999,7 +999,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="0994ff61" class="cell">
+<div id="10864303" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
@@ -1010,7 +1010,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="responses-api" class="level3">
 <h3 class="anchored" data-anchor-id="responses-api">Responses API</h3>
-<p>By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new <a href="https://platform.openai.com/docs/api-reference/responses">Responses API</a> for GPT-5 and o-series models and the <code>computer_use_preview</code> model.</p>
+<p>By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new <a href="https://platform.openai.com/docs/api-reference/responses">Responses API</a> for GPT-5 and later (including GPT-6 Astra), o-series models, and the <code>computer_use_preview</code> model.</p>
 <p>If you want to manually enable or disable the Responses API you can use the <code>responses_api</code> model argument. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/gpt-4o <span class="at">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that certain models including <code>o1-pro</code> and <code>computer_use_preview</code> <em>require</em> the use of the Responses API. Check the Open AI <a href="https://platform.openai.com/docs/models">models documentation</a> for details on which models are supported by the respective APIs.</p>
@@ -1130,7 +1130,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>BEDROCK_OPENAI_BASE_URL</code></td>
-<td>Custom endpoint override (optional; the AWS-standard <code>AWS_BEDROCK_BASE_URL</code> is also accepted). By default Inspect targets the region’s Mantle endpoint, choosing the model-appropriate path automatically (<code>/openai/v1</code> for frontier models like GPT-5.x and Codex, <code>/v1</code> for open-weight models like gpt-oss).</td>
+<td>Custom endpoint override (optional; the AWS-standard <code>AWS_BEDROCK_BASE_URL</code> is also accepted). By default Inspect targets the region’s Mantle endpoint, choosing the model-appropriate path automatically (<code>/openai/v1</code> for frontier models like GPT-5 and later and Codex, <code>/v1</code> for open-weight models like gpt-oss).</td>
 </tr>
 <tr class="even">
 <td><code>AWS_REGION</code> / <code>AWS_DEFAULT_REGION</code></td>
@@ -2050,7 +2050,7 @@ Note
 <span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"hf/meta-llama/Llama-3.1-8B-Instruct"</span>,</span>
 <span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a>    hidden_states<span class="op">=</span><span class="va">True</span></span>
 <span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Activations are available in the “hidden_states” field of <code>ModelOutput.metadata</code>. The hidden_states value is the same as transformers <a href="https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput">GenerateDecoderOnlyOutput</a>.</p>
+<p>Activations are available in the <code>"hidden_states"</code> field of <code>ModelOutput.metadata</code>. So they can be written to the eval log, the hidden-state tensors from transformers’ <a href="https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput">GenerateDecoderOnlyOutput</a> are materialized as JSON-serializable nested lists, preserving the <code>[step][layer]</code> structure with the per-sample activation values in place of each tensor.</p>
 </section>
 <section id="sampling" class="level3">
 <h3 class="anchored" data-anchor-id="sampling">Sampling</h3>
