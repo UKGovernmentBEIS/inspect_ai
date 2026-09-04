@@ -104,6 +104,7 @@ class AgentBridge:
         self._compaction = compaction
         self._compact: Compact | None = None
         self._last_message_counts: dict[str | None, int] = {}
+        self._tracked_model: str | None = None
         self._primary_model: str | None = None
         # thread-tracking state for _track_state (see its docstring). the
         # descent anchor is the initial input (via _compaction_prefix, which
@@ -278,10 +279,9 @@ class AgentBridge:
         first call and carries an extra preamble message) would permanently
         displace the real conversation. Instead we track thread identity:
 
-        - A call whose messages extend the tracked thread (the tracked messages
-          are a prefix of it, compared by role + text) always updates the state.
-          The first observed call's model remains provisional when it does not
-          descend from the agent's initial input, because it may be a side call.
+        - Model identity is locked only after arbitration identifies a main
+          conversation. When there is no initial input to arbitrate against,
+          the first model remains primary for legacy behavior.
         - Otherwise the call starts a new thread and we consult *descent*: a
           thread descends from the initial input if its non-system messages
           start with the initial input's non-system messages (verbatim, as
@@ -322,11 +322,7 @@ class AgentBridge:
         initial_call = self._tracked_fps is None
         adopted = False
         fps = [_message_fingerprint(m) for m in messages]
-        if (
-            initial_call
-            and model is not None
-            and self._descends_from_initial(messages, fps) is not _Descent.NO
-        ):
+        if initial_call and model is not None and not self._initial_fps:
             self._primary_model = model
 
         last_message_count = self._last_message_counts.get(model, 0)
@@ -342,14 +338,20 @@ class AgentBridge:
         if self._tracked_fps is None:
             # first observed call: best information available so far (if it is
             # a side call the rules below displace it later)
-            self._adopt_thread(messages, output, fps, calls=1)
+            self._adopt_thread(messages, output, fps, calls=1, model=model)
         elif _extends(self._tracked_fps, fps):
-            self._adopt_thread(messages, output, fps, calls=self._tracked_calls + 1)
+            self._adopt_thread(
+                messages,
+                output,
+                fps,
+                calls=self._tracked_calls + 1,
+                model=model,
+            )
             adopted = True
         elif self._candidate_fps is not None and _extends(self._candidate_fps, fps):
             # the candidate got continued so it is a live agent loop (e.g. the
             # post-compaction conversation): promote it over the tracked thread
-            self._adopt_thread(messages, output, fps, calls=2)
+            self._adopt_thread(messages, output, fps, calls=2, model=model)
             adopted = True
         else:
             descends = self._descends_from_initial(messages, fps)
@@ -367,7 +369,8 @@ class AgentBridge:
                 # that nothing extends). a short stray descending one-shot
                 # still can't displace an established weaker-anchored thread
                 # (flapping guard).
-                self._adopt_thread(messages, output, fps, calls=1)
+                self._adopt_thread(messages, output, fps, calls=1, model=model)
+                self._primary_model = model
                 adopted = True
             elif descends == self._tracked_descends and len(messages) > (
                 len(self._tracked_fps) if descends else last_message_count
@@ -379,18 +382,19 @@ class AgentBridge:
                 # rewrites message text every call (breaking fingerprint
                 # continuity and descent) recovers from compaction only
                 # through it.
-                self._adopt_thread(messages, output, fps, calls=1)
+                self._adopt_thread(messages, output, fps, calls=1, model=model)
                 adopted = True
             else:
                 self._candidate_fps = fps
 
         if (
-            adopted
-            and not initial_call
+            self._primary_model is None
+            and not adopted
             and model is not None
-            and self._primary_model is None
+            and self._tracked_model is not None
+            and model != self._tracked_model
         ):
-            self._primary_model = model
+            self._primary_model = self._tracked_model
         self._last_message_counts[model] = len(messages)
 
         # tick the checkpointer
@@ -402,6 +406,7 @@ class AgentBridge:
         output: ModelOutput,
         fps: list["_MessageFingerprint"],
         calls: int,
+        model: str | None,
     ) -> None:
         """Make `messages` the tracked main thread (see `_track_state`).
 
@@ -414,6 +419,7 @@ class AgentBridge:
         self._tracked_fps = fps
         self._tracked_calls = calls
         self._tracked_descends = self._descends_from_initial(messages, fps)
+        self._tracked_model = model
         self._candidate_fps = None
 
     def _descends_from_initial(
