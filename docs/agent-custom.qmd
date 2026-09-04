@@ -447,7 +447,7 @@ background(worker)
 
 The above code demonstrates a couple of important characteristics of a sample background worker:
 
-1.  Background workers typically operate in a loop, often polling a a sandbox or other endpoint for activity. In a loop like this it's important to sleep at regular intervals so your background work doesn't monopolise CPU resources.
+1.  Background workers typically operate in a loop, often polling a sandbox or other endpoint for activity. In a loop like this it's important to sleep at regular intervals so your background work doesn't monopolise CPU resources.
 
 2.  When the sample ends, background workers are cancelled (which results in a cancelled error being raised in the worker). Therefore, if you need to do cleanup in your worker it should occur in a `finally` block.
 
