@@ -45,6 +45,7 @@ from .._openai import (
     is_o_series_model,
     openai_classify_retry,
     openai_should_retry,
+    reasons_by_default_model,
     supports_native_max_reasoning_effort,
 )
 from .._openai_responses import (
@@ -481,6 +482,13 @@ class OpenAIAPI(ModelAPI):
     def supports_max_reasoning_effort(self) -> bool:
         return supports_native_max_reasoning_effort(self.model_family()) or (
             self.is_latest()
+        )
+
+    def reasons_by_default(self) -> bool:
+        # strict version check (like is_gpt_6): whether a codename reasons by
+        # default is unknown, and is_latest() also matches computer-use-preview
+        return (
+            reasons_by_default_model(self.model_family()) and not self.is_gpt_5_chat()
         )
 
     def is_gpt_5_chat(self) -> bool:

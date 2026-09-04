@@ -40,6 +40,18 @@ async def test_openai_api() -> None:
 
 
 @skip_if_no_openai
+@pytest.mark.parametrize("model_name", ["openai/gpt-5.5", "openai/gpt-5.6-luna"])
+async def test_openai_temperature_dropped_for_default_reasoning_models(
+    model_name: str,
+) -> None:
+    # gpt-5.5+ reject sampling params when reasoning at the server default
+    # effort; inspect must drop them rather than send a request that 400s
+    model = get_model(model_name, config=GenerateConfig(temperature=0.5))
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+
+
+@skip_if_no_openai
 def test_openai_verbosity() -> None:
     log = eval(
         Task(dataset=[Sample(input="Please tell a story about toys.")]),
