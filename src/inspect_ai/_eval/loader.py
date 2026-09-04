@@ -15,7 +15,6 @@ from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import split_spec, task_file, task_run_dir
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import filesystem
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.module import load_module
 from inspect_ai._util.path import chdir_python, cwd_relative_path
@@ -324,13 +323,6 @@ def resolve_previous_tasks(
     return result
 
 
-def _log_file_exists(location: str) -> bool:
-    try:
-        return filesystem(location).exists(location)
-    except Exception:
-        return False
-
-
 def resolve_previous_task(
     loaded_task: Task,
     loaded_task_args: dict[str, Any],
@@ -350,18 +342,6 @@ def resolve_previous_task(
         copy.deepcopy(prior_stats.role_usage) if prior_stats.role_usage else None
     )
 
-    # a log passed in memory may describe an attempt whose file was never
-    # written (it failed before its first log write); its checkpoints dir
-    # may be a partial copy, so it is not a resume source. When storage
-    # can't answer, the dir is withheld too: a lost resume is bounded, a
-    # partial dir certified by a new log is not.
-    previous_log_location = (
-        previous_task.log_info.name
-        if previous_task.log_info is not None
-        else previous_task.log.location
-        if _log_file_exists(previous_task.log.location)
-        else None
-    )
     return ResolvedTask(
         task=loaded_task,
         task_args=loaded_task_args,
@@ -380,14 +360,12 @@ def resolve_previous_task(
             previous_task.log,
             previous_task.log_info,
             loaded_task.dataset,
-            (
-                eval_checkpoints_dir_from_config(
-                    previous_log_location,
-                    loaded_task.checkpoint,
-                    eval_checkpoint,
-                )
-                if previous_log_location
-                else None
+            eval_checkpoints_dir_from_config(
+                previous_task.log_info.name
+                if previous_task.log_info is not None
+                else previous_task.log.location,
+                loaded_task.checkpoint,
+                eval_checkpoint,
             ),
         ),
         initial_model_usage=initial_model_usage,
