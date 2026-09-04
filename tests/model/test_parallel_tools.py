@@ -477,16 +477,13 @@ async def test_fast_tool_completes_before_slow_sibling_finishes():
     assert gap > 0.1, f"fast event should finalise long before slow; gap was {gap:.3f}s"
 
     # Per-event working_time should reflect each call's own elapsed time,
-    # not the stage's. With the bug, the fast tool would inherit the slow
-    # tool's ~300ms and the two would be equal. Compare the absolute
-    # difference rather than a ratio: on a loaded runner both calls pick up
-    # the same scheduling overhead, which a ratio would count against fast.
+    # not the stage's. With the bug, the fast tool would inherit the
+    # slow tool's ~300ms; fixed, it should be a fraction of the slow one.
     assert fast_ev.working_time is not None
     assert slow_ev.working_time is not None
-    working_gap = slow_ev.working_time - fast_ev.working_time
-    assert working_gap > 0.1, (
+    assert fast_ev.working_time < slow_ev.working_time / 2, (
         f"fast working_time {fast_ev.working_time:.3f}s should be far less "
-        f"than slow {slow_ev.working_time:.3f}s; gap was {working_gap:.3f}s"
+        f"than slow {slow_ev.working_time:.3f}s"
     )
 
 
@@ -577,17 +574,12 @@ async def test_operator_cancel_finalises_when_cancel_hits_not_stage_end():
     )
 
     # And target's working_time should reflect when the cancel hit, not
-    # the survivor's elapsed time (with the bug the two would be equal).
-    # Compare the absolute difference rather than a ratio: on a loaded
-    # runner both calls pick up the same scheduling overhead, which a
-    # ratio would count against the target.
+    # the survivor's elapsed time.
     assert target_ev.working_time is not None
     assert survivor_ev.working_time is not None
-    working_gap = survivor_ev.working_time - target_ev.working_time
-    assert working_gap > 0.1, (
+    assert target_ev.working_time < survivor_ev.working_time / 2, (
         f"target working_time {target_ev.working_time:.3f}s should be far "
-        f"less than survivor {survivor_ev.working_time:.3f}s; "
-        f"gap was {working_gap:.3f}s"
+        f"less than survivor {survivor_ev.working_time:.3f}s"
     )
 
 

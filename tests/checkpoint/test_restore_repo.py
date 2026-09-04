@@ -164,10 +164,10 @@ async def test_restore_handles_legacy_relative_rooted_snapshot(tmp_path: Path) -
 async def test_restore_refuses_snapshot_with_symlinks(tmp_path: Path) -> None:
     """A snapshot carrying ``store.json`` → host file and a dir symlink chain fails.
 
-    The listing gate rejects it before restic writes anything, so the
-    target stays empty; nothing outside the target is read, moved, or
-    created — the host files the symlinks point at are still in place and
-    unchanged afterwards.
+    The snapshot listing check rejects it before restic writes anything,
+    so the target stays empty; nothing outside the target is read, moved,
+    or created — the host files the symlinks point at are still in place
+    and unchanged afterwards.
     """
     restic, repo = await _init_repo(tmp_path)
     host = tmp_path / "host"
@@ -199,6 +199,79 @@ async def test_restore_refuses_snapshot_with_symlinks(tmp_path: Path) -> None:
         [*siblings_before, "restored"]
     )
     assert list(target.iterdir()) == []
+
+
+async def test_restore_empties_target_before_restoring(tmp_path: Path) -> None:
+    """Files already in the target that the snapshot lacks do not survive.
+
+    Restic overwrites the snapshot's members but leaves other names alone,
+    so a file an interrupted fire left in ``context/`` (the requeue path
+    restores into the same dir) would otherwise outlive the restore as
+    state newer than the committed checkpoint.
+    """
+    restic, repo = await _init_repo(tmp_path)
+    source = tmp_path / "sample" / "context"
+    source.mkdir(parents=True)
+    (source / "store.json").write_text('{"committed": true}')
+    await run_backup(restic, repo, PASSWORD, str(source), "ckpt-00001")
+
+    target = tmp_path / "restored"
+    target.mkdir()
+    (target / "store.json").write_text('{"uncommitted": true}')
+    (target / "agent_state.json").write_text('{"newer": true}')
+    (target / "leftover").mkdir()
+    (target / "leftover" / "x.tmp").write_text("x")
+    await restore_repo(
+        restic, repo, PASSWORD, str(target), max_files=MAX_FILES, max_bytes=MAX_BYTES
+    )
+
+    assert _tree(target) == {"store.json": '{"committed": true}'}
+
+
+async def test_restore_refuses_symlinked_target(tmp_path: Path) -> None:
+    """A ``context/`` replaced by a symlink is refused, not followed.
+
+    Nothing is written into, or removed from, the directory it points at.
+    """
+    restic, repo = await _init_repo(tmp_path)
+    source = tmp_path / "sample" / "context"
+    source.mkdir(parents=True)
+    (source / "store.json").write_text('{"k": 1}')
+    await run_backup(restic, repo, PASSWORD, str(source), "ckpt-00001")
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "keep.txt").write_text("host file")
+    target = tmp_path / "restored"
+    os.symlink(elsewhere, target, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="target is a symlink"):
+        await restore_repo(
+            restic,
+            repo,
+            PASSWORD,
+            str(target),
+            max_files=MAX_FILES,
+            max_bytes=MAX_BYTES,
+        )
+
+    assert target.is_symlink()
+    assert _tree(elsewhere) == {"keep.txt": "host file"}
+
+
+async def test_restore_rejects_empty_repo(tmp_path: Path) -> None:
+    """``restic ls latest`` exits non-zero on a repo with no snapshot."""
+    restic, repo = await _init_repo(tmp_path)
+
+    with pytest.raises(RuntimeError, match="no snapshot"):
+        await restore_repo(
+            restic,
+            repo,
+            PASSWORD,
+            str(tmp_path / "restored"),
+            max_files=MAX_FILES,
+            max_bytes=MAX_BYTES,
+        )
 
 
 async def test_restore_refuses_multi_path_snapshot(tmp_path: Path) -> None:

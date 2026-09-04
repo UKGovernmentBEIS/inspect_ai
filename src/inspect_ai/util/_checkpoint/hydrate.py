@@ -110,9 +110,13 @@ logger = getLogger(__name__)
 # directories (a dozen or so for a deep staging path) plus the flat JSON
 # files `host_context` describes, the transcript-store sqlite file with its
 # journal side files, and at most a few `.tmp` leftovers from an interrupted
-# atomic write. The byte bound is a generous ceiling on one sample's
+# atomic write — a few dozen nodes. It is set well above that because
+# earlier versions restored into a non-empty `context/` on in-run requeue
+# and left restic's mirrored source-path chain nested inside it, so each
+# requeue's snapshots grew by roughly twenty nodes; those lineages must
+# still resume. The byte bound is a generous ceiling on one sample's
 # transcript.
-_HOST_CONTEXT_MAX_FILES = 256
+_HOST_CONTEXT_MAX_FILES = 4096
 _HOST_CONTEXT_MAX_BYTES = 8 * 1024**3
 
 
@@ -248,7 +252,11 @@ async def hydrate(
             resume_checkpoint.sample_checkpoints_dir,
             sample_root,
         )
-    restic_config = await ensure_restic_config(sample_root)
+        restic_config = await _inherit_restic_config(
+            sample_root, resume_checkpoint.sample_checkpoints_dir
+        )
+    else:
+        restic_config = await ensure_restic_config(sample_root)
     host_restic = await resolve_restic()
     host_repo = host_repo_dir(sample_root)
 
@@ -521,12 +529,6 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
     ``old_sample_dir`` may be local or remote (e.g. ``s3://``); the new
     sample dir is always local. Returns the list of paths written,
     relative to ``new_sample_dir``.
-
-    A copied ``restic-config.json`` that does not parse is rejected here,
-    naming the resume source. The adopted repos open only with the
-    password it carries, so there is no sensible continuation; without
-    this check the same corruption surfaces later as a bare validation
-    error from ``ensure_restic_config`` with no pointer to the source dir.
     """
     async_fs = get_async_filesystem()
     new = Path(new_sample_dir)
@@ -541,22 +543,30 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
                 await async_fs.get_file(src, str(dst))
                 written.append(subpath)
 
-        if RESTIC_CONFIG_SUBPATH in written:
-            config_path = new / RESTIC_CONFIG_SUBPATH
-            try:
-                ResticConfig.model_validate_json(config_path.read_bytes())
-            except ValueError as ex:
-                raise RuntimeError(
-                    f"resume: {old_sample_dir}/{RESTIC_CONFIG_SUBPATH} is not a "
-                    f"valid restic config: {ex}"
-                ) from ex
-
         async for uri in async_fs.iter_files(old_sample_dir, pattern="ckpt-*.json"):
             name = uri.rsplit("/", 1)[-1]
             dst = new / name
             await async_fs.get_file(uri, str(dst))
             written.append(name)
     return written
+
+
+async def _inherit_restic_config(sample_root: str, resume_source: str) -> ResticConfig:
+    """``ensure_restic_config`` on resume, naming the resume source if the copy is corrupt.
+
+    The config was just copied from ``resume_source`` by
+    :func:`_fs_copy_cross_cutting`; the adopted repos open only with the
+    password it carries, so a copy that does not parse has no sensible
+    continuation. Bare, the validation error would not say which resume
+    source dir holds the bad file.
+    """
+    try:
+        return await ensure_restic_config(sample_root)
+    except ValueError as ex:  # pydantic's ValidationError is a ValueError
+        raise RuntimeError(
+            f"resume: {resume_source}/{RESTIC_CONFIG_SUBPATH} is not a valid "
+            f"restic config: {ex}"
+        ) from ex
 
 
 def _load_host_state(

@@ -5,9 +5,8 @@
 - ``_parse_changed_files`` parses ``restic diff`` (added/changed entries
   vs the parent) — used for every later snapshot.
   Both keep files only, cap the list, and count the overflow.
-- ``run_backup`` / ``restore_repo`` invocation shape (restic mocked).
-- ``verify_regular_tree``: the restored-tree gate (restored repos are
-  untrusted input).
+- ``run_backup`` / ``restore_repo`` invocation shape (restic mocked): the
+  snapshot listing check, target handling, and the restore call.
 
 Tests that drive a real restic binary live in
 ``tests/checkpoint/test_restore_repo.py``.
@@ -27,16 +26,12 @@ import pytest
 from test_helpers.restic import SUMMARY_SNAPSHOT_ID, restic_summary_json
 
 from inspect_ai.util._restic.ops import (
+    RestoredTreeError,
     _parse_changed_files,
     _parse_listed_files,
     _previous_id,
     restore_repo,
     run_backup,
-)
-from inspect_ai.util._restic.verify import (
-    RestoredTreeError,
-    TreeStats,
-    verify_regular_tree,
 )
 
 # --- restic ls (full snapshot) -------------------------------------------
@@ -212,9 +207,10 @@ async def test_run_backup_absolutizes_relative_source(
 
 _SNAPSHOT_PATH = "/host/sample/context"
 _SNAPSHOT_ID = "abc123" + "0" * 58
-_ONE_SNAPSHOT: list[dict[str, object]] = [
-    {"id": _SNAPSHOT_ID, "paths": [_SNAPSHOT_PATH]}
-]
+_NO_SNAPSHOT_STDERR = (
+    b'{"message_type":"exit_error","code":1,"message":"snapshot filter '
+    b'(Paths:[] Tags:[] Hosts:[]): no snapshot found"}'
+)
 
 
 def _ls_node(path: str, type: str, size: int | None = 0) -> dict[str, object]:
@@ -235,10 +231,14 @@ def _ls_node(path: str, type: str, size: int | None = 0) -> dict[str, object]:
     return node
 
 
-def _ls_header(source_path: str = _SNAPSHOT_PATH) -> dict[str, object]:
-    """The leading snapshot record of ``restic ls --json``."""
+def _ls_header(
+    source_path: str = _SNAPSHOT_PATH, *, paths: list[str] | None = None
+) -> dict[str, object]:
+    """The leading snapshot record of ``restic ls --json`` (``id`` + ``paths``)."""
     return {
-        "paths": [source_path],
+        "id": _SNAPSHOT_ID,
+        "short_id": _SNAPSHOT_ID[:8],
+        "paths": [source_path] if paths is None else paths,
         "message_type": "snapshot",
         "struct_type": "snapshot",
     }
@@ -260,18 +260,25 @@ _STORE_ONLY = _ls_chain(_ls_node(f"{_SNAPSHOT_PATH}/store.json", "file", size=2)
 
 def _fake_restic(
     monkeypatch: pytest.MonkeyPatch,
-    snapshots: list[dict[str, object]],
-    listing: list[dict[str, object]],
+    listing: list[dict[str, object]] | bytes | None,
     restore: Callable[[Path], None],
 ) -> list[list[str]]:
-    """Stub ``anyio.run_process`` for ``snapshots``/``ls``/``restore``; return the calls."""
+    """Stub ``anyio.run_process`` for ``ls``/``restore``; return the calls.
+
+    ``listing`` is the ``ls --json latest`` output: records, raw bytes, or
+    ``None`` for a repo with no snapshot (restic exits 1 there).
+    """
     calls: list[list[str]] = []
 
     async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
         calls.append(command)
-        if "snapshots" in command:
-            return SimpleNamespace(stdout=json.dumps(snapshots).encode())
         if "ls" in command:
+            if listing is None:
+                raise subprocess.CalledProcessError(
+                    1, command, output=b"", stderr=_NO_SNAPSHOT_STDERR
+                )
+            if isinstance(listing, bytes):
+                return SimpleNamespace(stdout=listing)
             lines = "\n".join(json.dumps(record) for record in listing)
             return SimpleNamespace(stdout=lines.encode())
         if "restore" in command:
@@ -296,20 +303,19 @@ async def _restore(target: Path) -> None:
 async def test_restore_repo_restores_known_subfolder(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Restore names the snapshot's recorded path; files land directly in target."""
-    calls = _fake_restic(monkeypatch, _ONE_SNAPSHOT, _STORE_ONLY, _write_store)
+    """One ``ls`` supplies snapshot and listing; restore names the recorded path."""
+    calls = _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
     target = tmp_path / "ctx"
 
     await _restore(target)
 
-    assert [c[3] for c in calls] == ["snapshots", "ls", "restore"]
-    assert calls[0][3:] == ["snapshots", "--json", "latest"]
-    assert calls[1][3:] == ["ls", "--json", _SNAPSHOT_ID]
-    assert calls[2][3:] == [
+    assert [c[3] for c in calls] == ["ls", "restore"]
+    assert calls[0][3:] == ["ls", "--json", "latest"]
+    assert calls[1][3:] == [
         "restore",
         f"{_SNAPSHOT_ID}:{_SNAPSHOT_PATH}",
         "--target",
-        str(target.resolve()),
+        str(target),
     ]
     assert [p.name for p in target.iterdir()] == ["store.json"]
 
@@ -317,28 +323,34 @@ async def test_restore_repo_restores_known_subfolder(
 async def test_restore_repo_rejects_empty_repo(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """``snapshots latest`` on an empty repo yields ``[]`` (exit 0) — not a restore."""
-    calls = _fake_restic(monkeypatch, [], _STORE_ONLY, _write_store)
+    """``ls latest`` on a repo with no snapshot exits 1 — reported, not restored."""
+    calls = _fake_restic(monkeypatch, None, _write_store)
 
-    with pytest.raises(RuntimeError, match="expected one latest snapshot"):
+    with pytest.raises(RuntimeError, match="no snapshot"):
         await _restore(tmp_path / "ctx")
-    assert [c[3] for c in calls] == ["snapshots"]
+    assert [c[3] for c in calls] == ["ls"]
+
+
+async def test_restore_repo_rejects_listing_without_snapshot_record(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _fake_restic(monkeypatch, _STORE_ONLY[1:], _write_store)
+
+    with pytest.raises(RuntimeError, match="no snapshot record"):
+        await _restore(tmp_path / "ctx")
+    assert [c[3] for c in calls] == ["ls"]
 
 
 async def test_restore_repo_rejects_multi_path_snapshot(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A snapshot recording more than one source path never reaches restore."""
-    calls = _fake_restic(
-        monkeypatch,
-        [{"id": _SNAPSHOT_ID, "paths": [_SNAPSHOT_PATH, "/other"]}],
-        _STORE_ONLY,
-        _write_store,
-    )
+    listing = [_ls_header(paths=[_SNAPSHOT_PATH, "/other"]), *_STORE_ONLY[1:]]
+    calls = _fake_restic(monkeypatch, listing, _write_store)
 
     with pytest.raises(RuntimeError, match="exactly one source path"):
         await _restore(tmp_path / "ctx")
-    assert [c[3] for c in calls] == ["snapshots"]
+    assert [c[3] for c in calls] == ["ls"]
 
 
 @pytest.mark.parametrize("kind", ["symlink", "fifo", "socket", "chardev"])
@@ -350,12 +362,12 @@ async def test_restore_repo_rejects_non_regular_node_before_restore(
         _ls_node(f"{_SNAPSHOT_PATH}/store.json", kind),
         _ls_node(f"{_SNAPSHOT_PATH}/events.json", "file", size=2),
     )
-    calls = _fake_restic(monkeypatch, _ONE_SNAPSHOT, listing, _write_store)
+    calls = _fake_restic(monkeypatch, listing, _write_store)
     target = tmp_path / "ctx"
 
     with pytest.raises(RestoredTreeError, match=rf"{kind} node.*store\.json"):
         await _restore(target)
-    assert [c[3] for c in calls] == ["snapshots", "ls"]
+    assert [c[3] for c in calls] == ["ls"]
     assert list(target.iterdir()) == []
 
 
@@ -368,11 +380,11 @@ async def test_restore_repo_rejects_source_path_missing_from_listing(
         _ls_node("/elsewhere", "dir"),
         _ls_node("/elsewhere/store.json", "file", size=2),
     ]
-    calls = _fake_restic(monkeypatch, _ONE_SNAPSHOT, listing, _write_store)
+    calls = _fake_restic(monkeypatch, listing, _write_store)
 
     with pytest.raises(RuntimeError, match="not a directory in the snapshot"):
         await _restore(tmp_path / "ctx")
-    assert [c[3] for c in calls] == ["snapshots", "ls"]
+    assert [c[3] for c in calls] == ["ls"]
 
 
 async def test_restore_repo_rejects_source_path_listed_as_file(
@@ -384,11 +396,11 @@ async def test_restore_repo_rejects_source_path_listed_as_file(
         _ls_node("/host/sample", "dir"),
         _ls_node(_SNAPSHOT_PATH, "file", size=2),
     ]
-    calls = _fake_restic(monkeypatch, _ONE_SNAPSHOT, listing, _write_store)
+    calls = _fake_restic(monkeypatch, listing, _write_store)
 
     with pytest.raises(RuntimeError, match="not a directory in the snapshot"):
         await _restore(tmp_path / "ctx")
-    assert [c[3] for c in calls] == ["snapshots", "ls"]
+    assert [c[3] for c in calls] == ["ls"]
 
 
 async def test_restore_repo_restores_legacy_relative_rooted_snapshot(
@@ -409,13 +421,12 @@ async def test_restore_repo_restores_legacy_relative_rooted_snapshot(
         _ls_node("/ckpts/1__1/context", "dir"),
         _ls_node("/ckpts/1__1/context/store.json", "file", size=2),
     ]
-    snapshots: list[dict[str, object]] = [{"id": _SNAPSHOT_ID, "paths": [recorded]}]
-    calls = _fake_restic(monkeypatch, snapshots, listing, _write_store)
+    calls = _fake_restic(monkeypatch, listing, _write_store)
     target = tmp_path / "ctx"
 
     await _restore(target)
 
-    assert calls[2][4] == f"{_SNAPSHOT_ID}:/ckpts/1__1/context"
+    assert calls[1][4] == f"{_SNAPSHOT_ID}:/ckpts/1__1/context"
     assert [p.name for p in target.iterdir()] == ["store.json"]
 
 
@@ -449,11 +460,11 @@ async def test_restore_repo_reads_pre_0_17_struct_type_listing(
         {k: v for k, v in record.items() if k != "message_type"}
         for record in _STORE_ONLY
     ]
-    calls = _fake_restic(monkeypatch, _ONE_SNAPSHOT, listing, _write_store)
+    calls = _fake_restic(monkeypatch, listing, _write_store)
 
     await _restore(tmp_path / "ctx")
 
-    assert [c[3] for c in calls] == ["snapshots", "ls", "restore"]
+    assert [c[3] for c in calls] == ["ls", "restore"]
 
 
 async def test_restore_repo_rejects_file_node_without_size(
@@ -461,11 +472,11 @@ async def test_restore_repo_rejects_file_node_without_size(
 ) -> None:
     """A malformed listing is rejected, not coerced to size 0."""
     listing = _ls_chain(_ls_node(f"{_SNAPSHOT_PATH}/store.json", "file", size=None))
-    calls = _fake_restic(monkeypatch, _ONE_SNAPSHOT, listing, _write_store)
+    calls = _fake_restic(monkeypatch, listing, _write_store)
 
     with pytest.raises(RestoredTreeError, match=r"without a size.*store\.json"):
         await _restore(tmp_path / "ctx")
-    assert [c[3] for c in calls] == ["snapshots", "ls"]
+    assert [c[3] for c in calls] == ["ls"]
 
 
 async def test_restore_repo_enforces_listing_bounds(
@@ -473,18 +484,18 @@ async def test_restore_repo_enforces_listing_bounds(
 ) -> None:
     """Entry and byte bounds apply to the listing, before restore."""
     big = _ls_chain(_ls_node(f"{_SNAPSHOT_PATH}/events.json", "file", size=4096))
-    calls = _fake_restic(monkeypatch, _ONE_SNAPSHOT, big, _write_store)
+    calls = _fake_restic(monkeypatch, big, _write_store)
     with pytest.raises(RestoredTreeError, match="exceeds 1024 bytes"):
         await _restore(tmp_path / "ctx")
-    assert [c[3] for c in calls] == ["snapshots", "ls"]
+    assert [c[3] for c in calls] == ["ls"]
 
     many = _ls_chain(
         *(_ls_node(f"{_SNAPSHOT_PATH}/f{i}.json", "file", size=1) for i in range(8))
     )
-    calls = _fake_restic(monkeypatch, _ONE_SNAPSHOT, many, _write_store)
+    calls = _fake_restic(monkeypatch, many, _write_store)
     with pytest.raises(RestoredTreeError, match="exceeds 8 entries"):
         await _restore(tmp_path / "ctx")
-    assert [c[3] for c in calls] == ["snapshots", "ls"]
+    assert [c[3] for c in calls] == ["ls"]
 
 
 async def test_restore_repo_stops_parsing_listing_past_entry_bound(
@@ -503,84 +514,128 @@ async def test_restore_repo_stops_parsing_listing_past_entry_bound(
     )
     listing = "\n".join(json.dumps(record) for record in over_bound).encode()
     listing += b"\n" + b"\xff not utf-8\n" * 1000
-    calls: list[list[str]] = []
-
-    async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
-        calls.append(command)
-        if "snapshots" in command:
-            return SimpleNamespace(stdout=json.dumps(_ONE_SNAPSHOT).encode())
-        if "ls" in command:
-            return SimpleNamespace(stdout=listing)
-        raise AssertionError(f"unexpected restic command: {command}")
-
-    monkeypatch.setattr(anyio, "run_process", fake_run_process)
+    calls = _fake_restic(monkeypatch, listing, _write_store)
 
     with pytest.raises(RestoredTreeError, match="exceeds 8 entries"):
         await _restore(tmp_path / "ctx")
-    assert [c[3] for c in calls] == ["snapshots", "ls"]
+    assert [c[3] for c in calls] == ["ls"]
 
 
-async def test_restore_repo_rejects_symlink_in_restored_tree(
+async def test_restore_repo_empties_target_before_restore(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Belt-and-braces: a symlink that slipped past the listing fails and is removed."""
-    secret = tmp_path / "secret.json"
-    secret.write_text('{"pwned": true}')
+    """Stale entries in the target are removed before restic runs.
 
-    def restore_symlink(target: Path) -> None:
-        os.symlink(secret, target / "store.json")
-
-    _fake_restic(monkeypatch, _ONE_SNAPSHOT, _STORE_ONLY, restore_symlink)
+    Restic overwrites the snapshot's members but leaves other names alone,
+    so files an interrupted fire left in ``context/`` would otherwise
+    survive as state newer than the committed checkpoint. Stale symlinks
+    are unlinked, not followed.
+    """
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "keep.txt").write_text("host file")
     target = tmp_path / "ctx"
+    target.mkdir()
+    (target / "store.json").write_text('{"uncommitted": true}')
+    (target / "agent_state.json").write_text("{}")
+    (target / "nested").mkdir()
+    (target / "nested" / "x.tmp").write_text("x")
+    os.symlink(elsewhere, target / "link", target_is_directory=True)
+    seen_at_restore: list[list[str]] = []
+
+    def restore(path: Path) -> None:
+        seen_at_restore.append(sorted(p.name for p in path.iterdir()))
+        _write_store(path)
+
+    _fake_restic(monkeypatch, _STORE_ONLY, restore)
+
+    await _restore(target)
+
+    assert seen_at_restore == [[]]
+    assert [p.name for p in target.iterdir()] == ["store.json"]
+    assert (target / "store.json").read_text() == "{}"
+    assert (elsewhere / "keep.txt").read_text() == "host file"
+
+
+async def test_restore_repo_leaves_target_alone_when_listing_rejected(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The target is emptied only once the snapshot has passed the listing check."""
+    listing = _ls_chain(_ls_node(f"{_SNAPSHOT_PATH}/store.json", "symlink"))
+    _fake_restic(monkeypatch, listing, _write_store)
+    target = tmp_path / "ctx"
+    target.mkdir()
+    (target / "store.json").write_text('{"prior": true}')
 
     with pytest.raises(RestoredTreeError, match="symlink"):
         await _restore(target)
-    # The rejected tree is not left behind; the caller's dir is, emptied.
-    assert target.is_dir() and not any(target.iterdir())
-    assert secret.read_text() == '{"pwned": true}'  # cleanup did not follow the link
+    assert (target / "store.json").read_text() == '{"prior": true}'
 
 
-async def test_restore_repo_cleans_target_when_restic_fails(
+async def test_restore_repo_rejects_symlinked_target(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A partial restore (restic exits non-zero) is removed, not left unverified."""
+    """A target that is a symlink is refused before restic runs; nothing is followed."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "keep.txt").write_text("host file")
+    target = tmp_path / "ctx"
+    os.symlink(elsewhere, target, target_is_directory=True)
+    calls = _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
 
-    def restore_then_fail(target: Path) -> None:
-        _write_store(target)
-        (target / "nested").mkdir()
-        (target / "nested" / "leftover.json").write_text("{}")
+    with pytest.raises(RuntimeError, match="target is a symlink"):
+        await _restore(target)
+    assert calls == []
+    assert target.is_symlink()
+    assert [p.name for p in elsewhere.iterdir()] == ["keep.txt"]
+
+
+async def test_restore_repo_rejects_non_directory_target(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    target = tmp_path / "ctx"
+    target.write_text("not a dir")
+    calls = _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+
+    with pytest.raises(RuntimeError, match="not a directory"):
+        await _restore(target)
+    assert calls == []
+    assert target.read_text() == "not a dir"
+
+
+@pytest.mark.skipif(
+    not hasattr(os, "geteuid") or os.geteuid() == 0,
+    reason="root ignores directory permissions",
+)
+async def test_restore_repo_surfaces_target_emptying_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A stale entry that cannot be removed fails the restore instead of being skipped."""
+    target = tmp_path / "ctx"
+    locked = target / "locked"
+    locked.mkdir(parents=True)
+    (locked / "x").write_text("x")
+    locked.chmod(0)
+    calls = _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+
+    try:
+        with pytest.raises(PermissionError):
+            await _restore(target)
+    finally:
+        locked.chmod(0o700)
+    assert [c[3] for c in calls] == ["ls"]
+
+
+async def test_restore_repo_propagates_restic_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fail(target: Path) -> None:
         raise subprocess.CalledProcessError(1, ["restic", "restore"])
 
-    _fake_restic(monkeypatch, _ONE_SNAPSHOT, _STORE_ONLY, restore_then_fail)
-    target = tmp_path / "ctx"
+    _fake_restic(monkeypatch, _STORE_ONLY, fail)
 
     with pytest.raises(subprocess.CalledProcessError):
-        await _restore(target)
-    assert target.is_dir() and not any(target.iterdir())
-
-
-async def test_restore_repo_cleans_target_when_cancelled_mid_restore(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Cancellation while restic is still writing leaves no unverified tree behind."""
-    target = tmp_path / "ctx"
-
-    async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
-        if "snapshots" in command:
-            return SimpleNamespace(stdout=json.dumps(_ONE_SNAPSHOT).encode())
-        if "ls" in command:
-            lines = "\n".join(json.dumps(record) for record in _STORE_ONLY)
-            return SimpleNamespace(stdout=lines.encode())
-        _write_store(target)
-        await anyio.sleep_forever()
-        raise AssertionError("unreachable")
-
-    monkeypatch.setattr(anyio, "run_process", fake_run_process)
-
-    with anyio.move_on_after(0.2) as scope:
-        await _restore(target)
-    assert scope.cancelled_caught
-    assert target.is_dir() and not any(target.iterdir())
+        await _restore(tmp_path / "ctx")
 
 
 def test_tree_path_maps_windows_drive_to_root_component() -> None:
@@ -592,98 +647,11 @@ def test_tree_path_maps_windows_drive_to_root_component() -> None:
     assert _tree_path("D:/logs/ctx/") == "/D/logs/ctx"
 
 
-async def test_restore_repo_rejects_empty_restore(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _fake_restic(monkeypatch, _ONE_SNAPSHOT, _STORE_ONLY, lambda target: None)
+def test_tree_path_refuses_unc_and_extended_length_paths() -> None:
+    r"""``\\server\share`` and ``\\?\`` sources have no verified tree form."""
+    from inspect_ai.util._restic.ops import _tree_path
 
-    with pytest.raises(RuntimeError, match="produced no files"):
-        await restore_repo(
-            Path("/r"),
-            "/repo",
-            "pw",
-            str(tmp_path / "ctx"),
-            max_files=8,
-            max_bytes=1024,
-        )
-
-
-# --- verify_regular_tree ---------------------------------------------------
-
-
-def test_verify_regular_tree_accepts_files_and_dirs(tmp_path: Path) -> None:
-    (tmp_path / "a.json").write_bytes(b"12345")
-    (tmp_path / "sub").mkdir()
-    (tmp_path / "sub" / "b.json").write_bytes(b"123")
-    (tmp_path / "sub" / "empty").mkdir()
-
-    assert verify_regular_tree(tmp_path, max_files=10, max_bytes=100) == TreeStats(
-        files=2, bytes=8
-    )
-
-
-def test_verify_regular_tree_rejects_file_symlink(tmp_path: Path) -> None:
-    secret = tmp_path / "outside.json"
-    secret.write_text("{}")
-    root = tmp_path / "root"
-    root.mkdir()
-    os.symlink(secret, root / "store.json")
-
-    with pytest.raises(RestoredTreeError, match=r"symlink.*store\.json"):
-        verify_regular_tree(root, max_files=10, max_bytes=100)
-
-
-def test_verify_regular_tree_rejects_directory_symlink(tmp_path: Path) -> None:
-    """A directory symlink is rejected, not descended into."""
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    (outside / "host.txt").write_text("host")
-    root = tmp_path / "root"
-    root.mkdir()
-    os.symlink(outside, root / "chain", target_is_directory=True)
-
-    with pytest.raises(RestoredTreeError, match=r"symlink.*chain"):
-        verify_regular_tree(root, max_files=10, max_bytes=100)
-
-
-def test_verify_regular_tree_rejects_nested_dotdot_symlink(tmp_path: Path) -> None:
-    root = tmp_path / "root"
-    (root / "sub").mkdir(parents=True)
-    os.symlink("../../outside", root / "sub" / "escape")
-
-    with pytest.raises(RestoredTreeError, match=r"symlink.*escape"):
-        verify_regular_tree(root, max_files=10, max_bytes=100)
-
-
-@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs need a POSIX platform")
-def test_verify_regular_tree_rejects_fifo(tmp_path: Path) -> None:
-    os.mkfifo(tmp_path / "pipe")
-
-    with pytest.raises(RestoredTreeError, match=r"non-regular.*pipe"):
-        verify_regular_tree(tmp_path, max_files=10, max_bytes=100)
-
-
-def test_verify_regular_tree_enforces_entry_bound(tmp_path: Path) -> None:
-    """Files and directories both count, so a forest of empty dirs is bounded."""
-    for i in range(2):
-        (tmp_path / f"f{i}").write_bytes(b"x")
-    (tmp_path / "d").mkdir()
-
-    with pytest.raises(RestoredTreeError, match="exceeds 2 entries"):
-        verify_regular_tree(tmp_path, max_files=2, max_bytes=100)
-
-
-def test_verify_regular_tree_enforces_byte_bound(tmp_path: Path) -> None:
-    (tmp_path / "a").write_bytes(b"x" * 60)
-    (tmp_path / "b").write_bytes(b"x" * 60)
-
-    with pytest.raises(RestoredTreeError, match="exceeds 100 bytes"):
-        verify_regular_tree(tmp_path, max_files=10, max_bytes=100)
-
-
-def test_verify_regular_tree_rejects_non_directory_root(tmp_path: Path) -> None:
-    f = tmp_path / "file"
-    f.write_text("x")
-
-    with pytest.raises(RestoredTreeError, match="not a directory"):
-        verify_regular_tree(f, max_files=10, max_bytes=100)
+    with pytest.raises(RuntimeError, match="UNC"):
+        _tree_path("\\\\server\\share\\ckpts\\context")
+    with pytest.raises(RuntimeError, match="UNC"):
+        _tree_path("\\\\?\\C:\\ckpts\\context")

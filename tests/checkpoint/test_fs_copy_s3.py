@@ -27,6 +27,7 @@ from inspect_ai.util._checkpoint._repo_ops import (
 )
 from inspect_ai.util._checkpoint.hydrate import (
     _fs_copy_cross_cutting,
+    _inherit_restic_config,
 )
 
 S3_BUCKET = "s3://test-bucket"
@@ -102,23 +103,23 @@ async def test_fs_copy_cross_cutting_noop_when_source_missing(
     assert not (new / "restic").exists()
 
 
-async def test_fs_copy_cross_cutting_rejects_unparseable_restic_config(
-    tmp_path: Path, mock_s3: None
+async def test_inherit_restic_config_names_resume_source_when_corrupt(
+    tmp_path: Path,
 ) -> None:
-    """A resume source whose restic-config.json doesn't parse fails resume outright.
+    """A copied restic-config.json that doesn't parse fails resume, naming the source.
 
     The adopted repos open only with the password that file carries, so
-    continuing would just fail later with an opaque restic error.
+    continuing would just fail later with an opaque restic error; the
+    error points at the resume source dir holding the bad file.
     """
-    src = f"{S3_BUCKET}/bad-config.checkpoints/s__0"
     new = tmp_path / "staging"
-    new.mkdir()
+    (new / "restic").mkdir(parents=True)
+    (new / "restic" / "restic-config.json").write_bytes(b'{"not": "a config"}')
 
-    async with AsyncFilesystem() as fs:
-        await _put(fs, f"{src}/restic/restic-config.json", b'{"not": "a config"}')
-
-        with pytest.raises(RuntimeError, match="not a valid restic config"):
-            await _fs_copy_cross_cutting(src, str(new))
+    with pytest.raises(
+        RuntimeError, match=r"s3://bucket/old/s__0/restic/.*not a valid"
+    ):
+        await _inherit_restic_config(str(new), "s3://bucket/old/s__0")
 
 
 async def test_fs_copy_repo_downloads_tree_from_s3(

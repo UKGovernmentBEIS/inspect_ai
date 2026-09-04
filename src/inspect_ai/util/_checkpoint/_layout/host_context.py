@@ -25,17 +25,16 @@ context dir — the JSON files above (``write_text_atomic`` /
 ``write_transcript_files``) plus the checkpointer's transcript-store
 sqlite file and its journal side files — never symlinks or nested
 directories. An honest snapshot therefore never contains anything but
-regular files, and the resume-side checks — the snapshot listing gate
-and ``verify_regular_tree`` in ``restore_repo``, and the no-follow opens
-in :func:`read` — never fire on legitimate data. On resume the restored
-files come from an untrusted repo, so :func:`read` opens each one with
-``O_NOFOLLOW`` and checks the descriptor is a regular file rather than
-trusting the restored layout.
+regular files, and the resume-side checks — the snapshot listing check
+in ``restore_repo`` and the regular-file check in :func:`read` — never
+fire on legitimate data. On resume the restored files come from an
+untrusted repo, so :func:`read` checks each entry is a regular file
+(``lstat``, so a symlink is seen as such) rather than trusting the
+restored layout.
 """
 
 from __future__ import annotations
 
-import errno
 import json
 import os
 import stat
@@ -89,10 +88,9 @@ class HostContext:
 def read(working_dir: str) -> HostContext:
     """Read all host-context files from ``working_dir``.
 
-    Every file is opened via :func:`_read_optional` (no symlink following
-    where the platform supports it, regular-file check always); a symlink
-    or other non-regular entry at any of the schema's filenames raises
-    rather than being read through.
+    Every file is read via :func:`_read_optional`; a symlink or other
+    non-regular entry at any of the schema's filenames raises rather than
+    being read through.
 
     Synchronous (caller wraps in ``anyio.to_thread.run_sync`` if needed).
     """
@@ -138,34 +136,23 @@ def _read_required(path: Path) -> str:
 
 
 def _read_optional(path: Path) -> str | None:
-    """Read a schema file without following symlinks; ``None`` if absent.
+    """Read a schema file that must be a regular file; ``None`` if absent.
 
-    Opens with ``O_NOFOLLOW`` and requires the opened descriptor to be a
-    regular file, so a symlink (dangling or not) or a directory / FIFO at
-    ``path`` raises ``RuntimeError`` instead of being read through.
-    ``O_NONBLOCK`` keeps the open from parking on a FIFO with no writer
-    (it has no effect on reads of a regular file). ``O_NOFOLLOW`` is
-    unavailable on Windows, where a symlink *is* followed and only the
-    regular-file check applies; there the restore-time listing gate in
-    ``restore_repo`` is what keeps symlinks out of the context dir.
+    ``lstat`` sees a symlink as itself (dangling or not), so a symlink, a
+    directory, a FIFO or any other non-regular entry at ``path`` raises
+    ``RuntimeError`` instead of being read through. The threat is repo
+    content, not a writer racing the read, so a stat-then-read is enough.
     """
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        fd = os.open(path, flags)
+        mode = os.lstat(path).st_mode
     except FileNotFoundError:
         return None
-    except OSError as ex:
-        if ex.errno == errno.ELOOP:
-            raise RuntimeError(
-                f"host context file is a symlink; refusing to follow it: {path}"
-            ) from ex
-        raise
-    try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise RuntimeError(f"host context file is not a regular file: {path}")
-    except BaseException:
-        os.close(fd)
-        raise
-    # `fdopen` owns `fd` from here (it closes it itself if wrapping fails).
-    with os.fdopen(fd, "r", encoding="utf-8") as f:
-        return f.read()
+    if stat.S_ISLNK(mode):
+        raise RuntimeError(
+            f"host context file is a symlink; refusing to follow it: {path}"
+        )
+    if not stat.S_ISREG(mode):
+        raise RuntimeError(
+            f"host context file is not a regular file ({stat.filemode(mode)}): {path}"
+        )
+    return path.read_text(encoding="utf-8")

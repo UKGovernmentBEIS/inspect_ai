@@ -12,16 +12,19 @@ import json
 import os
 import re
 import shutil
+import stat
 from collections.abc import Sequence
-from contextlib import suppress
-from functools import partial
 from pathlib import Path
+from subprocess import CalledProcessError
 from typing import Any
 
 import anyio
 
 from .summary import ResticBackupSummary
-from .verify import RestoredTreeError, verify_regular_tree
+
+
+class RestoredTreeError(RuntimeError):
+    """A snapshot to be restored violates the regular-files-only contract."""
 
 
 async def init_repo(restic: Path, repo: str, password: str) -> None:
@@ -100,131 +103,139 @@ async def restore_repo(
 ) -> None:
     """Restore the latest snapshot's single source directory into ``target``.
 
-    The repo is untrusted input on resume (see :mod:`.verify`), so the
-    restored layout is never interpreted. The latest snapshot's recorded
-    source path is read from ``restic snapshots --json latest`` (exactly
-    one is required) and its node listing from ``restic ls --json``; the
-    listing is checked *before* restic writes anything — every node must
-    be a ``dir`` or ``file`` and the entry count / total size must fit
-    ``max_files`` / ``max_bytes`` — then that directory is restored with
-    restic's ``<snapshot>:<subfolder>`` syntax, which places its contents
-    directly in ``target`` with no intermediate path chain to walk or
-    rename. The restored tree is re-checked with
-    :func:`verify_regular_tree` as belt-and-braces — the listing's sizes
-    are the repo's own claims, so only the on-disk check is authoritative
-    for bytes. ``target`` belongs to the caller and is left in place on
-    every failure path; if the restore fails, is cancelled, or fails the
-    on-disk check, everything restic wrote into it is removed so it ends
-    up empty, just as after a listing-gate rejection.
+    The repo is untrusted input on resume: it is copied byte-for-byte from
+    whatever the resume source holds, and a repo that opens cleanly says
+    nothing about who wrote it. So the snapshot is checked before restic
+    writes anything and the restored layout is never interpreted. One
+    ``restic ls --json latest`` call yields the snapshot record and its
+    node listing (:func:`_list_latest_snapshot`); the snapshot must record
+    exactly one source path, every node must be a ``dir`` or ``file``, and
+    the entry count / summed sizes must fit ``max_files`` / ``max_bytes``
+    (:func:`_check_snapshot_nodes`). The source directory is then restored
+    with restic's ``<snapshot>:<subfolder>`` syntax, which places its
+    contents directly in ``target`` with no path chain to walk or rename.
+
+    ``target`` must be a directory or absent; a symlink is refused without
+    being followed (:func:`_prepare_target`). It is emptied before restic
+    runs: restic overwrites the snapshot's members but leaves other names
+    alone, so files an interrupted fire left in the same directory would
+    otherwise survive as state newer than the committed checkpoint. A
+    failed or cancelled restore leaves its partial tree in ``target``; the
+    exception propagates so nothing reads it, and the next restore into
+    the directory empties it first.
 
     Raises:
         RestoredTreeError: the snapshot holds something other than regular
             files and directories, or exceeds the bounds.
-        RuntimeError: the snapshot has no/several source paths, its source
-            path is not a directory in the listing, or restore produced no
-            files.
+        RuntimeError: ``target`` is a symlink or not a directory, the repo
+            has no snapshot, the snapshot records no/several source paths,
+            or its source path is not a directory in the listing.
+        OSError: ``target`` could not be emptied.
     """
-    target_dir = Path(target).resolve()
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    snapshot = await _latest_snapshot(restic, repo, password)
+    target_dir = _prepare_target(target)
+    snapshot, nodes = await _list_latest_snapshot(
+        restic, repo, password, max_nodes=max_files
+    )
     paths = snapshot.get("paths") or []
     if len(paths) != 1:
         raise RuntimeError(
             f"restic restore: expected the latest snapshot in {repo} to record "
             f"exactly one source path, found {paths}"
         )
-    nodes = await _snapshot_nodes(
-        restic, repo, password, snapshot["id"], max_nodes=max_files
-    )
     subfolder = _check_snapshot_nodes(
         nodes, paths[0], max_files=max_files, max_bytes=max_bytes
     )
+    _empty_dir(target_dir)
+    await anyio.run_process(
+        [
+            str(restic),
+            "-r",
+            repo,
+            "restore",
+            f"{snapshot['id']}:{subfolder}",
+            "--target",
+            str(target_dir),
+        ],
+        env=restic_env(password),
+        check=True,
+    )
+
+
+def _prepare_target(target: str) -> Path:
+    """``target`` as an absolute path, created if absent.
+
+    Checked with ``lstat`` before anything resolves the path: the caller's
+    ``mkdir(exist_ok=True)`` accepts a symlink to an existing directory,
+    and resolving one would redirect both the restore and the pre-restore
+    emptying at wherever it points on the host. A symlink or a
+    non-directory at ``target`` is refused.
+    """
+    path = Path(os.path.abspath(target))
     try:
-        await anyio.run_process(
-            [
-                str(restic),
-                "-r",
-                repo,
-                "restore",
-                f"{snapshot['id']}:{subfolder}",
-                "--target",
-                str(target_dir),
-            ],
+        st = os.lstat(path)
+    except FileNotFoundError:
+        path.mkdir(parents=True)
+        return path
+    if stat.S_ISLNK(st.st_mode):
+        raise RuntimeError(
+            f"restic restore: target is a symlink; refusing to follow it: {path}"
+        )
+    if not stat.S_ISDIR(st.st_mode):
+        raise RuntimeError(f"restic restore: target is not a directory: {path}")
+    return path
+
+
+def _empty_dir(path: Path) -> None:
+    """Remove every entry of ``path`` without following symlinks.
+
+    Symlink entries are unlinked, not descended, so a link to a directory
+    elsewhere on the host is never emptied. Nothing is suppressed: an entry
+    that cannot be removed (say a directory an earlier restore of a hostile
+    snapshot left unreadable) fails the restore rather than leaving stale
+    state beside the restored files.
+    """
+    with os.scandir(path) as scan:
+        entries = list(scan)
+    for entry in entries:
+        if entry.is_dir(follow_symlinks=False):
+            shutil.rmtree(entry.path)
+        else:
+            os.unlink(entry.path)
+
+
+async def _list_latest_snapshot(
+    restic: Path, repo: str, password: str, *, max_nodes: int
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """The latest snapshot's record and node records, from ``restic ls --json latest``.
+
+    The first record ``ls --json`` prints is the snapshot itself (``id``,
+    ``paths``, ...), so no separate ``snapshots`` call is needed; each
+    restic invocation re-derives the repo key, which costs about half a
+    second. Restic exits non-zero when the repo has no snapshot; that is
+    reported as ``RuntimeError`` carrying restic's message.
+
+    Node parsing stops after ``max_nodes + 1`` node records. The listing
+    is untrusted and is decoded synchronously on the event loop, so the
+    buffered stdout is iterated line by line and an oversized listing is
+    cut off at the first record that already puts it over the bound —
+    enough for :func:`_check_snapshot_nodes` to reject it — leaving the
+    remaining lines neither decoded nor parsed. (``anyio.run_process`` has
+    already buffered the whole listing in memory; only that residual cost
+    remains.)
+    """
+    try:
+        proc = await anyio.run_process(
+            [str(restic), "-r", repo, "ls", "--json", "latest"],
             env=restic_env(password),
             check=True,
         )
-        stats = await anyio.to_thread.run_sync(
-            partial(
-                verify_regular_tree,
-                target_dir,
-                max_files=max_files,
-                max_bytes=max_bytes,
-            )
-        )
-        if stats.files == 0:
-            raise RuntimeError(f"restic restore produced no files under {target_dir}")
-    except BaseException:
-        # Cancellation included: never leave an unverified tree behind.
-        _clear_dir(target_dir)
-        raise
-
-
-def _clear_dir(path: Path) -> None:
-    """Remove everything inside ``path`` without following symlinks, keeping ``path``.
-
-    Best-effort cleanup of an unverified restore. Symlinks are unlinked,
-    not descended, so a symlink to a directory elsewhere on the host is
-    never emptied; ``rmtree`` handles the same for nested entries.
-    """
-    with suppress(OSError), os.scandir(path) as entries:
-        for entry in entries:
-            if entry.is_dir(follow_symlinks=False):
-                shutil.rmtree(entry.path, ignore_errors=True)
-            else:
-                with suppress(OSError):
-                    os.unlink(entry.path)
-
-
-async def _latest_snapshot(restic: Path, repo: str, password: str) -> dict[str, Any]:
-    """The latest snapshot record in ``repo`` (``restic snapshots --json latest``).
-
-    Delegating "latest" to restic keeps the selection identical to what
-    ``restic restore latest`` would pick, rather than re-deriving it from
-    timestamps here. An empty repo yields ``[]`` (exit status 0).
-    """
-    proc = await anyio.run_process(
-        [str(restic), "-r", repo, "snapshots", "--json", "latest"],
-        env=restic_env(password),
-        check=True,
-    )
-    snapshots: list[dict[str, Any]] = json.loads(proc.stdout.decode())
-    if len(snapshots) != 1:
+    except CalledProcessError as ex:
+        stderr = ex.stderr.decode(errors="replace").strip() if ex.stderr else ""
         raise RuntimeError(
-            f"restic restore: expected one latest snapshot in {repo}, "
-            f"found {len(snapshots)}"
-        )
-    return snapshots[0]
-
-
-async def _snapshot_nodes(
-    restic: Path, repo: str, password: str, snapshot_id: str, *, max_nodes: int
-) -> list[dict[str, Any]]:
-    """Node records of ``snapshot_id`` per ``restic ls --json`` (header dropped).
-
-    Parsing stops after ``max_nodes + 1`` node records. The listing is
-    untrusted and is decoded synchronously on the event loop, so the
-    buffered stdout is iterated line by line and an oversized listing is cut
-    off at the first record that already puts it over the bound — enough
-    for :func:`_check_snapshot_nodes` to reject it — leaving the remaining
-    lines neither decoded nor parsed. (``anyio.run_process`` has already
-    buffered the whole listing in memory; only that residual cost remains.)
-    """
-    proc = await anyio.run_process(
-        [str(restic), "-r", repo, "ls", "--json", snapshot_id],
-        env=restic_env(password),
-        check=True,
-    )
+            f"restic restore: listing the latest snapshot in {repo} failed "
+            f"(no snapshot to restore?): {stderr}"
+        ) from ex
+    snapshot: dict[str, Any] | None = None
     nodes: list[dict[str, Any]] = []
     for raw in io.BytesIO(proc.stdout):
         line = raw.decode().strip()
@@ -232,21 +243,30 @@ async def _snapshot_nodes(
             continue
         record = json.loads(line)
         # restic 0.17+ emits ``message_type``; ``struct_type`` is the pre-0.17 key.
-        if record.get("message_type", record.get("struct_type")) != "node":
-            continue
-        nodes.append(record)
-        if len(nodes) > max_nodes:
-            break
-    return nodes
+        kind = record.get("message_type", record.get("struct_type"))
+        if kind == "snapshot" and snapshot is None:
+            snapshot = record
+        elif kind == "node":
+            nodes.append(record)
+            if len(nodes) > max_nodes:
+                break
+    if snapshot is None or not isinstance(snapshot.get("id"), str):
+        raise RuntimeError(
+            f"restic restore: `restic ls --json latest` on {repo} produced no "
+            "snapshot record"
+        )
+    return snapshot, nodes
 
 
 def _check_snapshot_nodes(
     nodes: list[dict[str, Any]], source_path: str, *, max_files: int, max_bytes: int
 ) -> str:
-    """Validate a snapshot listing before restore; return the subfolder to restore.
+    """Check a snapshot listing before restore; return the subfolder to restore.
 
     Every node must be a ``dir`` or ``file`` — a symlink, fifo, socket, or
     device node is rejected here, before restic materializes anything.
+    ``ls`` and ``restore`` read the same tree blobs, so what restic would
+    write is exactly what is listed here.
     The node count (including the source path's ancestor directories,
     which restic lists too) is bounded by ``max_files`` and the summed
     file sizes by ``max_bytes``; a file node without an integer ``size``
@@ -315,8 +335,16 @@ def _tree_path(source_path: str) -> str:
     which is also the form ``ls`` prints and ``restore <id>:<subfolder>``
     expects. ``_check_snapshot_nodes`` confirms the result against the
     listing, so a mismatch fails loudly instead of restoring the wrong
-    thing.
+    thing. Windows UNC (``\\server\share\...``) and extended-length
+    (``\\?\...``) sources have no verified tree form and are refused
+    explicitly rather than failing the listing match with a misleading
+    "not a directory" error.
     """
+    if source_path.startswith(chr(92) * 2):
+        raise RuntimeError(
+            "restic restore: UNC and extended-length Windows source paths are "
+            f"not supported for checkpoint resume: {source_path}"
+        )
     match = _WINDOWS_DRIVE_PATH.match(source_path)
     if match is None:
         return source_path
