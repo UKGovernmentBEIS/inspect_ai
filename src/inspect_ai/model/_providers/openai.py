@@ -39,6 +39,8 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     is_gpt_5_model,
+    is_gpt_5_plus_model,
+    is_gpt_6_model,
     is_latest_model,
     is_o_series_model,
     openai_classify_retry,
@@ -431,7 +433,7 @@ class OpenAIAPI(ModelAPI):
     def bedrock_mantle_path(self) -> str:
         """Mantle API path for this model.
 
-        Frontier OpenAI models (gpt-5.x, codex) are served on the `/openai/v1`
+        Frontier OpenAI models (gpt-5 and later, codex) are served on the `/openai/v1`
         path; open-weight models (e.g. gpt-oss) and others use `/v1`.
         """
         return "openai/v1" if (self.is_gpt_5() or self.is_codex()) else "v1"
@@ -465,8 +467,12 @@ class OpenAIAPI(ModelAPI):
         return is_gpt_5_model(self.model_family()) or self.is_latest()
 
     def is_gpt_5_plus(self) -> bool:
-        name = self.model_family()
-        return "gpt-5." in name or self.is_latest()
+        return is_gpt_5_plus_model(self.model_family()) or self.is_latest()
+
+    def is_gpt_6(self) -> bool:
+        # strict version check: whether a codename rejects sampling params is
+        # unknown, so codenames keep the gpt-5.x behavior here
+        return is_gpt_6_model(self.model_family())
 
     def is_gpt_5_pro(self) -> bool:
         name = self.model_family()
@@ -656,7 +662,7 @@ class OpenAIAPI(ModelAPI):
         # context window / token accounting match (bump when a newer frontier
         # ships). Mirrors Anthropic's is_claude_latest() aliasing.
         if self.is_latest():
-            return "openai/gpt-5.6"
+            return "openai/gpt-6-astra"
         return super().input_tokens_name()
 
     @override

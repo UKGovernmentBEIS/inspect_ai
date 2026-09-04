@@ -14,6 +14,7 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._openai import openai_completion_params
+from inspect_ai.tool import tool
 
 
 @pytest.mark.anyio
@@ -589,3 +590,56 @@ async def test_chat_completions_streaming_converts_mid_stream_safeguard_block() 
     assert output.choices[0].stop_reason == "content_filter"
     assert "blocked" in output.completion
     assert model_call.error is True
+
+
+# -- GPT-6 Astra (live) --
+#
+# Astra always reasons and rejects sampling params, so these exercise the
+# frontier request shape end to end. They fail with `model_not_found` until the
+# account has access to the model.
+
+
+@skip_if_no_openai
+async def test_openai_gpt_6_astra_generate() -> None:
+    # temperature is dropped (with a warning) rather than sent, so this must not 400
+    model = get_model(
+        "openai/gpt-6-astra",
+        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
+    )
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+    assert output.usage is not None
+    assert (output.usage.reasoning_tokens or 0) > 0
+
+
+@skip_if_no_openai
+async def test_openai_gpt_6_astra_max_reasoning_effort() -> None:
+    model = get_model(
+        "openai/gpt-6-astra", config=GenerateConfig(reasoning_effort="max")
+    )
+    output = await model.generate([ChatMessageUser(content="What is 2 + 2?")])
+    assert "4" in output.completion
+
+
+@skip_if_no_openai
+async def test_openai_gpt_6_astra_tool_call() -> None:
+    @tool
+    def addition():
+        async def execute(x: int, y: int):
+            """Add two numbers.
+
+            Args:
+                x: First number.
+                y: Second number.
+            """
+            return x + y
+
+        return execute
+
+    model = get_model("openai/gpt-6-astra")
+    output = await model.generate(
+        [ChatMessageUser(content="Use the addition tool to add 3 and 4.")],
+        tools=[addition()],
+    )
+    assert output.message.tool_calls
+    assert output.message.tool_calls[0].function == "addition"

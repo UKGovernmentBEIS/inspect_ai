@@ -1,0 +1,86 @@
+# Z.ai Model Database
+#
+# Hand-maintained entries for Z.ai GLM models. Specs come from Z.ai's own
+# documentation (https://docs.z.ai/guides/llm/glm-5.3), which reports metadata
+# the inference-provider APIs do not: release date, output cap, and reasoning.
+#
+# The same model is keyed three different ways depending on which provider
+# serves it, because each provider's canonical_name() derives the organization
+# differently. All three are listed so a lookup resolves to the same metadata
+# whichever route a caller takes:
+#
+#   zai-org/GLM-5.3   together   (HuggingFace-style creator prefix, preserved)
+#   fireworks/glm-5p3 fireworks  (no creator component; keyed under provider)
+#   z-ai/glm-5.3      openrouter (its own creator slug)
+#
+# Entries here collide with the auto-generated together.yml and fireworks.yml
+# on the case-normalized lookup key. sync_models.py skips and removes such
+# collisions, so the generated files carry no competing entry and these win.
+# NOTE: that removal happens when the sync runs — edit this file and re-run
+# `python -m inspect_ai.model._model_data.sync_models` together, or the
+# generated entry keeps winning an exact-case lookup.
+
+zai-org:
+  display_name: Z.ai
+  models:
+    glm-5.3: &glm_5_3
+      display_name: "GLM 5.3"
+      release_date: 2026-08-14
+      # Knowledge cutoff is not stated in Z.ai's docs; omit for now.
+      context_length: 1048576
+      output_tokens: 131072
+      reasoning: True
+      # Thinking is always on: thinking.type only accepts "enabled", and
+      # disabling reasoning is no longer supported. reasoning_effort accepts
+      # low/high/max and defaults to max.
+      reasoning_effort_default: max
+    # Quantized/LoRA deployments of the same weights, named this way by Together.
+    GLM-5.3-FP8: *glm_5_3
+    GLM-5.3-FP8-Lora: *glm_5_3
+    glm-5.2: &glm_5_2
+      display_name: "GLM 5.2"
+      release_date: 2026-06-16
+      # Knowledge cutoff is not stated in Z.ai's docs; omit for now.
+      context_length: 1048576
+      output_tokens: 131072
+      reasoning: True
+      # Unlike 5.3, 5.2 accepts thinking.type "disabled". Z.ai's docs show
+      # reasoning_effort in samples but state no default, so it is omitted
+      # rather than guessed.
+    GLM-5.2-FP8: *glm_5_2
+    GLM-5.2-FP8-Lora: *glm_5_2
+    # Not a variant of 5.3: its own newly-trained base, and the first natively
+    # multimodal model in the GLM-5 series (video/image/text/file in, text out).
+    glm-5.3-flash: &glm_5_3_flash
+      display_name: "GLM 5.3 Flash"
+      # Z.ai's docs give no date; 2026-08-26 is from Wikipedia's cited sources.
+      release_date: 2026-08-26
+      # Knowledge cutoff is not stated in Z.ai's docs; omit for now.
+      context_length: 1048576
+      output_tokens: 131072
+      reasoning: True
+      # Thinking is always on ("thinking.type only supports enabled; thinking
+      # cannot be disabled"). The docs recommend reasoning_effort: max without
+      # labelling it the default; secondary sources report max as the default.
+      reasoning_effort_default: max
+
+# Fireworks' own catalog reports only a context length, so curating here is what
+# gives a Fireworks-served GLM 5.3 its release date. The display_name matches
+# fireworks.yml so the organization shown for this model does not change.
+# Trade-off: sync_models.py will now stop refreshing this model's context length
+# from the Fireworks API, so if Fireworks changes what it serves, the value
+# below goes stale silently. It matches what Fireworks reports today.
+fireworks:
+  display_name: Fireworks AI
+  models:
+    glm-5p3: *glm_5_3
+    glm-5p3-flash: *glm_5_3_flash
+    glm-5p2: *glm_5_2
+    glm-5p2-fp8: *glm_5_2
+
+z-ai:
+  display_name: Z.ai
+  models:
+    glm-5.3: *glm_5_3
+    glm-5.3-flash: *glm_5_3_flash
+    glm-5.2: *glm_5_2
