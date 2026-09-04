@@ -660,6 +660,18 @@ def test_openai_responses_client_reasoning_takes_precedence_over_modelled():
     assert params["reasoning"] == {"effort": "max", "context": "all_turns"}
 
 
+def test_openai_responses_client_reasoning_suppresses_sampling_params():
+    client_reasoning = {"effort": "high", "context": "all_turns"}
+    params = _responses_params_for(
+        "gpt-5.4",
+        GenerateConfig(
+            extra_body={"reasoning": client_reasoning},
+            temperature=0.7,
+        ),
+    )
+    assert params["reasoning"] == client_reasoning
+    assert "temperature" not in params
+
 
 def test_openai_responses_pro_mode_suppresses_sampling_params():
     params = _responses_params_for(
