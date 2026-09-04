@@ -9,9 +9,12 @@ strategies — a cycle). ``hydrate`` still uses it for the host repo.
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
-from inspect_ai.util._restic.ops import run_restic
+import anyio
+
+from inspect_ai.util._restic.ops import restic_env
 
 
 def checkpoint_tag(checkpoint_id: int) -> str:
@@ -41,8 +44,12 @@ async def drop_orphan_snapshots(
     them makes ``restic restore latest`` pick the committed snapshot and
     lets the next fire write its tag without colliding with a stale one.
     """
-    await run_restic(restic, repo, "unlock", "--remove-all", password=password)
-    proc = await run_restic(restic, repo, "snapshots", "--json", password=password)
+    await _run_restic(
+        [str(restic), "-r", repo, "unlock", "--remove-all"], password=password
+    )
+    proc = await _run_restic(
+        [str(restic), "-r", repo, "snapshots", "--json"], password=password
+    )
     snapshots = json.loads(proc.stdout.decode())
     orphan_ids: list[str] = []
     for snap in snapshots:
@@ -57,4 +64,25 @@ async def drop_orphan_snapshots(
                 orphan_ids.append(snap["id"])
                 break
     if orphan_ids:
-        await run_restic(restic, repo, "forget", *orphan_ids, password=password)
+        await _run_restic(
+            [str(restic), "-r", repo, "forget", *orphan_ids], password=password
+        )
+
+
+async def _run_restic(
+    command: list[str], *, password: str
+) -> subprocess.CompletedProcess[bytes]:
+    """Run a restic command; a non-zero exit raises with restic's stderr.
+
+    ``anyio.run_process(check=True)`` raises ``CalledProcessError`` whose
+    message carries only the command and exit status — restic's reason
+    ("repository is already locked by ...", "repository does not exist")
+    is on stderr, and without it a failed resume is undiagnosable.
+    """
+    proc = await anyio.run_process(command, env=restic_env(password), check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"restic {command[3]} failed (exit {proc.returncode}) on {command[2]}: "
+            f"{proc.stderr.decode(errors='replace').strip()}"
+        )
+    return proc

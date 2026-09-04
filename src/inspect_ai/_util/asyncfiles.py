@@ -569,8 +569,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         """
         if is_s3_filename(remote):
             bucket, key = s3_bucket_and_key(remote)
-
-            async def do_get() -> None:
+            with _map_missing_s3_object(remote):
                 if current_async_backend() == "asyncio":
                     client = await self.s3_client_async()
                     partial_path = f"{local}.{uuid.uuid4().hex}.part"
@@ -586,24 +585,20 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     await anyio.to_thread.run_sync(
                         s3_get_file, self.s3_client(), bucket, key, local
                     )
-
-            with _map_missing_s3_object(remote):
-                # a download queued behind a starved connection pool can
-                # carry a stale signature, like a put
-                await _s3_put_with_retry(do_get, location=remote)
         else:
             filesystem(remote).get_file(remote, local)
 
     async def copy_file(self, source: str, destination: str) -> None:
         """Copy `source` to `destination`; either side may be local or remote.
 
-        An s3 → s3 pair copies server-side: a single `CopyObject` up to
-        S3's 5GiB per-request cap, multipart (`UploadPartCopy`) above it
-        — the archive snapshot strategy writes one tar per checkpoint
-        with no size cap. A local destination's parent directory must
-        already exist. Pairs involving a non-s3 remote (gs://, az://,
-        ...) buffer the file through memory — never `to_thread` over
-        fsspec's own event-loop thread (deadlock hazard; see AGENTS.md).
+        An s3 → s3 pair copies server-side (single `CopyObject` — capped
+        at 5GB per object by S3, well above any file this codebase
+        copies; restic pack files top out at 128MiB). A local
+        destination's parent directory must already exist. Pairs
+        involving a non-s3 remote (gs://, az://, ...) buffer the file
+        through memory — never `to_thread` over fsspec's own event-loop
+        thread (deadlock hazard; see AGENTS.md), and fine for the file
+        sizes above.
         """
         src_s3 = is_s3_filename(source)
         dst_s3 = is_s3_filename(destination)
@@ -616,11 +611,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             async def do_copy() -> None:
                 if current_async_backend() == "asyncio":
                     client = await self.s3_client_async()
-                    await client.copy(
+                    await client.copy_object(
                         CopySource={"Bucket": src_bucket, "Key": src_key},
                         Bucket=dst_bucket,
                         Key=dst_key,
-                        Config=_s3_copy_transfer_config(),
                     )
                 else:
                     await anyio.to_thread.run_sync(
@@ -635,7 +629,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             await _s3_put_with_retry(do_copy, location=destination)
         elif src_local and dst_local:
             await anyio.to_thread.run_sync(
-                _copy_local_file, local_path(source), local_path(destination)
+                shutil.copyfile, local_path(source), local_path(destination)
             )
         elif dst_local:
             await self.get_file(source, local_path(destination))
@@ -655,17 +649,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-
-            async def do_delete() -> None:
-                if current_async_backend() == "asyncio":
-                    client = await self.s3_client_async()
-                    await client.delete_object(Bucket=bucket, Key=key)
-                else:
-                    await anyio.to_thread.run_sync(
-                        s3_delete_object, self.s3_client(), bucket, key
-                    )
-
-            await _s3_put_with_retry(do_delete, location=filename)
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                await client.delete_object(Bucket=bucket, Key=key)
+            else:
+                await anyio.to_thread.run_sync(
+                    s3_delete_object, self.s3_client(), bucket, key
+                )
         else:
             fs = filesystem(filename)
             if fs.is_local():
@@ -1103,7 +1093,7 @@ def _log_s3_retry_attempt(location: str) -> Callable[[RetryCallState], None]:
         report_http_retry("transient")
         logger.log(
             HTTP,
-            "%sS3 request to %s hit RequestTimeTooSkewed on attempt %d; "
+            "%sS3 write to %s hit RequestTimeTooSkewed on attempt %d; "
             "retrying in %.0fs (request id %s)",
             sample_context_prefix(),
             location,
@@ -1140,22 +1130,6 @@ async def _s3_put_with_retry(
     raise AssertionError("S3 retry loop exited without returning or raising")
 
 
-def _copy_local_file(source: str, destination: str) -> None:
-    """Copy via a sibling temp file and rename, replacing any existing target.
-
-    An existing read-only target (restic writes repo files ``0400``) is
-    replaced rather than opened for writing, and a partial copy never
-    masquerades as the file.
-    """
-    partial_path = f"{destination}.{uuid.uuid4().hex}.part"
-    try:
-        shutil.copyfile(source, partial_path)
-        os.replace(partial_path, destination)
-    finally:
-        with suppress(FileNotFoundError):
-            os.remove(partial_path)
-
-
 def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
     s3.download_file(Bucket=bucket, Key=key, Filename=filename)
 
@@ -1163,11 +1137,10 @@ def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
 def s3_copy_object(
     s3: Any, src_bucket: str, src_key: str, dst_bucket: str, dst_key: str
 ) -> None:
-    s3.copy(
+    s3.copy_object(
         CopySource={"Bucket": src_bucket, "Key": src_key},
         Bucket=dst_bucket,
         Key=dst_key,
-        Config=_s3_copy_transfer_config(),
     )
 
 
@@ -1316,23 +1289,6 @@ def bind_async_filesystem(fs: AsyncFilesystem) -> Iterator[None]:
         yield
     finally:
         _current_async_fs.reset(token)
-
-
-@functools.cache
-def _s3_copy_transfer_config() -> TransferConfig:
-    """Transfer config for server-side copies.
-
-    A single ``CopyObject`` for everything S3 allows one for (5GiB);
-    only larger objects go multipart, so the many small restic pack
-    files stay one request each.
-    """
-    from boto3.s3.transfer import TransferConfig
-
-    return TransferConfig(
-        multipart_threshold=5 * 1024 * 1024 * 1024,
-        multipart_chunksize=256 * 1024 * 1024,
-        max_concurrency=10,
-    )
 
 
 @functools.cache

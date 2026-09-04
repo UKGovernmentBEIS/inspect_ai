@@ -159,7 +159,7 @@ async def test_run_backup_passes_quiet(monkeypatch: pytest.MonkeyPatch) -> None:
 
     async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
         captured["command"] = command
-        return SimpleNamespace(stdout=restic_summary_json().encode(), returncode=0)
+        return SimpleNamespace(stdout=restic_summary_json().encode())
 
     monkeypatch.setattr(anyio, "run_process", fake_run_process)
 

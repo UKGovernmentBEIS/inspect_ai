@@ -25,7 +25,7 @@ from pathlib import Path
 
 import anyio
 
-from inspect_ai.util._restic.ops import run_restic
+from inspect_ai.util._restic.ops import restic_env
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
@@ -214,8 +214,10 @@ async def _verify_destination(
     Cheap metadata read (`restic snapshots --json`); catches torn
     extractions before we advance the in-sandbox manifest.
     """
-    proc = await run_restic(
-        host_restic, dest_repo, "snapshots", "--json", password=password
+    proc = await anyio.run_process(
+        [str(host_restic), "-r", dest_repo, "snapshots", "--json"],
+        env=restic_env(password),
+        check=True,
     )
     snapshots = json.loads(proc.stdout.decode())
     if snapshot_id not in {s["id"] for s in snapshots}:
