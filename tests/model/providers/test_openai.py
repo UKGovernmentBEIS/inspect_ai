@@ -764,11 +764,15 @@ async def test_skip_if_no_openai_model_runs_with_access_and_probes_once(
 async def test_skip_if_no_openai_model_propagates_other_errors(
     monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
-    _install_fake_openai(monkeypatch, error)
+    clients = _install_fake_openai(monkeypatch, error)
 
     @skip_if_no_openai_model("gpt-6-astra")
     async def gated() -> None:
         pass
 
-    with pytest.raises(type(error)):
-        await gated()
+    # the error must not be cached: a bad key or an outage re-probes on the
+    # next test (or flaky retry) instead of poisoning the per-process cache
+    for _ in range(2):
+        with pytest.raises(type(error)):
+            await gated()
+    assert [c.closed for c in clients] == [True, True]
