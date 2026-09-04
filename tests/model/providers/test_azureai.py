@@ -1,16 +1,26 @@
+import json
 from typing import Any, Literal, cast
 
 import pytest
-from azure.ai.inference.models import StreamingChatCompletionsUpdate
+from azure.ai.inference.models import (
+    AsyncStreamingChatCompletions,
+    StreamingChatCompletionsUpdate,
+)
+from azure.core.exceptions import (
+    HttpResponseError,
+    IncompleteReadError,
+    ServiceRequestError,
+)
 from test_helpers.tasks import minimal_task
 from test_helpers.utils import skip_if_no_azureai
 
 from inspect_ai import eval_async
-from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.model import GenerateConfig, Model, RetryDecision, get_model
 from inspect_ai.model._providers.azureai import (
     AZURE_API_KEY,
     AZUREAI_API_KEY,
     AzureAIAPI,
+    AzureAIStreamError,
     azureai_completion_from_stream,
     chat_complection_choice,
 )
@@ -394,8 +404,127 @@ async def test_azureai_streamed_content_filter_stop_details() -> None:
 
 
 async def test_azureai_completion_from_stream_empty() -> None:
-    with pytest.raises(RuntimeError, match="without delivering any chunks"):
+    """A stream delivering nothing (HTTP 200, then no choices) is retried."""
+    with pytest.raises(
+        AzureAIStreamError, match="without delivering any choices"
+    ) as ex:
         await azureai_completion_from_stream(_updates([]))
+    assert bool(_azureai_api().should_retry(ex.value)) is True
+
+
+class _SSEResponse:
+    """Stand-in for the azure-core async response the SDK stream reads from."""
+
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    async def iter_bytes(self) -> Any:
+        yield self._body
+
+    async def aclose(self) -> None:
+        pass
+
+
+def _sdk_stream(body: bytes) -> AsyncStreamingChatCompletions:
+    """A real SDK update stream over a canned SSE body (HTTP 200)."""
+    return AsyncStreamingChatCompletions(cast(Any, _SSEResponse(body)))
+
+
+def _sse(payload: dict[str, Any], event: str | None = None) -> bytes:
+    frame = f"data: {json.dumps(payload)}\n\n"
+    return ((f"event: {event}\n" if event else "") + frame).encode()
+
+
+_CHUNK = dict(
+    id="cmpl-1",
+    created=123,
+    model="test-model",
+    choices=[dict(index=0, delta=dict(content="hel"), finish_reason=None)],
+)
+
+
+async def test_azureai_stream_error_event_retries() -> None:
+    """An `event: error` frame mid-stream is retried rather than failing.
+
+    azure-ai-inference rejects any non-`data:` SSE line with a bare
+    `ValueError` (it has no error-event handling), which `should_retry`
+    could not otherwise recognise.
+    """
+    body = _sse(_CHUNK) + _sse(dict(error=dict(message="over capacity")), event="error")
+    with pytest.raises(AzureAIStreamError, match="could not be read") as ex:
+        await azureai_completion_from_stream(_sdk_stream(body))
+    assert isinstance(ex.value.__cause__, ValueError)
+
+    decision = _azureai_api().should_retry(ex.value)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True and decision.kind == "transient"
+
+
+@pytest.mark.parametrize(
+    ("body", "match"),
+    [
+        # an SSE comment (keep-alive)
+        (b": keep-alive\n\n" + _sse(_CHUNK), "SSE event not supported"),
+        # a non-error event name on every frame
+        (_sse(_CHUNK, event="message"), "SSE event not supported"),
+        # malformed JSON on a complete line
+        (_sse(_CHUNK) + b'data: {"id": "cmpl-1", "choi\n', "Unterminated string"),
+    ],
+)
+async def test_azureai_stream_unreadable_line_not_retried(
+    body: bytes, match: str
+) -> None:
+    """An SSE line the SDK cannot read at all fails permanently.
+
+    Retrying would burn the whole retry budget against an endpoint the SDK is
+    incompatible with, so the SDK's own error propagates unchanged.
+    """
+    with pytest.raises(ValueError, match=match) as ex:
+        await azureai_completion_from_stream(_sdk_stream(body))
+    assert not isinstance(ex.value, AzureAIStreamError)
+    assert bool(_azureai_api().should_retry(ex.value)) is False
+
+
+async def test_azureai_stream_dropped_error_frame_retries() -> None:
+    """An OpenAI-style `data: {"error": ...}` frame must not yield empty output.
+
+    The SDK parses the frame and then drops it (no choices, no usage), so the
+    accumulator only sees a stream whose choice never reached a finish
+    reason — previously returned as a successful, truncated completion.
+    """
+    body = (
+        _sse(_CHUNK)
+        + _sse(dict(error=dict(message="over capacity", code=503)))
+        + b"data: [DONE]\n"
+    )
+    with pytest.raises(
+        AzureAIStreamError, match="without delivering a finish reason"
+    ) as ex:
+        await azureai_completion_from_stream(_sdk_stream(body))
+    assert bool(_azureai_api().should_retry(ex.value)) is True
+
+    # a stream that does reach a finish reason is unaffected
+    finished = dict(_CHUNK, choices=[dict(index=0, delta=dict(), finish_reason="stop")])
+    response = await azureai_completion_from_stream(
+        _sdk_stream(_sse(_CHUNK) + _sse(finished) + b"data: [DONE]\n")
+    )
+    assert response.choices[0].message.content == "hel"
+    assert response.choices[0].finish_reason == "stop"
+
+
+def test_azureai_should_retry_stream_connection_drop() -> None:
+    """A connection dropped mid-body is an HttpResponseError with no status."""
+    api = _azureai_api()
+    ex = IncompleteReadError("Connection broken: IncompleteRead")
+    assert ex.status_code is None
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True and decision.kind == "transient"
+    # a server disconnect while streaming maps to ServiceRequestError
+    assert bool(api.should_retry(ServiceRequestError("Server disconnected"))) is True
+    # unrelated errors stay unretried
+    assert bool(api.should_retry(ValueError("unrelated"))) is False
+    assert bool(api.should_retry(HttpResponseError("no status"))) is False
 
 
 @pytest.mark.anyio
