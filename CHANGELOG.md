@@ -34,6 +34,7 @@
 - Eval Set: Tasks that set a non-mean epochs reducer now reuse their completed log on subsequent `eval_set()` calls instead of being re-run every time.
 - Human Agent: Sandbox installation of the `task` CLI now refuses a pre-planted or non-root-owned `/opt/human_agent`, errors instead of silently skipping when it cannot be created, and no longer runs a staged install script.
 - Human Agent: The `task` shell hook is now appended to the login user's `.bashrc` as that user, so a `.bashrc` that user cannot write (e.g. root-owned) or that is a symlink fails installation instead of being written by the sandbox default user (root in most images).
+- Human Agent: `human_cli()` now accepts a `commands_filter` option for tailoring the commands available in the human agent CLI.
 - Bugfix: MockLLM callable `custom_outputs` now populate default token usage when the returned `ModelOutput` omits `usage`, matching iterable/generator behavior.
 - Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.
 - Eval Log: Reading zstd-compressed `.eval` files no longer fails with `AttributeError: ... '_needs_input'` on Python builds that include CPython's gh-156002 zipfile change.
@@ -47,7 +48,6 @@
 - OpenAI: Fixed `temperature`, `top_p`, and `logprobs` causing a 400 error on GPT-5.5+ models when no `reasoning_effort` is set (they are now dropped with a warning).
 - Grok: Oversized prompts now return `stop_reason="model_length"` instead of failing with a generation error under xAI's current context-overflow wording.
 - Eval Log: Sample summaries now keep `Score.reason`, so an explicit reason is no longer dropped (and a stale `metadata["unscored_reason"]` cannot replace it).
-- Human Agent: `human_cli()` now accepts a `commands_filter` option for tailoring the commands available in the human agent CLI.
 - Agent bridge: A Chat Completions response truncated by the output-token limit now reports `finish_reason="length"` instead of `"stop"`.
 - Google: Batched evaluations with a system message now serialize `system_instruction` as REST `Content` instead of a bare JSON array, fixing batch submission failures; batch results are now parsed through the SDK converter so unknown REST fields (e.g. `usageMetadata.serviceTier`) no longer fail the whole batch. (#5100)
 - Google/Gemini: Faster client setup under high sandbox concurrency, with custom CA bundles now preserved on both sync and async requests.
