@@ -19,8 +19,10 @@ from groq import (
     DEFAULT_TIMEOUT as GROQ_DEFAULT_TIMEOUT,
 )
 from groq import (
+    APIConnectionError,
+    APIError,
+    APIResponseValidationError,
     APIStatusError,
-    APITimeoutError,
     AsyncGroq,
     AsyncStream,
 )
@@ -64,6 +66,7 @@ from inspect_ai._util.http_defaults import (
     default_limits,
     default_timeout,
 )
+from inspect_ai._util.httpx import httpx_classify_retry
 from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
@@ -92,7 +95,11 @@ from .._model_output import (
     as_stop_reason,
     collect_stop_details,
 )
-from .._openai import openai_stop_details
+from .._openai import (
+    classify_error_body,
+    http_status_from_error_code,
+    openai_stop_details,
+)
 from .._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
@@ -121,8 +128,73 @@ class GroqStreamError(Exception):
     ("over capacity") is the same condition a non-streamed request surfaces
     as a retryable 429/503, and auto-streaming enabled by a display-only
     `on_stream` callback must not turn a retried condition into a
-    permanently failed sample.
+    permanently failed sample. (An error delivered as a top-level `error`
+    payload or an `event: error` frame is raised by the SDK itself as a bare
+    `APIError`; `should_retry` classifies that by its body `code`/`type`.)
     """
+
+
+class GroqErrorInfo(NamedTuple):
+    """The `message`/`type`/`code` fields of a Groq error body."""
+
+    message: str
+    type: str | None
+    code: str | int | None
+
+
+def groq_error_info(ex: APIError) -> GroqErrorInfo:
+    """Read the error fields from a Groq SDK exception.
+
+    A status error's body is the full response payload (`{"error": {...}}`).
+    An error payload delivered in the stream body (HTTP 200 already sent) is
+    raised by the SDK as a plain `APIError` whose body is the inner error
+    object itself, or a bare string when the payload's `error` was not an
+    object. Unlike the OpenAI SDK, `groq.APIError` exposes no `code`/`type`
+    attributes, so both shapes are read here.
+    """
+    error: object = ex.body
+    if isinstance(error, dict) and isinstance(error.get("error"), dict):
+        error = error["error"]
+    if isinstance(error, str) and error:
+        # a bare string payload is the message itself (the SDK's own message
+        # for this shape is a generic placeholder)
+        return GroqErrorInfo(message=error, type=None, code=None)
+    if not isinstance(error, dict):
+        return GroqErrorInfo(message=ex.message, type=None, code=None)
+    message = error.get("message")
+    error_type = error.get("type")
+    code = error.get("code")
+    return GroqErrorInfo(
+        message=str(message) if message is not None else ex.message,
+        type=str(error_type) if error_type is not None else None,
+        code=code if isinstance(code, str | int) else None,
+    )
+
+
+GROQ_TRANSIENT_ERROR_NAMES = frozenset({"serviceunavailable", "overcapacity"})
+"""Groq's own transient `type`/`code` spellings (normalized for `classify_error_body`)."""
+
+
+def groq_classify_stream_error(ex: APIError) -> RetryDecision:
+    """Classify an error payload delivered mid-stream (a plain `APIError`).
+
+    The SDK raises it without a status code, so the body is read instead: the
+    shared `code`/`type` rules (`classify_error_body`) extended with Groq's
+    own spellings, then the message for the "over capacity" condition (see
+    `GroqStreamError` for why that must retry). A numeric HTTP status in
+    `code` is authoritative: when it is non-retryable (400/404/413/...) the
+    message is not consulted. Anything unrecognized stays unretried.
+    """
+    info = groq_error_info(ex)
+    decision = classify_error_body(info.code, info.type, GROQ_TRANSIENT_ERROR_NAMES)
+    if decision is not None:
+        return decision
+    if (
+        http_status_from_error_code(info.code) is None
+        and "over capacity" in info.message.lower()
+    ):
+        return RetryDecision.transient()
+    return RetryDecision.no()
 
 
 class GroqAPI(ModelAPI):
@@ -288,11 +360,27 @@ class GroqAPI(ModelAPI):
 
             # return
             return output, model_call
-        except APIStatusError as ex:
+        except APIError as ex:
             model_call.set_error(
-                as_error_response(ex.body), self._http_hooks.end_request(request_id)
+                as_error_response(
+                    ex.body
+                    if ex.body is not None
+                    else {"error": {"message": ex.message}}
+                ),
+                self._http_hooks.end_request(request_id),
             )
-            return self.handle_bad_request(ex), model_call
+            if isinstance(ex, APIStatusError):
+                return self.handle_bad_request(ex), model_call
+            # an error payload delivered in the stream body (HTTP 200 already
+            # sent) arrives as a plain APIError: convert a recognized
+            # bad-request condition, otherwise re-raise so should_retry can
+            # classify it; connection/validation errors keep their own semantics
+            if isinstance(ex, APIConnectionError | APIResponseValidationError):
+                raise
+            converted = self.handle_bad_request(ex)
+            if not isinstance(converted, ModelOutput):
+                raise
+            return converted, model_call
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
         params: dict[str, Any] = {}
@@ -380,11 +468,18 @@ class GroqAPI(ModelAPI):
             if ex.status_code == 429:
                 return RetryDecision.rate_limit(retry_after=retry_after)
             return RetryDecision.transient(retry_after=retry_after)
-        if isinstance(ex, APITimeoutError):
+        if isinstance(ex, APIConnectionError):  # includes APITimeoutError
             return RetryDecision.transient()
         if isinstance(ex, GroqStreamError):
             return RetryDecision.transient()
-        return RetryDecision.no()
+        if isinstance(ex, APIError) and not isinstance(
+            ex, APIConnectionError | APIResponseValidationError
+        ):
+            return groq_classify_stream_error(ex)
+        # a connection dropped while reading the stream body surfaces as a raw
+        # httpx transport error (the SDK only wraps request-time failures)
+        decision = httpx_classify_retry(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
@@ -424,25 +519,27 @@ class GroqAPI(ModelAPI):
     def max_tokens(self) -> Optional[int]:
         return DEFAULT_MAX_TOKENS
 
-    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
-        if ex.status_code == 400:
-            # extract code and message
-            content = ex.message
-            code = ""
-            if isinstance(ex.body, dict) and isinstance(
-                ex.body.get("error", None), dict
-            ):
-                error = ex.body.get("error", {})
-                content = str(error.get("message", content))
-                code = error.get("code", code)
+    def handle_bad_request(self, ex: APIError) -> ModelOutput | Exception:
+        """Convert a context-length rejection into `model_length` output.
 
-            if code == "context_length_exceeded" or "reduce the length" in content:
-                return ModelOutput.from_content(
-                    model=self.model_name,
-                    content=content,
-                    stop_reason="model_length",
-                )
-
+        Accepts the `APIError` base: a status error is only checked when it
+        is a 400, and an error payload delivered mid-stream (a plain
+        `APIError` with no status, see `groq_error_info`) is checked the same
+        way since the SDK could not infer a `BadRequestError` for it. Returns
+        the exception unchanged when it is not a recognized rejection.
+        """
+        if isinstance(ex, APIStatusError) and ex.status_code != 400:
+            return ex
+        info = groq_error_info(ex)
+        if (
+            info.code == "context_length_exceeded"
+            or "reduce the length" in info.message
+        ):
+            return ModelOutput.from_content(
+                model=self.model_name,
+                content=info.message,
+                stop_reason="model_length",
+            )
         return ex
 
 
@@ -497,7 +594,8 @@ async def groq_completion_from_stream(
         created = created if created is not None else chunk.created
         model = model or chunk.model
         system_fingerprint = system_fingerprint or chunk.system_fingerprint
-        # the SDK raises only for top-level `error` keys; a chunk-level
+        # the SDK raises only for top-level `error` payloads (as a plain
+        # APIError, classified by GroqAPI.should_retry); a chunk-level
         # x_groq.error means the server stopped the stream early — fail rather
         # than return a silently truncated completion
         if chunk.x_groq is not None and chunk.x_groq.error:

@@ -2,7 +2,7 @@ import functools
 import json
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from copy import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, TypeAlias, cast
@@ -1354,40 +1354,66 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     if isinstance(ex, APIConnectionError | APITimeoutError):
         return RetryDecision.transient()
     if isinstance(ex, APIError):
-        # A failure delivered mid-stream (after HTTP 200) is raised by the
-        # SDK as a bare APIError with no status code, carrying only the
-        # error body's `code`/`type`. OpenAI itself signals with
-        # `server_error` / `rate_limit_exceeded`; OpenAI-compatible servers
-        # use their own vocabulary — often a numeric HTTP status in `code`
-        # (vLLM/SGLang: {"type": "InternalServerError", "code": 500},
-        # OpenRouter: {"code": 502}), which classifies through the standard
-        # status rules. Anything unrecognized stays unretried.
-        code_status = _http_status_from_error_code(ex.code)
-        if code_status is not None:
-            if code_status == 429:
-                return RetryDecision.rate_limit()
-            if is_retryable_http_status(code_status):
-                return RetryDecision.transient()
-            return None
-        # normalize code/type spellings (rate_limit_error/RateLimitError/...)
-        names = {
-            v.lower().replace("_", "") for v in (ex.code, ex.type) if isinstance(v, str)
-        }
-        if names & {"ratelimitexceeded", "ratelimiterror"}:
-            return RetryDecision.rate_limit()
-        if names & {"servererror", "internalservererror", "internalerror"}:
-            return RetryDecision.transient()
-        return None
+        # a failure delivered mid-stream (after HTTP 200) is raised by the
+        # SDK as a bare APIError with no status code, so only the body's
+        # `code`/`type` are available
+        return classify_error_body(ex.code, ex.type)
     return None
 
 
-def _http_status_from_error_code(code: object) -> int | None:
+def classify_error_body(
+    code: object, error_type: object, transient_names: Collection[str] = ()
+) -> "RetryDecision | None":
+    """Classify an error body's `code`/`type` as rate_limit / transient / None.
+
+    For errors that carry no HTTP status (an error payload delivered
+    mid-stream after HTTP 200). A numeric HTTP status in `code` classifies
+    through the standard status rules: OpenAI-compatible servers often put one
+    there (vLLM/SGLang: `{"type": "InternalServerError", "code": 500}`,
+    OpenRouter: `{"code": 502}`). Otherwise the `code`/`type` spellings are
+    normalized (`rate_limit_error`/`RateLimitError`/... all compare equal) and
+    matched against the OpenAI vocabulary (`rate_limit_exceeded`,
+    `server_error`) plus the common server-error variants; `transient_names`
+    adds a provider's own transient spellings, given already normalized
+    (lowercase, no underscores). Anything unrecognized returns None so the
+    caller can apply further provider-specific checks or leave it unretried.
+    """
+    from inspect_ai.model._model import RetryDecision
+
+    status = http_status_from_error_code(code)
+    if status is not None:
+        if status == 429:
+            return RetryDecision.rate_limit()
+        if is_retryable_http_status(status):
+            return RetryDecision.transient()
+        return None
+    names = {
+        v.lower().replace("_", "") for v in (code, error_type) if isinstance(v, str)
+    }
+    if names & {"ratelimitexceeded", "ratelimiterror"}:
+        return RetryDecision.rate_limit()
+    if names & (
+        {
+            "servererror",
+            "internalservererror",
+            "internalerror",
+            "serviceunavailable",
+            "serviceunavailableerror",
+        }
+        | set(transient_names)
+    ):
+        return RetryDecision.transient()
+    return None
+
+
+def http_status_from_error_code(code: object) -> int | None:
     """Coerce an error body `code` to an HTTP status when it is one.
 
     OpenAI-compatible servers often put a numeric HTTP status in `code`
     (as an int or a digit string). The SDK annotates `APIError.code` as
     `Optional[str]` but passes body values through unconverted, so an int
-    arrives as an int at runtime.
+    arrives as an int at runtime. Providers whose own `code` vocabulary is
+    numeric but not an HTTP status (Mistral's 4-digit ids) get None.
     """
     if isinstance(code, int) or (isinstance(code, str) and code.isdecimal()):
         status = int(code)

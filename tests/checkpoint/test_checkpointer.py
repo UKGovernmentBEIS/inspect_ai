@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -1707,6 +1708,79 @@ async def test_host_context_read_missing_sample_runtime_is_none(tmp_path: Path) 
     await cp._write_host_context(str(work), Store())
     (work / SAMPLE_RUNTIME).unlink()
     assert host_context.read(str(work)).sample_runtime is None
+
+
+async def test_host_context_read_refuses_symlinked_required_file(
+    tmp_path: Path,
+) -> None:
+    """A symlink at ``store.json`` is refused rather than read through.
+
+    The restored context comes from an untrusted repo; following the link
+    would load an arbitrary host file into the sample Store.
+    """
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import STORE
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    secret = tmp_path / "secret.json"
+    secret.write_text('{"pwned": true}')
+    (work / STORE).unlink()
+    os.symlink(secret, work / STORE)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        host_context.read(str(work))
+
+
+async def test_host_context_read_refuses_symlinked_optional_file(
+    tmp_path: Path,
+) -> None:
+    """Optional files get the same no-follow treatment (not ``is_file()``)."""
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import AGENT_STATE
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    secret = tmp_path / "secret.json"
+    secret.write_text('{"pwned": true}')
+    os.symlink(secret, work / AGENT_STATE)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        host_context.read(str(work))
+
+
+async def test_host_context_read_refuses_dangling_symlink(tmp_path: Path) -> None:
+    """A dangling symlink is reported as a symlink, not as an absent optional file."""
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import AGENT_STATE
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    os.symlink(tmp_path / "does-not-exist.json", work / AGENT_STATE)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        host_context.read(str(work))
+
+
+async def test_host_context_read_refuses_non_regular_file(tmp_path: Path) -> None:
+    """A directory (or other non-regular entry) at a schema filename raises."""
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import AGENT_STATE
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    (work / AGENT_STATE).mkdir()
+
+    with pytest.raises(RuntimeError, match="not a regular file"):
+        host_context.read(str(work))
 
 
 async def test_resume_for_scoring_over_limit_does_not_raise(tmp_path: Path) -> None:
