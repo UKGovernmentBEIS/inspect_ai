@@ -36,6 +36,30 @@ async def test_track_state_adopts_main_model_after_side_model_arrives_first() ->
     assert bridge.state.output is main_output
 
 
+async def test_track_state_adopts_stronger_descending_main_model() -> None:
+    task = ChatMessageUser(
+        content="Explain the answer to this sufficiently detailed request."
+    )
+    bridge = AgentBridge(AgentState(messages=[task]))
+    side_input = [
+        ChatMessageSystem(content="You generate titles."),
+        ChatMessageUser(content=f"Generate a title for: {task.text}"),
+    ]
+    side_output = output("openai/title", "Answer title")
+
+    await bridge._track_state(side_input, side_output, "openai/title")
+
+    main_input = [
+        ChatMessageSystem(content="You are an agent."),
+        ChatMessageUser(content=f'"{task.text}"'),
+    ]
+    main_output = output("openai/agent", "The answer.")
+    await bridge._track_state(main_input, main_output, "openai/agent")
+
+    assert bridge.state.messages == main_input + [main_output.message]
+    assert bridge.state.output is main_output
+
+
 async def test_track_state_does_not_replace_primary_with_longer_side_model() -> None:
     bridge = AgentBridge(AgentState(messages=[]))
     primary_input = conversation("primary", 2)
