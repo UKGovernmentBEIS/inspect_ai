@@ -10,6 +10,8 @@ hydration orchestrator (which imports the strategies — a cycle).
 from __future__ import annotations
 
 import json
+import re
+from collections.abc import Callable
 from logging import getLogger
 from pathlib import Path
 
@@ -19,7 +21,23 @@ from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.trace import trace_action
 from inspect_ai.util._restic.ops import restic_env
 
+from ._layout._paths import contained_relative
+
 logger = getLogger(__name__)
+
+RESTIC_REPO_FILE_RE = re.compile(
+    r"config|(?:keys|index|snapshots|locks)/[0-9a-f]{64}|data/[0-9a-f]{2}/[0-9a-f]{64}"
+)
+"""Every file a restic repository may contain, relative to the repo root.
+
+``locks/`` is included because a prior attempt killed mid-backup leaves
+its lock file behind, and adopting the repo must not fail on it (restic
+itself treats such a lock as stale)."""
+
+
+def is_restic_repo_file(rel: str) -> bool:
+    """Whether ``rel`` (repo-root-relative) is a file of the restic repo layout."""
+    return RESTIC_REPO_FILE_RE.fullmatch(rel) is not None
 
 
 def checkpoint_tag(checkpoint_id: int) -> str:
@@ -34,25 +52,57 @@ def checkpoint_tag(checkpoint_id: int) -> str:
 
 
 async def fs_copy_repo(
-    old_sample_dir: str, subpath: str, new_repo: str, *, label: str
+    old_sample_dir: str,
+    subpath: str,
+    new_repo: str,
+    *,
+    label: str,
+    accept: Callable[[str], bool],
 ) -> list[str]:
-    """Recursively copy a restic repo subtree from old sample dir to new.
+    """Recursively copy a strategy's storage subtree from old sample dir to new.
 
     ``subpath`` is the per-domain path under the old sample checkpoints
     dir (``"restic/host"`` or ``"restic/sandboxes/<name>"``). ``old_sample_dir``
     may be local or remote; ``new_repo`` is always local. ``label`` is
     a short descriptor used only for the diagnostic print line.
 
+    The resume source is untrusted — an object store yields keys
+    verbatim, so a key may carry ``..`` segments or a doubled slash (an
+    absolute remainder). Every entry must pass ``contained_relative``,
+    the single containment rule for the copy; one that doesn't is a
+    traversal attempt, so it raises ``RuntimeError`` and fails hydration
+    rather than being skipped: a source that carries one is compromised
+    or corrupt, and resuming from whatever else it holds would resume
+    from a repo of unknown shape.
+
+    ``accept`` then scopes the copy to the caller's own storage layout:
+    it is given each (contained) entry's path relative to the repo root
+    and returns whether to copy it. Entries it rejects are contained but
+    off-layout; nothing is written for them, so they are skipped with a
+    warning rather than failing hydration, because a prior attempt
+    killed mid-write legitimately leaves debris in its storage area
+    (restic's ``<name>-tmp-*`` temp files, the archive strategy's
+    ``.<name>.partial``) that the next attempt must resume past. (This
+    also skips a stray file a compromised source planted there; the
+    trade-off is resumability after a torn write over failing loudly on
+    a file that can't affect the resumed repo.)
+
+    Directory-marker objects (zero-byte keys ending in ``/``, as written
+    by the S3 console's "Create folder") carry no content and are
+    skipped.
+
     Returns the list of paths written, relative to the new sample root
-    (i.e. each path starts with ``subpath``). Raises if the source
-    enumerated no files — S3 has no real directories, so existence is
-    only knowable via "any object with this prefix?", and a valid restic
-    repo always has at least one file (`config`).
+    (i.e. each path starts with ``subpath``). Raises if nothing was
+    copied — S3 has no real directories, so existence is only knowable
+    via "any object with this prefix?", and a valid restic repo always
+    has at least one file (`config`). The message distinguishes an empty
+    prefix from one whose every entry was skipped.
     """
     async_fs = get_async_filesystem()
     src_base = f"{old_sample_dir}/{subpath}"
     new_root = Path(new_repo)
     written: list[str] = []
+    skipped = 0
     # `iter_files` yields URIs verbatim-prefixed by `src_base` for S3, but
     # fsspec-normalized (absolute) for local sources — so slicing by
     # `len(src_base)` mangles local relative sources. Relativize against the
@@ -62,14 +112,35 @@ async def fs_copy_repo(
     marker = f"/{subpath}/"
     with trace_action(logger, "Checkpoint Hydrate", f"fs-copy {label}"):
         async for uri in async_fs.iter_files(src_base, recursive=True):
-            rel = uri.rsplit(marker, 1)[-1]
+            if uri.endswith("/"):
+                skipped += 1
+                continue
+            raw_rel = uri.rsplit(marker, 1)[-1]
+            try:
+                rel = contained_relative(raw_rel)
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"resume: refusing {label} repo entry {uri!r}: {exc}"
+                ) from exc
+            if not accept(rel.as_posix()):
+                logger.warning(
+                    f"resume: skipping {label} repo entry {uri!r}: "
+                    f"{rel.as_posix()!r} is not part of the repo layout"
+                )
+                skipped += 1
+                continue
             dst = new_root / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
             await async_fs.get_file(uri, str(dst))
-            written.append(f"{subpath}/{rel}")
+            written.append(f"{subpath}/{rel.as_posix()}")
         if not written:
+            detail = (
+                f"found {skipped} entries but none is part of the repo layout"
+                if skipped
+                else "no files were found"
+            )
             raise RuntimeError(
-                f"resume: expected {label} repo at {src_base}, but no files were found"
+                f"resume: expected {label} repo at {src_base}, but {detail}"
             )
     return written
 

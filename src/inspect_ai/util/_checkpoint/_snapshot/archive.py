@@ -69,7 +69,7 @@ always-on capture exclude, so staging never captures itself."""
 
 _DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
 
-_ARCHIVE_NAME_RE = re.compile(r"ckpt-\d{5,}\.tar\.(?:zst|gz)")
+_ARCHIVE_NAME_RE = re.compile(r"ckpt-[0-9]{5,}\.tar\.(?:zst|gz)")
 """The exact archive filename form ``snapshot()`` generates — also the
 shell-safety gate for names interpolated into ``restore``'s root scripts."""
 
@@ -446,6 +446,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             prior.storage_subpath,
             ctx.storage_dir,
             label=f"sandbox {ctx.sandbox_name!r}",
+            accept=lambda rel: _ARCHIVE_NAME_RE.fullmatch(rel) is not None,
         )
 
     async def discard_orphans(

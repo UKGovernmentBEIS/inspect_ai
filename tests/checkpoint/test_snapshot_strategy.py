@@ -36,6 +36,7 @@ from inspect_ai.util._checkpoint._snapshot.registry import (
     KNOWN_STRATEGY_NAMES,
     STRATEGY_ARCHIVE,
     STRATEGY_RESTIC,
+    strategy_storage_subpath,
 )
 from inspect_ai.util._checkpoint._snapshot.types import (
     PriorAttempt,
@@ -556,3 +557,59 @@ def test_pin_mirror_case_resolution_failure_has_own_error() -> None:
             {"default": STRATEGY_RESTIC},
             live={"default", "web"},
         )
+
+
+# --- storage subpath: sandbox name containment -------------------------------
+
+
+@pytest.mark.parametrize("sandbox_name", ["default", "web-1", "db_2", "a.b"])
+def test_strategy_storage_subpath_layouts(sandbox_name: str) -> None:
+    assert (
+        strategy_storage_subpath(STRATEGY_RESTIC, sandbox_name)
+        == f"restic/sandboxes/{sandbox_name}"
+    )
+    assert (
+        strategy_storage_subpath(STRATEGY_ARCHIVE, sandbox_name)
+        == f"sandboxes/{sandbox_name}/{STRATEGY_ARCHIVE}"
+    )
+
+
+@pytest.mark.parametrize(
+    "sandbox_name", ["../host", "a/b", "/abs", "..", ".", "", "a\\b", "a\x00"]
+)
+def test_strategy_storage_subpath_rejects_non_component_sandbox_name(
+    sandbox_name: str,
+) -> None:
+    """A sandbox name must be one path component; it can't relocate storage."""
+    for strategy in (STRATEGY_RESTIC, STRATEGY_ARCHIVE):
+        with pytest.raises(ValueError, match="sandbox name"):
+            strategy_storage_subpath(strategy, sandbox_name)
+
+
+async def test_archive_adopt_skips_partial_debris_from_killed_attempt(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A `.partial` left by a SIGKILLed copy-out must not make the sample unresumable."""
+    strategy = ArchiveStrategy(sandbox_dir=str(tmp_path / "sandbox-tools"))
+    ctx = _context(tmp_path / "new-sample", resuming=True)
+    prior_dir = tmp_path / "prior-sample"
+    prior = PriorAttempt(
+        sample_checkpoints_dir=str(prior_dir),
+        storage_subpath=ctx.storage_subpath,
+    )
+    prior_storage = prior_dir / ctx.storage_subpath
+    prior_storage.mkdir(parents=True)
+    (prior_storage / "ckpt-00004.tar.gz").write_bytes(b"archive-bytes")
+    (prior_storage / ".ckpt-00005.tar.gz.partial").write_bytes(b"torn")
+    (prior_storage / "notes.txt").write_bytes(b"stray")
+
+    with caplog.at_level("WARNING", logger="inspect_ai"):
+        await strategy.adopt(prior, ctx)
+
+    assert sorted(p.name for p in Path(ctx.storage_dir).iterdir()) == [
+        "ckpt-00004.tar.gz"
+    ]
+    skipped = [
+        r.getMessage() for r in caplog.records if "skipping sandbox" in r.getMessage()
+    ]
+    assert len(skipped) == 2

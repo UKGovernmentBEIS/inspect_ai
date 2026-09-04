@@ -763,6 +763,26 @@ def test_validate_resume_state_allows_unreadable_interior_checkpoint_entry(
     _validate_resume_state(events, str(sample_root), 3)
 
 
+def test_validate_resume_state_ignores_names_outside_checkpoint_file_form(
+    tmp_path: Path,
+) -> None:
+    """Validation lists ``ckpt-*.json`` with the same regex as the scanner.
+
+    A stray ``ckpt-1.json`` (parseable by ``int`` but not the zero-padded
+    form the writer emits) is ignored, even when its content id disagrees
+    with its name, rather than tripping the file-id mismatch check on a
+    file ``scan_latest_committed_checkpoint`` never counts.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    (sample_root / "ckpt-1.json").write_text(_make_checkpoint(7).model_dump_json())
+    events = _checkpoint_resume_events(2)
+
+    _validate_resume_state(events, str(sample_root), 2)
+
+
 def test_validate_resume_state_accepts_failed_fire_retry_span(
     tmp_path: Path,
 ) -> None:
@@ -1275,6 +1295,56 @@ async def test_fire_writes_restic_config_and_checkpoint_files(
     assert (context / "events_data.json").is_file()
     assert (context / "attachments.json").is_file()
     assert (context / "store.json").is_file()
+
+
+async def test_fire_with_traversal_sample_id_stays_inside_eval_dir(
+    active_sample: _FakeActiveSample, tmp_path: Path
+) -> None:
+    """A dataset id with `/` and `..` checkpoints inside the eval dir and is resumable.
+
+    Everything the checkpointer materializes (restic config, checkpoint
+    files, context) must land under the eval checkpoints dir, and the
+    resume lookup must find it under the same name the write path used.
+    """
+    from inspect_ai.util._checkpoint._layout import (
+        has_sample_checkpoint,
+        sample_checkpoints_dir,
+    )
+    from inspect_ai.util._checkpoint._layout._paths import sample_dir_segment
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+
+    hostile_id = "../../escape/me"
+    active_sample.sample.id = hostile_id
+    active_sample.epoch = 0
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=TurnInterval(every=1))
+    active_sample.checkpointer = create_checkpointer(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=hostile_id,
+        epoch=0,
+    )
+
+    async with checkpointer() as cp:
+        await cp.tick()  # informational boundary, no fire
+        await cp.tick()  # turn 1 elapsed, fires (ckpt-1)
+
+    log = Path(active_sample.log_location)
+    eval_dir = log.parent / f"{log.stem}.checkpoints"
+    sample_dir = eval_dir / f"{sample_dir_segment(hostile_id)}__0"
+    assert sample_dir.is_dir()
+    assert (sample_dir / "restic" / "restic-config.json").is_file()
+    assert (sample_dir / "ckpt-00001.json").is_file()
+    assert (sample_dir / "context" / "events.json").is_file()
+    # Nothing was relocated to where the raw id would have pointed.
+    assert not (log.parent / "escape").exists()
+    assert not (tmp_path / "escape").exists()
+    assert not (tmp_path.parent / "escape").exists()
+    # The eval dir holds exactly this sample's dir.
+    assert [p.name for p in eval_dir.iterdir()] == [sample_dir.name]
+
+    # Resume-side lookup (as `_resume_if_checkpointed` does) agrees.
+    assert await has_sample_checkpoint(str(eval_dir), hostile_id, 0)
+    assert sample_checkpoints_dir(str(eval_dir), hostile_id, 0) == str(sample_dir)
 
 
 # === nested re-entry: sub-agent loops (agent-as-tool / handoff / deepagent) ==

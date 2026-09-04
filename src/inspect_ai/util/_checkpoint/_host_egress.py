@@ -34,7 +34,6 @@ content-addressed and checkpoint files overwrite cleanly).
 from __future__ import annotations
 
 import os
-import re
 from logging import getLogger
 from pathlib import Path
 
@@ -42,6 +41,7 @@ from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
+from ._layout.sample_checkpoints_dir import CHECKPOINT_FILE_RE
 from ._layout.schemas import Checkpoint
 from ._layout.staging_dir import RESTIC_CONFIG_SUBPATH
 
@@ -56,11 +56,9 @@ MANIFEST_FILENAME = ".egress-manifest.txt"
 # bookkeeping.
 _EXCLUDED_TOP_LEVEL: frozenset[str] = frozenset({"context", MANIFEST_FILENAME})
 
-# Tier ordering: (priority, regex matching the path's relative form).
-# A new file's tier is the lowest-priority matching pattern, defaulting
-# to a catch-all bucket if none match (which shouldn't happen for
-# well-formed restic content).
-_CHECKPOINT_FILE_RE = re.compile(r"^ckpt-\d+\.json$")
+# Checkpoint files are recognised by the shared ``CHECKPOINT_FILE_RE``, so
+# the egress, the resume copy and the id listing agree on which names are
+# checkpoint files; anything else falls into the catch-all "other" tier.
 
 
 async def host_egress(*, staging_dir: str, destination_dir: str) -> None:
@@ -126,7 +124,7 @@ def _scan_new_files(staging: Path, shipped: set[str]) -> list[str]:
 
 
 def _committed_checkpoint_or_other(staging: Path, rel: str) -> bool:
-    if not _CHECKPOINT_FILE_RE.match(Path(rel).name):
+    if not CHECKPOINT_FILE_RE.fullmatch(Path(rel).name):
         return True
     try:
         Checkpoint.model_validate_json((staging / rel).read_bytes())
@@ -148,7 +146,7 @@ def _safe_order(files: list[str]) -> list[str]:
         parts = f.split("/")
         if f == RESTIC_CONFIG_SUBPATH:
             restic_config.append(f)
-        elif _CHECKPOINT_FILE_RE.match(parts[-1]):
+        elif CHECKPOINT_FILE_RE.fullmatch(parts[-1]):
             checkpoint_files.append(f)
         elif "data" in parts:
             data.append(f)

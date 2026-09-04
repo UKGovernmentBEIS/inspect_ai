@@ -21,7 +21,12 @@ from inspect_ai.util._restic import list_changed_files, resolve_restic
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._layout.schemas import SnapshotDetails
-from .._repo_ops import checkpoint_tag, drop_orphan_snapshots, fs_copy_repo
+from .._repo_ops import (
+    checkpoint_tag,
+    drop_orphan_snapshots,
+    fs_copy_repo,
+    is_restic_repo_file,
+)
 from .._sandbox_restic import (
     egress_sandbox,
     ingress_sandbox,
@@ -105,6 +110,7 @@ class ResticIncrementalStrategy(SandboxSnapshotStrategy):
             prior.storage_subpath,
             ctx.storage_dir,
             label=f"sandbox {ctx.sandbox_name!r}",
+            accept=is_restic_repo_file,
         )
 
     async def discard_orphans(

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -21,9 +22,16 @@ from inspect_ai.util._checkpoint._host_egress import (
     MANIFEST_FILENAME,
     host_egress,
 )
+from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
+    ensure_sample_checkpoints_dir,
+    has_sample_checkpoint,
+    sample_checkpoints_dir,
+    write_checkpoint_file,
+)
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint._repo_ops import (
-    fs_copy_repo as _fs_copy_repo,
+    fs_copy_repo,
+    is_restic_repo_file,
 )
 from inspect_ai.util._checkpoint.hydrate import (
     _fs_copy_cross_cutting,
@@ -32,30 +40,86 @@ from inspect_ai.util._checkpoint.hydrate import (
 
 S3_BUCKET = "s3://test-bucket"
 
+# Restic names every object by its sha256, so repo entries are 64 hex chars.
+KEY_ID = "1" * 64
+PACK_ID = "2" * 64
+INDEX_ID = "3" * 64
+SNAP_ID = "4" * 64
+
+
+async def _fs_copy_repo(
+    old_sample_dir: str, subpath: str, new_repo: str, *, label: str
+) -> list[str]:
+    """``fs_copy_repo`` with the restic layout predicate every restic caller passes."""
+    return await fs_copy_repo(
+        old_sample_dir, subpath, new_repo, label=label, accept=is_restic_repo_file
+    )
+
 
 async def _put(fs: AsyncFilesystem, uri: str, content: bytes) -> None:
     await fs.write_file(uri, content)
 
 
-def _checkpoint_bytes(checkpoint_id: int) -> bytes:
-    return (
-        Checkpoint(
-            checkpoint_id=checkpoint_id,
-            trigger="turn",
-            turn=checkpoint_id,
-            created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
-            duration_ms=10,
+def _checkpoint(checkpoint_id: int) -> Checkpoint:
+    return Checkpoint(
+        checkpoint_id=checkpoint_id,
+        trigger="turn",
+        turn=checkpoint_id,
+        created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
+        duration_ms=10,
+        size_bytes=100 + checkpoint_id,
+        host=SnapshotDetails(
+            snapshot_id=f"snap-{checkpoint_id}",
             size_bytes=100 + checkpoint_id,
-            host=SnapshotDetails(
-                snapshot_id=f"snap-{checkpoint_id}",
-                size_bytes=100 + checkpoint_id,
-                duration_ms=10,
-            ),
-            sandboxes={},
-        )
-        .model_dump_json()
-        .encode()
+            duration_ms=10,
+        ),
+        sandboxes={},
     )
+
+
+def _checkpoint_bytes(checkpoint_id: int) -> bytes:
+    return _checkpoint(checkpoint_id).model_dump_json().encode()
+
+
+async def test_hashed_sample_dir_round_trips_through_s3(
+    tmp_path: Path, mock_s3: None
+) -> None:
+    """A hashed (``~``-joined) sample dir name works end to end on S3.
+
+    ``~`` is on AWS's "characters to avoid" list for object keys, so
+    prove the write path, the resume lookup and both resume copies agree
+    on a hashed segment through the real S3 client rather than only on
+    the string they compute.
+    """
+    eval_dir = f"{S3_BUCKET}/hashed-{uuid4().hex}.checkpoints"
+    sample_id = "task/variant-3"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+
+    async with AsyncFilesystem() as fs:
+        sample_dir = await ensure_sample_checkpoints_dir(eval_dir, sample_id, 0)
+        assert sample_dir == sample_checkpoints_dir(eval_dir, sample_id, 0)
+        assert "~" in sample_dir.rsplit("/", 1)[-1]
+        assert not await has_sample_checkpoint(eval_dir, sample_id, 0)
+
+        await write_checkpoint_file(
+            sample_checkpoints_dir=sample_dir, checkpoint=_checkpoint(1)
+        )
+        await _put(fs, f"{sample_dir}/restic/host/config", b"cfg")
+        assert await has_sample_checkpoint(eval_dir, sample_id, 0)
+
+        written = await _fs_copy_cross_cutting(sample_dir, str(staging))
+        assert written == ["ckpt-00001.json"]
+        written = await _fs_copy_repo(
+            sample_dir, "restic/host", str(staging / "restic" / "host"), label="host"
+        )
+        assert written == ["restic/host/config"]
+
+    restored = Checkpoint.model_validate_json(
+        (staging / "ckpt-00001.json").read_bytes()
+    )
+    assert restored.checkpoint_id == 1
+    assert (staging / "restic" / "host" / "config").read_bytes() == b"cfg"
 
 
 async def test_fs_copy_cross_cutting_downloads_from_s3(
@@ -130,10 +194,10 @@ async def test_fs_copy_repo_downloads_tree_from_s3(
 
     async with AsyncFilesystem() as fs:
         await _put(fs, f"{src_root}/restic/host/config", b"cfg")
-        await _put(fs, f"{src_root}/restic/host/keys/key01", b"k")
-        await _put(fs, f"{src_root}/restic/host/data/ab/cdef", b"pack-data")
-        await _put(fs, f"{src_root}/restic/host/index/11", b"idx")
-        await _put(fs, f"{src_root}/restic/host/snapshots/22", b"snap")
+        await _put(fs, f"{src_root}/restic/host/keys/{KEY_ID}", b"k")
+        await _put(fs, f"{src_root}/restic/host/data/ab/{PACK_ID}", b"pack-data")
+        await _put(fs, f"{src_root}/restic/host/index/{INDEX_ID}", b"idx")
+        await _put(fs, f"{src_root}/restic/host/snapshots/{SNAP_ID}", b"snap")
 
         written = await _fs_copy_repo(
             src_root, "restic/host", str(new_repo), label="host"
@@ -141,14 +205,14 @@ async def test_fs_copy_repo_downloads_tree_from_s3(
 
     assert set(written) == {
         "restic/host/config",
-        "restic/host/keys/key01",
-        "restic/host/data/ab/cdef",
-        "restic/host/index/11",
-        "restic/host/snapshots/22",
+        f"restic/host/keys/{KEY_ID}",
+        f"restic/host/data/ab/{PACK_ID}",
+        f"restic/host/index/{INDEX_ID}",
+        f"restic/host/snapshots/{SNAP_ID}",
     }
     assert (new_repo / "config").read_bytes() == b"cfg"
-    assert (new_repo / "keys" / "key01").read_bytes() == b"k"
-    assert (new_repo / "data" / "ab" / "cdef").read_bytes() == b"pack-data"
+    assert (new_repo / "keys" / KEY_ID).read_bytes() == b"k"
+    assert (new_repo / "data" / "ab" / PACK_ID).read_bytes() == b"pack-data"
 
 
 async def test_fs_copy_repo_local_relative_source_lands_at_correct_paths(
@@ -169,8 +233,8 @@ async def test_fs_copy_repo_local_relative_source_lands_at_correct_paths(
     (src_host / "keys").mkdir(parents=True)
     (src_host / "data" / "ab").mkdir(parents=True)
     (src_host / "config").write_bytes(b"cfg")
-    (src_host / "keys" / "k1").write_bytes(b"k")
-    (src_host / "data" / "ab" / "cd").write_bytes(b"pack")
+    (src_host / "keys" / KEY_ID).write_bytes(b"k")
+    (src_host / "data" / "ab" / PACK_ID).write_bytes(b"pack")
 
     new_repo = Path("new.checkpoints/s__0/restic/host")  # relative dest
 
@@ -181,12 +245,254 @@ async def test_fs_copy_repo_local_relative_source_lands_at_correct_paths(
 
     assert set(written) == {
         "restic/host/config",
-        "restic/host/keys/k1",
-        "restic/host/data/ab/cd",
+        f"restic/host/keys/{KEY_ID}",
+        f"restic/host/data/ab/{PACK_ID}",
     }
     assert (new_repo / "config").read_bytes() == b"cfg"
-    assert (new_repo / "keys" / "k1").read_bytes() == b"k"
-    assert (new_repo / "data" / "ab" / "cd").read_bytes() == b"pack"
+    assert (new_repo / "keys" / KEY_ID).read_bytes() == b"k"
+    assert (new_repo / "data" / "ab" / PACK_ID).read_bytes() == b"pack"
+
+
+def _files_under(root: Path) -> set[Path]:
+    return {p.relative_to(root) for p in root.rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize(
+    "hostile_key, match",
+    [
+        pytest.param("restic/host/../../x", r"'\.\.' is not allowed", id="dotdot"),
+        pytest.param("restic/host/./x", r"'\.' is not allowed", id="dot"),
+        pytest.param("restic/host//etc/x", "absolute", id="double-slash-absolute"),
+        pytest.param("restic/host/data/ab//x", "empty", id="double-slash-interior"),
+        pytest.param(
+            "restic/host/data/ab/../../keys/" + KEY_ID,
+            r"'\.\.' is not allowed",
+            id="dotdot-into-layout",
+        ),
+    ],
+)
+async def test_fs_copy_repo_refuses_uncontained_remote_keys(
+    tmp_path: Path, mock_s3: None, hostile_key: str, match: str
+) -> None:
+    """Object-store keys are attacker-controlled; a bad one fails hydration.
+
+    Each key is stored verbatim by S3 (moto included) and enumerated back
+    verbatim by ``iter_files``. Without containment, ``..`` walks out of
+    the new repo and a doubled slash makes the remainder absolute so
+    ``Path`` discards the repo root entirely.
+    """
+    # The moto bucket outlives one parametrized case; keep each case's prefix apart.
+    src_root = f"{S3_BUCKET}/hostile-{uuid4().hex}.checkpoints/s__0"
+    staging = tmp_path / "staging"
+    new_repo = staging / "restic" / "host"
+
+    async with AsyncFilesystem() as fs:
+        await _put(fs, f"{src_root}/restic/host/config", b"cfg")
+        await _put(fs, f"{src_root}/{hostile_key}", b"evil")
+
+        with pytest.raises(RuntimeError, match=match) as excinfo:
+            await _fs_copy_repo(src_root, "restic/host", str(new_repo), label="host")
+
+    # The message names the offending source entry.
+    assert hostile_key.split("/")[-1] in str(excinfo.value)
+    # Nothing landed anywhere except (possibly) the legitimate `config`.
+    assert _files_under(tmp_path) <= {Path("staging/restic/host/config")}
+    assert not (tmp_path / "x").exists()
+    assert not (tmp_path / "etc").exists()
+
+
+async def test_fs_copy_repo_refuses_absolute_remainder_inside_tmp(
+    tmp_path: Path, mock_s3: None
+) -> None:
+    """A doubled slash whose remainder points at a writable dir still can't land.
+
+    Uses a remainder under ``tmp_path`` (writable, unlike ``/etc``) so the
+    test would observe the escaped write if containment were missing.
+    """
+    src_root = f"{S3_BUCKET}/hostile-abs-{uuid4().hex}.checkpoints/s__0"
+    new_repo = tmp_path / "staging" / "restic" / "host"
+    escaped = tmp_path / "escaped"
+
+    async with AsyncFilesystem() as fs:
+        await _put(fs, f"{src_root}/restic/host/config", b"cfg")
+        await _put(fs, f"{src_root}/restic/host/{escaped}/x", b"evil")
+
+        with pytest.raises(RuntimeError, match="absolute"):
+            await _fs_copy_repo(src_root, "restic/host", str(new_repo), label="host")
+
+    assert not escaped.exists()
+    assert _files_under(tmp_path) <= {Path("staging/restic/host/config")}
+
+
+async def test_fs_copy_repo_reports_skipped_entries_when_nothing_copied(
+    tmp_path: Path, mock_s3: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A source holding only off-layout debris says so, not "no files were found".
+
+    A prior attempt killed during ``restic init`` can leave only ``-tmp-``
+    debris under the prefix; pointing the operator at a missing prefix
+    would send them looking in the wrong place.
+    """
+    src_root = f"{S3_BUCKET}/torn-init-{uuid4().hex}.checkpoints/s__0"
+    new_repo = tmp_path / "restic" / "host"
+
+    async with AsyncFilesystem() as fs:
+        await _put(fs, f"{src_root}/restic/host/config-tmp-123456", b"partial")
+        await _put(fs, f"{src_root}/restic/host/keys/{KEY_ID}-tmp-1", b"partial")
+
+        with caplog.at_level("WARNING", logger="inspect_ai"):
+            with pytest.raises(
+                RuntimeError,
+                match="found 2 entries but none is part of the repo layout",
+            ):
+                await _fs_copy_repo(
+                    src_root, "restic/host", str(new_repo), label="host"
+                )
+
+    assert not new_repo.exists()
+    assert sum("skipping host repo" in r.getMessage() for r in caplog.records) == 2
+
+
+async def test_fs_copy_repo_skips_entries_outside_layout_with_warning(
+    tmp_path: Path, mock_s3: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Contained entries the layout predicate rejects are skipped, not fatal.
+
+    A prior attempt killed mid-write leaves debris (restic's ``-tmp-``
+    files) that the next attempt must resume past; a stray file is
+    skipped the same way. Containment failures still raise (see above).
+    """
+    src_root = f"{S3_BUCKET}/debris-{uuid4().hex}.checkpoints/s__0"
+    new_repo = tmp_path / "restic" / "host"
+    debris = f"data/ab/{PACK_ID}-tmp-123456"
+
+    async with AsyncFilesystem() as fs:
+        await _put(fs, f"{src_root}/restic/host/config", b"cfg")
+        await _put(fs, f"{src_root}/restic/host/data/ab/{PACK_ID}", b"pack")
+        await _put(fs, f"{src_root}/restic/host/{debris}", b"partial pack")
+        await _put(fs, f"{src_root}/restic/host/evil.sh", b"#!/bin/sh")
+
+        with caplog.at_level("WARNING", logger="inspect_ai"):
+            written = await _fs_copy_repo(
+                src_root, "restic/host", str(new_repo), label="host"
+            )
+
+    assert set(written) == {"restic/host/config", f"restic/host/data/ab/{PACK_ID}"}
+    assert _files_under(new_repo) == {Path("config"), Path("data/ab") / PACK_ID}
+    skipped = [
+        r.getMessage() for r in caplog.records if "skipping host repo" in r.getMessage()
+    ]
+    assert len(skipped) == 2
+    assert any(debris in m for m in skipped)
+    assert any("evil.sh" in m for m in skipped)
+
+
+async def test_fs_copy_repo_accept_predicate_scopes_copy_to_layout(
+    tmp_path: Path, mock_s3: None
+) -> None:
+    """Each caller's ``accept`` decides what belongs; the restic one takes only restic files."""
+    src_root = f"{S3_BUCKET}/scoped-{uuid4().hex}.checkpoints/s__0"
+    new_repo = tmp_path / "restic" / "host"
+
+    async with AsyncFilesystem() as fs:
+        await _put(fs, f"{src_root}/restic/host/config", b"cfg")
+        await _put(fs, f"{src_root}/restic/host/locks/{SNAP_ID}", b"lock")
+        await _put(fs, f"{src_root}/restic/host/keys/not-hex", b"k")
+
+        written = await _fs_copy_repo(
+            src_root, "restic/host", str(new_repo), label="host"
+        )
+        assert set(written) == {"restic/host/config", f"restic/host/locks/{SNAP_ID}"}
+        assert not (new_repo / "keys" / "not-hex").exists()
+
+        # A caller-supplied predicate can accept it instead.
+        written = await fs_copy_repo(
+            src_root,
+            "restic/host",
+            str(new_repo),
+            label="host",
+            accept=lambda rel: rel in {"config", "keys/not-hex", f"locks/{SNAP_ID}"},
+        )
+
+    assert set(written) == {
+        "restic/host/config",
+        f"restic/host/locks/{SNAP_ID}",
+        "restic/host/keys/not-hex",
+    }
+
+
+async def test_fs_copy_repo_skips_directory_marker_objects(
+    tmp_path: Path, mock_s3: None
+) -> None:
+    """Zero-byte ``.../`` keys (S3 console "Create folder") aren't files."""
+    src_root = f"{S3_BUCKET}/markers-{uuid4().hex}.checkpoints/s__0"
+    new_repo = tmp_path / "restic" / "host"
+
+    async with AsyncFilesystem() as fs:
+        await _put(fs, f"{src_root}/restic/host/", b"")
+        await _put(fs, f"{src_root}/restic/host/data/", b"")
+        await _put(fs, f"{src_root}/restic/host/config", b"cfg")
+
+        written = await _fs_copy_repo(
+            src_root, "restic/host", str(new_repo), label="host"
+        )
+
+    assert written == ["restic/host/config"]
+    assert _files_under(new_repo) == {Path("config")}
+
+
+@pytest.mark.parametrize(
+    "rel, expected",
+    [
+        ("config", True),
+        (f"keys/{KEY_ID}", True),
+        (f"data/ab/{PACK_ID}", True),
+        (f"index/{INDEX_ID}", True),
+        (f"snapshots/{SNAP_ID}", True),
+        (f"locks/{SNAP_ID}", True),
+        ("keys/key01", False),
+        (f"data/{PACK_ID}", False),
+        (f"data/abc/{PACK_ID}", False),
+        (f"data/AB/{PACK_ID}", False),
+        (f"snapshots/{SNAP_ID}x", False),
+        ("config/x", False),
+        ("evil.sh", False),
+        ("../config", False),
+        ("", False),
+    ],
+)
+def test_is_restic_repo_file(rel: str, expected: bool) -> None:
+    assert is_restic_repo_file(rel) is expected
+
+
+async def test_fs_copy_cross_cutting_skips_malformed_checkpoint_name(
+    tmp_path: Path, mock_s3: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-conforming ``ckpt-*.json`` basename is off-layout: skipped with a warning."""
+    src = f"{S3_BUCKET}/bad-ckpt.checkpoints/s__0"
+    new = tmp_path / "staging"
+    new.mkdir()
+
+    async with AsyncFilesystem() as fs:
+        await _put(fs, f"{src}/ckpt-00001.json", b'{"checkpoint_id":1}')
+        await _put(fs, f"{src}/ckpt-x.json", b"evil")
+        await _put(fs, f"{src}/ckpt-00001 (1).json", b"dup")
+
+        with caplog.at_level("WARNING", logger="inspect_ai"):
+            written = await _fs_copy_cross_cutting(src, str(new))
+
+    assert written == ["ckpt-00001.json"]
+    assert (new / "ckpt-00001.json").exists()
+    assert not (new / "ckpt-x.json").exists()
+    assert not (new / "ckpt-00001 (1).json").exists()
+    skipped = [
+        r.getMessage()
+        for r in caplog.records
+        if "skipping checkpoint file entry" in r.getMessage()
+    ]
+    assert len(skipped) == 2
+    assert any("ckpt-x.json" in m for m in skipped)
+    assert any("ckpt-00001 (1).json" in m for m in skipped)
 
 
 async def test_fs_copy_repo_raises_when_source_missing(
@@ -228,7 +534,7 @@ async def test_remote_resume_ships_payload_to_new_destination(
             fs, f"{old_root}/restic/restic-config.json", b'{"restic_password":"p"}'
         )
         await _put(fs, f"{old_root}/restic/host/config", b"cfg")
-        await _put(fs, f"{old_root}/restic/host/data/ab/cd", b"pack")
+        await _put(fs, f"{old_root}/restic/host/data/ab/{PACK_ID}", b"pack")
         await _put(fs, f"{old_root}/ckpt-00001.json", _checkpoint_bytes(1))
 
         # Resume: download into a fresh local staging dir, then ship the
@@ -243,7 +549,9 @@ async def test_remote_resume_ships_payload_to_new_destination(
         # this attempt never fires another checkpoint.
         assert await fs.read_file(f"{new_root}/ckpt-00001.json") == _checkpoint_bytes(1)
         assert await fs.read_file(f"{new_root}/restic/host/config") == b"cfg"
-        assert await fs.read_file(f"{new_root}/restic/host/data/ab/cd") == b"pack"
+        assert (
+            await fs.read_file(f"{new_root}/restic/host/data/ab/{PACK_ID}") == b"pack"
+        )
         assert (
             await fs.read_file(f"{new_root}/restic/restic-config.json")
             == b'{"restic_password":"p"}'
@@ -254,7 +562,7 @@ async def test_remote_resume_ships_payload_to_new_destination(
         assert set(manifest_lines) == {
             "restic/restic-config.json",
             "restic/host/config",
-            "restic/host/data/ab/cd",
+            f"restic/host/data/ab/{PACK_ID}",
             "ckpt-00001.json",
         }
 

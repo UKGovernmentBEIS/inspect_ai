@@ -71,6 +71,7 @@ from ._host_egress import host_egress
 from ._layout import host_context
 from ._layout.eval_checkpoints_dir import eval_checkpoints_dir
 from ._layout.sample_checkpoints_dir import (
+    CHECKPOINT_FILE_RE,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
@@ -83,7 +84,7 @@ from ._layout.staging_dir import (
     host_repo_dir,
     is_remote_destination,
 )
-from ._repo_ops import drop_orphan_snapshots, fs_copy_repo
+from ._repo_ops import drop_orphan_snapshots, fs_copy_repo, is_restic_repo_file
 from ._snapshot import (
     PriorAttempt,
     SandboxSnapshotSession,
@@ -423,6 +424,7 @@ async def _hydrate_host(
         "restic/host",
         host_repo,
         label="host",
+        accept=is_restic_repo_file,
     )
     if latest_committed_id is not None:
         await drop_orphan_snapshots(
@@ -529,6 +531,14 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
     ``old_sample_dir`` may be local or remote (e.g. ``s3://``); the new
     sample dir is always local. Returns the list of paths written,
     relative to ``new_sample_dir``.
+
+    The checkpoint-file basenames come from an untrusted listing (an
+    object store yields keys verbatim), so each must fully match
+    ``CHECKPOINT_FILE_RE`` before it is joined onto the new sample dir.
+    A basename cannot traverse, so a non-conforming name (e.g. an S3
+    console duplicate ``ckpt-00001 (1).json``) is off-layout rather than
+    hostile: it is skipped with a warning, the same way
+    ``_list_checkpoint_ids`` ignores it on a local dir.
     """
     async_fs = get_async_filesystem()
     new = Path(new_sample_dir)
@@ -545,6 +555,12 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
 
         async for uri in async_fs.iter_files(old_sample_dir, pattern="ckpt-*.json"):
             name = uri.rsplit("/", 1)[-1]
+            if not CHECKPOINT_FILE_RE.fullmatch(name):
+                logger.warning(
+                    f"resume: skipping checkpoint file entry {uri!r}: "
+                    f"{name!r} is not a ckpt-NNNNN.json name"
+                )
+                continue
             dst = new / name
             await async_fs.get_file(uri, str(dst))
             written.append(name)
@@ -867,10 +883,10 @@ def _validate_resume_state(
     sample_dir = Path(local_path(sample_root))
     checkpoint_ids: list[int] = []
     for checkpoint_file in sample_dir.glob("ckpt-*.json"):
-        try:
-            filename_id = int(checkpoint_file.stem.removeprefix("ckpt-"))
-        except ValueError:
+        match = CHECKPOINT_FILE_RE.fullmatch(checkpoint_file.name)
+        if match is None:
             continue
+        filename_id = int(match.group(1))
 
         try:
             checkpoint = Checkpoint.model_validate_json(checkpoint_file.read_bytes())

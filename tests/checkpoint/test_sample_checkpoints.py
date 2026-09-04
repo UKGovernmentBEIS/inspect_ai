@@ -6,10 +6,14 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
+from inspect_ai.util._checkpoint._layout._paths import sample_dir_segment
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     _read_restic_config,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
+    has_sample_checkpoint,
     sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
@@ -64,6 +68,45 @@ def test_sample_checkpoints_dir_accepts_int_sample_id() -> None:
         sample_checkpoints_dir("/logs/foo.checkpoints", 42, 1)
         == "/logs/foo.checkpoints/42__1"
     )
+
+
+@pytest.mark.parametrize("sample_id", ["../../escape", "a/b", "/abs", "..", ""])
+def test_sample_checkpoints_dir_contains_hostile_sample_id(sample_id: str) -> None:
+    """A dataset id with `/` or `..` cannot relocate the per-sample tree."""
+    eval_dir = "/logs/foo.checkpoints"
+    sample_dir = sample_checkpoints_dir(eval_dir, sample_id, 0)
+    assert sample_dir.startswith(f"{eval_dir}/")
+    segment = sample_dir.removeprefix(f"{eval_dir}/")
+    assert segment == f"{sample_dir_segment(sample_id)}__0"
+    assert "/" not in segment
+    assert segment.split("__")[0] not in (".", "..")
+
+
+async def test_ensure_with_hostile_sample_id_creates_dir_inside_eval_dir(
+    tmp_path: Path,
+) -> None:
+    eval_dir = tmp_path / "foo.checkpoints"
+    sample_dir = Path(await ensure_sample_checkpoints_dir(str(eval_dir), "../../x", 0))
+    assert sample_dir.is_dir()
+    assert sample_dir.parent == eval_dir
+    assert not (tmp_path / "x__0").exists()
+    assert not (tmp_path.parent / "x__0").exists()
+
+
+async def test_hostile_sample_id_write_and_resume_lookup_agree(tmp_path: Path) -> None:
+    """The write path and the resume lookup derive the same dir name."""
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    sample_id = "task/variant-3"
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, sample_id, 1)
+    assert not await has_sample_checkpoint(eval_dir, sample_id, 1)
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1")
+        ),
+    )
+    assert await has_sample_checkpoint(eval_dir, sample_id, 1)
+    assert sample_checkpoints_dir(eval_dir, sample_id, 1) == sample_dir
 
 
 async def test_ensure_creates_dir_and_returns_path(tmp_path: Path) -> None:
@@ -255,3 +298,31 @@ async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
     assert checkpoint is not None
     assert checkpoint.checkpoint_id == 2
     assert checkpoint.trigger == "agent_complete"
+
+
+async def test_scan_ignores_names_outside_checkpoint_file_form(
+    tmp_path: Path,
+) -> None:
+    """Listing and the resume copy agree on what counts as a checkpoint file.
+
+    ``ckpt-1.json`` and ``ckpt- 5.json`` int-parse but are not the
+    ``ckpt-NNNNN.json`` form ``write_checkpoint_file`` produces, so they
+    must not be treated as (higher-precedence) commit points here when
+    the resume copy would refuse them.
+    """
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.checkpoints"), "s", 0
+    )
+    good = _checkpoint(checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1"))
+    stray = _checkpoint(checkpoint_id=9, trigger="turn", turn=9, host=_info("snap-9"))
+    for name in ("ckpt-1.json", "ckpt- 5.json", "ckpt-x.json"):
+        (Path(sample_dir) / name).write_text(stray.model_dump_json())
+
+    assert not await has_sample_checkpoint(str(tmp_path / "foo.checkpoints"), "s", 0)
+    assert await scan_latest_committed_checkpoint(sample_dir) is None
+
+    await write_checkpoint_file(sample_checkpoints_dir=sample_dir, checkpoint=good)
+
+    checkpoint = await scan_latest_committed_checkpoint(sample_dir)
+    assert checkpoint is not None
+    assert checkpoint.checkpoint_id == 1

@@ -18,6 +18,7 @@ The optional ``_<retry>`` suffix on the dir name is omitted until
 
 from __future__ import annotations
 
+import re
 import secrets
 from typing import TypeVar
 
@@ -26,15 +27,29 @@ from pydantic import BaseModel
 from inspect_ai._util.asyncfiles import get_async_filesystem
 
 from .._async_fs import async_mkdir
+from ._paths import sample_dir_segment
 from .schemas import Checkpoint, ResticConfig
 from .staging_dir import restic_config_path, restic_dir
 
 _M = TypeVar("_M", bound=BaseModel)
 
+CHECKPOINT_FILE_RE = re.compile(r"ckpt-([0-9]{5,})\.json")
+"""The exact basename form ``write_checkpoint_file`` generates.
+
+Group 1 is the checkpoint id. Use ``fullmatch``: the resume copy, the
+id listing and the host egress all rely on this being the only accepted
+form.
+"""
+
 
 def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
-    """Return the per-sample checkpoints dir path (no FS side effects)."""
-    return f"{eval_dir}/{sample_id}__{epoch}"
+    """Return the per-sample checkpoints dir path (no FS side effects).
+
+    The sample id is a dataset-supplied string; ``sample_dir_segment``
+    reduces it to a single safe dir segment so an id containing ``/``
+    or ``..`` cannot relocate the per-sample tree out of ``eval_dir``.
+    """
+    return f"{eval_dir}/{sample_dir_segment(sample_id)}__{epoch}"
 
 
 async def has_sample_checkpoint(
@@ -146,21 +161,19 @@ async def write_checkpoint_file(
 async def _list_checkpoint_ids(sample_dir: str) -> list[int]:
     """Return every checkpoint id present as ``ckpt-NNNNN.json`` in ``sample_dir``.
 
-    Unsorted. Names that don't parse as an int are silently skipped.
-    Works over any ``AsyncFilesystem``-supported scheme; a missing dir
-    yields nothing (no pre-check needed — see note on
-    ``has_sample_checkpoint``).
+    Unsorted. Names that don't fully match ``CHECKPOINT_FILE_RE`` (the
+    same filter the resume copy applies) are silently skipped. Works
+    over any ``AsyncFilesystem``-supported scheme; a missing dir yields
+    nothing (no pre-check needed — see note on ``has_sample_checkpoint``).
     """
     ids: list[int] = []
     try:
         async for uri in get_async_filesystem().iter_files(
             sample_dir, pattern="ckpt-*.json"
         ):
-            name = uri.rsplit("/", 1)[-1]
-            try:
-                ids.append(int(name.removeprefix("ckpt-").removesuffix(".json")))
-            except ValueError:
-                continue
+            match = CHECKPOINT_FILE_RE.fullmatch(uri.rsplit("/", 1)[-1])
+            if match is not None:
+                ids.append(int(match.group(1)))
     except FileNotFoundError:
         pass
     return ids

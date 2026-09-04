@@ -21,6 +21,7 @@ import anyio
 from inspect_ai._util.appdirs import inspect_cache_dir
 from inspect_ai._util.asyncfiles import is_s3_filename
 
+from ._paths import sample_dir_segment
 from .eval_checkpoints_dir import log_basename
 
 RESTIC_CONFIG_SUBPATH = "restic/restic-config.json"
@@ -37,8 +38,13 @@ def is_remote_destination(checkpoints_path: str) -> bool:
 
 
 def sample_staging_dir(log_location: str, sample_id: int | str, epoch: int) -> str:
-    """Return the per-sample staging dir path (no FS side effects)."""
-    return f"{_eval_staging_dir(log_location)}/{sample_id}__{epoch}"
+    """Return the per-sample staging dir path (no FS side effects).
+
+    Same dir-name derivation as ``sample_checkpoints_dir`` (via
+    ``sample_dir_segment``), so a hostile sample id cannot relocate the
+    staging tree out of the eval's staging dir either.
+    """
+    return f"{_eval_staging_dir(log_location)}/{sample_dir_segment(sample_id)}__{epoch}"
 
 
 async def ensure_sample_staging_dir(
