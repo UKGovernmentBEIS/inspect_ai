@@ -6,6 +6,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     _read_restic_config,
     checkpoint_file_id,
@@ -330,3 +332,32 @@ async def test_delete_sample_checkpoints_dir(tmp_path: Path) -> None:
     await delete_sample_checkpoints_dir(  # idempotent
         eval_dir, "s", 0, log_location=log_location
     )
+
+
+async def test_scan_torn_only_checkpoint_file_is_uncommitted(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dir whose only checkpoint file is torn holds nothing committed.
+
+    The sample runs fresh rather than resuming from an unindexed
+    snapshot, and the situation is logged since it should not pass
+    silently.
+    """
+    import importlib
+
+    # the package re-exports a function of the same name, which shadows the
+    # submodule attribute; resolve the module itself
+    module = importlib.import_module(
+        "inspect_ai.util._checkpoint._layout.sample_checkpoints_dir"
+    )
+
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "a.checkpoints"), "s", 0
+    )
+    (Path(sample_dir) / "ckpt-00001.json").write_text('{"checkpoint_id": 1, "torn')
+    module.logger.addHandler(caplog.handler)
+    try:
+        assert await scan_latest_committed_checkpoint(sample_dir) is None
+    finally:
+        module.logger.removeHandler(caplog.handler)
+    assert any("none parse" in r.getMessage() for r in caplog.records)

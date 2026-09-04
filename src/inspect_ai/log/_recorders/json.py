@@ -111,6 +111,12 @@ class JSONRecorder(FileRecorder):
         return file
 
     @override
+    def destination_written(self, eval: EvalSpec) -> bool:
+        log = self.data.get(self._log_file_key(eval))
+        # popped by log_finish: the file was written
+        return log.written if log is not None else True
+
+    @override
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         log = self.data[self._log_file_key(eval)]
         log.data.plan = plan

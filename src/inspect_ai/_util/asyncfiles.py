@@ -559,13 +559,14 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             return None
 
     async def get_file(self, remote: str, local: str) -> None:
-        """Download `remote` to local path `local`, replacing any existing file.
+        """Download `remote` to local path `local`.
 
-        Downloads land in a sibling temp file and are renamed into place,
-        so a partial download never masquerades as the file and an
+        S3 downloads land in a sibling temp file and are renamed into
+        place, so a partial download never masquerades as the file and an
         existing read-only target (restic writes repo files ``0400``) is
         replaced rather than opened for writing. boto3's ``download_file``
-        does this itself; aioboto3's opens the target in place.
+        does this itself; aioboto3's opens the target in place. The
+        non-S3 branch copies in place.
         """
         if is_s3_filename(remote):
             bucket, key = s3_bucket_and_key(remote)
