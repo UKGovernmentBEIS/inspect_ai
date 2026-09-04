@@ -2,7 +2,7 @@ import functools
 import json
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from copy import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, TypeAlias, cast
@@ -129,10 +129,39 @@ class OpenAIResponseError(OpenAIError):
         return f"{self.code}: {self.message}"
 
 
-# is_o_series etc. have been moved to the OpenAIAPI class
-# in _providers/openai.py to enable proper overriding by subclasses
+# single-digit major so Azure's dot-less `gpt-35-turbo` doesn't parse as major 35
+# (a future `gpt-10` would need this widened)
+_GPT_VERSION_RE = re.compile(r"gpt-(\d)(?!\d)(?:\.(\d+))?")
+
+
+def openai_gpt_version(model_name: str) -> tuple[int, int] | None:
+    """(major, minor) of the `gpt-N[.M]` token in a model name, or None.
+
+    Searches rather than anchors so hosting prefixes (`openai.gpt-6-astra`) and
+    Azure deployment names (`my-gpt-6-deployment`) resolve too.
+    """
+    match = _GPT_VERSION_RE.search(model_name.lower())
+    if match is None:
+        return None
+    return (int(match.group(1)), int(match.group(2) or 0))
+
+
 def is_gpt_5_model(model_name: str) -> bool:
-    return "gpt-5" in model_name.lower()
+    """gpt-5 or any later major version (frontier request shape and reasoning)."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 0)
+
+
+def is_gpt_5_plus_model(model_name: str) -> bool:
+    """gpt-5.1 or later: reasoning can be turned off with `none` effort (until gpt-6, see `is_gpt_6_model`)."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 1)
+
+
+def is_gpt_6_model(model_name: str) -> bool:
+    """gpt-6 or later: always reasons, so sampling params are rejected outright."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (6, 0)
 
 
 def is_o_series_model(model_name: str) -> bool:
@@ -142,15 +171,20 @@ def is_o_series_model(model_name: str) -> bool:
     return "gpt" not in name and bool(re.search(r"o\d+", name))
 
 
-_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
-
-
 def supports_native_max_reasoning_effort(model_name: str) -> bool:
     """`max` reasoning effort shipped with gpt-5.6; earlier gpt-5.x top out at `xhigh`."""
-    match = _GPT_VERSION_RE.match(model_name.lower())
-    if match is None:
-        return False
-    return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 6)
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 6)
+
+
+def reasons_by_default_model(model_name: str) -> bool:
+    """gpt-5.5+ reason at the server default effort when none is requested.
+
+    In that state the API rejects sampling params (`temperature`, `top_p`,
+    logprobs); gpt-5.1 through gpt-5.4 accept them when no effort is set.
+    """
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 5)
 
 
 def needs_max_completion_tokens(model_name: str) -> bool:
@@ -1320,40 +1354,66 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     if isinstance(ex, APIConnectionError | APITimeoutError):
         return RetryDecision.transient()
     if isinstance(ex, APIError):
-        # A failure delivered mid-stream (after HTTP 200) is raised by the
-        # SDK as a bare APIError with no status code, carrying only the
-        # error body's `code`/`type`. OpenAI itself signals with
-        # `server_error` / `rate_limit_exceeded`; OpenAI-compatible servers
-        # use their own vocabulary — often a numeric HTTP status in `code`
-        # (vLLM/SGLang: {"type": "InternalServerError", "code": 500},
-        # OpenRouter: {"code": 502}), which classifies through the standard
-        # status rules. Anything unrecognized stays unretried.
-        code_status = _http_status_from_error_code(ex.code)
-        if code_status is not None:
-            if code_status == 429:
-                return RetryDecision.rate_limit()
-            if is_retryable_http_status(code_status):
-                return RetryDecision.transient()
-            return None
-        # normalize code/type spellings (rate_limit_error/RateLimitError/...)
-        names = {
-            v.lower().replace("_", "") for v in (ex.code, ex.type) if isinstance(v, str)
-        }
-        if names & {"ratelimitexceeded", "ratelimiterror"}:
-            return RetryDecision.rate_limit()
-        if names & {"servererror", "internalservererror", "internalerror"}:
-            return RetryDecision.transient()
-        return None
+        # a failure delivered mid-stream (after HTTP 200) is raised by the
+        # SDK as a bare APIError with no status code, so only the body's
+        # `code`/`type` are available
+        return classify_error_body(ex.code, ex.type)
     return None
 
 
-def _http_status_from_error_code(code: object) -> int | None:
+def classify_error_body(
+    code: object, error_type: object, transient_names: Collection[str] = ()
+) -> "RetryDecision | None":
+    """Classify an error body's `code`/`type` as rate_limit / transient / None.
+
+    For errors that carry no HTTP status (an error payload delivered
+    mid-stream after HTTP 200). A numeric HTTP status in `code` classifies
+    through the standard status rules: OpenAI-compatible servers often put one
+    there (vLLM/SGLang: `{"type": "InternalServerError", "code": 500}`,
+    OpenRouter: `{"code": 502}`). Otherwise the `code`/`type` spellings are
+    normalized (`rate_limit_error`/`RateLimitError`/... all compare equal) and
+    matched against the OpenAI vocabulary (`rate_limit_exceeded`,
+    `server_error`) plus the common server-error variants; `transient_names`
+    adds a provider's own transient spellings, given already normalized
+    (lowercase, no underscores). Anything unrecognized returns None so the
+    caller can apply further provider-specific checks or leave it unretried.
+    """
+    from inspect_ai.model._model import RetryDecision
+
+    status = http_status_from_error_code(code)
+    if status is not None:
+        if status == 429:
+            return RetryDecision.rate_limit()
+        if is_retryable_http_status(status):
+            return RetryDecision.transient()
+        return None
+    names = {
+        v.lower().replace("_", "") for v in (code, error_type) if isinstance(v, str)
+    }
+    if names & {"ratelimitexceeded", "ratelimiterror"}:
+        return RetryDecision.rate_limit()
+    if names & (
+        {
+            "servererror",
+            "internalservererror",
+            "internalerror",
+            "serviceunavailable",
+            "serviceunavailableerror",
+        }
+        | set(transient_names)
+    ):
+        return RetryDecision.transient()
+    return None
+
+
+def http_status_from_error_code(code: object) -> int | None:
     """Coerce an error body `code` to an HTTP status when it is one.
 
     OpenAI-compatible servers often put a numeric HTTP status in `code`
     (as an int or a digit string). The SDK annotates `APIError.code` as
     `Optional[str]` but passes body values through unconverted, so an int
-    arrives as an int at runtime.
+    arrives as an int at runtime. Providers whose own `code` vocabulary is
+    numeric but not an HTTP status (Mistral's 4-digit ids) get None.
     """
     if isinstance(code, int) or (isinstance(code, str) and code.isdecimal()):
         status = int(code)
