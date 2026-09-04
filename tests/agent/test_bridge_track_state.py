@@ -29,6 +29,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
+from inspect_ai.tool import ToolCall
 
 TASK = "In the year 2022, what castle did the Doctor spend 4.5 billion years in?"
 
@@ -1551,6 +1552,44 @@ def cc_system(nonce: int) -> ChatMessageSystem:
     return ChatMessageSystem(
         content=f"x-anthropic-billing-header: cc_version=2.1.126; cch={nonce:05x};\n\nYou are a Claude agent."
     )
+
+
+async def test_accumulation_keeps_distinct_tool_call_histories() -> None:
+    """Tool calls and results distinguish otherwise text-identical histories."""
+    bridge = accumulating_bridge()
+
+    def lookup_history(query: str) -> list[ChatMessage]:
+        call = ToolCall(
+            id=f"lookup-{query}",
+            function="lookup",
+            arguments={"query": query},
+        )
+        return [
+            TASK_SYSTEM,
+            ChatMessageUser(content="Find the castle."),
+            ChatMessageAssistant(content="", tool_calls=[call]),
+            ChatMessageTool(
+                content="lookup result",
+                tool_call_id=call.id,
+                function=call.function,
+            ),
+        ]
+
+    await track(bridge, lookup_history("A"), "done")
+    await track(bridge, lookup_history("B"), "done")
+
+    tool_calls = [
+        call
+        for message in bridge.state.messages
+        if isinstance(message, ChatMessageAssistant)
+        for call in message.tool_calls or []
+    ]
+    assert [call.arguments["query"] for call in tool_calls] == ["A", "B"]
+    assert [
+        message.tool_call_id
+        for message in bridge.state.messages
+        if isinstance(message, ChatMessageTool)
+    ] == ["lookup-A", "lookup-B"]
 
 
 async def test_every_conversation_is_kept_not_just_the_main_one() -> None:

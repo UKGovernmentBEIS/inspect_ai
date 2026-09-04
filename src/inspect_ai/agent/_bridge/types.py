@@ -396,10 +396,10 @@ class AgentBridge:
         resulting sample.
 
         A call is matched to the conversation it CONTINUES: the one whose messages are
-        a prefix of this call's, longest first. Matching is by `(role, text)` over
-        non-system messages, because a scaffold may rewrite its system prompt per
-        request (Claude Code stamps a per-request cache token into it) and matching on
-        it would make every call a new conversation.
+        a prefix of this call's, longest first. Matching ignores only system prompts,
+        which scaffolds may rewrite per request (Claude Code stamps a per-request cache
+        token into them). Non-system message identity includes full content plus tool
+        calls and tool results, so visually identical operations do not collapse.
 
         "Prefix" is deliberately not-strict, and re-sends are absorbed rather than
         appended, because a repeat is not a new conversation. A call identical to one
@@ -425,7 +425,7 @@ class AgentBridge:
         single late side call poison it for the rest of the run.
         """
         messages = input + [output.message]
-        key = _non_system([_message_fingerprint(m) for m in messages])
+        key = _non_system([_conversation_message_fingerprint(m) for m in messages])
         continued: int | None = None
         for index, conversation in enumerate(self._conversations):
             if _is_prefix(conversation.key, key) and (
@@ -568,6 +568,33 @@ def message_json_hash(message_json: str) -> str:
     return mm3_hash(message_json)
 
 
+class _ConversationMessageFingerprint(NamedTuple):
+    """Stable identity for accumulating one conversation's non-system messages.
+
+    Message IDs, source, metadata, and model name are transport details that may change
+    as a scaffold replays history. The full content retains non-text parts, while the
+    remaining model fields retain tool-call and tool-result identity.
+    """
+
+    role: str
+    content_hash: str
+    tool_identity_hash: str
+
+
+def _conversation_message_fingerprint(
+    message: ChatMessage,
+) -> _ConversationMessageFingerprint:
+    tool_identity = message.model_dump(
+        exclude={"id", "content", "metadata", "model", "source"},
+        exclude_none=True,
+    )
+    return _ConversationMessageFingerprint(
+        role=message.role,
+        content_hash=mm3_hash(to_json_str_safe(message.content)),
+        tool_identity_hash=mm3_hash(to_json_str_safe(tool_identity)),
+    )
+
+
 class _MessageFingerprint(NamedTuple):
     """(role, hash-of-text) identity used for thread prefix comparisons.
 
@@ -696,19 +723,22 @@ def _condensed_fingerprint(fp: _MessageFingerprint) -> _MessageFingerprint:
 class _Conversation:
     """One conversation observed over the bridge (see `_accumulate_conversation`)."""
 
-    key: list[_MessageFingerprint]
+    key: list[_ConversationMessageFingerprint]
     messages: list[ChatMessage]
     output: ModelOutput
 
 
 def _is_prefix(
-    prefix: list[_MessageFingerprint], fps: list[_MessageFingerprint]
+    prefix: list[_ConversationMessageFingerprint],
+    fps: list[_ConversationMessageFingerprint],
 ) -> bool:
     """Whether `fps` continues `prefix`, or is exactly it."""
     return len(fps) >= len(prefix) and fps[: len(prefix)] == prefix
 
 
-def _non_system(fps: list[_MessageFingerprint]) -> list[_MessageFingerprint]:
+def _non_system(
+    fps: list[_ConversationMessageFingerprint],
+) -> list[_ConversationMessageFingerprint]:
     """Fingerprints of the non-system messages, for conversation-continuation matching.
 
     A scaffold may rewrite its system prompt on every request -- Claude Code stamps a
