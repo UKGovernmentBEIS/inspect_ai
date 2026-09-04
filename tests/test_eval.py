@@ -1136,7 +1136,7 @@ def test_retry_attempt_dying_in_checkpoint_copy_leaves_no_log(
     assert copies[0][0] == copies[1][0]
 
 
-def _committed_checkpoint_json(checkpoint_id: int, trigger: str) -> str:
+def _committed_checkpoint_json(checkpoint_id: int) -> str:
     from datetime import datetime, timezone
 
     from inspect_ai.util._checkpoint._layout.schemas import (
@@ -1146,7 +1146,7 @@ def _committed_checkpoint_json(checkpoint_id: int, trigger: str) -> str:
 
     return Checkpoint(
         checkpoint_id=checkpoint_id,
-        trigger=trigger,  # type: ignore[arg-type]
+        trigger="turn",
         turn=checkpoint_id,
         created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
         duration_ms=10,
@@ -1221,7 +1221,7 @@ def test_retry_resumes_from_own_checkpoint_or_discards_it(
     # a committed checkpoint the (noop) checkpointer never wrote itself
     sample_dir = Path(eval_checkpoints_dir(first.location, None)) / "s__1"
     sample_dir.mkdir(parents=True)
-    (sample_dir / "ckpt-00001.json").write_text(_committed_checkpoint_json(1, "turn"))
+    (sample_dir / "ckpt-00001.json").write_text(_committed_checkpoint_json(1))
 
     # errored prior + committed checkpoint → resume
     retried = eval_retry(first, log_dir=str(tmp_path / "logs"))[0]
