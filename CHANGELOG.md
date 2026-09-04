@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Checkpoints: Invalidating a sample now re-runs it from scratch on retry (its checkpoints are discarded) instead of resuming from its last checkpoint.
+- Bugfix: Interrupting a checkpointed eval's retry (Ctrl-C, crash, OOM) no longer loses checkpointed progress, including for samples the retry never reached.
 - Checkpointing: Resuming from a checkpoint now rejects a host-context snapshot containing symlinks or other non-regular files instead of following them into host files.
 - Checkpointing: Resuming into a context directory left by an interrupted attempt no longer keeps files newer than the committed checkpoint alongside the restored ones.
 - Groq: An over-capacity, server, or rate-limit error delivered inside a streamed response is now retried instead of failing the sample, and a streamed context-length rejection yields `model_length` output.

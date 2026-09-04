@@ -16,6 +16,11 @@ sandbox's bulk state for checkpointing, honoring these guarantees:
 - **Restore into a fresh sandbox (§4.3)**: ``restore()`` receives a
   fresh sandbox and must leave the captured paths byte-identical to
   capture time at their original absolute paths.
+- **Storage areas travel verbatim (§4.5)**: the core carries a
+  strategy's storage area across retry attempts as an opaque file
+  tree (the retry startup copy — see ``_resume_copy``), so a strategy
+  never copies prior-attempt state itself and must keep everything a
+  restore needs inside its storage area.
 - **Security (§4.6)**: tooling placed in the sandbox must be root-only
   and invisible to the agent; bytes read out of the sandbox are
   untrusted; secrets reach the sandbox only via per-exec environment
@@ -66,23 +71,6 @@ class SnapshotContext:
 
     resuming: bool
     """Whether this attempt resumes a prior attempt's checkpoints."""
-
-
-@dataclass(frozen=True)
-class PriorAttempt:
-    """Where a prior attempt's strategy state lives, for ``adopt``."""
-
-    sample_checkpoints_dir: str
-    """The prior attempt's sample checkpoints dir (possibly remote)."""
-
-    storage_subpath: str
-    """The strategy's storage area subpath under that dir (same layout
-    as this attempt's ``SnapshotContext.storage_subpath``)."""
-
-    @property
-    def storage_prefix(self) -> str:
-        """Full URI prefix of the prior attempt's storage area."""
-        return f"{self.sample_checkpoints_dir}/{self.storage_subpath}"
 
 
 class SandboxSnapshotStrategy(Protocol):
@@ -141,15 +129,9 @@ class SandboxSnapshotStrategy(Protocol):
         ``ref`` is that snapshot's details from the latest committed
         checkpoint file (``None`` only in degenerate resume states with
         no per-sandbox record; strategies that need it must raise). May
-        assume ``setup``, ``adopt``, and ``discard_orphans`` ran first.
-        """
-        ...
-
-    async def adopt(self, prior: PriorAttempt, ctx: SnapshotContext) -> None:
-        """Carry strategy state from a prior attempt into this one.
-
-        After ``adopt``, ``restore``/``discard_orphans``/``snapshot``
-        must work against this attempt's storage area.
+        assume ``setup`` and ``discard_orphans`` ran first, and that the
+        storage area holds the prior attempt's state (the core copied
+        it there before this attempt started).
         """
         ...
 
@@ -159,7 +141,9 @@ class SandboxSnapshotStrategy(Protocol):
         """Drop snapshots with ``checkpoint_id > latest_committed_id``.
 
         Orphans come from fires that completed their capture but never
-        committed a checkpoint file.
+        committed a checkpoint file. Remove them from the storage area;
+        for a remote destination the core mirrors whatever the pull
+        brought in and this call removed.
         """
         ...
 
