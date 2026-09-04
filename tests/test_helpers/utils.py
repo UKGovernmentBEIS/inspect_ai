@@ -505,8 +505,6 @@ def skip_if_async_backend(backend):
 
     For sync functions this is a no-op — they never run under an async backend.
     """
-    import inspect
-
     import sniffio
 
     def decorator(func):
