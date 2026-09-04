@@ -220,6 +220,16 @@ def test_openai_classify_mid_stream_server_error_as_transient() -> None:
     assert decision2 is not None
     assert decision2.kind == "transient"
 
+    # capacity signalling used by OpenAI-compatible servers (e.g. groq)
+    ex3 = APIError(
+        message="Service Unavailable",
+        request=httpx2.Request("POST", "https://example.com/v1/chat/completions"),
+        body={"message": "Service Unavailable", "type": "service_unavailable"},
+    )
+    decision3 = openai_classify_retry(ex3)
+    assert decision3 is not None
+    assert decision3.kind == "transient"
+
 
 def test_openai_classify_mid_stream_rate_limit_as_rate_limit() -> None:
     from openai import APIError

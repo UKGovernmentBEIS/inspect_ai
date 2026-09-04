@@ -1393,7 +1393,14 @@ def classify_error_body(
     if names & {"ratelimitexceeded", "ratelimiterror"}:
         return RetryDecision.rate_limit()
     if names & (
-        {"servererror", "internalservererror", "internalerror"} | set(transient_names)
+        {
+            "servererror",
+            "internalservererror",
+            "internalerror",
+            "serviceunavailable",
+            "serviceunavailableerror",
+        }
+        | set(transient_names)
     ):
         return RetryDecision.transient()
     return None
@@ -1405,7 +1412,8 @@ def http_status_from_error_code(code: object) -> int | None:
     OpenAI-compatible servers often put a numeric HTTP status in `code`
     (as an int or a digit string). The SDK annotates `APIError.code` as
     `Optional[str]` but passes body values through unconverted, so an int
-    arrives as an int at runtime.
+    arrives as an int at runtime. Providers whose own `code` vocabulary is
+    numeric but not an HTTP status (Mistral's 4-digit ids) get None.
     """
     if isinstance(code, int) or (isinstance(code, str) and code.isdecimal()):
         status = int(code)
