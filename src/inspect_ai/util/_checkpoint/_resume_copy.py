@@ -64,6 +64,14 @@ _SAMPLE_FILE_COPY_CONCURRENCY = 6
 # host repo, and restore re-materializes it from there.
 _EXCLUDED_TOP_LEVEL: frozenset[str] = frozenset({"context"})
 
+# Path components that are process state, not repo state. A restic
+# ``locks/`` entry names a process that held the repo; a process killed
+# mid-operation (its parent's SIGKILL closes its output pipe) leaves one
+# behind, and no process can legitimately hold a lock on the copy this
+# pass creates. Copied forward, a lock whose PID happens to be live again
+# makes every later restic operation on the repo fail to lock.
+_EXCLUDED_COMPONENTS: frozenset[str] = frozenset({"locks"})
+
 
 async def copy_resume_payloads(
     *,
@@ -167,6 +175,7 @@ class _Payload(NamedTuple):
 
 
 async def _list_payload(source_dir: str) -> _Payload:
+    """Files under ``source_dir``, relative to it, minus excluded dirs/components."""
     async_fs = get_async_filesystem()
     try:
         uris = [uri async for uri in async_fs.iter_files(source_dir, recursive=True)]
@@ -177,6 +186,7 @@ async def _list_payload(source_dir: str) -> _Payload:
         rel
         for rel in rels
         if rel.split("/", 1)[0] not in _EXCLUDED_TOP_LEVEL
+        and not _EXCLUDED_COMPONENTS.intersection(rel.split("/")[:-1])
         and _checkpoint_id(rel) is None
     ]
     checkpoints = sorted(

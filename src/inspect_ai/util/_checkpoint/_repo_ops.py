@@ -9,6 +9,7 @@ strategies — a cycle). ``hydrate`` still uses it for the host repo.
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import anyio
@@ -42,10 +43,8 @@ async def drop_orphan_snapshots(
     caller can mirror the drop at a remote destination by deleting
     ``snapshots/<id>`` (see ``hydrate._delete_destination_files``).
     """
-    proc = await anyio.run_process(
-        [str(restic), "-r", repo, "snapshots", "--json"],
-        env=restic_env(password),
-        check=True,
+    proc = await _run_restic(
+        [str(restic), "-r", repo, "snapshots", "--json"], password=password
     )
     snapshots = json.loads(proc.stdout.decode())
     orphan_ids: list[str] = []
@@ -61,9 +60,26 @@ async def drop_orphan_snapshots(
                 orphan_ids.append(snap["id"])
                 break
     if orphan_ids:
-        await anyio.run_process(
-            [str(restic), "-r", repo, "forget", *orphan_ids],
-            env=restic_env(password),
-            check=True,
+        await _run_restic(
+            [str(restic), "-r", repo, "forget", *orphan_ids], password=password
         )
     return orphan_ids
+
+
+async def _run_restic(
+    command: list[str], *, password: str
+) -> subprocess.CompletedProcess[bytes]:
+    """Run a restic command; a non-zero exit raises with restic's stderr.
+
+    ``anyio.run_process(check=True)`` raises ``CalledProcessError`` whose
+    message carries only the command and exit status — restic's reason
+    ("repository is already locked by ...", "repository does not exist")
+    is on stderr, and without it a failed resume is undiagnosable.
+    """
+    proc = await anyio.run_process(command, env=restic_env(password), check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"restic {command[3]} failed (exit {proc.returncode}) on {command[2]}: "
+            f"{proc.stderr.decode(errors='replace').strip()}"
+        )
+    return proc

@@ -63,6 +63,9 @@ def _build_payload(sample_dir: Path, *, checkpoint_ids: list[int]) -> None:
     # contents are in the host repo)
     (sample_dir / "context").mkdir()
     (sample_dir / "context" / "events.json").write_text("[]")
+    # a restic lock left by a killed process: process state, not payload
+    (sample_dir / "restic" / "host" / "locks").mkdir()
+    (sample_dir / "restic" / "host" / "locks" / "deadbeef").write_text("lock")
     for n in checkpoint_ids:
         (sample_dir / f"ckpt-{n:05d}.json").write_text(_checkpoint_json(n))
 
@@ -85,6 +88,7 @@ def _assert_payload_copied(dest: Path, *, checkpoint_ids: list[int]) -> None:
     for n in checkpoint_ids:
         assert (dest / f"ckpt-{n:05d}.json").read_text() == _checkpoint_json(n)
     assert not (dest / "context").exists()
+    assert not (dest / "restic" / "host" / "locks").exists()
 
 
 async def test_copy_resume_payloads_replicates_every_sample_dir(
