@@ -2,7 +2,7 @@ import base64
 import json
 
 import pytest
-from test_helpers.utils import skip_if_no_openai
+from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_gpt_6
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset._dataset import Sample
@@ -607,11 +607,13 @@ async def test_chat_completions_streaming_converts_mid_stream_safeguard_block() 
 # -- GPT-6 Astra (live) --
 #
 # Astra always reasons and rejects sampling params, so these exercise the
-# frontier request shape end to end. They fail with `model_not_found` until the
-# account has access to the model.
+# frontier request shape end to end. gpt-6-astra is gated per-account, so they
+# are opt-in via ENABLE_OPENAI_GPT_6 — a key without access gets a 404
+# model_not_found, which would fail the run rather than skip it.
 
 
 @skip_if_no_openai
+@skip_if_no_openai_gpt_6
 async def test_openai_gpt_6_astra_generate() -> None:
     # temperature is dropped (with a warning) rather than sent, so this must not 400
     model = get_model(
@@ -625,6 +627,7 @@ async def test_openai_gpt_6_astra_generate() -> None:
 
 
 @skip_if_no_openai
+@skip_if_no_openai_gpt_6
 async def test_openai_gpt_6_astra_max_reasoning_effort() -> None:
     model = get_model(
         "openai/gpt-6-astra", config=GenerateConfig(reasoning_effort="max")
@@ -634,6 +637,7 @@ async def test_openai_gpt_6_astra_max_reasoning_effort() -> None:
 
 
 @skip_if_no_openai
+@skip_if_no_openai_gpt_6
 async def test_openai_gpt_6_astra_tool_call() -> None:
     @tool
     def addition():

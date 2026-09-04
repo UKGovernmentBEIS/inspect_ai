@@ -285,6 +285,13 @@ def skip_if_no_openai_reasoning_summaries(func):
     )
 
 
+def skip_if_no_openai_gpt_6(func):
+    # gpt-6-astra is gated per-account: a key without access gets a 404
+    # model_not_found, so live gpt-6 tests are opt-in like reasoning summaries.
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("ENABLE_OPENAI_GPT_6", exists=False)(func))
+
+
 def skip_if_no_anthropic(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("ANTHROPIC_API_KEY", exists=False)(func))
