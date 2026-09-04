@@ -43,6 +43,7 @@ from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
 from ._layout.schemas import Checkpoint
+from ._layout.staging_dir import RESTIC_CONFIG_SUBPATH
 
 logger = getLogger(__name__)
 
@@ -60,7 +61,6 @@ _EXCLUDED_TOP_LEVEL: frozenset[str] = frozenset({"context", MANIFEST_FILENAME})
 # to a catch-all bucket if none match (which shouldn't happen for
 # well-formed restic content).
 _CHECKPOINT_FILE_RE = re.compile(r"^ckpt-\d+\.json$")
-_RESTIC_CONFIG = "restic/restic-config.json"
 
 
 async def host_egress(*, staging_dir: str, destination_dir: str) -> None:
@@ -146,7 +146,7 @@ def _safe_order(files: list[str]) -> list[str]:
     other: list[str] = []
     for f in files:
         parts = f.split("/")
-        if f == _RESTIC_CONFIG:
+        if f == RESTIC_CONFIG_SUBPATH:
             restic_config.append(f)
         elif _CHECKPOINT_FILE_RE.match(parts[-1]):
             checkpoint_files.append(f)
