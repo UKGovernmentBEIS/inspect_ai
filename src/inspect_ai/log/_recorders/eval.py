@@ -173,6 +173,11 @@ class EvalRecorder(FileRecorder):
         return zip_file
 
     @override
+    def destination_written(self, eval: EvalSpec) -> bool:
+        log = self.data.get(self._log_file_key(eval))
+        # popped by log_finish: the file was written
+        return log.destination_written if log is not None else True
+
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         log = self.data[self._log_file_key(eval)]
         start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval, plan=plan)

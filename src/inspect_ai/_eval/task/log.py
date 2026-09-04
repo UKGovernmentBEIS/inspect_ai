@@ -455,6 +455,11 @@ class TaskLogger:
     def buffer_db(self) -> SampleBufferDatabase | None:
         return self._buffer_db
 
+    @property
+    def destination_written(self) -> bool:
+        """Whether anything has reached this attempt's destination log file."""
+        return self.recorder.destination_written(self.eval)
+
     def hold_destination_writes(self) -> None:
         """Defer every destination write until the reuse sweep settles.
 

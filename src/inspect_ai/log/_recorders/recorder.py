@@ -43,6 +43,15 @@ class Recorder(abc.ABC):
     @abc.abstractmethod
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None: ...
 
+    def destination_written(self, eval: EvalSpec) -> bool:
+        """Whether anything has reached the eval's destination log file.
+
+        ``False`` only when the recorder knows nothing was written (an
+        attempt that failed before its first flush); recorders that
+        cannot tell report ``True``.
+        """
+        return True
+
     @abc.abstractmethod
     async def log_sample(
         self, eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
