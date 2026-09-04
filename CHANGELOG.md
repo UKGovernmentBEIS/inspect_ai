@@ -1,3 +1,8 @@
+## Unreleased
+
+- Checkpointing: Resuming from a checkpoint now rejects a host-context snapshot containing symlinks or other non-regular files instead of following them into host files.
+- Checkpointing: Resuming into a context directory left by an interrupted attempt no longer keeps files newer than the committed checkpoint alongside the restored ones.
+
 ## 0.3.263 (03 September 2026)
 
 - OpenAI: Added support for GPT-6 Astra (`gpt-6-astra`).
@@ -20,8 +25,6 @@
 - Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
 - Bugfix: Hugging Face and nnterp providers now record `hidden_states` (from `-M hidden_states`) as JSON-serializable nested lists instead of silently dropping them to `None` in the log; the batched Hugging Face path now records each sample's own activations rather than the whole batch's. Note: code reading `ModelOutput.metadata["hidden_states"]` live (in a solver or scorer) now receives nested lists rather than tensors — wrap with `torch.tensor(...)` if tensor operations are needed. (#2860)
 - Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
-- Checkpointing: Resuming from a checkpoint now rejects a host-context snapshot containing symlinks or other non-regular files instead of following them into host files.
-- Checkpointing: Resuming into a context directory left by an interrupted attempt no longer keeps files newer than the committed checkpoint alongside the restored ones.
 
 ## 0.3.262 (02 September 2026)
 
