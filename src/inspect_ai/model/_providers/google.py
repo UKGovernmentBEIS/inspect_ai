@@ -4,6 +4,8 @@ import functools
 import hashlib
 import json
 import os
+import re
+import ssl
 from copy import copy
 from io import BytesIO
 from logging import getLogger
@@ -115,6 +117,7 @@ from inspect_ai.model._providers._google_computer_use import (
     tool_call_from_gemini_computer_action,
 )
 from inspect_ai.model._reasoning import (
+    clamp_reasoning_effort_to_minimal_low_medium_high,
     effort_to_reasoning_tokens,
     reasoning_to_think_tag,
 )
@@ -815,7 +818,7 @@ class GoogleGenAIAPI(ModelAPI):
         # context window / compaction match. Bump when a newer frontier ships.
         # Mirrors OpenAI's and Anthropic's input_tokens_name() aliasing.
         if self.is_gemini() and _get_model_info_direct(self.canonical_name()) is None:
-            return "google/gemini-3.6-flash"
+            return "google/gemini-3.8-flash"
         return super().input_tokens_name()
 
     def is_latest(self) -> bool:
@@ -852,8 +855,33 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini_3(self) -> bool:
         return "gemini-3" in self.model_family()
 
-    def is_gemini_3_flash(self) -> bool:
-        return (self.is_gemini_3() or self.is_latest()) and self.is_gemini_flash()
+    def gemini_version(self) -> tuple[int, ...] | None:
+        """Numeric version parsed from a gemini-N[.N] model name (None if absent).
+
+        Only the final path segment is inspected so a vertex resource path
+        takes its version from the model, not the project id.
+        """
+        name = self.model_family().rsplit("/", 1)[-1]
+        match = re.search(r"gemini-(\d+(?:\.\d+)*)", name)
+        if match is None:
+            return None
+        return tuple(int(part) for part in match.group(1).split("."))
+
+    def supports_minimal_thinking(self) -> bool:
+        """Whether the model accepts thinking_level=MINIMAL.
+
+        True only for releases documented to accept it: Flash 3.0-3.6 and
+        Flash-Lite 3.1-3.5. Gemini 3 Pro never has, 3.7 Flash and later reject
+        it with a 400, and anything unverified (newer versions, codenames,
+        rolling aliases such as gemini-flash-lite-latest) is downgraded to LOW
+        rather than risk a 400. https://ai.google.dev/gemini-api/docs/thinking
+        """
+        version = self.gemini_version()
+        name = self.model_family().rsplit("/", 1)[-1]
+        if version is None or "flash" not in name:
+            return False
+        low, high = ((3, 1), (3, 6)) if "flash-lite" in name else ((3,), (3, 7))
+        return low <= version < high
 
     def is_gemini_3_plus(self) -> bool:
         return (
@@ -953,6 +981,36 @@ class GoogleGenAIAPI(ModelAPI):
         if self._oauth and self._credentials is not None:
             await self._credentials.ensure_valid()
 
+    @staticmethod
+    @functools.cache
+    def _ssl_context() -> ssl.SSLContext:
+        """The shared SSL context for genai clients, built once per process.
+
+        `Client()` is constructed per `generate()` call (deliberately — a shared client
+        would share a principal). Each construction otherwise rebuilds a default context
+        from `certifi.where()`, synchronously on the event loop. A context carries only
+        CA trust, not credentials, so unlike the client itself it is safe to share across
+        principals.
+        """
+        import certifi
+
+        return ssl.create_default_context(
+            cafile=os.environ.get("SSL_CERT_FILE", certifi.where()),
+            capath=os.environ.get("SSL_CERT_DIR"),
+        )
+
+    @staticmethod
+    @functools.lru_cache
+    def _ssl_context_for_path(path: str) -> ssl.SSLContext:
+        """An SSLContext built from a caller-supplied CA-bundle path.
+
+        httpx's `verify` legally accepts a CA-bundle path (`str` or `os.PathLike`), but
+        aiohttp's `ssl` param only accepts `SSLContext | bool | Fingerprint | None` —
+        `aiohttp.client_reqrep` raises `TypeError` on a bare path. Cached per path since
+        `model_client()` is constructed per `generate()` call.
+        """
+        return ssl.create_default_context(cafile=path)
+
     def model_client(self, http_options: HttpOptions | None = None) -> Client:
         from inspect_ai._util._async import current_async_backend
 
@@ -960,6 +1018,31 @@ class GoogleGenAIAPI(ModelAPI):
             base_url=self.base_url,
             api_version=self.api_version,
         )
+        # Seed both `client_args` and `async_client_args`: genai's SSL-context
+        # resolution reads only the sync dict when it is non-empty, ignoring the
+        # async dict entirely, so a value supplied on one side must be copied to
+        # the other explicitly to keep sync and async verification consistent.
+        # Never override a value the caller already supplied.
+        context = self._ssl_context()
+        client_args = dict(http_options.client_args or {})
+        async_client_args = dict(http_options.async_client_args or {})
+        if "verify" in client_args:
+            verify = client_args["verify"]
+        elif "verify" in async_client_args:
+            verify = async_client_args["verify"]
+        else:
+            verify = context
+        if "verify" not in client_args:
+            client_args["verify"] = verify
+        if "verify" not in async_client_args:
+            async_client_args["verify"] = verify
+        if "ssl" not in async_client_args:
+            if isinstance(verify, (str, os.PathLike)):
+                async_client_args["ssl"] = self._ssl_context_for_path(os.fspath(verify))
+            else:
+                async_client_args["ssl"] = verify
+        http_options.client_args = client_args
+        http_options.async_client_args = async_client_args
         # aiohttp requires asyncio; use httpx under trio for compatibility.
         # Only this path gets the shared HTTP defaults: the aiohttp path sets no
         # connect deadline at all, so there is none there to be outlasted.
@@ -1043,23 +1126,19 @@ class GoogleGenAIAPI(ModelAPI):
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
             # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
             elif config.reasoning_effort is not None and self.is_gemini_3_plus():
-                # note: minimal currently only supported by flash model
-                is_flash = self.is_gemini_3_flash()
-                match config.reasoning_effort:
-                    case "minimal":
-                        thinking_level = (
-                            ThinkingLevel.MINIMAL if is_flash else ThinkingLevel.LOW
-                        )
-                    case "low":
-                        thinking_level = ThinkingLevel.LOW
-                    case "medium":
-                        thinking_level = ThinkingLevel.MEDIUM
-                    case "high" | "xhigh" | "max":
-                        thinking_level = ThinkingLevel.HIGH
-                    case _:
-                        thinking_level = None  # can't happen, keep mypy happy
+                tier = clamp_reasoning_effort_to_minimal_low_medium_high(
+                    config.reasoning_effort
+                )
+                if tier == "minimal" and not self.supports_minimal_thinking():
+                    warn_once(
+                        logger,
+                        f"Model {self.service_model_name()} does not "
+                        "support minimal thinking; using low instead.",
+                    )
+                    tier = "low"
                 return ThinkingConfig(
-                    include_thoughts=True, thinking_level=thinking_level
+                    include_thoughts=True,
+                    thinking_level=ThinkingLevel(tier.upper()) if tier else None,
                 )
 
             # enable thinking_budget if specified

@@ -45,7 +45,6 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     web_search,
 )
-from inspect_ai.util._json import JSONSchema
 
 from ._errors import BridgePolicyError
 from .types import AgentBridge
@@ -53,6 +52,8 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    client_json_schema,
+    client_request_object,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
@@ -83,7 +84,8 @@ async def inspect_google_api_request_impl(
     tool_config: dict[str, Any] | None = json_data.get(
         "toolConfig", json_data.get("tool_config")
     )
-    generation_config: dict[str, Any] = json_data.get(
+    # client-controlled; validated by generate_config_from_google below
+    generation_config: Any = json_data.get(
         "generationConfig", json_data.get("generation_config", {})
     )
 
@@ -153,7 +155,13 @@ def debug_log(caption: str, o: Any) -> None:
     pass
 
 
-def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateConfig:
+def generate_config_from_google(generation_config: Any) -> GenerateConfig:
+    # guard here rather than at the extraction site so the sole consumer of the
+    # client-controlled container is self-defending (and `generationConfig: null`
+    # falls back to defaults instead of raising)
+    generation_config = (
+        client_request_object(generation_config, "generationConfig") or {}
+    )
     config = GenerateConfig()
     config.temperature = generation_config.get("temperature")
     config.max_tokens = generation_config.get("maxOutputTokens")
@@ -182,15 +190,24 @@ def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateCo
     config.top_logprobs = generation_config.get("logprobs")
 
     # structured output: responseJsonSchema is standard JSON Schema; responseSchema
-    # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize.
-    schema = generation_config.get("responseJsonSchema") or generation_config.get(
-        "responseSchema"
-    )
-    if schema:
+    # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize. For
+    # responseSchema the dropped-keyword warning skips the dialect's own keywords
+    # (they were never modelled, so warning would misread routine Gemini requests
+    # as degraded) but still fires for shared constraints like `minItems`.
+    if json_schema := generation_config.get("responseJsonSchema"):
         config.response_schema = ResponseSchema(
             name="response",
-            json_schema=JSONSchema.model_validate(
-                _google_schema_to_json_schema(schema)
+            json_schema=client_json_schema(
+                _google_schema_to_json_schema(json_schema), "responseJsonSchema"
+            ),
+        )
+    elif openapi_schema := generation_config.get("responseSchema"):
+        config.response_schema = ResponseSchema(
+            name="response",
+            json_schema=client_json_schema(
+                _google_schema_to_json_schema(openapi_schema),
+                "responseSchema",
+                dialect_keywords=_GEMINI_SCHEMA_KEYWORDS,
             ),
         )
 
@@ -744,6 +761,13 @@ def _convert_google_enums(obj: Any) -> Any:
     elif hasattr(obj, "value"):  # Enum-like object
         return str(obj.value).lower()
     return obj
+
+
+# keywords specific to Gemini's OpenAPI-style Schema dialect (as opposed to
+# constraints it shares with JSON Schema, like `minItems`, whose loss should
+# still be warned about). `example` is the dialect's singular counterpart of
+# JSON Schema's `examples`.
+_GEMINI_SCHEMA_KEYWORDS = frozenset({"nullable", "propertyOrdering", "example"})
 
 
 def _google_schema_to_json_schema(schema: Any) -> Any:

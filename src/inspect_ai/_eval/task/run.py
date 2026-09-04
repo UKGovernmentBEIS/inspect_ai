@@ -15,6 +15,8 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     finalize_eval,
+    get_eval_state,
+    mark_eval_retry_pending,
     record_sample_cancelled,
     record_sample_completed,
     record_sample_errored,
@@ -23,6 +25,7 @@ from inspect_ai._control.eval_state import (
     set_sample_requeue,
     set_task_scoring,
     stable_task_id_for_eval,
+    task_retry_abandoned,
 )
 from inspect_ai._control.pause import PauseGatedSemaphore, dispatch_model_name
 from inspect_ai._display import (
@@ -47,7 +50,11 @@ from inspect_ai._util.error import (
     exception_message,
     is_cancellation_message,
 )
-from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
+from inspect_ai._util.exception import (
+    TaskRetryAbandonedError,
+    TerminateSampleError,
+    TerminateTaskError,
+)
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
@@ -79,7 +86,12 @@ from inspect_ai.log import (
     EvalStats,
     HeadlineMetric,
 )
-from inspect_ai.log._condense import condense_sample, resolve_events_attachments
+from inspect_ai.log._condense import (
+    SampleSerializationError,
+    condense_sample,
+    is_log_serializable,
+    resolve_events_attachments,
+)
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,
@@ -130,7 +142,7 @@ from inspect_ai.model._model import (
     sample_model_usage,
     sample_role_usage,
 )
-from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -831,6 +843,56 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         logger / sample-source / planned-ids context — a new branch can't
         accidentally thread a stale or divergent value.
         """
+        # When a graceful cancel/drain abandoned queued samples, record how
+        # many samples this attempt actually resolved so eval-set's
+        # run-vs-reuse completeness check can see the shortfall
+        # (results.total_samples records the planned count, so a drained
+        # success log would otherwise read complete and the remainder would
+        # silently never re-run). Deliberately scoped to the graceful
+        # resolutions: other legitimately fewer-samples success logs (e.g.
+        # early stopping) must keep reading complete. With sample logging on
+        # the count is what the log holds (the samples a resume can reuse);
+        # with it off the log holds nothing, so the count comes from the
+        # attempt's terminal counters instead — a drain that landed after the
+        # last sample was dispatched resolved every planned sample and its log
+        # must keep reading complete rather than re-running the whole task.
+        record_logged_samples = task_cancel is not None and task_cancel.cancel_type in (
+            "score",
+            "error",
+            "drain",
+        )
+        resolved_unlogged_samples: int | None = None
+        if record_logged_samples and not log_samples:
+            state = get_eval_state(logger.eval.eval_id)
+            # completed + errored, not total - cancelled: the queued-abandon
+            # and materialization-window cancels are recorded per sample, but
+            # any sample still unaccounted for is folded into `cancelled` only
+            # by the finalize_eval in the finally below, after this write
+            resolved_unlogged_samples = (
+                state.completed + state.errored if state is not None else 0
+            )
+        # An error status the eval-set will retry (budget remaining, and
+        # neither an abort nor a graceful resolution — the dispatcher retries
+        # exactly on a natural error or a "retry" stamp): flag the retry as
+        # pending *before* the log write. completed_at is typically already
+        # stamped (the last sample's terminal record), so without the flag a
+        # task cancel/drain landing during this write — seconds on a remote
+        # log dir — would answer "task already finished" while the retry then
+        # dispatched anyway. The dispatcher re-marks at its own decision and
+        # unwinds the flag if a stamp landing here supersedes the retry (see
+        # clear_eval_retry_pending). Skipped when the retry is already
+        # abandoned: a drain/cancel landing on a pending "retry" stamp while
+        # the attempt tears down abandons the retry (clearing the flag) before
+        # this runs, and re-marking would have the read surface report the
+        # task as between attempts for the length of the log write.
+        if (
+            status == "error"
+            and task_cancel is not None
+            and task_cancel.can_retry
+            and task_cancel.cancel_type in (None, "retry")
+            and not task_retry_abandoned(logger.eval.task_id)
+        ):
+            mark_eval_retry_pending(logger.eval.eval_id)
         return await _finish_task_log(
             logger=logger,
             sample_source=options.sample_source,
@@ -842,6 +904,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             results=results,
             reductions=reductions,
             error=error,
+            record_logged_samples=record_logged_samples,
+            resolved_unlogged_samples=resolved_unlogged_samples,
         )
 
     # handle sample errors (raise as required). use total_samples (sliced
@@ -855,6 +919,22 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         total_samples,
         defer_fractional=sample_feed is not None,
     )
+
+    # a task drain/cancel abandoned this queued retry before it started: bail
+    # before anything that needs unwinding is set up — the paged-to-disk
+    # sample store below (its temp file is only unlinked by the close in the
+    # finally, which an abandoned attempt never reaches), the log_start
+    # destination header (a zero-seed retry has no destination hold, so
+    # log_start writes a stray `started` log the retry-cleanup sweep would
+    # prefer over the errored attempt's log), and the display task row (an
+    # abandoned row with no result would become the last row for this task id
+    # and read as incomplete in the rich header for the rest of the run).
+    # Best-effort — awaits separate this from register_eval, so the
+    # pre-register check below remains the race-free backstop (and the
+    # dispatcher's discard removes any header a stamp landing in between
+    # still flushed).
+    if task_retry_abandoned(logger.eval.task_id):
+        raise TaskRetryAbandonedError()
 
     # optionally page dataset to disk if it exceeds the memory budget
     sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
@@ -979,9 +1059,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             if not options.run_samples:
                 return await logger.log_finish("started", stats)
 
-            # call hook
-            await emit_task_start(logger, eval_plan)
-
             sample_semaphore = create_sample_semaphore(
                 config,
                 model.config.merge(generate_config),
@@ -1018,6 +1095,22 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # between its up-front logger init and starting here
             await logger.record_inherited_config_updates()
 
+            # A task drain/cancel abandoned this queued retry while the
+            # attempt was starting (after the dispatcher's pick, before this
+            # registration): bail before registering so the retry never runs
+            # after the operator was told it was abandoned. Synchronous with
+            # register_eval below (no awaits between), so on the eval's
+            # single loop a stamp lands either before this check (caught
+            # here) or after registration (the ordinary running-task path).
+            # Nothing with an end-side pairing has fired yet (the task-start
+            # hook comes after register_eval); the display row opened above
+            # is left result-less, which is cosmetic and confined to this
+            # window by the earlier check above the disk paging. The finally
+            # below still runs, so the paged sample store's temp file is
+            # unlinked.
+            if task_retry_abandoned(logger.eval.task_id):
+                raise TaskRetryAbandonedError()
+
             # Register this eval with the process-level state aggregate
             # so the control channel (and other readers) can answer
             # "how many samples queued / running / done?" without
@@ -1047,6 +1140,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # while blocked in next_samples() with an empty seed)
                 dynamic=sample_feed is not None,
             )
+
+            # call hook (after the retry-abandon check above: every task
+            # start must be paired with a task end, and an abandoned attempt
+            # ends with neither a log nor an end hook)
+            await emit_task_start(logger, eval_plan)
 
             # publish the interim-scoring capability (the task's scorers and
             # scoring inputs as resolved at eval start) for the control
@@ -1761,10 +1859,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 if task_cancel and task_cancel.cancel_type in ("abort", "retry"):
                     # User-initiated cancel (abort/retry) — log as error so
                     # eval_set doesn't interpret it as external cancellation.
-                    # A stamped score/error resolution never fires the task's
-                    # cancel scope, so a cancellation arriving with one
-                    # pending is external (ctrl+c) and takes the cancelled
-                    # path below, preserving its usual semantics.
+                    # A stamped graceful resolution (score/error/drain) never
+                    # fires the task's cancel scope, so a cancellation
+                    # arriving with one pending is external (ctrl+c) and
+                    # takes the cancelled path below, preserving its usual
+                    # semantics.
                     cancel_ex = TerminateTaskError(
                         f"Task cancelled by user ({task_cancel.cancel_type})"
                     )
@@ -1793,6 +1892,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         reductions=reductions,
                     )
                     td.complete(TaskCancelled(logger.samples_completed, stats))
+
+        except TaskRetryAbandonedError:
+            # abandoned at attempt start (before register_eval) — propagate
+            # to the dispatcher, which maps it to a side-effect-free finalize
+            # and discards this attempt's never-started log entry; writing an
+            # error log here would supersede the errored prior attempt's log,
+            # which must remain the task's final state
+            raise
 
         except BaseException as ex:
             if options.debug_errors:
@@ -1829,9 +1936,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # group), so any still-unaccounted samples can no longer record
             finalize_eval(logger.eval.eval_id)
 
-    # cleanup disk sample store if used
-    if isinstance(sample_store, DiskSampleStore):
-        sample_store.close()
+            # cleanup disk sample store if used (here rather than after the
+            # `with` so an attempt abandoned before register_eval, which
+            # unwinds past the rest of task_run, still unlinks the temp file)
+            if isinstance(sample_store, DiskSampleStore):
+                sample_store.close()
 
     # notify the view module that an eval just completed
     # (in case we have a view polling for new evals)
@@ -2167,13 +2276,17 @@ async def _task_run_sample_attempt(
             reporter.discarded()
             return DISCARDED
 
-        # a task cancel with a graceful sample resolution (score/error) is in
-        # flight: this sample never started, so it is abandoned rather than
-        # resolved — terminal 'cancelled' for the eval's counters, absent from
-        # the log (matching an abort's treatment of still-queued samples).
-        # DISCARDED (not None) so an abandoned re-run can't clobber its prior
-        # attempt's keyed score dict in the results.
-        if task_cancel is not None and task_cancel.cancel_type in ("score", "error"):
+        # a task cancel with a graceful sample resolution (score/error) — or a
+        # task drain — is in flight: this sample never started, so it is
+        # abandoned rather than resolved — terminal 'cancelled' for the eval's
+        # counters, absent from the log (matching an abort's treatment of
+        # still-queued samples). DISCARDED (not None) so an abandoned re-run
+        # can't clobber its prior attempt's keyed score dict in the results.
+        if task_cancel is not None and task_cancel.cancel_type in (
+            "score",
+            "error",
+            "drain",
+        ):
             # mark the key cancelled so the outcome is readable (the listing,
             # and the cancel resolver's idempotent no-op — without it a
             # departed key with no record reads "initializing" forever)
@@ -2498,7 +2611,18 @@ async def _task_run_sample_attempt(
                                         if task_cancel is not None
                                         else None
                                     )
-                                    if resolution == "score" or resolution == "error":
+                                    if resolution == "drain":
+                                        # drain never interrupts in-flight
+                                        # samples, but this one is not yet in
+                                        # flight — it left the queue before
+                                        # the stamp landed and must not start
+                                        # new work: resolve it as cancelled
+                                        # (transcript preserved, not counted
+                                        # as an error; bypasses handle_error /
+                                        # fail_on_error, so no downgrade is
+                                        # needed)
+                                        active.interrupt("cancel")
+                                    elif resolution == "score" or resolution == "error":
                                         # an "error" resolution can slip past
                                         # the control layer's fails-on-error
                                         # gate while this sample materializes
@@ -2935,6 +3059,7 @@ async def _task_run_sample_attempt(
                                 log_images=log_images,
                                 from_memory=log_from_memory,
                             )
+                            results = scores_as_logged(results, eval_sample)
                         else:
                             eval_sample = make_eval_sample()
                         await scan_eval_sample(
@@ -3149,33 +3274,153 @@ async def log_sample(
     *,
     from_memory: bool,
 ) -> EvalSample:
-    # No realtime buffer DB, or the full history is still resident in memory:
-    # log directly from the in-memory sample (which carries its events). This
-    # avoids the open_sample_history -> materialize_streaming_sample round-trip
-    # (read every event back out of SQLite + re-validate). `complete_sample`
-    # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
-    # buffer exists it stays consistent for live viewing.
-    if logger.buffer_db is None or from_memory:
-        await logger.complete_sample(
-            condense_sample(eval_sample, log_images), flush=True
-        )
-        return eval_sample
+    try:
+        # No realtime buffer DB, or the full history is still resident in memory:
+        # log directly from the in-memory sample (which carries its events). This
+        # avoids the open_sample_history -> materialize_streaming_sample round-trip
+        # (read every event back out of SQLite + re-validate). `complete_sample`
+        # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
+        # buffer exists it stays consistent for live viewing.
+        if logger.buffer_db is None or from_memory:
+            await logger.complete_sample(
+                condense_sample(eval_sample, log_images), flush=True
+            )
+            return eval_sample
 
-    # Events were bounded-evicted from memory: stream them back from the buffer
-    # DB (the only place the full history still lives) without re-materializing
-    # the whole sample in memory at once.
-    logging_sample = condense_sample(
-        eval_sample.model_copy(update={"events": [], "events_data": None}),
-        log_images,
-    )
-    with logger.buffer_db.open_sample_history(
-        eval_sample.id, eval_sample.epoch
-    ) as sample_history:
-        materialized_sample = materialize_streaming_sample(eval_sample, sample_history)
-        await logger.complete_sample_streaming(
-            logging_sample, sample_history, flush=True
+        # Events were bounded-evicted from memory: stream them back from the buffer
+        # DB (the only place the full history still lives) without re-materializing
+        # the whole sample in memory at once.
+        logging_sample = condense_sample(
+            eval_sample.model_copy(update={"events": [], "events_data": None}),
+            log_images,
         )
-    return materialized_sample
+        with logger.buffer_db.open_sample_history(
+            eval_sample.id, eval_sample.epoch
+        ) as sample_history:
+            materialized_sample = materialize_streaming_sample(
+                eval_sample, sample_history
+            )
+            await logger.complete_sample_streaming(
+                logging_sample, sample_history, flush=True
+            )
+        return materialized_sample
+    except SampleSerializationError as ex:
+        # A sample whose content defeats condensation/serialization (e.g.
+        # structures nested beyond pydantic-core's serialization depth limit)
+        # must not abort the whole eval: this code runs after the
+        # fail_on_error decision, so an escaping exception here would tear
+        # down the scheduler task group (cancelling in-flight sibling
+        # samples) and lose this sample's record entirely. Degrade instead:
+        # strip the sample content and log an error record in its place.
+        # Only the condensation error is caught: any other failure here — in
+        # particular a transient recorder/flush I/O error on a healthy sample —
+        # must propagate to normal error handling rather than silently strip
+        # the sample's content.
+        py_logger.warning(
+            f"Unable to serialize sample for logging "
+            f"(id: {eval_sample.id}, epoch: {eval_sample.epoch}): {ex}. "
+            f"Logging the sample with its content removed."
+        )
+        fallback_sample = sample_serialization_fallback(eval_sample, ex)
+        await logger.complete_sample(
+            condense_sample(fallback_sample, log_images), flush=True
+        )
+        return fallback_sample
+
+
+def sample_serialization_fallback(eval_sample: EvalSample, ex: Exception) -> EvalSample:
+    """Copy of `eval_sample` with content fields stripped so it can be logged.
+
+    Used when condensing/serializing the full sample for logging fails.
+    Framework-generated scalar fields (ids, timing, usage, limits) are
+    retained, and so are the scores whenever the stripped record still
+    serializes with them: the headline results were already computed from
+    them, so dropping them would leave the sample's record disagreeing with
+    `log.results`. When the scores are what defeats serialization, only their
+    `metadata` — the one score field of unbounded shape — is removed first, so
+    the values, answers and explanations survive; the scores are dropped
+    altogether only if the record still cannot be written. The remaining
+    content that may have defeated serialization (messages, output, events,
+    store, metadata) is removed. The removal is always recorded in the
+    sample's error — appended to the existing error's message when the sample
+    already has one — so a reader of the log can tell why the record is empty.
+
+    The caller must carry any change to the scores over to the sample's
+    results (see `scores_as_logged`): the same `Score` objects are written
+    again as reductions at log finish, where the removed content would fail
+    serialization a second time.
+    """
+    stripped = eval_sample.model_copy(
+        update=dict(
+            metadata={},
+            messages=[],
+            output=ModelOutput(model=eval_sample.output.model),
+            store={},
+            events=[],
+            events_data=None,
+            attachments={},
+            error_retries=[
+                retry.model_copy(update=dict(events=None))
+                for retry in eval_sample.error_retries
+            ]
+            if eval_sample.error_retries is not None
+            else None,
+        )
+    )
+    removed = ["messages", "output", "events", "store", "metadata"]
+    if stripped.scores is not None and not is_log_serializable(stripped):
+        stripped = stripped.model_copy(
+            update=dict(
+                scores={
+                    name: score.model_copy(update=dict(metadata=None))
+                    for name, score in stripped.scores.items()
+                }
+            )
+        )
+        removed.append("score metadata")
+        if not is_log_serializable(stripped):
+            stripped = stripped.model_copy(update=dict(scores=None))
+            removed.append("scores")
+    note = (
+        f"Sample content ({', '.join(removed)}) was removed from the eval log "
+        f"because it could not be serialized: {ex}"
+    )
+    if eval_sample.error is not None:
+        error = eval_sample.error.model_copy(
+            update=dict(message=f"{eval_sample.error.message}\n\n{note}")
+        )
+    else:
+        error = eval_error(ex, type(ex), ex, ex.__traceback__).model_copy(
+            update=dict(message=note)
+        )
+    return stripped.model_copy(update=dict(error=error))
+
+
+def scores_as_logged(
+    results: ScoresByScorer, eval_sample: EvalSample
+) -> ScoresByScorer:
+    """`results` with each score replaced by the one logged in `eval_sample`.
+
+    The logged scores are normally the very `Score` objects in `results`, so
+    this is a no-op. They differ only when the sample was written through
+    `sample_serialization_fallback`, which may have removed score metadata or
+    the scores altogether because they could not be serialized. The results
+    feed the metrics, early stopping and the reductions written at log finish,
+    so they must follow the record: the reductions would otherwise fail on the
+    same content the sample record already refused (aborting the eval at
+    finish, after every sample was logged) and `log.results` would disagree
+    with the sample's own record.
+    """
+    logged = eval_sample.scores or {}
+    return {
+        name: (
+            sample_score
+            if sample_score.score is logged[name]
+            else sample_score.model_copy(update=dict(score=logged[name]))
+        )
+        for name, sample_score in results.items()
+        if name in logged
+    }
 
 
 async def _resume_if_checkpointed(
@@ -3643,8 +3888,16 @@ async def _finish_task_log(
     results: EvalResults | None = None,
     reductions: list[EvalSampleReductions] | None = None,
     error: EvalError | None = None,
+    record_logged_samples: bool = False,
+    resolved_unlogged_samples: int | None = None,
 ) -> EvalLog:
     """Finish the task log, preserving retry history first on non-success.
+
+    ``record_logged_samples`` stamps ``results.logged_samples`` (the count
+    eval-set's completeness check prefers over the planned total) from the
+    logger's distinct-sample count — or, when sample logging is off and the
+    logger therefore saw no samples, from ``resolved_unlogged_samples``, the
+    attempt's resolved count per its terminal counters.
 
     The single finish chokepoint for ``task_run``'s terminal branches: any
     non-success finish is (or may be) a teardown that left planned samples
@@ -3665,5 +3918,14 @@ async def _finish_task_log(
     if status != "success":
         await carry_forward_unlogged_samples(
             logger, sample_source, sample_ids, epochs, log_images
+        )
+    # log_samples_complete (_eval/evalset.py) prefers this count over the
+    # planned total_samples. Read after the carry-forward above so re-logged
+    # samples are counted.
+    if results is not None and record_logged_samples:
+        results.logged_samples = (
+            logger.samples_logged
+            if resolved_unlogged_samples is None
+            else resolved_unlogged_samples
         )
     return await logger.log_finish(status, stats, results, reductions, error)
