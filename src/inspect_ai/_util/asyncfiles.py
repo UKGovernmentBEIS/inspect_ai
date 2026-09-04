@@ -1293,6 +1293,7 @@ def bind_async_filesystem(fs: AsyncFilesystem) -> Iterator[None]:
 
 
 @functools.cache
+@functools.cache
 def _s3_copy_transfer_config() -> TransferConfig:
     """Transfer config for server-side copies.
 
@@ -1309,6 +1310,7 @@ def _s3_copy_transfer_config() -> TransferConfig:
     )
 
 
+@functools.cache
 def _s3_transfer_config() -> TransferConfig:
     # boto3 S3 multipart upload configuration for streaming writes.
     # Values are the boto3.s3.transfer.TransferConfig library defaults

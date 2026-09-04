@@ -45,6 +45,7 @@ using the returned :class:`HydrationResult`.
 
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -72,7 +73,7 @@ from inspect_ai.util._sandbox.context import (
 )
 from inspect_ai.util._span import current_span_id
 
-from ._host_egress import host_egress, seed_manifest
+from ._host_egress import seed_manifest
 from ._layout import host_context
 from ._layout.eval_checkpoints_dir import eval_checkpoints_dir
 from ._layout.sample_checkpoints_dir import (
@@ -86,6 +87,7 @@ from ._layout.staging_dir import (
     ensure_sample_staging_dir,
     host_repo_dir,
     is_remote_destination,
+    sample_staging_dir,
 )
 from ._repo_ops import drop_orphan_snapshots
 from ._resume_copy import copy_payload_files
@@ -220,7 +222,20 @@ async def hydrate(
 
     # Sample root: where restic + checkpoint files are first materialized.
     # Remote destination → host-local staging; local → destination directly.
+    # The destination is the committed state and staging is a cache of it:
+    # an in-eval requeue reuses this sample's staging path, so whatever a
+    # prior run left there (a fire's files whose egress never landed, or a
+    # whole repo when the re-run is fresh) is cleared before the pull below
+    # repopulates it — otherwise resume detection (destination) and restore
+    # (staging) would disagree, or fresh provisioning would adopt stale repos.
     if is_remote_destination(new_sample_checkpoints_dir):
+        await anyio.to_thread.run_sync(
+            partial(
+                shutil.rmtree,
+                sample_staging_dir(log_location, sample_id, epoch),
+                ignore_errors=True,
+            )
+        )
         sample_staging = await ensure_sample_staging_dir(log_location, sample_id, epoch)
         sample_root = sample_staging
     else:
@@ -369,15 +384,6 @@ async def hydrate(
         seed_manifest(
             sample_staging,
             [rel for rel in downloaded if (staging_root / rel).exists()],
-        )
-        # an in-eval requeue reuses this attempt's staging dir, which can
-        # hold state newer than the destination (a fire cancelled between
-        # its staging write and its egress). Ship that delta now — the
-        # seeded manifest keeps the pulled payload out — so the
-        # destination is whole before any agent work runs.
-        await host_egress(
-            staging_dir=sample_staging,
-            destination_dir=new_sample_checkpoints_dir,
         )
 
     trace_message(

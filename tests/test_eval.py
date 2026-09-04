@@ -1065,3 +1065,69 @@ def test_eval_raising_early_stopping_hook_keeps_sample_counted() -> None:
     # the sample was in its terminal bucket, and the eval finish-stamped,
     # before the hook ran
     assert observed == [((0, 1, 0), True)]
+
+
+def test_retry_attempt_dying_in_checkpoint_copy_leaves_no_log(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A retry that fails in its checkpoint startup copy is not the next source.
+
+    The copy runs before the attempt's first log write, so the attempt
+    leaves no log; the following attempt retries from the log the dead
+    attempt was retrying (the newest log that exists), not from the dead
+    attempt's possibly partial checkpoint dir.
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    import inspect_ai.log._samples as samples_module
+    from inspect_ai.log import list_eval_logs
+    from inspect_ai.solver import Generate, TaskState, solver
+    from inspect_ai.util import CheckpointConfig, TurnInterval
+    from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+    # the checkpoint config is what gives a retry a prior checkpoints dir to
+    # copy; the per-sample checkpointer itself (restic) is not under test
+    monkeypatch.setattr(
+        samples_module, "create_checkpointer", lambda **kwargs: _NoopCheckpointer()
+    )
+
+    copies: list[tuple[str, str]] = []
+
+    async def flaky_copy(*, source_eval_dir: str, destination_eval_dir: str) -> None:
+        copies.append((source_eval_dir, destination_eval_dir))
+        if len(copies) == 1:
+            raise OSError("simulated copy failure")
+
+    monkeypatch.setattr(task_run_module, "copy_resume_payloads", flaky_copy)
+
+    attempts = {"n": 0}
+
+    @solver
+    def fail_first():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise RuntimeError("first attempt fails")
+            return state
+
+        return solve
+
+    logs = eval(
+        Task(
+            dataset=[Sample(id=1, input="x", target="x")],
+            solver=fail_first(),
+            checkpoint=CheckpointConfig(trigger=TurnInterval(every=1)),
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=2,
+    )
+
+    assert len(logs) == 1
+    assert logs[0].status == "success"
+    # attempt 1 errored (has a log); attempt 2 died in the copy (no log);
+    # attempt 3 succeeded (has a log)
+    assert len(list_eval_logs(str(tmp_path))) == 2
+    # both retries sourced attempt 1's checkpoints dir: attempt 3 fell back
+    # to the log attempt 2 was retrying rather than attempt 2's own dir
+    assert len(copies) == 2
+    assert copies[0][0] == copies[1][0]

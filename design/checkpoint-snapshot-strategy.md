@@ -87,7 +87,7 @@ The interface already exists in the code, inlined at two call sites:
 | Fresh sample | `hydrate._hydrate_sandbox` (resume=None): `inject_restic(env)` → `init_sandbox_repo(env, password)` |
 | Fire | `checkpointer_impl._backup_and_egress_sandbox`: `run_sandbox_backup(env, ...)` → `egress_sandbox(env, dest_repo=sandbox_repo_dir(sample_root, name), ...)`; then `_fire_once` runs `list_changed_files` host-side and records a `SnapshotDetails` per sandbox |
 | Remote shipping | `_host_egress.host_egress`: manifest-diff the staging dir, ship in restic-aware safe order (`config`/`keys` → `data` → `index` → `snapshots` → catch-all (everything unmatched) → `restic-config.json` → `ckpt-*.json` last) |
-| Resume | `hydrate._hydrate_sandbox` (resume set): `_fs_copy_repo` (old sample dir → new sample root) → `_drop_orphan_snapshots` → `ingress_sandbox` (tar repo into container, `restic restore latest --target /`) |
+| Resume | retry startup copy (`_resume_copy.copy_resume_payloads`, old attempt's sample dirs → new attempt's eval dir, before the new log exists) → `hydrate._hydrate_sandbox` (resume set): `drop_orphan_snapshots` → `ingress_sandbox` (tar repo into container, `restic restore latest --target /`) |
 | Retention | `retention: "delete" \| "retain"` — all-or-nothing at eval end *(defined and merged in `config.py`, but not yet enforced — no eval-end delete is implemented)* |
 
 Two pieces of restic knowledge currently leak outside this boundary and
@@ -195,7 +195,7 @@ Call-site mapping (extraction, not redesign):
 | `setup` | `inject_restic` (both paths) + `init_sandbox_repo` (fresh only, gated on `ctx.resuming`) |
 | `snapshot` | `run_sandbox_backup` + `egress_sandbox` + the sandbox-repo tiers of `host_egress` + `list_changed_files` |
 | `restore` | `ingress_sandbox` |
-| `discard_orphans` | `_drop_orphan_snapshots` |
+| `discard_orphans` | `drop_orphan_snapshots` |
 | `apply_retention` | *(new — restic no-op until generation rotation)* |
 | `cleanup` | eval-end retention delete, scoped to the storage area *(net-new enforcement — the `retention` option is defined in `config.py` today but nothing reads it outside config resolution; no eval-end delete exists yet)* |
 
@@ -348,7 +348,7 @@ persisted records enforce this:
   the absent-file default would turn into a spurious mismatch error.
   Writing at fresh hydration means the pin is present in every dir a
   retry can actually resume from: resume only happens when a committed
-  `ckpt-*.json` exists (`has_sample_checkpoint` gates it), so a
+  `ckpt-*.json` parses (`scan_latest_committed_checkpoint` gates it), so a
   zero-commit attempt's dir is never read — its retry re-runs fresh
   and writes its own pin. For remote destinations this claim needs one
   stated ordering requirement: **the pin ships no later than the first

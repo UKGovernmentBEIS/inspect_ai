@@ -882,14 +882,20 @@ async def run_task_retry_attempts(
                             failed_log_exists = await get_async_filesystem().exists(
                                 options.logger.location
                             )
-                        except Exception:
+                        except Exception as probe_ex:
                             # can't tell (log storage still flaky — the very
-                            # condition being retried): fall back a hop. The
-                            # cost is bounded (at worst the failed attempt's
-                            # own progress is redone); assuming the log
-                            # exists would copy the dead attempt's possibly
-                            # partial checkpoint dirs forward and certify
-                            # them with this attempt's log
+                            # condition being retried): retry from the attempt
+                            # this one was retrying. The cost is bounded (at
+                            # worst the failed attempt's own progress is
+                            # redone); assuming the log exists would copy the
+                            # dead attempt's possibly partial checkpoint dirs
+                            # forward and certify them with this attempt's log
+                            log.warning(
+                                f"Could not determine whether the failed "
+                                f"attempt's log {options.logger.location} "
+                                f"exists ({probe_ex}); retrying from the "
+                                "attempt it was retrying"
+                            )
                             failed_log_exists = False
                         if failed_log_exists:
                             failed_log_info = EvalLogInfo(

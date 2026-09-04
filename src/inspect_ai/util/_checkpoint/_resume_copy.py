@@ -39,12 +39,12 @@ from __future__ import annotations
 
 from functools import partial
 from logging import getLogger
-from typing import Iterable, NamedTuple
+from typing import Callable, Iterable, NamedTuple
 
 import anyio
 
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.asyncfiles import get_async_filesystem
+from inspect_ai._util.asyncfiles import get_async_filesystem, is_s3_filename
 from inspect_ai._util.file import dirname, filesystem
 from inspect_ai._util.trace import trace_action
 
@@ -192,14 +192,18 @@ def _relativize(base: str, uris: Iterable[str]) -> list[str]:
 
     ``iter_files`` yields URIs verbatim-prefixed by ``base`` for S3, but
     fsspec-normalized (absolute) for local sources — so slicing by
-    ``len(base)`` mangles local relative sources. Normalize both sides
-    the same way the backend does before stripping the prefix.
+    ``len(base)`` mangles local relative sources. For local bases,
+    normalize both sides the same way fsspec does before stripping the
+    prefix. (S3 is handled without touching fsspec's s3fs, which is
+    unavailable under the trio backend.)
     """
-    fs = filesystem(base).fs
-    prefix = fs._strip_protocol(base).rstrip("/") + "/"
+    normalize: Callable[[str], str] = (
+        str if is_s3_filename(base) else filesystem(base).fs._strip_protocol
+    )
+    prefix = normalize(base).rstrip("/") + "/"
     rels: list[str] = []
     for uri in uris:
-        stripped = fs._strip_protocol(uri)
+        stripped = normalize(uri)
         assert stripped.startswith(prefix), (stripped, prefix)
         rels.append(stripped[len(prefix) :])
     return rels

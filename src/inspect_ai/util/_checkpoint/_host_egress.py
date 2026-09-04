@@ -49,6 +49,7 @@ from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
+from ._layout.sample_checkpoints_dir import checkpoint_file_id
 from ._layout.schemas import Checkpoint
 
 logger = getLogger(__name__)
@@ -193,9 +194,7 @@ def _safe_order(files: list[str]) -> list[str]:
         # to an old checkpoint
         + sorted(
             checkpoint_files,
-            key=lambda f: int(
-                f.rsplit("/", 1)[-1].removeprefix("ckpt-").removesuffix(".json")
-            ),
+            key=lambda f: checkpoint_file_id(f.rsplit("/", 1)[-1]) or 0,
             reverse=True,
         )
     )
