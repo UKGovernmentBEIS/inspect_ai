@@ -157,8 +157,10 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint._layout import (
     delete_sample_checkpoints_dir,
     eval_checkpoints_dir_from_config,
-    sample_checkpoints_dir,
-    scan_latest_committed_checkpoint,
+)
+from inspect_ai.util._checkpoint._layout.staging_dir import (
+    clear_sample_staging_dir,
+    is_remote_destination,
 )
 from inspect_ai.util._checkpoint._resume_copy import copy_resume_payloads
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
@@ -166,6 +168,7 @@ from inspect_ai.util._checkpoint.config import (
     CheckpointConfig,
     merge_checkpoint_configs,
 )
+from inspect_ai.util._checkpoint.resume import resolve_resume_checkpoint
 from inspect_ai.util._early_stopping import (
     EarlyStop,
     EarlyStopping,
@@ -970,10 +973,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         and sample_source.prior_checkpoints_dir
         and eval_checkpoints_dir is not None
     ):
-        await copy_resume_payloads(
-            source_eval_dir=sample_source.prior_checkpoints_dir,
-            destination_eval_dir=eval_checkpoints_dir,
-        )
+        try:
+            await copy_resume_payloads(
+                source_eval_dir=sample_source.prior_checkpoints_dir,
+                destination_eval_dir=eval_checkpoints_dir,
+            )
+        except Exception as ex:
+            raise RuntimeError(
+                "checkpoint startup copy failed (from "
+                f"{sample_source.prior_checkpoints_dir}): {ex}"
+            ) from ex
 
     # optionally page dataset to disk if it exceeds the memory budget
     sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
@@ -1482,7 +1491,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         # within the shared connection pool.
                         if not isinstance(previous_sample, InvalidatedPrior):
                             async with reuse_read_throttle:
-                                resume_checkpoint = await _resume_if_checkpointed(
+                                resume_checkpoint = await resolve_resume_checkpoint(
                                     requeue_checkpoints_dir, sample_id, epoch
                                 )
                         if resume_checkpoint is None:
@@ -1500,6 +1509,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 async with reuse_read_throttle:
                                     await delete_sample_checkpoints_dir(
                                         requeue_checkpoints_dir, sample_id, epoch
+                                    )
+                                if is_remote_destination(requeue_checkpoints_dir):
+                                    await clear_sample_staging_dir(
+                                        logger.location, sample_id, epoch
                                     )
 
                     # factory to create sample+state lazily (after semaphore)
@@ -3474,34 +3487,6 @@ def scores_as_logged(
         for name, sample_score in results.items()
         if name in logged
     }
-
-
-async def _resume_if_checkpointed(
-    eval_checkpoints_dir: str | None, id: int | str, epoch: int
-) -> ResumeCheckpoint | None:
-    """The sample's on-disk checkpoint resume, or ``None`` when unavailable.
-
-    Shared by `run_sample`'s task-retry and requeue paths, so both seed
-    a re-run from a checkpoint the same way. Both consult only this
-    attempt's *own* eval checkpoints dir — the startup copy replicated
-    every sample dir the retried attempt had (see
-    `copy_resume_payloads`), so a sample either has a committed
-    checkpoint here or it runs fresh.
-    """
-    if eval_checkpoints_dir is None:
-        return None
-    checkpoint = await scan_latest_committed_checkpoint(
-        sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
-    )
-    if checkpoint is None:
-        return None
-    # Latest parseable checkpoint with ``trigger == "agent_complete"`` =
-    # agent finished cleanly, scoring is the next thing → retry can
-    # skip the agent loop (the ``"resume_for_scoring"`` attempt).
-    attempt: Literal["initial", "resume", "resume_for_scoring"] = (
-        "resume_for_scoring" if checkpoint.trigger == "agent_complete" else "resume"
-    )
-    return ResumeCheckpoint(attempt=attempt)
 
 
 # we can reuse samples from a previous eval_log if and only if:

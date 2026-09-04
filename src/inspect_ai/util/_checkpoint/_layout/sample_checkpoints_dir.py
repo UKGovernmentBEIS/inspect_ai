@@ -18,6 +18,7 @@ The optional ``_<retry>`` suffix on the dir name is omitted until
 
 from __future__ import annotations
 
+import re
 import secrets
 import shutil
 from logging import getLogger
@@ -44,14 +45,17 @@ def _is_checkpoint_file(rel_path: str) -> bool:
     return "/" not in rel_path and checkpoint_file_id(rel_path) is not None
 
 
+_CHECKPOINT_FILE_RE = re.compile(r"^ckpt-(\d+)\.json$")
+
+
 def checkpoint_file_id(name: str) -> int | None:
-    """The id of a ``ckpt-NNNNN.json`` file name, or ``None`` for any other name."""
-    if not (name.startswith("ckpt-") and name.endswith(".json")):
-        return None
-    try:
-        return int(name.removeprefix("ckpt-").removesuffix(".json"))
-    except ValueError:
-        return None
+    """The id of a ``ckpt-NNNNN.json`` file name, or ``None`` for any other name.
+
+    The one predicate for "is this a checkpoint file" — the copy, the
+    delete, host egress, hydrate's validation, and the id scan all use it.
+    """
+    match = _CHECKPOINT_FILE_RE.match(name)
+    return int(match.group(1)) if match else None
 
 
 def sample_dir_name(sample_id: int | str, epoch: int) -> str:
@@ -129,12 +133,12 @@ async def scan_latest_committed_checkpoint(
     checkpoint = await _first_parseable_checkpoint(sample_checkpoints_dir, ids)
     if checkpoint is None and ids:
         # checkpoint files present but none parse: callers treat the dir
-        # as uncommitted (the sample runs fresh), and that should not pass
-        # silently — a torn write of the only checkpoint file is the
-        # likeliest cause
+        # as holding nothing committed, and that should not pass silently
+        # — a torn write of the only checkpoint file is the likeliest cause
         logger.warning(
             f"Checkpoint files exist in {sample_checkpoints_dir} but none "
-            "parse as a valid checkpoint; the sample will run fresh."
+            "parse as a valid checkpoint; treating the dir as holding no "
+            "committed checkpoint."
         )
     return checkpoint
 

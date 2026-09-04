@@ -8,7 +8,6 @@ from inspect_ai import Task, eval
 from inspect_ai._eval.task.run import (
     InvalidatedPrior,
     PreviousError,
-    _resume_if_checkpointed,
     eval_log_sample_source,
 )
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -28,6 +27,7 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+from inspect_ai.util._checkpoint.resume import resolve_resume_checkpoint
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -351,7 +351,7 @@ def test_score_on_error_sample_source_seeds_retry_for_errored():
 
 def test_resume_detection_when_checkpoint_exists(tmp_path: Path) -> None:
     # errored sample + checkpoint file on disk: the lookup carries the
-    # error history, and `_resume_if_checkpointed` — which `run_sample`
+    # error history, and `resolve_resume_checkpoint` — which `run_sample`
     # consults first, so a checkpoint resume outranks the error seed —
     # detects the checkpoint
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
@@ -370,7 +370,7 @@ def test_resume_detection_when_checkpoint_exists(tmp_path: Path) -> None:
         async with AsyncFilesystem():
             return (
                 await source.lookup(errored_sample.id, errored_sample.epoch),
-                await _resume_if_checkpointed(
+                await resolve_resume_checkpoint(
                     str(eval_ckpt_dir), errored_sample.id, errored_sample.epoch
                 ),
             )
@@ -396,7 +396,7 @@ def test_resume_detection_scoring_resume_for_agent_complete_checkpoint(
 
     async def call() -> object:
         async with AsyncFilesystem():
-            return await _resume_if_checkpointed(
+            return await resolve_resume_checkpoint(
                 str(eval_ckpt_dir), errored_sample.id, errored_sample.epoch
             )
 

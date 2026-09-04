@@ -285,7 +285,8 @@ written — `_resume_copy.copy_resume_payloads` replicates every sample
 dir of the attempt being retried into the new attempt's eval
 checkpoints dir, storage areas included, as opaque file trees
 (checkpoint files last, so no intermediate state has a checkpoint
-file without its data). A retry's log is therefore its checkpoint
+file without its data; a restic repo's `locks/` entries — process
+state a killed restic leaves behind — are the one thing dropped). A retry's log is therefore its checkpoint
 commit point: a copy that fails or is interrupted leaves no log, the
 next retry sources the newest log that exists, and every sample dir
 reachable from a log is complete. Consequences for a strategy:

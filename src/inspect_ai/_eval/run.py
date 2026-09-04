@@ -6,6 +6,8 @@ from copy import copy
 from dataclasses import dataclass, replace
 from typing import Any, Awaitable, Callable, Iterable, NamedTuple, Set, cast
 
+from botocore.exceptions import BotoCoreError, ClientError
+
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._util._async import Wake
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -878,11 +880,12 @@ async def run_task_retry_attempts(
                         # reuse and checkpoints fall back a hop rather than
                         # sourcing an attempt that holds nothing.
                         sample_source: EvalSampleSource | None
+                        async_fs = get_async_filesystem()
                         try:
-                            failed_log_exists = await get_async_filesystem().exists(
+                            failed_log_exists = await async_fs.exists(
                                 options.logger.location
                             )
-                        except Exception as probe_ex:
+                        except (OSError, ClientError, BotoCoreError) as probe_ex:
                             # can't tell (log storage still flaky — the very
                             # condition being retried): retry from the attempt
                             # this one was retrying. The cost is bounded (at

@@ -61,15 +61,16 @@ HOOK_NEVER_FIRED_EXIT_CODE = 17
 
 def main() -> None:
     resume_copy._copy_payload_data = _interrupting_copy_payload_data
-    try:
-        run_eval(sys.argv[1], sys.argv[2])
-    finally:
-        if not _fired:
-            print(
-                "hydrate_interrupt_harness: the _copy_payload_data hook never fired",
-                file=sys.stderr,
-            )
-            os._exit(HOOK_NEVER_FIRED_EXIT_CODE)
+    run_eval(sys.argv[1], sys.argv[2])
+    # only a run that returned normally without the hook firing is the
+    # "seam moved" case; an exception before any copy propagates with its
+    # traceback so the test reports the real cause
+    if not _fired:
+        print(
+            "hydrate_interrupt_harness: the _copy_payload_data hook never fired",
+            file=sys.stderr,
+        )
+        os._exit(HOOK_NEVER_FIRED_EXIT_CODE)
 
 
 if __name__ == "__main__":

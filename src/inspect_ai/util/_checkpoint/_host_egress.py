@@ -1,16 +1,13 @@
 """Host egress: ship sample staging dir → remote sample checkpoints dir.
 
-Runs when the resolved sample checkpoints dir is remote: at the end of
-each fire, and once at the end of a resume's staging pull. Mirrors the
-in-sandbox egress protocol: manifest of files already shipped, diff
-against the live staging dir, ship new files in a safe order, then
-atomically update the manifest. On resume the payload itself is
-already at the destination (copied there at retry startup;
-see ``_resume_copy``) — hydrate seeds the manifest with the payload it
-pulls into staging (:func:`seed_manifest`), so the resume-time egress
-ships only staging state *newer* than the destination (a fire
-cancelled between its staging write and its egress) and each later
-fire ships only its delta.
+Runs when the resolved sample checkpoints dir is remote, at the end of
+each fire. Mirrors the in-sandbox egress protocol: manifest of files
+already shipped, diff against the live staging dir, ship new files in
+a safe order, then atomically update the manifest. On resume the
+payload itself is already at the destination (copied there at retry
+startup; see ``_resume_copy``) — hydrate pulls it into staging and
+seeds the manifest with it (:func:`seed_manifest`), so the first
+post-resume fire ships only its delta.
 
 The ``context/`` subdir (restic source — host context files restic
 backs up) and the manifest file itself are excluded from shipping.
@@ -41,7 +38,6 @@ content-addressed and checkpoint files overwrite cleanly).
 from __future__ import annotations
 
 import os
-import re
 from logging import getLogger
 from pathlib import Path
 
@@ -67,7 +63,6 @@ _EXCLUDED_TOP_LEVEL: frozenset[str] = frozenset({"context", MANIFEST_FILENAME})
 # A new file's tier is the lowest-priority matching pattern, defaulting
 # to a catch-all bucket if none match (which shouldn't happen for
 # well-formed restic content).
-_CHECKPOINT_FILE_RE = re.compile(r"^ckpt-\d+\.json$")
 _RESTIC_CONFIG = "restic/restic-config.json"
 
 
@@ -110,12 +105,17 @@ def seed_manifest(staging_dir: str, files: list[str]) -> None:
 
     Called by hydrate after pulling the resume payload from the
     destination into staging — those files must not be re-shipped by
-    the next fire's egress. Merges with any existing manifest: an
-    in-eval requeue re-pulls over a staging dir whose manifest is
-    already live.
+    the next fire's egress. A torn checkpoint file is not recorded: the
+    next fire re-uses its id, and a manifest entry would make the egress
+    skip the valid file written under the same name.
     """
-    manifest_path = Path(staging_dir) / MANIFEST_FILENAME
-    _write_manifest(manifest_path, _read_manifest(manifest_path) | set(files))
+    staging = Path(staging_dir)
+    manifest_path = staging / MANIFEST_FILENAME
+    _write_manifest(
+        manifest_path,
+        _read_manifest(manifest_path)
+        | {rel for rel in files if _committed_checkpoint_or_other(staging, rel)},
+    )
 
 
 def _read_manifest(path: Path) -> set[str]:
@@ -147,7 +147,7 @@ def _scan_new_files(staging: Path, shipped: set[str]) -> list[str]:
 
 
 def _committed_checkpoint_or_other(staging: Path, rel: str) -> bool:
-    if not _CHECKPOINT_FILE_RE.match(Path(rel).name):
+    if checkpoint_file_id(Path(rel).name) is None:
         return True
     try:
         Checkpoint.model_validate_json((staging / rel).read_bytes())
@@ -169,7 +169,7 @@ def _safe_order(files: list[str]) -> list[str]:
         parts = f.split("/")
         if f == _RESTIC_CONFIG:
             restic_config.append(f)
-        elif _CHECKPOINT_FILE_RE.match(parts[-1]):
+        elif checkpoint_file_id(parts[-1]) is not None:
             checkpoint_files.append(f)
         elif "data" in parts:
             data.append(f)

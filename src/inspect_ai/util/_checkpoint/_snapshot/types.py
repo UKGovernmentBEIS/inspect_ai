@@ -18,9 +18,10 @@ sandbox's bulk state for checkpointing, honoring these guarantees:
   capture time at their original absolute paths.
 - **Storage areas travel verbatim (§4.5)**: the core carries a
   strategy's storage area across retry attempts as an opaque file
-  tree (the retry startup copy — see ``_resume_copy``), so a strategy
-  never copies prior-attempt state itself and must keep everything a
-  restore needs inside its storage area.
+  tree (the retry startup copy — see ``_resume_copy``; the one thing
+  it drops is a restic repo's ``locks/``), so a strategy never copies
+  prior-attempt state itself and must keep everything a restore needs
+  inside its storage area.
 - **Security (§4.6)**: tooling placed in the sandbox must be root-only
   and invisible to the agent; bytes read out of the sandbox are
   untrusted; secrets reach the sandbox only via per-exec environment

@@ -17,6 +17,7 @@ from inspect_ai.util._checkpoint._host_egress import (
     MANIFEST_FILENAME,
     _safe_order,
     host_egress,
+    seed_manifest,
 )
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 
@@ -214,3 +215,20 @@ def test_safe_order_checkpoint_file_last_across_multiple() -> None:
         "ckpt-00002.json",
         "ckpt-00001.json",
     ]
+
+
+def test_seed_manifest_skips_torn_checkpoint_file(tmp_path: Path) -> None:
+    """A pulled checkpoint file that doesn't parse is not recorded as shipped.
+
+    The next fire re-uses that id; a manifest entry for the name would make
+    the egress skip the valid file written under it.
+    """
+    staging = tmp_path / "staging"
+    (staging / "restic" / "host").mkdir(parents=True)
+    (staging / "restic" / "host" / "config").write_bytes(b"cfg")
+    (staging / "ckpt-00001.json").write_bytes(b'{"checkpoint_id": 1, "torn')
+
+    seed_manifest(str(staging), ["restic/host/config", "ckpt-00001.json"])
+
+    manifest = (staging / MANIFEST_FILENAME).read_text().splitlines()
+    assert manifest == ["restic/host/config"]

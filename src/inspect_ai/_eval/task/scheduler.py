@@ -536,20 +536,15 @@ class SampleRequeue:
         """Whether the re-run would resume from an on-disk checkpoint.
 
         Uses the same own-dir resolution as the re-run itself
-        (`_resume_if_checkpointed`), so the answer matches what the
+        (`resolve_resume_checkpoint`), so the answer matches what the
         requeue will actually do.
         """
         if self._checkpoints_dir is None:
             return False
-        from inspect_ai.util._checkpoint._layout import (
-            sample_checkpoints_dir,
-            scan_latest_committed_checkpoint,
-        )
+        from inspect_ai.util._checkpoint.resume import resolve_resume_checkpoint
 
         return (
-            await scan_latest_committed_checkpoint(
-                sample_checkpoints_dir(self._checkpoints_dir, sample_id, epoch)
-            )
+            await resolve_resume_checkpoint(self._checkpoints_dir, sample_id, epoch)
             is not None
         )
 

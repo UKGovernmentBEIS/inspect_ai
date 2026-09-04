@@ -569,7 +569,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         """
         if is_s3_filename(remote):
             bucket, key = s3_bucket_and_key(remote)
-            with _map_missing_s3_object(remote):
+
+            async def do_get() -> None:
                 if current_async_backend() == "asyncio":
                     client = await self.s3_client_async()
                     partial_path = f"{local}.{uuid.uuid4().hex}.part"
@@ -585,6 +586,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     await anyio.to_thread.run_sync(
                         s3_get_file, self.s3_client(), bucket, key, local
                     )
+
+            with _map_missing_s3_object(remote):
+                # a download queued behind a starved connection pool can
+                # carry a stale signature, like a put
+                await _s3_put_with_retry(do_get, location=remote)
         else:
             filesystem(remote).get_file(remote, local)
 
@@ -1292,7 +1298,6 @@ def bind_async_filesystem(fs: AsyncFilesystem) -> Iterator[None]:
         _current_async_fs.reset(token)
 
 
-@functools.cache
 @functools.cache
 def _s3_copy_transfer_config() -> TransferConfig:
     """Transfer config for server-side copies.

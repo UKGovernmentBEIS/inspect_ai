@@ -304,6 +304,8 @@ def test_checkpoint_file_id() -> None:
     assert checkpoint_file_id("ckpt-00007.json") == 7
     assert checkpoint_file_id("ckpt-123456.json") == 123456
     assert checkpoint_file_id("ckpt-foo.json") is None
+    assert checkpoint_file_id("ckpt-1_0.json") is None
+    assert checkpoint_file_id("ckpt-00007.tar.zst") is None
     assert checkpoint_file_id("ckpt-00007.json.tmp") is None
     assert checkpoint_file_id("restic-config.json") is None
 

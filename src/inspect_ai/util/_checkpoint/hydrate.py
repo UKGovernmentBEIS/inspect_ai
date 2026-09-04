@@ -45,7 +45,6 @@ using the returned :class:`HydrationResult`.
 
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -77,17 +76,18 @@ from ._host_egress import seed_manifest
 from ._layout import host_context
 from ._layout.eval_checkpoints_dir import eval_checkpoints_dir
 from ._layout.sample_checkpoints_dir import (
+    checkpoint_file_id,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
 )
 from ._layout.schemas import Checkpoint
 from ._layout.staging_dir import (
+    clear_sample_staging_dir,
     ensure_context_dir,
     ensure_sample_staging_dir,
     host_repo_dir,
     is_remote_destination,
-    sample_staging_dir,
 )
 from ._repo_ops import drop_orphan_snapshots
 from ._resume_copy import copy_payload_files
@@ -222,20 +222,17 @@ async def hydrate(
 
     # Sample root: where restic + checkpoint files are first materialized.
     # Remote destination → host-local staging; local → destination directly.
-    # The destination is the committed state and staging is a cache of it:
-    # an in-eval requeue reuses this sample's staging path, so whatever a
-    # prior run left there (a fire's files whose egress never landed, or a
-    # whole repo when the re-run is fresh) is cleared before the pull below
-    # repopulates it — otherwise resume detection (destination) and restore
-    # (staging) would disagree, or fresh provisioning would adopt stale repos.
+    # The destination is the committed state and staging a cache of it: a
+    # resume clears whatever an earlier run of this sample left in staging
+    # (an in-eval requeue reuses the path) before the pull below repopulates
+    # it, so restore and resume detection agree on the latest checkpoint. A
+    # fire whose egress never landed is dropped by that clear — uncommitted
+    # by definition, since the destination checkpoint file is the commit
+    # point. The fresh path keeps staging: a sample-level retry_on_error
+    # re-entry continues the same lineage there.
     if is_remote_destination(new_sample_checkpoints_dir):
-        await anyio.to_thread.run_sync(
-            partial(
-                shutil.rmtree,
-                sample_staging_dir(log_location, sample_id, epoch),
-                ignore_errors=True,
-            )
-        )
+        if resume_checkpoint:
+            await clear_sample_staging_dir(log_location, sample_id, epoch)
         sample_staging = await ensure_sample_staging_dir(log_location, sample_id, epoch)
         sample_root = sample_staging
     else:
@@ -380,6 +377,8 @@ async def hydrate(
         # re-fired under the same checkpoint id (the archive strategy's
         # names are deterministic), and a manifest entry for it would make
         # the egress skip the new file while its checkpoint file ships.
+        # (`seed_manifest` likewise skips a torn checkpoint file, whose id
+        # the next fire re-uses.)
         staging_root = Path(sample_staging)
         seed_manifest(
             sample_staging,
@@ -426,12 +425,6 @@ async def _hydrate_host(
     # restic-restore the latest snapshot into the new context subdir,
     # then load the JSON files and push framework state into the live
     # Transcript + Store.
-    if not (Path(local_path(host_repo)) / "config").is_file():
-        raise RuntimeError(
-            f"resume: expected the host restic repo at {host_repo}, but no repo "
-            "is there — the sample's checkpoint dir has a committed checkpoint "
-            "file without the repo it indexes"
-        )
     if latest_committed_id is not None:
         dropped = await drop_orphan_snapshots(
             host_restic, host_repo, restic_password, latest_committed_id
@@ -843,9 +836,8 @@ def _validate_resume_state(
     sample_dir = Path(local_path(sample_root))
     checkpoint_ids: list[int] = []
     for checkpoint_file in sample_dir.glob("ckpt-*.json"):
-        try:
-            filename_id = int(checkpoint_file.stem.removeprefix("ckpt-"))
-        except ValueError:
+        filename_id = checkpoint_file_id(checkpoint_file.name)
+        if filename_id is None:
             continue
 
         try:
