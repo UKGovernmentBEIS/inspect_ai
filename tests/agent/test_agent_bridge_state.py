@@ -1,6 +1,11 @@
 from inspect_ai.agent import AgentState
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.model import ChatMessage, ChatMessageUser, ModelOutput
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageSystem,
+    ChatMessageUser,
+    ModelOutput,
+)
 
 
 def conversation(prefix: str, count: int) -> list[ChatMessage]:
@@ -9,6 +14,26 @@ def conversation(prefix: str, count: int) -> list[ChatMessage]:
 
 def output(model: str, content: str) -> ModelOutput:
     return ModelOutput.from_content(model, content)
+
+
+async def test_track_state_adopts_main_model_after_side_model_arrives_first() -> None:
+    task = ChatMessageUser(content="What is the answer?")
+    bridge = AgentBridge(AgentState(messages=[task]))
+    side_input = [
+        ChatMessageSystem(content="You generate titles."),
+        ChatMessageUser(content="Generate a title."),
+        task,
+    ]
+    side_output = output("openai/title", "Answer title")
+
+    await bridge._track_state(side_input, side_output, "openai/title")
+
+    main_input = [ChatMessageSystem(content="You are an agent."), task]
+    main_output = output("openai/agent", "The answer.")
+    await bridge._track_state(main_input, main_output, "openai/agent")
+
+    assert bridge.state.messages == main_input + [main_output.message]
+    assert bridge.state.output is main_output
 
 
 async def test_track_state_does_not_replace_primary_with_longer_side_model() -> None:

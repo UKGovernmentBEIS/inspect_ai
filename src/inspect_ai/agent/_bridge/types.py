@@ -280,6 +280,8 @@ class AgentBridge:
 
         - A call whose messages extend the tracked thread (the tracked messages
           are a prefix of it, compared by role + text) always updates the state.
+          The first observed call's model remains provisional when it does not
+          descend from the agent's initial input, because it may be a side call.
         - Otherwise the call starts a new thread and we consult *descent*: a
           thread descends from the initial input if its non-system messages
           start with the initial input's non-system messages (verbatim, as
@@ -317,15 +319,25 @@ class AgentBridge:
           displacement above when it makes only one.
         """
         messages = input + [output.message]
-        last_message_count = self._last_message_counts.get(model, 0)
-        if model is not None and self._primary_model is None:
+        initial_call = self._tracked_fps is None
+        adopted = False
+        fps = [_message_fingerprint(m) for m in messages]
+        if (
+            initial_call
+            and model is not None
+            and self._descends_from_initial(messages, fps) is not _Descent.NO
+        ):
             self._primary_model = model
-        if model is not None and model != self._primary_model:
+
+        last_message_count = self._last_message_counts.get(model, 0)
+        if (
+            model is not None
+            and self._primary_model is not None
+            and model != self._primary_model
+        ):
             self._last_message_counts[model] = len(messages)
             await self._cp.tick()
             return
-
-        fps = [_message_fingerprint(m) for m in messages]
 
         if self._tracked_fps is None:
             # first observed call: best information available so far (if it is
@@ -333,10 +345,12 @@ class AgentBridge:
             self._adopt_thread(messages, output, fps, calls=1)
         elif _extends(self._tracked_fps, fps):
             self._adopt_thread(messages, output, fps, calls=self._tracked_calls + 1)
+            adopted = True
         elif self._candidate_fps is not None and _extends(self._candidate_fps, fps):
             # the candidate got continued so it is a live agent loop (e.g. the
             # post-compaction conversation): promote it over the tracked thread
             self._adopt_thread(messages, output, fps, calls=2)
+            adopted = True
         else:
             descends = self._descends_from_initial(messages, fps)
             if (
@@ -354,6 +368,7 @@ class AgentBridge:
                 # still can't displace an established weaker-anchored thread
                 # (flapping guard).
                 self._adopt_thread(messages, output, fps, calls=1)
+                adopted = True
             elif descends == self._tracked_descends and len(messages) > (
                 len(self._tracked_fps) if descends else last_message_count
             ):
@@ -365,9 +380,17 @@ class AgentBridge:
                 # continuity and descent) recovers from compaction only
                 # through it.
                 self._adopt_thread(messages, output, fps, calls=1)
+                adopted = True
             else:
                 self._candidate_fps = fps
 
+        if (
+            adopted
+            and not initial_call
+            and model is not None
+            and self._primary_model is None
+        ):
+            self._primary_model = model
         self._last_message_counts[model] = len(messages)
 
         # tick the checkpointer
