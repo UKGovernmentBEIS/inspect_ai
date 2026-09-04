@@ -769,7 +769,7 @@ def test_openai_responses_gpt_6_drops_sampling_params_without_effort(model_name)
     assert "message.output_text.logprobs" not in params["include"]
 
 
-@pytest.mark.parametrize("model_name", ["gpt-5.6-sol", "computer-use-preview"])
+@pytest.mark.parametrize("model_name", ["gpt-5.4", "computer-use-preview"])
 def test_openai_responses_non_gpt_6_keeps_sampling_params_without_effort(model_name):
     params = _responses_params_for(model_name, GenerateConfig(temperature=0.7))
     assert params["temperature"] == 0.7
