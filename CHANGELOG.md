@@ -8,6 +8,7 @@
 - Google/Gemini: Faster client setup under high sandbox concurrency, with custom CA bundles now preserved on both sync and async requests.
 - Solver: `chain_of_thought()` now uses `format_template()` for prompt interpolation, matching the other prompt solvers: custom templates with extra `{name}` placeholders no longer raise `KeyError` (unknown placeholders pass through unchanged; JSON-style braces still need `{{ }}` escaping). (#5166)
 - Model Info: Explicit model info database entries for GLM 5.2 and 5.3.
+- Model Info: `claude-mythos-preview` now reports its release date, context window and output limit instead of resolving to no model info.
 - Util: Support datetime instances in UtcDatetimeStr. (#5157)
 - Control Channel: New `inspect ctl task drain` command stops dispatching a task's queued samples while in-flight samples finish naturally, completing the task with an ordinary log whose abandoned remainder a later `inspect eval-set` re-invocation or `inspect eval-retry` still runs.
 - Control Channel: A later `inspect eval-set` re-invocation now re-runs samples left queued (never dispatched) when a task was ended with `inspect ctl task cancel --action score|error`; previously the cancelled task's log read as complete and was reused, so those samples never ran.
