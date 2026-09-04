@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.263 (03 September 2026)
 
 - OpenAI: Added support for GPT-6 Astra (`gpt-6-astra`).
 - OpenAI: Fixed `temperature`, `top_p`, and `logprobs` causing a 400 error on GPT-5.5+ models when no `reasoning_effort` is set (they are now dropped with a warning).
