@@ -1,6 +1,6 @@
 ---
 name: slow-tests
-description: Run the gated test classes that plain `pytest` skips (slow Docker/sandbox tests, live model-provider API tests, flaky tests, trio variants) and report the run in a PR description. Use when a change touches model providers, sandbox or tool code, agents, or async plumbing, or when asked to run slow/live/api/trio tests or to write the "Slow tests" section of a PR.
+description: Run the gated test classes that plain `pytest` skips (slow Docker/sandbox tests, live model-provider API tests, flaky tests, trio variants). Use when asked to run slow, live, api, or trio tests, when debugging one, or when a change touches model providers, sandbox or tool code, agents, or async plumbing and needs its gated coverage run.
 ---
 
 # Running the gated tests
@@ -13,8 +13,7 @@ the class, then read the skip summary at the end of the run (`-ra` is in
 
 PR CI runs almost none of these. A scheduled job in `meridianlabs-ai/actions`
 runs `pytest --runslow --runapi` against `main` every couple of hours, so a
-gated test your PR breaks fails there, after merge. Running the relevant
-gated tests before opening the PR is how that breakage gets caught first.
+gated test that a change breaks fails there, after merge.
 
 | Class | Flag | How a test joins it | What it needs | Does PR CI run it? |
 |---|---|---|---|---|
@@ -66,8 +65,9 @@ rerun with `--timeout=<seconds>`; the conftest watchdog then dumps every
 thread stack 300 seconds before the kill, or at the threshold in
 `INSPECT_TEST_HANG_DUMP_SECONDS` if you set one.
 
-## Report the run in the PR
+## Reporting a run in a PR
 
+AGENTS.md requires a PR that touches gated-test areas to report its run.
 Under "Other information" in the PR description, add a `### Slow tests`
 section with:
 
