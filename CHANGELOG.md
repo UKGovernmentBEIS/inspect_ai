@@ -199,6 +199,7 @@
 - Bugfix: `web_search("exa")` no longer fails with a validation error, and Exa citations now include page text by default.
 - Bugfix: Tool calls whose arguments arrive with stray trailing quotes, which some models emit for a tool with an empty or all-optional schema, now parse instead of failing back to the model as a parse error. (#4822)
 - Breaking: Runtime media paths and URLs now require `materialize_media()` before model use; fixed selected-dataset media remains automatic, while sandbox bridges require inline data URIs.
+- Bugfix: The OpenAI Responses provider no longer raises `ValueError("Unexpected output type: ResponseToolSearchOutputItem")` when an agent uses native OpenAI deferred tool search; the response-item handler now recognises the `tool_search_output` item and caches it for verbatim replay within the sample. (#4968)
 - Fixed sandbox agent bridge forwarding file inputs that are not inline `data:` URIs (e.g. host paths or URLs); such requests are now rejected.
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Eval Log: A retry attempt killed before it finishes reusing the prior log's completed samples no longer causes the next retry to re-run (and eventually lose) those samples.
