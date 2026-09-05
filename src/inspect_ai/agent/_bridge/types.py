@@ -1,3 +1,4 @@
+import re
 from enum import IntEnum
 from functools import lru_cache
 from typing import TYPE_CHECKING, NamedTuple, NoReturn, Sequence, Set
@@ -273,7 +274,9 @@ class AgentBridge:
         displace the real conversation. Instead we track thread identity:
 
         - A call whose messages extend the tracked thread (the tracked messages
-          are a prefix of it, compared by role + text) always updates the state.
+          are a prefix of it, compared by role + text after normalizing the
+          observed per-request scaffold cache token in system prompts) always
+          updates the state.
         - Otherwise the call starts a new thread and we consult *descent*: a
           thread descends from the initial input if its non-system messages
           start with the initial input's non-system messages (verbatim, as
@@ -458,8 +461,29 @@ class _MessageFingerprint(NamedTuple):
     text_hash: str
 
 
+_ANTHROPIC_BILLING_CCH_RE = re.compile(
+    r"(?im)^(x-anthropic-billing-header:\s*.*?\bcch=)([^;\s]+)"
+)
+
+
+def _fingerprint_text(message: ChatMessage) -> str:
+    """Text used for message fingerprinting.
+
+    Claude Code stamps a per-request `cch=` value into its
+    `x-anthropic-billing-header` system-prompt line. Normalize only that
+    observed volatile field so extension tracking survives cache-token churn
+    without ignoring meaningful system-prompt changes.
+    """
+    text = message.text
+    if message.role == "system":
+        return _ANTHROPIC_BILLING_CCH_RE.sub(r"\1<volatile>", text)
+    return text
+
+
 def _message_fingerprint(message: ChatMessage) -> _MessageFingerprint:
-    return _MessageFingerprint(role=message.role, text_hash=mm3_hash(message.text))
+    return _MessageFingerprint(
+        role=message.role, text_hash=mm3_hash(_fingerprint_text(message))
+    )
 
 
 class _Descent(IntEnum):

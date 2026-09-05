@@ -401,6 +401,71 @@ async def test_extension_recognized_despite_new_ids_and_metadata() -> None:
     assert len(bridge.state.messages) == len(turn2) + 1
 
 
+def volatile_token_system(nonce: int) -> ChatMessageSystem:
+    return ChatMessageSystem(
+        content=(
+            "x-anthropic-billing-header: cc_version=2.1.126.edc; "
+            f"cc_entrypoint=sdk-cli; cch={nonce:05x};\n\n"
+            "You are an agent."
+        )
+    )
+
+
+async def test_extension_ignores_per_request_system_prompt_changes() -> None:
+    """A changing scaffold system prompt must not break thread continuity."""
+    bridge = task_bridge()
+
+    turn: list[ChatMessage] = [volatile_token_system(1), ChatMessageUser(content=TASK)]
+    out = await track(bridge, turn, "step 1")
+
+    for step in range(2, 5):
+        turn = [
+            volatile_token_system(step),
+            *turn[1:],
+            ChatMessageAssistant(content=out.message.text),
+            ChatMessageTool(content=f"tool result {step}"),
+        ]
+        out = await track(bridge, turn, f"step {step}")
+
+    assert bridge.state.output.completion == "step 4"
+    assert [m.text for m in bridge.state.messages] == [
+        volatile_token_system(4).text,
+        TASK,
+        "step 1",
+        "tool result 2",
+        "step 2",
+        "tool result 3",
+        "step 3",
+        "tool result 4",
+        "step 4",
+    ]
+    assert bridge._tracked_calls == 4
+
+
+async def test_stable_system_prompt_replacement_does_not_extend() -> None:
+    """Only volatile system prompt tokens are normalized for extension."""
+    bridge = task_bridge()
+
+    turn: list[ChatMessage] = [
+        ChatMessageSystem(content="You are the main agent."),
+        ChatMessageUser(content=TASK),
+    ]
+    out = await track(bridge, turn, "step 1")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator."),
+            *turn[1:],
+            ChatMessageAssistant(content=out.message.text),
+            ChatMessageTool(content="Generate a concise title."),
+        ],
+        "Doctor Who setting",
+    )
+
+    assert bridge._tracked_calls == 1
+
+
 # ---------------------------------------------------------------------------
 # Descent anchoring on the initial input
 # ---------------------------------------------------------------------------
