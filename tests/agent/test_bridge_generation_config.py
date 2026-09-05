@@ -153,6 +153,22 @@ def test_openai_responses_forward_then_clear():
     assert config.response_schema is not None
 
 
+def test_openai_responses_preserves_opaque_reasoning_when_forwarding():
+    json_data = {
+        "model": "inspect",
+        "reasoning": {"context": "all_turns", "effort": "max", "summary": "auto"},
+    }
+
+    config = generate_config_from_openai_responses(json_data, forward_reasoning=True)
+
+    # The provider synthesizes a new ``reasoning`` object from these structured
+    # fields, which would overwrite the opaque object below and drop ``context``.
+    assert config.reasoning_effort is None
+    assert config.reasoning_summary is None
+    assert config.extra_body is not None
+    assert config.extra_body["reasoning"] == json_data["reasoning"]
+
+
 def test_anthropic_forward_then_clear():
     json_data = {
         "model": "inspect",

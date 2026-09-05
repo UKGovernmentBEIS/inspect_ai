@@ -448,10 +448,13 @@ def completion_params_responses(
         unsupported_warning("logit_bias")
     if config.seed is not None:
         unsupported_warning("seed")
+    client_reasoning = (
+        config.extra_body.get("reasoning") if config.extra_body is not None else None
+    )
 
     # models with reasoning enabled don't do sampling params (gpt-6+ always
     # reasons: `none` effort is rejected, so sampling params never apply)
-    reasoning_enabled = (
+    reasoning_enabled = isinstance(client_reasoning, dict) or (
         model_info.is_o_series()
         or model_info.is_gpt_6()
         or (model_info.is_gpt_5() and not model_info.is_gpt_5_plus())
@@ -506,26 +509,32 @@ def completion_params_responses(
     ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
 
-    reasoning: dict[str, str] = {}
-    if config.reasoning_effort is not None:
-        # models that predate `max` effort top out at `xhigh`; map `max` to it
-        # so the request isn't rejected. Mirrors the mapping in
-        # `OpenAIAPI._get_reasoning_params_for_config`.
-        reasoning["effort"] = (
-            "xhigh"
-            if (
-                config.reasoning_effort == "max"
-                and not model_info.supports_max_reasoning_effort()
+    reasoning: dict[str, Any] = {}
+    # Reasoning may have been specified in config.extra_body (e.g. by a client
+    # talking to us through the agent bridge). Use it verbatim so fields with no
+    # GenerateConfig representation (e.g. `context`) survive intact.
+    if isinstance(client_reasoning, dict):
+        reasoning = client_reasoning
+    else:
+        if config.reasoning_effort is not None:
+            # models that predate `max` effort top out at `xhigh`; map `max` to it
+            # so the request isn't rejected. Mirrors the mapping in
+            # `OpenAIAPI._get_reasoning_params_for_config`.
+            reasoning["effort"] = (
+                "xhigh"
+                if (
+                    config.reasoning_effort == "max"
+                    and not model_info.supports_max_reasoning_effort()
+                )
+                else config.reasoning_effort
             )
-            else config.reasoning_effort
-        )
-    if config.reasoning_mode is not None:
-        # passed through for all models: the API accepts "pro" wherever it can
-        # be honored (gpt-5.6 and legacy -pro models; gpt-6 rejects it) and
-        # rejects it with a clear param-naming error otherwise.
-        reasoning["mode"] = config.reasoning_mode
-    if config.reasoning_summary != "none":
-        reasoning["summary"] = config.reasoning_summary or "auto"
+        if config.reasoning_mode is not None:
+            # passed through for all models: the API accepts "pro" wherever it can
+            # be honored (gpt-5.6 and legacy -pro models; gpt-6 rejects it) and
+            # rejects it with a clear param-naming error otherwise.
+            reasoning["mode"] = config.reasoning_mode
+        if config.reasoning_summary != "none":
+            reasoning["summary"] = config.reasoning_summary or "auto"
     if len(reasoning) > 0:
         if model_info.has_reasoning_options():
             params["reasoning"] = reasoning
