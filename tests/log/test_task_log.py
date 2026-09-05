@@ -1535,3 +1535,61 @@ async def test_task_logger_discard_drops_recorder_entry_when_cleanup_fails(
         "Error cleaning up abandoned log entry" in str(call.args[0])
         for call in warning.call_args_list
     )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("recorder_cls", [EvalRecorder, JSONRecorder])
+async def test_recorder_destination_written_tracks_in_progress_log_only(
+    recorder_cls: type[EvalRecorder] | type[JSONRecorder], tmp_path: Path
+) -> None:
+    """Recorders answer destination_written only for a log they are tracking.
+
+    False after init (nothing flushed), True once a flush lands, and an
+    error for an eval they don't know about — before init or after finish
+    (the finished case is TaskLogger's to answer, see the test below).
+    """
+    recorder = recorder_cls(str(tmp_path))
+    spec = _eval_spec()
+
+    with pytest.raises(RuntimeError, match="No log in progress"):
+        recorder.destination_written(spec)
+
+    await recorder.log_init(spec)
+    assert recorder.destination_written(spec) is False
+
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+    assert recorder.destination_written(spec) is True
+
+    await recorder.log_finish(spec, "error", EvalStats(), None, None)
+    with pytest.raises(RuntimeError, match="No log in progress"):
+        recorder.destination_written(spec)
+
+
+class _DestinationRecorder(_FlushRecorder):
+    def __init__(self, written: bool) -> None:
+        super().__init__()
+        self.written = written
+        self.asked = 0
+
+    def destination_written(self, eval_spec: EvalSpec) -> bool:
+        self.asked += 1
+        return self.written
+
+
+@pytest.mark.anyio
+async def test_task_logger_destination_written_finished_without_recorder() -> None:
+    """A finished log is written by definition; the recorder is not consulted.
+
+    The recorder stops tracking the eval when log_finish pops it, so asking
+    it would raise. Before finish the recorder's answer is passed through.
+    """
+    recorder = _DestinationRecorder(written=False)
+    logger = _flush_logger(recorder=recorder)
+
+    assert logger.destination_written is False
+    assert recorder.asked == 1
+
+    logger._finished = True
+    assert logger.destination_written is True
+    assert recorder.asked == 1

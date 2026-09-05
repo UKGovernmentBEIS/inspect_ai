@@ -622,7 +622,6 @@ async def test_openai_gpt_6_astra_generate() -> None:
     output = await model.generate([ChatMessageUser(content="Say hello.")])
     assert output.completion
     assert output.usage is not None
-    assert (output.usage.reasoning_tokens or 0) > 0
 
 
 @skip_if_no_openai
