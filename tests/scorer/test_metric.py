@@ -32,7 +32,7 @@ from inspect_ai.scorer._metric import (
     metric_create,
 )
 from inspect_ai.scorer._metrics import aggregate, grouped
-from inspect_ai.scorer._metrics.std import _t_inv_cdf, ci, stderr
+from inspect_ai.scorer._metrics.std import _t_inv_cdf, ci, ci_wilson, stderr
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
 
@@ -1404,6 +1404,300 @@ def test_ci_metric_end_to_end():
     half_width = _t_inv_cdf(0.975, 3) * se
     assert metrics["lower"].value == pytest.approx(0.5 - half_width, rel=1e-9)
     assert metrics["upper"].value == pytest.approx(0.5 + half_width, rel=1e-9)
+
+
+# --- ci_wilson() binomial-proportion confidence interval --------------------
+
+
+Z_975 = 1.959963984540054  # scipy.stats.norm.ppf(0.975), for test-side references
+
+
+def binary_scores(successes: int, n: int) -> list[SampleScore]:
+    return [
+        SampleScore(score=Score(value=1.0 if i < successes else 0.0)) for i in range(n)
+    ]
+
+
+def wilson_reference(p_hat: float, n: float, z: float) -> tuple[float, float]:
+    """Test-side closed-form Wilson interval for cross-checking."""
+    denom = 1.0 + z * z / n
+    center = (p_hat + z * z / (2.0 * n)) / denom
+    half_width = (
+        z * math.sqrt(p_hat * (1.0 - p_hat) / n + z * z / (4.0 * n * n)) / denom
+    )
+    return center - half_width, center + half_width
+
+
+def test_ci_wilson_reference_values():
+    # references: scipy.stats.binomtest(k, n).proportion_ci(level, "wilson")
+    # computed externally
+    known = [
+        (8, 10, 0.95, 0.4901624715366418, 0.9433178485456248),
+        (0, 20, 0.95, 0.0, 0.16112515805281935),
+        (20, 20, 0.95, 0.8388748419471808, 1.0),
+        (5, 50, 0.90, 0.04952903447744518, 0.1915375141515709),
+        (5, 50, 0.99, 0.03399088377841833, 0.2597307895956841),
+        (49, 100, 0.95, 0.3942199893044114, 0.5865198806597284),
+    ]
+    for successes, n, level, lower, upper in known:
+        interval = ci_wilson(level=level)(binary_scores(successes, n))
+        assert interval["lower"] == pytest.approx(lower, rel=1e-9), (successes, n)
+        assert interval["upper"] == pytest.approx(upper, rel=1e-9), (successes, n)
+
+
+def test_ci_wilson_symmetric_at_half():
+    interval = ci_wilson()(binary_scores(10, 20))
+    assert interval["lower"] == pytest.approx(1.0 - interval["upper"], rel=1e-12)
+
+
+def test_ci_wilson_bounded_where_t_overshoots():
+    # 19/20 correct: the t interval's upper bound exceeds 1.0; Wilson must not
+    scores = binary_scores(19, 20)
+    t_interval = ci()(scores)
+    wilson_interval = ci_wilson()(scores)
+    assert t_interval["upper"] > 1.0
+    assert wilson_interval["upper"] <= 1.0
+    assert 0.0 <= wilson_interval["lower"] < wilson_interval["upper"]
+
+
+def test_ci_wilson_level_widens_interval():
+    narrow = ci_wilson(level=0.80)(binary_scores(15, 30))
+    wide = ci_wilson(level=0.99)(binary_scores(15, 30))
+    assert (wide["upper"] - wide["lower"]) > (narrow["upper"] - narrow["lower"])
+
+
+def test_ci_wilson_invalid_level_raises():
+    with pytest.raises(ValueError):
+        ci_wilson(level=0.0)
+    with pytest.raises(ValueError):
+        ci_wilson(level=1.5)
+
+
+def test_ci_wilson_out_of_range_value_raises():
+    with pytest.raises(ValueError, match="0 and 1"):
+        ci_wilson()([SampleScore(score=Score(value=2.0))])
+    with pytest.raises(ValueError, match="0 and 1"):
+        ci_wilson()(
+            [SampleScore(score=Score(value=0.0)), SampleScore(score=Score(value=-0.5))]
+        )
+
+
+def test_ci_wilson_tolerates_graded_values():
+    # values in [0, 1] that are not 0/1 (e.g. PARTIAL -> 0.5) are accepted;
+    # the interval treats the mean as a proportion (conservative)
+    scores = [SampleScore(score=Score(value=v)) for v in (0.0, 0.5, 0.5, 1.0)]
+    interval = ci_wilson()(scores)
+    assert 0.0 <= interval["lower"] < 0.5 < interval["upper"] <= 1.0
+
+
+def test_ci_wilson_empty_and_singleton():
+    assert ci_wilson()([]) == {"lower": 0.0, "upper": 0.0}
+    # unlike t/bootstrap, Wilson is well-defined at n=1: reference from
+    # scipy binomtest(1, 1).proportion_ci(0.95, "wilson")
+    interval = ci_wilson()(binary_scores(1, 1))
+    assert interval["lower"] == pytest.approx(0.20654931437723745, rel=1e-9)
+    assert interval["upper"] == pytest.approx(1.0)
+
+
+def test_ci_wilson_extreme_level_does_not_round_to_one():
+    # the largest float below 1.0 passes 0 < level < 1 but makes
+    # 1 - (1 - level)/2 round to exactly 1.0; the z computation must use the
+    # lower tail so inv_cdf never sees 1.0
+    level = math.nextafter(1.0, 0.0)
+    interval = ci_wilson(level=level)(binary_scores(5, 10))
+    assert 0.0 <= interval["lower"] < interval["upper"] <= 1.0
+    # clustered path (t critical value) must not crash either
+    scores = [
+        SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": i % 4})
+        for i in range(16)
+    ]
+    interval = ci_wilson(level=level, cluster="c")(scores)
+    assert 0.0 <= interval["lower"] <= interval["upper"] <= 1.0
+
+
+def test_ci_wilson_clustered_widens_with_positive_icc():
+    # perfectly correlated clusters: strong design effect, interval must be
+    # wider than the unclustered one and match the Korn-Graubard construction
+    # (n_eff = p(1-p) / clustered_var, t critical value with clusters - 1 df)
+    # computed from the (public) clustered stderr
+    scores = [
+        SampleScore(score=Score(value=float(c % 2)), sample_metadata={"c": c})
+        for c in range(6)
+        for _ in range(4)
+    ]
+    unclustered = ci_wilson()(scores)
+    clustered = ci_wilson(cluster="c")(scores)
+    assert (clustered["upper"] - clustered["lower"]) > (
+        unclustered["upper"] - unclustered["lower"]
+    )
+
+    p_hat = 0.5
+    n_eff = p_hat * (1.0 - p_hat) / stderr(cluster="c")(scores) ** 2
+    t_crit = _t_inv_cdf(0.975, 5)  # 6 clusters -> df = 5
+    lower, upper = wilson_reference(p_hat, n_eff, t_crit)
+    assert clustered["lower"] == pytest.approx(lower, rel=1e-9)
+    assert clustered["upper"] == pytest.approx(upper, rel=1e-9)
+
+
+def test_ci_wilson_perfectly_correlated_pair_of_clusters():
+    # two clusters [0, 0] and [1, 1]: each perfectly-correlated cluster is one
+    # effective observation, so n_eff must be exactly 1 (not 4/3, the artifact
+    # of a dof-inconsistent design-effect reference)
+    scores = [
+        SampleScore(score=Score(value=v), sample_metadata={"c": c})
+        for c, v in (("a", 0.0), ("a", 0.0), ("b", 1.0), ("b", 1.0))
+    ]
+    interval = ci_wilson(cluster="c")(scores)
+    lower, upper = wilson_reference(0.5, 1.0, _t_inv_cdf(0.975, 1))
+    assert interval["lower"] == pytest.approx(lower, rel=1e-9)
+    assert interval["upper"] == pytest.approx(upper, rel=1e-9)
+
+
+def test_ci_wilson_singleton_clusters_slightly_conservative():
+    # one sample per cluster: the finite-cluster-corrected variance gives
+    # n_eff = n - 1 (mildly conservative), with t on n - 1 df
+    scores = [
+        SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": i})
+        for i in range(4)
+    ]
+    clustered = ci_wilson(cluster="c")(scores)
+    unclustered = ci_wilson()(scores)
+    assert (clustered["upper"] - clustered["lower"]) > (
+        unclustered["upper"] - unclustered["lower"]
+    )
+    lower, upper = wilson_reference(0.5, 3.0, _t_inv_cdf(0.975, 3))
+    assert clustered["lower"] == pytest.approx(lower, rel=1e-9)
+    assert clustered["upper"] == pytest.approx(upper, rel=1e-9)
+
+
+def test_ci_wilson_clustered_n_eff_capped_at_n():
+    # negative intra-cluster correlation with strictly positive clustered
+    # variance: p(1-p)/clustered_var exceeds n, so n_eff is capped at n
+    # (only the t critical value differs from the unclustered interval)
+    scores = [
+        SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": i // 2})
+        for i in range(16)
+    ] + [
+        SampleScore(score=Score(value=1.0), sample_metadata={"c": "x"}),
+        SampleScore(score=Score(value=0.0), sample_metadata={"c": "y"}),
+    ]
+    n = len(scores)
+    p_hat = 0.5
+    clustered_var = stderr(cluster="c")(scores) ** 2
+    assert p_hat * (1.0 - p_hat) / clustered_var > n  # must actually hit the cap
+    clustered = ci_wilson(cluster="c")(scores)
+    lower, upper = wilson_reference(p_hat, float(n), _t_inv_cdf(0.975, 9))
+    assert clustered["lower"] == pytest.approx(lower, rel=1e-9)
+    assert clustered["upper"] == pytest.approx(upper, rel=1e-9)
+
+
+def test_ci_wilson_zero_clustered_variance_falls_back():
+    # perfectly cancelling clusters make the clustered variance exactly 0
+    # (n_eff would be infinite): fall back to the unadjusted sample size,
+    # keeping the clusters - 1 df critical value
+    scores = [
+        SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": i // 2})
+        for i in range(20)
+    ]
+    clustered = ci_wilson(cluster="c")(scores)
+    lower, upper = wilson_reference(0.5, 20.0, _t_inv_cdf(0.975, 9))
+    assert clustered["lower"] == pytest.approx(lower, rel=1e-9)
+    assert clustered["upper"] == pytest.approx(upper, rel=1e-9)
+
+
+def test_ci_wilson_clustered_degenerate_proportion_falls_back():
+    # p_hat of 0 or 1 makes the design effect 0/0: fall back to the
+    # unadjusted n, keeping the clusters - 1 df critical value
+    scores = [
+        SampleScore(score=Score(value=1.0), sample_metadata={"c": i // 5})
+        for i in range(20)
+    ]
+    clustered = ci_wilson(cluster="c")(scores)
+    lower, upper = wilson_reference(1.0, 20.0, _t_inv_cdf(0.975, 3))
+    assert clustered["lower"] == pytest.approx(lower, rel=1e-9)
+    assert clustered["upper"] == pytest.approx(1.0)
+
+
+def test_ci_wilson_fewer_than_two_clusters_raises():
+    # cluster variance is unestimable from a single cluster (or none): raise
+    # rather than silently reporting the unclustered interval
+    single_cluster = [
+        SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": "only"})
+        for i in range(10)
+    ]
+    with pytest.raises(ValueError, match="at least two clusters"):
+        ci_wilson(cluster="c")(single_cluster)
+    with pytest.raises(ValueError, match="at least two clusters"):
+        ci_wilson(cluster="c")(
+            [SampleScore(score=Score(value=1.0), sample_metadata={"c": "only"})]
+        )
+    with pytest.raises(ValueError, match="at least two clusters"):
+        ci_wilson(cluster="c")([])
+
+
+def test_ci_wilson_cluster_validation():
+    # missing/None/NaN cluster ids raise (shared _cluster_partition semantics),
+    # and validation is not masked by the empty/singleton short-circuit
+    with pytest.raises(ValueError, match="has no cluster metadata"):
+        ci_wilson(cluster="c")([SampleScore(score=Score(value=1.0))])
+    with pytest.raises(ValueError, match="has no cluster metadata"):
+        ci_wilson(cluster="c")(
+            [
+                SampleScore(
+                    score=Score(value=1.0), sample_metadata={"c": float("nan")}
+                ),
+                SampleScore(score=Score(value=0.0), sample_metadata={"c": "a"}),
+            ]
+        )
+
+
+def test_ci_wilson_converts_values_exactly_once():
+    # ValueToFloat is an arbitrary callable and need not be pure: the metric
+    # must convert each score exactly once and reuse the cached values for
+    # p_hat and the cluster partition
+    calls = {"count": 0}
+
+    def counting_to_float(value):
+        calls["count"] += 1
+        return float(value)
+
+    scores = [
+        SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": i % 3})
+        for i in range(12)
+    ]
+    ci_wilson(to_float=counting_to_float, cluster="c")(scores)
+    assert calls["count"] == len(scores)
+    calls["count"] = 0
+    ci_wilson(to_float=counting_to_float)(scores)
+    assert calls["count"] == len(scores)
+
+
+def test_ci_wilson_metric_end_to_end():
+    # verify the dict value flattens into per-key EvalMetric entries with
+    # group "ci_wilson" (distinct from ci()'s group) in a real eval log
+    from inspect_ai.scorer import scorer
+
+    @scorer(metrics=[ci_wilson()])
+    def binary_value_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=float(state.input_text))
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input=str(v), target="-") for v in (0, 1, 1, 1)],
+        scorer=binary_value_scorer(),
+    )
+    log = eval(task, model="mockllm/model", display="none")[0]
+
+    assert log.results is not None
+    metrics = log.results.scores[0].metrics
+    assert set(metrics) >= {"lower", "upper"}
+    assert metrics["lower"].group == "ci_wilson"
+    assert metrics["upper"].group == "ci_wilson"
+    lower, upper = wilson_reference(0.75, 4, Z_975)
+    assert metrics["lower"].value == pytest.approx(lower, rel=1e-9)
+    assert metrics["upper"].value == pytest.approx(upper, rel=1e-9)
 
 
 def test_grouped_empty_scores_returns_degenerate_shape() -> None:

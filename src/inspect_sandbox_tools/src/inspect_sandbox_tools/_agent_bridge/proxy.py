@@ -26,6 +26,10 @@ from urllib.parse import parse_qs, unquote, urlparse
 RequestHandler: TypeAlias = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 RouteMap: TypeAlias = dict[str, RequestHandler]
 MethodRoutes: TypeAlias = dict[str, RouteMap]
+JsonValue: TypeAlias = (
+    None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
+)
+
 
 # ---------- Limits / Defaults ----------
 MAX_HEADER_BYTES = 64 * 1024
@@ -2178,7 +2182,7 @@ async def model_proxy_server(
                     arguments=arguments,
                 )
                 return _jsonrpc_response(
-                    req_id, {"content": [{"type": "text", "text": result}]}
+                    req_id, {"content": _mcp_tool_result_content(result)}
                 )
 
             else:
@@ -2193,6 +2197,18 @@ async def model_proxy_server(
 
     # return configured server
     return server
+
+
+def _mcp_tool_result_content(result: JsonValue) -> JsonValue:
+    match result:
+        case str():
+            return [{"type": "text", "text": result}]
+        case _:
+            return _mcp_tool_content_block(result)
+
+
+def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
+    return content
 
 
 async def run_model_proxy_server() -> None:

@@ -33,6 +33,10 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 | `minimal` / `low` / `medium` / `high` / `xhigh` | identical                                    |
 | `max`                                           | `max` on GPT-5.6+; `xhigh` on earlier models |
 
+GPT-5.5 and later reason at the server default effort when `reasoning_effort` is not set, and in that state the API rejects `temperature`, `top_p`, and `logprobs`. Inspect drops those options with a warning; pass `reasoning_effort="none"` to disable reasoning and have them sent.
+
+GPT-6 Astra always reasons: it accepts `low` through `max` only, and the API rejects `none` and `minimal` with an error. It also rejects `temperature`, `top_p`, and `logprobs`, so Inspect drops those options with a warning for GPT-6 models.
+
 Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
 #### Anthropic Claude 4.6+ and Claude 5
@@ -68,15 +72,15 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Google Gemini 3
 
-Gemini 3 Flash exposes four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`); Gemini 3 Pro / Pro 3.1 omit `MINIMAL` and otherwise share the same scale.
+Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1 and Gemini 3.7 Flash and later omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
 
-| Inspect input            | API value (Flash)  | API value (Pro)   |
-|--------------------------|--------------------|-------------------|
-| `none`                   | thinking disabled  | thinking disabled |
-| `minimal`                | `MINIMAL`          | `LOW`             |
-| `low`                    | `LOW`              | `LOW`             |
-| `medium`                 | `MEDIUM`           | `MEDIUM`          |
-| `high` / `xhigh` / `max` | `HIGH`             | `HIGH`            |
+| Inspect input            | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3) |
+|--------------------------|-------------------------------------------|----------------------------|
+| `none`                   | thinking disabled                         | thinking disabled          |
+| `minimal`                | `MINIMAL`                                 | `LOW`                      |
+| `low`                    | `LOW`                                     | `LOW`                      |
+| `medium`                 | `MEDIUM`                                  | `MEDIUM`                   |
+| `high` / `xhigh` / `max` | `HIGH`                                    | `HIGH`                     |
 
 #### Google Gemini 2.5
 

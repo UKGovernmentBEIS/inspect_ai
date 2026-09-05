@@ -1224,6 +1224,88 @@ def _make_batcher_and_batch(job_state: JobState) -> tuple:
     return batcher, batch
 
 
+def test_google_batch_result_line_tolerates_unknown_rest_fields() -> None:
+    """Batch result parsing must not fail on REST fields the SDK model lacks.
+
+    Google's batch results carry ``usageMetadata.serviceTier``, which no
+    released google-genai models; validating the raw dict with
+    ``extra="forbid"`` rejected every result (issue #5100 follow-on).
+    """
+    from google.genai.types import GenerateContentResponse
+    from pydantic import JsonValue
+
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._google_batch import GoogleBatcher
+    from inspect_ai.model._retry import model_retry_config
+
+    batcher = GoogleBatcher(
+        client=MagicMock(),
+        config=BatchConfig(),
+        retry_config=model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+        model_name="gemini-2.5-flash-lite",
+    )
+    line: dict[str, JsonValue] = {
+        "key": "req-1",
+        "response": {
+            "candidates": [
+                {
+                    "content": {"role": "model", "parts": [{"text": "Blue"}]},
+                    "finishReason": "STOP",
+                    "index": 0,
+                }
+            ],
+            "usageMetadata": {
+                "promptTokenCount": 20,
+                "candidatesTokenCount": 2,
+                "totalTokenCount": 22,
+                "serviceTier": "SERVICE_TIER_STANDARD",
+            },
+            "modelVersion": "gemini-2.5-flash-lite",
+            "responseId": "abc123",
+        },
+    }
+
+    key, result = batcher._parse_jsonl_line(line)
+
+    assert key == "req-1"
+    assert isinstance(result, GenerateContentResponse)
+    assert result.text == "Blue"
+    assert result.usage_metadata is not None
+    assert result.usage_metadata.total_token_count == 22
+
+
+def test_batch_request_dict_wraps_system_instruction() -> None:
+    from google.genai.types import Content, GenerateContentConfig, Part
+
+    from inspect_ai.model._providers._google_batch import batch_request_dict
+
+    config = GenerateContentConfig(
+        system_instruction=["You are helpful.", "Be concise."]
+    )
+    request = batch_request_dict(
+        config, [Content(role="user", parts=[Part.from_text(text="hi")])]
+    )
+
+    assert request["system_instruction"] == {
+        "parts": [{"text": "You are helpful."}, {"text": "Be concise."}],
+    }
+    assert request["contents"] == [
+        {"role": "user", "parts": [{"text": "hi"}]},
+    ]
+
+    config_parts = GenerateContentConfig(
+        system_instruction=[Part.from_text(text="You are helpful.")]
+    )
+    request_parts = batch_request_dict(
+        config_parts, [Content(role="user", parts=[Part.from_text(text="hi")])]
+    )
+    assert request_parts["system_instruction"] == {
+        "parts": [{"text": "You are helpful."}],
+    }
+
+
 @pytest.mark.parametrize(
     "state,expect_completed,expect_failed,expect_completion_info",
     [
@@ -1843,3 +1925,193 @@ def test_google_credentials_arg_rejected() -> None:
             api_key=None,
             credentials=object(),
         )
+
+
+def test_model_client_reuses_one_ssl_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Repeated client construction must not rebuild the SSL context.
+
+    `Client()` is built per generate() call, and genai otherwise creates a default
+    context from the CA bundle for each one — a synchronous disk read on the event
+    loop, three times per client. Under high sandbox concurrency that blocking work
+    starves the sandbox-service RPC consumer.
+    """
+    import ssl as ssl_module
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    calls = 0
+    real = ssl_module.create_default_context
+
+    def counting(*args: Any, **kwargs: Any) -> ssl_module.SSLContext:
+        nonlocal calls
+        calls += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ssl_module, "create_default_context", counting)
+    monkeypatch.setattr("google.genai._api_client.ssl.create_default_context", counting)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    for _ in range(5):
+        api.model_client()
+
+    # one build for the whole process, not three per client
+    assert calls <= 1, f"rebuilt the SSL context {calls} times across 5 clients"
+
+
+def test_model_client_reuses_ssl_context_with_client_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bridge path passes `client_args`, which changed which dict genai reads.
+
+    genai resolves the context with a conditional that, when `client_args` is
+    non-empty, never consults `async_client_args` (google/genai/_api_client.py:
+    `args.get(verify) if args else None or async_args.get(verify) ...` parses as
+    `args.get(v) if args else ((None or async_args.get(v)) if async_args else
+    None)`). Seeding only the async dict therefore missed and genai rebuilt the
+    context ON the event loop — caught by py-spy on a live run as
+    create_default_context under bridge_generate.
+    """
+    import ssl as ssl_module
+
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    calls = 0
+    real = ssl_module.create_default_context
+
+    def counting(*args: Any, **kwargs: Any) -> ssl_module.SSLContext:
+        nonlocal calls
+        calls += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ssl_module, "create_default_context", counting)
+    monkeypatch.setattr("google.genai._api_client.ssl.create_default_context", counting)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    for _ in range(5):
+        api.model_client(HttpOptions(client_args={"timeout": 30.0}))
+
+    assert calls <= 1, (
+        f"rebuilt the SSL context {calls} times across 5 clients with client_args"
+    )
+
+
+def test_model_client_preserves_custom_verify_for_async(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller-supplied CA/SSLContext on `client_args` must reach async requests too.
+
+    genai's SSL-context resolution (`_ensure_httpx_ssl_ctx`) only consults
+    `async_client_args` when `client_args` is non-empty, so pre-seeding
+    `async_client_args` with the shared default before genai runs would silently
+    override a caller-supplied custom verify for async requests while sync
+    requests stayed correctly validated against it.
+    """
+    import ssl as ssl_module
+    from typing import Any
+
+    from google.genai._api_client import AsyncHttpxClient
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    custom_context = ssl_module.create_default_context()
+
+    captured: dict[str, Any] = {}
+    real_init = AsyncHttpxClient.__init__
+
+    def capturing_init(self: Any, **kwargs: Any) -> None:
+        captured.update(kwargs)
+        real_init(self, **kwargs)
+
+    monkeypatch.setattr(AsyncHttpxClient, "__init__", capturing_init)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    api.model_client(HttpOptions(client_args={"verify": custom_context}))
+
+    assert captured["verify"] is custom_context, (
+        "async httpx client did not receive the caller-supplied custom verify"
+    )
+
+
+def test_model_client_converts_str_verify_for_aiohttp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller-supplied CA-bundle *path* must not reach aiohttp's `ssl` param.
+
+    httpx's `verify` legally accepts a CA-bundle path (the PR's stated contract, e.g.
+    `certifi.where()`), but aiohttp's `ssl` param only accepts
+    `SSLContext | bool | Fingerprint | None` — `aiohttp.client_reqrep` raises
+    `TypeError` on a bare path, so every aiohttp/websocket request would fail before
+    sending unless the path is converted into a context first.
+    """
+    import ssl as ssl_module
+
+    import certifi
+    from google.genai._api_client import AsyncHttpxClient
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    ca_path = str(certifi.where())
+
+    captured: dict[str, Any] = {}
+    real_init = AsyncHttpxClient.__init__
+
+    def capturing_init(self: Any, **kwargs: Any) -> None:
+        captured.update(kwargs)
+        real_init(self, **kwargs)
+
+    monkeypatch.setattr(AsyncHttpxClient, "__init__", capturing_init)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    GoogleGenAIAPI._ssl_context_for_path.cache_clear()
+    client = api.model_client(HttpOptions(client_args={"verify": ca_path}))
+
+    # httpx's async client keeps the original path -- that's a legal httpx `verify`.
+    assert captured["verify"] == ca_path
+
+    # aiohttp's `ssl` param only accepts SSLContext | bool | Fingerprint | None; the
+    # resolved verify value must be converted, not copied verbatim.
+    aiohttp_args = client._api_client._async_client_session_request_args
+    assert isinstance(aiohttp_args["ssl"], ssl_module.SSLContext), (
+        f"aiohttp 'ssl' arg was {aiohttp_args['ssl']!r}, not an SSLContext"
+    )
+
+
+def test_model_client_preserves_verify_false_for_aiohttp() -> None:
+    """`verify=False` must reach aiohttp as `ssl=False` unchanged, not converted."""
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    client = api.model_client(HttpOptions(client_args={"verify": False}))
+
+    assert client._api_client._async_client_session_request_args["ssl"] is False

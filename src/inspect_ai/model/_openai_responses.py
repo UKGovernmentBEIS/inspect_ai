@@ -41,7 +41,6 @@ from openai.types.responses import (
     ResponseToolSearchCall,
     ResponseUsage,
     ToolChoiceFunctionParam,
-    ToolChoiceMcpParam,
     ToolChoiceTypesParam,
     ToolParam,
     ToolSearchToolParam,
@@ -183,6 +182,7 @@ from inspect_ai.model._model_output import (
     TopLogprob,
     collect_stop_details,
 )
+from inspect_ai.model._openai import is_gpt_5_model
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -229,8 +229,10 @@ class ResponsesModelInfo(Protocol):
     def is_gpt(self) -> bool: ...
     def is_gpt_5(self) -> bool: ...
     def is_gpt_5_plus(self) -> bool: ...
+    def is_gpt_6(self) -> bool: ...
     def is_gpt_5_pro(self) -> bool: ...
     def supports_max_reasoning_effort(self) -> bool: ...
+    def reasons_by_default(self) -> bool: ...
     def is_gpt_5_chat(self) -> bool: ...
     def is_o_series(self) -> bool: ...
     def is_o1(self) -> bool: ...
@@ -807,24 +809,6 @@ def content_from_response_input_content_param(
         raise RuntimeError(f"Unexpected input from responses API: {input}")
 
 
-def is_tool_choice_function_param(
-    tool_choice: ResponsesToolChoiceParam,
-) -> TypeGuard[ToolChoiceFunctionParam]:
-    if not isinstance(tool_choice, str):
-        return tool_choice.get("type") == "function"
-    else:
-        return False
-
-
-def is_tool_choice_mcp_param(
-    tool_choice: ResponsesToolChoiceParam,
-) -> TypeGuard[ToolChoiceMcpParam]:
-    if not isinstance(tool_choice, str):
-        return tool_choice.get("type") == "mcp"
-    else:
-        return False
-
-
 def responses_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
     if usage is not None:
         return ResponseUsage(
@@ -1193,16 +1177,20 @@ def responses_reasoning_from_reasoning(
     if not content.redacted and content.summary:
         summary_params.append(SummaryParam(type="summary_text", text=content.summary))
 
-    return ResponseReasoningItemParam(
+    param = ResponseReasoningItemParam(  # type: ignore[typeddict-item]
         type="reasoning",
-        # OpenAI returns 'None' when store=False even though the schema requires the id
-        id=content.signature,  # type: ignore[typeddict-item]
         # Responses API rejects non-empty content on reasoning input items
         # (array_above_max_length); reasoning replays via encrypted_content.
         content=[],
         summary=summary_params,
         encrypted_content=encrypted_content,
     )
+    # OpenAI returns 'None' when store=False even though the schema requires the
+    # id. Omit the key entirely rather than sending an explicit null, which some
+    # backends (e.g. vLLM) reject.
+    if content.signature is not None:
+        param["id"] = content.signature
+    return param
 
 
 mcp_tool_adapter = TypeAdapter(list[McpListToolsToolParam])
@@ -1487,18 +1475,18 @@ def _openai_input_items_from_chat_message_assistant(
     def flush_pending_context_text() -> None:
         nonlocal pending_response_output_id, pending_response_phase
         if len(pending_response_output) > 0:
-            msg_param = ResponseOutputMessageParam(
+            msg_param = ResponseOutputMessageParam(  # type: ignore[typeddict-item]
                 type="message",
                 role="assistant",
-                # this actually can be `None`, and it will in fact be `None` when the
-                # assistant message is synthesized by the scaffold as opposed to being
-                # replayed from the model
-                # Is it okay to dynamically generate this here? We need this in
-                # order to read this back into the equivalent BaseModel for the bridge
-                id=pending_response_output_id,  # type: ignore[typeddict-item]
                 content=pending_response_output.copy(),
                 status="completed",
             )
+            # the id will be `None` when the assistant message is synthesized by
+            # the scaffold as opposed to being replayed from the model. Omit the
+            # key entirely rather than sending an explicit null, which some
+            # backends (e.g. vLLM) reject.
+            if pending_response_output_id is not None:
+                msg_param["id"] = pending_response_output_id
             if pending_response_phase is not None:
                 msg_param["phase"] = pending_response_phase  # type: ignore[typeddict-item]
             items.append(msg_param)
@@ -2293,11 +2281,14 @@ def is_namespace_tool_param(tool_param: ToolParam) -> TypeGuard[NamespaceToolPar
 def maybe_code_interpreter_tool(
     model_name: str, tool: ToolInfo
 ) -> CodeInterpreter | None:
-    COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", "gpt-5"]
+    COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini"]
     if (
         tool.name == "code_execution"
         and tool.options
-        and any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
+        and (
+            is_gpt_5_model(model_name)
+            or any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
+        )
     ):
         providers: dict[str, Any] = tool.options.get("providers", {})
         options: dict[str, Any] | bool = providers.get("openai", False)

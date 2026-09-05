@@ -157,12 +157,27 @@ jobs:
       # inspect_ai source that reference docs are generated from (griffe).
       # The marker is created only after a successful render and the cache
       # is saved only when the job succeeds, so a hit implies a past pass.
+      #
+      # The source component is this PR's own src/inspect_ai delta against
+      # its merge base, not the checked-out tree. On pull_request the
+      # checkout is the PR merged into current main, so hashing the tree
+      # invalidated every open PR's entry on every push to main that touched
+      # src/inspect_ai. The delta still forces a re-render when this PR edits
+      # the source the reference docs are generated from. diff-tree lists
+      # changed paths with blob ids, so it needs no blob fetches under the
+      # blob:none checkout. The merge-base is quoted so a failure there fails
+      # the step; an empty unquoted arg would leave the delta silently empty
+      # (diff-tree prints nothing for a merge commit given one argument).
+      # base_ref is empty on push and workflow_dispatch, so those use main.
+      - name: Record this PR's own inspect_ai source delta
+        run: git diff-tree -r "$(git merge-base origin/${{ github.base_ref || 'main' }} HEAD)" HEAD -- src/inspect_ai > .docs-src-delta
+
       - name: Check for previous successful render
         id: render-cache
         uses: actions/cache@v6
         with:
           path: .docs-render-ok
-          key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', 'src/inspect_ai/**') }}
+          key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', '.docs-src-delta') }}
 
       - name: Install uv
         if: steps.render-cache.outputs.cache-hit != 'true'
@@ -385,6 +400,9 @@ jobs:
           filters: |
             checkpoint:
               - "src/inspect_ai/util/_checkpoint/**"
+              # tests/checkpoint/ exercises restore_repo against a real restic
+              # binary, so restic-only changes must trigger the area too.
+              - "src/inspect_ai/util/_restic/**"
               - "tests/checkpoint/**"
 
   # Fast gate: confirm sandbox_tools_version.txt is bumped to exactly N+1

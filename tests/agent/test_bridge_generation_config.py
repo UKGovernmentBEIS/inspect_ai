@@ -6,6 +6,15 @@ forward client generation parameters, the default). They are fast and require no
 provider SDKs or API keys.
 """
 
+from typing import Any
+
+import pytest
+from pydantic import BaseModel
+
+from inspect_ai.agent._bridge._errors import (
+    BridgePolicyError,
+    provider_error_payload,
+)
 from inspect_ai.agent._bridge.anthropic_api_impl import generate_config_from_anthropic
 from inspect_ai.agent._bridge.completions import (
     generate_config_from_openai_completions,
@@ -16,8 +25,13 @@ from inspect_ai.agent._bridge.responses_impl import (
 )
 from inspect_ai.agent._bridge.util import (
     _GENERATION_PARAM_FIELDS,
+    _unmodelled_schema_keywords,
     clear_generation_params,
+    client_json_schema,
+    validate_client_config,
 )
+from inspect_ai.model import GenerateConfig
+from inspect_ai.tool._tool_choice import ToolFunction
 
 # generation-tuning fields that must be dropped when not forwarding.
 # Hard-coded (not derived from the implementation's list) so this test fails if
@@ -38,6 +52,7 @@ GENERATION_FIELDS = {
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
+    "verbosity",
 }
 
 
@@ -254,3 +269,1180 @@ def test_google_response_json_schema_used_directly():
 def test_google_no_schema_leaves_response_schema_unset():
     config = generate_config_from_google({"temperature": 0.5})
     assert config.response_schema is None
+
+
+def test_anthropic_output_config_format_maps_to_response_schema():
+    """`output_config.format` is Anthropic's native structured-output request.
+
+    It had no extraction site at all, so a client asking for JSON silently got
+    prose. Its sibling `output_config.effort` WAS read, which is what made the
+    gap easy to miss.
+    """
+    config = generate_config_from_anthropic(
+        {
+            "model": "inspect",
+            "messages": [],
+            "output_config": {
+                "format": {
+                    "type": "json_schema",
+                    "schema": {
+                        "type": "object",
+                        "properties": {"answer": {"type": "string"}},
+                        "required": ["answer"],
+                    },
+                }
+            },
+        }
+    )
+    assert config.response_schema is not None
+    assert config.response_schema.json_schema.type == "object"
+    # structured output is not a tuning knob, so it must survive clearing
+    clear_generation_params(config)
+    assert config.response_schema is not None
+
+
+def test_anthropic_invalid_output_config_schema_is_rejected_not_raised():
+    """A bad schema must answer 400, not escape as a raw `ValidationError`.
+
+    `JSONSchema.model_validate` raises `ValidationError`, and an uncaught one is
+    worse than the bad value: `provider_error_payload` reports `status: None`,
+    which the sandbox service treats as a translation failure -- traceback in the
+    log, no status for the client. That is the unreadable outcome this module
+    exists to prevent, so it must be the same `BridgePolicyError` 400 that an
+    invalid generation param gets.
+    """
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_anthropic(
+            {
+                "model": "inspect",
+                "max_tokens": 16,
+                "messages": [{"role": "user", "content": "hi"}],
+                "output_config": {
+                    "format": {"type": "json_schema", "schema": {"type": 5}}
+                },
+            }
+        )
+    assert "output_config.format.schema" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize("name", [5, 0, False])
+def test_anthropic_invalid_output_config_name_is_rejected_not_raised(name: object):
+    """A bad `format.name` must answer 400, not escape as a raw `ValidationError`.
+
+    `ResponseSchema` validates `name` on construction, so a non-string one
+    escapes the same way an invalid schema would -- `status: None`, a traceback
+    in the log and no status for the client. New surface with this mapping:
+    before it, the whole `output_config.format` was ignored. Falsy non-strings
+    (`0`, `false`) must be rejected too, not defaulted to "response".
+    """
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_anthropic(
+            {
+                "model": "inspect",
+                "max_tokens": 16,
+                "messages": [{"role": "user", "content": "hi"}],
+                "output_config": {
+                    "format": {
+                        "type": "json_schema",
+                        "name": name,
+                        "schema": {"type": "object"},
+                    }
+                },
+            }
+        )
+    assert "output_config.format.name" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+def test_anthropic_output_config_effort_and_format_coexist():
+    config = generate_config_from_anthropic(
+        {
+            "model": "inspect",
+            "messages": [],
+            "output_config": {
+                "effort": "low",
+                "format": {"type": "json_schema", "schema": {"type": "object"}},
+            },
+        }
+    )
+    assert config.effort == "low"
+    assert config.response_schema is not None
+
+
+def test_google_thinking_config_maps_to_reasoning_tokens():
+    """Gemini's thinking budget had no extraction site.
+
+    The provider rebuilds a `ThinkingConfig` from `reasoning_tokens`, so the
+    budget only needed mapping onto it; without this a client asking for a
+    thinking budget silently got the model default.
+    """
+    config = generate_config_from_google({"thinkingConfig": {"thinkingBudget": 2048}})
+    assert config.reasoning_tokens == 2048
+
+    snake = generate_config_from_google({"thinking_config": {"thinking_budget": 512}})
+    assert snake.reasoning_tokens == 512
+
+    # it IS a tuning knob, so it must clear
+    clear_generation_params(config)
+    assert config.reasoning_tokens is None
+
+
+def test_openai_responses_text_verbosity_is_read():
+    """`text.verbosity` was never read off the request.
+
+    It has a GenerateConfig slot and the provider already sends it; only the
+    extraction was missing.
+    """
+    config = generate_config_from_openai_responses(
+        {"model": "inspect", "input": "hello", "text": {"verbosity": "low"}}
+    )
+    assert config.verbosity == "low"
+
+    # And it must clear like every other generation param. A bridge left on the
+    # default `forward_generation_config=False` drops the client's tuning knobs so
+    # they fall back to the eval's own config; verbosity extracted but not cleared
+    # would leak the scaffold's value to the served model whenever the eval config
+    # leaves it unset -- the common case, and the exact defect class this change is
+    # about (one swept parameter measured under several labels).
+    clear_generation_params(config)
+    assert config.verbosity is None
+
+
+def test_openai_responses_text_format_and_verbosity_coexist():
+    config = generate_config_from_openai_responses(
+        {
+            "model": "inspect",
+            "input": "hello",
+            "text": {
+                "verbosity": "low",
+                "format": {
+                    "type": "json_schema",
+                    "name": "message",
+                    "schema": {"type": "object"},
+                },
+            },
+        }
+    )
+    assert config.verbosity == "low"
+    assert config.response_schema is not None
+
+
+@pytest.mark.parametrize(
+    "extractor,json_data,expected_field",
+    [
+        (
+            generate_config_from_anthropic,
+            {"model": "m", "messages": [], "stop_sequences": 5},
+            "stop_seqs",
+        ),
+        (
+            generate_config_from_anthropic,
+            {"model": "m", "messages": [], "output_config": {"effort": "banana"}},
+            "effort",
+        ),
+        (
+            generate_config_from_anthropic,
+            {"model": "m", "messages": [], "temperature": "hot"},
+            "temperature",
+        ),
+        (
+            generate_config_from_openai_completions,
+            {"model": "m", "messages": [], "seed": "not-an-int"},
+            "seed",
+        ),
+        (
+            generate_config_from_openai_completions,
+            {"model": "m", "messages": [], "reasoning_effort": "banana"},
+            "reasoning_effort",
+        ),
+    ],
+)
+def test_invalid_client_value_is_rejected_not_recorded(
+    extractor, json_data, expected_field
+):
+    """A bad request value must 400, not poison the transcript.
+
+    pydantic does not validate on assignment, so an extractor will happily put
+    any value into a typed field. That value serializes into the `ModelEvent`
+    and then fails `model_validate` when the event is READ -- aborting the read
+    of the WHOLE sample transcript, not just that event (`inspect ctl sample
+    events` 500s; every log reader hits the same error). Measured live: one
+    `output_config.effort: "banana"` request made 55 subsequent events
+    unreadable.
+
+    `stop_seqs` and `seed` reach this without any bridge configuration, since
+    they are structural rather than generation params.
+    """
+    config = extractor(json_data)
+    # the raw extractor accepts it -- that is the hazard being guarded
+    assert getattr(config, expected_field) is not None
+
+    with pytest.raises(BridgePolicyError, match=expected_field):
+        validate_client_config(config)
+
+
+def test_valid_client_config_passes_validation():
+    config = generate_config_from_anthropic(
+        {
+            "model": "m",
+            "messages": [],
+            "max_tokens": 7,
+            "temperature": 0.5,
+            "stop_sequences": ["x"],
+            "output_config": {"effort": "low"},
+        }
+    )
+    validate_client_config(config)  # must not raise
+
+
+@pytest.mark.anyio
+async def test_bridged_request_rejects_invalid_value_at_the_call_site():
+    """The rejection must be wired into the REQUEST PATH, not just available.
+
+    Asserting on `validate_client_config` alone passes even when no caller
+    invokes it, so this drives the real
+    `inspect_anthropic_api_request_impl` and asserts it raises before reaching
+    the model. A model that is never called is the evidence: it proves the
+    request was rejected rather than sent and recorded.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        inspect_anthropic_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    called = []
+
+    def _never(input, tools, tool_choice, config):
+        called.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="unreachable")
+
+    model = get_model("mockllm/model", custom_outputs=_never)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+        forward_generation_config=True,
+    )
+    bridge.model_aliases = {"claude-sonnet-5": model}
+
+    with pytest.raises(BridgePolicyError, match="effort"):
+        await inspect_anthropic_api_request_impl(
+            json_data={
+                "model": "claude-sonnet-5",
+                "max_tokens": 64,
+                "messages": [{"role": "user", "content": "hi"}],
+                "output_config": {"effort": "banana"},
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+
+    assert called == [], "request must be rejected before the model is called"
+
+
+@pytest.mark.anyio
+async def test_anthropic_mistyped_tool_choice_rejected_on_request_path():
+    """The `tool_choice` container guard must fire in REQUEST-PATH order.
+
+    On the request path, `tool_choice_from_anthropic_tool_choice` subscripts
+    the value *before* `generate_config_from_anthropic` runs, so a guard that
+    lives only in the config extractor never fires -- the mistyped container
+    escapes as a raw `TypeError` first. Drive the real impl to pin the
+    ordering, not just the extractor in isolation.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        inspect_anthropic_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    called = []
+
+    def _never(input, tools, tool_choice, config):
+        called.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="unreachable")
+
+    model = get_model("mockllm/model", custom_outputs=_never)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+        forward_generation_config=True,
+    )
+    bridge.model_aliases = {"claude-sonnet-5": model}
+
+    with pytest.raises(BridgePolicyError, match="tool_choice") as ex:
+        await inspect_anthropic_api_request_impl(
+            json_data={
+                "model": "claude-sonnet-5",
+                "max_tokens": 64,
+                "messages": [{"role": "user", "content": "hi"}],
+                "tool_choice": "auto",
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+
+    assert provider_error_payload(ex.value)["status"] == 400
+    assert called == [], "request must be rejected before the model is called"
+
+
+@pytest.mark.parametrize(
+    "tool_choice",
+    [{"type": "banana"}, {}],
+)
+def test_anthropic_unknown_tool_choice_type_rejected(tool_choice: dict[str, Any]):
+    """An unknown or missing `tool_choice.type` answers 400, not silence.
+
+    These previously fell through the match silently (unknown type) or raised
+    a status-less `KeyError` (missing type); the real API answers 400.
+    """
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        tool_choice_from_anthropic_tool_choice,
+    )
+
+    with pytest.raises(BridgePolicyError) as ex:
+        tool_choice_from_anthropic_tool_choice(tool_choice)
+    assert "tool_choice.type" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "tool_choice",
+    [{"type": "tool"}, {"type": "tool", "name": 5}],
+)
+def test_anthropic_tool_choice_tool_requires_string_name(tool_choice: dict[str, Any]):
+    """`tool_choice.type: "tool"` with a missing or non-string `name` answers 400.
+
+    A missing `name` previously raised a status-less `KeyError`, and a
+    non-string one was accepted into the unvalidated `ToolFunction` dataclass --
+    serializing into the `ModelEvent` and failing transcript read-back, the
+    failure `validate_client_config` cannot backstop since `tool_choice` is not
+    on `GenerateConfig`.
+    """
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        tool_choice_from_anthropic_tool_choice,
+    )
+
+    with pytest.raises(BridgePolicyError) as ex:
+        tool_choice_from_anthropic_tool_choice(tool_choice)
+    assert "tool_choice.name" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+def test_anthropic_tool_choice_tool_with_valid_name():
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        tool_choice_from_anthropic_tool_choice,
+    )
+
+    assert tool_choice_from_anthropic_tool_choice(
+        {"type": "tool", "name": "grep"}
+    ) == ToolFunction(name="grep")
+
+
+# ---------------------------------------------------------------------------
+# tool_choice shape guards on the OpenAI (completions / responses) and Google
+# request paths. Each converter reads client-controlled JSON; a mistyped value
+# used to escape as a raw TypeError/KeyError/AttributeError/AssertionError
+# (status None), and a non-string tool name was accepted into the unvalidated
+# `ToolFunction` dataclass and poisoned the transcript.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "tool_choice,field",
+    [
+        ("banana", "tool_choice"),
+        (5, "tool_choice"),
+        (["auto"], "tool_choice"),
+        ({}, "tool_choice.type"),
+        ({"type": "custom", "custom": {"name": "grep"}}, "tool_choice.type"),
+        ({"type": "allowed_tools"}, "tool_choice.type"),
+        ({"type": "function"}, "tool_choice.function.name"),
+        ({"type": "function", "function": "grep"}, "tool_choice.function"),
+        ({"type": "function", "function": {}}, "tool_choice.function.name"),
+        ({"type": "function", "function": {"name": 5}}, "tool_choice.function.name"),
+    ],
+)
+def test_openai_completions_invalid_tool_choice_rejected(tool_choice: Any, field: str):
+    from inspect_ai.agent._bridge.completions import tool_choice_from_openai_tool_choice
+
+    with pytest.raises(BridgePolicyError) as ex:
+        tool_choice_from_openai_tool_choice(tool_choice)
+    assert f"({field}:" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "tool_choice,expected",
+    [
+        (None, None),
+        ("auto", "auto"),
+        ("none", "none"),
+        ("required", "any"),
+        (
+            {"type": "function", "function": {"name": "grep"}},
+            ToolFunction(name="grep"),
+        ),
+    ],
+)
+def test_openai_completions_valid_tool_choice(tool_choice: Any, expected: Any):
+    from inspect_ai.agent._bridge.completions import tool_choice_from_openai_tool_choice
+
+    assert tool_choice_from_openai_tool_choice(tool_choice) == expected
+
+
+@pytest.mark.anyio
+async def test_openai_completions_mistyped_tool_choice_rejected_on_request_path():
+    """Drive the real impl so the guard is pinned on the request path (400, no model call)."""
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.completions import inspect_completions_api_request
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    called = []
+
+    def _never(input, tools, tool_choice, config):
+        called.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="unreachable")
+
+    model = get_model("mockllm/model", custom_outputs=_never)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+    )
+    bridge.model_aliases = {"gpt-5": model}
+
+    with pytest.raises(BridgePolicyError, match="tool_choice") as ex:
+        await inspect_completions_api_request(
+            json_data={
+                "model": "gpt-5",
+                "messages": [{"role": "user", "content": "hi"}],
+                "tool_choice": {"type": "custom", "custom": {"name": "grep"}},
+            },
+            headers=None,
+            bridge=bridge,
+        )
+
+    assert provider_error_payload(ex.value)["status"] == 400
+    assert called == [], "request must be rejected before the model is called"
+
+
+@pytest.mark.parametrize(
+    "tool_choice,field",
+    [
+        ("banana", "tool_choice"),
+        (5, "tool_choice"),
+        (["auto"], "tool_choice"),
+        ({}, "tool_choice.type"),
+        ({"type": 5}, "tool_choice.type"),
+        ({"type": "function"}, "tool_choice.name"),
+        ({"type": "function", "name": 5}, "tool_choice.name"),
+        ({"type": "mcp", "server_label": "srv"}, "tool_choice.name"),
+        ({"type": "mcp", "server_label": "srv", "name": 5}, "tool_choice.name"),
+        ({"type": "allowed_tools", "tools": []}, "tool_choice.type"),
+        ({"type": "custom", "name": "grep"}, "tool_choice.type"),
+    ],
+)
+def test_openai_responses_invalid_tool_choice_rejected(tool_choice: Any, field: str):
+    from inspect_ai.agent._bridge.responses_impl import (
+        tool_choice_from_responses_tool_choice,
+    )
+
+    with pytest.raises(BridgePolicyError) as ex:
+        tool_choice_from_responses_tool_choice(tool_choice)
+    assert f"({field}:" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "tool_choice,expected",
+    [
+        (None, None),
+        ("auto", "auto"),
+        ("none", "none"),
+        ("required", "any"),
+        ({"type": "function", "name": "grep"}, ToolFunction(name="grep")),
+        (
+            {"type": "mcp", "server_label": "srv", "name": "grep"},
+            ToolFunction(name="grep"),
+        ),
+        ({"type": "web_search_preview"}, ToolFunction(name="web_search")),
+        ({"type": "web_search_preview_2025_03_11"}, ToolFunction(name="web_search")),
+        ({"type": "code_interpreter"}, ToolFunction(name="code_execution")),
+        ({"type": "file_search"}, ToolFunction(name="file_search")),
+    ],
+)
+def test_openai_responses_valid_tool_choice(tool_choice: Any, expected: Any):
+    from inspect_ai.agent._bridge.responses_impl import (
+        tool_choice_from_responses_tool_choice,
+    )
+
+    assert tool_choice_from_responses_tool_choice(tool_choice) == expected
+
+
+@pytest.mark.anyio
+async def test_openai_responses_mistyped_tool_choice_rejected_on_request_path():
+    """Drive the real impl so the guard is pinned on the request path (400, no model call)."""
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.responses_impl import (
+        inspect_responses_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    called = []
+
+    def _never(input, tools, tool_choice, config):
+        called.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="unreachable")
+
+    model = get_model("mockllm/model", custom_outputs=_never)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+    )
+    bridge.model_aliases = {"gpt-5": model}
+
+    with pytest.raises(BridgePolicyError, match="tool_choice") as ex:
+        await inspect_responses_api_request_impl(
+            json_data={
+                "model": "gpt-5",
+                "input": [{"role": "user", "content": "hi"}],
+                "tool_choice": {"type": "function"},
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+
+    assert provider_error_payload(ex.value)["status"] == 400
+    assert called == [], "request must be rejected before the model is called"
+
+
+@pytest.mark.parametrize(
+    "tool_config,field",
+    [
+        ("AUTO", "toolConfig"),
+        (["AUTO"], "toolConfig"),
+        ({"functionCallingConfig": "ANY"}, "toolConfig.functionCallingConfig"),
+        (
+            {"functionCallingConfig": {"mode": 5}},
+            "toolConfig.functionCallingConfig.mode",
+        ),
+        (
+            {"functionCallingConfig": {"mode": "ANY", "allowedFunctionNames": "grep"}},
+            "toolConfig.functionCallingConfig.allowedFunctionNames",
+        ),
+        (
+            {
+                "functionCallingConfig": {
+                    "mode": "VALIDATED",
+                    "allowedFunctionNames": ["grep", 5],
+                }
+            },
+            "toolConfig.functionCallingConfig.allowedFunctionNames.1",
+        ),
+    ],
+)
+def test_google_invalid_tool_config_rejected(tool_config: Any, field: str):
+    from inspect_ai.agent._bridge.google_api_impl import (
+        tool_choice_from_google_tool_config,
+    )
+
+    with pytest.raises(BridgePolicyError) as ex:
+        tool_choice_from_google_tool_config(tool_config)
+    assert f"({field}:" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "tool_config,expected",
+    [
+        (None, None),
+        ({}, None),
+        ({"functionCallingConfig": {}}, "auto"),
+        ({"functionCallingConfig": {"mode": None}}, "auto"),
+        ({"functionCallingConfig": {"mode": "AUTO"}}, "auto"),
+        ({"functionCallingConfig": {"mode": "ANY"}}, "any"),
+        ({"functionCallingConfig": {"mode": "NONE"}}, "none"),
+        (
+            {
+                "functionCallingConfig": {
+                    "mode": "VALIDATED",
+                    "allowedFunctionNames": ["grep"],
+                }
+            },
+            ToolFunction(name="grep"),
+        ),
+        (
+            {
+                "functionCallingConfig": {
+                    "mode": "VALIDATED",
+                    "allowedFunctionNames": ["grep", "ls"],
+                }
+            },
+            "auto",
+        ),
+    ],
+)
+def test_google_valid_tool_config(tool_config: Any, expected: Any):
+    from inspect_ai.agent._bridge.google_api_impl import (
+        tool_choice_from_google_tool_config,
+    )
+
+    assert tool_choice_from_google_tool_config(tool_config) == expected
+
+
+@pytest.mark.anyio
+async def test_google_mistyped_tool_config_rejected_on_request_path():
+    """Drive the real impl so the guard is pinned on the request path (400, no model call)."""
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.google_api_impl import (
+        inspect_google_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    called = []
+
+    def _never(input, tools, tool_choice, config):
+        called.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="unreachable")
+
+    model = get_model("mockllm/model", custom_outputs=_never)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+    )
+    bridge.model_aliases = {"gemini-3-pro": model}
+
+    with pytest.raises(BridgePolicyError, match="toolConfig") as ex:
+        await inspect_google_api_request_impl(
+            json_data={
+                "model": "gemini-3-pro",
+                "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
+                "toolConfig": "AUTO",
+            },
+            web_search_providers=None,
+            code_execution_providers=None,
+            bridge=bridge,
+        )
+
+    assert provider_error_payload(ex.value)["status"] == 400
+    assert called == [], "request must be rejected before the model is called"
+
+
+def test_google_generation_config_fields_the_provider_sends_are_all_read():
+    """Every `generationConfig` field the Google provider sends must be read.
+
+    The provider passes `candidate_count`, `presence_penalty`,
+    `frequency_penalty`, `response_logprobs` and `logprobs` to the SDK, but the
+    extractor read none of them, so a client setting any silently got the model
+    default.
+    """
+    config = generate_config_from_google(
+        {
+            "candidateCount": 2,
+            "presencePenalty": 0.5,
+            "frequencyPenalty": 0.25,
+            "responseLogprobs": True,
+            "logprobs": 3,
+        }
+    )
+    # candidateCount is deliberately NOT forwarded: the response builder emits
+    # exactly one candidate, so forwarding it would bill for N and return 1.
+    assert config.num_choices is None
+    assert config.presence_penalty == 0.5
+    assert config.frequency_penalty == 0.25
+    assert config.logprobs is True
+    assert config.top_logprobs == 3
+
+    snake = generate_config_from_google(
+        {"presence_penalty": 0.1, "frequency_penalty": 0.2}
+    )
+    assert snake.presence_penalty == 0.1
+    assert snake.frequency_penalty == 0.2
+
+    # all five are tuning knobs, so all must clear
+    clear_generation_params(config)
+    _assert_cleared(config)
+
+
+def test_google_usage_metadata_reports_thinking_tokens():
+    """A bridged Gemini client must be able to see thinking tokens.
+
+    The provider already parses `thoughts_token_count` into
+    `usage.reasoning_tokens`, but the bridge's usage metadata omitted it, so a
+    client measuring thinking tokens through the bridge got nothing -- the same
+    defect class as the Anthropic `output_tokens_details` bug.
+    """
+    from inspect_ai.agent._bridge.google_api_impl import gemini_usage_metadata
+    from inspect_ai.model._model_output import ModelUsage
+
+    with_thinking = gemini_usage_metadata(
+        ModelUsage(
+            input_tokens=10, output_tokens=40, total_tokens=50, reasoning_tokens=30
+        )
+    )
+    assert with_thinking["thoughtsTokenCount"] == 30
+
+    # ...and the pair must obey Gemini's own arithmetic. `candidatesTokenCount`
+    # EXCLUDES thinking tokens upstream, while Inspect's `output_tokens` includes
+    # them, so emitting both without subtracting made the two sum past
+    # `totalTokenCount` -- a response no real Gemini call could produce. Asserting
+    # only `thoughtsTokenCount` let that through.
+    assert with_thinking["candidatesTokenCount"] == 10
+    assert (
+        with_thinking["candidatesTokenCount"] + with_thinking["thoughtsTokenCount"]
+        == 40
+    )
+
+    # absent rather than zeroed, so "no thinking" and "not reported" stay distinct
+    without = gemini_usage_metadata(
+        ModelUsage(input_tokens=10, output_tokens=40, total_tokens=50)
+    )
+    assert "thoughtsTokenCount" not in without
+    # nothing to subtract, so output_tokens passes straight through
+    assert without["candidatesTokenCount"] == 40
+
+
+@pytest.fixture
+def _warn_once_messages() -> Any:
+    # warn_once dedupes via a module-level list; clear it and yield it so the
+    # test can assert on what was emitted. caplog isn't reliable here because
+    # init_logger sets propagate=False on the inspect_ai logger once any
+    # earlier test triggers it.
+    from inspect_ai._util import logger as _inspect_logger
+
+    _inspect_logger._warned.clear()
+    yield _inspect_logger._warned
+    _inspect_logger._warned.clear()
+
+
+def test_unmodelled_schema_keywords_reports_only_real_losses():
+    """Dropped keywords must be detected, without crying wolf.
+
+    `JSONSchema` is a pydantic model with the default `extra="ignore"`, so any
+    keyword it lacks a field for is silently dropped. The detection has to walk
+    nested schemas to be useful, and skip client-controlled values to be
+    trustworthy -- a warning that fires on every schema teaches people to ignore
+    it.
+    """
+
+    # pydantic emits `title` on every field, so a flat model loses nothing
+    class Flat(BaseModel):
+        name: str
+        age: int
+
+    assert _unmodelled_schema_keywords(Flat.model_json_schema()) == set()
+
+    # ...but any nested model or enum emits `$defs`/`$ref`, which does lose
+    # something: the `$ref` property collapses to an empty schema.
+    class Address(BaseModel):
+        street: str
+
+    class Person(BaseModel):
+        name: str
+        address: Address
+
+    assert _unmodelled_schema_keywords(Person.model_json_schema()) == {"$defs", "$ref"}
+
+    # nested schema positions are walked
+    assert _unmodelled_schema_keywords(
+        {
+            "type": "array",
+            "items": {"type": "object", "properties": {"a": {"minItems": 2}}},
+            "anyOf": [{"const": 3}],
+        }
+    ) == {"minItems", "const"}
+
+    # `properties` keys are client-chosen names, not keywords
+    assert (
+        _unmodelled_schema_keywords(
+            {
+                "type": "object",
+                "properties": {
+                    "$ref": {"type": "string"},
+                    "allOf": {"type": "integer"},
+                },
+            }
+        )
+        == set()
+    )
+
+    # `default`/`examples` hold client values that may themselves look like
+    # schemas; walking them would report keywords that were never dropped
+    assert (
+        _unmodelled_schema_keywords(
+            {
+                "type": "object",
+                "properties": {
+                    "x": {
+                        "type": "object",
+                        "default": {"const": 1, "$ref": "#/nope"},
+                        "examples": [{"allOf": []}],
+                    }
+                },
+            }
+        )
+        == set()
+    )
+
+
+def test_client_json_schema_warns_when_keywords_are_dropped(_warn_once_messages):
+    """A silently weakened schema must at least be diagnosable.
+
+    A dropped `$ref` leaves the property an unconstrained `{}` while it stays
+    `required`, so the model is free to return anything there and the client's own
+    validation fails on the response. Without the warning there is nothing tying
+    that failure back to the bridge.
+    """
+
+    class Address(BaseModel):
+        street: str
+
+    class Person(BaseModel):
+        name: str
+        address: Address
+
+    schema = client_json_schema(
+        Person.model_json_schema(), "output_config.format.schema"
+    )
+
+    assert len(_warn_once_messages) == 1
+    assert "output_config.format.schema" in _warn_once_messages[0]
+    assert "$ref" in _warn_once_messages[0]
+    assert "$defs" in _warn_once_messages[0]
+
+    # the dropped `$ref` is the loss the warning is about: `address` survives as
+    # an empty schema rather than the nested object the client asked for
+    assert schema.properties is not None
+    assert schema.properties["address"].model_dump(exclude_none=True) == {}
+    assert schema.required == ["name", "address"]
+
+
+def test_client_json_schema_silent_for_fully_modelled_schema(_warn_once_messages):
+    client_json_schema(
+        {
+            "type": "object",
+            "properties": {"a": {"type": "string", "pattern": "x"}},
+            "required": ["a"],
+        },
+        "output_config.format.schema",
+    )
+    assert _warn_once_messages == []
+
+
+@pytest.mark.parametrize(
+    "json_schema,expected_field",
+    [
+        ({"name": "n", "schema": {"type": 5}}, "response_format.json_schema.schema"),
+        ({"name": 5, "schema": {"type": "object"}}, "response_format.json_schema.name"),
+        ({"name": 0, "schema": {"type": "object"}}, "response_format.json_schema.name"),
+        (
+            {"name": "n", "description": 5, "schema": {"type": "object"}},
+            "response_format.json_schema.description",
+        ),
+        (
+            {"name": "n", "strict": "banana", "schema": {"type": "object"}},
+            "response_format.json_schema.strict",
+        ),
+    ],
+)
+def test_openai_completions_invalid_response_format_is_rejected_not_raised(
+    json_schema: dict[str, Any], expected_field: str
+):
+    """A bad `response_format.json_schema` must answer 400, not escape raw.
+
+    `ResponseSchema` validates on construction and `JSONSchema.model_validate`
+    raises `ValidationError`, so any client-controlled field here escaped as a
+    raw pydantic error -- `provider_error_payload` reports `status: None`, the
+    status-less outcome `client_json_schema` exists to prevent.
+    """
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_openai_completions(
+            {
+                "model": "inspect",
+                "response_format": {"type": "json_schema", "json_schema": json_schema},
+            }
+        )
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "format,expected_field",
+    [
+        (
+            {"type": "json_schema", "name": "n", "schema": {"type": 5}},
+            "text.format.schema",
+        ),
+        (
+            {"type": "json_schema", "name": 5, "schema": {"type": "object"}},
+            "text.format.name",
+        ),
+        (
+            {
+                "type": "json_schema",
+                "name": "n",
+                "description": 5,
+                "schema": {"type": "object"},
+            },
+            "text.format.description",
+        ),
+        (
+            {
+                "type": "json_schema",
+                "name": "n",
+                "strict": "banana",
+                "schema": {"type": "object"},
+            },
+            "text.format.strict",
+        ),
+    ],
+)
+def test_openai_responses_invalid_text_format_is_rejected_not_raised(
+    format: dict[str, Any], expected_field: str
+):
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_openai_responses(
+            {"model": "inspect", "text": {"format": format}}
+        )
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "generation_config,expected_field",
+    [
+        ({"responseJsonSchema": {"type": 5}}, "responseJsonSchema"),
+        ({"responseSchema": {"type": 5}}, "responseSchema"),
+    ],
+)
+def test_google_invalid_response_schema_is_rejected_not_raised(
+    generation_config: dict[str, Any], expected_field: str
+):
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_google(generation_config)
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "json_data,expected_field",
+    [
+        ({"model": "inspect", "response_format": "json_object"}, "response_format"),
+        (
+            {
+                "model": "inspect",
+                "response_format": {"type": "json_schema", "json_schema": "s"},
+            },
+            "response_format.json_schema",
+        ),
+    ],
+)
+def test_openai_completions_non_object_container_is_rejected_not_raised(
+    json_data: dict[str, Any], expected_field: str
+):
+    """A mistyped container must 400 too, not escape as `AttributeError`.
+
+    The leaf values now 400 via `client_json_schema`/`client_response_schema`,
+    but a non-dict `response_format` (or `json_schema`) hit `.get()` first and
+    escaped raw with `status: None` -- the same class one structural level up.
+    """
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_openai_completions(json_data)
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "json_data,expected_field",
+    [
+        ({"model": "inspect", "text": "keep it short"}, "text"),
+        ({"model": "inspect", "text": {"format": "json_schema"}}, "text.format"),
+    ],
+)
+def test_openai_responses_non_object_container_is_rejected_not_raised(
+    json_data: dict[str, Any], expected_field: str
+):
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_openai_responses(json_data)
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "json_data,expected_field",
+    [
+        ({"model": "inspect", "thinking": "enabled"}, "thinking"),
+        ({"model": "inspect", "output_config": "high"}, "output_config"),
+        (
+            {"model": "inspect", "output_config": {"format": "json"}},
+            "output_config.format",
+        ),
+        ({"model": "inspect", "tool_choice": "auto"}, "tool_choice"),
+    ],
+)
+def test_anthropic_non_object_container_is_rejected_not_raised(
+    json_data: dict[str, Any], expected_field: str
+):
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_anthropic(json_data)
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+def test_anthropic_null_containers_fall_back_to_defaults():
+    """Explicit nulls mean "not set", not a 400 (matching the real API)."""
+    config = generate_config_from_anthropic(
+        {
+            "model": "inspect",
+            "thinking": None,
+            "output_config": None,
+            "tool_choice": None,
+        }
+    )
+    assert config == GenerateConfig()
+
+
+def test_validation_error_400_omits_empty_field_path():
+    """No dangling separator for a top-level type failure.
+
+    A top-level type failure has an empty `loc`; the 400 message must not
+    render a double colon (`responseJsonSchema: : Input should be ...`).
+    """
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_google({"responseJsonSchema": "x"})
+    assert ": :" not in str(ex.value)
+    assert "responseJsonSchema: Input should be" in str(ex.value)
+
+
+@pytest.mark.parametrize("generation_config", ["json", ["json"], 5])
+def test_google_non_object_generation_config_is_rejected_not_raised(
+    generation_config: Any,
+):
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_google(generation_config)
+    assert "generationConfig" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+def test_google_null_generation_config_falls_back_to_defaults():
+    """An explicit `generationConfig: null` means "no config", not a 400.
+
+    `client_request_object` passes None through, so the extractor must treat
+    it like an absent config rather than dereferencing it.
+    """
+    config = generate_config_from_google(None)
+    assert config == GenerateConfig()
+
+
+def test_google_openapi_schema_does_not_warn_on_gemini_keywords(_warn_once_messages):
+    """Gemini's own `responseSchema` keywords must not trigger the warning.
+
+    `nullable` and `propertyOrdering` are documented Gemini OpenAPI-style Schema
+    keywords -- the google-genai SDK emits them for any Optional pydantic field --
+    so warning that the request was weakened would misread routine requests.
+    (The keywords are still dropped; that predates the 400 routing.)
+    """
+    config = generate_config_from_google(
+        {
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {
+                    "name": {"type": "STRING", "nullable": True, "example": "Ada"}
+                },
+                "propertyOrdering": ["name"],
+            }
+        }
+    )
+    assert config.response_schema is not None
+    assert config.response_schema.json_schema.type == "object"
+    assert _warn_once_messages == []
+
+
+def test_google_openapi_schema_still_warns_on_shared_constraints(_warn_once_messages):
+    """Constraints Gemini's dialect shares with JSON Schema still warn when dropped.
+
+    `minItems`/`maxItems` are valid Gemini OpenAPI-style Schema keywords that
+    Inspect does not model, so dropping them genuinely weakens the request --
+    the dialect-keyword allowance must not silence that.
+    """
+    config = generate_config_from_google(
+        {
+            "responseSchema": {
+                "type": "ARRAY",
+                "items": {"type": "STRING", "nullable": True},
+                "minItems": 1,
+            }
+        }
+    )
+    assert config.response_schema is not None
+    assert len(_warn_once_messages) == 1
+    assert "responseSchema" in _warn_once_messages[0]
+    assert "minItems" in _warn_once_messages[0]
+    assert "nullable" not in _warn_once_messages[0]
+
+
+def test_google_json_schema_still_warns_on_dropped_keywords(_warn_once_messages):
+    config = generate_config_from_google(
+        {
+            "responseJsonSchema": {
+                "type": "object",
+                "properties": {"a": {"$ref": "#/$defs/A"}},
+                "$defs": {"A": {"type": "string"}},
+            }
+        }
+    )
+    assert config.response_schema is not None
+    assert len(_warn_once_messages) == 1
+    assert "responseJsonSchema" in _warn_once_messages[0]
+    assert "$ref" in _warn_once_messages[0]
+
+
+def test_openai_completions_schema_warning_names_dialect_field(_warn_once_messages):
+    """The dropped-keyword warning must name the OpenAI request field.
+
+    Pydantic-generated schemas (`$defs`/`$ref`) are most common on OpenAI
+    structured-output clients, so the diagnosability the warning provides on the
+    Anthropic path matters at least as much here.
+    """
+    config = generate_config_from_openai_completions(
+        {
+            "model": "inspect",
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "n",
+                    "schema": {
+                        "type": "object",
+                        "properties": {"a": {"$ref": "#/$defs/A"}},
+                        "$defs": {"A": {"type": "string"}},
+                    },
+                },
+            },
+        }
+    )
+    assert config.response_schema is not None
+    assert len(_warn_once_messages) == 1
+    assert "response_format.json_schema.schema" in _warn_once_messages[0]
+    assert "$ref" in _warn_once_messages[0]
