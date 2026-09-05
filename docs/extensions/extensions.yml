@@ -200,6 +200,13 @@
   author: "[b7n0de](https://b7n0de.com)"
   categories: ["Analysis"]
 
+- name: "[Corrlog for Inspect](https://github.com/SaInT8888888888/corrlog)"
+  description: |
+    Emits signed Agent Correction Records on INCORRECT eval scores via Inspect hooks —
+    Ed25519, hash-chained, key-pinned receipts evidencing caught agent failures, verifiable offline.
+  author: "[SaInT8888888888](https://github.com/SaInT8888888888)"
+  categories: ["Analysis"]
+
 - name: "[Inspect LogitTilt](https://adrskapars.github.io/inspect_logittilt/)"
   description: |
     Steers a model's sampling towards any target behaviour, surfacing on-policy
