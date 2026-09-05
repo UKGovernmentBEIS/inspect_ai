@@ -2021,12 +2021,6 @@
       "undescribed": 5
     }
   },
-  "tests/util/test_zipfile_multiframe.py": {
-    "noqa:F401": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "tests/view/test_openapi_schema_generation.py": {
     "type: ignore[valid-type]": {
       "count": 5,
