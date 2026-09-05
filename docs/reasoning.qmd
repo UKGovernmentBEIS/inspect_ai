@@ -33,6 +33,10 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 | `minimal` / `low` / `medium` / `high` / `xhigh` | identical                                    |
 | `max`                                           | `max` on GPT-5.6+; `xhigh` on earlier models |
 
+GPT-5.5 and later reason at the server default effort when `reasoning_effort` is not set, and in that state the API rejects `temperature`, `top_p`, and `logprobs`. Inspect drops those options with a warning; pass `reasoning_effort="none"` to disable reasoning and have them sent.
+
+GPT-6 Astra always reasons: it accepts `low` through `max` only, and the API rejects `none` and `minimal` with an error. It also rejects `temperature`, `top_p`, and `logprobs`, so Inspect drops those options with a warning for GPT-6 models.
+
 Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
 #### Anthropic Claude 4.6+ and Claude 5
