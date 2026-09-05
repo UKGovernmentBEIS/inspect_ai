@@ -283,7 +283,7 @@ class ExecRemoteProcess:
             else self._options.poll_timeout,
             # Run the CLI wrapper as the same user that started the server.
             # When root is available, this is "root" (needed to access the
-            # protected server directory at /tmp/sandbox-tools/, mode 0o700).
+            # server's private state directory inside the 0700 tools tree).
             # When root isn't available, this is None (sandbox default user).
             user=self._sandbox._tools_user,
             concurrency=self._options.concurrency,

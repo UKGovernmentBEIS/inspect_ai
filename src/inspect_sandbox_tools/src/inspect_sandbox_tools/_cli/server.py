@@ -4,7 +4,6 @@ import json
 import os
 import signal
 import socket
-import stat
 import sys
 
 from aiohttp.web import Application, Request, Response, run_app
@@ -16,6 +15,9 @@ from inspect_sandbox_tools._util.constants import (
     SERVER_PID_PATH,
     SHUTDOWN_STATUS_PATH,
     SOCKET_PATH,
+    ensure_private_server_dir,
+    read_private_text,
+    write_private_text,
 )
 from inspect_sandbox_tools._util.load_tools import load_tools
 
@@ -99,8 +101,8 @@ async def _cleanup_remote_resources(_app: Application) -> None:
 
 
 def _write_shutdown_status() -> None:
-    _SHUTDOWN_STATUS_TMP_PATH.write_text(
-        json.dumps({"errors": _shutdown_errors}) + "\n"
+    write_private_text(
+        _SHUTDOWN_STATUS_TMP_PATH, json.dumps({"errors": _shutdown_errors}) + "\n"
     )
     _SHUTDOWN_STATUS_TMP_PATH.replace(SHUTDOWN_STATUS_PATH)
 
@@ -109,23 +111,8 @@ def _prepare_socket_parent() -> None:
     """Create a verified private parent for only the long-path socket fallback."""
     if SOCKET_PATH.parent == SERVER_DIR:
         return
-
-    try:
-        status = SOCKET_PATH.parent.lstat()
-    except FileNotFoundError:
-        try:
-            SOCKET_PATH.parent.mkdir(mode=0o700)
-        except FileExistsError:
-            # Another long-path sample created the shared per-user directory.
-            pass
-        status = SOCKET_PATH.parent.lstat()
-
-    if not stat.S_ISDIR(status.st_mode) or status.st_uid != os.getuid():
-        raise RuntimeError(
-            f"Unsafe sandbox-tools socket directory: {SOCKET_PATH.parent}"
-        )
-
-    os.chmod(SOCKET_PATH.parent, 0o700)
+    # Shared per-user directory: another long-path sample may have created it.
+    ensure_private_server_dir(SOCKET_PATH.parent)
 
 
 def main() -> None:
@@ -138,12 +125,7 @@ def main() -> None:
     os.environ.pop(SERVER_DIR_ENV, None)
     load_tools("inspect_sandbox_tools._remote_tools")
 
-    # Create server directory with permissions based on privilege level.
-    # Root: 0o700 prevents the agent from accessing socket/logs.
-    # Non-root: 0o777 allows any user (no privilege to escalate anyway).
-    directory_mode = 0o700 if os.getuid() == 0 else 0o777
-    SERVER_DIR.mkdir(exist_ok=True)
-    os.chmod(SERVER_DIR, directory_mode)
+    ensure_private_server_dir(SERVER_DIR)
     _prepare_socket_parent()
 
     # Remove stale socket file
@@ -161,12 +143,20 @@ def main() -> None:
     app.router.add_post("/", handle_request)
     app.on_cleanup.append(_cleanup_remote_resources)
 
-    # When non-root, use permissive umask so any user can connect to the socket.
-    # When root, directory permissions (0o700) already block unauthorized access.
-    old_umask = os.umask(0o111)
+    # The only client is the CLI wrapper, which runs as this server's user. The
+    # 0700 directory already keeps other users out; a restrictive umask also keeps
+    # the socket itself from being connectable should the directory be loosened.
+    old_umask = os.umask(0o077)
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.bind(str(SOCKET_PATH))
+    except OSError as ex:
+        # The filesystem holding the tools tree may not support Unix sockets;
+        # a bare errno gives the CLI's "exited immediately" report no context.
+        raise RuntimeError(
+            f"Cannot bind sandbox-tools server socket {SOCKET_PATH}: "
+            f"{ex.strerror or ex}"
+        ) from ex
     finally:
         os.umask(old_umask)
 
@@ -176,14 +166,29 @@ def main() -> None:
         SOCKET_PATH.unlink(missing_ok=True)
         # Publish completion before removing the PID file so stop-server cannot
         # mistake a clean exit for a crashed daemon in the intervening instant.
-        if _shutdown_complete:
-            _write_shutdown_status()
+        # If publishing itself fails, the PID file must still go, or stop-server
+        # waits out its full status timeout; the cleanup errors then survive
+        # only in the stderr log (_cleanup_remote_resources printed them).
         try:
-            server_pid = json.loads(SERVER_PID_PATH.read_text()).get("pid")
-        except (FileNotFoundError, json.JSONDecodeError):
-            server_pid = None
-        if server_pid == os.getpid():
-            SERVER_PID_PATH.unlink(missing_ok=True)
+            if _shutdown_complete:
+                _write_shutdown_status()
+        finally:
+            _remove_own_pid_file()
+
+
+def _remove_own_pid_file() -> None:
+    """Best-effort removal of a PID file that names this process.
+
+    An unreadable or malformed file is left alone: this runs during shutdown,
+    where raising would mask the real exit reason. The CLI, which acts on the
+    file's contents, is the place that reports such a file.
+    """
+    try:
+        server_pid = json.loads(read_private_text(SERVER_PID_PATH)).get("pid")
+    except (FileNotFoundError, json.JSONDecodeError, RuntimeError, AttributeError):
+        server_pid = None
+    if server_pid == os.getpid():
+        SERVER_PID_PATH.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

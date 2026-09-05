@@ -1,4 +1,5 @@
 import asyncio
+import fcntl
 import json
 import os
 import re
@@ -8,9 +9,11 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import psutil
 import pytest
@@ -25,7 +28,14 @@ from inspect_sandbox_tools._remote_tools._exec_remote import (
     json_rpc_methods as exec_remote_methods,
 )
 from inspect_sandbox_tools._remote_tools._mcp import json_rpc_methods as mcp_methods
-from inspect_sandbox_tools._util.constants import server_socket_path
+from inspect_sandbox_tools._util.constants import (
+    ensure_private_server_dir,
+    open_private_append,
+    read_private_text,
+    resolve_server_dir,
+    server_socket_path,
+    write_private_text,
+)
 
 SERVER_DIR_ENV = "INSPECT_SANDBOX_TOOLS_DIR"
 
@@ -123,6 +133,32 @@ def _server_pid_for_cwd(cwd: Path) -> int:
     return matches[0]
 
 
+def test_resolve_server_dir_prefers_host_override_then_install_tree(
+    tmp_path: Path,
+) -> None:
+    launcher = tmp_path / "tools" / "inspect-sandbox-tools"
+    launcher.parent.mkdir()
+    launcher.write_text("")
+    override = {SERVER_DIR_ENV: str(tmp_path / "per-sample")}
+
+    # The host's directory wins even for a frozen bundle: the local sandbox
+    # relies on it for per-sample isolation.
+    assert resolve_server_dir(override, True, str(launcher)) == tmp_path / "per-sample"
+    assert resolve_server_dir(override, False, str(launcher)) == tmp_path / "per-sample"
+
+    assert resolve_server_dir({}, True, str(launcher)) == tmp_path / "tools" / ".server"
+    assert resolve_server_dir({SERVER_DIR_ENV: ""}, True, str(launcher)) == (
+        tmp_path / "tools" / ".server"
+    )
+    link = tmp_path / "launcher-link"
+    link.symlink_to(launcher)
+    assert resolve_server_dir({}, True, str(link)) == tmp_path / "tools" / ".server"
+
+    assert resolve_server_dir({}, False, str(launcher)) == (
+        Path(tempfile.gettempdir()) / "sandbox-tools"
+    )
+
+
 def test_server_socket_path_uses_private_directory_unless_it_is_too_long() -> None:
     short_server_dir = Path("/tmp/sample/sandbox-tools")
     server_dir = Path("/private/var/folders/" + "segment/" * 40 + "sandbox-tools")
@@ -205,11 +241,404 @@ def test_prepare_socket_parent_rejects_unsafe_long_path_fallback(
         fallback_dir.write_text("not a directory")
     else:
         fallback_dir.mkdir()
-        current_uid = os.getuid()
-        monkeypatch.setattr(server_module.os, "getuid", lambda: current_uid + 1)
+        current_uid = os.geteuid()
+        monkeypatch.setattr(os, "geteuid", lambda: current_uid + 1)
 
-    with pytest.raises(RuntimeError, match="Unsafe sandbox-tools socket directory"):
+    with pytest.raises(RuntimeError, match="cannot be trusted"):
         server_module._prepare_socket_parent()
+
+
+def test_ensure_private_server_dir_creates_and_reuses_private_directory(
+    tmp_path: Path,
+) -> None:
+    server_dir = tmp_path / "sandbox-tools"
+
+    ensure_private_server_dir(server_dir)
+    (server_dir / "server.pid").write_text("{}")
+    ensure_private_server_dir(server_dir)
+
+    assert server_dir.is_dir() and not server_dir.is_symlink()
+    assert server_dir.stat().st_mode & 0o777 == 0o700
+    assert (server_dir / "server.pid").exists()
+
+
+@pytest.mark.parametrize("legacy_mode", (0o755, 0o777))
+def test_ensure_private_server_dir_tightens_legacy_rootless_directory(
+    tmp_path: Path, legacy_mode: int
+) -> None:
+    server_dir = tmp_path / "sandbox-tools"
+    server_dir.mkdir()
+    os.chmod(server_dir, legacy_mode)
+
+    ensure_private_server_dir(server_dir)
+
+    assert server_dir.stat().st_mode & 0o777 == 0o700
+
+
+def test_ensure_private_server_dir_without_create_requires_existing_directory(
+    tmp_path: Path,
+) -> None:
+    server_dir = tmp_path / "sandbox-tools"
+
+    with pytest.raises(FileNotFoundError):
+        ensure_private_server_dir(server_dir, create=False)
+    assert not server_dir.exists()
+
+    server_dir.mkdir()
+    os.chmod(server_dir, 0o755)
+    ensure_private_server_dir(server_dir, create=False)
+    assert server_dir.stat().st_mode & 0o777 == 0o700
+
+
+@pytest.fixture
+def restrictive_umask(tmp_path: Path) -> Generator[None, None, None]:
+    """Mask every owner bit, as a hostile inherited umask would.
+
+    Depends on ``tmp_path`` so pytest creates the temp directory first.
+    """
+    old_umask = os.umask(0o777)
+    try:
+        yield
+    finally:
+        os.umask(old_umask)
+
+
+@pytest.mark.usefixtures("restrictive_umask")
+def test_ensure_private_server_dir_ignores_inherited_umask(tmp_path: Path) -> None:
+    server_dir = tmp_path / "sandbox-tools"
+
+    ensure_private_server_dir(server_dir)
+
+    assert server_dir.stat().st_mode & 0o777 == 0o700
+
+
+@pytest.mark.usefixtures("restrictive_umask")
+def test_private_files_stay_usable_under_inherited_umask(tmp_path: Path) -> None:
+    lock_path = tmp_path / "server-start.lock"
+    with open_private_append(lock_path):
+        pass
+    with open_private_append(lock_path) as lock_file:
+        lock_file.write("x")
+    assert lock_path.stat().st_mode & 0o777 == 0o600
+
+    write_private_text(tmp_path / "server.pid", "{}")
+    assert (tmp_path / "server.pid").stat().st_mode & 0o777 == 0o600
+
+
+def test_ensure_private_server_dir_requires_existing_parent(tmp_path: Path) -> None:
+    server_dir = tmp_path / "missing-parent" / "sandbox-tools"
+
+    with pytest.raises(
+        RuntimeError, match=re.escape(f"{server_dir} cannot be created")
+    ):
+        ensure_private_server_dir(server_dir)
+
+    assert not server_dir.parent.exists()
+
+
+@pytest.mark.parametrize(
+    "planted",
+    (
+        "symlink",
+        "dangling_symlink",
+        "file",
+        "foreign_owner",
+        "foreign_unenterable",
+        "owned_unenterable",
+    ),
+)
+def test_ensure_private_server_dir_rejects_planted_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, planted: str
+) -> None:
+    server_dir = tmp_path / "sandbox-tools"
+    current_uid = os.geteuid()
+    if planted == "symlink":
+        target = tmp_path / "target"
+        target.mkdir()
+        server_dir.symlink_to(target, target_is_directory=True)
+        reason = "it is a symbolic link"
+    elif planted == "dangling_symlink":
+        server_dir.symlink_to(tmp_path / "missing")
+        reason = "it is a symbolic link"
+    elif planted == "file":
+        server_dir.write_text("not a directory")
+        reason = "it is not a directory"
+    elif planted == "foreign_owner":
+        server_dir.mkdir()
+        os.chmod(server_dir, 0o777)
+        monkeypatch.setattr(os, "geteuid", lambda: current_uid + 1)
+        reason = f"it is owned by uid {current_uid}, not uid {current_uid + 1}"
+    else:
+        if current_uid == 0:
+            pytest.skip("root is not subject to directory modes")
+        server_dir.mkdir()
+        os.chmod(server_dir, 0o000)
+        if planted == "foreign_unenterable":
+            monkeypatch.setattr(os, "geteuid", lambda: current_uid + 1)
+        reason = f"it is owned by uid {current_uid} with mode 0000 and cannot be opened"
+
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match=re.escape(
+                f"Sandbox-tools server directory {server_dir} cannot be trusted: "
+                f"{reason}"
+            ),
+        ):
+            ensure_private_server_dir(server_dir)
+
+        # The planted entry is left exactly as found.
+        if planted == "symlink":
+            assert server_dir.is_symlink() and not any(target.iterdir())
+        elif planted == "dangling_symlink":
+            assert server_dir.is_symlink() and not server_dir.exists()
+        elif planted == "file":
+            assert server_dir.read_text() == "not a directory"
+        elif planted == "foreign_owner":
+            assert server_dir.lstat().st_mode & 0o777 == 0o777
+        else:
+            assert server_dir.lstat().st_mode & 0o777 == 0o000
+    finally:
+        if planted.endswith("unenterable"):
+            os.chmod(server_dir, 0o700)
+
+
+def test_open_private_append_refuses_symlinked_control_file(tmp_path: Path) -> None:
+    victim = tmp_path / "victim"
+    victim.write_text("")
+    log_path = tmp_path / "server-stdout.log"
+    log_path.symlink_to(victim)
+
+    with pytest.raises(RuntimeError, match="is a symbolic link"):
+        open_private_append(log_path)
+
+    with open_private_append(tmp_path / "fresh.log") as file:
+        file.write("line\n")
+    assert (tmp_path / "fresh.log").stat().st_mode & 0o077 == 0
+    assert victim.read_text() == ""
+
+
+def _run_with_hang_guard(action: Callable[[], object], timeout: float = 5) -> None:
+    """Run ``action`` and fail the test if it blocks instead of returning.
+
+    A regression here would block in ``open()`` forever, so the call runs in a
+    daemon thread and the test fails on timeout rather than wedging the worker.
+    """
+    outcome: list[BaseException | None] = []
+
+    def target() -> None:
+        try:
+            action()
+            outcome.append(None)
+        except BaseException as ex:
+            outcome.append(ex)
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        pytest.fail("private file open blocked instead of returning")
+    if outcome[0] is not None:
+        raise outcome[0]
+
+
+@pytest.mark.parametrize("planted", ("fifo", "directory"))
+@pytest.mark.parametrize(
+    "helper",
+    (
+        pytest.param(lambda p: read_private_text(p), id="read"),
+        pytest.param(lambda p: write_private_text(p, "{}"), id="write"),
+        pytest.param(lambda p: open_private_append(p).close(), id="append"),
+    ),
+)
+def test_private_file_helpers_refuse_non_regular_files(
+    tmp_path: Path, planted: str, helper: Callable[[Path], object]
+) -> None:
+    control_path = tmp_path / "server.pid"
+    if planted == "fifo":
+        os.mkfifo(control_path)
+    else:
+        control_path.mkdir()
+
+    with pytest.raises(RuntimeError, match="is not a regular file"):
+        _run_with_hang_guard(lambda: helper(control_path))
+
+
+def test_open_private_append_clears_nonblocking_flag(tmp_path: Path) -> None:
+    with open_private_append(tmp_path / "server-start.lock") as lock_file:
+        status_flags = fcntl.fcntl(lock_file.fileno(), fcntl.F_GETFL)
+    assert status_flags & os.O_NONBLOCK == 0
+
+
+def test_write_private_text_refuses_symlinked_control_file(tmp_path: Path) -> None:
+    victim = tmp_path / "victim"
+    victim.write_text("keep")
+    pid_path = tmp_path / "server.pid"
+    pid_path.symlink_to(victim)
+
+    with pytest.raises(RuntimeError, match="is a symbolic link"):
+        write_private_text(pid_path, "{}")
+
+    assert victim.read_text() == "keep"
+    write_private_text(tmp_path / "fresh.pid", "{}")
+    assert (tmp_path / "fresh.pid").stat().st_mode & 0o077 == 0
+
+
+def test_read_server_logs_reports_symlinked_log_instead_of_raising(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stdout_log = tmp_path / "server-stdout.log"
+    stdout_log.symlink_to(tmp_path / "victim")
+    stderr_log = tmp_path / "server-stderr.log"
+    stderr_log.write_text("boom\n")
+    monkeypatch.setattr(main_module, "_SERVER_STDOUT_LOG", stdout_log)
+    monkeypatch.setattr(main_module, "_SERVER_STDERR_LOG", stderr_log)
+
+    logs = main_module._read_server_logs()
+
+    assert "is a symbolic link" in logs
+    assert "[stderr] boom" in logs
+
+
+def test_server_process_metadata_refuses_symlinked_pid_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    victim = tmp_path / "victim.json"
+    victim.write_text(json.dumps({"pid": os.getpid(), "created_at": 1.0}))
+    pid_path = tmp_path / "server.pid"
+    pid_path.symlink_to(victim)
+    monkeypatch.setattr(main_module, "SERVER_PID_PATH", pid_path)
+
+    with pytest.raises(RuntimeError, match="is a symbolic link"):
+        main_module._server_process_metadata()
+
+
+class _PlantedSymlink(NamedTuple):
+    link: Path
+    target: Path
+
+
+def _plant_symlinked_server_dir(tmp_path: Path) -> _PlantedSymlink:
+    target = tmp_path / "target"
+    target.mkdir()
+    link = tmp_path / "sandbox-tools"
+    link.symlink_to(target, target_is_directory=True)
+    return _PlantedSymlink(link, target)
+
+
+def test_ensure_server_is_running_refuses_planted_server_dir_before_locking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server_dir, target = _plant_symlinked_server_dir(tmp_path)
+    monkeypatch.setattr(main_module, "SERVER_DIR", server_dir)
+    monkeypatch.setattr(
+        main_module, "_SERVER_START_LOCK_PATH", server_dir / "server-start.lock"
+    )
+    monkeypatch.setattr(
+        main_module,
+        "_ensure_server_is_running_locked",
+        lambda: pytest.fail("server start proceeded inside a planted directory"),
+    )
+
+    with pytest.raises(RuntimeError, match="cannot be trusted: it is a symbolic link"):
+        main_module._ensure_server_is_running()
+
+    assert not any(target.iterdir())
+
+
+def test_ensure_server_is_running_refuses_planted_socket_fallback_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server_dir = tmp_path / "server-dir"
+    fallback_dir, target = _plant_symlinked_server_dir(tmp_path)
+    monkeypatch.setattr(main_module, "SERVER_DIR", server_dir)
+    monkeypatch.setattr(main_module, "SOCKET_PATH", fallback_dir / "server.sock")
+    monkeypatch.setattr(
+        main_module, "_SERVER_START_LOCK_PATH", server_dir / "server-start.lock"
+    )
+    monkeypatch.setattr(
+        main_module,
+        "_ensure_server_is_running_locked",
+        lambda: pytest.fail("server start proceeded with a planted socket directory"),
+    )
+
+    with pytest.raises(RuntimeError, match="cannot be trusted: it is a symbolic link"):
+        main_module._ensure_server_is_running()
+
+    assert server_dir.stat().st_mode & 0o777 == 0o700
+    assert not any(target.iterdir())
+
+
+@pytest.mark.asyncio
+async def test_stop_server_refuses_planted_server_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server_dir, target = _plant_symlinked_server_dir(tmp_path)
+    monkeypatch.setattr(main_module, "SERVER_DIR", server_dir)
+    monkeypatch.setattr(
+        main_module,
+        "_can_connect_to_socket",
+        lambda: pytest.fail("stop-server probed a socket in a planted directory"),
+    )
+
+    with pytest.raises(RuntimeError, match="cannot be trusted: it is a symbolic link"):
+        await main_module._stop_server()
+
+    assert not any(target.iterdir())
+
+
+def test_server_main_refuses_planted_server_dir_before_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server_dir, target = _plant_symlinked_server_dir(tmp_path)
+    monkeypatch.setattr(server_module, "SERVER_DIR", server_dir)
+    monkeypatch.setattr(server_module, "SOCKET_PATH", server_dir / "sandbox-tools.sock")
+
+    with pytest.raises(RuntimeError, match="cannot be trusted: it is a symbolic link"):
+        server_module.main()
+
+    assert not any(target.iterdir())
+
+
+def test_start_server_cli_refuses_planted_server_dir() -> None:
+    test_root = Path(tempfile.mkdtemp(prefix="ist-planted-dir-"))
+    try:
+        server_dir, target = _plant_symlinked_server_dir(test_root)
+
+        result = _run_cli(
+            "start-server", server_dir=server_dir, cwd=test_root, check=False
+        )
+
+        assert result.returncode != 0
+        assert (
+            f"Sandbox-tools server directory {server_dir} cannot be trusted: "
+            "it is a symbolic link"
+        ) in result.stderr
+        assert not any(target.iterdir())
+        assert not server_socket_path(server_dir).exists()
+    finally:
+        shutil.rmtree(test_root, ignore_errors=True)
+
+
+@pytest.mark.usefixtures("sandbox_server_cleanup")
+def test_started_server_state_is_private_to_its_user() -> None:
+    test_root = Path(tempfile.mkdtemp(prefix="ist-private-state-"))
+    server_dir = test_root / "sandbox-tools"
+    try:
+        _run_cli("start-server", server_dir=server_dir, cwd=test_root)
+
+        assert server_dir.stat().st_mode & 0o777 == 0o700
+        assert server_socket_path(server_dir).lstat().st_mode & 0o077 == 0
+        for name in (
+            "server.pid",
+            "server-start.lock",
+            "server-stdout.log",
+            "server-stderr.log",
+        ):
+            assert (server_dir / name).stat().st_mode & 0o077 == 0, name
+    finally:
+        _run_cli("stop-server", server_dir=server_dir, cwd=test_root, check=False)
+        shutil.rmtree(test_root, ignore_errors=True)
 
 
 @pytest.mark.usefixtures("sandbox_server_cleanup")
@@ -220,6 +649,7 @@ def test_stop_server_without_running_server_is_idempotent() -> None:
         _run_cli("stop-server", server_dir=server_dir, cwd=test_root)
         _run_cli("stop-server", server_dir=server_dir, cwd=test_root)
         assert not server_socket_path(server_dir).exists()
+        assert not server_dir.exists()
         assert not (server_dir / "shutdown-status.json").exists()
     finally:
         shutil.rmtree(test_root, ignore_errors=True)
@@ -616,6 +1046,7 @@ async def test_stop_server_waits_for_starting_daemon(
         status_path.write_text('{"errors": []}')
         return '{"jsonrpc":"2.0","result":null,"id":668}'
 
+    monkeypatch.setattr(main_module, "SERVER_DIR", tmp_path)
     monkeypatch.setattr(main_module, "SOCKET_PATH", socket_path)
     monkeypatch.setattr(main_module, "SHUTDOWN_STATUS_PATH", status_path)
     monkeypatch.setattr(main_module, "SERVER_PID_PATH", pid_path)
@@ -645,9 +1076,14 @@ async def test_stop_server_ignores_connection_loss_after_socket_probe(
     socket_path.touch()
     pid_path.write_text('{"pid": 99, "created_at": 1.0}')
 
+    shutdown_calls = 0
+
     async def shutdown_call(_socket: str, _request: str) -> str:
+        nonlocal shutdown_calls
+        shutdown_calls += 1
         raise ClientConnectionError("server stopped")
 
+    monkeypatch.setattr(main_module, "SERVER_DIR", tmp_path)
     monkeypatch.setattr(main_module, "SOCKET_PATH", socket_path)
     monkeypatch.setattr(main_module, "SHUTDOWN_STATUS_PATH", status_path)
     monkeypatch.setattr(main_module, "SERVER_PID_PATH", pid_path)
@@ -657,8 +1093,58 @@ async def test_stop_server_ignores_connection_loss_after_socket_probe(
 
     await main_module._stop_server()
 
+    assert shutdown_calls == 1
     assert not socket_path.exists()
     assert not pid_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_stop_server_still_terminates_daemon_when_socket_fallback_dir_is_gone(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    server_dir = tmp_path / "server-dir"
+    server_dir.mkdir(mode=0o700)
+    pid_path = server_dir / "server.pid"
+    pid_path.write_text('{"pid": 99, "created_at": 1.0}')
+    terminated = False
+
+    async def wait_for_starting_server() -> bool:
+        nonlocal terminated
+        terminated = True
+        return False
+
+    monkeypatch.setattr(main_module, "SERVER_DIR", server_dir)
+    monkeypatch.setattr(main_module, "SOCKET_PATH", tmp_path / "missing" / "s.sock")
+    monkeypatch.setattr(main_module, "SHUTDOWN_STATUS_PATH", server_dir / "status")
+    monkeypatch.setattr(main_module, "SERVER_PID_PATH", pid_path)
+    monkeypatch.setattr(
+        main_module, "_wait_for_starting_server", wait_for_starting_server
+    )
+
+    await main_module._stop_server()
+
+    assert terminated
+    assert not pid_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_stop_server_without_server_dir_touches_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    stale_socket = tmp_path / "fallback" / "s.sock"
+    stale_socket.parent.mkdir()
+    stale_socket.touch()
+    monkeypatch.setattr(main_module, "SERVER_DIR", tmp_path / "missing-server-dir")
+    monkeypatch.setattr(main_module, "SOCKET_PATH", stale_socket)
+    monkeypatch.setattr(
+        main_module,
+        "_can_connect_to_socket",
+        lambda: pytest.fail("probed a socket with no server directory"),
+    )
+
+    await main_module._stop_server()
+
+    assert stale_socket.exists()
 
 
 @pytest.mark.asyncio
