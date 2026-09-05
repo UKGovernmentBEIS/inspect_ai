@@ -1,3 +1,5 @@
+from contextvars import ContextVar
+
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.pause import reset_task_pause_gates
@@ -19,6 +21,10 @@ from inspect_ai.model._model import (
 from inspect_ai.util._concurrency import init_concurrency
 from inspect_ai.util._input.manager import init_human_question_manager
 from inspect_ai.util._subprocess import init_max_subprocesses
+
+_eval_context_active: ContextVar[bool] = ContextVar(
+    "_eval_context_active", default=False
+)
 
 
 def init_runtime_context(
@@ -46,6 +52,20 @@ def init_eval_context(
     init_human_approval_manager()
     init_human_question_manager()
     set_background_task_group(task_group)
+    _eval_context_active.set(True)
+
+
+def have_eval_context() -> bool:
+    """Has `init_eval_context()` run in the current execution context?
+
+    Tracked with a `ContextVar` scoped to the current task tree: set by
+    `eval()` / the CLI before they spawn task groups (and therefore
+    inherited by sample and scorer tasks) and by `score_async()` when it
+    self-initializes. Not visible from sibling task trees, so a top-level
+    caller that skipped initialization is detected even in a process that
+    performed one before.
+    """
+    return _eval_context_active.get()
 
 
 def init_model_context(

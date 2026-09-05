@@ -410,6 +410,11 @@ def eval(
 _eval_async_running = False
 
 
+def eval_async_running() -> bool:
+    """Is a call to `eval_async()` currently executing in this process?"""
+    return _eval_async_running
+
+
 async def eval_async(
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
