@@ -2050,6 +2050,56 @@ or return ``None`` to allow default processing to continue.
 """
 
 
+ModelResponseFilter: TypeAlias = Callable[
+    [
+        Model,
+        ModelOutput,
+        list[ChatMessage],
+        list[ToolInfo],
+        ToolChoice | None,
+        GenerateConfig,
+    ],
+    Awaitable[ModelOutput | None],
+]
+"""Filter that can replace a model's output after generation.
+
+Called inside the bridge's refusal-retry loop, after ``model.generate()``
+returns and after the compaction baseline is updated from that call's
+actual usage. Receives the resolved ``Model``, a deep copy of the
+``ModelOutput`` returned by ``model.generate()``, and the same input arguments
+that were sent to the model.
+
+Return a ``ModelOutput`` to replace the response, or ``None`` to pass
+through the provider output unchanged. Mutations to the callback argument have
+no effect unless the callback returns that output. Returning an output with
+``stop_reason="content_filter"`` triggers a refusal retry (subject to
+``bridge.retry_refusals``); returning one with any other ``stop_reason``
+completes the turn.
+
+Note: mutations to the ``ModelOutput`` returned from the filter propagate into
+bridge state and into the assistant history sent to the model on subsequent
+turns. If a filter mutates ``output.message.tool_calls[*].arguments`` (for
+example, to rewrite tool inputs before execution), callers that want the model
+to see a consistent view across turns should apply a symmetric inverse mutation
+in the request ``filter`` so the assistant history visible to the model on the
+next turn matches what the model originally emitted. Filters that only
+substitute outputs without depending on cross-turn consistency do not need this
+symmetric setup.
+
+Recording: the ``ModelEvent`` emitted by ``model.generate()`` keeps the
+model's original output (it is evidence of what the model actually produced),
+while the filtered output is what enters bridge state and the conversation
+recorded on subsequent turns. When a filter replaces the response, the event
+and the adjacent conversation therefore differ, and nothing in the log marks
+the substitution.
+
+A filter is eval logic, not a passive observer of the model response: an
+exception raised from it propagates and fails the sample (attributed to the
+filter), on both the in-process and sandboxed bridge paths, rather than
+being reported to the scaffold as a model or provider error.
+"""
+
+
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
