@@ -421,7 +421,7 @@ What's missing for the eval-set scenarios:
 
 ### Subscription model for monitoring agents
 
-The one true *stream* is **per-sample transcript events** — fine-grained, sample-scoped, high-volume: the firehose of `model` / `tool` / `error` / `score` / … events sourced from a sample's `Transcript` (the same live subscription the ACP raw-event extension uses — see [Phase 2](#phase-2--per-sample-events--samples-deltas)). It's the one thing polling can't reconstruct, so it gets a real subscription, in two shapes by phase:
+The one true *stream* is **per-sample transcript events** — fine-grained, sample-scoped, high-volume: the firehose of `model` / `tool` / `error` / `score` / … events sourced from a sample's `Transcript` (the same live subscription the ACP raw-event extension uses — see [Phase 2](#phase-2--per-sample-events--samples-deltas-done)). It's the one thing polling can't reconstruct, so it gets a real subscription, in two shapes by phase:
 
 - **Pull (cursored) for agent clients** — *phase 2 (shipped)*: `GET /evals/<id>/sample/events?sample_id=<sid>&since=<cursor>`, returning a page plus a `next` cursor. Agent runtimes are request/response loops; SSE is awkward from a Bash tool call.
 - **Push (SSE) for TUIs and long-lived clients** — *phase 4*: the same URL with `Accept: text/event-stream`, reusing the phase-2 cursor (stamped per event) for resumable reconnect.
