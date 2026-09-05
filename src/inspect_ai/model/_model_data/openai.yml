@@ -476,5 +476,6 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
-      # no reasoning_effort_default: OpenAI's docs don't state a default for Astra
+      # not in OpenAI's docs; the API echoes reasoning.effort=medium when none is requested
+      reasoning_effort_default: medium
 

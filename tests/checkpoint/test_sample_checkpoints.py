@@ -6,8 +6,12 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     _read_restic_config,
+    checkpoint_file_id,
+    delete_sample_checkpoints_dir,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
     sample_checkpoints_dir,
@@ -255,3 +259,105 @@ async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
     assert checkpoint is not None
     assert checkpoint.checkpoint_id == 2
     assert checkpoint.trigger == "agent_complete"
+
+
+# -- resume resolution ---------------------------------------------------
+#
+# Detection looks only in a sample's own dir: the retry startup copy
+# replicated every sample dir from the retried attempt (whose log's
+# existence proves the copy completed), so a sample either has a
+# committed checkpoint here or runs fresh.
+
+
+async def _dir_with_checkpoint(root: Path, name: str) -> str:
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(root / f"{name}.checkpoints"), "s", 0
+    )
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1")
+        ),
+    )
+    return sample_dir
+
+
+async def test_scan_committed_checkpoint(tmp_path: Path) -> None:
+    """A dir with a committed checkpoint scans to that checkpoint."""
+    sample_dir = await _dir_with_checkpoint(tmp_path, "a")
+
+    checkpoint = await scan_latest_committed_checkpoint(sample_dir)
+
+    assert checkpoint is not None
+    assert checkpoint.checkpoint_id == 1
+
+
+async def test_scan_none_when_nothing_committed(tmp_path: Path) -> None:
+    """No committed checkpoint (empty or missing dir) → None (run fresh)."""
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "a.checkpoints"), "s", 0
+    )
+    assert await scan_latest_committed_checkpoint(sample_dir) is None
+    # missing dir behaves the same as an empty one
+    assert await scan_latest_committed_checkpoint(str(tmp_path / "missing")) is None
+
+
+def test_checkpoint_file_id() -> None:
+    assert checkpoint_file_id("ckpt-00007.json") == 7
+    assert checkpoint_file_id("ckpt-123456.json") == 123456
+    assert checkpoint_file_id("ckpt-foo.json") is None
+    assert checkpoint_file_id("ckpt-1_0.json") is None
+    assert checkpoint_file_id("ckpt-00007.tar.zst") is None
+    assert checkpoint_file_id("ckpt-00007.json.tmp") is None
+    assert checkpoint_file_id("restic-config.json") is None
+
+
+async def test_delete_sample_checkpoints_dir(tmp_path: Path) -> None:
+    """Removes the whole dir (invalidated sample); missing dir is a no-op."""
+    eval_dir = str(tmp_path / "a.checkpoints")
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s", 0)
+    (Path(sample_dir) / "restic" / "host").mkdir(parents=True)
+    (Path(sample_dir) / "restic" / "host" / "config").write_text("cfg")
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1")
+        ),
+    )
+
+    log_location = str(tmp_path / "a.eval")
+    await delete_sample_checkpoints_dir(eval_dir, "s", 0, log_location=log_location)
+
+    assert not Path(sample_dir).exists()
+    await delete_sample_checkpoints_dir(  # idempotent
+        eval_dir, "s", 0, log_location=log_location
+    )
+
+
+async def test_scan_torn_only_checkpoint_file_is_uncommitted(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dir whose only checkpoint file is torn holds nothing committed.
+
+    The sample runs fresh rather than resuming from an unindexed
+    snapshot, and the situation is logged since it should not pass
+    silently.
+    """
+    import importlib
+
+    # the package re-exports a function of the same name, which shadows the
+    # submodule attribute; resolve the module itself
+    module = importlib.import_module(
+        "inspect_ai.util._checkpoint._layout.sample_checkpoints_dir"
+    )
+
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "a.checkpoints"), "s", 0
+    )
+    (Path(sample_dir) / "ckpt-00001.json").write_text('{"checkpoint_id": 1, "torn')
+    module.logger.addHandler(caplog.handler)
+    try:
+        assert await scan_latest_committed_checkpoint(sample_dir) is None
+    finally:
+        module.logger.removeHandler(caplog.handler)
+    assert any("none parse" in r.getMessage() for r in caplog.records)

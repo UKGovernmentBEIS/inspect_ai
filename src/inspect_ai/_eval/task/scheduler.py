@@ -533,12 +533,20 @@ class SampleRequeue:
         )
 
     async def checkpoint_available(self, sample_id: str | int, epoch: int) -> bool:
-        """Whether the re-run would resume from an on-disk checkpoint."""
+        """Whether the re-run would resume from an on-disk checkpoint.
+
+        Resolves against the sample's own checkpoints dir the same way
+        the re-run does (`resolve_resume_checkpoint`), so the answer
+        matches what the requeue will actually do.
+        """
         if self._checkpoints_dir is None:
             return False
-        from inspect_ai.util._checkpoint._layout import has_sample_checkpoint
+        from inspect_ai.util._checkpoint.resume import resolve_resume_checkpoint
 
-        return await has_sample_checkpoint(self._checkpoints_dir, sample_id, epoch)
+        return (
+            await resolve_resume_checkpoint(self._checkpoints_dir, sample_id, epoch)
+            is not None
+        )
 
     def accept(
         self, prior: "EvalSample", prior_status: Literal["error", "cancelled"]

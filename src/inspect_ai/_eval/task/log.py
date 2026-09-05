@@ -455,6 +455,19 @@ class TaskLogger:
     def buffer_db(self) -> SampleBufferDatabase | None:
         return self._buffer_db
 
+    @property
+    def destination_written(self) -> bool:
+        """Whether anything has reached this attempt's destination log file.
+
+        A finished log was written by definition (``log_finish`` sets
+        ``_finished`` only after the recorder's final flush succeeded, and
+        the recorder stops tracking the eval at that point). Otherwise the
+        recorder reports whether any flush has landed.
+        """
+        if self._finished:
+            return True
+        return self.recorder.destination_written(self.eval)
+
     def hold_destination_writes(self) -> None:
         """Defer every destination write until the reuse sweep settles.
 
