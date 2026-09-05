@@ -141,6 +141,18 @@ def test_fallback_ignored_in_batch_mode(monkeypatch: pytest.MonkeyPatch) -> None
     assert any("Batches" in w for w in warnings)
 
 
+def test_client_fallback_ignored_in_batch_mode() -> None:
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+    config = GenerateConfig(
+        max_tokens=64,
+        batch=True,
+        extra_body={"fallbacks": [{"model": FALLBACK_MODEL}]},
+    )
+    _params, extra_body, _headers, betas = api.completion_config(config)
+    assert "fallbacks" not in extra_body
+    assert FALLBACK_BETA not in betas
+
+
 # ---------------------------------------------------------------------------
 # response side: detection, serving model, metadata, usage
 # ---------------------------------------------------------------------------
