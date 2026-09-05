@@ -76,11 +76,15 @@ async def sandbox_client(  # type: ignore
     read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
     write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
 
+    params: dict[str, object] = {"server_params": server.model_dump()}
+    if sandbox_environment._tools_default_user:
+        params["run_as"] = sandbox_environment._tools_default_user._asdict()
     session_id = await exec_scalar_request(
         method="mcp_launch_server",
-        params={"server_params": server.model_dump()},
+        params=params,
         result_type=int,
         transport=transport,
+        user=sandbox_environment._tools_user,
         error_mapper=SandboxToolsErrorMapper,
         timeout=timeout,
     )
@@ -114,6 +118,7 @@ async def sandbox_client(  # type: ignore
                                 },
                                 result_type=JSONRPC_MESSAGE_VALIDATOR,
                                 transport=transport,
+                                user=sandbox_environment._tools_user,
                                 error_mapper=SandboxToolsErrorMapper,
                                 timeout=timeout,
                             )
@@ -161,6 +166,7 @@ async def sandbox_client(  # type: ignore
                                     "notification": root.model_dump(),
                                 },
                                 transport=transport,
+                                user=sandbox_environment._tools_user,
                                 timeout=timeout,
                             )
                         except Exception as ex:
@@ -203,6 +209,7 @@ async def sandbox_client(  # type: ignore
                         params={"session_id": session_id},
                         result_type=type(None),
                         transport=transport,
+                        user=sandbox_environment._tools_user,
                         error_mapper=SandboxToolsErrorMapper,
                         timeout=_KILL_SERVER_TIMEOUT,
                     )

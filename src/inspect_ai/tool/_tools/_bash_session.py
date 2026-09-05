@@ -199,11 +199,14 @@ def bash_session(
         transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
 
         if not store.session_id:
+            params: dict[str, object] = {"user": user} if user else {}
+            if not user and sandbox._tools_default_user:
+                params["run_as"] = sandbox._tools_default_user._asdict()
             try:
                 store.session_id = (
                     await exec_model_request(
                         method="bash_session_new_session",
-                        params={"user": user} if user else {},
+                        params=params,
                         result_type=NewSessionResult,
                         transport=transport,
                         error_mapper=SandboxToolsErrorMapper,

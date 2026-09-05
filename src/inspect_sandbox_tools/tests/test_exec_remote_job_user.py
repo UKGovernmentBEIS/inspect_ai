@@ -2,10 +2,15 @@
 
 import asyncio
 import os
-from unittest.mock import MagicMock, patch
+import pwd
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from inspect_sandbox_tools._util.user_switch import make_preexec
+from inspect_sandbox_tools._util.user_switch import (
+    RunAs,
+    is_current_user,
+    make_preexec,
+)
 
 _OOM_PATCH = "inspect_sandbox_tools._util.user_switch.set_oom_score_adj"
 
@@ -83,6 +88,154 @@ class TestMakePreexec:
         with patch(_OOM_PATCH), pytest.raises(SystemExit):
             preexec()
         mock_exit.assert_called_once_with(1)
+
+
+class TestRunAs:
+    """Numeric identity (RunAs) switching shares the username plumbing."""
+
+    def test_preexec_switches_numeric_identity(self) -> None:
+        run_as = RunAs(uid=1000, gid=5, groups=[4, 20], home="/h")
+        with (
+            patch(_OOM_PATCH),
+            patch("os.setgroups") as mock_setgroups,
+            patch("os.setgid") as mock_setgid,
+            patch("os.setuid") as mock_setuid,
+        ):
+            make_preexec(run_as)()
+        mock_setgroups.assert_called_once_with([4, 20])
+        mock_setgid.assert_called_once_with(5)
+        mock_setuid.assert_called_once_with(1000)
+
+    async def test_current_uid_is_noop_without_root(self) -> None:
+        from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
+
+        run_as = RunAs(
+            uid=os.getuid(), gid=os.getgid(), groups=os.getgroups(), home="/nowhere"
+        )
+        job = await Job.create("echo hi", user=run_as, can_switch_user=False)
+        assert job.pid > 0
+        await job.kill(ack_seq=0)
+
+    def test_is_current_user_compares_full_identity(self) -> None:
+        me = RunAs(uid=os.getuid(), gid=os.getgid(), groups=os.getgroups(), home="/")
+        assert is_current_user(me)
+        assert is_current_user(me.model_copy(update={"groups": me.groups[::-1]}))
+        assert not is_current_user(me.model_copy(update={"uid": me.uid + 1}))
+        assert not is_current_user(me.model_copy(update={"gid": me.gid + 1}))
+        assert not is_current_user(me.model_copy(update={"groups": [*me.groups, 1]}))
+
+    def test_home_falls_back_to_passwd_when_unset(self) -> None:
+        from inspect_sandbox_tools._util.user_switch import get_home_dir
+
+        me = RunAs(uid=os.getuid(), gid=os.getgid(), groups=[], home=None)
+        assert get_home_dir(me) == pwd.getpwuid(os.getuid()).pw_dir
+        assert get_home_dir(me.model_copy(update={"home": ""})) == ""
+        assert get_home_dir(RunAs(uid=2**31 - 7, gid=0, groups=[], home=None)) == "/"
+
+    def test_preexec_claims_tty_before_switching(self) -> None:
+        run_as = RunAs(uid=1000, gid=5, groups=[], home="/h")
+        calls: list[str] = []
+        with (
+            patch(_OOM_PATCH),
+            patch("os.isatty", return_value=True),
+            patch("fcntl.ioctl", side_effect=lambda *a: calls.append("ioctl")),
+            patch("os.fchown", side_effect=lambda *a: calls.append(f"fchown{a}")),
+            patch("os.setgroups"),
+            patch("os.setgid"),
+            patch("os.setuid", side_effect=lambda *a: calls.append("setuid")),
+        ):
+            make_preexec(run_as)()
+        assert calls == ["ioctl", "fchown(0, 1000, 5)", "setuid"]
+
+    def test_preexec_skips_tty_claim_without_tty(self) -> None:
+        with (
+            patch(_OOM_PATCH),
+            patch("os.isatty", return_value=False),
+            patch("fcntl.ioctl") as mock_ioctl,
+            patch("os.fchown") as mock_fchown,
+            patch("os.setgroups"),
+            patch("os.setgid"),
+            patch("os.setuid"),
+        ):
+            make_preexec(RunAs(uid=1000, gid=5, groups=[], home="/h"))()
+        mock_ioctl.assert_not_called()
+        mock_fchown.assert_not_called()
+
+    async def test_other_uid_without_root_raises(self) -> None:
+        from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
+        from inspect_sandbox_tools._util.common_types import ToolException
+
+        run_as = RunAs(uid=os.getuid() + 1, gid=0, groups=[], home="/")
+        with pytest.raises(ToolException, match="Cannot switch to user"):
+            await Job.create("echo hi", user=run_as, can_switch_user=False)
+
+    async def test_sets_home_from_identity(self) -> None:
+        from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
+
+        run_as = RunAs(uid=os.getuid() + 1, gid=0, groups=[], home="/elsewhere")
+        with patch(
+            "asyncio.create_subprocess_shell", new_callable=AsyncMock
+        ) as mock_create:
+            mock_proc = MagicMock()
+            mock_proc.pid = 1234
+            mock_proc.stdout = None
+            mock_proc.stderr = None
+            mock_proc.stdin = None
+            mock_proc.returncode = None
+            mock_create.return_value = mock_proc
+
+            await Job.create("echo hi", user=run_as, can_switch_user=True)
+            _, kwargs = mock_create.call_args
+            assert kwargs["env"]["HOME"] == "/elsewhere"
+            assert kwargs["preexec_fn"] is not None
+
+            await Job.create(
+                "echo hi", env={"HOME": "/custom"}, user=run_as, can_switch_user=True
+            )
+            _, kwargs = mock_create.call_args
+            assert kwargs["env"]["HOME"] == "/custom"
+
+
+class TestMCPServerSessionUser:
+    """MCPServerSession.create() shares the Job user-switching plumbing."""
+
+    async def test_switches_user_and_sets_home(self) -> None:
+        from inspect_sandbox_tools._remote_tools._mcp.jsonrpc_types import (
+            StdioServerParameters,
+        )
+        from inspect_sandbox_tools._remote_tools._mcp.mcp_server_session import (
+            MCPServerSession,
+        )
+
+        run_as = RunAs(uid=os.getuid() + 1, gid=0, groups=[], home="/elsewhere")
+        with patch(
+            "asyncio.create_subprocess_exec", new_callable=AsyncMock
+        ) as mock_create:
+            mock_create.return_value = MagicMock(pid=1234, returncode=None)
+            for env, expected in [
+                ({"KEEP": "1"}, {"KEEP": "1", "HOME": "/elsewhere"}),
+                ({"HOME": "/custom"}, {"HOME": "/custom"}),
+            ]:
+                params = StdioServerParameters(command="srv", env=env)
+                await MCPServerSession.create(params, user=run_as, can_switch_user=True)
+                _, kwargs = mock_create.call_args
+                assert kwargs["env"] == expected
+                assert kwargs["preexec_fn"] is not None
+
+    async def test_other_user_without_root_raises(self) -> None:
+        from inspect_sandbox_tools._remote_tools._mcp.jsonrpc_types import (
+            StdioServerParameters,
+        )
+        from inspect_sandbox_tools._remote_tools._mcp.mcp_server_session import (
+            MCPServerSession,
+        )
+        from inspect_sandbox_tools._util.common_types import ToolException
+
+        run_as = RunAs(uid=os.getuid() + 1, gid=0, groups=[], home="/")
+        with pytest.raises(ToolException, match="Cannot switch to user"):
+            await MCPServerSession.create(
+                StdioServerParameters(command="srv"), user=run_as, can_switch_user=False
+            )
 
 
 class TestJobCreateHomeEnv:

@@ -9,6 +9,7 @@ async def test_bash_session_passes_effective_max_output_size(monkeypatch) -> Non
 
     class FakeSandbox:
         _tools_user = None
+        _tools_default_user = None
 
     class FakeTransport:
         def __init__(self, *args: Any, **kwargs: Any) -> None:

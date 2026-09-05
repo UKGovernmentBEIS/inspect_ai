@@ -125,6 +125,8 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
         # Pass user via reserved param for CLI-side setuid (in-process tool)
         if user is not None:
             params["_run_as_user"] = user
+        elif sandbox._tools_default_user:
+            params["_run_as"] = sandbox._tools_default_user._asdict()
 
         return await exec_scalar_request(
             method="text_editor",

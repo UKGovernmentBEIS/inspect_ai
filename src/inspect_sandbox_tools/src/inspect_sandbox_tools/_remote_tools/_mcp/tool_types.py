@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+from ..._util.user_switch import RunAs
 from .jsonrpc_types import JSONRPCNotification, JSONRPCRequest, StdioServerParameters
 
 
@@ -10,6 +11,8 @@ class McpBaseParams(BaseModel):
 
 class LaunchServerParams(BaseModel):
     server_params: StdioServerParameters
+    run_as: RunAs | None = None
+    """Sandbox default user to run the server as."""
 
 
 class KillServerParams(McpBaseParams):

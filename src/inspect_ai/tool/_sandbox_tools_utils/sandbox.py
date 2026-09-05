@@ -42,7 +42,10 @@ from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_with_injection,
 )
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.environment import (
+    SandboxDefaultUser,
+    SandboxEnvironment,
+)
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
@@ -176,10 +179,10 @@ async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
         )
         installed = await _tools_installed_as(sandbox, None)
         if installed and isinstance(ex, FrameworkDirectoryUserError):
-            _set_tools_user(sandbox, None)
+            await _set_tools_user(sandbox, None)
         return installed
     if installed:
-        _set_tools_user(sandbox, "root")
+        await _set_tools_user(sandbox, "root")
     return installed
 
 
@@ -196,10 +199,16 @@ def _without_sandbox_events(
     return nullcontext()
 
 
-def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
-    """Record which user the sandbox tools run as (``None`` = default user)."""
+async def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
+    """Record which user the sandbox tools run as (``None`` = default user).
+
+    With a root tools user, also capture the default exec identity so tool calls
+    without an explicit user can run as it (see ``_detect_default_user``).
+    """
+    default_user = await _detect_default_user(sandbox) if user == "root" else None
     sandbox._tools_user = user
     sandbox._tools_user_resolved = True
+    sandbox._tools_default_user = default_user
 
 
 def _expected_uid(user: str | None) -> int | None:
@@ -269,12 +278,12 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         # uid owns is tightened to 0700 rather than refused: older releases left
         # rootless installs at 0755 (on the host, for the `local` sandbox).
         if await _create_tools_dir_as_root(sandbox):
-            _set_tools_user(sandbox, "root")
+            await _set_tools_user(sandbox, "root")
         else:
             await ensure_framework_directory(
                 sandbox, SANDBOX_TOOLS_DIR, user=None, repair_mode=True
             )
-            _set_tools_user(sandbox, None)
+            await _set_tools_user(sandbox, None)
 
         await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)
 
@@ -302,6 +311,18 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         ) from e
 
 
+# Root is only useful if it can switch users; e.g. `cap_drop: [ALL]` leaves root
+# without CAP_SETGID/CAP_SETUID, and a user namespace may deny setgroups(), so the
+# tools must run as the default user instead. Prints CapEff then the setgroups mode.
+_ROOT_PROBE_CMD = (
+    'while read k v; do case "$k" in Uid:|CapEff:) echo "$k $v";; esac; done'
+    " < /proc/self/status;"
+    " if [ -e /proc/self/setgroups ]; then read s < /proc/self/setgroups; else s=allow; fi;"
+    ' echo "setgroups: $s"'
+)
+_SWITCH_USER_CAPS = (1 << 6) | (1 << 7)  # CAP_SETGID | CAP_SETUID
+
+
 async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     """Prepare the tools dir as root; False if the sandbox cannot exec as root.
 
@@ -317,6 +338,29 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     planted the entry decide which user the tools run as.
     """
     try:
+        probe = await sandbox.exec(["/bin/sh", "-c", _ROOT_PROBE_CMD], user="root")
+        fields = _fields(probe.stdout)
+        if not probe.success or fields.keys() < {"Uid", "CapEff", "setgroups"}:
+            raise RuntimeError(f"root probe failed: {probe.stderr or probe.stdout!r}")
+        if fields["Uid"].split()[0] != "0":
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                "sandbox does not run commands as root; using default user",
+            )
+            return False
+        cap_eff, setgroups = fields["CapEff"].strip(), fields["setgroups"].strip()
+        if (
+            int(cap_eff, 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
+            or setgroups != "allow"
+        ):
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                f"root cannot switch users (CapEff {cap_eff}, setgroups {setgroups}); "
+                "falling back to default user",
+            )
+            return False
         await ensure_framework_directory(
             sandbox, SANDBOX_TOOLS_DIR, user="root", expected_uid=0
         )
@@ -341,6 +385,41 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
             f"root sandbox tools dir probe failed; falling back to default user: {ex}",
         )
         return False
+
+
+# Shell builtins only: numeric ids from /proc so uids with no passwd entry work.
+_DEFAULT_USER_CMD = (
+    'while read k v; do case "$k" in Uid:|Gid:|Groups:) echo "$k $v";; esac; done'
+    ' < /proc/self/status; echo "HOME: $HOME"; echo "HOME_SET: ${HOME+1}"'
+)
+
+
+async def _detect_default_user(sandbox: SandboxEnvironment) -> SandboxDefaultUser:
+    result = await sandbox.exec(["/bin/sh", "-c", _DEFAULT_USER_CMD])
+    if not result.success:
+        raise RuntimeError(f"Failed to detect sandbox default user: {result.stderr}")
+    try:
+        return _parse_default_user(result.stdout)
+    except (KeyError, IndexError, ValueError) as e:
+        raise RuntimeError(
+            f"Failed to parse sandbox default user from {result.stdout!r}: {e!r}"
+        ) from e
+
+
+def _fields(output: str) -> dict[str, str]:
+    """`key: value` lines of a probe, keyed by name; the first occurrence wins."""
+    lines = reversed(output.splitlines())
+    return {k: v for k, _, v in (ln.partition(":") for ln in lines) if _}
+
+
+def _parse_default_user(output: str) -> SandboxDefaultUser:
+    fields = _fields(output)
+    return SandboxDefaultUser(
+        uid=int(fields["Uid"].split()[0]),
+        gid=int(fields["Gid"].split()[0]),
+        groups=[int(g) for g in fields["Groups"].split()],
+        home=fields["HOME"].strip() if fields["HOME_SET"].strip() == "1" else None,
+    )
 
 
 async def _extract_tools_tree(

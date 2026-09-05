@@ -1,4 +1,5 @@
 import asyncio
+import os
 from itertools import count
 
 from ..._util.json_rpc_helpers import validated_json_rpc_method
@@ -14,12 +15,15 @@ from .tool_types import (
 sessions = dict[int, MCPServerSession]()
 retired_sessions: list[MCPServerSession] = []
 id_generator = count()
+_can_switch_user = os.getuid() == 0
 
 
 @validated_json_rpc_method(LaunchServerParams)
 async def mcp_launch_server(params: LaunchServerParams) -> int:
     session_id = next(id_generator)
-    sessions[session_id] = await MCPServerSession.create(params.server_params)
+    sessions[session_id] = await MCPServerSession.create(
+        params.server_params, user=params.run_as, can_switch_user=_can_switch_user
+    )
     return session_id
 
 

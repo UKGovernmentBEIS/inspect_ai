@@ -31,7 +31,12 @@ from inspect_sandbox_tools._util.json_rpc_chunking import (
 )
 from inspect_sandbox_tools._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_sandbox_tools._util.load_tools import load_tools
-from inspect_sandbox_tools._util.user_switch import get_home_dir, switch_user
+from inspect_sandbox_tools._util.user_switch import (
+    RunAs,
+    get_home_dir,
+    is_current_user,
+    switch_user,
+)
 
 # Resource shutdown has a 30s graceful budget plus a 5s post-SIGKILL wait.
 # This 45s CLI deadline also leaves time for HTTP shutdown; LocalSandbox's 55s
@@ -163,20 +168,26 @@ async def _exec(request: str | None) -> None:
     # in-process tools leak this private location to their user subprocesses.
     os.environ.pop(SERVER_DIR_ENV, None)
 
-    # For in-process tools, extract _run_as_user and setuid before dispatching.
+    # For in-process tools, extract _run_as_user/_run_as and setuid before dispatching.
     # The CLI is short-lived (one invocation per request), so in-process setuid is safe.
     if tool_name in in_process_tools:
-        run_as_user = None
+        run_as: str | RunAs | None = None
         if isinstance(request_data.get("params"), dict):
             run_as_user = request_data["params"].pop("_run_as_user", None)
-        if run_as_user is not None:
-            if not isinstance(run_as_user, str):
-                raise TypeError(
-                    f"_run_as_user must be a string, got {type(run_as_user).__name__}"
-                )
+            run_as_spec = request_data["params"].pop("_run_as", None)
+            if run_as_user is not None:
+                if not isinstance(run_as_user, str):
+                    raise TypeError(
+                        f"_run_as_user must be a string, got {type(run_as_user).__name__}"
+                    )
+                run_as = run_as_user
+            elif run_as_spec is not None:
+                run_as = RunAs.model_validate(run_as_spec)
+        if run_as is not None:
             request_json_str = json.dumps(request_data)
-            switch_user(run_as_user)
-            os.environ["HOME"] = get_home_dir(run_as_user)
+            if not is_current_user(run_as):
+                switch_user(run_as)
+            os.environ["HOME"] = get_home_dir(run_as)
 
     response = await (
         _dispatch_local_method
