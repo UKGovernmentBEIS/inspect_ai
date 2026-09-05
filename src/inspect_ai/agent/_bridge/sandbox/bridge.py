@@ -60,6 +60,7 @@ async def sandbox_agent_bridge(
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
     checkpointer: Checkpointer | None = None,
+    accumulate_conversations: bool = False,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -132,6 +133,11 @@ async def sandbox_agent_bridge(
             state (messages, output, compaction prefix) for checkpoint backup
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
+        accumulate_conversations: Keep every conversation observed over the bridge
+            rather than tracking a single main one. Defaults to `False`, which surfaces
+            the main agent loop and treats other traffic as side calls. Set `True` when
+            the sandbox may run several independent conversations: `state.messages`
+            then holds each in the order they started.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -175,6 +181,7 @@ async def sandbox_agent_bridge(
                 approval=approval,
                 checkpointer=checkpointer,
                 allow_remote_mcp=allow_remote_mcp,
+                accumulate_conversations=accumulate_conversations,
             )
 
             # register bridged tools with the bridge
