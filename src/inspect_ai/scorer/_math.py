@@ -479,8 +479,9 @@ def _split_plain_equation(text: str) -> tuple[str, str] | None:
 
 
 class _PlainExpressionBuilder(ast.NodeVisitor):
-    def __init__(self, sympy: Any) -> None:
+    def __init__(self, sympy: Any, is_real: bool) -> None:
         self.sympy = sympy
+        self.is_real = is_real
         self.nodes = 0
 
     def visit(self, node: ast.AST) -> Any:
@@ -535,7 +536,14 @@ class _PlainExpressionBuilder(ast.NodeVisitor):
             "infinity": self.sympy.oo,
             "pi": self.sympy.pi,
         }
-        return constants.get(node.id, self.sympy.Symbol(node.id))
+        constant = constants.get(node.id)
+        if constant is not None:
+            return constant
+        # Build symbols exactly as the LaTeX parser does (lowercased, with the
+        # same real/complex assumption): SymPy treats Symbol("x") and
+        # Symbol("x", real=True) as different variables, so a symbol built any
+        # other way can never compare equal to its LaTeX-parsed counterpart.
+        return self.sympy.Symbol(node.id.lower(), real=self.is_real)
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
         operand = self.visit(node.operand)
@@ -652,9 +660,13 @@ class _PlainExpressionBuilder(ast.NodeVisitor):
         return self.sympy.And(*relations, evaluate=False)
 
 
-def _parse_plain_expression(candidate: str, sympy: Any) -> Any | None:
+def _parse_plain_expression(
+    candidate: str, sympy: Any, is_real: bool | None = None
+) -> Any | None:
     if "\\" in candidate or re.search(r"\^\s*\{", candidate):
         return None
+    if is_real is None:
+        is_real = not _plain_looks_complex(candidate)
     text = candidate.strip()
     text = text.replace("\u00d7", "*").replace("\u00f7", "/").replace("^", "**")
 
@@ -668,8 +680,8 @@ def _parse_plain_expression(candidate: str, sympy: Any) -> Any | None:
     equation = _split_plain_equation(text)
     if equation is not None:
         left_text, right_text = equation
-        left = _parse_plain_expression(left_text, sympy)
-        right = _parse_plain_expression(right_text, sympy)
+        left = _parse_plain_expression(left_text, sympy, is_real)
+        right = _parse_plain_expression(right_text, sympy, is_real)
         if left is None or right is None:
             raise _MathParseError("invalid equation")
         return sympy.Eq(left, right, evaluate=False)
@@ -678,7 +690,7 @@ def _parse_plain_expression(candidate: str, sympy: Any) -> Any | None:
         parsed = ast.parse(text, mode="eval")
     except (SyntaxError, ValueError):
         return None
-    return _PlainExpressionBuilder(sympy).visit(parsed)
+    return _PlainExpressionBuilder(sympy, is_real).visit(parsed)
 
 
 def _looks_complex(candidate: str) -> bool:
@@ -687,6 +699,20 @@ def _looks_complex(candidate: str) -> bool:
             r"\\mathbb\{C\}|\\(?:i|imath)\b|(?<![A-Za-z])i(?![A-Za-z])|"
             r"\\(?:arg|Re|Im)\b",
             candidate,
+        )
+    )
+
+
+def _plain_looks_complex(candidate: str) -> bool:
+    """Whether a plain-notation candidate involves the imaginary unit.
+
+    The plain parser accepts both ``i`` and ``I`` as the imaginary unit and
+    Python complex literals such as ``2j``; a candidate using any of these must
+    build non-real symbols, exactly as the LaTeX path does for ``i``.
+    """
+    return _looks_complex(candidate) or bool(
+        re.search(
+            r"(?<![A-Za-z0-9_])I(?![A-Za-z0-9_])|\d[jJ](?![A-Za-z0-9_])", candidate
         )
     )
 

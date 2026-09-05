@@ -475,6 +475,53 @@ def test_prose_wrapped_numeric_answers_are_extracted(answer: str, target: str) -
     assert _score_answer(answer, (target,)).status == "correct"
 
 
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        (r"\boxed{\frac{x}{2}}", "x/2"),
+        (r"\boxed{x/2}", r"\frac{x}{2}"),
+        (r"\boxed{2\pi r}", "2*pi*r"),
+        (r"\boxed{\sqrt{x}}", "sqrt(x)"),
+        (r"\boxed{\frac{n(n+1)}{2}}", "n*(n+1)/2"),
+        (r"\boxed{\text{yes}}", "yes"),
+        (r"\boxed{\frac{X}{2}}", "X/2"),
+        # Plain symbols are matched case-insensitively, as LaTeX ones always were.
+        ("N/2", "n/2"),
+        (r"\boxed{\frac{N}{2}}", "n/2"),
+        # Complex-valued candidates must agree on the imaginary unit's spelling.
+        (r"\boxed{z = 1+i}", "z = 1+I"),
+        (r"\boxed{x+i}", "x+I"),
+    ],
+)
+def test_symbolic_answers_match_across_notations(answer: str, target: str) -> None:
+    # A symbolic answer must get the same verdict whether the target is written
+    # in LaTeX or plain notation; the two parsers must build identical symbols.
+    assert _score_answer(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        (r"\boxed{\frac{x}{2}}", "x/3"),
+        (r"\boxed{\frac{x}{2}}", "y/2"),
+        (r"\boxed{\sqrt{x}}", "sqrt(y)"),
+        (r"\boxed{2\pi r}", "2*pi*r**2"),
+    ],
+)
+def test_symbolic_mismatches_stay_incorrect_across_notations(
+    answer: str, target: str
+) -> None:
+    assert _score_answer(answer, (target,)).status == "incorrect"
+
+
+def test_plain_and_latex_parsers_build_identical_symbols() -> None:
+    plain = _parse_candidate("x/2").expression
+    latex = _parse_candidate(r"\frac{x}{2}").expression
+    assert plain is not None and latex is not None
+    assert plain.free_symbols == latex.free_symbols
+    assert plain.equals(latex)
+
+
 def test_prose_fallback_does_not_manufacture_false_matches() -> None:
     # The fallback only fires for a target that genuinely equals an extracted
     # candidate; an incidental number in prose must not count as correct.
