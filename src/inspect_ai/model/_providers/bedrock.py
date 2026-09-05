@@ -2,10 +2,13 @@ import base64
 import json
 import re
 from logging import getLogger
-from typing import Any, AsyncIterator, Literal, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, Tuple, Union, cast
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
+
+if TYPE_CHECKING:
+    from botocore.exceptions import ClientError
 
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS, NO_CONTENT
@@ -341,6 +344,20 @@ CACHE_UNSUPPORTED_CLAUDE = (
 )
 
 
+def bedrock_error_code(ex: "ClientError") -> str:
+    """The AWS error code of a `ClientError`, in shape-name (PascalCase) form.
+
+    A non-streaming error carries the exception shape name
+    (`ThrottlingException`). An error delivered on a ConverseStream event
+    stream is raised by botocore as an `EventStreamError` (a `ClientError`)
+    whose code is the frame's `:exception-type` header — the event union's
+    member name, which is lowercase-first (`throttlingException`) — so the
+    first letter is upper-cased to make both paths comparable.
+    """
+    code = str(ex.response.get("Error", {}).get("Code", "") or "")
+    return code[:1].upper() + code[1:]
+
+
 class BedrockAPI(ModelAPI):
     def __init__(
         self,
@@ -458,7 +475,7 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         if isinstance(ex, ClientError):
-            error_code = ex.response.get("Error", {}).get("Code", "")
+            error_code = bedrock_error_code(ex)
             if error_code in self._BEDROCK_THROTTLE_CODES:
                 # AWS doesn't include Retry-After on ThrottlingException.
                 return RetryDecision.rate_limit()
@@ -507,8 +524,7 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         if isinstance(ex, ClientError):
-            error_code = ex.response.get("Error", {}).get("Code", "")
-            return error_code in [
+            return bedrock_error_code(ex) in [
                 "UnrecognizedClientException",
                 "ExpiredTokenException",
                 "InvalidSignatureException",
@@ -829,8 +845,7 @@ class BedrockAPI(ModelAPI):
                         # (an explicit streaming=true opt-in still fails loudly)
                         if (
                             self.streaming is None
-                            and ex.response.get("Error", {}).get("Code")
-                            == "AccessDeniedException"
+                            and bedrock_error_code(ex) == "AccessDeniedException"
                         ):
                             warn_once(
                                 logger,
@@ -864,7 +879,7 @@ class BedrockAPI(ModelAPI):
                     self._http_hooks.end_request(request_id),
                 )
                 # Look for an explicit validation exception
-                if ex.response["Error"]["Code"] == "ValidationException":
+                if bedrock_error_code(ex) == "ValidationException":
                     error_message = ex.response["Error"]["Message"].lower()
                     if (
                         "too many input tokens" in error_message
@@ -1050,17 +1065,6 @@ class _StreamContentBlock:
         self.tool_input: list[str] = []
 
 
-# exception members of the ConverseStream event union, mapped to the AWS
-# error codes used by should_retry/is_auth_failure classification
-_CONVERSE_STREAM_ERROR_CODES = {
-    "internalServerException": "InternalServerException",
-    "modelStreamErrorException": "ModelStreamErrorException",
-    "validationException": "ValidationException",
-    "throttlingException": "ThrottlingException",
-    "serviceUnavailableException": "ServiceUnavailableException",
-}
-
-
 async def converse_response_from_stream(
     stream: AsyncIterator[dict[str, Any]],
 ) -> ConverseResponse:
@@ -1073,14 +1077,14 @@ async def converse_response_from_stream(
     string fragments, parsed once the stream completes; reasoning signatures
     and redacted content are dropped, matching the non-streaming response
     model). Usage, metrics, and any guardrail trace arrive on the trailing
-    `metadata` event. Exception members of the event union are raised as
-    `ClientError`s carrying their AWS error code so retry classification
-    behaves as it does for the non-streaming operation. Content deltas are
-    gated on `model_stream_requested()` (see `report_model_stream_delta`);
-    the usage/heartbeat progress channel runs regardless.
+    `metadata` event. Exception members of the event union never arrive here
+    as events: botocore raises them from the iterator as `EventStreamError`
+    (a `ClientError`) whose code is the member name — see
+    `bedrock_error_code` for how retry classification reconciles that with
+    the non-streaming codes. Content deltas are gated on
+    `model_stream_requested()` (see `report_model_stream_delta`); the
+    usage/heartbeat progress channel runs regardless.
     """
-    from botocore.exceptions import ClientError
-
     report_model_stream_start()
     blocks: dict[int, _StreamContentBlock] = {}
     role: ConverseRole = "assistant"
@@ -1091,17 +1095,6 @@ async def converse_response_from_stream(
     trace: dict[str, Any] | None = None
 
     async for event in stream:
-        for member, code in _CONVERSE_STREAM_ERROR_CODES.items():
-            if member in event:
-                raise ClientError(
-                    error_response={
-                        "Error": {
-                            "Code": code,
-                            "Message": (event[member] or {}).get("message", ""),
-                        }
-                    },
-                    operation_name="ConverseStream",
-                )
         if "messageStart" in event:
             role = event["messageStart"].get("role", "assistant")
             report_model_stream_progress()

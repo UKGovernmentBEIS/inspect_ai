@@ -69,6 +69,9 @@ class JSONRecorder(FileRecorder):
     class JSONLogFile(BaseModel):
         file: str
         data: EvalLog
+        # whether a flush has written the destination file (so a discard of a
+        # never-finished log knows to remove it)
+        written: bool = False
         # Per-sample summaries cached as samples are logged. Computing a
         # summary is expensive for large samples (thin_data runs
         # textwrap.shorten / JSON size probes over full-size fields), and
@@ -106,6 +109,16 @@ class JSONRecorder(FileRecorder):
 
         # attempt to
         return file
+
+    @override
+    def destination_written(self, eval: EvalSpec) -> bool:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            raise RuntimeError(
+                f"No log in progress for eval {eval.eval_id} "
+                "(finished, discarded, or never initialised)"
+            )
+        return log.written
 
     @override
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
@@ -203,10 +216,26 @@ class JSONRecorder(FileRecorder):
         return log.data
 
     @override
+    async def log_discard(self, eval: EvalSpec) -> None:
+        log = self.data.pop(self._log_file_key(eval), None)
+        # `written` only becomes true via this process's own flush, and
+        # TaskLogger.init() never passes a pre-existing location to log_init,
+        # so the rm below can only remove a file this attempt itself wrote.
+        # TODO: sync fsspec rm blocks the event loop on remote log dirs; route
+        # through AsyncFilesystem if it ever grows an rm helper (to_thread
+        # over remote fsspec can deadlock — see AGENTS.md).
+        if log is not None and log.written:
+            try:
+                self.fs.rm(log.file)
+            except FileNotFoundError:
+                pass
+
+    @override
     async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
         # intermediate snapshot: skip fsync (see _write_log_impl)
         await self._write_log_impl(log.file, log.data, fsync=False)
+        log.written = True
 
     @override
     @classmethod

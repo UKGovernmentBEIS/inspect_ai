@@ -98,10 +98,12 @@ def eval_results(
     metadata: dict[str, Any] | None = None,
     completed_samples: int | None = None,
     headline_metric: HeadlineMetric | None = None,
+    logged_samples: int | None = None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
     results = EvalResults(
         total_samples=samples,
+        logged_samples=logged_samples,
         # `scores` also carries samples that errored but were still scored (by
         # score_on_error, or by scorers that ran before another one raised), so
         # its length is not the number of samples that completed without error.

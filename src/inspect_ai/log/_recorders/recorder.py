@@ -43,6 +43,19 @@ class Recorder(abc.ABC):
     @abc.abstractmethod
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None: ...
 
+    def destination_written(self, eval: EvalSpec) -> bool:
+        """Whether anything has reached the eval's in-progress destination log.
+
+        Asked only for a log that is still in progress (after ``log_init``,
+        before ``log_finish``); a finished log is known to be written
+        without consulting the recorder. ``False`` when nothing has been
+        flushed yet (an attempt that failed before its first flush). A
+        recorder that tracks this should override and raise for an eval it
+        is not tracking; this default is legacy behaviour for recorders
+        that cannot tell, and always reports ``True``.
+        """
+        return True
+
     @abc.abstractmethod
     async def log_sample(
         self, eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
@@ -108,6 +121,17 @@ class Recorder(abc.ABC):
 
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...
+
+    async def log_discard(self, eval: EvalSpec) -> None:
+        """Discard a never-finished log (an abandoned task retry attempt).
+
+        Drops the recorder's in-memory tracking for the eval (``log_finish``
+        will never run for it) and removes a destination file the log has
+        already written itself — never a pre-existing file it was seeded
+        from. The base implementation is a no-op so recorder subclasses that
+        track nothing between init and finish keep working; the built-in
+        recorders override it.
+        """
 
     @abc.abstractmethod
     async def log_finish(
