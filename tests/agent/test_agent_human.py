@@ -8,12 +8,23 @@ from io import StringIO
 from pathlib import Path
 
 import pytest
+from pydantic import JsonValue
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
-from inspect_ai.agent._human.agent import human_cli
-from inspect_ai.agent._human.commands import submit
+from inspect_ai.agent import (
+    AgentState,
+    HumanAgentCommand,
+    HumanAgentCommandsFilter,
+    human_cli,
+)
+from inspect_ai.agent._human.commands import human_agent_commands, submit
+from inspect_ai.agent._human.commands.instructions import InstructionsCommand
 from inspect_ai.agent._human.commands.submit import QuitCommand, SubmitCommand
+from inspect_ai.agent._human.install import (
+    human_agent_commands as human_agent_task_commands,
+)
+from inspect_ai.agent._human.state import HumanAgentState
 
 
 @pytest.mark.parametrize(
@@ -44,6 +55,103 @@ def test_session_end_commands_decline_on_eof(
     command.cli(args)
 
     assert calls == expected_calls
+
+
+class _AdditionalCommand(HumanAgentCommand):
+    @property
+    def name(self) -> str:
+        return "additional"
+
+    @property
+    def description(self) -> str:
+        return "Additional test command."
+
+
+class _StatefulAdditionalCommand(_AdditionalCommand):
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+    @property
+    def cli_state(self) -> dict[str, JsonValue]:
+        return {"value": self.value}
+
+    def cli(self, args: Namespace) -> None:
+        print(self.value)
+
+
+def test_human_cli_accepts_public_commands_filter():
+    def commands_filter(
+        commands: list[HumanAgentCommand],
+    ) -> list[HumanAgentCommand]:
+        return [*commands, _AdditionalCommand()]
+
+    filter_: HumanAgentCommandsFilter = commands_filter
+
+    assert callable(human_cli(commands_filter=filter_))
+
+
+def test_human_cli_runs_stateful_appended_command(tmp_path: Path) -> None:
+    def commands_filter(
+        commands: list[HumanAgentCommand],
+    ) -> list[HumanAgentCommand]:
+        return [*commands, _StatefulAdditionalCommand("custom value")]
+
+    commands = human_agent_commands(
+        AgentState(messages=[]),
+        answer=True,
+        intermediate_scoring=False,
+        record_session=False,
+        instructions=None,
+        commands_filter=commands_filter,
+    )
+    (tmp_path / "human_agent.py").write_text(
+        "def call_human_agent(method: str, **params: object) -> None:\n    pass\n"
+    )
+    task_py = tmp_path / "task.py"
+    task_py.write_text(human_agent_task_commands(commands))
+
+    result = subprocess.run(
+        [sys.executable, task_py.as_posix(), "additional"],
+        capture_output=True,
+        check=False,
+        cwd=tmp_path,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "custom value\n"
+
+
+async def test_human_cli_commands_filter_seen_by_instructions() -> None:
+    def commands_filter(
+        commands: list[HumanAgentCommand],
+    ) -> list[HumanAgentCommand]:
+        return [*commands, _AdditionalCommand()]
+
+    commands = human_agent_commands(
+        AgentState(messages=[]),
+        answer=True,
+        intermediate_scoring=False,
+        record_session=False,
+        instructions=None,
+        commands_filter=commands_filter,
+    )
+
+    # the filter's appended command is in the built list, ahead of the
+    # instructions command that the filter must run before
+    names = [command.name for command in commands]
+    assert names.index("additional") < names.index("instructions")
+
+    # and the instructions command itself was built from the filtered list,
+    # so `task instructions` renders the added command
+    instructions_command = commands[-1]
+    assert isinstance(instructions_command, InstructionsCommand)
+    rendered = await instructions_command.service(
+        HumanAgentState(instructions="do the task")
+    )()
+    assert isinstance(rendered, str)
+    assert "additional" in rendered
+    assert "Additional test command." in rendered
 
 
 @pytest.mark.slow

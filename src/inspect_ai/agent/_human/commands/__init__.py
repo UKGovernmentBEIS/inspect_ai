@@ -1,6 +1,6 @@
 from ..._agent import AgentState
 from .clock import StartCommand, StopCommand
-from .command import HumanAgentCommand
+from .command import HumanAgentCommand, HumanAgentCommandsFilter
 from .instructions import InstructionsCommand
 from .note import NoteCommand
 from .score import ScoreCommand
@@ -14,6 +14,7 @@ def human_agent_commands(
     intermediate_scoring: bool,
     record_session: bool,
     instructions: str | None,
+    commands_filter: HumanAgentCommandsFilter | None = None,
 ) -> list[HumanAgentCommand]:
     # base submit, validate, and quit
     commands = [
@@ -35,6 +36,10 @@ def human_agent_commands(
             StopCommand(),
         ]
     )
+
+    # let the caller swap/append commands before instructions is built
+    if commands_filter is not None:
+        commands = commands_filter(commands)
 
     # with instructions (letting it see the other commands)
     return commands + [InstructionsCommand(commands, instructions)]
