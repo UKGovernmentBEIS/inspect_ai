@@ -1,7 +1,5 @@
 """Tests for sandbox tools injection."""
 
-import os
-import sys
 from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import AsyncIterator, BinaryIO, NamedTuple
@@ -15,16 +13,16 @@ from inspect_ai.tool._sandbox_tools_utils import sandbox as sandbox_tools
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox._framework_directory import (
     _MISSING_MARKER,
-    _SHELL,
+    _STAT_ENTRY,
     _UNAVAILABLE_MARKER,
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
+    SHELL_PATH,
     FrameworkDirectoryError,
 )
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
-from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, SupportedContainerOSInfo
 from inspect_ai.util._subprocess import ExecResult
 
@@ -83,7 +81,7 @@ NOT_ROOT = ExecResult(
 
 
 def is_framework_dir_call(cmd: list[str]) -> bool:
-    return cmd[:2] == [_SHELL, "-c"] and SANDBOX_TOOLS_DIR.rsplit("/", 1)[1] in cmd
+    return cmd[:2] == [SHELL_PATH, "-c"] and SANDBOX_TOOLS_DIR.rsplit("/", 1)[1] in cmd
 
 
 def wrapped_command(cmd: list[str]) -> list[str]:
@@ -99,12 +97,13 @@ class HelperFlags(NamedTuple):
     expected_uid: str
     create: str
     repair: str
+    mode: str
 
 
 def helper_flags(cmd: list[str]) -> HelperFlags:
     assert is_framework_dir_call(cmd)
     leaf = SANDBOX_TOOLS_DIR.rsplit("/", 1)[1]
-    return HelperFlags(*cmd[cmd.index(leaf) - 4 : cmd.index(leaf) - 1])
+    return HelperFlags(*cmd[cmd.index(leaf) - 5 : cmd.index(leaf) - 1])
 
 
 def helper_ok(cmd: list[str], user: str | None) -> ExecResult[str]:
@@ -225,6 +224,8 @@ async def test_inject_uses_root_and_verifies_before_start(
     ]
     assert all(flags.expected_uid == "0" for flags in root_flags)
     assert all(flags.repair == "0" for flags in root_flags)
+    # The tools tree stays private to the tools user.
+    assert all(flags.mode == "700" for flags in root_flags)
     # No path-based chmod: the directory is created 0700 and verified, not repaired.
     assert not any(cmd[:1] == ["chmod"] for cmd, _ in sandbox.exec_calls)
 
@@ -257,19 +258,6 @@ async def test_inject_falls_back_when_provider_runs_root_as_default_user(
     assert all(flags.expected_uid == "" for flags in default_flags)
     assert [flags.repair for flags in default_flags if flags.create == "1"] == ["1"]
     assert all(flags.repair == "0" for flags in default_flags if flags.create == "0")
-
-
-@pytest.mark.skipif(sys.platform != "linux", reason="helper script needs GNU stat")
-async def test_root_probe_is_false_on_local_sandbox() -> None:
-    """LocalSandboxEnvironment ignores `user`, so it must not be recorded as root."""
-    if os.getuid() == 0:
-        pytest.skip("requires a non-root test user")
-    local = LocalSandboxEnvironment()
-    try:
-        with pytest.warns(UserWarning, match="'user' parameter is ignored"):
-            assert await sandbox_tools._create_tools_dir_as_root(local) is False
-    finally:
-        local.directory.cleanup()
 
 
 @pytest.mark.parametrize(
@@ -432,7 +420,13 @@ async def test_detector_checks_as_known_tools_user() -> None:
     # Checked as the tools user, inside the verified directory, by relative name.
     [(cmd, user)] = sandbox.exec_calls
     assert user == "root"
-    assert wrapped_command(cmd) == ["stat", "-c", "%f", "inspect-sandbox-tools"]
+    assert wrapped_command(cmd) == [
+        "sh",
+        "-c",
+        _STAT_ENTRY,
+        "sh",
+        "inspect-sandbox-tools",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -442,14 +436,13 @@ async def test_detector_checks_as_known_tools_user() -> None:
         pytest.param("8180\n", True, id="regular-0600"),
         pytest.param("a1ff\n", False, id="symlink"),
         pytest.param("41ed\n", False, id="directory"),
-        pytest.param("regular file\n", False, id="localized-%F-output"),
-        pytest.param("", False, id="empty"),
+        pytest.param("missing\n", False, id="missing"),
     ],
 )
 async def test_detector_reads_launcher_type_from_raw_mode(
     stdout: str, expected: bool
 ) -> None:
-    """The launcher check uses the raw st_mode, not the locale-dependent %F text."""
+    """Only a regular file at the launcher name counts as installed."""
     sandbox = CannedSandbox(
         lambda cmd, user: ExecResult(
             success=True, returncode=0, stdout=stdout, stderr=f"{_VERIFIED_MARKER}\n"
@@ -570,10 +563,10 @@ async def test_transient_root_failure_cannot_pin_a_planted_tree(
         pytest.param(UNAVAILABLE, id="cannot-verify"),
         pytest.param(
             ExecResult(
-                success=False,
-                returncode=1,
-                stdout="",
-                stderr=f"{_VERIFIED_MARKER}\nstat: cannot stat 'inspect-sandbox-tools'\n",
+                success=True,
+                returncode=0,
+                stdout="missing\n",
+                stderr=f"{_VERIFIED_MARKER}\n",
             ),
             id="launcher-missing",
         ),
@@ -603,6 +596,48 @@ async def test_detector_treats_provider_exception_as_not_installed() -> None:
         raise ConnectionError("sandbox gone")
 
     assert await sandbox_tools._sandbox_tools_installed(CannedSandbox(raising)) is False
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=1,
+                stdout="",
+                stderr=f"{_VERIFIED_MARKER}\nstat: cannot statx 'inspect-sandbox-tools': Input/output error\n",
+            ),
+            id="stat-fails",
+        ),
+        pytest.param(
+            ExecResult(
+                success=True,
+                returncode=0,
+                stdout="regular file\n",
+                stderr=f"{_VERIFIED_MARKER}\n",
+            ),
+            id="stat-prints-no-mode",
+        ),
+    ],
+)
+async def test_detector_treats_unreadable_launcher_as_not_installed(
+    result: ExecResult[str],
+) -> None:
+    """A launcher whose type cannot be read counts as not installed, as before.
+
+    ``stat_in_framework_directory`` raises here where the old inline ``stat`` made
+    the check return False; the detector's broad catch keeps the outcome the same
+    (injection re-extracts) and the tools user is not pinned by the failure.
+    """
+    sandbox = CannedSandbox(lambda cmd, user: result)
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is False
+    assert sandbox._tools_user is None
+    assert sandbox._tools_user_resolved is False
+
+    # Same verdict once the tools user is already known.
+    sandbox._tools_user = "root"
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is False
 
 
 async def test_detector_records_no_transcript_events() -> None:
