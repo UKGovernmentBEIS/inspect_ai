@@ -558,7 +558,7 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
     parts = [
         f"sample {detail.get('sample_id')}",
         f"epoch {detail.get('epoch')}",
-        detail.get("status") or "",
+        _format_status(detail),
     ]
     activity = _format_activity(
         detail.get("activity"), datetime.now(timezone.utc).timestamp()
@@ -1025,6 +1025,21 @@ def _task_header(target: dict[str, Any]) -> str:
     return "  ·  ".join(p for p in sanitized_parts if p)
 
 
+def _format_status(row: dict[str, Any]) -> str:
+    """A sample row's status cell, marking a pending cancel resolution.
+
+    ``interrupt`` (a live row's not-yet-handled cancel action) is the only
+    poller-visible evidence that a `sample cancel` of an initializing sample
+    — which the listing renders as ``queued`` — was accepted and is waiting
+    for the sample to start. Absent on older servers and on non-live rows.
+    """
+    status = str(row.get("status") or "")
+    interrupt = row.get("interrupt")
+    if interrupt:
+        return f"{status} ({interrupt} requested)"
+    return status
+
+
 def _print_samples_table(
     samples: list[dict[str, Any]], show_task: bool = False
 ) -> None:
@@ -1065,7 +1080,7 @@ def _print_samples_table(
         row = [
             str(s["sample_id"]) if s.get("sample_id") is not None else "?",
             str(s.get("epoch", "")),
-            s.get("status", "") or "",
+            _format_status(s),
         ]
         if show_task:
             row.insert(0, str(s.get("task") or _short_id(str(s.get("task_id") or ""))))
