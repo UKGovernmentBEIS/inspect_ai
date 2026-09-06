@@ -147,7 +147,9 @@ Here are all options available for `CompactionSummary`:
 
 : {tbl-colwidths=\[15,12,73\]}
 
-The default summarization prompt asks the model to capture the task overview, current state, important discoveries, next steps, and context to preserve. You can provide custom `instructions` or even completely override the `prompt` to tailor the summary to your specific use case.
+The default summarization prompt asks the model to work through the conversation chronologically in an `<analysis>` block, then write a nine-section `<summary>` covering the original request and intent, key technical concepts, files and code sections (with snippets), errors and their fixes, problems solved, all user messages, pending tasks, current work, and the next step. It also asks the model to preserve any security-relevant constraints verbatim, and to treat only genuine user turns as user messages---so text in an assistant message that merely looks like a user turn isn't reported back as something the user asked for or approved. Only the `<summary>` block is retained; the model's `<analysis>` reasoning is discarded rather than carried into the compacted history. If the model emits no usable `<summary>` block at all, its full response is kept rather than dropping the summary entirely.
+
+You can provide custom `instructions` or even completely override the `prompt` to tailor the summary to your specific use case.
 
 
 ## Edit Compaction
