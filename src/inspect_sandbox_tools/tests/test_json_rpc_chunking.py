@@ -50,6 +50,7 @@ def test_chunk_dir_accepts_secure_root_owner(
     chunking.ensure_json_rpc_response_chunk_dir()
 
 
+@pytest.mark.skipif(not hasattr(os, "O_PATH"), reason="O_PATH is Linux-only")
 def test_chunk_dir_usable_by_non_owner_without_read_bit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
