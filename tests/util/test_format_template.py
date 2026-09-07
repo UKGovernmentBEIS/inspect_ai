@@ -288,3 +288,28 @@ def test_no_warning_for_json_braces(caplog) -> None:
 
     assert result == 'Emit {"ok": 1} now.'
     assert not caplog.records
+
+
+def test_malformed_conversion_still_raises() -> None:
+    """A bad conversion specifier is a broken template, not an unknown field."""
+    with pytest.raises(ValueError):
+        format_template("{x!q}", {"x": "v"})
+
+    # ...but an unresolved field is passed through without ever converting
+    assert format_template("{missing!q}", {}) == "{missing!q}"
+
+
+def test_format_spec_wrong_for_type_is_not_fatal() -> None:
+    """A spec the value's type can't satisfy falls back to the placeholder."""
+    test_cases: list[FormatterCase] = [
+        FormatterCase(params={"s": "abc"}, template="{s:03d}", expected="{s:03d}"),
+        FormatterCase(params={"n": "notanum"}, template="{n:.2f}", expected="{n:.2f}"),
+    ]
+
+    for case in test_cases:
+        result = format_template(case.template, case.params)
+        assert result == case.expected
+
+    # strict mode surfaces it instead
+    with pytest.raises((ValueError, KeyError)):
+        format_template("{s:03d}", {"s": "abc"}, skip_unknown=False)

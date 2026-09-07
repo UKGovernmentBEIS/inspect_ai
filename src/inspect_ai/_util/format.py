@@ -95,10 +95,8 @@ def format_template(
 
                 try:
                     obj = super().get_field(field_name, args, kwargs)[0]
-                    obj = self.convert_field(obj, conversion)
                     # a format spec may itself contain placeholders
                     spec = self.vformat(format_spec or "", args, kwargs)
-                    result.append(self.format_field(obj, spec))
                 except (
                     AttributeError,
                     KeyError,
@@ -109,8 +107,23 @@ def format_template(
                     if skip_unknown:
                         _warn_unresolved(field_name)
                         result.append(original)
-                    else:
-                        raise KeyError(f"Failed to format field '{field_name}'") from e
+                        continue
+                    raise KeyError(f"Failed to format field '{field_name}'") from e
+
+                # a malformed conversion (e.g. `{x!q}`) is a broken template
+                # rather than an unknown placeholder, so let it raise as it
+                # always has instead of quietly passing the field through
+                obj = self.convert_field(obj, conversion)
+
+                try:
+                    result.append(self.format_field(obj, spec))
+                except (ValueError, TypeError):
+                    # a spec the value's type can't satisfy (e.g. `{s:03d}` on a
+                    # str). Non-fatal, as before, but emit the placeholder as
+                    # written rather than leaking the value into brace syntax
+                    if not skip_unknown:
+                        raise
+                    result.append(original)
 
             return "".join(result)
 
