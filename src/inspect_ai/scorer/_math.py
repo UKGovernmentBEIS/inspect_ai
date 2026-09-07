@@ -996,6 +996,16 @@ def _numeric_equivalent(left: Any, right: Any, sympy: Any) -> bool:
         return False
 
 
+def _normalized_symbols(expression: Any, sympy: Any) -> Any:
+    """Rewrite parser-attached symbol assumptions to bare symbols."""
+    bare = {
+        symbol: sympy.Symbol(symbol.name)
+        for symbol in expression.free_symbols
+        if symbol.assumptions0 != sympy.Symbol(symbol.name).assumptions0
+    }
+    return expression.xreplace(bare) if bare else expression
+
+
 def _expression_equivalent(left: _ParsedValue, right: _ParsedValue, sympy: Any) -> bool:
     if left.text is not None or right.text is not None:
         return (
@@ -1058,6 +1068,14 @@ def _expression_equivalent(left: _ParsedValue, right: _ParsedValue, sympy: Any) 
                 left_expression, right_expression, strict=True
             )
         )
+
+    # Parsers attach their own symbol assumptions (latex2sympy marks symbols
+    # real/complex/finite, plain parsing leaves them bare), and equals()
+    # treats the same name under different assumptions as different symbols.
+    # Normalize to bare symbols so a target written in plain notation scores
+    # the same as the LaTeX form of the same value.
+    left_expression = _normalized_symbols(left_expression, sympy)
+    right_expression = _normalized_symbols(right_expression, sympy)
 
     try:
         equals = left_expression.equals(right_expression)

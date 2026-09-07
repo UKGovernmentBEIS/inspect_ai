@@ -706,3 +706,27 @@ def test_worker_context_resets_across_event_loops(
 
     anyio.run(run_once)
     anyio.run(run_once)
+
+
+def test_symbolic_notations_score_the_same() -> None:
+    r"""A boxed symbolic answer scores the same against plain and LaTeX targets.
+
+    Regression for #5259: latex2sympy marks symbols real/complex/finite while
+    plain parsing leaves them bare, and equals() treats those as different
+    symbols, so `\\boxed{\\frac{x}{2}}` scored I against `x/2`.
+    """
+    same_value = [
+        (r"\boxed{\frac{x}{2}}", "x/2"),
+        (r"\boxed{x/2}", r"\frac{x}{2}"),
+        (r"\boxed{2\pi r}", "2*pi*r"),
+        (r"\boxed{\sqrt{x}}", "sqrt(x)"),
+        (r"\boxed{\frac{n(n+1)}{2}}", "n*(n+1)/2"),
+        (r"\boxed{\text{yes}}", "yes"),
+    ]
+    for completion, target in same_value:
+        result = _score_answer(completion, (target,))
+        assert result.status == "correct", f"{completion!r} vs {target!r}"
+
+    # A genuinely different target must still score incorrect.
+    result = _score_answer(r"\boxed{\frac{x}{2}}", ("x/3",))
+    assert result.status == "incorrect"
