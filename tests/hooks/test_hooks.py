@@ -224,6 +224,38 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.before_model_generate_events) == 1
 
 
+def test_model_usage_hook_reports_http_retries(mock_hooks: MockHooks) -> None:
+    from inspect_ai._util.retry import report_http_retry
+    from inspect_ai.model import (
+        ChatMessage,
+        GenerateConfig,
+        ModelOutput,
+        ModelUsage,
+        get_model,
+    )
+    from inspect_ai.tool import ToolChoice, ToolInfo
+
+    def custom_output(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        # real providers report retries from inside generate()
+        report_http_retry()
+        report_http_retry()
+        output = ModelOutput.from_content(model="mockllm", content="ok")
+        output.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+        return output
+
+    eval(
+        Task(dataset=[Sample("sample_1")]),
+        model=get_model("mockllm/model", custom_outputs=custom_output),
+    )
+
+    assert [event.retries for event in mock_hooks.model_usage_events] == [2]
+
+
 def test_model_retry_hook(mock_hooks: MockHooks) -> None:
     import anyio
 

@@ -1653,9 +1653,13 @@ class Model:
             if output.usage:
                 record_and_check_model_usage(self, output.usage, role=self.role)
 
-                # send telemetry to hooks
+                # retries must come from `event`: this frame is outside
+                # track_active_model_event, so the contextvar is unset here
                 await emit_model_usage(
-                    model_name=str(self), usage=output.usage, call_duration=output.time
+                    model_name=str(self),
+                    usage=output.usage,
+                    call_duration=output.time,
+                    retries=event.retries or 0,
                 )
                 await send_telemetry_legacy(
                     "model_usage",
