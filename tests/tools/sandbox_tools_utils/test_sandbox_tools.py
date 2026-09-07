@@ -267,6 +267,16 @@ def _identity_parity(check_root: bool = True) -> Solver:
         owner = (await sb.exec(["stat", "-c", "%u:%g", path])).stdout.strip()
         assert owner == f"{uid}:{gid}", owner
 
+        # Responses over the JSON-RPC limit are spilled to a shared chunk root.
+        # The CLI chunks a bash_session response as the tools user; a text_editor
+        # response is then chunked as the default user and must still work.
+        big = f"{path}.big"
+        await sb.write_file(big, "".join(f"line {i}\n" for i in range(8000)))
+        out = str(await bash_session()(action="type_submit", input=f"cat {big}"))
+        assert "line 7999" in out, out[-200:]
+        view = str(await text_editor()(command="view", path=big))
+        assert "line 7999" in view, view[-200:]
+
         await sb.write_file("/tmp/mini_mcp.py", _MINI_MCP_SERVER)
         async with mcp_server_sandbox(
             command="python3", args=["/tmp/mini_mcp.py"]
