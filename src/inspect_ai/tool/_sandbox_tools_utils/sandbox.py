@@ -63,6 +63,10 @@ logger = getLogger(__name__)
 TRACE_SANDBOX_TOOLS = "Sandbox Tools"
 
 
+class SandboxDefaultUserError(RuntimeError):
+    """A trustworthy tools install exists but the default exec identity could not be read."""
+
+
 class SandboxInjectionError(Exception):
     """Exception raised when sandbox tools injection fails.
 
@@ -149,6 +153,11 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     try:
         with _without_sandbox_events(sandbox):
             return await _detect_sandbox_tools(sandbox)
+    except SandboxDefaultUserError:
+        # The install is healthy, so reinjecting cannot fix this, and running the
+        # tools with no identity would misreport as a permission error. Nothing is
+        # cached, so the next call retries the probe.
+        raise
     except Exception as ex:
         # Broad catch is deliberate: detectors run against every candidate sandbox
         # and providers raise provider-specific types for an unusable one. Treat it
@@ -395,13 +404,20 @@ _DEFAULT_USER_CMD = (
 
 
 async def _detect_default_user(sandbox: SandboxEnvironment) -> SandboxDefaultUser:
-    result = await sandbox.exec(["/bin/sh", "-c", _DEFAULT_USER_CMD])
+    try:
+        result = await sandbox.exec(["/bin/sh", "-c", _DEFAULT_USER_CMD])
+    except Exception as ex:
+        raise SandboxDefaultUserError(
+            f"Failed to detect sandbox default user: {ex}"
+        ) from ex
     if not result.success:
-        raise RuntimeError(f"Failed to detect sandbox default user: {result.stderr}")
+        raise SandboxDefaultUserError(
+            f"Failed to detect sandbox default user: {result.stderr}"
+        )
     try:
         return _parse_default_user(result.stdout)
     except (KeyError, IndexError, ValueError) as e:
-        raise RuntimeError(
+        raise SandboxDefaultUserError(
             f"Failed to parse sandbox default user from {result.stdout!r}: {e!r}"
         ) from e
 

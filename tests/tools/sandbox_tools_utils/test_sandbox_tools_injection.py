@@ -712,20 +712,42 @@ def test_parse_default_user() -> None:
     )
 
 
-async def test_detector_does_not_pin_root_when_identity_probe_fails() -> None:
-    """A failed identity probe leaves nothing cached, so the next call retries it."""
+@pytest.mark.parametrize(
+    "failure",
+    [
+        pytest.param(RuntimeError("docker exec: transient failure"), id="exception"),
+        pytest.param(
+            ExecResult(success=False, returncode=1, stdout="", stderr="boom"),
+            id="failed",
+        ),
+        pytest.param(
+            ExecResult(success=True, returncode=0, stdout="garbage\n", stderr=""),
+            id="unparsable",
+        ),
+    ],
+)
+async def test_detector_fails_loud_when_identity_probe_fails(
+    failure: Exception | ExecResult[str],
+) -> None:
+    """An unreadable default identity on a healthy root install is an error.
+
+    Not a reinjection; nothing is cached, so the next call retries the probe.
+    """
     probes = {"n": 0}
 
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
         if is_identity_probe(cmd):
             probes["n"] += 1
             if probes["n"] == 1:
-                raise RuntimeError("docker exec: transient failure")
+                if isinstance(failure, Exception):
+                    raise failure
+                return failure
             return DEFAULT_USER
         return REGULAR_FILE
 
     sandbox = CannedSandbox(policy)
-    assert await sandbox_tools._sandbox_tools_installed(sandbox) is False
+    with pytest.raises(sandbox_tools.SandboxDefaultUserError, match="default user"):
+        await sandbox_tools._sandbox_tools_installed(sandbox)
     assert sandbox._tools_user is None
     assert sandbox._tools_user_resolved is False
     assert sandbox._tools_default_user is None
