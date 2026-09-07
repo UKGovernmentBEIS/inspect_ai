@@ -1,7 +1,8 @@
 import json as json_module
 import os
+from io import StringIO
 from pathlib import Path
-from typing import Type, TypeVar
+from typing import Callable, Type, TypeVar
 from unittest.mock import Mock
 
 import pytest
@@ -71,6 +72,70 @@ def test_file_dataset_url_query_uses_path_extension(
 
     assert file_dataset(url) is expected
     assert mock_reader.call_args.kwargs[file_argument] == url
+
+
+@pytest.mark.parametrize("reader", [json_dataset, file_dataset])
+@pytest.mark.parametrize(
+    ("path", "json_lines"),
+    [
+        ("dataset.jsonl", True),
+        ("dataset.jsonl?signature=abc%2Fdef%3D&download=1", True),
+        ("dataset.jsonl#samples", True),
+        ("dataset.JSONL?download=1", True),
+        ("dataset.json?download=dataset.jsonl", False),
+        ("dataset.json?download=1", False),
+    ],
+)
+def test_json_dataset_url_uses_path_extension(
+    reader: Callable[[str], Dataset],
+    path: str,
+    json_lines: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = f"https://example.test/{path}"
+    records = [{"input": "a", "target": "1"}, {"input": "b", "target": "2"}]
+    contents = (
+        "\n".join(json_module.dumps(record) for record in records)
+        if json_lines
+        else json_module.dumps(records)
+    )
+    mock_file = Mock(return_value=StringIO(contents))
+    monkeypatch.setattr("inspect_ai.dataset._sources.json.file", mock_file)
+
+    dataset = reader(url)
+
+    assert [(sample.input, sample.target) for sample in dataset] == [
+        ("a", "1"),
+        ("b", "2"),
+    ]
+    mock_file.assert_called_once_with(url, "r", encoding="utf-8", fs_options={})
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        r"C:\datasets\#active\data.jsonl",
+        "C:/datasets/#active/data.jsonl",
+        "samples:part#1.jsonl",
+        "samples:part?1.jsonl",
+        "s3://bucket/datasets#active/data.jsonl",
+        "s3://bucket/datasets?active/data.jsonl",
+    ],
+)
+def test_json_dataset_preserves_filesystem_path_characters(
+    path: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contents = '{"input":"a","target":"1"}\n{"input":"b","target":"2"}\n'
+    mock_file = Mock(return_value=StringIO(contents))
+    monkeypatch.setattr("inspect_ai.dataset._sources.json.file", mock_file)
+
+    dataset = json_dataset(path, fs_options={})
+
+    assert [(sample.input, sample.target) for sample in dataset] == [
+        ("a", "1"),
+        ("b", "2"),
+    ]
+    mock_file.assert_called_once_with(path, "r", encoding="utf-8", fs_options={})
 
 
 # test reading a dataset using default configuration
