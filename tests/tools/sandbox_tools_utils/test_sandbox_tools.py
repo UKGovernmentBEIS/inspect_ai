@@ -27,6 +27,7 @@ from inspect_ai.solver import (
 from inspect_ai.tool import ToolCallError, bash_session, mcp_server_sandbox, text_editor
 from inspect_ai.util import ExecRemoteAwaitableOptions, sandbox
 from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_DIR
+from inspect_ai.util._sandbox.limits import override_max_exec_output_size
 
 
 # The Alpine variant exercises the musl injectable: detection routes musl sandboxes
@@ -267,16 +268,6 @@ def _identity_parity(check_root: bool = True) -> Solver:
         owner = (await sb.exec(["stat", "-c", "%u:%g", path])).stdout.strip()
         assert owner == f"{uid}:{gid}", owner
 
-        # Responses over the JSON-RPC limit are spilled to a shared chunk root.
-        # The CLI chunks a bash_session response as the tools user; a text_editor
-        # response is then chunked as the default user and must still work.
-        big = f"{path}.big"
-        await sb.write_file(big, "".join(f"line {i}\n" for i in range(8000)))
-        out = str(await bash_session()(action="type_submit", input=f"cat {big}"))
-        assert "line 7999" in out, out[-200:]
-        view = str(await text_editor()(command="view", path=big))
-        assert "line 7999" in view, view[-200:]
-
         await sb.write_file("/tmp/mini_mcp.py", _MINI_MCP_SERVER)
         async with mcp_server_sandbox(
             command="python3", args=["/tmp/mini_mcp.py"]
@@ -288,6 +279,24 @@ def _identity_parity(check_root: bool = True) -> Solver:
 
         if not check_root:
             return state
+
+        # Responses over the exec output limit spill into a shared 1733 chunk root
+        # that the CLI, running as root for the daemon tools, may create first. A
+        # chunked text_editor response as the default user must still work then.
+        # (The limit is lowered because the editor clips its output at 16k chars.)
+        chunk_root = f"{SANDBOX_TOOLS_DIR}-json-rpc-chunks"
+        made = await sb.exec(["mkdir", "-m", "1733", chunk_root], user="root")
+        assert made.success, made.stderr
+        big = f"{path}.big"
+        await sb.write_file(big, "".join(f"line {i}\n" for i in range(800)))
+        with override_max_exec_output_size(4096):
+            view = str(await text_editor()(command="view", path=big))
+        assert "line 799" in view, view[-200:]
+        # the response really was chunked, by the default user
+        spilled = await sb.exec(
+            ["stat", "-c", "%u", f"{chunk_root}/{uid}"], user="root"
+        )
+        assert spilled.success and spilled.stdout.strip() == uid, spilled
 
         # explicit user= still overrides the default
         root = ExecRemoteAwaitableOptions(user="root")
