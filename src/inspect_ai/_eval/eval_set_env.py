@@ -66,8 +66,8 @@ from collections.abc import Callable, Mapping
 from typing import Any, NamedTuple
 
 import click
-import yaml
 
+from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_BATCH_SIZE,
@@ -249,22 +249,10 @@ def _comma_separated(text: str, variable: str) -> list[str]:
 def _metadata(text: str, variable: str) -> dict[str, Any]:
     """`--metadata` is `multiple=True`, which click splits on whitespace.
 
-    Each entry is then `parse_cli_args`: the value is YAML, so `a=1` is the
-    integer one rather than the string, and a comma makes a list. An entry with
-    no `=` is dropped rather than refused, which is what `parse_cli_args` does
-    with one — this mirrors the CLI rather than improving on it.
+    Parse each entry with the same helper as the CLI, including YAML values
+    and the comma-separated list shorthand for plain strings.
     """
-    entries: dict[str, Any] = {}
-    for item in text.split():
-        key, separator, raw = item.partition("=")
-        if not separator:
-            continue
-        value: Any = yaml.safe_load(raw)
-        if isinstance(value, str):
-            parts = value.split(",")
-            value = parts if len(parts) > 1 else parts[0]
-        entries[key.replace("-", "_")] = value
-    return entries
+    return parse_cli_args(text.split())
 
 
 def _checkpoint(text: str, variable: str) -> Any:
