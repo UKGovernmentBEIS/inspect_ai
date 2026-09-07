@@ -1,7 +1,13 @@
 import pprint
+import re
+from logging import getLogger
 from string import Formatter
 from textwrap import indent
 from typing import Any
+
+from inspect_ai._util.logger import warn_once
+
+logger = getLogger(__name__)
 
 
 def format_function_call(
@@ -64,35 +70,86 @@ def format_template(
     """
 
     class SafeFormatter(Formatter):
-        def get_field(self, field_name: str, args: Any, kwargs: Any) -> Any:
-            try:
-                # Handle array indexing and nested attributes
-                first, rest = (
-                    field_name.split(".", 1)
-                    if "." in field_name
-                    else (field_name, None)
-                )
-                first = first.split("[")[0]  # Remove any array indexing for the check
+        def vformat(self, format_string: str, args: Any, kwargs: Any) -> str:
+            result: list[str] = []
+            for literal_text, field_name, format_spec, conversion in self.parse(
+                format_string
+            ):
+                if literal_text:
+                    result.append(literal_text)
 
-                if first not in params and skip_unknown:
-                    return "{" + field_name + "}", field_name
+                if field_name is None:
+                    continue
 
-                obj = params.get(first)
-                if obj is None and skip_unknown:
-                    return "{" + field_name + "}", field_name
+                # reconstruct the placeholder exactly as it was written, so an
+                # unresolvable field passes through byte-for-byte (including its
+                # !conversion and :format_spec)
+                original = _render_field(field_name, format_spec, conversion)
 
-                return super().get_field(field_name, args, kwargs)
-            except (AttributeError, KeyError, IndexError) as e:
-                if skip_unknown:
-                    return "{" + field_name + "}", field_name
-                raise KeyError(f"Failed to format field '{field_name}'") from e
+                if not self._resolvable(field_name):
+                    if skip_unknown:
+                        _warn_unresolved(field_name)
+                        result.append(original)
+                        continue
+                    raise KeyError(f"Failed to format field '{field_name}'")
 
-        def format_field(self, value: Any, format_spec: str) -> Any:
-            try:
-                return super().format_field(value, format_spec)
-            except (ValueError, TypeError):
-                if skip_unknown:
-                    return "{" + str(value) + ":" + format_spec + "}"
-                raise
+                try:
+                    obj = super().get_field(field_name, args, kwargs)[0]
+                    obj = self.convert_field(obj, conversion)
+                    # a format spec may itself contain placeholders
+                    spec = self.vformat(format_spec or "", args, kwargs)
+                    result.append(self.format_field(obj, spec))
+                except (
+                    AttributeError,
+                    KeyError,
+                    IndexError,
+                    ValueError,
+                    TypeError,
+                ) as e:
+                    if skip_unknown:
+                        _warn_unresolved(field_name)
+                        result.append(original)
+                    else:
+                        raise KeyError(f"Failed to format field '{field_name}'") from e
+
+            return "".join(result)
+
+        def _resolvable(self, field_name: str) -> bool:
+            """Whether field_name's root refers to a supplied param."""
+            first = field_name.split(".", 1)[0].split("[", 1)[0]
+            return first in params and params.get(first) is not None
 
     return SafeFormatter().format(template, **params)
+
+
+def _render_field(
+    field_name: str, format_spec: str | None, conversion: str | None
+) -> str:
+    """Rebuild the original `{field!conv:spec}` text of a parsed placeholder.
+
+    `str.Formatter.parse()` reports an absent spec and an empty one identically,
+    so a redundant trailing colon (`{x:}`) round-trips as `{x}`. The two format
+    the same, so this is a normalization rather than a loss.
+    """
+    text = "{" + field_name
+    if conversion:
+        text += "!" + conversion
+    if format_spec:
+        text += ":" + format_spec
+    return text + "}"
+
+
+# a field name that looks like an identifier path is most likely a typo'd or
+# missing param, whereas JSON-ish braces (quoted/spaced/etc.) are almost always
+# literal content the author meant to keep
+_VARIABLE_FIELD = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:[.\[][^{}]*)?$")
+
+
+def _warn_unresolved(field_name: str) -> None:
+    if _VARIABLE_FIELD.match(field_name):
+        warn_once(
+            logger,
+            f"Template contains placeholder '{{{field_name}}}' which does not "
+            "match any provided parameter; it will be left as-is. Use "
+            "'{{' and '}}' to escape literal braces.",
+        )
