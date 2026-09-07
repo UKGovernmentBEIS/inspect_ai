@@ -34,7 +34,7 @@ from inspect_sandbox_tools._util.load_tools import load_tools
 from inspect_sandbox_tools._util.user_switch import (
     RunAs,
     get_home_dir,
-    is_current_user,
+    switch_target,
     switch_user,
 )
 
@@ -187,9 +187,10 @@ async def _exec(request: str | None) -> None:
                 run_as = run_as_spec
         if run_as is not None:
             request_json_str = json.dumps(request_data)
-            if not is_current_user(run_as):
-                switch_user(run_as)
-                os.environ["HOME"] = get_home_dir(run_as)
+            target = switch_target(run_as, can_switch_user=os.getuid() == 0)
+            if target is not None:
+                switch_user(target)
+                os.environ["HOME"] = get_home_dir(target)
 
     response = await (
         _dispatch_local_method

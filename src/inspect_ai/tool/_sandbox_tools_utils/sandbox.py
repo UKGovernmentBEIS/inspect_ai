@@ -149,6 +149,10 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     argv carries the whole verification script, so logging it would add kilobytes
     of identical shell to the transcript per call (the injection itself, which runs
     once per sandbox, is still recorded).
+
+    Raises:
+        SandboxDefaultUserError: A trustworthy root installation was found but the
+            default exec identity could not be read (see the handler below).
     """
     try:
         with _without_sandbox_events(sandbox):

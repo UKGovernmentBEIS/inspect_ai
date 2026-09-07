@@ -805,6 +805,30 @@ async def test_inject_falls_back_when_root_cannot_switch_users(
     )
 
 
+async def test_root_probe_reports_missing_key_despite_noise(
+    stub_artifact: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A noise line must not turn a short probe into a KeyError; it is reported as such."""
+    traces: list[str] = []
+    monkeypatch.setattr(
+        sandbox_tools, "trace_message", lambda _l, _c, msg: traces.append(msg)
+    )
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_caps_probe(cmd):
+            return ExecResult(
+                success=True,
+                returncode=0,
+                stdout="Welcome: to the VM\nUid: 0 0 0 0\nCapEff: 000001ffffffffff\n",
+                stderr="",
+            )
+        return helper_ok(cmd, user)
+
+    await sandbox_tools._inject_container_tools_code(CannedSandbox(policy))
+    assert any("root probe failed" in t for t in traces), traces
+    assert not any("KeyError" in t for t in traces), traces
+
+
 async def test_root_probe_tolerates_login_shell_noise(
     stub_artifact: dict[str, object],
 ) -> None:

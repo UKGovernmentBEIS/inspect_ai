@@ -1,8 +1,11 @@
 """Unit tests for exec_remote Job user-switching logic."""
 
 import asyncio
+import json
 import os
 import pwd
+from pathlib import Path
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pydantic
@@ -116,6 +119,55 @@ def test_user_param_is_username_or_identity(
     ).user == RunAs.model_validate(identity)
     with pytest.raises(pydantic.ValidationError):
         model.model_validate({**required, "run_as": identity})
+
+
+class TestCliRunAs:
+    """The CLI strips its reserved `_run_as` param and switches only when needed."""
+
+    def _view(self, run_as: object, tmp_path: Path, capsys: Any) -> dict[str, Any]:
+        from inspect_sandbox_tools._cli.main import _exec
+
+        request = {
+            "jsonrpc": "2.0",
+            "method": "text_editor",
+            "id": 1,
+            "params": {"command": "view", "path": str(tmp_path), "_run_as": run_as},
+        }
+        asyncio.run(_exec(json.dumps(request)))
+        return cast(dict[str, Any], json.loads(capsys.readouterr().out))
+
+    def test_current_identity_needs_no_switch(
+        self, tmp_path: Path, capsys: Any
+    ) -> None:
+        me = {"uid": os.getuid(), "gid": os.getgid(), "groups": os.getgroups()}
+        home = os.environ.get("HOME")
+        with patch("inspect_sandbox_tools._cli.main.switch_user") as mock_switch:
+            response = self._view(me, tmp_path, capsys)
+        mock_switch.assert_not_called()
+        assert "error" not in response, response
+        assert os.environ.get("HOME") == home
+
+    def test_current_username_needs_no_switch(
+        self, tmp_path: Path, capsys: Any
+    ) -> None:
+        with patch("inspect_sandbox_tools._cli.main.switch_user") as mock_switch:
+            response = self._view(pwd.getpwuid(os.getuid()).pw_name, tmp_path, capsys)
+        mock_switch.assert_not_called()
+        assert "error" not in response, response
+
+    @pytest.mark.skipif(os.getuid() == 0, reason="root can switch")
+    def test_other_identity_without_root_raises(
+        self, tmp_path: Path, capsys: Any
+    ) -> None:
+        from inspect_sandbox_tools._util.common_types import ToolException
+
+        other = {"uid": os.getuid() + 1, "gid": 0, "groups": []}
+        with pytest.raises(ToolException, match="Cannot switch to user"):
+            self._view(other, tmp_path, capsys)
+
+    def test_rejects_malformed_run_as(self, tmp_path: Path, capsys: Any) -> None:
+        with pytest.raises(TypeError, match="_run_as must be"):
+            self._view(42, tmp_path, capsys)
 
 
 class TestRunAs:
