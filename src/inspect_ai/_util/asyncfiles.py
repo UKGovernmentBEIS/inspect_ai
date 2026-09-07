@@ -4,9 +4,11 @@ import errno
 import functools
 import io
 import logging
+import os
 import shutil
 import time
-from contextlib import AbstractAsyncContextManager, contextmanager
+import uuid
+from contextlib import AbstractAsyncContextManager, contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
@@ -365,6 +367,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             return filesystem(filename).exists(filename)
 
     async def read_file(self, filename: str) -> bytes:
+        """Read a file's full contents.
+
+        Raises ``FileNotFoundError`` for a missing file on every
+        backend (S3 missing-key errors are normalized to it, matching
+        the local branch).
+        """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
             with _map_missing_s3_object(filename):
@@ -551,19 +559,114 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             return None
 
     async def get_file(self, remote: str, local: str) -> None:
-        """Download `remote` to local path `local`."""
+        """Download `remote` to local path `local`.
+
+        S3 downloads land in a sibling temp file and are renamed into
+        place, so a partial download never masquerades as the file and an
+        existing read-only target (restic writes repo files ``0400``) is
+        replaced rather than opened for writing. boto3's ``download_file``
+        does this itself; aioboto3's opens the target in place. The
+        non-S3 branch copies in place.
+        """
         if is_s3_filename(remote):
             bucket, key = s3_bucket_and_key(remote)
             with _map_missing_s3_object(remote):
                 if current_async_backend() == "asyncio":
                     client = await self.s3_client_async()
-                    await client.download_file(Bucket=bucket, Key=key, Filename=local)
+                    partial_path = f"{local}.{uuid.uuid4().hex}.part"
+                    try:
+                        await client.download_file(
+                            Bucket=bucket, Key=key, Filename=partial_path
+                        )
+                        os.replace(partial_path, local)
+                    finally:
+                        with suppress(FileNotFoundError):
+                            os.remove(partial_path)
                 else:
                     await anyio.to_thread.run_sync(
                         s3_get_file, self.s3_client(), bucket, key, local
                     )
         else:
             filesystem(remote).get_file(remote, local)
+
+    async def copy_file(self, source: str, destination: str) -> None:
+        """Copy `source` to `destination`; either side may be local or remote.
+
+        An s3 → s3 pair copies server-side (single `CopyObject` — capped
+        at 5GB per object by S3, well above any file this codebase
+        copies; restic pack files top out at 128MiB). A local
+        destination's parent directory must already exist. Pairs
+        involving a non-s3 remote (gs://, az://, ...) buffer the file
+        through memory — never `to_thread` over fsspec's own event-loop
+        thread (deadlock hazard; see AGENTS.md), and fine for the file
+        sizes above.
+        """
+        src_s3 = is_s3_filename(source)
+        dst_s3 = is_s3_filename(destination)
+        src_local = not src_s3 and filesystem(source).is_local()
+        dst_local = not dst_s3 and filesystem(destination).is_local()
+        if src_s3 and dst_s3:
+            src_bucket, src_key = s3_bucket_and_key(source)
+            dst_bucket, dst_key = s3_bucket_and_key(destination)
+
+            async def do_copy() -> None:
+                if current_async_backend() == "asyncio":
+                    client = await self.s3_client_async()
+                    await client.copy_object(
+                        CopySource={"Bucket": src_bucket, "Key": src_key},
+                        Bucket=dst_bucket,
+                        Key=dst_key,
+                    )
+                else:
+                    await anyio.to_thread.run_sync(
+                        s3_copy_object,
+                        self.s3_client(),
+                        src_bucket,
+                        src_key,
+                        dst_bucket,
+                        dst_key,
+                    )
+
+            await _s3_put_with_retry(do_copy, location=destination)
+        elif src_local and dst_local:
+            await anyio.to_thread.run_sync(
+                shutil.copyfile, local_path(source), local_path(destination)
+            )
+        elif dst_local:
+            await self.get_file(source, local_path(destination))
+        elif src_local:
+            with open(local_path(source), "rb") as f:
+                await self.write_file_streaming(destination, f)
+        else:
+            # a non-s3 remote is involved on at least one side: buffer
+            # through memory using the per-scheme read/write paths
+            await self.write_file(destination, await self.read_file(source))
+
+    async def delete_file(self, filename: str) -> None:
+        """Delete `filename`.
+
+        Raises `FileNotFoundError` for a missing local file; S3 deletes
+        are idempotent (no error for a missing key).
+        """
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                await client.delete_object(Bucket=bucket, Key=key)
+            else:
+                await anyio.to_thread.run_sync(
+                    s3_delete_object, self.s3_client(), bucket, key
+                )
+        else:
+            fs = filesystem(filename)
+            if fs.is_local():
+                await anyio.to_thread.run_sync(fs.rm, filename)
+            else:
+                # non-s3 remote: run the sync fsspec call on the loop thread
+                # rather than to_thread over fsspec's own event-loop thread
+                # (deadlock hazard; see AGENTS.md) — matches `get_file`'s
+                # non-s3 branch
+                fs.rm(filename)
 
     @overload
     def iter_files(
@@ -615,7 +718,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     kwargs["Delimiter"] = "/"
                 async for page in paginator.paginate(**kwargs):
                     for obj in page.get("Contents", []):
-                        if fnmatchcase(obj["Key"].rsplit("/", 1)[-1], pattern):
+                        if _is_s3_file_key(obj["Key"], pattern):
                             yield (
                                 _s3_obj_to_file_info(bucket, obj)
                                 if detail
@@ -1032,6 +1135,30 @@ def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
     s3.download_file(Bucket=bucket, Key=key, Filename=filename)
 
 
+def s3_copy_object(
+    s3: Any, src_bucket: str, src_key: str, dst_bucket: str, dst_key: str
+) -> None:
+    s3.copy_object(
+        CopySource={"Bucket": src_bucket, "Key": src_key},
+        Bucket=dst_bucket,
+        Key=dst_key,
+    )
+
+
+def s3_delete_object(s3: Any, bucket: str, key: str) -> None:
+    s3.delete_object(Bucket=bucket, Key=key)
+
+
+def _is_s3_file_key(key: str, pattern: str) -> bool:
+    """Whether a listed key is a file whose basename matches ``pattern``.
+
+    Zero-byte "directory marker" keys (``prefix/``, created by the S3
+    console's "Create folder" and by some sync tools) are not files —
+    their empty basename would otherwise match ``*``.
+    """
+    return not key.endswith("/") and fnmatchcase(key.rsplit("/", 1)[-1], pattern)
+
+
 def s3_iter_files(
     s3: Any,
     bucket: str,
@@ -1047,7 +1174,7 @@ def s3_iter_files(
     results: list[str | FileInfo] = []
     for page in paginator.paginate(**kwargs):
         for obj in page.get("Contents", []):
-            if fnmatchcase(obj["Key"].rsplit("/", 1)[-1], pattern):
+            if _is_s3_file_key(obj["Key"], pattern):
                 results.append(
                     _s3_obj_to_file_info(bucket, obj)
                     if detail

@@ -56,7 +56,7 @@ web_search({
 
 ### OpenAI Options
 
-The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", and "gpt-4.1"). This provider does not require any API keys beyond what's needed for the model itself.
+The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", and GPT-5 and later, including GPT-6 Astra). This provider does not require any API keys beyond what's needed for the model itself.
 
 For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
@@ -825,11 +825,11 @@ The schema for the `memory()` tool is based on the standard Anthropic [memory to
 
 The `think()` tool provides models with the ability to include an additional thinking step as part of getting to its final answer.
 
-Note that the `think()` tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios.
+Note that the `think()` tool is not a substitute for reasoning and extended thinking, but rather an alternate way of letting models express thinking that is better suited to some tool use scenarios.
 
 ### Usage
 
-You should read the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) in its entirely to understand where and where not to use the think tool. In summary, good contexts for the think tool include:
+You should read the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) in its entirety to understand where and where not to use the think tool. In summary, good contexts for the think tool include:
 
 1.  Tool output analysis. When models need to carefully process the output of previous tool calls before acting and might need to backtrack in its approach;
 2.  Policy-heavy environments. When models need to follow detailed guidelines and verify compliance; and

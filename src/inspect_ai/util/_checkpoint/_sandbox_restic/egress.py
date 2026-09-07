@@ -43,8 +43,8 @@ async def ingress_sandbox(
 
     Inverse of :func:`egress_sandbox`. Used on resume:
 
-    1. Tar the host-side repo dir (whose contents were FS-copied from
-       the prior eval's host side just before this call).
+    1. Tar the host-side repo dir (put in place by the retry startup
+       copy, or by the prior run of this sample on an in-eval requeue).
     2. Stream the tarball into the sandbox via root ``sh`` so the agent
        never sees the bytes in flight, extracting into the standard
        in-sandbox repo location (``/root/.cache/inspect/repo``).

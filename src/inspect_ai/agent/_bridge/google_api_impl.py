@@ -54,6 +54,7 @@ from .util import (
     clear_generation_params,
     client_json_schema,
     client_request_object,
+    client_request_string,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
@@ -81,9 +82,8 @@ async def inspect_google_api_request_impl(
         "systemInstruction", json_data.get("system_instruction")
     )
     google_tools: list[dict[str, Any]] | None = json_data.get("tools")
-    tool_config: dict[str, Any] | None = json_data.get(
-        "toolConfig", json_data.get("tool_config")
-    )
+    # client-controlled; validated by tool_choice_from_google_tool_config below
+    tool_config: Any = json_data.get("toolConfig", json_data.get("tool_config"))
     # client-controlled; validated by generate_config_from_google below
     generation_config: Any = json_data.get(
         "generationConfig", json_data.get("generation_config", {})
@@ -286,13 +286,39 @@ def tools_from_google_tools(
 
 
 def tool_choice_from_google_tool_config(
-    tool_config: dict[str, Any] | None,
+    tool_config: Any,
 ) -> ToolChoice | None:
+    # `Any` rather than `dict[str, Any] | None`: the value is client-controlled
+    # JSON, so each container is guarded before it is dereferenced for a
+    # mistyped value to 400 rather than escape as a raw `AttributeError`.
+    tool_config = client_request_object(tool_config, "toolConfig")
     if not tool_config:
         return None
 
-    function_calling_config = tool_config.get("functionCallingConfig", {})
-    mode = function_calling_config.get("mode", "AUTO")
+    function_calling_config = (
+        client_request_object(
+            tool_config.get("functionCallingConfig", None),
+            "toolConfig.functionCallingConfig",
+        )
+        or {}
+    )
+    mode = function_calling_config.get("mode", None)
+    if mode is None:
+        mode = "AUTO"
+    mode = client_request_string(mode, "toolConfig.functionCallingConfig.mode")
+    allowed = function_calling_config.get("allowedFunctionNames", None)
+    if allowed is not None and not isinstance(allowed, list):
+        raise BridgePolicyError(
+            "invalid request field in bridged request "
+            "(toolConfig.functionCallingConfig.allowedFunctionNames: input should "
+            f"be an array, got {type(allowed).__name__})"
+        )
+    allowed_names = [
+        client_request_string(
+            name, f"toolConfig.functionCallingConfig.allowedFunctionNames.{i}"
+        )
+        for i, name in enumerate(allowed or [])
+    ]
 
     match mode:
         case "AUTO":
@@ -302,9 +328,8 @@ def tool_choice_from_google_tool_config(
         case "NONE":
             return "none"
         case _:
-            allowed = function_calling_config.get("allowedFunctionNames", [])
-            if allowed and len(allowed) == 1:
-                return ToolFunction(name=allowed[0])
+            if len(allowed_names) == 1:
+                return ToolFunction(name=allowed_names[0])
             return "auto"
 
 

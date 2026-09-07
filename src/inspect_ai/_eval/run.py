@@ -84,6 +84,7 @@ from .loader import (
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask
 from .task.run import (
+    EvalSampleSource,
     TaskRunOptions,
     eval_log_sample_source,
     plan_agent_name,
@@ -603,19 +604,22 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
         # errors generally don't escape from tasks -- the exception is a
         # failure to write the log itself (e.g. the log_start() header flush,
         # or the log_finish() of an already-errored task, when log storage is
-        # unreachable). propagating would tear down the entire run (and all
-        # sibling tasks) for one task's failed write, so record an errored
-        # EvalLog instead: the dispatcher re-queues errored tasks and
-        # eval_set() retries them once storage recovers.
+        # unreachable) or of a retry's checkpoint startup copy, which runs
+        # before the log's first write. propagating would tear down the
+        # entire run (and all sibling tasks) for one task's failed write, so
+        # record an errored EvalLog instead: the dispatcher re-queues errored
+        # tasks and eval_set() retries them once storage recovers.
         if options.debug_errors:
             raise
         inner = inner_exception(ex)
         log.error(
-            f"Task '{options.task.name}' encountered an error while writing its log: {inner}"
+            f"Task '{options.task.name}' encountered an error while starting "
+            f"or writing its log: {inner}"
         )
         # location points at the log file the write was destined for — it may
-        # not exist (a failed log_start() header flush) or may hold a partial
-        # log (a failed error-status log_finish())
+        # not exist (a failed log_start() header flush, or a retry's failed
+        # checkpoint startup copy) or may hold a partial log (a failed
+        # error-status log_finish())
         result = EvalLog(
             status="error",
             eval=options.logger.eval,
@@ -866,26 +870,37 @@ async def run_task_retry_attempts(
                         mark_eval_retry_pending(result.eval.eval_id)
 
                         # build sample_source from the failed log so completed
-                        # samples are reused on retry (mirrors legacy eval_set retry)
-                        failed_log_info = EvalLogInfo(
-                            name=options.logger.location,
-                            type="file",
-                            size=0,
-                            mtime=None,
-                            task=options.task.name,
-                            task_id=options.logger.eval.task_id,
-                            suffix=None,
-                        )
-                        sample_source = eval_log_sample_source(
-                            result,
-                            failed_log_info,
-                            options.task.dataset,
-                            eval_checkpoints_dir_from_config(
-                                options.logger.location,
-                                options.checkpoint,
-                                options.eval_checkpoint,
-                            ),
-                        )
+                        # samples are reused on retry (mirrors legacy eval_set
+                        # retry). An attempt that died before anything reached
+                        # its destination log (e.g. its checkpoint startup copy
+                        # failed pre-log_start) left no file — chain the retry
+                        # from whatever *it* was retrying instead, so reuse and
+                        # checkpoints fall back a hop rather than sourcing an
+                        # attempt that holds nothing. The logger knows whether
+                        # it wrote anything; no storage probe is needed.
+                        sample_source: EvalSampleSource | None
+                        if options.logger.destination_written:
+                            failed_log_info = EvalLogInfo(
+                                name=options.logger.location,
+                                type="file",
+                                size=0,
+                                mtime=None,
+                                task=options.task.name,
+                                task_id=options.logger.eval.task_id,
+                                suffix=None,
+                            )
+                            sample_source = eval_log_sample_source(
+                                result,
+                                failed_log_info,
+                                options.task.dataset,
+                                eval_checkpoints_dir_from_config(
+                                    options.logger.location,
+                                    options.checkpoint,
+                                    options.eval_checkpoint,
+                                ),
+                            )
+                        else:
+                            sample_source = options.sample_source
 
                         # reinit logger for a fresh eval entry
                         await options.logger.reinit()
