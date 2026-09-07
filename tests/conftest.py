@@ -1,7 +1,9 @@
+import asyncio
 import contextlib
 import faulthandler
 import importlib.util
 import inspect
+import io
 import logging
 import os
 import re
@@ -10,10 +12,13 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import traceback
 import uuid
 import warnings
+from collections import deque
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from types import FrameType
 from typing import TYPE_CHECKING, TextIO
 
@@ -349,6 +354,13 @@ def no_model_copyreg_reducer():
 #     method (os._exit(1), output swallowed
 #     inside a worker)                          -> hang-dump watchdog
 #   - OOM SIGKILL                               -> _report_oom_kills
+# The watchdog writes two dumps to the same per-process file: faulthandler's
+# OS-thread dump (async-signal-safe; catches hard C-level wedges), then — for
+# an async hang, where every stall parks the loop thread identically in
+# selectors.select — a python-level dump (_write_python_hang_dump) that adds
+# what faulthandler cannot see: each pending asyncio task's coroutine stack,
+# source lines, and a ring buffer of recent log records (model retry lines
+# etc.), since the worker's real stdout/stderr never survives the kill.
 # None of these changes test behavior.
 # ---------------------------------------------------------------------------
 
@@ -368,6 +380,211 @@ _hang_dump_disabled = False
 # The dump dir this process created (controller only); the only dir we may
 # delete — a pre-existing user-supplied _HANG_DUMP_DIR_ENV is left alone.
 _hang_dump_dir_created: str | None = None
+
+# The python-level dump fires this long after the faulthandler dump so the
+# two never write to the fd concurrently (faulthandler's C thread writes
+# incrementally; interleaving would garble both).
+_PYTHON_HANG_DUMP_DELAY_SECONDS = 10
+_python_hang_dump_timer: threading.Timer | None = None
+# nodeid of the test whose setup last armed the watchdog, stamped into the
+# python-level dump header (the dump fires mid-test, so this names the test
+# actually in flight)
+_hang_dump_nodeid: str | None = None
+
+_LOG_RING_BUFFER_LINES = 200
+_log_ring_buffer: "deque[str] | None" = None
+
+
+class _LogRingBufferHandler(logging.Handler):
+    """Keep the last N formatted log records for the python-level hang dump.
+
+    A hung worker's real output never survives pytest-timeout's thread-method
+    kill: execnet redirects worker stdout and ``os._exit(1)`` discards
+    pytest's capture buffers, so every provider error and retry line is lost
+    (meridianlabs-ai/inspect_ai#232).  This ring buffer is the recovery path:
+    it holds the most recent log records in memory and the watchdog flushes
+    them into the hang-dump file, which does survive.
+
+    Attached to both the root logger and the ``inspect_ai`` logger: the first
+    ``eval()`` calls ``init_logger()``, which sets ``inspect_ai.propagate``
+    to False, so root-only attachment would miss exactly the records that
+    matter (model retry lines log at the custom HTTP level 15 on
+    ``inspect_ai.*`` loggers).  While ``propagate`` is still True a record
+    reaches the handler through both attachments back to back; the identity
+    check drops the consecutive duplicate (best-effort — interleaved logging
+    from another thread can let a rare duplicate line through, which is
+    harmless in a diagnostic buffer).
+    """
+
+    def __init__(self, buffer: "deque[str]") -> None:
+        super().__init__()
+        self._buffer = buffer
+        self._last_record: logging.LogRecord | None = None
+        self.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if record is self._last_record:
+            return
+        self._last_record = record
+        # never let a formatting error in a diagnostic surface as a logging
+        # error inside an unrelated test
+        with contextlib.suppress(Exception):
+            self._buffer.append(self.format(record))
+
+
+def _write_python_hang_dump() -> None:
+    """Write the python-level hang dump next to the faulthandler dump.
+
+    Runs on the watchdog timer thread while the hung test is still in flight
+    (pytest-timeout's kill comes later).  Everything here is best-effort
+    reading of state owned by other threads — a running event loop can mutate
+    task sets and frames mid-read — so each section degrades to a note rather
+    than failing the dump, and any unexpected error is swallowed after a
+    breadcrumb to raw fd 2.  No locks: worst case is a garbled line in a
+    diagnostic file.
+    """
+    file = _hang_dump_file
+    if file is None:
+        return
+    try:
+        out = io.StringIO()
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        out.write(
+            f"\n--- python-level hang dump at {now} "
+            f"(in-flight test: {_hang_dump_nodeid}) ---\n"
+        )
+        _write_recent_log_records(out)
+        _write_thread_stacks(out)
+        _write_asyncio_task_stacks(out)
+        out.write("--- end python-level hang dump ---\n")
+        # write via the raw fd like faulthandler does (the TextIO buffer is
+        # never used, so the two dumps can't interleave through it)
+        data = out.getvalue().encode(errors="replace")
+        while data:
+            data = data[os.write(file.fileno(), data) :]
+    except Exception as ex:
+        with contextlib.suppress(OSError):
+            os.write(2, f"\n*** python-level hang dump failed: {ex!r}\n".encode())
+
+
+def _write_recent_log_records(out: io.StringIO) -> None:
+    buffer = _log_ring_buffer
+    if buffer is None:
+        return
+    # snapshot defensively: another thread appending mid-iteration raises
+    # RuntimeError, so retry a few times and settle for a note
+    for _ in range(3):
+        try:
+            records = list(buffer)
+            break
+        except RuntimeError:
+            continue
+    else:
+        out.write("\n# recent log records: snapshot failed (buffer busy)\n")
+        return
+    out.write(
+        f"\n# last {len(records)} log records "
+        f"(ring buffer, max {_LOG_RING_BUFFER_LINES}, oldest first):\n"
+    )
+    for record in records:
+        out.write(record + "\n")
+
+
+def _write_thread_stacks(out: io.StringIO) -> None:
+    """Write all thread stacks with source lines (faulthandler omits them)."""
+    names = {t.ident: t.name for t in threading.enumerate()}
+    current = threading.get_ident()
+    for ident, frame in sys._current_frames().items():
+        if ident == current:
+            continue
+        out.write(f"\n# thread {names.get(ident, '<unknown>')} (id {ident}):\n")
+        out.write("".join(traceback.format_stack(frame)))
+
+
+def _write_asyncio_task_stacks(out: io.StringIO) -> None:
+    """Write each pending asyncio task's coroutine stack.
+
+    This is the part faulthandler cannot see: an async hang parks the loop
+    thread in ``selectors.select`` whatever the cause, and only the suspended
+    coroutine frames (tenacity backoff sleep vs. in-flight httpx request vs.
+    scheduler wait) discriminate the stall mechanisms of #232.
+
+    Reads asyncio's private task registries (``_all_tasks`` on <= 3.11;
+    ``_scheduled_tasks`` + ``_eager_tasks`` on 3.12+) because the public
+    ``asyncio.all_tasks()`` requires the caller to be on the loop's thread
+    and this runs on the watchdog timer thread.
+    """
+    registries = [
+        registry
+        for name in ("_all_tasks", "_scheduled_tasks", "_eager_tasks")
+        if (registry := getattr(asyncio.tasks, name, None)) is not None
+    ]
+    if not registries:
+        out.write("\n# asyncio tasks: unavailable (no known task registry)\n")
+        return
+    # the registries are mutated by running loops; iteration can raise
+    # RuntimeError
+    tasks = None
+    for _ in range(5):
+        try:
+            snapshot = []
+            seen: set[int] = set()
+            for registry in registries:
+                for t in registry:
+                    if not t.done() and id(t) not in seen:
+                        seen.add(id(t))
+                        snapshot.append(t)
+            tasks = snapshot
+            break
+        except RuntimeError:
+            continue
+    if tasks is None:
+        out.write("\n# asyncio tasks: snapshot failed (task set busy)\n")
+        return
+    out.write(f"\n# pending asyncio tasks: {len(tasks)}\n")
+    for task in tasks:
+        out.write("\n")
+        try:
+            _write_task_await_chain(out, task)
+        except Exception as ex:
+            out.write(f"<failed to dump {task!r}: {ex!r}>\n")
+
+
+def _write_task_await_chain(out: io.StringIO, task: "asyncio.Task[object]") -> None:
+    """Write a pending task's full await chain, outermost frame first.
+
+    ``Task.print_stack()``/``get_stack()`` return only the outermost suspended
+    frame, which for a deep eval() stall is just "await coro" in the test
+    runner — useless for telling a tenacity backoff sleep from an in-flight
+    httpx request.  Following ``cr_await`` (and the generator/async-generator
+    equivalents) through the suspended coroutine chain recovers every frame
+    down to the primitive actually being awaited.
+    """
+    out.write(f"Await chain for {task!r} (outermost first):\n")
+    awaitable: object = task.get_coro()
+    for _ in range(64):  # bound depth defensively (racy reads, weird chains)
+        if awaitable is None:
+            break
+        frame = (
+            getattr(awaitable, "cr_frame", None)
+            or getattr(awaitable, "gi_frame", None)
+            or getattr(awaitable, "ag_frame", None)
+        )
+        if frame is None:
+            out.write(f"  awaiting {awaitable!r}\n")
+            break
+        summary = traceback.StackSummary.extract(iter([(frame, frame.f_lineno)]))
+        out.write("".join(summary.format()))
+        awaitable = (
+            getattr(awaitable, "cr_await", None)
+            or getattr(awaitable, "gi_yieldfrom", None)
+            or getattr(awaitable, "ag_await", None)
+        )
+    else:
+        out.write("  <await chain truncated at 64 links>\n")
+
 
 _STRAY_SIGALRM_MESSAGE = (
     "stray SIGALRM: an alarm()/setitimer() armed by an earlier test "
@@ -470,21 +687,30 @@ def _resolve_hang_dump_seconds(config: pytest.Config) -> int:
 
 
 def _arm_hang_dump() -> None:
-    """(Re-)arm the faulthandler watchdog.
+    """(Re-)arm the faulthandler watchdog and its python-level companion.
 
     If the current test (plus its share of fixture work) runs longer than
     ``_hang_dump_seconds``, all thread stacks are dumped to a per-process
     file, which the controller prints at session end.  faulthandler writes to
     the raw fd, so the dump survives both the ``os._exit(1)`` that
     pytest-timeout's thread method uses and execnet's stream redirection.
+    A timer thread then appends the python-level dump (task stacks, recent
+    log records — see _write_python_hang_dump) shortly after, still well
+    before pytest-timeout's kill.
     """
-    global _hang_dump_file, _hang_dump_disabled
+    global _hang_dump_file, _hang_dump_disabled, _python_hang_dump_timer
     if _hang_dump_disabled or _hang_dump_seconds <= 0:
         return
     dump_dir = os.environ.get(_HANG_DUMP_DIR_ENV)
     if dump_dir is None:
         return
     try:
+        # cancel the previous test's timer before anything that can raise, so
+        # a failed re-arm can't leave a stale timer to fire mid-run and write
+        # a dump misattributed to whatever test is then in flight
+        if _python_hang_dump_timer is not None:
+            _python_hang_dump_timer.cancel()
+            _python_hang_dump_timer = None
         if _hang_dump_file is None:
             token = os.environ.get(_HANG_DUMP_TOKEN_ENV, "")
             worker = os.environ.get("PYTEST_XDIST_WORKER", "controller")
@@ -495,6 +721,14 @@ def _arm_hang_dump() -> None:
         faulthandler.dump_traceback_later(
             _hang_dump_seconds, exit=False, file=_hang_dump_file
         )
+        timer = threading.Timer(
+            _hang_dump_seconds + _PYTHON_HANG_DUMP_DELAY_SECONDS,
+            _write_python_hang_dump,
+        )
+        timer.daemon = True
+        timer.name = "hang-dump-python-watchdog"
+        timer.start()
+        _python_hang_dump_timer = timer
     except (OSError, RuntimeError, ValueError) as ex:
         # disable rather than retry-and-fail on every test, but say so: a
         # silently inert watchdog is the very failure mode it exists to fix
@@ -503,6 +737,8 @@ def _arm_hang_dump() -> None:
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
+    global _hang_dump_nodeid
+    _hang_dump_nodeid = item.nodeid
     _arm_hang_dump()
 
 
@@ -629,7 +865,7 @@ def pytest_configure(config):
     os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-dummy")
 
     _install_stray_sigalrm_handler()
-    global _hang_dump_seconds, _hang_dump_dir_created
+    global _hang_dump_seconds, _hang_dump_dir_created, _log_ring_buffer
     _hang_dump_seconds = _resolve_hang_dump_seconds(config)
     # The controller sets the hang-dump dir before xdist spawns workers (they
     # inherit it via the environment); workers see it already set.
@@ -638,6 +874,13 @@ def pytest_configure(config):
         os.environ[_HANG_DUMP_DIR_ENV] = _hang_dump_dir_created
     if _hang_dump_seconds > 0:
         os.environ.setdefault(_HANG_DUMP_TOKEN_ENV, uuid.uuid4().hex[:8])
+        # feed the python-level dump's ring buffer only when the watchdog is
+        # armed, so ordinary local runs pay no per-record formatting cost
+        if _log_ring_buffer is None:
+            _log_ring_buffer = deque(maxlen=_LOG_RING_BUFFER_LINES)
+            ring_handler = _LogRingBufferHandler(_log_ring_buffer)
+            logging.getLogger().addHandler(ring_handler)
+            logging.getLogger("inspect_ai").addHandler(ring_handler)
 
 
 def pytest_collection_modifyitems(config, items):
@@ -770,10 +1013,14 @@ def mock_s3():
 
 
 def pytest_sessionfinish(session, exitstatus):
-    # Cancel the hang-dump watchdog (in every process) so a timer armed by the
-    # last test can't fire during interpreter shutdown and write a bogus dump.
-    global _hang_dump_file
+    # Cancel the hang-dump watchdogs (in every process) so a timer armed by
+    # the last test can't fire during interpreter shutdown and write a bogus
+    # dump.
+    global _hang_dump_file, _python_hang_dump_timer
     faulthandler.cancel_dump_traceback_later()
+    if _python_hang_dump_timer is not None:
+        _python_hang_dump_timer.cancel()
+        _python_hang_dump_timer = None
     if _hang_dump_file is not None:
         dump_path = _hang_dump_file.name
         _hang_dump_file.close()

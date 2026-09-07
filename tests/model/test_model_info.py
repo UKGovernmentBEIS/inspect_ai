@@ -1,5 +1,6 @@
 """Tests for model_info lookup functionality."""
 
+from datetime import date
 from typing import Any
 
 import pytest
@@ -62,6 +63,15 @@ class TestGetModelInfo:
         assert info is not None
         assert info.context_length is not None
         assert info.organization == "OpenAI"
+
+    def test_gpt_6_astra_model_info(self):
+        info = get_model_info("openai/gpt-6-astra")
+        assert info is not None
+        assert info.context_length == 1050000
+        assert info.output_tokens == 128000
+        assert info.input_tokens == 922000
+        assert info.reasoning is True
+        assert info.knowledge_cutoff_date == date(2026, 4, 30)
 
     def test_known_kimi_model(self):
         """Test lookup of a known Moonshot AI Kimi model."""
@@ -372,6 +382,136 @@ class TestModelDataConsistency:
                             f"{other_file}:{other_key} has {other_value!r}"
                         )
 
+    def test_same_display_name_entries_agree_within_a_file(self) -> None:
+        """One model keyed several ways in a file must not drift between keys.
+
+        A model served by several providers gets an entry per provider naming
+        scheme (zai.yml keys GLM 5.3 as zai-org/glm-5.3, fireworks/glm-5p3 and
+        z-ai/glm-5.3). Those keys never collide, so
+        `test_colliding_lookup_keys_agree_across_files` cannot see them; the
+        shared display name is what identifies them as the same model. YAML
+        anchors keep them in sync today, and this fails if a future edit
+        expands one copy and updates only it.
+        """
+        from pathlib import Path
+
+        from inspect_ai.model._model_data import model_data, sync_models
+        from inspect_ai.model._model_data.model_data import (
+            create_model_info,
+            load_organizations_from_yaml,
+        )
+
+        functional_fields = (
+            "context_length",
+            "output_tokens",
+            "reasoning",
+            "reasoning_effort_default",
+            "knowledge_cutoff_date",
+            "release_date",
+            "family",
+        )
+
+        data_dir = Path(model_data.__file__).parent
+        for info_file in sorted(data_dir.glob("*.yml")):
+            if info_file.name in sync_models.GENERATED_FILES:
+                continue
+            by_display_name: dict[str, list[tuple[str, ModelInfo]]] = {}
+            for org, org_data in load_organizations_from_yaml(info_file).items():
+                for model_name, model_def in org_data.models.items():
+                    if not model_def.display_name:
+                        continue
+                    by_display_name.setdefault(model_def.display_name, []).append(
+                        (
+                            f"{org}/{model_name}",
+                            create_model_info(org_data.display_name, model_def),
+                        )
+                    )
+            for display_name, group in by_display_name.items():
+                first_key, first_info = group[0]
+                for other_key, other_info in group[1:]:
+                    for field in functional_fields:
+                        first_value = getattr(first_info, field)
+                        other_value = getattr(other_info, field)
+                        if first_value is None or other_value is None:
+                            continue
+                        assert first_value == other_value, (
+                            f"{info_file.name}: entries sharing display name "
+                            f"{display_name!r} disagree on {field}: "
+                            f"{first_key} has {first_value!r} but "
+                            f"{other_key} has {other_value!r}"
+                        )
+
+
+class TestMultiProviderCuratedModels:
+    """One model reached through several providers must bind the same data.
+
+    Each provider derives the organization differently in `canonical_name()`,
+    so a single model has several unrelated lookup keys and nothing links
+    them. A provider missing from a curated file does not error — it silently
+    resolves to a bare synced entry (no release date, no reasoning) or, if the
+    provider's org appears in no data file at all, to None. Both were live
+    defects before zai.yml covered all three routes.
+
+    Add a row when curating a model that more than one provider serves.
+    """
+
+    # (label, [lookup key per provider naming scheme])
+    MULTI_PROVIDER_KEYS = [
+        ("GLM 5.3", ["zai-org/GLM-5.3", "fireworks/glm-5p3", "z-ai/glm-5.3"]),
+        (
+            "GLM 5.3 Flash",
+            [
+                "zai-org/GLM-5.3-Flash",
+                "fireworks/glm-5p3-flash",
+                "z-ai/glm-5.3-flash",
+            ],
+        ),
+        ("GLM 5.2", ["zai-org/GLM-5.2", "fireworks/glm-5p2", "z-ai/glm-5.2"]),
+    ]
+
+    @pytest.mark.parametrize(
+        "label,keys", MULTI_PROVIDER_KEYS, ids=[row[0] for row in MULTI_PROVIDER_KEYS]
+    )
+    def test_every_provider_key_shape_binds_the_same_metadata(
+        self, label: str, keys: list[str]
+    ) -> None:
+        infos = {key: get_model_info(key) for key in keys}
+
+        unresolved = sorted(key for key, info in infos.items() if info is None)
+        assert unresolved == [], (
+            f"{label}: no model info for {unresolved}. Curate these keys in the "
+            f"creator's data file so every provider route resolves."
+        )
+
+        resolved = {key: info for key, info in infos.items() if info is not None}
+
+        # Deliberately not asserting literal values: the point is that the
+        # routes agree, so refreshing the data does not churn this test.
+        for field in ("context_length", "output_tokens", "reasoning"):
+            values = {key: getattr(info, field) for key, info in resolved.items()}
+            assert len(set(values.values())) == 1, (
+                f"{label}: provider routes disagree on {field}: {values}"
+            )
+
+        # The reason these entries are curated at all: provider catalogs report
+        # a context length and nothing else.
+        undated = sorted(
+            key for key, info in resolved.items() if info.release_date is None
+        )
+        assert undated == [], f"{label}: release date missing for {undated}"
+
+    def test_bare_glm_name_resolves_to_the_creator_not_the_host(self) -> None:
+        """`fireworks` is in PROVIDER_SCOPED_ORGS, so it must lose a bare match.
+
+        Mirrors the kimi-k3 case above: "fireworks" is a shorter org string
+        than "zai-org", so without the fuzzy-match exclusion the host entry
+        would outscore the curated creator entry.
+        """
+        info = get_model_info("glm-5.3")
+        assert info is not None
+        assert info.organization == "Z.ai"
+        assert info.release_date is not None
+
 
 class TestProviderScopedOrgs:
     """Provider-scoped catalogs are exact-match only.
@@ -440,6 +580,58 @@ class TestGetModelInputTokens:
         model = get_model("anthropic/claude-mythos-5")
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
+
+    def test_claude_fable_5_1(self):
+        """Test that Claude Fable 5.1 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-fable-5-1")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # the snapshot and cutoff prove the explicit 5.1 registration resolved
+        # (a fuzzy match of the fable-5 base entry would report the same input
+        # tokens but carry the base snapshot and its older cutoff)
+        info = get_model_info("anthropic/claude-fable-5-1")
+        assert info is not None
+        assert info.snapshot == "20260901"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+
+    def test_claude_mythos_5_1(self):
+        """Test that Claude Mythos 5.1 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-mythos-5-1")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-mythos-5-1")
+        assert info is not None
+        assert info.snapshot == "20260901"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+
+    def test_claude_mythos_preview(self):
+        """Test that Claude Mythos Preview reports 1MM input tokens."""
+        model = get_model("anthropic/claude-mythos-preview")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-mythos-preview")
+        assert info is not None
+        assert info.model == "Claude Mythos Preview"
+        # the preview is a distinct entry, not a fuzzy match onto mythos-5
+        # (which would report a 2026-06-09 release and a `high` effort default)
+        assert str(info.release_date) == "2026-04-07"
+        # deliberately unset rather than guessed (see anthropic.yml)
+        assert info.knowledge_cutoff_date is None
+        assert info.reasoning_effort_default is None
+
+    @pytest.mark.parametrize(
+        "model_name,release_date",
+        [("gemini-3.8-flash", "2026-09-02"), ("gemini-3.7-flash", "2026-08-13")],
+    )
+    def test_gemini_3_7_plus_flash(self, model_name: str, release_date: str) -> None:
+        """Gemini 3.7/3.8 Flash resolve to their own entries (1M context)."""
+        model = get_model(f"google/{model_name}", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info(f"google/{model_name}")
+        assert info is not None
+        assert str(info.release_date) == release_date
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.reasoning_effort_default == "medium"
 
     def test_claude_latest_defaults_to_1m(self):
         """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""

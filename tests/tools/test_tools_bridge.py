@@ -10,7 +10,7 @@ import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval, task
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
@@ -65,6 +65,27 @@ def content_returning_tool(call_log: list[dict]):
         """
         call_log.append({"tool": "content_returning_tool", "text": text})
         return [ContentText(text=text)]
+
+    return execute
+
+
+@tool
+def image_content_returning_tool(call_log: list[dict]):
+    async def execute(
+        include_caption: bool,
+    ) -> ContentImage | list[ContentText | ContentImage]:
+        """Return text and image content blocks.
+
+        Args:
+            include_caption: Whether to return a text caption before the image.
+        """
+        call_log.append(
+            {"tool": "image_content_returning_tool", "include_caption": include_caption}
+        )
+        image = ContentImage(image="data:image/png;name=screenshot;base64,iVBORw0KGgo=")
+        if include_caption:
+            return [ContentText(text="Screenshot:"), image]
+        return image
 
     return execute
 
@@ -384,9 +405,7 @@ def test_content_returning_tool_serializes_correctly() -> None:
                 # Bridge serializes the tool's return value into a single MCP
                 # text part; for non-strings it's a JSON-encoded payload.
                 payload = json.loads(response["result"]["content"][0]["text"])
-                assert isinstance(payload, list)
-                assert payload[0]["type"] == "text"
-                assert payload[0]["text"] == "hello"
+                assert payload == [{"type": "text", "text": "hello"}]
 
             return state
 
@@ -395,6 +414,58 @@ def test_content_returning_tool_serializes_correctly() -> None:
     eval_bridged_tools_task(test_solver())
 
     assert call_log == [{"tool": "content_returning_tool", "text": "hello"}]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_image_content_returning_tool_returns_mcp_image_content() -> None:
+    call_log: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                bridged_tools=[
+                    BridgedToolsSpec(
+                        name="content", tools=[image_content_returning_tool(call_log)]
+                    )
+                ]
+            ) as bridge:
+                single_response = await call_mcp_tool(
+                    bridge.mcp_server_configs[0],
+                    "image_content_returning_tool",
+                    {"include_caption": False},
+                )
+                assert single_response["result"]["content"] == [
+                    {
+                        "type": "image",
+                        "data": "iVBORw0KGgo=",
+                        "mimeType": "image/png",
+                    }
+                ]
+
+                mixed_response = await call_mcp_tool(
+                    bridge.mcp_server_configs[0],
+                    "image_content_returning_tool",
+                    {"include_caption": True},
+                )
+                assert mixed_response["result"]["content"] == [
+                    {"type": "text", "text": "Screenshot:"},
+                    {
+                        "type": "image",
+                        "data": "iVBORw0KGgo=",
+                        "mimeType": "image/png",
+                    },
+                ]
+            return state
+
+        return solve
+
+    eval_bridged_tools_task(test_solver())
+    assert call_log == [
+        {"tool": "image_content_returning_tool", "include_caption": False},
+        {"tool": "image_content_returning_tool", "include_caption": True},
+    ]
 
 
 # =============================================================================
@@ -475,6 +546,124 @@ def test_sandbox_bridge_rejection_hides_the_call_from_the_agent() -> None:
     assert log.samples is not None
     approvals = [e for e in log.samples[0].events if e.event == "approval"]
     assert [(e.decision, e.call.function) for e in approvals] == [("reject", "bash")]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_rejects_forged_host_tool_call() -> None:
+    """Calling host MCP directly cannot skip configured approval."""
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+
+    call_log: list[dict] = []
+    seen: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+                bridged_tools=[
+                    BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
+                ],
+            ) as bridge:
+                seen.append(
+                    await call_mcp_tool(
+                        bridge.mcp_server_configs[0],
+                        "calculator_add",
+                        {"x": 5, "y": 3},
+                    )
+                )
+            return state
+
+        return solve
+
+    eval_bridged_tools_task(test_solver())
+
+    assert call_log == []
+    assert "was not approved for execution" in seen[0]["error"]["message"]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_executes_approved_host_tool_call_once() -> None:
+    """An approved model call grants one matching MCP execution."""
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+    from inspect_ai.tool._tool_call import ToolCall
+
+    call_log: list[dict] = []
+    responses: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+                bridged_tools=[
+                    BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
+                ],
+            ) as bridge:
+                await post_completions(
+                    bridge.port,
+                    {
+                        "model": "inspect",
+                        "messages": [{"role": "user", "content": "Add the numbers."}],
+                        "tools": [
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": "calculator_add",
+                                    "description": "Add two numbers.",
+                                    "parameters": {
+                                        "type": "object",
+                                        "properties": {
+                                            "x": {"type": "integer"},
+                                            "y": {"type": "integer"},
+                                        },
+                                        "required": ["x", "y"],
+                                    },
+                                },
+                            }
+                        ],
+                    },
+                )
+                config = bridge.mcp_server_configs[0]
+                responses.append(
+                    await call_mcp_tool(config, "calculator_add", {"y": 3, "x": 5})
+                )
+                responses.append(
+                    await call_mcp_tool(config, "calculator_add", {"x": 5, "y": 3})
+                )
+            return state
+
+        return solve
+
+    approved = ToolCall(
+        id="approved",
+        function="calculator_add",
+        arguments={"x": 5, "y": 3},
+    )
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="", tool_calls=[approved]),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    log = eval(
+        bridged_tools_task(test_solver()),
+        model=get_model("mockllm/model", custom_outputs=[output]),
+    )[0]
+
+    assert log.status == "success"
+    assert responses[0]["result"]["content"][0]["text"] == "8"
+    assert "was not approved for execution" in responses[1]["error"]["message"]
+    assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
 
 
 @skip_if_no_docker

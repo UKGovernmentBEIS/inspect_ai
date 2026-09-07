@@ -9,7 +9,6 @@ at the checkpointer call sites (see the extraction table in
 - ``snapshot`` ← ``run_sandbox_backup`` + ``egress_sandbox`` +
   ``list_changed_files``
 - ``restore``  ← ``ingress_sandbox``
-- ``adopt``    ← the per-sandbox ``fs_copy_repo``
 - ``discard_orphans`` ← ``drop_orphan_snapshots``
 """
 
@@ -21,7 +20,7 @@ from inspect_ai.util._restic import list_changed_files, resolve_restic
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._layout.schemas import SnapshotDetails
-from .._repo_ops import checkpoint_tag, drop_orphan_snapshots, fs_copy_repo
+from .._repo_ops import checkpoint_tag, drop_orphan_snapshots
 from .._sandbox_restic import (
     egress_sandbox,
     ingress_sandbox,
@@ -32,7 +31,6 @@ from .._sandbox_restic import (
 from ..config import MAX_LISTED_FILES
 from ..sandbox_paths import SandboxBackupPaths
 from .types import (
-    PriorAttempt,
     SandboxSnapshotStrategy,
     SnapshotContext,
 )
@@ -95,17 +93,9 @@ class ResticIncrementalStrategy(SandboxSnapshotStrategy):
         ref: SnapshotDetails | None,
         ctx: SnapshotContext,
     ) -> None:
-        # `ref` is unused: after `discard_orphans`, "latest" in the adopted
-        # repo is exactly the latest committed snapshot.
+        # `ref` is unused: after `discard_orphans`, "latest" in the
+        # inherited repo is exactly the latest committed snapshot.
         await ingress_sandbox(env, ctx.storage_dir, ctx.secret)
-
-    async def adopt(self, prior: PriorAttempt, ctx: SnapshotContext) -> None:
-        await fs_copy_repo(
-            prior.sample_checkpoints_dir,
-            prior.storage_subpath,
-            ctx.storage_dir,
-            label=f"sandbox {ctx.sandbox_name!r}",
-        )
 
     async def discard_orphans(
         self, latest_committed_id: int, ctx: SnapshotContext

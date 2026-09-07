@@ -74,6 +74,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
+from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -83,10 +84,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import (
-    GenerateConfig,
-    ResponseSchema,
-)
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
@@ -128,8 +126,6 @@ from inspect_ai.model._openai_responses import (
     is_response_tool_search_call,
     is_response_web_search_call,
     is_simple_assistant_message,
-    is_tool_choice_function_param,
-    is_tool_choice_mcp_param,
     is_tool_search_output,
     is_tool_search_tool_param,
     is_web_search_tool_param,
@@ -176,10 +172,16 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    client_json_schema,
+    client_request_object,
+    client_request_string,
+    client_response_schema,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
+    tool_choice_from_openai_string,
     validate_bridge_media,
+    validate_client_config,
     withheld_bridge_tool,
 )
 
@@ -268,9 +270,8 @@ async def inspect_responses_api_request_impl(
             )
         )
     tools = [tool for tool in tools if tool]
-    responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
-        "tool_choice", None
-    )
+    # client-controlled; validated by tool_choice_from_responses_tool_choice below
+    responses_tool_choice: Any = json_data.get("tool_choice", None)
     tool_choice = relax_tool_choice_for_withheld(
         tool_choice_from_responses_tool_choice(responses_tool_choice), tools
     )
@@ -298,6 +299,7 @@ async def inspect_responses_api_request_impl(
     config = generate_config_from_openai_responses(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    validate_client_config(config)
     config.extra_headers = headers
     if config.system_message:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
@@ -408,37 +410,46 @@ def debug_log(caption: str, o: Any) -> None:
 
 
 def tool_choice_from_responses_tool_choice(
-    tool_choice: ResponsesToolChoiceParam | None,
+    tool_choice: Any,
 ) -> ToolChoice | None:
-    inspect_tool_choice: ToolChoice | None = None
-    if tool_choice is not None:
-        if tool_choice == "auto":
-            inspect_tool_choice = tool_choice
-        elif tool_choice == "none":
-            inspect_tool_choice = tool_choice
-        elif tool_choice == "required":
-            inspect_tool_choice = "any"
-        elif is_tool_choice_function_param(tool_choice):
-            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
-        elif is_tool_choice_mcp_param(tool_choice):
-            if tool_choice["name"] is None:
-                raise RuntimeError(
-                    "MCP server tool choice requires 'name' field for agent bridge"
+    # `Any` rather than `ResponsesToolChoiceParam`: the value is client-controlled
+    # JSON, so its shape is guarded before the first subscript for a mistyped
+    # value to 400 rather than escape as a raw `TypeError`/`KeyError`.
+    if tool_choice is None:
+        return None
+    if isinstance(tool_choice, str):
+        return tool_choice_from_openai_string(tool_choice, "tool_choice")
+    tool_choice = client_request_object(tool_choice, "tool_choice")
+    tool_type = client_request_string(tool_choice.get("type", None), "tool_choice.type")
+    match tool_type:
+        case "function":
+            return ToolFunction(
+                name=client_request_string(
+                    tool_choice.get("name", None), "tool_choice.name"
                 )
-            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
-        elif tool_choice.get("type") == "allowed_tools":
-            raise RuntimeError("ToolChoiceAllowedParam not supported by agent bridge")
-        elif tool_choice.get("type") == "custom":
-            raise RuntimeError("ToolChoiceCustomParam not supported by agent bridge")
-        elif "type" in tool_choice:
-            tool_type = str(tool_choice.get("type"))
-            if tool_type in ["web_search_preview", "web_search_preview_2025_03_11"]:
-                tool_type = "web_search"
-            elif tool_type == "code_interpreter":
-                tool_type = "code_execution"
-            inspect_tool_choice = ToolFunction(name=tool_type)
-
-    return inspect_tool_choice
+            )
+        case "mcp":
+            # `name` is optional on the API (any tool on the server) but the
+            # bridge can only force a single named tool.
+            if tool_choice.get("name", None) is None:
+                raise BridgePolicyError(
+                    "invalid request field in bridged request (tool_choice.name: "
+                    "MCP server tool choice requires 'name' for the agent bridge)"
+                )
+            return ToolFunction(
+                name=client_request_string(tool_choice["name"], "tool_choice.name")
+            )
+        case "allowed_tools" | "custom":
+            raise BridgePolicyError(
+                "invalid request field in bridged request (tool_choice.type: "
+                f"{tool_type!r} is not supported by the agent bridge)"
+            )
+        case "web_search_preview" | "web_search_preview_2025_03_11":
+            return ToolFunction(name="web_search")
+        case "code_interpreter":
+            return ToolFunction(name="code_execution")
+        case _:
+            return ToolFunction(name=tool_type)
 
 
 tool_choice_adapter = TypeAdapter[ResponsesToolChoice](ResponsesToolChoice)
@@ -675,17 +686,28 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
     config.top_p = json_data.get("top_p", None)
 
     # response format
-    text: dict[str, Any] | None = json_data.get("text", None)
+    text = client_request_object(json_data.get("text", None), "text")
     if text is not None:
-        format: dict[str, Any] | None = text.get("format", None)
+        format = client_request_object(text.get("format", None), "text.format")
         if format is not None:
             if format.get("type", None) == "json_schema":
-                config.response_schema = ResponseSchema(
+                config.response_schema = client_response_schema(
                     name=format.get("name", "schema"),
                     description=format.get("description", None),
-                    json_schema=JSONSchema.model_validate(format.get("schema", {})),
+                    json_schema=client_json_schema(
+                        format.get("schema", {}), "text.format.schema"
+                    ),
                     strict=format.get("strict", None),
+                    dialect_field="text.format",
                 )
+
+        # `text.verbosity` has a GenerateConfig slot and the provider already
+        # sends it (`params["text"]["verbosity"]`), but nothing read it off the
+        # request, so a client asking for terse output silently got the model
+        # default.
+        verbosity = text.get("verbosity", None)
+        if verbosity is not None:
+            config.verbosity = verbosity
 
     # extra_body params (i.e. passthrough for native responses)
     extra_body: dict[str, Any] = {}

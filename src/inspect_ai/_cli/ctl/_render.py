@@ -223,6 +223,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
 
     _render_override_knob("timeout", "timeout", "s")
     _render_override_knob("attempt_timeout", "attempt timeout", "s")
+    _render_override_knob("stream_idle_timeout", "stream idle timeout", "s")
     _render_override_knob("max_retries", "max retries", "")
 
     # The per-sample limit overrides — task-scoped, so a process-level view
@@ -795,6 +796,10 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # holding latch; `quiesced` = nothing left in flight — the safe-to-kill
     # signal)
     any_paused = any(s.get("paused") or s.get("held") for s in summaries)
+    # shown only when some task has a pending graceful resolution
+    # (drain/score/error) — the marker that says a static-looking row is a
+    # draining tail (or a stalled scorer), not a stall
+    any_resolving = any(s.get("resolving") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -824,6 +829,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
             cells.append(_format_rate(s.get("tokens_per_second")))
         if any_paused:
             cells.append(_format_paused(s))
+        if any_resolving:
+            cells.append(str(s.get("resolving") or ""))
         cells.append(_format_started(s.get("started_at", 0)))
         if any_retries:
             cells.append(str(int(s.get("attempts", 1) or 1)))
@@ -847,6 +854,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         headers_list.append("tok/s")
     if any_paused:
         headers_list.append("paused")
+    if any_resolving:
+        headers_list.append("resolving")
     headers_list.append("started")
     if any_retries:
         headers_list.append("attempts")

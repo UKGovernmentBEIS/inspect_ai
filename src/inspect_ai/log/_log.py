@@ -385,6 +385,9 @@ class EvalSampleSummary(BaseModel):
                     explanation=thin_text(score.explanation)
                     if score.explanation is not None
                     else None,
+                    reason=thin_text(score.reason)
+                    if isinstance(score.reason, str)
+                    else score.reason,
                     metadata=thin_metadata(score.metadata)
                     if score.metadata is not None
                     else None,
@@ -849,6 +852,18 @@ class EvalResults(BaseModel):
 
     Will be equal to total_samples except when --fail-on-error is enabled
     or when there is early stopping.
+    """
+
+    logged_samples: int | None = Field(default=None)
+    """Samples this log actually resolved (present in the log and not
+    cancelled), when a graceful task cancel or drain abandoned queued samples.
+
+    `total_samples` records the *planned* count, so a log finished by
+    `inspect ctl task drain` or `inspect ctl task cancel --action score|error`
+    would otherwise read complete to an eval set; the eval set's run-vs-reuse
+    check prefers this count when present so the abandoned remainder is
+    re-run by a later invocation. None on ordinary logs (and logs written by
+    older versions), which classify by `total_samples` as before.
     """
 
     early_stopping: EarlyStoppingSummary | None = Field(default=None)

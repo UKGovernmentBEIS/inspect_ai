@@ -439,6 +439,8 @@ NOT_OVERRIDABLE: dict[str, str] = {
     "retry_connections": "eval-set retry orchestration, which a worker never performs",
     "retry_cleanup": "eval-set retry orchestration, which a worker never performs",
     "retry_immediate": "eval-set retry orchestration, which a worker never performs",
+    "incomplete_action": "eval-set recovery orchestration, which a worker never performs",
+    "incomplete_max": "eval-set recovery orchestration, which a worker never performs",
     "bundle_dir": "eval-set bundling, which a worker skips",
     "bundle_overwrite": "eval-set bundling, which a worker skips",
     "embed_viewer": "eval-set bundling, which a worker skips",

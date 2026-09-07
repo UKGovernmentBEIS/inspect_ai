@@ -117,7 +117,55 @@ async def test_model_complexity_rejection_is_incorrect() -> None:
 
     assert result is not None
     assert result.value == INCORRECT
+    assert result.reason == "invalid_response_format"
     assert result.metadata == {"math_scorer_status": "answer_limit"}
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        pytest.param("", id="empty_completion"),
+        pytest.param(
+            "().__class__.__base__.__subclasses__()",
+            id="rejected_security_payload",
+        ),
+    ],
+)
+async def test_parse_failure_records_invalid_response_format(output: str) -> None:
+    """Record answer-extraction failures in the machine-readable `reason`.
+
+    Prose answers compare as text and score plain incorrect, so
+    `answer_parse_error` is reserved for output yielding no readable
+    candidate at all (empty completions, rejected payloads). That is a
+    format violation by the model under test: it stays INCORRECT (it must
+    not inflate accuracy by leaving the metric denominator), with `reason`
+    recording the failure mode so analysis can separate "wrong answer" from
+    "couldn't parse an answer". The full completion is surfaced as the
+    answer when no candidate was extracted, per the custom-scorers guidance
+    for extraction scorers.
+    """
+    scorer = math()
+    state = simple_task_state(model_output=output)
+    result = await scorer(state, Target(["42"]))
+
+    assert result is not None
+    assert result.value == INCORRECT
+    assert result.reason == "invalid_response_format"
+    assert result.metadata == {"math_scorer_status": "answer_parse_error"}
+    assert result.answer == output
+
+
+async def test_parse_success_with_wrong_value_has_no_reason() -> None:
+    """A parseable but wrong answer is plain INCORRECT with no reason tag."""
+    scorer = math()
+    state = simple_task_state(model_output=r"The answer is \boxed{5}")
+    result = await scorer(state, Target(["42"]))
+
+    assert result is not None
+    assert result.value == INCORRECT
+    assert result.reason is None
+    assert result.metadata == {"math_scorer_status": "incorrect"}
+    assert result.answer == "5"
 
 
 def test_plain_and_latex_parsers_do_not_call_parse_expr(

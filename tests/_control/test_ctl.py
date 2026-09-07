@@ -5893,6 +5893,124 @@ def test_task_cancel_rejects_unknown_action() -> None:
     assert "explode" in result.stderr
 
 
+def test_task_cancel_retry_abandoned_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A between-attempts cancel reports the retry-abandon, not the sweep."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": True, "retry_abandoned": True, "in_flight": 0}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        "cancel t1: requested — pending retry is abandoned — the task ends "
+        "with its last attempt's error log\n"
+    )
+
+
+def test_task_drain_requires_task_argument() -> None:
+    """Drain joins cancel in the destructive-verb selector class."""
+    result = cli_runner().invoke(ctl_command, ["task", "drain"])
+    assert result.exit_code == 2
+    assert "TASK" in result.stderr
+
+
+def test_task_drain_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "task_id": "aaa111", "changed": True, "in_flight": 2, "queued": 3}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111", "--json"])
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/tasks/aaa111/drain"]
+    assert spy.params == [{}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert payload["applied"] is True and payload["dry_run"] is False
+    assert payload["detail"]["in_flight"] == 2 and payload["detail"]["queued"] == 3
+
+
+def test_task_drain_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": True, "dry_run": True, "in_flight": 1, "queued": 0}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "drain", "aaa111", "--dry-run", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [{"dry_run": True}]
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def test_task_drain_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--no-terse pins the full rendering (the runner's stdout is not a TTY)."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 3, "queued": 5})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111", "--no-terse"])
+    assert result.exit_code == 0, result.output
+    assert "·" in result.stdout  # the task header
+    assert "Drain requested" in result.stdout
+    assert "3 in-flight samples will finish naturally" in result.stdout
+    assert "5 queued samples will be abandoned" in result.stdout
+
+
+def test_task_drain_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Non-TTY stdout (the runner's) defaults to one header-free outcome line."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 1, "queued": 2})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        "drain t1: requested — 1 in-flight sample will finish naturally; "
+        "2 queued samples will be abandoned and the task will complete\n"
+    )
+
+
+def test_task_drain_noop_reports_unapplied(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": False, "reason": "drain already requested"}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False
+    assert payload["detail"]["reason"] == "drain already requested"
+
+
+def test_task_drain_retry_abandoned_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": True, "retry_abandoned": True, "in_flight": 0}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        "drain t1: requested — pending retry is abandoned — the task ends "
+        "with its last attempt's error log\n"
+    )
+
+
+def test_task_drain_missing_route_names_version_skew(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A router 404 (no `error` body) means the server predates the endpoint."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [(404, {"detail": "Not Found"})])
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111"])
+    assert result.exit_code == 1
+    assert "older inspect without the drain endpoint" in result.stderr
+    assert "may have finished" not in result.stderr
+
+
 def test_task_pause_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy(
@@ -7123,6 +7241,43 @@ def test_sample_requeue_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> No
     )
 
 
+def test_sample_requeue_uncancel_reason_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The un-cancel accept renders its reason, not the resume clause.
+
+    An un-cancelled sample never ran and its parked coroutine keeps its
+    place at the queue, so "re-run from the back of the sample queue" would
+    misdescribe it on both counts (design/ctl/queued-sample-cancel.md).
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    reason = "cancel-before-start withdrawn — the sample will run when it gets a slot"
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "status": "pending",
+            "reason": reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert f"Requeue accepted for sample s1 (epoch 1) — {reason}." in result.stdout
+    assert "back of the sample queue" not in result.stdout
+
+    terse = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
+    assert terse.exit_code == 0, terse.output
+    assert terse.stdout == f"requeue t1/s1 (epoch 1): {reason}\n"
+
+
 def test_sample_requeue_multiple_pairs_bulk_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -7504,6 +7659,82 @@ def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> Non
     assert result.exit_code == 0, result.output
     assert "already finished" in result.stdout
     assert "status: completed" in result.stdout
+
+
+def test_sample_cancel_queued_reason_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The queued cancel rows render their reason, not the generic outcome.
+
+    "It will be recorded as cancelled" would misdescribe a sample that never
+    runs (design/ctl/queued-sample-cancel.md), so the accept renders the
+    server's reason; the "already cancelled" repeat renders its reason too
+    (only the already-finished row gets the status-suffixed message).
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    reason = "cancelled before start — removed from the queue"
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "status": "cancelled",
+            "reason": reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+
+    args = ["sample", "cancel", "aaa111", "s1", "--action", "cancel"]
+    result = cli_runner().invoke(ctl_command, args + ["--no-terse"])
+    assert result.exit_code == 0, result.output
+    assert f"Cancelled sample s1 (epoch 1) — {reason}." in result.stdout
+    assert "will be recorded as cancelled" not in result.stdout
+
+    terse = cli_runner().invoke(ctl_command, args)
+    assert terse.exit_code == 0, terse.output
+    assert terse.stdout == f"cancel t1/s1 (epoch 1): {reason}\n"
+
+    # under --dry-run the server sends a conditional-tense reason, so the
+    # "Would cancel …" line doesn't embed a past-tense mutation
+    dry_reason = (
+        "the sample would be cancelled before it starts and removed from the queue"
+    )
+    dry_spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "dry_run": True,
+            "changed": True,
+            "status": "cancelled",
+            "reason": dry_reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", dry_spy)
+    dry = cli_runner().invoke(ctl_command, args + ["--dry-run", "--no-terse"])
+    assert dry.exit_code == 0, dry.output
+    assert f"Would cancel sample s1 (epoch 1) — {dry_reason}." in dry.stdout
+
+    noop_spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "status": "cancelled",
+            "reason": "already cancelled",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", noop_spy)
+    noop = cli_runner().invoke(ctl_command, args + ["--no-terse"])
+    assert noop.exit_code == 0, noop.output
+    assert "Nothing to do — sample s1 (epoch 1): already cancelled." in noop.stdout
+    assert "has already finished" not in noop.stdout
+
+    terse_noop = cli_runner().invoke(ctl_command, args)
+    assert terse_noop.exit_code == 0, terse_noop.output
+    assert terse_noop.stdout == "cancel t1/s1 (epoch 1): no-op — already cancelled\n"
 
 
 def test_sample_mutation_terse_default_and_flags(

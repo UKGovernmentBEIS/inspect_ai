@@ -199,9 +199,24 @@ multi_scorer(
 )
 ```
 
-Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* which determines how a list of scores will be turned into a single score. In this case we use the "mode" reducer which returns the score that appeared most frequently in the answers (i.e. a majority vote). See [Reducing Epochs](metrics.qmd#reducing-epochs) for the full set of built-in reducers.
+Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* which determines how a list of scores will be turned into a single score. In this case we use the "mode" reducer, which returns the most frequent score (a plurality — the "majority" reducer instead requires more than half). See [Reducing Epochs](metrics.qmd#reducing-epochs) for the full set of built-in reducers.
 
 To keep every scorer's value rather than collapsing to one, use the `"collect"` reducer, which preserves the individual values as a list — for example to feed an inter-rater agreement metric like `krippendorff_alpha()` (see [Multi-Judge Reliability](metrics.qmd#multi-judge-reliability)).
+
+## Cascading Scorers
+
+Where `multi_scorer()` runs every scorer and reduces their results, `cascade()` runs scorers in the order given and stops at the first that settles the sample — so an expensive stage such as a grader model only runs on samples that cheaper scorers did not settle:
+
+``` python
+cascade(
+    exact=match(location="exact"),
+    grader=model_graded_qa(model=grader_model),
+)
+```
+
+A stage settles the sample when `value_to_float()` of its score is at least `threshold` (default `1.0`, i.e. CORRECT). Stages that decline (return `None`) or are unscored are skipped; if no stage settles, the last real score is returned, and if nothing scored the sample is unscored. The returned score records which stage decided under `decided_by` in its metadata.
+
+A cascade trusts a settling verdict from an earlier stage, so earlier scorers should not be prone to false positives (exact match qualifies; a lenient heuristic does not).
 
 ## Sandbox Access
 

@@ -25,6 +25,7 @@ from inspect_ai.model._stream import (
     model_stream_observer,
 )
 from inspect_ai.solver import generate, use_tools, user_message
+from inspect_ai.tool._tool_info import ToolInfo
 
 
 def get_responses_model(config: GenerateConfig = GenerateConfig()):
@@ -283,6 +284,45 @@ def test_mixed_reasoning_blocks_filtering():
     assert len(reasoning_items) == 5
     ids = {item["id"] for item in reasoning_items}
     assert ids == {"r1", "r2", "r3", "r4", "r5"}
+
+
+def test_items_without_real_ids_omit_id_key():
+    """Test that synthesized items omit 'id' rather than sending an explicit null."""
+    # No MESSAGE_ID internal and no reasoning signature -> no real ids available
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(text="Synthesized text"),
+            ContentReasoning(reasoning="Some reasoning"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert len(message_items) == 1
+    assert len(reasoning_items) == 1
+    assert "id" not in message_items[0]
+    assert "id" not in reasoning_items[0]
+
+    # replayed items with real ids keep them
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(text="Replayed text", internal={MESSAGE_ID: "msg_1"}),
+            ContentReasoning(reasoning="Some reasoning", signature="rs_1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert message_items[0]["id"] == "msg_1"
+    assert reasoning_items[0]["id"] == "rs_1"
 
 
 async def test_responses_api_invalid_prompt_content_filter():
@@ -1305,6 +1345,8 @@ def _make_mock_model_info():
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
     model_info.is_gpt_5_plus.return_value = False
+    model_info.is_gpt_6.return_value = False
+    model_info.reasons_by_default.return_value = False
     model_info.is_gpt_5_pro.return_value = False
     model_info.is_gpt_5_chat.return_value = False
     model_info.is_o_series.return_value = False
@@ -2652,3 +2694,26 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
     assert output.choices[0].stop_reason == "content_filter"
     assert "blocked" in output.completion
     assert model_call.error is True
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gpt-4o", True),
+        ("gpt-5", True),
+        ("gpt-5.6-sol", True),
+        ("gpt-6-astra", True),
+        ("my-gpt-6-deployment", True),
+        ("gpt-35-turbo", False),
+        ("gpt-4", False),
+    ],
+)
+def test_maybe_code_interpreter_tool_model_gating(model_name, expected):
+    from inspect_ai.model._openai_responses import maybe_code_interpreter_tool
+
+    tool = ToolInfo(
+        name="code_execution",
+        description="Execute code",
+        options={"providers": {"openai": True}},
+    )
+    assert (maybe_code_interpreter_tool(model_name, tool) is not None) is expected

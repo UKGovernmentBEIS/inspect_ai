@@ -1,10 +1,14 @@
 import base64
+import json
 import re
 from logging import getLogger
-from typing import Any, Literal, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, Tuple, Union, cast
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
+
+if TYPE_CHECKING:
+    from botocore.exceptions import ClientError
 
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS, NO_CONTENT
@@ -47,8 +51,21 @@ from .._model_output import (
     StopDetails,
     collect_stop_details,
 )
+from .._stream import (
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 from .util import (
+    forced_tool_choice_degraded_metadata,
+    is_claude_fable_5_1_model,
+    is_forced_tool_choice,
     model_base_url,
+    normalize_stream_arg,
 )
 from .util.hooks import ConverseHooks
 
@@ -327,6 +344,20 @@ CACHE_UNSUPPORTED_CLAUDE = (
 )
 
 
+def bedrock_error_code(ex: "ClientError") -> str:
+    """The AWS error code of a `ClientError`, in shape-name (PascalCase) form.
+
+    A non-streaming error carries the exception shape name
+    (`ThrottlingException`). An error delivered on a ConverseStream event
+    stream is raised by botocore as an `EventStreamError` (a `ClientError`)
+    whose code is the frame's `:exception-type` header — the event union's
+    member name, which is lowercase-first (`throttlingException`) — so the
+    first letter is upper-cased to make both paths comparable.
+    """
+    code = str(ex.response.get("Error", {}).get("Code", "") or "")
+    return code[:1].upper() + code[1:]
+
+
 class BedrockAPI(ModelAPI):
     def __init__(
         self,
@@ -334,6 +365,7 @@ class BedrockAPI(ModelAPI):
         base_url: str | None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        streaming: bool | Literal["auto"] = "auto",
         **model_args: Any,
     ):
         super().__init__(
@@ -349,6 +381,11 @@ class BedrockAPI(ModelAPI):
             raise PrerequisiteError(
                 "ERROR: The bedrock provider does not work with the trio async backend."
             )
+
+        # record streaming preference (unset/"auto" uses ConverseStream when
+        # the caller passes on_stream to generate; an explicit True/False
+        # overrides — see resolve_streaming)
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
 
         # extract timeout settings from model_args (coerce CLI strings to int)
         self.read_timeout: int = int(str(model_args.pop("read_timeout", 60)))
@@ -427,6 +464,9 @@ class BedrockAPI(ModelAPI):
             "RequestTimeout",
             "ServiceUnavailable",
             "ServiceUnavailableException",
+            # stream-only (ConverseStream error event, HTTP 424); AWS documents
+            # it as "Retry your request."
+            "ModelStreamErrorException",
         ]
     )
 
@@ -435,7 +475,7 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         if isinstance(ex, ClientError):
-            error_code = ex.response.get("Error", {}).get("Code", "")
+            error_code = bedrock_error_code(ex)
             if error_code in self._BEDROCK_THROTTLE_CODES:
                 # AWS doesn't include Retry-After on ThrottlingException.
                 return RetryDecision.rate_limit()
@@ -484,8 +524,7 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         if isinstance(ex, ClientError):
-            error_code = ex.response.get("Error", {}).get("Code", "")
-            return error_code in [
+            return bedrock_error_code(ex) in [
                 "UnrecognizedClientException",
                 "ExpiredTokenException",
                 "InvalidSignatureException",
@@ -599,6 +638,21 @@ class BedrockAPI(ModelAPI):
                 return True
         return False
 
+    def is_claude_fable_5_1_or_later(self) -> bool:
+        return is_claude_fable_5_1_model(self.model_family())
+
+    def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
+        """Mirrors `resolved_tool_choice` in the native anthropic provider."""
+        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
+            warn_once(
+                logger,
+                f"bedrock model '{self.model_name}' does not support forced "
+                "tool choice (tool_choice 'any' or a specific tool returns a "
+                "400 error); using tool_choice 'auto' instead.",
+            )
+            return "auto"
+        return tool_choice
+
     def is_thinking_model(self) -> bool:
         """Mirrors the native anthropic provider — claude-3 / claude-3.5 don't think."""
         return self.is_claude() and not self.is_claude_3() and not self.is_claude_3_5()
@@ -641,6 +695,20 @@ class BedrockAPI(ModelAPI):
                     return "max"
         return None
 
+    def resolve_streaming(self, config: GenerateConfig) -> bool:
+        """Whether to use the ConverseStream API for this generate call.
+
+        An explicit `streaming` model arg wins; when unset ("auto"), stream
+        when the caller passed `on_stream` to `Model.generate()`. Auto mode
+        declines to stream requests carrying a `response_schema`: structured
+        output (`output_config.format`) under ConverseStream is unverified,
+        and a display-only `on_stream` request must not risk degrading
+        results (an explicit `streaming=true` opt-in still streams).
+        """
+        if self.streaming is not None:
+            return self.streaming
+        return model_stream_requested() and config.response_schema is None
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -667,8 +735,11 @@ class BedrockAPI(ModelAPI):
             # Process the tools
             resolved_tools = converse_tools(tools)
             tool_config = None
+            tool_choice_degraded = False
             if resolved_tools is not None:
-                choice = converse_tool_choice(tool_choice)
+                resolved_choice = self.resolved_tool_choice(tool_choice)
+                tool_choice_degraded = resolved_choice != tool_choice
+                choice = converse_tool_choice(resolved_choice)
                 tool_config = ConverseToolConfig(
                     tools=resolved_tools, toolChoice=choice
                 )
@@ -739,18 +810,64 @@ class BedrockAPI(ModelAPI):
                 toolConfig=tool_config,
             )
 
+            streaming = self.resolve_streaming(config)
+
             model_call = set_active_model_event_call(
+                # "stream" marks use of the ConverseStream operation (it is
+                # not a request field on either operation)
                 request=replace_bytes_with_placeholder(
                     request.model_dump(exclude_none=True)
+                    | ({"stream": True} if streaming else {}),
                 ),
             )
 
             try:
-                # Process the reponse
-                response = await client.converse(
-                    **request.model_dump(exclude_none=True)
-                )
-                converse_response = ConverseResponse(**response)
+                # Process the response
+                response: dict[str, Any] | None = None
+                converse_response: ConverseResponse | None = None
+                if streaming:
+                    try:
+                        stream_response = await client.converse_stream(
+                            **request.model_dump(exclude_none=True)
+                        )
+                        converse_response = await converse_response_from_stream(
+                            stream_response["stream"]
+                        )
+                        # exclude_none keeps the logged shape consistent
+                        # with the raw boto response of a non-streamed call
+                        response = converse_response.model_dump(exclude_none=True)
+                    except ClientError as ex:
+                        # ConverseStream needs the separate
+                        # bedrock:InvokeModelWithResponseStream permission;
+                        # when streaming was enabled by on_stream alone, a
+                        # display-only request must not fail a generate that
+                        # succeeds without streaming — retry non-streamed
+                        # (an explicit streaming=true opt-in still fails loudly)
+                        if (
+                            self.streaming is None
+                            and bedrock_error_code(ex) == "AccessDeniedException"
+                        ):
+                            warn_once(
+                                logger,
+                                f"bedrock model '{self.model_name}': access "
+                                "denied for ConverseStream; retrying without "
+                                "streaming (on_stream events will not be "
+                                "delivered). Grant "
+                                "bedrock:InvokeModelWithResponseStream or "
+                                "pass -M streaming=false.",
+                            )
+                            model_call = set_active_model_event_call(
+                                request=replace_bytes_with_placeholder(
+                                    request.model_dump(exclude_none=True)
+                                ),
+                            )
+                        else:
+                            raise
+                if converse_response is None or response is None:
+                    response = await client.converse(
+                        **request.model_dump(exclude_none=True)
+                    )
+                    converse_response = ConverseResponse(**response)
 
                 model_call.set_response(
                     response, self._http_hooks.end_request(request_id)
@@ -762,13 +879,16 @@ class BedrockAPI(ModelAPI):
                     self._http_hooks.end_request(request_id),
                 )
                 # Look for an explicit validation exception
-                if ex.response["Error"]["Code"] == "ValidationException":
-                    response = ex.response["Error"]["Message"].lower()
-                    if "too many input tokens" in response or "is too long" in response:
+                if bedrock_error_code(ex) == "ValidationException":
+                    error_message = ex.response["Error"]["Message"].lower()
+                    if (
+                        "too many input tokens" in error_message
+                        or "is too long" in error_message
+                    ):
                         return (
                             ModelOutput.from_content(
                                 model=self.model_name,
-                                content=response,
+                                content=error_message,
                                 stop_reason="model_length",
                             ),
                             model_call,
@@ -780,6 +900,11 @@ class BedrockAPI(ModelAPI):
 
         # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)
+
+        if tool_choice_degraded:
+            output.metadata = (
+                output.metadata or {}
+            ) | forced_tool_choice_degraded_metadata(tool_choice)
 
         # return
         return output, model_call
@@ -927,6 +1052,171 @@ class BedrockAPI(ModelAPI):
                 fields["output_config"]["format"] = schema_format
 
         return fields
+
+
+class _StreamContentBlock:
+    """Accumulated state for one streamed content block."""
+
+    def __init__(self) -> None:
+        self.text: list[str] = []
+        self.reasoning: list[str] = []
+        self.tool_use_id: str | None = None
+        self.tool_name: str | None = None
+        self.tool_input: list[str] = []
+
+
+async def converse_response_from_stream(
+    stream: AsyncIterator[dict[str, Any]],
+) -> ConverseResponse:
+    """Consume a ConverseStream event stream into a Converse response.
+
+    Reports each event once to the model layer's stream observer
+    (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
+    callback and the pending event's progress record. Content blocks
+    accumulate by `contentBlockIndex` (tool-use input arrives as partial-JSON
+    string fragments, parsed once the stream completes; reasoning signatures
+    and redacted content are dropped, matching the non-streaming response
+    model). Usage, metrics, and any guardrail trace arrive on the trailing
+    `metadata` event. Exception members of the event union never arrive here
+    as events: botocore raises them from the iterator as `EventStreamError`
+    (a `ClientError`) whose code is the member name — see
+    `bedrock_error_code` for how retry classification reconciles that with
+    the non-streaming codes. Content deltas are gated on
+    `model_stream_requested()` (see `report_model_stream_delta`); the
+    usage/heartbeat progress channel runs regardless.
+    """
+    report_model_stream_start()
+    blocks: dict[int, _StreamContentBlock] = {}
+    role: ConverseRole = "assistant"
+    stop_reason: ConverseStopReason | None = None
+    additional_fields: Any | None = None
+    usage: ConverseUsage | None = None
+    latency_ms: int | None = None
+    trace: dict[str, Any] | None = None
+
+    async for event in stream:
+        if "messageStart" in event:
+            role = event["messageStart"].get("role", "assistant")
+            report_model_stream_progress()
+        elif "contentBlockStart" in event:
+            index = event["contentBlockStart"].get("contentBlockIndex", 0)
+            block = blocks.setdefault(index, _StreamContentBlock())
+            tool_use = (event["contentBlockStart"].get("start") or {}).get("toolUse")
+            if tool_use is not None:
+                block.tool_use_id = tool_use.get("toolUseId")
+                block.tool_name = tool_use.get("name")
+            report_model_stream_progress()
+        elif "contentBlockDelta" in event:
+            index = event["contentBlockDelta"].get("contentBlockIndex", 0)
+            block = blocks.setdefault(index, _StreamContentBlock())
+            delta = event["contentBlockDelta"].get("delta") or {}
+            text = delta.get("text")
+            reasoning = (delta.get("reasoningContent") or {}).get("text")
+            tool_input = (delta.get("toolUse") or {}).get("input")
+            if text:
+                block.text.append(text)
+            elif reasoning:
+                block.reasoning.append(reasoning)
+            elif tool_input:
+                block.tool_input.append(tool_input)
+            if not model_stream_requested() or not (text or reasoning or tool_input):
+                # bare heartbeat: no on_stream consumer to report deltas to
+                # (see report_model_stream_delta), or a delta with no
+                # reportable content (e.g. reasoning signature/
+                # redacted-content or citation deltas)
+                report_model_stream_progress()
+            elif text:
+                await report_model_stream_delta(StreamTextEvent(text=text))
+            elif reasoning:
+                await report_model_stream_delta(
+                    StreamReasoningEvent(reasoning=reasoning)
+                )
+            elif tool_input:
+                await report_model_stream_delta(
+                    StreamToolCallEvent(
+                        id=block.tool_use_id,
+                        function=block.tool_name,
+                        arguments=tool_input,
+                    )
+                )
+        elif "messageStop" in event:
+            stop_reason = event["messageStop"].get("stopReason")
+            additional_fields = event["messageStop"].get(
+                "additionalModelResponseFields"
+            )
+            report_model_stream_progress()
+        elif "metadata" in event:
+            metadata = event["metadata"]
+            event_usage = metadata.get("usage")
+            if event_usage is not None:
+                input_tokens = event_usage.get("inputTokens", 0)
+                output_tokens = event_usage.get("outputTokens", 0)
+                usage = ConverseUsage(
+                    inputTokens=input_tokens,
+                    outputTokens=output_tokens,
+                    totalTokens=event_usage.get(
+                        "totalTokens", input_tokens + output_tokens
+                    ),
+                )
+            metrics = metadata.get("metrics")
+            if metrics is not None:
+                latency_ms = metrics.get("latencyMs")
+            if metadata.get("trace") is not None:
+                trace = metadata["trace"]
+            report_model_stream_progress(
+                usage.outputTokens if usage is not None else None
+            )
+
+    if stop_reason is None:
+        raise RuntimeError("Streaming response ended without delivering a stop reason.")
+    if usage is None:
+        # the metadata event trails messageStop on every well-formed stream;
+        # fabricating zero usage here would silently under-count tokens
+        raise RuntimeError("Streaming response ended without delivering usage.")
+
+    content: list[ConverseMessageContent] = []
+    for index in sorted(blocks):
+        block = blocks[index]
+        if block.tool_use_id is not None:
+            tool_input_json = "".join(block.tool_input)
+            try:
+                parsed_input = json.loads(tool_input_json) if tool_input_json else {}
+            except json.JSONDecodeError:
+                logger.warning(
+                    "bedrock: streamed tool use input was not valid JSON "
+                    f"(tool: {block.tool_name})"
+                )
+                parsed_input = {}
+            content.append(
+                ConverseMessageContent(
+                    toolUse=ConverseToolUse(
+                        toolUseId=block.tool_use_id,
+                        name=block.tool_name or "",
+                        input=parsed_input,
+                    )
+                )
+            )
+        elif block.reasoning:
+            content.append(
+                ConverseMessageContent(
+                    reasoningContent=ConverseReasoningContent(
+                        reasoningText=ConverseReasoningText(
+                            text="".join(block.reasoning)
+                        )
+                    )
+                )
+            )
+        elif block.text:
+            content.append(ConverseMessageContent(text="".join(block.text)))
+
+    return ConverseResponse(
+        output=ConverseOutput(message=ConverseMessage(role=role, content=content)),
+        stopReason=stop_reason,
+        usage=usage,
+        metrics=ConverseMetrics(latencyMs=latency_ms or 0),
+        additionalModelResponseFields=additional_fields,
+        trace=trace,
+    )
 
 
 async def converse_messages(

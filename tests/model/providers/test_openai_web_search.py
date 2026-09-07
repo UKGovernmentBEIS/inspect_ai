@@ -92,3 +92,25 @@ class TestOpenAIWebSearch:
 
     def test_web_search_tool_with_none(self):
         assert _web_search_tool(None) == {"type": "web_search"}
+
+
+@pytest.mark.parametrize(
+    "model_name", ["gpt-5", "gpt-5.6-sol", "gpt-6-astra", "my-gpt-6-deployment"]
+)
+def test_maybe_web_search_tool_frontier_models(model_name):
+    tool = ToolInfo(
+        name="web_search",
+        description="Search the web",
+        options={"openai": {}},
+    )
+    assert maybe_web_search_tool(model_name, tool) is not None
+
+
+@pytest.mark.parametrize("model_name", ["gpt-35-turbo", "gpt-4", "o1"])
+def test_maybe_web_search_tool_legacy_models(model_name):
+    tool = ToolInfo(
+        name="web_search",
+        description="Search the web",
+        options={"openai": {}},
+    )
+    assert maybe_web_search_tool(model_name, tool) is None

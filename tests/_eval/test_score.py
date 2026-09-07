@@ -665,6 +665,74 @@ async def test_score_model_roles_override():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("action", ["overwrite", "append"])
+async def test_score_preserves_logged_samples(action: ScoreAction) -> None:
+    """Rescoring must carry EvalResults.logged_samples into the rebuilt results.
+
+    The eval-set run-vs-reuse check classifies a drained (or gracefully
+    cancelled) log by this count; a rescore that dropped it would make the
+    log read complete and the abandoned remainder would silently never re-run.
+    """
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalResults,
+        EvalSpec,
+    )
+
+    @scorer(metrics=[accuracy()])
+    def constant_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1.0)
+
+        return score
+
+    sample = EvalSample(
+        id="test-1",
+        epoch=1,
+        input="q",
+        target="a",
+        messages=[ChatMessageUser(role="user", content="q")],
+        output=ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(role="assistant", content="a")
+                )
+            ]
+        ),
+    )
+
+    # a drained log: three planned, one resolved
+    log = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="test_task",
+            task_id="test",
+            run_id="test-run",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="test",
+            steps=[EvalPlanStep(solver="generate")],
+            config=GenerateConfig(),
+        ),
+        results=EvalResults(total_samples=3, completed_samples=1, logged_samples=1),
+        samples=[sample],
+    )
+
+    scored = await score_async(log=log, scorers=[constant_scorer()], action=action)
+    assert scored.results is not None
+    assert scored.results.logged_samples == 1
+
+
+@pytest.mark.anyio
 async def test_score_resolves_attachments_for_scorer_state_and_transcript() -> None:
     from inspect_ai._eval.score import _run_score_task
     from inspect_ai.log import EvalLog

@@ -18,10 +18,11 @@ from .openai_compatible import OpenAICompatibleAPI
 
 logger = getLogger(__name__)
 
-# Sampling parameters that Kimi models reject while thinking is enabled (the
-# default): the API pins each to a fixed value and 400s on any other value
-# (e.g. "invalid temperature: only 1 is allowed for this model"). Legacy
-# moonshot-v1-* models accept them.
+# Sampling parameters that Kimi models reject: the API pins each to a fixed
+# value and 400s on any other value (e.g. "invalid temperature: only 1 is
+# allowed for this model"). The pin applies whether thinking is enabled or
+# disabled — only the pinned temperature depends on the thinking mode
+# (1 enabled, 0.6 disabled). Legacy moonshot-v1-* models accept them.
 # https://platform.kimi.ai/docs/guide/use-thinking-effort
 KIMI_FIXED_SAMPLING_PARAMS = (
     "temperature",
@@ -32,13 +33,27 @@ KIMI_FIXED_SAMPLING_PARAMS = (
 
 KIMI_FIXED_SAMPLING_WARNING = (
     "The {parameter} parameter is not supported by {model} (Kimi models use "
-    "fixed sampling while thinking is enabled) and will be ignored."
+    "fixed sampling) and will be ignored."
 )
 
 KIMI_TOOL_CHOICE_WARNING = (
     "Forcing use of the {name!r} tool is not supported by {model} (a named "
     "tool_choice is incompatible with thinking, which is enabled by default) "
     'and will be submitted as "required".'
+)
+
+KIMI_TOOL_CHOICE_DROPPED_WARNING = (
+    "Forcing use of the {name!r} tool is not supported by {model} (a named "
+    "tool_choice is incompatible with thinking, which is enabled by default). "
+    'The request will be submitted as "auto" and the model may choose not to '
+    "call the tool at all."
+)
+
+KIMI_ANY_TOOL_CHOICE_WARNING = (
+    'A tool_choice of "any" is not supported by {model} (tool_choice '
+    "'required' is incompatible with thinking, which is enabled by default). "
+    'The request will be submitted as "auto" and the model may choose not to '
+    "call a tool at all."
 )
 
 
@@ -74,8 +89,13 @@ class MoonshotAPI(OpenAICompatibleAPI):
         """Whether the request explicitly disables Kimi thinking.
 
         Kimi models think by default; passing `thinking: {"type": "disabled"}`
-        via extra_body turns it off, which also lifts the fixed-sampling and
-        named-tool_choice restrictions.
+        via extra_body turns it off, which also lifts the named-tool_choice
+        restriction (fixed sampling stays pinned in both modes).
+
+        The k2.7-code models have no disabled mode and reject the field
+        outright ("invalid thinking: only type=enabled is allowed for this
+        model"), so a request that sets it 400s whatever else it carries.
+        extra_body is forwarded verbatim and that error surfaces as-is.
         """
         thinking = (config.extra_body or {}).get("thinking")
         return isinstance(thinking, dict) and thinking.get("type") == "disabled"
@@ -94,18 +114,36 @@ class MoonshotAPI(OpenAICompatibleAPI):
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
     ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
         tools, tool_choice, config = super().resolve_tools(tools, tool_choice, config)
-        if (
-            self.is_kimi()
-            and not self.thinking_disabled(config)
-            and isinstance(tool_choice, ToolFunction)
-        ):
-            warn_once(
-                logger,
-                KIMI_TOOL_CHOICE_WARNING.format(
-                    name=tool_choice.name, model=self.service_model_name()
-                ),
-            )
-            tool_choice = "any"
+        if self.is_kimi() and not self.thinking_disabled(config):
+            # with thinking enabled, K3 rejects only a named tool_choice
+            # (accepting 'required'), while other Kimi models reject both a
+            # named tool_choice and 'required' — for those the best available
+            # fallback is "auto", which drops the forcing entirely
+            if isinstance(tool_choice, ToolFunction):
+                if self.is_kimi_k3():
+                    warn_once(
+                        logger,
+                        KIMI_TOOL_CHOICE_WARNING.format(
+                            name=tool_choice.name, model=self.service_model_name()
+                        ),
+                    )
+                    tool_choice = "any"
+                else:
+                    warn_once(
+                        logger,
+                        KIMI_TOOL_CHOICE_DROPPED_WARNING.format(
+                            name=tool_choice.name, model=self.service_model_name()
+                        ),
+                    )
+                    tool_choice = "auto"
+            elif tool_choice == "any" and not self.is_kimi_k3():
+                warn_once(
+                    logger,
+                    KIMI_ANY_TOOL_CHOICE_WARNING.format(
+                        model=self.service_model_name()
+                    ),
+                )
+                tool_choice = "auto"
         return tools, tool_choice, config
 
     # the service returns 503 when overloaded -- classify as a rate limit so
@@ -141,7 +179,7 @@ class MoonshotAPI(OpenAICompatibleAPI):
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
-        if self.is_kimi() and not self.thinking_disabled(config):
+        if self.is_kimi():
             for param in KIMI_FIXED_SAMPLING_PARAMS:
                 if param in params:
                     del params[param]

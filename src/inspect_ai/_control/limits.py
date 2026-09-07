@@ -46,7 +46,8 @@ endpoint — for the common case of viewing or throttling a whole process withou
 naming one of its tasks.
 
 Both directives also carry the retry-loop overrides — ``timeout`` /
-``attempt_timeout`` / ``max_retries``, likewise process-global — backed by the
+``attempt_timeout`` / ``stream_idle_timeout`` / ``max_retries``, likewise
+process-global — backed by the
 live override layer in :mod:`inspect_ai.model._generate_overrides` rather than
 a limiter: the generate retry loop reads the overrides at each point of use,
 so a retune reaches calls already inside their retry loop (the keyword
@@ -160,6 +161,7 @@ async def process_limits(
     model: str | None = None,
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
+    stream_idle_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
     key: str | None = None,
     key_limit: int | None = None,
@@ -178,7 +180,8 @@ async def process_limits(
     (subprocess concurrency), ``max_connections`` (the adaptive controllers'
     scaling ceiling), ``key`` / ``key_limit`` (a named ``concurrency()``
     registry entry — the registry is process-global), and the retry-loop
-    overrides (``timeout`` / ``attempt_timeout`` / ``max_retries`` — see the
+    overrides (``timeout`` / ``attempt_timeout`` / ``stream_idle_timeout`` /
+    ``max_retries`` — see the
     ``retry`` view and :mod:`inspect_ai.model._generate_overrides`; the
     keyword ``clear`` removes an override, restoring the launch
     configuration). It carries no
@@ -208,6 +211,7 @@ async def process_limits(
         model=model,
         timeout=timeout,
         attempt_timeout=attempt_timeout,
+        stream_idle_timeout=stream_idle_timeout,
         max_retries=max_retries,
         key=key,
         key_limit=key_limit,
@@ -250,6 +254,7 @@ async def task_limits(
     log_shared: int | None = None,
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
+    stream_idle_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
     time_limit: int | Literal["clear"] | None = None,
     token_limit: int | Literal["clear"] | None = None,
@@ -315,6 +320,9 @@ async def task_limits(
             restoring launch config), or ``None`` to leave it.
         attempt_timeout: New per-attempt timeout (seconds) — same override
             semantics as ``timeout``.
+        stream_idle_timeout: New streaming stall timeout (seconds — abandon
+            an attempt whose streaming response goes silent this long) —
+            same override semantics as ``timeout``.
         max_retries: New max retries per generate call (``0`` = fail after
             the first attempt) — same override semantics as ``timeout``.
         time_limit: New per-sample wall-clock limit (seconds) — a live
@@ -540,6 +548,7 @@ async def task_limits(
         model=model,
         timeout=timeout,
         attempt_timeout=attempt_timeout,
+        stream_idle_timeout=stream_idle_timeout,
         max_retries=max_retries,
         key=key,
         key_limit=key_limit,
@@ -751,6 +760,7 @@ def _apply_process_knobs(
     model: str | None,
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
+    stream_idle_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
     key: str | None = None,
     key_limit: int | None = None,
@@ -767,7 +777,7 @@ def _apply_process_knobs(
     rejects unknown keys before any knob applies).
 
     ``max_tasks`` and the retry knobs (``timeout`` / ``attempt_timeout`` /
-    ``max_retries``) set (or with the
+    ``stream_idle_timeout`` / ``max_retries``) set (or with the
     keyword ``clear``, remove) process-wide live overrides —
     always adjustable, since the override layer exists regardless of what
     any task's launch config specifies (for ``max_tasks``, a set landing
@@ -915,7 +925,8 @@ def _apply_process_knobs(
                 if model is not None:
                     record_metadata = {"max_connections_model": model}
 
-    # timeout / attempt_timeout / max_retries — the retry-loop override layer
+    # timeout / attempt_timeout / stream_idle_timeout / max_retries — the
+    # retry-loop override layer
     # (process-wide, read live by the generate retry loop). "clear" removes an
     # override; the store always exists, so these never warn as unadjustable.
     from inspect_ai.model._generate_overrides import (
@@ -929,6 +940,7 @@ def _apply_process_knobs(
     retry_values: dict[GenerateConfigOverrideField, int | Literal["clear"] | None] = {
         "timeout": timeout,
         "attempt_timeout": attempt_timeout,
+        "stream_idle_timeout": stream_idle_timeout,
         "max_retries": max_retries,
     }
     # a field added to the override Literal but missing here would be

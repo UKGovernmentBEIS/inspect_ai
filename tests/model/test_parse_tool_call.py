@@ -1,4 +1,5 @@
 import logging
+import time
 
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai.model._call_tools import parse_tool_call
@@ -160,3 +161,79 @@ def test_parse_error_truncates_oversized_arguments():
     # middle truncation preserves the head and tail
     assert tool_call.parse_error.count('{"param1": "x') == 1
     assert '",}invalid' in tool_call.parse_error
+
+
+def test_parse_error_on_deeply_nested_json_arguments():
+    # arguments nested deeper than downstream consumers tolerate (pydantic-core
+    # validation/serialization, log condensation) are rejected as a parse error
+    # rather than admitted; depth 5000 also exercises the case where json.loads
+    # itself raises RecursionError
+    for depth in (300, 5000):
+        arguments = '{"a":' * depth + "1" + "}" * depth
+        tool_call = parse_tool_call("id", "testing_tool", arguments, [testing_tool])
+
+        assert tool_call.arguments == {}
+        assert tool_call.parse_error is not None
+        assert "nesting depth" in tool_call.parse_error
+
+
+def test_parse_error_on_deeply_nested_json_arguments_with_trailing_quotes():
+    # the trailing-quotes recovery path must apply the same depth bound
+    depth = 300
+    arguments = '{"a":' * depth + "1" + "}" * depth + '""'
+    tool_call = parse_tool_call("id", "testing_tool", arguments, [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is not None
+    assert "nesting depth" in tool_call.parse_error
+
+
+def test_parse_accepts_bounded_nested_json_arguments():
+    depth = 50
+    arguments = '{"param1":' + '{"a":' * (depth - 1) + "1" + "}" * depth
+    tool_call = parse_tool_call("id", "testing_tool", arguments, [testing_tool])
+
+    assert tool_call.parse_error is None
+    assert "param1" in tool_call.arguments
+
+
+def test_parse_error_on_deeply_nested_yaml_arguments():
+    # the yaml fallback branch applies the same depth bound (depth 5000
+    # exercises the case where yaml.safe_load itself raises RecursionError)
+    for depth in (300, 5000):
+        arguments = "[" * depth + "1" + "]" * depth
+        tool_call = parse_tool_call("id", "testing_tool", arguments, [testing_tool])
+
+        assert tool_call.arguments == {}
+        assert tool_call.parse_error is not None
+        assert "nesting depth" in tool_call.parse_error
+
+
+def test_parse_yaml_alias_dag_arguments_does_not_hang():
+    # yaml anchors/aliases build a DAG whose distinct paths grow exponentially
+    # with its size; the depth bound must be measured without re-expanding
+    # shared nodes per path, or this ~1KB model-emitted payload would peg the
+    # event loop for hours (uninterruptibly — the parse is synchronous)
+    levels = 40
+    lines = ["l0: &l0 leaf"]
+    lines += [f"l{i}: &l{i} [*l{i - 1}, *l{i - 1}]" for i in range(1, levels + 1)]
+    lines.append(f"top: *l{levels}")
+
+    start = time.monotonic()
+    parse_tool_call("id", "testing_tool", "\n".join(lines), [testing_tool])
+
+    assert time.monotonic() - start < 10
+
+
+def test_parse_error_on_deep_yaml_alias_chain():
+    # the same aliasing used to build depth (rather than width) is still caught
+    levels = 3000
+    lines = ["l0: &l0 leaf"]
+    lines += [f"l{i}: &l{i} [*l{i - 1}]" for i in range(1, levels + 1)]
+    lines.append(f"top: *l{levels}")
+
+    tool_call = parse_tool_call("id", "testing_tool", "\n".join(lines), [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is not None
+    assert "nesting depth" in tool_call.parse_error

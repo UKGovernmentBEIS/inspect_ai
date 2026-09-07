@@ -39,6 +39,7 @@ from inspect_ai._control.scoring import (
     ScorePass,
     TaskScoring,
     _enumerate_targets,
+    _pass_superseded,
     _sample_scoped_targets,
     _score_passes,
     get_sample_score_pass,
@@ -48,6 +49,7 @@ from inspect_ai._control.scoring import (
     start_sample_score_pass,
     start_score_pass,
 )
+from inspect_ai._display.core.display import CancelType, TaskCancel
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._score import ScoreEvent
@@ -865,6 +867,41 @@ async def test_score_pass_superseded_sample_yields(
     assert "completed before interim scoring finished" in row["reason"]
     assert score_pass.failed == 0 and score_pass.unscored == 1
     assert not sample_scoring_held(active.id)
+
+
+@pytest.mark.parametrize(
+    ("cancel_type", "superseded"),
+    [
+        (None, False),
+        # a draining task keeps running and its in-flight samples finish
+        # naturally — exactly the samples an operator wants interim scores for
+        ("drain", False),
+        # the graceful resolutions are already resolving the in-flight
+        # samples; abort/retry are tearing the task down
+        ("score", True),
+        ("error", True),
+        ("abort", True),
+        ("retry", True),
+    ],
+)
+def test_pass_superseded_by_cancel_stamp(
+    cancel_type: CancelType, superseded: bool
+) -> None:
+    async def summaries() -> list[EvalSampleSummary]:
+        return []
+
+    handle = TaskCancel(can_retry=False, cancel_task=lambda _t: None)
+    handle.cancel_type = cancel_type
+    register_eval(
+        "e1",
+        1,
+        task_id="t1",
+        live=FakeLiveEvalData(summaries=summaries),
+        task_cancel=handle,
+    )
+    state = latest_eval_for_task("t1")
+    assert state is not None
+    assert _pass_superseded(state) is superseded
 
 
 async def test_score_pass_completion_between_scorer_and_recording(

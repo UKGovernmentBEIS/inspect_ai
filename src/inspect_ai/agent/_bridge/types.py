@@ -20,6 +20,7 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -183,6 +184,14 @@ class AgentBridge:
         of propagating.
         """
         raise TerminateSampleError(reason)
+
+    def register_tool_execution_grants(self, calls: Sequence[ToolCall]) -> None:
+        """Register calls from an approved response for execution-edge checks.
+
+        In-process bridges execute no host tools through a separate service, so the
+        base implementation has nothing to register. Sandbox bridges override this
+        to bind later service requests to the calls approval actually reviewed.
+        """
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model
