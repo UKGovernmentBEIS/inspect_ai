@@ -209,6 +209,17 @@
     ]
   },
   {
+    "id": "proofbundle",
+    "name": "proofbundle",
+    "url": "https://github.com/b7n0de/proofbundle",
+    "desc": "Signed, offline-verifiable receipts for eval runs \u2014 Ed25519 over an RFC 6962 Merkle root. Binds what a run claimed and when; it does not attest that the evaluation itself was honest.",
+    "author": "b7n0de",
+    "author_url": "https://b7n0de.com",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
     "id": "inspect-swe",
     "name": "Inspect SWE",
     "url": "https://meridianlabs-ai.github.io/inspect_swe/",
@@ -347,6 +358,17 @@
     "desc": "Automatically load pricing data for models under test.",
     "author": "Jason Gwartz",
     "author_url": "https://github.com/jasongwartz",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "inspect-logittilt",
+    "name": "Inspect LogitTilt",
+    "url": "https://adrskapars.github.io/inspect_logittilt/",
+    "desc": "Steers a model's sampling towards any target behaviour, surfacing on-policy examples in fewer samples, accessing only the model's logits.",
+    "author": "Adrians Skapars",
+    "author_url": "https://scholar.google.com/citations?user=9Vf0mWkAAAAJ&hl=en",
     "categories": [
       "Tooling"
     ]

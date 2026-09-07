@@ -642,6 +642,9 @@ def test_external_interrupt_with_pending_resolution_logs_cancelled(
     from inspect_ai._control.eval_state import get_eval_states
     from inspect_ai.log import list_eval_logs, read_eval_log
 
+    resolution_pending = threading.Event()
+    eval_returned = threading.Event()
+
     @solver(name="stamp_resolution_solver")
     def stamp_resolution_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -651,14 +654,22 @@ def test_external_interrupt_with_pending_resolution_logs_cancelled(
             # this sample — the pending-graceful-resolution state (e.g. a
             # `--score` cancel stalled on a hung sample/scorer)
             eval_state.task_cancel.cancel_task("score")
+            resolution_pending.set()
             await anyio.sleep(10)
             return state
 
         return solve
 
-    eval_returned = threading.Event()
-
     def send_sigint() -> None:
+        # interrupt only once the solver has stamped the resolution: a fixed
+        # head start races eval startup, and on a slow runner the SIGINT can
+        # land before the log exists (so nothing is written). The timeout is
+        # a hang guard for a solver that never runs — the test then fails on
+        # its assertions rather than stalling.
+        resolution_pending.wait(60)
+        # let the solver park in its sleep first so the interrupt lands in
+        # the idle event loop, as a real ctrl+c during a stall would
+        time.sleep(0.5)
         # a single SIGINT can be silently lost: the KeyboardInterrupt it
         # raises lands at an arbitrary bytecode boundary in the main thread,
         # and if that happens to be inside a context that swallows exceptions
@@ -666,7 +677,6 @@ def test_external_interrupt_with_pending_resolution_logs_cancelled(
         # drops it) the eval never sees it. Resend until the eval unwinds —
         # the interval is generous so a delivered interrupt has ample time to
         # finalize the log and return before another could land mid-write.
-        time.sleep(1)
         while not eval_returned.is_set():
             os.kill(os.getpid(), signal.SIGINT)
             eval_returned.wait(3)
