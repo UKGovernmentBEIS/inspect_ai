@@ -11,8 +11,11 @@ class McpBaseParams(BaseModel):
 
 class LaunchServerParams(BaseModel):
     server_params: StdioServerParameters
-    run_as: RunAs | None = None
-    """Sandbox default user to run the server as."""
+    user: str | RunAs | None = None
+    """User to run as: a username, or the sandbox default user's identity as
+    captured by the host. Switching requires the server to run as root, unless
+    the server already runs as that identity."""
+    model_config = {"extra": "forbid"}
 
 
 class KillServerParams(McpBaseParams):

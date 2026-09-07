@@ -703,6 +703,13 @@ def test_parse_default_user() -> None:
         parse("Uid: 5 5 5 5\nGid: 5 5 5 5\nGroups: 5\nHOME: \nHOME_SET: \n").home
         is None
     )
+    # a login banner precedes the probe output and must not shadow it
+    assert (
+        parse(
+            "HOME: /banner\nUid: 5 5 5 5\nGid: 5 5 5 5\nGroups: 5\nHOME: /real\nHOME_SET: 1\n"
+        ).home
+        == "/real"
+    )
 
 
 async def test_detector_does_not_pin_root_when_identity_probe_fails() -> None:
@@ -743,6 +750,15 @@ async def test_detector_does_not_pin_root_when_identity_probe_fails() -> None:
         pytest.param(
             ExecResult(success=True, returncode=0, stdout="allow\n", stderr=""),
             id="probe-output-short",
+        ),
+        pytest.param(
+            ExecResult(
+                success=True,
+                returncode=0,
+                stdout="Welcome: to the VM\nUid: 0 0 0 0\nCapEff: 000001ffffffffff\n",
+                stderr="",
+            ),
+            id="probe-missing-key-with-noise",
         ),
         pytest.param(caps_probe_result("000001ffffffffff", uid="1000"), id="not-root"),
     ],

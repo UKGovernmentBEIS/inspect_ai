@@ -439,7 +439,9 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
 
 
 @skip_if_no_mcp_package
-async def test_sandbox_client_runs_cli_as_tools_user_and_sends_run_as(monkeypatch):
+async def test_sandbox_client_runs_cli_as_tools_user_and_sends_default_user(
+    monkeypatch,
+):
     from mcp import StdioServerParameters
 
     from inspect_ai.tool._mcp import _sandbox as sandbox_module
@@ -471,7 +473,7 @@ async def test_sandbox_client_runs_cli_as_tools_user_and_sends_run_as(monkeypatc
 
     launch, kill = calls
     assert launch["method"] == "mcp_launch_server"
-    assert launch["params"]["run_as"] == default_user._asdict()
+    assert launch["params"]["user"] == default_user._asdict()
     assert [c["user"] for c in (launch, kill)] == ["root", "root"]
 
 

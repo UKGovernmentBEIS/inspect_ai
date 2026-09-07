@@ -7,6 +7,8 @@ from collections.abc import Callable
 
 from pydantic import BaseModel
 
+from .common_types import ToolException
+
 
 class RunAs(BaseModel):
     """Numeric identity of the sandbox's default exec user, captured by the host."""
@@ -33,6 +35,24 @@ def is_current_user(user: str | RunAs) -> bool:
         return False
 
 
+def switch_target(
+    user: str | RunAs | None, can_switch_user: bool
+) -> str | RunAs | None:
+    """The identity a child process must switch to in order to run as ``user``.
+
+    None when no switch is needed: no user was given, or the server already runs
+    as that identity. Raises ToolException when a switch is needed but the server
+    is not root.
+    """
+    if user is None or is_current_user(user):
+        return None
+    if not can_switch_user:
+        raise ToolException(
+            f"Cannot switch to user {user!r}: server is not running as root"
+        )
+    return user
+
+
 def set_oom_score_adj() -> None:
     """Set oom_score_adj to make this process the preferred OOM-kill target."""
     try:
@@ -56,7 +76,7 @@ def _switch(user: str | RunAs) -> None:
         with contextlib.suppress(OSError):
             fcntl.ioctl(0, termios.TIOCSCTTY, 0)
         with contextlib.suppress(OSError):
-            os.fchown(0, uid, gid)
+            os.fchown(0, uid, -1)
     if isinstance(user, str):
         os.initgroups(user, gid)
     else:

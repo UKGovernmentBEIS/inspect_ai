@@ -23,7 +23,7 @@ from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
     SandboxToolsErrorMapper,
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
-from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 
 from ._compat import (
@@ -77,8 +77,8 @@ async def sandbox_client(  # type: ignore
     write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
 
     params: dict[str, object] = {"server_params": server.model_dump()}
-    if sandbox_environment._tools_default_user:
-        params["run_as"] = sandbox_environment._tools_default_user._asdict()
+    if (user := tools_user_param(sandbox_environment, None)) is not None:
+        params["user"] = user
     session_id = await exec_scalar_request(
         method="mcp_launch_server",
         params=params,

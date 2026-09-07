@@ -7,7 +7,6 @@ from typing import Literal, TextIO
 import psutil
 import pydantic
 
-from inspect_sandbox_tools._util.common_types import ToolException
 from inspect_sandbox_tools._util.process_tree import (
     process_group_members,
     terminate_process_tree,
@@ -15,8 +14,8 @@ from inspect_sandbox_tools._util.process_tree import (
 from inspect_sandbox_tools._util.user_switch import (
     RunAs,
     get_home_dir,
-    is_current_user,
     make_preexec,
+    switch_target,
 )
 
 from .jsonrpc_types import (
@@ -70,12 +69,7 @@ class MCPServerSession:
         user: str | RunAs | None = None,
         can_switch_user: bool = False,
     ) -> "MCPServerSession":
-        if user is not None and is_current_user(user):
-            user = None
-        if user is not None and not can_switch_user:
-            raise ToolException(
-                f"Cannot switch to user {user!r}: server is not running as root"
-            )
+        user = switch_target(user, can_switch_user)
         env = server_params.env
         if user is not None:
             home = get_home_dir(user)

@@ -22,7 +22,7 @@ _can_switch_user = os.getuid() == 0
 async def mcp_launch_server(params: LaunchServerParams) -> int:
     session_id = next(id_generator)
     sessions[session_id] = await MCPServerSession.create(
-        params.server_params, user=params.run_as, can_switch_user=_can_switch_user
+        params.server_params, user=params.user, can_switch_user=_can_switch_user
     )
     return session_id
 

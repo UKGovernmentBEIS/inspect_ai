@@ -168,26 +168,28 @@ async def _exec(request: str | None) -> None:
     # in-process tools leak this private location to their user subprocesses.
     os.environ.pop(SERVER_DIR_ENV, None)
 
-    # For in-process tools, extract _run_as_user/_run_as and setuid before dispatching.
-    # The CLI is short-lived (one invocation per request), so in-process setuid is safe.
+    # For in-process tools, extract _run_as (a username or the sandbox default
+    # user's identity) and setuid before dispatching. The CLI is short-lived (one
+    # invocation per request), so in-process setuid is safe. HOME follows the user
+    # only when an identity switch happens, as in the server's tools.
     if tool_name in in_process_tools:
         run_as: str | RunAs | None = None
         if isinstance(request_data.get("params"), dict):
-            run_as_user = request_data["params"].pop("_run_as_user", None)
             run_as_spec = request_data["params"].pop("_run_as", None)
-            if run_as_user is not None:
-                if not isinstance(run_as_user, str):
-                    raise TypeError(
-                        f"_run_as_user must be a string, got {type(run_as_user).__name__}"
-                    )
-                run_as = run_as_user
-            elif run_as_spec is not None:
+            if isinstance(run_as_spec, dict):
                 run_as = RunAs.model_validate(run_as_spec)
+            elif run_as_spec is not None:
+                if not isinstance(run_as_spec, str):
+                    raise TypeError(
+                        "_run_as must be a username or an identity object, "
+                        f"got {type(run_as_spec).__name__}"
+                    )
+                run_as = run_as_spec
         if run_as is not None:
             request_json_str = json.dumps(request_data)
             if not is_current_user(run_as):
                 switch_user(run_as)
-            os.environ["HOME"] = get_home_dir(run_as)
+                os.environ["HOME"] = get_home_dir(run_as)
 
     response = await (
         _dispatch_local_method

@@ -340,7 +340,7 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     try:
         probe = await sandbox.exec(["/bin/sh", "-c", _ROOT_PROBE_CMD], user="root")
         fields = _fields(probe.stdout)
-        if not probe.success or fields.keys() < {"Uid", "CapEff", "setgroups"}:
+        if not probe.success or not fields.keys() >= {"Uid", "CapEff", "setgroups"}:
             raise RuntimeError(f"root probe failed: {probe.stderr or probe.stdout!r}")
         if fields["Uid"].split()[0] != "0":
             trace_message(
@@ -407,8 +407,12 @@ async def _detect_default_user(sandbox: SandboxEnvironment) -> SandboxDefaultUse
 
 
 def _fields(output: str) -> dict[str, str]:
-    """`key: value` lines of a probe, keyed by name; the first occurrence wins."""
-    lines = reversed(output.splitlines())
+    """`key: value` lines of a probe, keyed by name.
+
+    The last occurrence wins: a login banner prints before the probe output, so a
+    banner line that happens to look like a field cannot shadow the real value.
+    """
+    lines = output.splitlines()
     return {k: v for k, _, v in (ln.partition(":") for ln in lines) if _}
 
 

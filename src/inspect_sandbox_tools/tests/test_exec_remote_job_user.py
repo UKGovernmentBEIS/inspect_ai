@@ -5,7 +5,13 @@ import os
 import pwd
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pydantic
 import pytest
+from inspect_sandbox_tools._remote_tools._bash_session.tool_types import (
+    NewSessionParams,
+)
+from inspect_sandbox_tools._remote_tools._exec_remote.tool_types import SubmitParams
+from inspect_sandbox_tools._remote_tools._mcp.tool_types import LaunchServerParams
 from inspect_sandbox_tools._util.user_switch import (
     RunAs,
     is_current_user,
@@ -90,6 +96,28 @@ class TestMakePreexec:
         mock_exit.assert_called_once_with(1)
 
 
+@pytest.mark.parametrize(
+    "model, required",
+    [
+        (NewSessionParams, {}),
+        (SubmitParams, {"command": "true"}),
+        (LaunchServerParams, {"server_params": {"command": "true"}}),
+    ],
+)
+def test_user_param_is_username_or_identity(
+    model: type[NewSessionParams | SubmitParams | LaunchServerParams],
+    required: dict[str, object],
+) -> None:
+    """One `user` field carries both forms; every params model rejects unknown fields."""
+    identity = {"uid": 1, "gid": 2, "groups": [3], "home": "/h"}
+    assert model.model_validate({**required, "user": "nobody"}).user == "nobody"
+    assert model.model_validate(
+        {**required, "user": identity}
+    ).user == RunAs.model_validate(identity)
+    with pytest.raises(pydantic.ValidationError):
+        model.model_validate({**required, "run_as": identity})
+
+
 class TestRunAs:
     """Numeric identity (RunAs) switching shares the username plumbing."""
 
@@ -145,7 +173,7 @@ class TestRunAs:
             patch("os.setuid", side_effect=lambda *a: calls.append("setuid")),
         ):
             make_preexec(run_as)()
-        assert calls == ["ioctl", "fchown(0, 1000, 5)", "setuid"]
+        assert calls == ["ioctl", "fchown(0, 1000, -1)", "setuid"]
 
     def test_preexec_skips_tty_claim_without_tty(self) -> None:
         with (

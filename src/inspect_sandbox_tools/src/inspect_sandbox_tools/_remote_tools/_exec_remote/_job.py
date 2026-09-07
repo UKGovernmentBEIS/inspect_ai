@@ -14,8 +14,8 @@ from inspect_sandbox_tools._util.process_tree import (
 from inspect_sandbox_tools._util.user_switch import (
     RunAs,
     get_home_dir,
-    is_current_user,
     make_preexec,
+    switch_target,
 )
 
 from ._acked_chunk_buffer import AckedChunkBuffer
@@ -71,13 +71,7 @@ class Job:
             user: User to run the command as (requires can_switch_user=True).
             can_switch_user: Whether the server can switch users (running as root).
         """
-        # If the requested user matches the current process user, no setuid needed
-        if user is not None and is_current_user(user):
-            user = None
-        if user is not None and not can_switch_user:
-            raise ToolException(
-                f"Cannot switch to user {user!r}: server is not running as root"
-            )
+        user = switch_target(user, can_switch_user)
 
         # Use stdin=PIPE if we have input to send or if stdin should stay open
         stdin = asyncio.subprocess.PIPE if (input is not None or stdin_open) else None

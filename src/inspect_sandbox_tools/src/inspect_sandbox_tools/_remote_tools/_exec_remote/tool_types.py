@@ -17,10 +17,10 @@ class SubmitParams(BaseModel):
     """Additional environment variables (merged with the current environment)."""
     cwd: str | None = None
     """Working directory for command execution."""
-    user: str | None = None
-    """User to run the command as (requires server running as root)."""
-    run_as: RunAs | None = None
-    """Sandbox default user to run as when no explicit user is given."""
+    user: str | RunAs | None = None
+    """User to run as: a username, or the sandbox default user's identity as
+    captured by the host. Switching requires the server to run as root, unless
+    the server already runs as that identity."""
     model_config = {"extra": "forbid"}
 
 

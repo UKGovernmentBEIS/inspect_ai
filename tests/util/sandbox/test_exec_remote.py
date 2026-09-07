@@ -452,7 +452,7 @@ class TestPidAccess:
             await proc.__anext__()
 
 
-class TestRunAsParam:
+class TestUserParam:
     _DEFAULT_USER = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/h")
 
     async def _start_params(
@@ -466,15 +466,13 @@ class TestRunAsParam:
         ]
         return params
 
-    async def test_default_user_sent_without_explicit_user(self) -> None:
+    async def test_default_user_identity_sent_without_explicit_user(self) -> None:
         params = await self._start_params(ExecRemoteStreamingOptions())
-        assert params["run_as"] == self._DEFAULT_USER._asdict()
-        assert "user" not in params
+        assert params["user"] == self._DEFAULT_USER._asdict()
 
-    async def test_explicit_user_omits_run_as(self) -> None:
+    async def test_explicit_user_wins(self) -> None:
         params = await self._start_params(ExecRemoteStreamingOptions(user="nobody"))
         assert params["user"] == "nobody"
-        assert "run_as" not in params
 
 
 # ============================================================================
