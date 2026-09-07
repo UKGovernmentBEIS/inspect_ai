@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import json
 import os
 import struct
@@ -7,7 +9,9 @@ import zlib
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import anyio
 import ijson  # type: ignore
+import psutil
 import pytest
 from test_helpers.utils import skip_if_trio
 
@@ -628,3 +632,64 @@ async def test_read_multi_frame_zstd_member(
     assert data == payload, (
         f"round-trip mismatch: wrote {len(payload)} bytes, read back {len(data)} bytes"
     )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="counts open file descriptors")
+@skip_if_trio  # ijson.parse_async is asyncio-only
+@pytest.mark.parametrize(
+    "compression",
+    [zipfile.ZIP_DEFLATED, zipfile.ZIP_STORED],
+    ids=["deflated", "stored"],
+)
+@pytest.mark.parametrize("scoped", [False, True], ids=["task-cancel", "cancel-scope"])
+async def test_cancelled_parse_does_not_leak_descriptors(
+    tmp_path: Path, compression: int, scoped: bool
+) -> None:
+    """Cancelling a parse mid-read must still release the member's descriptor.
+
+    ijson reads through an adapter, so a cancellation can land with a read in
+    flight. That leaves the member generator suspended with a send pending, and
+    a generator in that state cannot be closed — so cleanup living in the
+    generator body never runs and __aexit__ has to own it.
+
+    Both cancellation shapes matter. A bare task.cancel() delivers once, so
+    cleanup awaits normally; an enclosing cancel scope stays cancelled, and an
+    unshielded close would be abandoned at its first checkpoint.
+    """
+    zip_path = tmp_path / "cancel.zip"
+    with zipfile.ZipFile(zip_path, "w", compression) as zf:
+        zf.writestr(
+            "big.json", json.dumps([{"i": i, "pad": "y" * 80} for i in range(30000)])
+        )
+
+    events = 0
+
+    async def parse() -> None:
+        nonlocal events
+        async with AsyncFilesystem() as fs:
+            reader = AsyncZipReader(fs, str(zip_path))
+            async with await reader.open_member("big.json") as member:
+                async for _ in ijson.parse_async(adapt_to_reader(member)):
+                    events += 1
+
+    await parse()  # warm up one-time allocations
+    before = psutil.Process().num_fds()
+    landed = 0
+    for i in range(40):
+        seen = events
+        if scoped:
+            with anyio.move_on_after(i * 0.0004):
+                await parse()
+        else:
+            task = asyncio.ensure_future(parse())
+            await asyncio.sleep(i * 0.0004)
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        landed += events > seen
+
+    # A sweep whose cancellations all fired before their parse began would leak
+    # nothing and prove nothing, so require that most of them landed mid-parse.
+    assert landed >= 10, f"only {landed}/40 cancellations landed mid-parse"
+    after = psutil.Process().num_fds()
+    assert after <= before, f"leaked {after - before} descriptors over 40 cancellations"

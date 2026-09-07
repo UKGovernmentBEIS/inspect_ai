@@ -5,11 +5,11 @@ stored locally or remotely (e.g., S3) using async range requests.
 """
 
 import struct
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import Any
 
 import anyio
+from anyio.abc import ByteReceiveStream
 from typing_extensions import Self
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -259,6 +259,9 @@ class _ZipMemberBytes:
 
             async for chunk in member:  # second read (e.g., retry on error)
                 process_differently(chunk)
+
+    Must be used as an async context manager: an iteration abandoned before
+    exhaustion releases its stream at context exit, not when the loop ends.
     """
 
     def __init__(
@@ -273,38 +276,50 @@ class _ZipMemberBytes:
         self._filename = filename
         self._offset, self._end, self._method = range_and_method
         self._raw = raw
-        self._active_streams: set[CompressedToUncompressedStream] = set()
+        self._active_streams: set[
+            CompressedToUncompressedStream | ByteReceiveStream
+        ] = set()
 
-    async def __aiter__(self) -> AsyncIterator[bytes]:
+    async def __aiter__(self) -> AsyncGenerator[bytes, None]:
         byte_stream = await self._filesystem.read_file_bytes(
             self._filename, self._offset, self._end
         )
+        stream: CompressedToUncompressedStream | ByteReceiveStream = (
+            byte_stream
+            if self._raw or self._method == ZipCompressionMethod.STORED
+            else CompressedToUncompressedStream(byte_stream, self._method)
+        )
 
-        if self._raw or self._method == ZipCompressionMethod.STORED:
-            # Pass through raw bytes directly - no decompression needed
-            try:
-                async for chunk in byte_stream:
-                    yield chunk
-            finally:
-                await byte_stream.aclose()
-        else:
-            # Decompress using the appropriate method
-            stream = CompressedToUncompressedStream(byte_stream, self._method)
-            self._active_streams.add(stream)
-            try:
-                async for chunk in stream:
-                    yield chunk
-            finally:
-                self._active_streams.discard(stream)
-                await stream.aclose()
+        # Do NOT close from a `finally` here, and do not wrap this in
+        # contextlib.aclosing: when a stranded consumer's generator is
+        # finalized *synchronously* by the collector, GeneratorExit lands in
+        # this frame and the awaited close raises "coroutine ignored
+        # GeneratorExit", leaking the stream. Close only on normal exhaustion,
+        # where awaiting is legal; __aexit__ owns every other exit.
+        self._active_streams.add(stream)
+        async for chunk in stream:
+            yield chunk
+        await stream.aclose()
+        self._active_streams.discard(stream)
 
     async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, *_args: Any) -> None:
+    async def __aexit__(self, *_args: object) -> None:
+        error: Exception | None = None
         for stream in list(self._active_streams):
-            await stream.aclose()
-        self._active_streams.clear()
+            # Shielded: a close that yields to a cancelled scope would be
+            # abandoned mid-flight, and these streams cannot be closed twice
+            # (aclose() marks itself done before awaiting), so a skipped
+            # close is a permanent leak. Untrack only once the close lands.
+            with anyio.CancelScope(shield=True):
+                try:
+                    await stream.aclose()
+                    self._active_streams.discard(stream)
+                except Exception as ex:
+                    error = error if error is not None else ex
+        if error is not None:
+            raise error
 
 
 class AsyncZipReader:
