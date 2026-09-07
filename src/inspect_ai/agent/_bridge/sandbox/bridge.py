@@ -82,7 +82,7 @@ async def sandbox_agent_bridge(
             or model spec string) is used instead. Checked before the fallback ``model``.
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)
-        compaction: Compact the conversation when it it is close to overflowing
+        compaction: Compact the conversation when it is close to overflowing
             the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.

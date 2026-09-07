@@ -104,7 +104,7 @@ def react(
           the loop so if you only want to send a message back when the model fails
           to call tools you need to code that behavior explicitly.
        retry_refusals: Should refusals be retried? (pass number of times to retry)
-       compaction: Compact the conversation when it it is close to overflowing
+       compaction: Compact the conversation when it is close to overflowing
           the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
        truncation: Truncate the conversation history in the event of a context
           window overflow. Defaults to "disabled" which does no truncation. Pass

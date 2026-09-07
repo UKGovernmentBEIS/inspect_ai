@@ -57,7 +57,7 @@ def module_max_version_error(feature: str, package: str, max_version: str) -> Ex
     return PrerequisiteError(
         f"[bold]ERROR[/bold]: {feature} supports only version {max_version} and earlier of package {package} "
         f"(you have version {version(package)} installed).\n\n"
-        f"Install the older version with with:\n\n[bold]pip install {package}=={max_version}[/bold]"
+        f"Install the older version with:\n\n[bold]pip install {package}=={max_version}[/bold]"
     )
 
 

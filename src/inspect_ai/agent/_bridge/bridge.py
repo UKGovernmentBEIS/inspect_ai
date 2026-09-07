@@ -126,7 +126,7 @@ async def agent_bridge(
           an updated state based on traffic over the bridge.
        filter: Filter for bridge model generation.
        retry_refusals: Should refusals be retried? (pass number of times to retry)
-       compaction: Compact the conversation when it it is close to overflowing
+       compaction: Compact the conversation when it is close to overflowing
           the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
        web_search: Configuration for mapping model internal
           web_search tools to Inspect. By default (in-process bridges), will map
