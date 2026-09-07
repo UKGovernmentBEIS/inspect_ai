@@ -160,33 +160,30 @@ class TestRunAs:
         assert get_home_dir(me.model_copy(update={"home": ""})) == ""
         assert get_home_dir(RunAs(uid=2**31 - 7, gid=0, groups=[], home=None)) == "/"
 
-    def test_preexec_claims_tty_before_switching(self) -> None:
+    def test_preexec_hands_tty_to_user_before_switching(self) -> None:
         run_as = RunAs(uid=1000, gid=5, groups=[], home="/h")
         calls: list[str] = []
         with (
             patch(_OOM_PATCH),
             patch("os.isatty", return_value=True),
-            patch("fcntl.ioctl", side_effect=lambda *a: calls.append("ioctl")),
             patch("os.fchown", side_effect=lambda *a: calls.append(f"fchown{a}")),
             patch("os.setgroups"),
             patch("os.setgid"),
             patch("os.setuid", side_effect=lambda *a: calls.append("setuid")),
         ):
             make_preexec(run_as)()
-        assert calls == ["ioctl", "fchown(0, 1000, -1)", "setuid"]
+        assert calls == ["fchown(0, 1000, -1)", "setuid"]
 
-    def test_preexec_skips_tty_claim_without_tty(self) -> None:
+    def test_preexec_leaves_non_tty_stdin_alone(self) -> None:
         with (
             patch(_OOM_PATCH),
             patch("os.isatty", return_value=False),
-            patch("fcntl.ioctl") as mock_ioctl,
             patch("os.fchown") as mock_fchown,
             patch("os.setgroups"),
             patch("os.setgid"),
             patch("os.setuid"),
         ):
             make_preexec(RunAs(uid=1000, gid=5, groups=[], home="/h"))()
-        mock_ioctl.assert_not_called()
         mock_fchown.assert_not_called()
 
     async def test_other_uid_without_root_raises(self) -> None:

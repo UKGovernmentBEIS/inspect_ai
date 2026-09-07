@@ -1,8 +1,6 @@
 import contextlib
-import fcntl
 import os
 import pwd
-import termios
 from collections.abc import Callable
 
 from pydantic import BaseModel
@@ -70,11 +68,10 @@ def _switch(user: str | RunAs) -> None:
     else:
         uid, gid = user.uid, user.gid
     if os.isatty(0):
-        # As container runtimes do for an exec with a tty: claim the pty as
-        # controlling tty (else an interactive shell gets no job control) and hand
-        # it to the new user so programs that re-open their terminal by path can.
-        with contextlib.suppress(OSError):
-            fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+        # Hand the pty to the new user (uid only, keeping the tty group), as
+        # container runtimes do for an exec with a tty. Without this an
+        # interactive shell cannot re-open its terminal and runs with no job
+        # control.
         with contextlib.suppress(OSError):
             os.fchown(0, uid, -1)
     if isinstance(user, str):
