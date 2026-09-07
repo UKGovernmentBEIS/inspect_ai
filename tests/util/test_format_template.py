@@ -188,3 +188,103 @@ def test_complex_nested_structures() -> None:
     for case in test_cases:
         result = format_template(case.template, case.params)
         assert result == case.expected
+
+
+def test_unescaped_json_braces_pass_through() -> None:
+    """Unescaped JSON-style braces are preserved rather than rewritten (#5256)."""
+    test_cases: list[FormatterCase] = [
+        # a space after the colon makes the remainder parse as a format spec
+        FormatterCase(
+            params={},
+            template='Return output in JSON format: {"answer": "value"}.',
+            expected='Return output in JSON format: {"answer": "value"}.',
+        ),
+        # without the space the spec is a valid width, which silently
+        # swallowed the value before the fix
+        FormatterCase(
+            params={},
+            template='Emit {"ok":1} on success.',
+            expected='Emit {"ok":1} on success.',
+        ),
+        FormatterCase(
+            params={"prompt": "Q"},
+            template='{prompt} -> {"a": 1, "b": 2}',
+            expected='Q -> {"a": 1, "b": 2}',
+        ),
+    ]
+
+    for case in test_cases:
+        result = format_template(case.template, case.params)
+        assert result == case.expected
+
+
+def test_unknown_placeholder_preserves_format_spec() -> None:
+    """An unknown placeholder keeps its format spec and conversion verbatim."""
+    test_cases: list[FormatterCase] = [
+        FormatterCase(params={}, template="{custom:>10}", expected="{custom:>10}"),
+        FormatterCase(params={}, template="{missing!r}", expected="{missing!r}"),
+        FormatterCase(params={}, template="{missing!s:^8}", expected="{missing!s:^8}"),
+        FormatterCase(
+            params={"known": "v"},
+            template="{known} {other:.2f}",
+            expected="v {other:.2f}",
+        ),
+    ]
+
+    for case in test_cases:
+        result = format_template(case.template, case.params)
+        assert result == case.expected
+
+
+def test_escaped_braces_still_supported() -> None:
+    """The {{ }} escaping introduced alongside #5174 keeps working."""
+    test_cases: list[FormatterCase] = [
+        FormatterCase(
+            params={},
+            template='Return output in JSON format: {{"answer": "value"}}.',
+            expected='Return output in JSON format: {"answer": "value"}.',
+        ),
+        FormatterCase(
+            params={"name": "John"},
+            template="{{name}} {name}",
+            expected="{name} John",
+        ),
+    ]
+
+    for case in test_cases:
+        result = format_template(case.template, case.params)
+        assert result == case.expected
+
+
+def test_nested_format_spec_still_expands() -> None:
+    """A format spec that references another param is still expanded."""
+    result = format_template("{value:>{width}}", {"value": "a", "width": 4})
+    assert result == "   a"
+
+
+def test_warns_for_variable_like_placeholder(caplog) -> None:
+    """An unresolved identifier-shaped placeholder warns (likely a typo)."""
+    import logging
+
+    from inspect_ai._util import logger as logger_module
+
+    logger_module._warned.clear()
+    with caplog.at_level(logging.WARNING):
+        result = format_template("Answer the {promt} carefully.", {})
+
+    assert result == "Answer the {promt} carefully."
+    assert any("promt" in record.message for record in caplog.records)
+
+
+def test_no_warning_for_json_braces(caplog) -> None:
+    """JSON-style braces are literal content and must not warn."""
+    import logging
+
+    from inspect_ai._util import logger as logger_module
+
+    logger_module._warned.clear()
+    with caplog.at_level(logging.WARNING):
+        result = format_template('Emit {"ok": 1} now.', {})
+
+    assert result == 'Emit {"ok": 1} now.'
+    assert not caplog.records
