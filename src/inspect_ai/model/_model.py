@@ -1125,8 +1125,8 @@ class Model:
                     log_model_retry,
                     qualified_model_name=self.api.qualified_model_name,
                 ),
-                report_sample_waiting_time,
-                self.api.retry_wait(),
+                track_waiting_time=True,
+                wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
             )
         )
@@ -1264,8 +1264,8 @@ class Model:
                         log_model_retry,
                         qualified_model_name=self.api.qualified_model_name,
                     ),
-                    report_sample_waiting_time,
-                    self.api.retry_wait(),
+                    track_waiting_time=True,
+                    wait=self.api.retry_wait(),
                     qualified_model_name=self.api.qualified_model_name,
                 )
             )
@@ -1391,17 +1391,11 @@ class Model:
             publish_partial=_model_event_sink.get() is None,
         )
 
-        # track reported waiting time during this generate call
-        reported_waiting_time = 0.0
-
-        def report_waiting_time(waiting_time: float) -> None:
-            nonlocal reported_waiting_time
-            report_sample_waiting_time(waiting_time)
-            reported_waiting_time += waiting_time
-
         # Local import: model is imported very early and the pause gate is
         # only consulted per attempt (see wait_generate_dispatch's fast path).
         from inspect_ai._control.pause import wait_generate_dispatch
+
+        model_call_end: float | None = None
 
         @retry(
             **model_retry_config(
@@ -1414,15 +1408,15 @@ class Model:
                     log_model_retry,
                     qualified_model_name=self.api.qualified_model_name,
                 ),
-                report_waiting_time,
-                self.api.retry_wait(),
+                track_waiting_time=True,
+                wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
-            # report_waiting_time (not report_sample_waiting_time): held time
-            # must also accumulate into this call's reconciliation below
-            await wait_generate_dispatch(self, report_waiting_time, connection)
+            nonlocal model_call_end
+            model_call_end = None
+            await wait_generate_dispatch(self, report_sample_waiting_time, connection)
 
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
@@ -1599,7 +1593,8 @@ class Model:
                     stream_observer.discard_partial_output()
                     raise
                 finally:
-                    time_elapsed = time.monotonic() - time_start
+                    model_call_end = time.monotonic()
+                    time_elapsed = model_call_end - time_start
 
             if isinstance(result, tuple):
                 output, call = result
@@ -1672,7 +1667,7 @@ class Model:
         time_start = time.monotonic()
         with cleared_retry_wait():
             model_output, event = await generate()
-        total_time = time.monotonic() - time_start
+        time_end = time.monotonic()
 
         # record any model fallback against the active sample (here in the
         # outer frame rather than alongside usage recording so that cache
@@ -1717,13 +1712,14 @@ class Model:
             and not _request_was_cache_hit.get()
         ):
             controller.notify_success()
-        if model_output.time:
-            # we've already reported some of the waiting time in tenacity callbacks
-            # any remaining waiting time will have been due to internal retry within
-            # model providers, which we can get from:
-            #    total_time - reported_waiting_time - model_call_time
+        if model_output.time and model_call_end is not None:
+            # Merge waits before and after the successful request separately:
+            # usage hooks can also wait after the provider call returns.
             report_sample_waiting_time(
-                total_time - reported_waiting_time - model_output.time
+                model_call_end - time_start - model_output.time, start_time=time_start
+            )
+            report_sample_waiting_time(
+                time_end - model_call_end, start_time=model_call_end
             )
 
         # report refusal
