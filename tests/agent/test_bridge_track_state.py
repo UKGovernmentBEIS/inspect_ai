@@ -1532,3 +1532,103 @@ async def test_anthropic_handler_tracks_main_thread_end_to_end() -> None:
         "please continue",
         "Castle",
     ]
+
+
+# ---------------------------------------------------------------------------
+# opencode escapes embedded double quotes when it quote-wraps the prompt
+# ---------------------------------------------------------------------------
+
+TASK_WITH_QUOTES = (
+    'If you understand this sentence, write the opposite of the word "left" '
+    "as the answer."
+)
+
+
+def opencode_quote_wrap(text: str) -> str:
+    r"""The prompt as opencode `run` stores a positional message.
+
+    A message containing spaces is wrapped in literal double quotes and any
+    double quotes inside it are escaped as `\"`
+    (`packages/opencode/src/cli/cmd/run.ts`).
+    """
+    return '"' + text.replace('"', '\\"') + '"'
+
+
+async def test_escaped_quote_wrapped_prompt_anchors_descent() -> None:
+    r"""A prompt containing `"` still anchors when opencode escapes it.
+
+    GAIA level 1 reproduction (opencode 1.18.29, gpt-5.5): every prompt that
+    contained a double quote surfaced the session title as the final answer,
+    in both call orders. The quote interior is `\"`-escaped so it matched
+    neither the exact nor the quoted form, both threads graded `NO`, and the
+    legacy length fallback adopted the 4-message title call.
+    """
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK_WITH_QUOTES)])
+    )
+    quoted = opencode_quote_wrap(TASK_WITH_QUOTES)
+    assert '\\"left\\"' in quoted
+
+    # the real task call fires first (single-turn), then the longer title call
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "right")
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Opposite of left in reversed sentence",
+    )
+
+    assert bridge.state.output.completion == "right"
+    assert [m.text for m in bridge.state.messages] == [
+        TASK_SYSTEM.text,
+        quoted,
+        "right",
+    ]
+
+
+async def test_escaped_quote_wrapped_prompt_title_call_first() -> None:
+    """Same escaped quote-wrapping with the title call landing first."""
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK_WITH_QUOTES)])
+    )
+    quoted = opencode_quote_wrap(TASK_WITH_QUOTES)
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Opposite of left in reversed sentence",
+    )
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "right")
+
+    assert bridge.state.output.completion == "right"
+    assert bridge.state.messages[-1].text == "right"
+
+
+async def test_escaped_quoted_prompt_decorated_anchors_by_containment() -> None:
+    """An escaped-quoted prompt embedded in other text still anchors (CONTAINED)."""
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK_WITH_QUOTES)])
+    )
+    quoted = opencode_quote_wrap(TASK_WITH_QUOTES)
+    decorated = f"<task>\n{quoted[1:-1]}\n</task>"
+
+    # the title side call carries the same escaped rendering
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Opposite of left",
+    )
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=decorated)], "right")
+
+    assert bridge.state.output.completion == "right"
