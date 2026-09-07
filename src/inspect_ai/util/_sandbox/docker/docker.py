@@ -148,7 +148,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                                 + f"the image '{image}' for service '{name}' is not present in the Docker image store and could not be pulled."
                             )
                         logger.error(
-                            f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
+                            f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the service definition to prevent this error."
                         )
 
         except BaseException as ex:
