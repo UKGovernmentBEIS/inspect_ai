@@ -28,7 +28,7 @@ from inspect_sandbox_tools._remote_tools._exec_remote import (
     json_rpc_methods as exec_remote_methods,
 )
 from inspect_sandbox_tools._remote_tools._mcp import json_rpc_methods as mcp_methods
-from inspect_sandbox_tools._util.constants import (
+from inspect_sandbox_tools._util.server_dir import (
     ensure_private_server_dir,
     open_private_append,
     read_private_text,

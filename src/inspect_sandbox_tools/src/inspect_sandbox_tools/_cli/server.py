@@ -15,11 +15,13 @@ from inspect_sandbox_tools._util.constants import (
     SERVER_PID_PATH,
     SHUTDOWN_STATUS_PATH,
     SOCKET_PATH,
+)
+from inspect_sandbox_tools._util.load_tools import load_tools
+from inspect_sandbox_tools._util.server_dir import (
     ensure_private_server_dir,
     read_private_text,
     write_private_text,
 )
-from inspect_sandbox_tools._util.load_tools import load_tools
 
 _shutdown_errors: list[str] = []
 _shutdown_complete = False

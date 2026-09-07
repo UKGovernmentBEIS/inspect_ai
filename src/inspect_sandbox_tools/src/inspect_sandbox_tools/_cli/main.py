@@ -23,10 +23,6 @@ from inspect_sandbox_tools._util.constants import (
     SERVER_PID_PATH,
     SHUTDOWN_STATUS_PATH,
     SOCKET_PATH,
-    ensure_private_server_dir,
-    open_private_append,
-    read_private_text,
-    write_private_text,
 )
 from inspect_sandbox_tools._util.json_rpc_chunking import (
     JSON_RPC_RESPONSE_CHUNK_METHOD,
@@ -35,6 +31,12 @@ from inspect_sandbox_tools._util.json_rpc_chunking import (
 )
 from inspect_sandbox_tools._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_sandbox_tools._util.load_tools import load_tools
+from inspect_sandbox_tools._util.server_dir import (
+    ensure_private_server_dir,
+    open_private_append,
+    read_private_text,
+    write_private_text,
+)
 from inspect_sandbox_tools._util.user_switch import get_home_dir, switch_user
 
 # Resource shutdown has a 30s graceful budget plus a 5s post-SIGKILL wait.
