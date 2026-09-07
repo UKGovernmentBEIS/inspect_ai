@@ -1,9 +1,10 @@
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, time, timezone
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
+import pytest
 from pydantic import BaseModel
 from typing_extensions import TypedDict
 
@@ -62,6 +63,31 @@ class MyTypedDict(TypedDict):
 class MyDataClass:
     value: float
     flag: bool
+
+
+@dataclass
+class NonInitDataClass:
+    value: int
+    constant: int = field(default=7, init=False)
+    items: list[int] = field(default_factory=list, init=False)
+    doubled: int = field(default=0, init=False)
+
+    def __post_init__(self):
+        self.items.append(self.value)
+        self.doubled = self.value * 2
+
+
+@tool
+def non_init_tool():
+    async def execute(data: list[NonInitDataClass]) -> str:
+        """Read dataclass values.
+
+        Args:
+            data: Values with constructor-managed fields.
+        """
+        return str([(d.value, d.constant, d.items, d.doubled) for d in data])
+
+    return execute
 
 
 class MyPydanticModel(BaseModel):
@@ -182,6 +208,43 @@ async def test_incr_simple_positive():
 
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].content == "1"
+
+
+def test_dataclass_non_init_schema():
+    schema = ToolDef(non_init_tool()).parameters.properties["data"].items
+    assert schema is not None
+    assert schema.properties is not None
+    assert list(schema.properties) == ["value"]
+    assert schema.required == ["value"]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {},
+        {"constant": 99},
+        {"items": []},
+        {"doubled": 0},
+        {"constant": 99, "items": [], "doubled": 0},
+    ],
+)
+async def test_dataclass_non_init_fields(extra):
+    call = make_call("non_init_tool", {"data": [{"value": 5, **extra}]})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(non_init_tool())],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    if extra:
+        assert messages[-1].error is not None
+        assert messages[-1].error.type == "parsing"
+        assert "Additional properties are not allowed" in messages[-1].error.message
+        for name in extra:
+            assert name in messages[-1].error.message
+    else:
+        assert messages[-1].error is None
+        assert messages[-1].content == "[(5, 7, [5], 10)]"
 
 
 async def test_deeply_nested_dict_arguments_rejected_as_parse_error():

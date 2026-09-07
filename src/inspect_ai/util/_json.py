@@ -265,6 +265,8 @@ def cls_json_schema(cls: Type[Any]) -> JSONSchema:
     if is_dataclass(cls):
         fields = cls.__dataclass_fields__  # type: ignore
         for name, field in fields.items():
+            if not field.init:
+                continue
             properties[name] = json_schema(field.type)  # type: ignore
             if field.default is MISSING and field.default_factory is MISSING:
                 required.append(name)
