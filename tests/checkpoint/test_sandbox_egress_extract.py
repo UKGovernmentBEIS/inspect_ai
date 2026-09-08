@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import io
 import tarfile
+import tracemalloc
 from collections.abc import Collection, Sequence
 from pathlib import Path
 
@@ -304,3 +305,88 @@ def test_rejects_extraction_exceeding_byte_cap(tmp_path: Path) -> None:
         _extract(tar, dest, [SNAP_NAME, PACK_NAME], max_bytes=len(SNAP) + 10)
     assert _files(dest) == set()
     assert not list(dest.rglob("*.partial"))
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        tarfile.GNUTYPE_LONGNAME,
+        tarfile.GNUTYPE_LONGLINK,
+        tarfile.XHDTYPE,
+        tarfile.XGLTYPE,
+        tarfile.SOLARIS_XHDTYPE,
+    ],
+)
+def test_rejects_oversized_metadata_before_allocating(
+    tmp_path: Path, kind: bytes
+) -> None:
+    header = tarfile.TarInfo("metadata")
+    header.type = kind
+    header.size = 64 * 1024 * 1024
+    path = tmp_path / "egress.tar"
+    path.write_bytes(header.tobuf() + bytes(1024))
+    dest = _dest(tmp_path)
+    tracemalloc.start()
+    try:
+        with pytest.raises(EgressVerificationError, match="tar metadata"):
+            _extract(path, dest, [SNAP_NAME], max_bytes=path.stat().st_size)
+        assert tracemalloc.get_traced_memory()[1] < 8 * 1024 * 1024
+    finally:
+        tracemalloc.stop()
+    assert _files(dest) == set()
+
+
+def test_rejects_chained_metadata_and_rolls_back(tmp_path: Path) -> None:
+    header = tarfile.TarInfo("metadata")
+    header.type = tarfile.XGLTYPE
+    header.size = 0
+    member, data = _file(PACK_NAME, PACK)
+    path = tmp_path / "egress.tar"
+    path.write_bytes(
+        member.tobuf()
+        + data
+        + bytes(-len(data) % 512)
+        + header.tobuf() * 256
+        + bytes(1024)
+    )
+    dest = _dest(tmp_path)
+    with pytest.raises(EgressVerificationError, match="tar metadata"):
+        _extract(path, dest, [PACK_NAME])
+    assert _files(dest) == set()
+
+
+@pytest.mark.parametrize(
+    "format", [tarfile.USTAR_FORMAT, tarfile.GNU_FORMAT, tarfile.PAX_FORMAT]
+)
+def test_metadata_budget_preserves_tar_formats(tmp_path: Path, format: int) -> None:
+    path = tmp_path / "egress.tar"
+    data = b"x" * (2 * 1024 * 1024)
+    name = _data_name(data)
+    member, _ = _file(name, data)
+    if format == tarfile.PAX_FORMAT:
+        member.pax_headers = {"mtime": "1234567890.123456789"}
+    with tarfile.open(path, "w", format=format) as archive:
+        archive.addfile(member, io.BytesIO(data))
+        index, _ = _file(INDEX_NAME, INDEX)
+        archive.addfile(index, io.BytesIO(INDEX))
+    dest = _dest(tmp_path)
+    assert _extract(path, dest, [name, INDEX_NAME]) == sorted([name, INDEX_NAME])
+    assert (dest / name).read_bytes() == data
+
+
+def test_rejects_oversized_sparse_metadata(tmp_path: Path) -> None:
+    data = b"1000000\n" + b"1\n" * 40000
+    member, _ = _file(PACK_NAME, data)
+    member.pax_headers = {
+        "GNU.sparse.major": "1",
+        "GNU.sparse.minor": "0",
+        "GNU.sparse.realsize": "0",
+        "GNU.sparse.name": PACK_NAME,
+    }
+    path = tmp_path / "egress.tar"
+    with tarfile.open(path, "w", format=tarfile.PAX_FORMAT) as archive:
+        archive.addfile(member, io.BytesIO(data))
+    dest = _dest(tmp_path)
+    with pytest.raises(EgressVerificationError, match="tar metadata"):
+        _extract(path, dest, [PACK_NAME])
+    assert _files(dest) == set()

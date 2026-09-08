@@ -181,9 +181,10 @@ class CheckpointConfig(CheckpointSampleConfig):
     transfer out of the sandbox per checkpoint (the restic strategy's
     per-checkpoint pack-file delta — the full captured tree on the first
     checkpoint — or the archive strategy's complete compressed archive).
-    A snapshot exceeding it fails the checkpoint — and, since the
-    unshipped data only accumulates, every later checkpoint of that
-    sample until the cap is raised (see ``max_consecutive_failures``).
+    A snapshot exceeding it fails that checkpoint attempt. Unshipped
+    restic data accumulates, so later attempts can keep failing; an
+    archive attempt can recover if the archive shrinks below the cap.
+    Repeated failures count toward ``max_consecutive_failures``.
     ``None`` = inherit / use the default
     (4 GiB per transfer, not a total repository storage budget).
     Eval-wide — settable only at the task or eval layer, since

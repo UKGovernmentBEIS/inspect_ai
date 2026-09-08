@@ -84,7 +84,8 @@ import os
 import re
 import shutil
 import tarfile
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterator, Sequence
+from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 from typing import IO, Any, NamedTuple
@@ -107,6 +108,7 @@ _MEMBER_RE = re.compile(
 
 _FIRST_CYCLE_ONLY = ("config", "keys/")
 _HASH_CHUNK = 1024 * 1024
+_MAX_TAR_METADATA_BYTES = 64 * 1024
 
 
 class EgressVerificationError(RuntimeError):
@@ -492,6 +494,40 @@ class _Extracted(NamedTuple):
     """The subset actually written to the destination this cycle."""
 
 
+class _TarReader(io.BufferedReader):
+    """Bound metadata reads before tarfile interprets untrusted headers.
+
+    Each member's headers share a 64 KiB budget, including chained
+    GNU/PAX headers and sparse maps. File contents are streamed separately
+    under the extraction byte cap. Checking requested read sizes before
+    delegating prevents a truncated extension from allocating its claimed
+    size, even when the archive itself is tiny.
+    """
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(io.FileIO(path, "r"))
+        self._metadata_remaining: int | None = _MAX_TAR_METADATA_BYTES
+
+    def read(self, size: int | None = -1) -> bytes:
+        if self._metadata_remaining is not None and (
+            size is None or size < 0 or size > self._metadata_remaining
+        ):
+            raise tarfile.ReadError("tar metadata exceeds the 64 KiB per-member limit")
+        data = super().read(size)
+        if self._metadata_remaining is not None:
+            self._metadata_remaining -= len(data)
+        return data
+
+    @contextmanager
+    def file_data(self) -> Iterator[None]:
+        """Allow streamed file reads, then reset the next header's budget."""
+        self._metadata_remaining = None
+        try:
+            yield
+        finally:
+            self._metadata_remaining = _MAX_TAR_METADATA_BYTES
+
+
 def _extract_verified(
     tar_path: Path,
     dest_repo: str,
@@ -508,9 +544,10 @@ def _extract_verified(
     regular file, match the restic layout, be listed in ``new_files``,
     and appear once (which bounds the member count by the diff list's
     length); the member set must equal ``new_files``; cumulative member
-    bytes must stay within ``max_bytes``. Each member streams through a
-    hash to a temp name beside its destination and is renamed into
-    place only if the hash equals its basename (``config`` excepted).
+    bytes must stay within ``max_bytes``. Header processing is limited to
+    64 KiB per member before tarfile can allocate from declared sizes.
+    Each member streams through a hash to a temp name beside its
+    destination and is renamed into place only if the hash equals its basename (``config`` excepted).
     New ``config``/``keys/*`` files are accepted only on the first
     cycle. A member already present in ``dest_repo`` is accepted
     without writing only when the shipped bytes are the existing bytes
@@ -537,7 +574,10 @@ def _extract_verified(
         # inside the loop body. (FilterError is a TarError too, but
         # _check_member has already mapped it by the time it gets here.)
         try:
-            with tarfile.open(tar_path, mode="r:") as tar:
+            with (
+                _TarReader(tar_path) as reader,
+                tarfile.open(fileobj=reader, mode="r:") as tar,
+            ):
                 for member in tar:
                     name = member.name
                     _check_member(member, dest_repo, expected, label)
@@ -557,7 +597,7 @@ def _extract_verified(
                         raise EgressVerificationError(
                             f"{label}: member {name!r} has no readable content"
                         )
-                    with src:
+                    with reader.file_data(), src:
                         if name in existing:
                             _accept_identical_reship(src, dest_repo, name, label)
                         elif not first_cycle and name.startswith(_FIRST_CYCLE_ONLY):

@@ -22,7 +22,8 @@
 >    streaming write.
 > 2. **The archive copy-out stages the complete archive in-sandbox**
 >    (root-only area), then chunk-copies it out via per-chunk `dd` +
->    `read_file` — host RAM is bounded by one chunk, but transient
+>    `read_file`. Chunking limits host buffering when the sandbox follows
+>    the protocol; it does not bound staging inside `read_file`. Transient
 >    sandbox disk equals the archive size plus one chunk. The §8
 >    detached-producer pipeline (two-chunk sandbox disk bound) is the
 >    compatible follow-up; §8 point (d)'s cross-fire isolation reduces
@@ -342,6 +343,10 @@ Implementation requirements:
   handling must never extract them onto the host filesystem without
   path-safety (`tarfile filter="data"`; see `_extract_tar`), and never
   execute or parse them with anything less than full distrust.
+- Restic egress limits header reads to 64 KiB per archive member before
+  tarfile processes them, including chained extension headers and sparse
+  maps. Ordinary file contents stream separately under the extraction
+  byte cap. Archives with larger metadata fail the checkpoint attempt.
 - Secrets reach the sandbox only via per-exec environment variables
   (`env=` on `exec`), never persisted to sandbox disk.
 - All in-sandbox execution runs as `user="root"`; output must respect
@@ -561,7 +566,7 @@ restore).
   Verify-then-extract costs transient sandbox disk equal to the
   archive size. When the sandbox follows the protocol, a digest mismatch
   stops extraction. A compromised sandbox can bypass that check. The
-  archive remains opaque on the host: copy-out is bounded and checks
+  archive remains opaque on the host: copy-out caps accepted bytes and checks
   agreement with the sandbox-reported digest, without authenticating
   the archive contents. Extraction happens *inside* the sandbox.
 - `discard_orphans` / `apply_retention`: delete one file per

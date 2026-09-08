@@ -14,9 +14,9 @@ Capture mechanics (design §7.2/§8, first implementation):
 
 - The archive is produced complete inside the sandbox's root-only
   staging area, then copied out in fixed-size chunks (``dd`` per chunk
-  + ``read_file``; the shared ``_copy.copy_out`` primitive), so host RAM
-  is bounded by one chunk regardless of archive size, and the transfer
-  is capped by ``SnapshotContext.max_snapshot_bytes`` against the bytes
+  + ``read_file``; the shared ``_copy.copy_out`` primitive). Chunking
+  limits buffering when the sandbox follows the protocol; it does not
+  bound staging inside ``read_file``. The transfer is capped by ``SnapshotContext.max_snapshot_bytes`` against the bytes
   actually read. Transient sandbox disk equals the archive size plus
   one chunk; the §8 detached-producer pipeline that bounds sandbox
   disk to ~two chunks is a compatible follow-up (same storage layout

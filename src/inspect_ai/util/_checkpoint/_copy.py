@@ -2,8 +2,9 @@
 
 The shared copy-out primitive for sandbox snapshot strategies (design
 §8): a file produced inside the sandbox's root-only area is copied to
-the host in fixed-size chunks (``dd`` per chunk + ``read_file``), so
-host RAM is bounded by one chunk regardless of file size, and the host
+the host in fixed-size chunks (``dd`` per chunk + ``read_file``).
+Chunking limits buffering when the sandbox follows the protocol;
+``read_file`` may stage data before enforcing its read limit. The host
 enforces a hard cap on the bytes it will accept — the sandbox-reported
 size is advisory, the cap is checked against bytes actually read and
 the copy aborts mid-transfer once it is exceeded.
