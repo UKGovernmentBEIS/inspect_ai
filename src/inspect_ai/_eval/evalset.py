@@ -217,7 +217,7 @@ def _overridden_epochs(
 ) -> int | Epochs | None:
     """An overrides document's epochs as `eval_set()` takes them.
 
-    A bare count stays a count — it means what `eval_set(epochs=4)` means, reducers included, which is that the definition's are dropped along with its count. The object form is the wire shape of `Epochs`, whose reducers travel as registry names because they resolve to callables.
+    A bare count stays a count — it means what `eval_set(epochs=4)` means: the definition's count is replaced but its reducers are kept (see `resolve_task_epochs`). The object form is the wire shape of `Epochs`, whose reducers travel as registry names because they resolve to callables.
     """
     if isinstance(epochs, EvalSetOverridesEpochs):
         return Epochs(epochs.epochs, epochs.reducer)
