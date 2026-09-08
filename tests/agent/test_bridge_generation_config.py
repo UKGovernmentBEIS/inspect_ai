@@ -208,6 +208,44 @@ def test_anthropic_adaptive_thinking_effort_forwarded():
     assert config.effort == "high"
 
 
+def test_anthropic_fallbacks_forwarded_verbatim():
+    """A client `fallbacks` directive must survive the bridge untouched.
+
+    Claude Code sends `fallbacks` so the API can serve a safety-refused request
+    with another model. The bridge previously dropped it, so a refusal that
+    production hands off transparently became a dead turn (stop_reason=refusal,
+    empty completion, sample scored 0/0 with no tool calls).
+
+    Forwarded VERBATIM into extra_body -- not reinterpreted into
+    `fallback_models`, which would re-serialize to `[{"model": ...}]` and drop
+    any other field the client sent.
+    """
+    fallbacks = [{"model": "claude-opus-4-8"}]
+    json_data = {
+        "model": "inspect",
+        "max_tokens": 64000,
+        "fallbacks": fallbacks,
+    }
+
+    config = generate_config_from_anthropic(json_data)
+    assert config.extra_body is not None
+    # byte-for-byte the client's structure, not a remapping
+    assert config.extra_body["fallbacks"] == fallbacks
+    # and NOT laundered through Inspect's own knob (which is gated/lossy)
+    assert config.fallback_models is None
+
+    # a fallback directive is not a generation-tuning param, so declining to
+    # forward client generation params must not strip it
+    clear_generation_params(config)
+    assert config.extra_body["fallbacks"] == fallbacks
+
+
+def test_anthropic_no_fallbacks_key_when_client_sends_none():
+    """Absent `fallbacks` must not synthesize the key (no behavior change)."""
+    config = generate_config_from_anthropic({"model": "inspect", "max_tokens": 100})
+    assert config.extra_body is None or "fallbacks" not in config.extra_body
+
+
 def test_google_forward_then_clear():
     generation_config = {
         "temperature": 0.8,
