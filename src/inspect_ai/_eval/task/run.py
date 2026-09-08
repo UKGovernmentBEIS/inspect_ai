@@ -3149,7 +3149,10 @@ async def _task_run_sample_attempt(
             # callback code is never run under its shield (uncancellable): on
             # both delivered paths the enclosing scope is live -- a per-sample
             # cancel's CancelledError came from the sample's own (already
-            # exited) task group
+            # exited) task group. a task-level cancel landing while a callback
+            # is suspended unwinds from here, before the terminal report
+            # below: accepted, since the task is ending and the eval finishes
+            # errored/cancelled regardless (design/sample-lifecycle.md)
             if source_sample is not None:
                 if sample_feed is not None:
                     _enqueue_source_samples(
