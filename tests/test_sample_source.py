@@ -367,6 +367,7 @@ def test_sample_complete_skipped_for_task_cancel() -> None:
     from inspect_ai._control.eval_state import get_eval_states
 
     completed: list[str] = []
+    sibling_started = anyio.Event()
 
     async def on_complete(sample: EvalSample) -> list[Sample] | None:
         completed.append(str(sample.id))
@@ -376,11 +377,13 @@ def test_sample_complete_skipped_for_task_cancel() -> None:
     def task_cancel_solver() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             if state.sample_id == "a":
-                # give sibling `b` time to start so it is in flight when the
-                # task-level cancel lands
-                await anyio.sleep(0.5)
+                # wait for sibling `b` to be in flight before the task-level
+                # cancel lands, so the unwind resolves both samples
+                await sibling_started.wait()
                 result = ctl_cancel_task(get_eval_states()[0].task_id, action="cancel")
                 assert result is not None and result["ok"] is True
+            else:
+                sibling_started.set()
             await anyio.sleep(10)
             return state
 
