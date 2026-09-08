@@ -44,6 +44,7 @@ class _FakeProxy:
 class _FakeSandbox:
     def __init__(self) -> None:
         self.exec_remote = AsyncMock(return_value=_FakeProxy())
+        self._tools_user: str | None = None
 
 
 REPLACED_SENTINEL = "9E5C8B41-D8AE-4E15-A8E7-2A86C5C73D5C"
