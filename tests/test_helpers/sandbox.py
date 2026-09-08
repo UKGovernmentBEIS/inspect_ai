@@ -15,9 +15,10 @@ ExecPolicy = Callable[[list[str], str | None], ExecResult[str]]
 class CannedSandbox(SandboxEnvironment):
     """Sandbox whose ``exec`` results are decided by a per-test policy.
 
-    Every ``exec`` is recorded as ``(cmd, user)`` in ``exec_calls`` and its stdin in
-    ``inputs`` (same order). ``write_file`` records the path in ``written`` and
-    stores nothing; ``read_file`` is not supported.
+    Every ``exec`` is recorded as ``(cmd, user)`` in ``exec_calls``, its stdin in
+    ``inputs`` and its ``concurrency`` flag in ``concurrency`` (same order).
+    ``write_file`` records the path in ``written`` and stores nothing; ``read_file``
+    is not supported.
     """
 
     def __init__(self, policy: ExecPolicy) -> None:
@@ -25,6 +26,7 @@ class CannedSandbox(SandboxEnvironment):
         self.policy = policy
         self.exec_calls: list[tuple[list[str], str | None]] = []
         self.inputs: list[str | bytes | None] = []
+        self.concurrency: list[bool] = []
         self.written: list[str] = []
 
     @classmethod
@@ -45,6 +47,7 @@ class CannedSandbox(SandboxEnvironment):
     ) -> ExecResult[str]:
         self.exec_calls.append((cmd, user))
         self.inputs.append(input)
+        self.concurrency.append(concurrency)
         return self.policy(cmd, user)
 
     async def write_file(self, file: str, contents: str | bytes) -> None:

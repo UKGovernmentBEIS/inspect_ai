@@ -16,6 +16,16 @@ The contract for a private framework directory is:
   group/others or is sticky, so no other principal can rename or unlink the
   directory out from under a verified path.
 
+A second policy, ``shared=True``, covers the one kind of framework directory that is
+not private: a sticky, world-writable parent in which several users each keep a
+private framework directory (``/var/tmp/sandbox-services``, where sandbox services
+running as different users live side by side). Such a directory must be a real
+directory with mode exactly ``1777``, owned by root or by the uid the command runs
+as, in a parent satisfying the same rule as above. Root ownership is what lets
+users share it: the owner of a sticky directory can still rename or unlink entries
+other users created in it, so a parent owned by one non-root user serves only that
+user's directories and is refused for anyone else.
+
 The contract stops at the immediate parent. Ancestors above it are not checked,
 so callers must choose paths whose ancestors are root-owned and not writable by
 others (``/var/tmp/<name>`` qualifies: ``/var`` and ``/`` are root-owned ``0755``).
@@ -86,11 +96,15 @@ _CREATE_FAILED_EXIT = 7
 _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 
 # Arguments: $1 = expected uid (empty = no expectation), $2 = create flag (1/0),
-# $3 = repair-mode flag (1/0), $4 = parent path, $5 = leaf name, $6.. = command to
-# exec with the verified directory as cwd (optional). POSIX sh only (dash/BusyBox):
+# $3 = repair-mode flag (1/0), $4 = shared flag (1 = sticky 1777 directory owned by
+# root or the current uid, 0 = private 0700 directory owned by the current uid),
+# $5 = parent path, $6 = leaf name, $7.. = command to exec with the verified
+# directory as cwd (optional). POSIX sh only (dash/BusyBox):
 # no arrays, no [[ ]], no local. `stat -c %u/%a` is common to GNU coreutils and
 # BusyBox. `umask 077` closes the window in BusyBox's non-atomic `mkdir -m`
-# (mkdir(0777) then chmod) and also applies to whatever the wrapped command creates:
+# (mkdir(0777) then chmod) for a private directory (a shared one passes through
+# 0700 for that instant, so a concurrent creator racing it fails loudly rather than
+# adopting the wrong mode) and also applies to whatever the wrapped command creates:
 # a non-root `tar` extracts entries at 0700/0600 instead of the archive's modes
 # (root's `tar` preserves them). Inside a 0700 directory used by one uid this changes
 # nothing observable. Tool output is captured with stderr discarded so a warning
@@ -112,12 +126,13 @@ umask 077
 unset CDPATH
 PATH=/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
-expect=$1 create=$2 repair=$3 parent=$4 leaf=$5
-shift 5
+expect=$1 create=$2 repair=$3 shared=$4 parent=$5 leaf=$6
+shift 6
 case $parent in
     /) dir=/$leaf ;;
     *) dir=$parent/$leaf ;;
 esac
+if [ "$shared" = 1 ]; then want=1777; else want=700; fi
 report() {
     printf '%s: %s\\n' "$1" "$2" >&2
     exit "$3"
@@ -164,7 +179,7 @@ case $phys in
 esac
 created=0
 if [ "$create" = 1 ] && [ ! -e "$leaf" ] && [ ! -L "$leaf" ]; then
-    if err=$(mkdir -m 0700 -- "$leaf" 2>&1); then
+    if err=$(mkdir -m "$want" -- "$leaf" 2>&1); then
         created=1
     else
         [ -e "$leaf" ] || [ -L "$leaf" ] || createfailed "$err"
@@ -180,20 +195,32 @@ now=$(pwd -P)
 dstat=$(stat -c '%u %a' . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c '%u %a' . 2>&1 >/dev/null)"
 uid=${dstat% *}
 mode=${dstat#* }
-[ "$uid" = "$me" ] || violation "$dir is owned by uid $uid, expected uid $me"
-if [ "$mode" != 700 ]; then
+if [ "$uid" != "$me" ]; then
+    # A shared directory may be root's (the arrangement that lets users share it).
+    if [ "$shared" != 1 ] || [ "$uid" != 0 ]; then
+        if [ "$shared" = 1 ] && [ "$me" != 0 ]; then
+            violation "$dir is owned by uid $uid, expected uid $me or 0"
+        fi
+        violation "$dir is owned by uid $uid, expected uid $me"
+    fi
+fi
+if [ "$mode" != "$want" ]; then
     if [ "$created" = 1 ] || [ "$repair" = 1 ]; then
         # Either we just created it (a setgid parent may have added bits; a numeric
         # chmod alone does not clear setgid on a directory) or the caller asked for
         # an owned directory to be tightened. `.` is the verified object we own.
         # `u=rwx` leaves a directory's set-id bits alone, so name them explicitly;
         # BusyBox `o=` also leaves the sticky bit (and its `o-t` is a no-op), so
-        # clear that with the bare `-t` both implementations honour.
-        chmod u=rwx,g=,o=,u-s,g-s,-t . || violation "could not set mode of $dir"
+        # set or clear that with the bare `+t`/`-t` both implementations honour.
+        if [ "$shared" = 1 ]; then
+            chmod u=rwx,g=rwx,o=rwx,u-s,g-s,+t . || violation "could not set mode of $dir"
+        else
+            chmod u=rwx,g=,o=,u-s,g-s,-t . || violation "could not set mode of $dir"
+        fi
         mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
     fi
 fi
-[ "$mode" = 700 ] || violation "$dir has mode $mode, expected 700"
+[ "$mode" = "$want" ] || violation "$dir has mode $mode, expected $want"
 printf '%s\\n' @VERIFIED@ >&2
 [ $# -eq 0 ] || exec "$@"
 """
@@ -329,10 +356,12 @@ async def _run_verified(
     *,
     create: bool,
     repair_mode: bool = False,
+    shared: bool = False,
     cmd: list[str],
     user: str | None,
     expected_uid: int | None,
     timeout: int | None,
+    concurrency: bool = True,
     input: str | bytes | None = None,
 ) -> ExecResult[str]:
     parent, leaf = split_framework_path(path)
@@ -346,6 +375,7 @@ async def _run_verified(
             expect,
             "1" if create else "0",
             "1" if repair_mode else "0",
+            "1" if shared else "0",
             parent,
             leaf,
             *cmd,
@@ -353,6 +383,7 @@ async def _run_verified(
         user=user,
         input=input,
         timeout=timeout,
+        concurrency=concurrency,
     )
     if _VERIFIED_MARKER in result.stderr.splitlines():
         # Verification completed; whatever follows is the wrapped command's own
@@ -394,7 +425,9 @@ async def ensure_framework_directory(
     user: str | None,
     expected_uid: int | None = None,
     repair_mode: bool = False,
+    shared: bool = False,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> None:
     """Create or adopt ``path`` as a private framework directory owned by ``user``.
 
@@ -406,6 +439,11 @@ async def ensure_framework_directory(
     ``path`` must sit under root-owned ancestors (see the module docstring).
     Concurrent creation by another instance of this helper is tolerated (the
     survivor is verified like any other existing entry).
+
+    With ``shared=True`` the directory is instead a sticky, world-writable parent
+    for several users' private directories: created with mode ``1777``, and adopted
+    only as a real directory with exactly that mode owned by root or by the uid the
+    command runs as (see the module docstring). Nothing else changes.
 
     Args:
         sandbox: Sandbox to operate in.
@@ -426,7 +464,14 @@ async def ensure_framework_directory(
             protected anything. Leave it off for a privileged owner such as root:
             a root-owned directory in an unexpected mode may hold content other
             users placed there, and must be refused.
+        shared: Apply the shared-parent policy (mode ``1777``, owned by root or
+            the command's uid) instead of the private one. A pre-existing shared
+            directory is never repaired, so this cannot be combined with
+            ``repair_mode``.
         timeout: Optional timeout for the sandbox command.
+        concurrency: Whether the sandbox command counts against the sandbox's
+            concurrency limit (as for ``sandbox.exec``). Pass ``False`` from code
+            that must keep running while sandboxed processes hold exec slots.
 
     Raises:
         FrameworkDirectoryError: The entry violates the contract or could not be
@@ -438,17 +483,22 @@ async def ensure_framework_directory(
             cannot be entered).
         RuntimeError: The script could not run at all (no ``sh``, or the provider
             refused the requested user).
-        ValueError: ``path`` is not an absolute, non-root path free of ``..``.
+        ValueError: ``path`` is not an absolute, non-root path free of ``..``, or
+            ``shared`` and ``repair_mode`` are both set.
     """
+    if shared and repair_mode:
+        raise ValueError("a shared framework directory cannot be repaired")
     await _run_verified(
         sandbox,
         path,
         create=True,
         repair_mode=repair_mode,
+        shared=shared,
         cmd=[],
         user=user,
         expected_uid=expected_uid,
         timeout=timeout,
+        concurrency=concurrency,
     )
 
 
@@ -458,7 +508,9 @@ async def verify_framework_directory(
     *,
     user: str | None,
     expected_uid: int | None = None,
+    shared: bool = False,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> None:
     """Check that ``path`` is an existing directory satisfying the contract.
 
@@ -472,7 +524,10 @@ async def verify_framework_directory(
         user: User to run as (as for ``sandbox.exec``); also the expected owner.
         expected_uid: If given, the uid the command must actually run as (see
             :func:`ensure_framework_directory`).
+        shared: Check against the shared-parent policy instead of the private one
+            (see :func:`ensure_framework_directory`).
         timeout: Optional timeout for the sandbox command.
+        concurrency: As for :func:`ensure_framework_directory`.
 
     Raises:
         FrameworkDirectoryNotFoundError: Nothing exists at ``path``.
@@ -487,10 +542,12 @@ async def verify_framework_directory(
         sandbox,
         path,
         create=False,
+        shared=shared,
         cmd=[],
         user=user,
         expected_uid=expected_uid,
         timeout=timeout,
+        concurrency=concurrency,
     )
 
 
@@ -503,6 +560,7 @@ async def exec_in_framework_directory(
     expected_uid: int | None = None,
     input: str | bytes | None = None,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> ExecResult[str]:
     """Verify ``path`` and then run ``cmd`` with the verified directory as cwd.
 
@@ -533,6 +591,7 @@ async def exec_in_framework_directory(
             whole; this lets a caller stream content (an archive for ``tar``)
             into the verified directory without staging a file first.
         timeout: Optional timeout for the sandbox command.
+        concurrency: As for :func:`ensure_framework_directory`.
 
     Returns:
         The command's own result. A failing command is returned, not raised.
@@ -560,4 +619,5 @@ async def exec_in_framework_directory(
         expected_uid=expected_uid,
         input=input,
         timeout=timeout,
+        concurrency=concurrency,
     )

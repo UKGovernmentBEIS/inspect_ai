@@ -531,6 +531,106 @@ async def test_accepts_sticky_world_writable_parent_owned_by_root(
         shutil.rmtree(target, ignore_errors=True)
 
 
+async def test_shared_creates_missing_directory_with_mode_1777(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "shared"
+    await ensure_framework_directory(local, str(target), user=None, shared=True)
+    assert target.is_dir() and not target.is_symlink()
+    assert _mode(target) == 0o1777
+    await verify_framework_directory(local, str(target), user=None, shared=True)
+    # A shared directory does not pass as a private one, nor the reverse.
+    with pytest.raises(FrameworkDirectoryError, match="has mode 1777, expected 700"):
+        await verify_framework_directory(local, str(target), user=None)
+    private = parent / "fw"
+    await ensure_framework_directory(local, str(private), user=None)
+    with pytest.raises(FrameworkDirectoryError, match="has mode 700, expected 1777"):
+        await verify_framework_directory(local, str(private), user=None, shared=True)
+
+
+async def test_shared_creates_in_setgid_parent_and_clears_inherited_bits(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    parent.chmod(0o2700)
+    target = parent / "shared"
+    await ensure_framework_directory(local, str(target), user=None, shared=True)
+    assert _mode(target) == 0o1777
+
+
+async def test_shared_accepts_root_owned_directory_for_any_user(
+    local: LocalSandboxEnvironment,
+) -> None:
+    """/var/tmp itself has the shape a shared directory must have: root-owned 1777."""
+    await verify_framework_directory(local, "/var/tmp", user=None, shared=True)
+    await ensure_framework_directory(local, "/var/tmp", user=None, shared=True)
+
+
+async def test_shared_rejects_directory_owned_by_another_non_root_uid(
+    local: LocalSandboxEnvironment, tmp_path: Path
+) -> None:
+    """Pretend to be uid 4242: the owner of a sticky directory can rename our entries."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user (root's directory is shareable)")
+    bindir = _tool_dir(
+        tmp_path, ["sh", "stat", "mkdir", "chmod", "pwd"], {"id": "echo 4242"}
+    )
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    target = Path("/var/tmp") / f".inspect-fw-test-{uuid.uuid4().hex}"
+    target.mkdir()
+    target.chmod(0o1777)
+    try:
+        with pytest.raises(
+            FrameworkDirectoryError,
+            match=f"owned by uid {os.getuid()}, expected uid 4242 or 0",
+        ):
+            await ensure_framework_directory(
+                sandbox, str(target), user=None, shared=True
+            )
+        assert _mode(target) == 0o1777
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+
+
+@pytest.mark.parametrize("mode", [0o755, 0o777, 0o1755, 0o700], ids=oct)
+async def test_shared_rejects_wrong_mode_and_never_repairs(
+    local: LocalSandboxEnvironment, parent: Path, mode: int
+) -> None:
+    target = parent / "shared"
+    target.mkdir()
+    target.chmod(mode)
+    (target / "keep").write_text("x")
+    with pytest.raises(
+        FrameworkDirectoryError, match=f"has mode {mode:o}, expected 1777"
+    ):
+        await ensure_framework_directory(local, str(target), user=None, shared=True)
+    assert _mode(target) == mode
+    assert (target / "keep").read_text() == "x"
+
+
+@pytest.mark.parametrize(
+    "arrange, expected_fragment",
+    [
+        pytest.param(
+            lambda t: os.symlink(t.parent, t), "is a symbolic link", id="symlink"
+        ),
+        pytest.param(lambda t: t.write_text(""), "is not a directory", id="file"),
+    ],
+)
+async def test_shared_rejects_symlink_and_non_directory(
+    local: LocalSandboxEnvironment,
+    parent: Path,
+    arrange: Callable[[Path], object],
+    expected_fragment: str,
+) -> None:
+    target = parent / "shared"
+    arrange(target)
+    before = os.lstat(target)
+    with pytest.raises(FrameworkDirectoryError, match=expected_fragment):
+        await ensure_framework_directory(local, str(target), user=None, shared=True)
+    after = os.lstat(target)
+    assert (after.st_ino, after.st_mode) == (before.st_ino, before.st_mode)
+
+
 async def test_exec_runs_with_verified_directory_as_cwd(
     local: LocalSandboxEnvironment, parent: Path
 ) -> None:
@@ -857,10 +957,11 @@ async def test_user_mismatch_verdict_becomes_user_error() -> None:
     assert not isinstance(
         excinfo.value, (FrameworkDirectoryError, FrameworkDirectoryUnavailableError)
     )
-    # The expectation is passed to the script ahead of the create and repair flags.
+    # The expectation is passed to the script ahead of the create, repair and
+    # shared flags.
     (cmd, user), *_ = sandbox.exec_calls
     assert user == "root"
-    assert cmd[-5:] == ["0", "1", "0", "/var/tmp", ".x"]
+    assert cmd[-6:] == ["0", "1", "0", "0", "/var/tmp", ".x"]
 
 
 async def test_no_expected_uid_passes_an_empty_expectation() -> None:
@@ -871,7 +972,7 @@ async def test_no_expected_uid_passes_an_empty_expectation() -> None:
     )
     await verify_framework_directory(sandbox, "/var/tmp/.x", user=None)
     (cmd, _), *_ = sandbox.exec_calls
-    assert cmd[-5:] == ["", "0", "0", "/var/tmp", ".x"]
+    assert cmd[-6:] == ["", "0", "0", "0", "/var/tmp", ".x"]
 
 
 async def test_repair_mode_is_passed_to_the_script() -> None:
@@ -884,7 +985,55 @@ async def test_repair_mode_is_passed_to_the_script() -> None:
         sandbox, "/var/tmp/.x", user=None, repair_mode=True
     )
     (cmd, _), *_ = sandbox.exec_calls
-    assert cmd[-5:] == ["", "1", "1", "/var/tmp", ".x"]
+    assert cmd[-6:] == ["", "1", "1", "0", "/var/tmp", ".x"]
+
+
+async def test_shared_flag_is_passed_to_the_script() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await ensure_framework_directory(
+        sandbox, "/var/tmp/shared", user="root", expected_uid=0, shared=True
+    )
+    await verify_framework_directory(sandbox, "/var/tmp/shared", user=None, shared=True)
+    (ensure_cmd, ensure_user), (verify_cmd, _) = sandbox.exec_calls
+    assert ensure_user == "root"
+    assert ensure_cmd[-6:] == ["0", "1", "0", "1", "/var/tmp", "shared"]
+    assert verify_cmd[-6:] == ["", "0", "0", "1", "/var/tmp", "shared"]
+
+
+async def test_shared_cannot_be_combined_with_repair_mode() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    with pytest.raises(ValueError, match="cannot be repaired"):
+        await ensure_framework_directory(
+            sandbox, "/var/tmp/shared", user=None, shared=True, repair_mode=True
+        )
+    assert sandbox.exec_calls == []
+
+
+async def test_concurrency_is_forwarded_to_the_provider() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await ensure_framework_directory(sandbox, "/var/tmp/.x", user=None)
+    await ensure_framework_directory(
+        sandbox, "/var/tmp/.x", user=None, concurrency=False
+    )
+    await verify_framework_directory(
+        sandbox, "/var/tmp/.x", user=None, concurrency=False
+    )
+    await exec_in_framework_directory(
+        sandbox, "/var/tmp/.x", ["true"], user=None, concurrency=False
+    )
+    assert sandbox.concurrency == [True, False, False, False]
 
 
 async def test_failure_before_verification_is_a_plain_runtime_error() -> None:
@@ -922,7 +1071,7 @@ async def test_exec_success_passes_result_through() -> None:
     assert result.stderr == ""
     (cmd, user), *_ = sandbox.exec_calls
     assert user is None
-    assert cmd[-8:] == ["0", "0", "/var/tmp", ".x", "stat", "-c", "%F", "launcher"]
+    assert cmd[-9:] == ["0", "0", "0", "/var/tmp", ".x", "stat", "-c", "%F", "launcher"]
 
 
 async def test_verdict_after_verification_belongs_to_the_command() -> None:

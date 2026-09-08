@@ -19,6 +19,13 @@ from inspect_ai._util._async import coro_log_exceptions
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult
 
+from ._framework_directory import (
+    FrameworkDirectoryError,
+    FrameworkDirectoryUnavailableError,
+    ensure_framework_directory,
+    exec_in_framework_directory,
+    split_framework_path,
+)
 from .environment import SandboxEnvironment
 from .limits import OutputLimitExceededError, override_max_exec_output_size
 
@@ -28,7 +35,7 @@ logger = getLogger(__name__)
 REQUESTS_DIR = "requests"
 RESPONSES_DIR = "responses"
 SERVICES_DIR = "/var/tmp/sandbox-services"
-SERVICES_DIR_MODE = "1777"
+_SERVICES_DIR_SPLIT = split_framework_path(SERVICES_DIR)
 
 ID = "id"
 METHOD = "method"
@@ -59,6 +66,9 @@ FILENAME_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 # So this covers every request the proxy can accept.
 SERVICE_REQUEST_READ_OUTPUT_LIMIT = 150 * 1024**2
 
+# Timeout for every command a service runs in the sandbox.
+_EXEC_TIMEOUT = 600
+
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
 
 
@@ -70,6 +80,18 @@ def _is_filename_token(value: object) -> bool:
     return (
         isinstance(value, str) and FILENAME_TOKEN_PATTERN.fullmatch(value) is not None
     )
+
+
+def is_sandbox_service_command(cmd: list[str]) -> bool:
+    """Whether ``cmd`` is one of a sandbox service's own setup or queue commands.
+
+    These are not recorded as transcript events. A path under the services
+    directory appears whole in most of them; the framework-directory helper
+    receives the services directory itself split into its parent and leaf.
+    """
+    if any(SERVICES_DIR in arg for arg in cmd):
+        return True
+    return any(pair == _SERVICES_DIR_SPLIT for pair in zip(cmd, cmd[1:]))
 
 
 @overload
@@ -145,6 +167,8 @@ async def sandbox_service(
         until: Function used to check whether the service should stop.
         sandbox: Sandbox to publish service to.
         user: User to login as. Defaults to the sandbox environment's default user.
+            The service directory is private to this user (mode 0700), so the
+            service can only be called by processes running as this user or as root.
         instance: If you want multiple instances of a service in a single sandbox
             then use the `instance` param (a bounded ASCII filename token).
         polling_interval: Polling interval for request checking. If not specified uses
@@ -303,24 +327,22 @@ class SandboxService:
 
     async def start(self) -> None:
         """Start running the service."""
-        # ensure shared parent exists with sticky-1777 perms and that
-        # <service_dir> is owned by us (squat-check)
+        await self._ensure_services_dir()
         await self._ensure_service_dir()
 
-        # requests dir
-        assert not self._requests_dir
+        # request/response queues
+        assert not self._requests_dir and not self._responses_dir
+        await self._reset_rpc_dirs()
         self._requests_dir = await self._create_rpc_dir(REQUESTS_DIR)
-
-        # responses dir
-        assert not self._responses_dir
         self._responses_dir = await self._create_rpc_dir(RESPONSES_DIR)
 
         # client script
         assert not self._client_script
-        client_script = PurePosixPath(self._service_dir, f"{self._name}.py").as_posix()
-        client_code = self._generate_client()
-        await self._write_text_file(client_script, client_code)
-        self._client_script = client_script
+        client_script = f"{self._name}.py"
+        await self._write_text_file(
+            self._service_dir.as_posix(), client_script, self._generate_client()
+        )
+        self._client_script = (self._service_dir / client_script).as_posix()
 
         # set started event if provided
         if self._started:
@@ -568,20 +590,17 @@ class SandboxService:
         result: JsonValue | None,
         error: str | None = None,
     ) -> None:
+        if not _is_filename_token(request_id):
+            raise ValueError(f"invalid request id: {request_id!r}")
         response_data = {
             ID: request_id,
             RESULT: result,
             ERROR: error,
         }
         await self._write_text_file(
-            self._response_path(request_id), json.dumps(response_data)
+            self._responses_dir, f"{request_id}.json", json.dumps(response_data)
         )
         await self._remove_request_file(request_file)
-
-    def _response_path(self, request_id: str) -> str:
-        if not _is_filename_token(request_id):
-            raise ValueError(f"invalid request id: {request_id!r}")
-        return (PurePosixPath(self._responses_dir) / f"{request_id}.json").as_posix()
 
     async def _remove_request_file(self, request_file: str) -> None:
         request_path = PurePosixPath(request_file)
@@ -629,86 +648,116 @@ class SandboxService:
 
         await self._write_response(request_file, request_id, None, error)
 
-    async def _ensure_service_dir(self) -> None:
-        # Make the shared parent 1777 so users other than the one that
-        # created it can still place their service dirs inside. Run as
-        # the sandbox default user (no user= override) since self._user
-        # typically can't chmod a dir owned by someone else; best-effort
-        # because even the default user may not own it.
+    async def _ensure_services_dir(self) -> None:
+        """Prepare the shared, sticky parent that holds every service's directory.
+
+        Created as root wherever the sandbox allows: only a root-owned sticky
+        directory lets services run as a mix of users, since the owner of a sticky
+        directory can rename entries other users created in it (the helper refuses
+        a parent owned by any other non-root user). Only "cannot run as root" falls
+        back to the service user; a contract violation is never retried as another
+        user, and an existing parent in the wrong shape is refused, not repaired.
+        """
         try:
-            await self._sandbox.exec(
-                [
-                    "sh",
-                    "-c",
-                    f"mkdir -p {SERVICES_DIR} && "
-                    f"chmod {SERVICES_DIR_MODE} {SERVICES_DIR} 2>/dev/null; true",
-                ],
-                timeout=600,
+            await self._ensure_dir(
+                SERVICES_DIR, user="root", expected_uid=0, shared=True
+            )
+            return
+        except (FrameworkDirectoryError, FrameworkDirectoryUnavailableError):
+            raise
+        except Exception as ex:
+            # Broad catch is deliberate: providers signal "cannot exec as root" with
+            # provider-specific exception types, or the helper's uid-mismatch error.
+            logger.debug(
+                f"Sandbox service '{self._name}' cannot prepare {SERVICES_DIR} as "
+                f"root; preparing it as the service user instead: {ex}"
+            )
+        await self._ensure_dir(SERVICES_DIR, user=self._user, shared=True)
+
+    async def _ensure_service_dir(self) -> None:
+        # <name> first: the helper creates missing parents as 0755, so verifying
+        # only <name>/<instance> would leave <name> in a shape the contract refuses
+        await self._ensure_dir(self._root_service_dir.as_posix(), user=self._user)
+        if self._service_dir != self._root_service_dir:
+            await self._ensure_dir(self._service_dir.as_posix(), user=self._user)
+
+    async def _reset_rpc_dirs(self) -> None:
+        # Stale queues from an earlier start are removed by name inside the verified
+        # service directory, so a symlink planted at either name is unlinked, never
+        # followed. Failure aborts startup rather than adopting stale contents.
+        result = await self._exec_in_dir(
+            self._service_dir.as_posix(),
+            ["rm", "-rf", "--", REQUESTS_DIR, RESPONSES_DIR],
+        )
+        if not result.success:
+            raise RuntimeError(
+                f"Error resetting request queues for sandbox service "
+                f"'{self._name}': {result.stderr}"
+            )
+
+    async def _create_rpc_dir(self, name: str) -> str:
+        rpc_dir = PurePosixPath(self._service_dir, name).as_posix()
+        await self._ensure_dir(rpc_dir, user=self._user)
+        return rpc_dir
+
+    async def _write_text_file(self, dir: str, name: str, contents: str) -> None:
+        result = await self._exec_in_dir(dir, ["tee", "--", name], input=contents)
+        if not result.success:
+            raise RuntimeError(
+                f"Failed to write file '{name}' into '{dir}' in sandbox: "
+                f"{result.stderr}"
+            )
+
+    # Every command below bypasses the sandbox concurrency limit: services must
+    # keep running while sandboxed clients hold exec slots waiting for responses.
+
+    async def _ensure_dir(
+        self,
+        path: str,
+        *,
+        user: str | None,
+        expected_uid: int | None = None,
+        shared: bool = False,
+    ) -> None:
+        try:
+            await ensure_framework_directory(
+                self._sandbox,
+                path,
+                user=user,
+                expected_uid=expected_uid,
+                shared=shared,
+                timeout=_EXEC_TIMEOUT,
+                concurrency=False,
+            )
+        except TimeoutError:
+            raise RuntimeError(f"Timed out preparing directory {path} in sandbox")
+
+    async def _exec_in_dir(
+        self, dir: str, cmd: list[str], input: str | None = None
+    ) -> ExecResult[str]:
+        try:
+            return await exec_in_framework_directory(
+                self._sandbox,
+                dir,
+                cmd,
+                user=self._user,
+                input=input,
+                timeout=_EXEC_TIMEOUT,
                 concurrency=False,
             )
         except TimeoutError:
             raise RuntimeError(
-                f"Timed out preparing shared services directory {SERVICES_DIR}"
+                f"Timed out executing command {' '.join(cmd)} in {dir} in sandbox"
             )
-
-        service_dir = self._service_dir.as_posix()
-        result = await self._exec(["mkdir", "-p", service_dir])
-        if not result.success:
-            # When the chmod above silently no-op'd, mkdir fails with a
-            # generic Permission denied that blames the leaf. Re-blame
-            # the parent if it's actually the unwritable one.
-            parent = self._service_dir.parent.as_posix()
-            writable = await self._exec(["test", "-w", parent])
-            if not writable.success:
-                user = self._user or "the sandbox default user"
-                raise PrerequisiteError(
-                    f"Sandbox service '{self._name}' cannot create "
-                    f"'{service_dir}': its parent directory '{parent}' is "
-                    f"not writable by user '{user}'. Another service may "
-                    "have created it with restrictive permissions, or "
-                    "claimed this name."
-                )
-            raise RuntimeError(
-                f"Error creating service directory '{service_dir}' "
-                f"for sandbox service '{self._name}': {result.stderr}"
-            )
-
-        # Squat check. test -O passes iff path is owned by the effective
-        # uid; _exec runs as self._user, so this rejects dirs owned by
-        # other users. With instance, also check the <name> parent.
-        dirs_to_check = [service_dir]
-        if self._service_dir != self._root_service_dir:
-            dirs_to_check.append(self._root_service_dir.as_posix())
-        for path in dirs_to_check:
-            owned = await self._exec(["test", "-O", path])
-            if not owned.success:
-                user = self._user or "the sandbox default user"
-                raise PrerequisiteError(
-                    f"Sandbox service '{self._name}' cannot start: "
-                    f"'{path}' exists but is not owned by user '{user}'. "
-                    "Another service may have claimed this name."
-                )
-
-    async def _create_rpc_dir(self, name: str) -> str:
-        rpc_dir = PurePosixPath(self._service_dir, name).as_posix()
-        result = await self._exec(["rm", "-rf", rpc_dir])
-        result = await self._exec(["mkdir", "-p", rpc_dir])
-        if not result.success:
-            raise RuntimeError(
-                f"Error creating rpc directory '{name}' for sandbox '{self._name}': {result.stderr}"
-            )
-        return rpc_dir
-
-    async def _write_text_file(self, file: str, contents: str) -> None:
-        result = await self._exec(["tee", "--", file], input=contents)
-        if not result.success:
-            msg = f"Failed to write file '{file}' into container: {result.stderr}"
-            raise RuntimeError(msg)
 
     async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
         try:
             return await self._sandbox.exec(
-                cmd, user=self._user, input=input, timeout=600, concurrency=False
+                cmd,
+                user=self._user,
+                input=input,
+                timeout=_EXEC_TIMEOUT,
+                concurrency=False,
             )
         except TimeoutError:
             raise RuntimeError(

@@ -4,7 +4,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, cast
+from typing import Any, Awaitable, Callable, Sequence, cast
 from unittest.mock import patch
 
 import anyio
@@ -17,12 +17,21 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import sandbox
 from inspect_ai.util._background import background
+from inspect_ai.util._sandbox._framework_directory import (
+    _SCRIPT,
+    _SHELL,
+    _USER_MISMATCH_MARKER,
+    _VERIFIED_MARKER,
+    _VIOLATION_MARKER,
+    FrameworkDirectoryError,
+)
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import (
     SERVICE_REQUEST_READ_OUTPUT_LIMIT,
     SERVICES_DIR,
     SandboxService,
+    is_sandbox_service_command,
     sandbox_service,
 )
 from inspect_ai.util._subprocess import ExecResult
@@ -35,23 +44,24 @@ from inspect_ai.util._subprocess import ExecResult
     [("root", True), ("nonroot", True), (None, True), (None, False)],
 )
 def test_sandbox_service(user: str | None, handle_requests: bool):
-    log = eval(
-        Task(solver=math_service(user, handle_requests)),
-        model="mockllm/model",
-        sandbox=(
-            "docker",
-            str(Path(__file__).parent / "compose.sandbox-service.yaml"),
-        ),
-    )[0]
-    assert log.status == "success"
-    assert log.samples
-    sample = log.samples[0]
-    assert sample.store.get("result") == 8
+    store = _eval_service_solver(math_service(user, handle_requests), COMPOSE)
+    assert store.get("result") == 8
+
+
+COMPOSE = str(Path(__file__).parent / "compose.sandbox-service.yaml")
+"""Compose file whose default user is root, with a `nonroot` user available."""
 
 
 @solver
-def math_service(user: str | None, handle_requests: bool) -> Solver:
+def math_service(
+    user: str | None,
+    handle_requests: bool,
+    prepare: Callable[[], Awaitable[None]] | None = None,
+) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if prepare is not None:
+            await prepare()
+
         # generate a script that will exercise the service and copy it to the sandbox
         run_script = "run.py"
         run_script_code = dedent("""
@@ -77,7 +87,7 @@ def math_service(user: str | None, handle_requests: bool) -> Solver:
         asyncio.run(run())
         """)
         # run the math service in the background
-        background(run_math_service, state, user)
+        background(run_math_service, state, user, handle_requests)
 
         # run a script in the sandbox that talks to the service
         await sandbox().write_file(run_script, run_script_code)
@@ -213,12 +223,71 @@ class FakeExecResult:
     stderr: str = ""
 
 
-@dataclass
-class FakeSandboxEnvironment:
-    """Stub sandbox env that records exec calls and replays canned results."""
+_VERIFIED = FakeExecResult(stderr=f"{_VERIFIED_MARKER}\n")
+"""A framework-directory helper result: verified, nothing else to report."""
 
-    results: list[FakeExecResult] = field(default_factory=list)
-    calls: list[dict[str, Any]] = field(default_factory=list)
+_USER_MISMATCH = FakeExecResult(
+    success=False,
+    returncode=6,
+    stderr=f"{_USER_MISMATCH_MARKER}: running as uid 1000, expected uid 0\n",
+)
+
+
+def _violation(message: str) -> FakeExecResult:
+    return FakeExecResult(
+        success=False, returncode=3, stderr=f"{_VIOLATION_MARKER}: {message}\n"
+    )
+
+
+@dataclass(frozen=True)
+class HelperCall:
+    """A framework-directory helper invocation, decoded from its argv."""
+
+    path: str
+    user: str | None
+    expected_uid: str
+    create: bool
+    shared: bool
+    cmd: tuple[str, ...]
+    """The wrapped command (empty when only ensuring the directory)."""
+
+
+def _decode_helper(cmd: list[str], user: str | None) -> HelperCall | None:
+    """Decode a helper invocation; None for any other command."""
+    if cmd[:3] != [_SHELL, "-c", _SCRIPT]:
+        return None
+    _, expected_uid, create, _repair, shared, parent, leaf, *wrapped = cmd[3:]
+    return HelperCall(
+        path=f"{parent.rstrip('/')}/{leaf}",
+        user=user,
+        expected_uid=expected_uid,
+        create=create == "1",
+        shared=shared == "1",
+        cmd=tuple(wrapped),
+    )
+
+
+def _assert_no_shell_interpolation(calls: list[list[str]]) -> None:
+    """Any shell invocation must be the fixed helper script; data travels in argv."""
+    for cmd in calls:
+        if len(cmd) > 2 and cmd[1] == "-c":
+            assert cmd[:3] == [_SHELL, "-c", _SCRIPT], cmd
+
+
+HelperPolicy = Callable[[HelperCall], FakeExecResult]
+
+
+@dataclass
+class _StartSandbox:
+    """Fake sandbox for `start()`: every command must be a helper invocation.
+
+    `policy` decides each helper call's result (verified by default); the decoded
+    calls are recorded in `calls` and the raw exec arguments in `execs`.
+    """
+
+    policy: HelperPolicy = lambda call: _VERIFIED
+    calls: list[HelperCall] = field(default_factory=list)
+    execs: list[dict[str, Any]] = field(default_factory=list)
 
     async def exec(
         self,
@@ -229,139 +298,152 @@ class FakeSandboxEnvironment:
         timeout: int | None = None,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        self.calls.append({"cmd": cmd, "user": user})
-        if self.results:
-            return cast(ExecResult[str], self.results.pop(0))
-        return cast(ExecResult[str], FakeExecResult())
+        self.execs.append(
+            {"cmd": cmd, "user": user, "input": input, "concurrency": concurrency}
+        )
+        call = _decode_helper(cmd, user)
+        assert call is not None, f"start() ran a command outside the helper: {cmd}"
+        self.calls.append(call)
+        return cast(ExecResult[str], self.policy(call))
 
 
-async def test_ensure_service_dir_raises_when_dir_not_owned() -> None:
-    """A name-squat (alien-owned service dir) raises PrerequisiteError."""
-    fake = FakeSandboxEnvironment(
-        results=[
-            FakeExecResult(),  # chmod 1777 SERVICES_DIR
-            FakeExecResult(),  # mkdir <service_dir>
-            FakeExecResult(success=False, returncode=1),  # test -O -> not owned
-        ],
+def _service(fake: object, **kwargs: Any) -> SandboxService:
+    return SandboxService(sandbox=cast(SandboxEnvironment, fake), **kwargs)
+
+
+async def test_every_start_command_is_hidden_from_the_transcript() -> None:
+    """Service housekeeping is not a transcript event, the shared-parent probe included."""
+    fake = _StartSandbox()
+    await _service(fake, name="svc", user="agent").start()
+    assert all(is_sandbox_service_command(e["cmd"]) for e in fake.execs)
+    assert not is_sandbox_service_command(["ls", "-la", "/var/tmp"])
+    assert not is_sandbox_service_command(["stat", "/var/tmp", "/etc"])
+
+
+async def test_start_prepares_every_directory_through_the_helper() -> None:
+    fake = _StartSandbox()
+    service = _service(fake, name="svc", user="agent")
+
+    await service.start()
+
+    svc = f"{SERVICES_DIR}/svc"
+    reset = ("rm", "-rf", "--", "requests", "responses")
+    assert [(c.path, c.user, c.create, c.shared, c.cmd) for c in fake.calls] == [
+        (SERVICES_DIR, "root", True, True, ()),
+        (svc, "agent", True, False, ()),
+        (svc, "agent", False, False, reset),
+        (f"{svc}/requests", "agent", True, False, ()),
+        (f"{svc}/responses", "agent", True, False, ()),
+        (svc, "agent", False, False, ("tee", "--", "svc.py")),
+    ]
+    # the shared parent is prepared as root, and that must really be uid 0
+    assert fake.calls[0].expected_uid == "0"
+    assert all(e["concurrency"] is False for e in fake.execs)
+    assert "def call_svc(" in (fake.execs[-1]["input"] or "")
+    assert service._requests_dir == f"{svc}/requests"
+    assert service._responses_dir == f"{svc}/responses"
+
+
+async def test_start_with_instance_verifies_name_before_instance() -> None:
+    """<name> must itself be a private directory, not a helper-made 0755 parent."""
+    fake = _StartSandbox()
+    service = _service(fake, name="multi", user="agent", instance="inst1")
+
+    await service.start()
+
+    inst = f"{SERVICES_DIR}/multi/inst1"
+    assert [c.path for c in fake.calls if c.create] == [
+        SERVICES_DIR,
+        f"{SERVICES_DIR}/multi",
+        inst,
+        f"{inst}/requests",
+        f"{inst}/responses",
+    ]
+    assert [c.path for c in fake.calls if c.cmd] == [inst, inst]
+
+
+def _raise_no_root() -> FakeExecResult:
+    raise PermissionError("this provider cannot exec as root")
+
+
+@pytest.mark.parametrize(
+    "root_failure",
+    [
+        pytest.param(lambda: _USER_MISMATCH, id="uid-mismatch-verdict"),
+        pytest.param(_raise_no_root, id="provider-raises"),
+    ],
+)
+async def test_start_prepares_shared_parent_as_service_user_when_root_unavailable(
+    root_failure: Callable[[], FakeExecResult],
+) -> None:
+    def policy(call: HelperCall) -> FakeExecResult:
+        return root_failure() if call.user == "root" else _VERIFIED
+
+    fake = _StartSandbox(policy)
+    service = _service(fake, name="svc", user="agent")
+
+    await service.start()
+
+    assert [(c.path, c.user, c.shared) for c in fake.calls[:3]] == [
+        (SERVICES_DIR, "root", True),
+        (SERVICES_DIR, "agent", True),
+        (f"{SERVICES_DIR}/svc", "agent", False),
+    ]
+    assert fake.calls[1].expected_uid == ""
+
+
+async def test_start_does_not_retry_shared_parent_after_a_violation() -> None:
+    fake = _StartSandbox(
+        lambda call: _violation(f"{SERVICES_DIR} is owned by uid 1000, expected uid 0")
     )
-    service = SandboxService(
-        name="squatted",
-        sandbox=cast(SandboxEnvironment, fake),
-        user="agent",
-    )
+    service = _service(fake, name="svc", user="agent")
 
-    with pytest.raises(PrerequisiteError) as excinfo:
+    with pytest.raises(FrameworkDirectoryError, match="owned by uid 1000"):
         await service.start()
 
-    msg = str(excinfo.value)
-    assert "squatted" in msg
-    assert "agent" in msg
-    assert f"{SERVICES_DIR}/squatted" in msg
-
-    issued = [call["cmd"] for call in fake.calls]
-    assert len(issued) == 3, f"expected 3 exec calls, got {len(issued)}: {issued}"
-    assert issued[0][:2] == ["sh", "-c"]
-    assert "chmod 1777" in issued[0][2]
-    assert SERVICES_DIR in issued[0][2]
-    assert issued[1] == ["mkdir", "-p", f"{SERVICES_DIR}/squatted"]
-    assert issued[2] == ["test", "-O", f"{SERVICES_DIR}/squatted"]
-    # Parent chmod runs as the sandbox default (no user restriction);
-    # per-service mkdir + squat-check run as the service user.
-    assert fake.calls[0]["user"] is None
-    assert fake.calls[1]["user"] == "agent"
-    assert fake.calls[2]["user"] == "agent"
+    assert [(c.path, c.user) for c in fake.calls] == [(SERVICES_DIR, "root")]
 
 
-async def test_ensure_service_dir_checks_root_service_dir_when_instance_set() -> None:
-    """With instance set, both <name>/<instance> and <name> are ownership-checked."""
-    fake = FakeSandboxEnvironment(
-        results=[
-            FakeExecResult(),  # chmod 1777 SERVICES_DIR
-            FakeExecResult(),  # mkdir <name>/<instance>
-            FakeExecResult(),  # test -O <name>/<instance> -> owned
-            FakeExecResult(success=False, returncode=1),  # test -O <name> -> squatted
-        ],
-    )
-    service = SandboxService(
-        name="multi",
-        sandbox=cast(SandboxEnvironment, fake),
-        user="agent",
-        instance="inst1",
-    )
+async def test_start_propagates_service_dir_violation_and_writes_nothing() -> None:
+    svc = f"{SERVICES_DIR}/squatted"
 
-    with pytest.raises(PrerequisiteError) as excinfo:
-        await service.start()
+    def policy(call: HelperCall) -> FakeExecResult:
+        if call.path == svc:
+            return _violation(f"{svc} is owned by uid 1000, expected uid 1001")
+        return _VERIFIED
 
-    msg = str(excinfo.value)
-    assert "multi" in msg
-    assert "agent" in msg
-    # Error names the squatted <name>, not the leaf instance dir.
-    assert f"{SERVICES_DIR}/multi" in msg
-    assert f"{SERVICES_DIR}/multi/inst1" not in msg
+    fake = _StartSandbox(policy)
+    service = _service(fake, name="squatted", user="agent")
 
-    issued = [call["cmd"] for call in fake.calls]
-    assert len(issued) == 4, f"expected 4 exec calls, got {len(issued)}: {issued}"
-    assert issued[1] == ["mkdir", "-p", f"{SERVICES_DIR}/multi/inst1"]
-    assert issued[2] == ["test", "-O", f"{SERVICES_DIR}/multi/inst1"]
-    assert issued[3] == ["test", "-O", f"{SERVICES_DIR}/multi"]
-
-
-async def test_ensure_service_dir_raises_prereq_when_parent_unwritable() -> None:
-    """Surface PrerequisiteError when mkdir fails because the parent is unwritable."""
-    fake = FakeSandboxEnvironment(
-        results=[
-            FakeExecResult(),  # chmod SERVICES_DIR
-            FakeExecResult(  # mkdir <service_dir> fails
-                success=False, returncode=1, stderr="mkdir: Permission denied"
-            ),
-            FakeExecResult(success=False, returncode=1),  # test -w <parent> -> no
-        ],
-    )
-    service = SandboxService(
-        name="blocked",
-        sandbox=cast(SandboxEnvironment, fake),
-        user="agent",
-    )
-
-    with pytest.raises(PrerequisiteError) as excinfo:
-        await service.start()
-
-    msg = str(excinfo.value)
-    assert "blocked" in msg
-    assert "agent" in msg
-    # The parent of /var/tmp/sandbox-services/blocked is SERVICES_DIR
-    # itself — that's what the error must point at.
-    assert f"parent directory '{SERVICES_DIR}'" in msg
-
-    issued = [call["cmd"] for call in fake.calls]
-    assert len(issued) == 3, f"expected 3 exec calls, got {len(issued)}: {issued}"
-    assert issued[2] == ["test", "-w", SERVICES_DIR]
-
-
-async def test_ensure_service_dir_raises_runtime_when_parent_writable_but_mkdir_fails() -> (
-    None
-):
-    """Surface RuntimeError (not a squat) when mkdir fails but the parent is writable."""
-    fake = FakeSandboxEnvironment(
-        results=[
-            FakeExecResult(),  # chmod SERVICES_DIR
-            FakeExecResult(  # mkdir <service_dir> fails (ENOSPC)
-                success=False, returncode=1, stderr="mkdir: No space left on device"
-            ),
-            FakeExecResult(),  # test -w <parent> -> writable
-        ],
-    )
-    service = SandboxService(
-        name="diskfull",
-        sandbox=cast(SandboxEnvironment, fake),
-        user="agent",
-    )
-
-    with pytest.raises(RuntimeError, match="No space left on device") as excinfo:
+    with pytest.raises(FrameworkDirectoryError) as excinfo:
         await service.start()
 
     assert not isinstance(excinfo.value, PrerequisiteError)
-    assert "diskfull" in str(excinfo.value)
+    assert svc in str(excinfo.value)
+    assert "owned by uid 1000, expected uid 1001" in str(excinfo.value)
+    assert [c.path for c in fake.calls] == [SERVICES_DIR, svc]
+    assert not service._requests_dir and not service._responses_dir
+
+
+async def test_start_aborts_when_queue_reset_fails() -> None:
+    def policy(call: HelperCall) -> FakeExecResult:
+        if call.cmd[:2] == ("rm", "-rf"):
+            return FakeExecResult(
+                success=False,
+                returncode=1,
+                stderr=f"{_VERIFIED_MARKER}\nrm: cannot remove 'requests': Permission denied\n",
+            )
+        return _VERIFIED
+
+    fake = _StartSandbox(policy)
+    service = _service(fake, name="svc", user="agent")
+
+    with pytest.raises(RuntimeError, match="Permission denied"):
+        await service.start()
+
+    assert len(fake.calls) == 3
+    assert fake.calls[-1].cmd[:2] == ("rm", "-rf")
+    assert not service._requests_dir and not service._responses_dir
 
 
 @dataclass
@@ -373,7 +455,9 @@ class _RequestReadSandbox:
       provider that silently truncates an oversized read, e.g. docker/local).
     - ``wc -c``: returns ``file_size`` (the on-disk size check).
     - queue listing (``find``): returns ``list_stdout`` (NUL-delimited paths).
-    - ``tee``/``rm``: recorded in ``writes`` / ``removed``.
+    - ``tee`` (run through the framework-directory helper, decoded into
+      ``helper_calls``): recorded in ``writes`` under the file's full path.
+    - ``rm``: recorded in ``removed``.
     """
 
     cat_stdout: str = ""
@@ -384,6 +468,7 @@ class _RequestReadSandbox:
     writes: dict[str, str] = field(default_factory=dict)
     removed: list[str] = field(default_factory=list)
     calls: list[list[str]] = field(default_factory=list)
+    helper_calls: list[HelperCall] = field(default_factory=list)
 
     async def exec(
         self,
@@ -395,6 +480,12 @@ class _RequestReadSandbox:
         concurrency: bool = True,
     ) -> ExecResult[str]:
         self.calls.append(cmd)
+        call = _decode_helper(cmd, user)
+        if call is not None:
+            self.helper_calls.append(call)
+            if call.cmd[:1] == ("tee",):
+                self.writes[f"{call.path}/{call.cmd[-1]}"] = input or ""
+            return cast(ExecResult[str], _VERIFIED)
         if cmd[0] == "find":
             return cast(ExecResult[str], FakeExecResult(stdout=self.list_stdout))
         if cmd[0] == "cat":
@@ -408,9 +499,6 @@ class _RequestReadSandbox:
                 ExecResult[str],
                 FakeExecResult(stdout=f"{self.file_size} {cmd[-1]}\n"),
             )
-        if cmd[0] == "tee":
-            self.writes[cmd[-1]] = input or ""
-            return cast(ExecResult[str], FakeExecResult())
         if cmd[0] == "rm":
             self.removed.append(cmd[-1])
             return cast(ExecResult[str], FakeExecResult())
@@ -443,7 +531,29 @@ async def test_handle_request_oversized_raise_writes_error_and_removes_file() ->
     assert "10 MiB" in response["error"]
     assert request_file in fake.removed
     assert fake.calls[0] == ["cat", "--", request_file]
-    assert all(call[:2] not in (["bash", "-c"], ["sh", "-c"]) for call in fake.calls)
+    _assert_no_shell_interpolation(fake.calls)
+
+
+async def test_write_response_goes_through_the_verified_responses_dir() -> None:
+    fake = _RequestReadSandbox()
+    service = _service_with_dirs(fake)
+    request_file = f"{service._requests_dir}/req-1.json"
+
+    await service._write_response(request_file, "req-1", {"ok": True})
+
+    (call,) = fake.helper_calls
+    assert (call.path, call.user, call.cmd) == (
+        service._responses_dir,
+        None,
+        ("tee", "--", "req-1.json"),
+    )
+    assert json.loads(fake.writes[f"{service._responses_dir}/req-1.json"]) == {
+        "id": "req-1",
+        "result": {"ok": True},
+        "error": None,
+    }
+    assert fake.removed == [request_file]
+    _assert_no_shell_interpolation(fake.calls)
 
 
 async def test_handle_request_oversized_truncated_writes_error_and_removes_file() -> (
@@ -537,7 +647,7 @@ async def test_handle_request_valid_call_uses_argv() -> None:
     assert response == {"id": request_id, "result": 5, "error": None}
     assert fake.calls[0] == ["cat", "--", request_file]
     assert ["rm", "-f", "--", request_file] in fake.calls
-    assert all(call[:2] not in (["bash", "-c"], ["sh", "-c"]) for call in fake.calls)
+    _assert_no_shell_interpolation(fake.calls)
 
 
 @pytest.mark.parametrize(
@@ -678,7 +788,7 @@ async def test_handle_requests_lists_paths_without_shell_interpolation() -> None
         "f",
         "-print0",
     ]
-    assert all(call[:2] not in (["bash", "-c"], ["sh", "-c"]) for call in fake.calls)
+    _assert_no_shell_interpolation(fake.calls)
     response_path = f"{service._responses_dir}/{request_id}.json"
     assert json.loads(fake.writes[response_path])["result"] == "ok"
 
@@ -769,7 +879,7 @@ async def test_handle_requests_survives_stray_non_file_entry(tmp_path: Path) -> 
     ],
 )
 def test_sandbox_service_rejects_invalid_name(bad_name: str) -> None:
-    fake = FakeSandboxEnvironment()
+    fake = _StartSandbox()
     with pytest.raises(ValueError, match="invalid service name"):
         SandboxService(
             name=bad_name,
@@ -797,7 +907,7 @@ def test_sandbox_service_rejects_invalid_name(bad_name: str) -> None:
 )
 def test_sandbox_service_rejects_invalid_instance(bad_instance: str) -> None:
     """Invalid instance filename tokens are rejected."""
-    fake = FakeSandboxEnvironment()
+    fake = _StartSandbox()
     with pytest.raises(ValueError, match="invalid instance"):
         SandboxService(
             name="x",
@@ -807,78 +917,188 @@ def test_sandbox_service_rejects_invalid_instance(bad_instance: str) -> None:
         )
 
 
+NONROOT_COMPOSE = str(Path(__file__).parent / "compose.sandbox-service-nonroot.yaml")
+"""Compose file whose default user is `nonroot` (root exec is still available)."""
+
+
+def _eval_service_solver(solver: Solver, compose: str) -> dict[str, Any]:
+    log = eval(Task(solver=solver), model="mockllm/model", sandbox=("docker", compose))[
+        0
+    ]
+    assert log.status == "success", log.error
+    assert log.samples
+    return log.samples[0].store
+
+
 @pytest.mark.slow
 @skip_if_no_docker
-def test_sandbox_service_nonroot_after_root_setup() -> None:
-    """A nonroot service must start even when SERVICES_DIR was pre-created root-owned 0755."""
-    log = eval(
-        Task(solver=math_service_after_root_setup()),
-        model="mockllm/model",
-        sandbox=(
-            "docker",
-            str(Path(__file__).parent / "compose.sandbox-service.yaml"),
-        ),
-    )[0]
-    assert log.status == "success"
-    assert log.samples
-    sample = log.samples[0]
-    assert sample.store.get("result") == 8
+@pytest.mark.parametrize("user", [None, "root"])
+def test_sandbox_service_with_nonroot_default_user(user: str | None) -> None:
+    """The shared parent is prepared as root even when the default user is not."""
+    store = _eval_service_solver(math_service(user, True), NONROOT_COMPOSE)
+    assert store.get("result") == 8
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_sandbox_service_nonroot_after_root_service() -> None:
+    """A root service leaves a shared parent any user can use; nonroot then starts."""
+
+    async def prepare() -> None:
+        await SandboxService("setup_service", sandbox(), user="root").start()
+
+    store = _eval_service_solver(math_service("nonroot", True, prepare), COMPOSE)
+    assert store.get("result") == 8
 
 
 @solver
-def math_service_after_root_setup() -> Solver:
+def start_service_and_inspect(
+    name: str, user: str | None, prepare: Sequence[tuple[str | None, str]] = ()
+) -> Solver:
+    """Run `prepare` scripts (as the given users), start a service, record the outcome.
+
+    The store receives the startup error (or None), a probe request's response when
+    startup succeeded, `stat` output for every path of interest (None if absent) and
+    the entries of `/tmp/decoy`, a directory tests point planted symlinks at.
+    """
+
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # Simulate a prior root setup sandbox_service having left
-        # SERVICES_DIR root-owned 0755 — the failing pre-state.
-        prep = await sandbox().exec(
-            [
-                "sh",
-                "-c",
-                "mkdir -p /var/tmp/sandbox-services && "
-                "chmod 0755 /var/tmp/sandbox-services && "
-                "chown root:root /var/tmp/sandbox-services",
-            ],
-            user="root",
-        )
-        assert prep.success, f"prep failed: {prep.stderr}"
+        for prepare_user, script in prepare:
+            prep = await sandbox().exec(["sh", "-c", script], user=prepare_user)
+            assert prep.success, prep.stderr
 
-        # Reuse the math service flow, this time as nonroot.
-        run_script = "run.py"
-        run_script_code = dedent("""
-        import asyncio
-
-        async def run():
-            import os
-            service_dir = "/var/tmp/sandbox-services/math_service"
-            while not os.path.exists(f"{service_dir}/math_service.py"):
-                await asyncio.sleep(0.1)
-
-            import sys
-            sys.path.append(service_dir)
-            from math_service import call_math_service, call_math_service_async
-
-            result = await call_math_service_async("add", x=10, y=5)
-            result = call_math_service("subtract", x=result, y=7)
-            await call_math_service_async("finish", result=result)
-
-        asyncio.run(run())
-        """)
-        background(run_math_service, state, "nonroot")
-
-        await sandbox().write_file(run_script, run_script_code)
-        script_error = ""
+        service = SandboxService(name, sandbox(), user=user)
+        service.add_method("noop", _noop)
         try:
-            result = await sandbox().exec(["python3", run_script], user="nonroot")
-            if not result.success:
-                script_error = f"Error running script '{run_script}': {result.stderr}"
-        except Exception as e:
-            script_error = f"Exception in script: {str(e)}"
-        if script_error:
-            print(script_error)
+            await service.start()
+            state.store.set("error", None)
+        except Exception as ex:
+            state.store.set("error", f"{type(ex).__name__}: {ex}")
 
+        service_dir = f"{SERVICES_DIR}/{name}"
+        if state.store.get("error") is None:
+            await sandbox().write_file(
+                f"{service_dir}/requests/probe.json",
+                json.dumps({"id": "probe", "method": "noop", "params": {}}),
+            )
+            await service.handle_requests()
+            response = await sandbox().read_file(f"{service_dir}/responses/probe.json")
+            state.store.set("response", json.loads(response))
+
+        shapes: dict[str, str | None] = {}
+        for path in [
+            SERVICES_DIR,
+            service_dir,
+            f"{service_dir}/requests",
+            f"{service_dir}/responses",
+            f"{service_dir}/responses/stale.json",
+            f"{service_dir}/{name}.py",
+        ]:
+            result = await sandbox().exec(["stat", "-c", "%F %U %a", path], user="root")
+            shapes[path] = result.stdout.strip() if result.success else None
+        state.store.set("shapes", shapes)
+        decoy = await sandbox().exec(["ls", "-A", "/tmp/decoy"], user="root")
+        state.store.set("decoy", decoy.stdout.split() if decoy.success else None)
         return state
 
     return solve
+
+
+async def _noop() -> None:
+    return None
+
+
+_DECOY = "mkdir -p /tmp/decoy && chmod 777 /tmp/decoy && touch /tmp/decoy/sentinel"
+_SHARED_PARENT = f"mkdir -p -m 1777 {SERVICES_DIR}"
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_sandbox_service_directories_are_private_to_the_service_user() -> None:
+    store = _eval_service_solver(
+        start_service_and_inspect("svc", None), NONROOT_COMPOSE
+    )
+    assert store["error"] is None
+    assert store["response"]["id"] == "probe"
+    svc = f"{SERVICES_DIR}/svc"
+    assert store["shapes"] == {
+        SERVICES_DIR: "directory root 1777",
+        svc: "directory nonroot 700",
+        f"{svc}/requests": "directory nonroot 700",
+        f"{svc}/responses": "directory nonroot 700",
+        f"{svc}/responses/stale.json": None,
+        f"{svc}/svc.py": "regular file nonroot 600",
+    }
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+@pytest.mark.parametrize(
+    "plant, fragment",
+    [
+        pytest.param("mkdir -m 755 {svc}", "owned by uid 0", id="other-uid"),
+        pytest.param("ln -s /tmp/decoy {svc}", "is a symbolic link", id="symlink"),
+        pytest.param("touch {svc}", "is not a directory", id="file"),
+    ],
+)
+def test_sandbox_service_refuses_planted_service_dir(plant: str, fragment: str) -> None:
+    """An entry another user pre-created at the service path fails startup, untouched."""
+    svc = f"{SERVICES_DIR}/planted"
+    prepare = [("root", f"{_SHARED_PARENT} && {_DECOY} && {plant.format(svc=svc)}")]
+    store = _eval_service_solver(
+        start_service_and_inspect("planted", None, prepare), NONROOT_COMPOSE
+    )
+    assert store["error"] is not None
+    assert store["error"].startswith("FrameworkDirectoryError:")
+    assert "cannot be trusted" in store["error"]
+    assert fragment in store["error"]
+    shapes = store["shapes"]
+    assert shapes[f"{svc}/requests"] is None
+    assert shapes[f"{svc}/responses"] is None
+    assert shapes[f"{svc}/planted.py"] is None
+    assert store["decoy"] == ["sentinel"]
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_sandbox_service_refuses_nonconforming_shared_parent() -> None:
+    """A pre-existing shared parent in the wrong shape is refused, not repaired."""
+    prepare = [("root", f"mkdir -p {SERVICES_DIR} && chmod 755 {SERVICES_DIR}")]
+    store = _eval_service_solver(
+        start_service_and_inspect("svc", None, prepare), NONROOT_COMPOSE
+    )
+    assert store["error"] is not None
+    assert "has mode 755, expected 1777" in store["error"]
+    assert store["shapes"][SERVICES_DIR] == "directory root 755"
+    assert store["shapes"][f"{SERVICES_DIR}/svc"] is None
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_sandbox_service_resets_redirected_queue_without_following_it() -> None:
+    """Queue reset replaces a redirected queue name and clears stale contents.
+
+    The target of the planted symlink must be untouched: the reset unlinks the
+    name inside the verified service directory rather than following it.
+    """
+    svc = f"{SERVICES_DIR}/svc"
+    prepare = [
+        ("root", f"{_SHARED_PARENT} && {_DECOY}"),
+        (
+            None,
+            f"mkdir -m 700 {svc} && ln -s /tmp/decoy {svc}/requests && "
+            f"mkdir -m 700 {svc}/responses && echo stale > {svc}/responses/stale.json",
+        ),
+    ]
+    store = _eval_service_solver(
+        start_service_and_inspect("svc", None, prepare), NONROOT_COMPOSE
+    )
+    assert store["error"] is None
+    assert store["response"]["id"] == "probe"
+    assert store["decoy"] == ["sentinel"]
+    assert store["shapes"][f"{svc}/requests"] == "directory nonroot 700"
+    assert store["shapes"][f"{svc}/responses"] == "directory nonroot 700"
+    assert store["shapes"][f"{svc}/responses/stale.json"] is None
 
 
 @dataclass
@@ -899,6 +1119,11 @@ class _QueueSandbox:
         timeout: int | None = None,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        call = _decode_helper(cmd, user)
+        if call is not None:
+            if call.cmd[:1] == ("tee",):
+                self.files[f"{call.path}/{call.cmd[-1]}"] = input or ""
+            return cast(ExecResult[str], _VERIFIED)
         if cmd[0] == "find":
             hits = [
                 path
@@ -910,9 +1135,6 @@ class _QueueSandbox:
             return cast(
                 ExecResult[str], FakeExecResult(stdout=self.files.get(cmd[-1], ""))
             )
-        if cmd[0] == "tee":
-            self.files[cmd[-1]] = input or ""
-            return cast(ExecResult[str], FakeExecResult())
         if cmd[0] == "rm":
             self.files.pop(cmd[-1], None)
             return cast(ExecResult[str], FakeExecResult())
@@ -1037,7 +1259,12 @@ class _DelayedWriteSandbox(_QueueSandbox):
         timeout: int | None = None,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        if cmd[0] == "tee" and "/responses/" in cmd[-1]:
+        call = _decode_helper(cmd, user)
+        if (
+            call is not None
+            and call.cmd[:1] == ("tee",)
+            and call.path.endswith("/responses")
+        ):
             await anyio.sleep(self.write_delay)
         return await super().exec(
             cmd, user=user, input=input, timeout=timeout, concurrency=concurrency
