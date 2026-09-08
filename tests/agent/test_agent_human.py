@@ -172,6 +172,31 @@ def test_human_cli_commands_filter_rejects_service_only_start() -> None:
         )
 
 
+def test_human_cli_commands_filter_rejects_cli_only_start() -> None:
+    class _CLIOnlyStartCommand(StartCommand):
+        @property
+        def contexts(self) -> list[Literal["cli", "service"]]:
+            return ["cli"]
+
+    def commands_filter(
+        commands: list[HumanAgentCommand],
+    ) -> list[HumanAgentCommand]:
+        return [
+            _CLIOnlyStartCommand() if command.name == "start" else command
+            for command in commands
+        ]
+
+    with pytest.raises(ValueError, match="start"):
+        human_agent_commands(
+            AgentState(messages=[]),
+            answer=True,
+            intermediate_scoring=False,
+            record_session=False,
+            instructions=None,
+            commands_filter=commands_filter,
+        )
+
+
 def test_human_cli_runs_stateful_appended_command(tmp_path: Path) -> None:
     def commands_filter(
         commands: list[HumanAgentCommand],
