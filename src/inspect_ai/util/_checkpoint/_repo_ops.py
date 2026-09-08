@@ -159,17 +159,20 @@ async def forget_unrecorded_snapshots(
     recorded_ids: Collection[str],
     required_id: str,
 ) -> list[str]:
-    """Forget every snapshot in ``repo`` that no committed checkpoint records.
+    """Remove snapshots that no committed checkpoint file records.
 
-    The sandbox strategy's orphan discard. ``recorded_ids`` are the
-    sandbox snapshot ids from every committed ``ckpt-*.json``;
-    ``required_id`` is the latest committed one — the snapshot
-    ``restore`` will materialize — and its absence from the adopted
-    repo is an error, raised before anything is forgotten. Everything
-    else is dropped: the ordinary orphan (a fire that captured but never
-    committed) and anything the sandbox wrote into its repo that no
-    checkpoint file acknowledges. Returns the forgotten snapshots' tags
-    for logging.
+    ``repo`` is the host-side restic repository copied from the previous
+    attempt for resume. It may contain snapshots from checkpoint attempts
+    that failed: their snapshot files arrived, but no checkpoint file was
+    written to commit them. Remove these leftovers before restoring the
+    sandbox.
+
+    ``recorded_ids`` contains the snapshot ids from committed checkpoint
+    files. ``required_id`` identifies the snapshot resume will restore.
+    Check that this required snapshot exists before removing anything;
+    if it is missing, raise an error.
+
+    Return the tags of the snapshots removed.
     """
     malformed = [
         i for i in {*recorded_ids, required_id} if not SNAPSHOT_ID_RE.fullmatch(i)

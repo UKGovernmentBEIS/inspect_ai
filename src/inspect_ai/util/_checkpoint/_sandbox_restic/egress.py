@@ -701,16 +701,20 @@ async def _verify_fresh_snapshot(
     tag: str,
     label: str,
 ) -> str:
-    """Require the destination's new snapshots to be the ones this fire wrote.
+    """Check that the sandbox's reported snapshot arrived on the host.
 
-    The snapshot ids the destination gained must equal the
-    ``snapshots/`` members in ``written`` (what the host itself placed
-    this cycle), must include the reported ``snapshot_id``, and that
-    snapshot must carry exactly ``[tag]``. Other new ids are in-sandbox
-    orphans from fires that failed between backup and commit; they are
-    accepted here and forgotten on resume because no checkpoint file
-    records them. Returns the reported snapshot's full id — the
-    host-verified value the checkpoint file records.
+    The destination is the host-side restic repository receiving files
+    from this sandbox. Compare its snapshots before and after the
+    transfer. The added snapshots must be exactly those whose files the
+    host just wrote. The snapshot reported by the sandbox must be one of
+    them and have exactly the expected checkpoint tag.
+
+    The transfer may include other snapshots left behind by failed
+    checkpoint attempts. Accept these too, but do not record them in the
+    checkpoint file. On resume, snapshots that no checkpoint file records
+    are removed.
+
+    Return the full id of the reported snapshot after these checks pass.
     """
     after = await _snapshot_tags(host_restic, dest_repo, password)
     lost = set(before_ids) - set(after)
