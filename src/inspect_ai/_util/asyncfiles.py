@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from aiobotocore.response import StreamingBody
     from boto3.s3.transfer import TransferConfig
 
-from inspect_ai._util._async import current_async_backend
+from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.file import FileInfo, file, filesystem, local_path
 
@@ -203,20 +203,82 @@ class _S3ETagCapture:
         return self.etag
 
 
-class _AsyncS3ETagCapture(_S3ETagCapture):
-    async def put_object(self, **kwargs: Any) -> dict[str, Any]:
-        return self._capture(await self._client.put_object(**kwargs))
-
-    async def complete_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
-        return self._capture(await self._client.complete_multipart_upload(**kwargs))
-
-
 class _SyncS3ETagCapture(_S3ETagCapture):
     def put_object(self, **kwargs: Any) -> dict[str, Any]:
         return self._capture(self._client.put_object(**kwargs))
 
     def complete_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
         return self._capture(self._client.complete_multipart_upload(**kwargs))
+
+
+async def _read_exactly(source: BinaryIO, size: int, io_chunksize: int) -> bytes:
+    data = bytearray()
+    while len(data) < size:
+        chunk = source.read(min(io_chunksize, size - len(data)))
+        if not chunk:
+            break
+        data += chunk
+        await anyio.sleep(0)
+
+    return bytes(data)
+
+
+async def _s3_multipart_upload_async(
+    client: Any,
+    source: BinaryIO,
+    bucket: str,
+    key: str,
+    first_part: bytes,
+    config: TransferConfig,
+) -> dict[str, Any]:
+    created = await client.create_multipart_upload(Bucket=bucket, Key=key)
+    upload_id = created["UploadId"]
+
+    async def upload_part(part_number: int, body: bytes) -> dict[str, Any]:
+        response = await client.upload_part(
+            Bucket=bucket,
+            Key=key,
+            UploadId=upload_id,
+            PartNumber=part_number,
+            Body=body,
+        )
+        return {"ETag": response["ETag"], "PartNumber": part_number}
+
+    try:
+        parts: list[dict[str, Any]] = []
+        pending = [first_part]
+        eof = False
+        while pending:
+            parts += await tg_collect(
+                [
+                    functools.partial(upload_part, len(parts) + i + 1, body)
+                    for i, body in enumerate(pending)
+                ]
+            )
+
+            pending = []
+            while not eof and len(pending) < config.max_request_concurrency:
+                body = await _read_exactly(
+                    source, config.multipart_chunksize, config.io_chunksize
+                )
+                eof = len(body) < config.multipart_chunksize
+                if body:
+                    pending.append(body)
+
+        response = await client.complete_multipart_upload(
+            Bucket=bucket,
+            Key=key,
+            UploadId=upload_id,
+            MultipartUpload={"Parts": parts},
+        )
+    except BaseException:
+        with anyio.CancelScope(shield=True), suppress(Exception):
+            await client.abort_multipart_upload(
+                Bucket=bucket, Key=key, UploadId=upload_id
+            )
+        raise
+
+    return cast(dict[str, Any], response)
 
 
 async def _s3_upload_fileobj_async(
@@ -226,28 +288,33 @@ async def _s3_upload_fileobj_async(
     key: str,
     config: TransferConfig | None = None,
 ) -> str | None:
-    """Run aioboto3's managed upload and capture its final response ETag."""
+    """Upload `source` to S3 and capture the final response ETag."""
     if not hasattr(client, "meta"):
         await client.upload_fileobj(
             Fileobj=source, Bucket=bucket, Key=key, Config=config
         )
         return None
 
-    # aioboto3's public upload_fileobj discards the final response. Call its
-    # injected implementation with a proxy so we can capture the exact
-    # PutObject/CompleteMultipartUpload ETag. This private-API coupling is
-    # guarded by the moto-backed multipart test and verified with aioboto3 15.5.0.
-    from aioboto3.s3.inject import upload_fileobj
+    from boto3.s3.transfer import TransferConfig
 
-    capture = _AsyncS3ETagCapture(client)
-    await upload_fileobj(
-        capture,
+    config = config or TransferConfig()
+    first_part = await _read_exactly(
         source,
-        bucket,
-        key,
-        Config=config,  # type: ignore[arg-type]
+        max(config.multipart_threshold, config.multipart_chunksize),
+        config.io_chunksize,
     )
-    return capture.require_etag()
+    if len(first_part) < config.multipart_threshold:
+        response = await client.put_object(Bucket=bucket, Key=key, Body=first_part)
+    else:
+        response = await _s3_multipart_upload_async(
+            client, source, bucket, key, first_part, config
+        )
+
+    etag = response.get("ETag")
+    if etag is None:
+        raise RuntimeError("S3 upload completed without returning an ETag")
+
+    return str(etag).strip('"')
 
 
 def _s3_upload_fileobj_sync(
@@ -283,7 +350,7 @@ class _RetiredClient(NamedTuple):
 class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     """Interface for reading/writing files that uses different interfaces depending on context
 
-    1. Use aioboto3 when accessing s3 under the asyncio backend
+    1. Use aiobotocore when accessing s3 under the asyncio backend
     2. Use boto3 with anyio.to_thread when using s3 under the trio backend
     3. Use fsspec when using any other filesystem
 
@@ -565,7 +632,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         place, so a partial download never masquerades as the file and an
         existing read-only target (restic writes repo files ``0400``) is
         replaced rather than opened for writing. boto3's ``download_file``
-        does this itself; aioboto3's opens the target in place. The
+        does this itself; the asyncio path streams into the temp file. The
         non-S3 branch copies in place.
         """
         if is_s3_filename(remote):
@@ -575,9 +642,16 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     client = await self.s3_client_async()
                     partial_path = f"{local}.{uuid.uuid4().hex}.part"
                     try:
-                        await client.download_file(
-                            Bucket=bucket, Key=key, Filename=partial_path
-                        )
+                        response = await client.get_object(Bucket=bucket, Key=key)
+                        body = response["Body"]
+                        try:
+                            with open(partial_path, "wb") as f:
+                                async for chunk in body.iter_chunks(
+                                    _STREAMING_COPY_BUFSIZE
+                                ):
+                                    f.write(chunk)
+                        finally:
+                            body.close()
                         os.replace(partial_path, local)
                     finally:
                         with suppress(FileNotFoundError):
@@ -943,11 +1017,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def _create_s3_client_async(
         anonymous: bool = False, region_name: str | None = None
     ) -> Any:
-        import aioboto3
         from aiobotocore.config import AioConfig
+        from aiobotocore.session import get_session
         from botocore import UNSIGNED
 
-        session = aioboto3.Session()
+        session = get_session()
         config = AioConfig(
             max_pool_connections=50,
             retries={"max_attempts": 10, "mode": "adaptive"},
@@ -959,7 +1033,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             response_checksum_validation="when_required",
             **({"signature_version": UNSIGNED} if anonymous else {}),
         )
-        return await session.client(
+        return await session.create_client(
             "s3", config=config, region_name=region_name
         ).__aenter__()
 
@@ -1038,8 +1112,8 @@ class _CloseShieldedReader:
     sync streaming write own the stream's lifecycle and reuse it after the
     upload — ``EvalRecorder.flush()`` reopens its temp-file zip after every
     flush — so the upload must not close it. (The multipart path reads parts
-    into memory and never closes the source; the async path uses aioboto3's
-    own ``upload_fileobj``, which doesn't close either.)
+    into memory and never closes the source; the async path reads parts into
+    memory and doesn't close either.)
 
     Everything except ``close`` is delegated via ``__getattr__`` so the proxy
     presents exactly the source's interface — s3transfer routes uploads by

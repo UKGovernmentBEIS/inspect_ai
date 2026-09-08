@@ -209,12 +209,6 @@
       "undescribed": 1
     }
   },
-  "src/inspect_ai/_util/asyncfiles.py": {
-    "type: ignore[arg-type]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "src/inspect_ai/_util/download.py": {
     "type: ignore[import-not-found]": {
       "count": 1,
@@ -760,12 +754,6 @@
       "undescribed": 3
     }
   },
-  "src/inspect_ai/model/_providers/bedrock.py": {
-    "type: ignore[call-overload]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "src/inspect_ai/model/_providers/google.py": {
     "type: ignore[arg-type]": {
       "count": 4,
@@ -841,17 +829,13 @@
     }
   },
   "src/inspect_ai/model/_providers/sagemaker.py": {
-    "type: ignore[call-overload]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[dict-item]": {
       "count": 1,
       "undescribed": 1
     },
     "type: ignore[import-untyped]": {
-      "count": 3,
-      "undescribed": 3
+      "count": 1,
+      "undescribed": 1
     }
   },
   "src/inspect_ai/model/_providers/sglang.py": {

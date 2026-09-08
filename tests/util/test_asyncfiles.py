@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import pytest
 from anyio import EndOfStream
+from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
 
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
@@ -15,6 +16,7 @@ from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     _current_async_fs,
     _RetiredClient,
+    _s3_upload_fileobj_async,
     get_async_filesystem,
     s3_bucket_and_key,
     s3_write_file_streaming,
@@ -644,6 +646,82 @@ async def test_write_file_streaming_s3_does_not_retry_non_retryable_error(
 
     assert exc_info.value.response["Error"]["Code"] == "AccessDenied"
     assert client.calls == 1
+
+
+class _MultipartClient:
+    """Fake aiobotocore S3 client recording a multipart upload."""
+
+    meta = object()
+
+    def __init__(self, fail_part: int | None = None) -> None:
+        self.fail_part = fail_part
+        self.parts: list[tuple[int, bytes]] = []
+        self.completed: list[dict[str, Any]] | None = None
+        self.aborted: list[str] = []
+
+    async def put_object(self, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("put_object must not be used above the threshold")
+
+    async def create_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
+        return {"UploadId": "upload-1"}
+
+    async def upload_part(
+        self, PartNumber: int, Body: bytes, UploadId: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        assert UploadId == "upload-1"
+        if PartNumber == self.fail_part:
+            raise ClientError(
+                cast(Any, {"Error": {"Code": "InternalError", "Message": "boom"}}),
+                "UploadPart",
+            )
+        self.parts.append((PartNumber, Body))
+        return {"ETag": f'"etag-{PartNumber}"'}
+
+    async def complete_multipart_upload(
+        self, MultipartUpload: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
+        self.completed = MultipartUpload["Parts"]
+        return {"ETag": '"final-etag-3"'}
+
+    async def abort_multipart_upload(self, UploadId: str, **kwargs: Any) -> None:
+        self.aborted.append(UploadId)
+
+
+_SMALL_PARTS = functools.partial(
+    TransferConfig, multipart_threshold=4, multipart_chunksize=4, max_concurrency=2
+)
+
+
+async def test_s3_upload_async_multipart_exact_multiple_of_chunksize() -> None:
+    client = _MultipartClient()
+    source = io.BytesIO(b"aaaabbbbcccc")
+
+    etag = await _s3_upload_fileobj_async(
+        client, source, "bucket", "key", _SMALL_PARTS()
+    )
+
+    assert etag == "final-etag-3"
+    assert sorted(client.parts) == [(1, b"aaaa"), (2, b"bbbb"), (3, b"cccc")]
+    assert client.completed == [
+        {"ETag": '"etag-1"', "PartNumber": 1},
+        {"ETag": '"etag-2"', "PartNumber": 2},
+        {"ETag": '"etag-3"', "PartNumber": 3},
+    ]
+    assert client.aborted == []
+    assert not source.closed
+
+
+async def test_s3_upload_async_multipart_aborts_on_part_failure() -> None:
+    client = _MultipartClient(fail_part=2)
+
+    with pytest.raises(ClientError) as exc_info:
+        await _s3_upload_fileobj_async(
+            client, io.BytesIO(b"aaaabbbbcc"), "bucket", "key", _SMALL_PARTS()
+        )
+
+    assert exc_info.value.response["Error"]["Code"] == "InternalError"
+    assert client.completed is None
+    assert client.aborted == ["upload-1"]
 
 
 # =============================================================================
