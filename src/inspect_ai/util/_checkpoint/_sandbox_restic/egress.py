@@ -547,7 +547,8 @@ def _extract_verified(
     bytes must stay within ``max_bytes``. Header processing is limited to
     64 KiB per member before tarfile can allocate from declared sizes.
     Each member streams through a hash to a temp name beside its
-    destination and is renamed into place only if the hash equals its basename (``config`` excepted).
+    destination and is renamed into place only if the hash equals its
+    basename (``config`` excepted).
     New ``config``/``keys/*`` files are accepted only on the first
     cycle. A member already present in ``dest_repo`` is accepted
     without writing only when the shipped bytes are the existing bytes
