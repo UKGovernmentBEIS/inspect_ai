@@ -384,6 +384,92 @@ def test_tools_tree_is_inaccessible_to_default_user_after_root_injection():
 
 
 @pytest.mark.slow
+def test_injection_ignores_archive_planted_at_former_staging_path():
+    """A non-root default user plants files where older releases staged the archive.
+
+    The archive travels to `tar` on stdin, so injection must neither read nor touch
+    the planted files, and the genuine tools must come up.
+    """
+    planted = [f"{SANDBOX_TOOLS_DIR}.pkg.tgz", f"{SANDBOX_TOOLS_DIR}.pkg.tar"]
+    setup = "".join(f"printf planted > {path}\n" for path in planted)
+    probe = "; ".join(f"cat {path}" for path in planted)
+    task = Task(
+        dataset=[Sample(input="probe", setup=f"#!/bin/sh\n{setup}")],
+        solver=[use_tools([bash_session()]), generate()],
+        scorer=match(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="bash_session",
+                tool_arguments={
+                    "action": "type_submit",
+                    "input": f"{probe}; echo; echo probe-done",
+                },
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="All done."),
+        ],
+    )
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    messages = log.samples[0].messages
+    tool_call = get_tool_call(messages, "bash_session")
+    assert tool_call
+    response = get_tool_response(messages, tool_call)
+    assert response
+    assert response.error is None, f"Tool call returns error: {response.error}"
+    assert "plantedplanted\nprobe-done" in response.text
+
+
+@pytest.mark.slow
+def test_injection_falls_back_to_uncompressed_tar_without_gzip():
+    """Injection falls back to the uncompressed tar when `tar` cannot gunzip.
+
+    The first `tar xzf` exits without reading its stdin, which is the case where an
+    unhandled broken stdin write would abort injection instead of falling back.
+    """
+    task = Task(
+        dataset=[Sample(input="probe")],
+        solver=[use_tools([bash_session()]), generate()],
+        scorer=match(),
+        sandbox=(
+            "docker",
+            str(Path(__file__).parent / ".." / "test_sandbox_compose_nogzip.yaml"),
+        ),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="bash_session",
+                tool_arguments={
+                    "action": "type_submit",
+                    "input": "command -v gzip || echo no-gzip; echo probe-done",
+                },
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="All done."),
+        ],
+    )
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    messages = log.samples[0].messages
+    tool_call = get_tool_call(messages, "bash_session")
+    assert tool_call
+    response = get_tool_response(messages, tool_call)
+    assert response
+    assert response.error is None, f"Tool call returns error: {response.error}"
+    assert "no-gzip\nprobe-done" in response.text
+
+
+@pytest.mark.slow
 def test_text_editor_relative_path():
     file_content = "here's the file contents"
     task = Task(

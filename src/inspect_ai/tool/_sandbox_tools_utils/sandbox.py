@@ -298,7 +298,8 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
             raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
     except Exception as e:
         raise SandboxInjectionError(
-            f"Failed to inject sandbox tools into sandbox: {e}", cause=e
+            f"Failed to inject sandbox tools into sandbox: {str(e) or type(e).__name__}",
+            cause=e,
         ) from e
 
 
@@ -343,13 +344,22 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
         return False
 
 
+_EXTRACT_TIMEOUT = 600
+"""Bounds the archive transfer and extraction (docker `write_file`'s timeout, which
+carried the transfer before); a timeout also arms compose's retry of a hung exec."""
+
+
 async def _extract_tools_tree(
     sandbox: SandboxEnvironment, name: str, gz_bytes: bytes, user: str | None
 ) -> None:
     """Extract the gzipped onedir tar into SANDBOX_TOOLS_DIR.
 
-    The artifact is staged to a temp file via write_file (which base64-encodes binary
-    content reliably; raw binary stdin through exec is not safe) and then extracted.
+    The archive travels to `tar` on stdin, so no copy of it exists at a path another
+    principal could write to before the tools user reads it. `write_file` cannot do
+    this: it has no `user` parameter, so it stages as the default user, and a
+    root-owned 0700 directory is closed to that user. Large binary stdin is part of the
+    sandbox contract (`self_check`), though a provider that inlines stdin into a shell
+    script may cap it lower; the uncompressed fallback is the largest payload here.
     Extraction runs through the framework-directory helper, so `tar` unpacks into the
     verified directory object (its cwd) rather than into whatever the path names at
     that moment.
@@ -358,19 +368,20 @@ async def _extract_tools_tree(
     container's `tar` lacks gzip support, fall back to injecting an uncompressed tar,
     which only needs plain `tar xf` (the broadest assumption). The uncompressed tar is
     cached in the binaries dir so we decompress at most once per artifact.
+
+    A failing `tar` exits before reading stdin, and providers then raise on the broken
+    stdin write instead of returning tar's status, so on failure the wrapper drains
+    stdin and fails explicitly.
     """
-    gz_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tgz"
-    await sandbox.write_file(gz_tmp, gz_bytes)
-    try:
-        result = await exec_in_framework_directory(
-            sandbox,
-            SANDBOX_TOOLS_DIR,
-            ["tar", "xzf", gz_tmp],
-            user=user,
-            expected_uid=_expected_uid(user),
-        )
-    finally:
-        await _remove_staged_archive(sandbox, gz_tmp, user)
+    result = await exec_in_framework_directory(
+        sandbox,
+        SANDBOX_TOOLS_DIR,
+        ["sh", "-c", "tar xzf - || { cat >/dev/null; exit 1; }"],
+        user=user,
+        expected_uid=_expected_uid(user),
+        input=gz_bytes,
+        timeout=_EXTRACT_TIMEOUT,
+    )
     if result.success:
         return
 
@@ -380,55 +391,17 @@ async def _extract_tools_tree(
         TRACE_SANDBOX_TOOLS,
         f"tar xzf failed ({result.stderr.strip()}); retrying with uncompressed tar",
     )
-    tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
-    await sandbox.write_file(tar_tmp, _uncompressed_tar_bytes(name, gz_bytes))
-    try:
-        result = await exec_in_framework_directory(
-            sandbox,
-            SANDBOX_TOOLS_DIR,
-            ["tar", "xf", tar_tmp],
-            user=user,
-            expected_uid=_expected_uid(user),
-        )
-    finally:
-        await _remove_staged_archive(sandbox, tar_tmp, user)
+    result = await exec_in_framework_directory(
+        sandbox,
+        SANDBOX_TOOLS_DIR,
+        ["sh", "-c", "tar xf - || { cat >/dev/null; exit 1; }"],
+        user=user,
+        expected_uid=_expected_uid(user),
+        input=_uncompressed_tar_bytes(name, gz_bytes),
+        timeout=_EXTRACT_TIMEOUT,
+    )
     if not result.success:
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
-
-
-async def _remove_staged_archive(
-    sandbox: SandboxEnvironment, path: str, user: str | None
-) -> None:
-    """Best-effort removal of a staged archive, as the extraction user.
-
-    Runs through the framework-directory helper rather than as a bare-name ``rm``
-    so the command resolves through the helper's pinned ``PATH``, not the image's
-    (this runs as root in a root-capable sandbox, and in a ``finally``, so it would
-    otherwise run even right after verification refused a planted entry). A helper
-    verdict here means the tools directory is gone or untrusted; the archive is then
-    left behind rather than masking the exception that is already propagating.
-    """
-    try:
-        result = await exec_in_framework_directory(
-            sandbox,
-            SANDBOX_TOOLS_DIR,
-            ["rm", "-f", path],
-            user=user,
-            expected_uid=_expected_uid(user),
-        )
-    except RuntimeError as ex:
-        # Covers every helper verdict (all subclass RuntimeError) as well as the
-        # helper's own "check never ran" failure; anything else propagates.
-        trace_message(
-            logger, TRACE_SANDBOX_TOOLS, f"staged archive {path} not removed: {ex}"
-        )
-        return
-    if not result.success:
-        trace_message(
-            logger,
-            TRACE_SANDBOX_TOOLS,
-            f"staged archive {path} not removed: {result.stderr.strip()}",
-        )
 
 
 def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:
