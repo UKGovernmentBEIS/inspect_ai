@@ -28,6 +28,7 @@ from inspect_ai.agent import (
 )
 from inspect_ai.agent._human import install as human_install
 from inspect_ai.agent._human.commands import human_agent_commands, submit
+from inspect_ai.agent._human.commands.clock import StartCommand
 from inspect_ai.agent._human.commands.instructions import InstructionsCommand
 from inspect_ai.agent._human.commands.submit import QuitCommand, SubmitCommand
 from inspect_ai.agent._human.install import (
@@ -134,6 +135,31 @@ def test_human_cli_commands_filter_rejects_dropping_start() -> None:
         commands: list[HumanAgentCommand],
     ) -> list[HumanAgentCommand]:
         return [command for command in commands if command.name != "start"]
+
+    with pytest.raises(ValueError, match="start"):
+        human_agent_commands(
+            AgentState(messages=[]),
+            answer=True,
+            intermediate_scoring=False,
+            record_session=False,
+            instructions=None,
+            commands_filter=commands_filter,
+        )
+
+
+def test_human_cli_commands_filter_rejects_service_only_start() -> None:
+    class _ServiceOnlyStartCommand(StartCommand):
+        @property
+        def contexts(self) -> list[Literal["cli", "service"]]:
+            return ["service"]
+
+    def commands_filter(
+        commands: list[HumanAgentCommand],
+    ) -> list[HumanAgentCommand]:
+        return [
+            _ServiceOnlyStartCommand() if command.name == "start" else command
+            for command in commands
+        ]
 
     with pytest.raises(ValueError, match="start"):
         human_agent_commands(
