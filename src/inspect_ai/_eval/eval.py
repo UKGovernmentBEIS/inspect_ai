@@ -118,6 +118,7 @@ from .task.enqueue import (
 from .task.images import InputMediaPolicy
 from .task.resolved import ResolvedTask, resolved_model_names, resolved_task_names
 from .task.tasks import Tasks
+from .task_defaults import with_task_defaults_async
 
 log = logging.getLogger(__name__)
 
@@ -186,6 +187,7 @@ def eval(
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     run_config: str | None = None,
+    default_config: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -326,6 +328,8 @@ def eval(
         run_config: Run config file to apply, as for `inspect eval --run-config`.
             Supplied arguments take precedence over its values; task args,
             model args and model roles merge by key.
+        default_config: Apply run configuration files attached to task
+            definitions via `@task(default_config=...)` (defaults to True).
         **kwargs: Model generation options.
 
     Returns:
@@ -349,6 +353,7 @@ def eval(
                 model_args=model_args,
                 model_roles=model_roles,
                 task_args=task_args,
+                default_config=default_config,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
                 sandbox_prebuilt=sandbox_prebuilt,
@@ -432,6 +437,7 @@ _eval_async_running = False
 
 
 @with_run_config_async
+@with_task_defaults_async
 async def eval_async(
     tasks: Tasks = None,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
@@ -493,6 +499,7 @@ async def eval_async(
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     run_config: str | None = None,
+    default_config: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -603,6 +610,8 @@ async def eval_async(
         run_config: Run config file to apply, as for `inspect eval --run-config`.
             Supplied arguments take precedence over its values; task args,
             model args and model roles merge by key.
+        default_config: Apply run configuration files attached to task
+            definitions via `@task(default_config=...)` (defaults to True).
         **kwargs: Model generation options.
 
     Returns:
@@ -639,6 +648,7 @@ async def eval_async(
                 model_args=model_args,
                 model_roles=model_roles,
                 task_args=task_args,
+                default_config=default_config,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
                 sandbox_prebuilt=sandbox_prebuilt,
@@ -773,6 +783,7 @@ async def _eval_async_inner(
     eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
+    default_config: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     from inspect_ai.hooks._hooks import emit_run_end, emit_run_start

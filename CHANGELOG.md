@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Evaluation: Apply run configuration files from Python with `eval(run_config=...)`, using the same override rules as `--run-config`, and read and validate them without initializing models using `read_run_config()`. `tasks` is now optional for `eval()` and `eval_async()`, so a file that names its task can run on its own.
+- Tasks: Attach default run configuration files to task definitions, with runtime overrides, opt-out, and configuration provenance in evaluation logs.
 - Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
 - Bugfix: `self_critique()`, and `model_graded_qa()`/`model_graded_fact()` with `model_role=None`, now critique or grade with the correct model when one task is evaluated against several models.
 

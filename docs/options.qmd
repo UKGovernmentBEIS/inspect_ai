@@ -62,6 +62,8 @@ For more detail on the different methods of configuration, see [Configuration](t
 |--|--|
 | `--run-config` | YAML or JSON file with the complete run configuration — task, model, model roles, generate config, solver, and eval config — in one place. Explicit CLI flags override values from this file. Cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. See [Run Config File](tasks.qmd#run-config). |
 
+Use `--no-default-config` to skip run configuration files attached to task definitions. The corresponding Python option is `default_config=False`, and the environment variable is `INSPECT_EVAL_NO_DEFAULT_CONFIG`. Selecting `--run-config` also replaces any attached default. See [Default Run Config](tasks.qmd#default-run-config).
+
 ## Model Provider
 
 |                    |                                              |
