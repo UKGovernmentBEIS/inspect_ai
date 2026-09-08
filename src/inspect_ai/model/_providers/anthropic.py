@@ -209,6 +209,9 @@ from ._anthropic_batch import AnthropicBatcher
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
+    forced_tool_choice_degraded_metadata,
+    is_claude_fable_5_1_model,
+    is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
     require_azure_base_url,
@@ -238,6 +241,19 @@ _DISABLED_THINKING_EFFORT_WARNING = (
     "anthropic model '{model}' rejects disabled thinking (reasoning_effort="
     "'none') combined with effort above 'high'; clamping effort to 'high'."
 )
+_FORCED_TOOL_CHOICE_WARNING = (
+    "anthropic model '{model}' does not support forced tool choice "
+    "(tool_choice 'any' or a specific tool returns a 400 error); using "
+    "tool_choice 'auto' instead."
+)
+_THINKING_DROPPED_WARNING = (
+    "anthropic model '{model}' dropped replayed thinking block(s) from the "
+    "request (reason: {reason}), so their reasoning is no longer visible to "
+    "the model. A prefix_binding_mismatch reason means earlier conversation "
+    "content (system prompt, tools, or messages) changed after the blocks "
+    "were produced. Per-request details are recorded in the model output "
+    "metadata under extra_body.input_transformations."
+)
 _MID_CONV_SYSTEM_HOISTED_WARNING = (
     "anthropic: {count} mid-conversation system message(s) were repositioned "
     "to the top-level system field because their placement violated the API "
@@ -253,6 +269,7 @@ _REMINDER_SYSTEM_HOISTED_WARNING = (
     "cache context on tool-use continuations."
 )
 _CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
+_THINKING_BINDING_BETA = "thinking-binding-controls-2026-08-01"
 _CACHE_MISS_WARNING = (
     "anthropic cache diagnostics: cache miss detected (reason: {reason})."
 )
@@ -520,8 +537,17 @@ class AnthropicAPI(ModelAPI):
             if system_param is not None:
                 request["system"] = system_param
             request["tools"] = tools_param
-            if len(tools_param) > 0 and not self.is_using_thinking(config):
-                request["tool_choice"] = message_tool_choice(tool_choice, config)
+            # with thinking active, tool_choice is omitted entirely (the API
+            # rejects forced tool choice with thinking; long-standing behavior
+            # for all Claude models)
+            tool_choice_degraded = False
+            if len(tools_param) > 0:
+                resolved_choice = self.resolved_tool_choice(tool_choice)
+                tool_choice_degraded = resolved_choice != tool_choice
+                if not self.is_using_thinking(config):
+                    request["tool_choice"] = message_tool_choice(
+                        resolved_choice, config
+                    )
 
             # additional options
             req, extra_body, headers, betas = self.completion_config(config)
@@ -536,6 +562,8 @@ class AnthropicAPI(ModelAPI):
                 self.is_claude_4() or self.is_claude_5() or self.is_claude_latest()
             ):
                 betas.append("interleaved-thinking-2025-05-14")
+
+            self.apply_thinking_block_binding(request, betas)
 
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
@@ -640,6 +668,11 @@ class AnthropicAPI(ModelAPI):
             model_call.set_response(response, self._http_hooks.end_request(request_id))
 
             _warn_refusal_without_fallback(self, config, output)
+
+            if tool_choice_degraded:
+                output.metadata = (
+                    output.metadata or {}
+                ) | forced_tool_choice_degraded_metadata(tool_choice)
 
             return output, model_call
 
@@ -1197,6 +1230,50 @@ class AnthropicAPI(ModelAPI):
         # tier-named (opus/sonnet) models.
         return self.is_claude_sonnet_5() or self.is_claude_opus_5()
 
+    def apply_thinking_block_binding(
+        self, request: dict[str, Any], betas: list[str]
+    ) -> None:
+        """Opt into dropping prefix-mismatched thinking blocks on Fable 5.1.
+
+        Fable 5.1 binds thinking blocks to the request prefix that produced
+        them; solvers legitimately edit history, and without drop_block such an
+        edit fails the replay with a 400. Applied to every Fable 5.1 request —
+        not only those replaying thinking blocks — so the beta header stays
+        uniform across a task's requests (the batcher submits a single header
+        set per batch). Mythos 5.1 does not run the binding check, so it is
+        excluded. First-party API only for now: the binding-controls beta
+        arrives per model on bedrock/vertex (the header is rejected until
+        then) and is not offered on foundry — until those platforms enable it,
+        a history edit there will still 400. A caller-supplied
+        `extra_body.thinking` shallow-merges over the request body and
+        replaces this binding config.
+        """
+        if (
+            self.is_claude_fable_5_1_or_later()
+            and "mythos" not in self.model_family()
+            and not (self.is_bedrock() or self.is_vertex() or self.is_azure())
+        ):
+            betas.append(_THINKING_BINDING_BETA)
+            # thinking is always on for these models, so explicit adaptive
+            # (the server default) is accepted when the field was omitted
+            request.setdefault("thinking", {"type": "adaptive"})["block_binding"] = {
+                "prefix_mismatch_behavior": "drop_block"
+            }
+
+    def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
+        """Degrade forced tool choice to auto on models that reject it (400).
+
+        "auto" and "none" pass through unchanged; strict tool use with auto
+        remains the schema-enforcement path on Fable/Mythos 5.1.
+        """
+        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
+            warn_once(
+                logger,
+                _FORCED_TOOL_CHOICE_WARNING.format(model=self.service_model_name()),
+            )
+            return "auto"
+        return tool_choice
+
     def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
         """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
 
@@ -1270,6 +1347,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_opus_5(self) -> bool:
         return self.is_claude_5() and "opus" in self.model_family()
+
+    def is_claude_fable_5_1_or_later(self) -> bool:
+        return is_claude_fable_5_1_model(self.model_family())
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -3510,6 +3590,24 @@ async def model_output_from_message(
     metadata: dict[str, Any] | None = (
         {"extra_body": dict(extra_body)} if extra_body else None
     )
+
+    # thinking block binding (Fable 5.1): with the thinking-binding
+    # beta, replayed thinking blocks the server dropped (e.g. after a history
+    # edit) are reported via input_transformations. Warn so callers know
+    # reasoning context was lost; the raw entries (including the message path
+    # of each dropped block) are captured under metadata["extra_body"] above.
+    for transformation in extra_body.get("input_transformations") or []:
+        if (
+            isinstance(transformation, dict)
+            and transformation.get("type") == "thinking_dropped"
+        ):
+            warn_once(
+                logger,
+                _THINKING_DROPPED_WARNING.format(
+                    model=message.model,
+                    reason=transformation.get("reason", "unspecified"),
+                ),
+            )
 
     # server-side refusal fallback: record a typed ModelFallback so log
     # analysis can detect a fallback without parsing assistant content. the

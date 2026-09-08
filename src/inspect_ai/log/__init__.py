@@ -66,8 +66,10 @@ from ._log import (
 )
 from ._metric import recompute_metrics
 from ._recover import (
+    IncompleteAction,
     RecoverableEvalLog,
     RecoveryNotAvailable,
+    RecoveryThresholdExceeded,
     recover_eval_log,
     recoverable_eval_logs,
 )
@@ -147,8 +149,10 @@ __all__ = [
     "uninvalidate_samples",
     "recover_eval_log",
     "recoverable_eval_logs",
+    "IncompleteAction",
     "RecoverableEvalLog",
     "RecoveryNotAvailable",
+    "RecoveryThresholdExceeded",
     "ConnectionLimitChange",
 ]
 

@@ -3242,6 +3242,17 @@
               }
             ]
           },
+          "logged_samples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logged Samples"
+          },
           "metadata": {
             "anyOf": [
               {
@@ -5677,6 +5688,17 @@
               }
             ],
             "title": "Stop Seqs"
+          },
+          "stream_idle_timeout": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stream Idle Timeout"
           },
           "system_message": {
             "anyOf": [

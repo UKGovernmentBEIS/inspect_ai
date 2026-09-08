@@ -920,12 +920,22 @@ def _pass_superseded(state: "EvalState") -> bool:
     have further samples held. (A finished-but-parked eval under
     ``--ctl-server=keep`` is still scoreable — its pass has no in-flight
     samples, so this check never fires for it.)
+
+    A stamped ``"drain"`` does not supersede the pass: the task keeps running
+    and its in-flight samples finish naturally, so holding one is no
+    different from holding it before the drain — and "how are the samples
+    I'm letting finish doing?" is exactly what a draining operator asks.
+    The other stamps do: ``"score"``/``"error"`` are already resolving the
+    in-flight samples, ``"abort"``/``"retry"`` are tearing the task down.
     """
     from inspect_ai._control.eval_state import latest_eval_for_task
 
     if state.completed_at is not None or state.live is None:
         return True
-    if state.task_cancel is not None and state.task_cancel.cancel_type is not None:
+    if state.task_cancel is not None and state.task_cancel.cancel_type not in (
+        None,
+        "drain",
+    ):
         return True
     return latest_eval_for_task(state.task_id) is not state
 

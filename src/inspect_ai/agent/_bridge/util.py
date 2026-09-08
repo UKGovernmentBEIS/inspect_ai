@@ -30,7 +30,11 @@ from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    ResponseSchema,
+    active_generate_config,
+)
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -126,13 +130,24 @@ def validate_client_config(config: GenerateConfig) -> None:
             f"generation parameter in bridged request is not serializable ({ex})"
         ) from ex
     except ValidationError as ex:
-        details = "; ".join(
-            f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
-            for err in ex.errors()
-        )
         raise BridgePolicyError(
-            f"invalid generation parameter in bridged request ({details})"
+            "invalid generation parameter in bridged request "
+            f"({_validation_error_details(ex)})"
         ) from ex
+
+
+def _validation_error_details(ex: ValidationError, prefix: str = "") -> str:
+    """Render a `ValidationError` as `loc: msg` pairs for a client-facing 400.
+
+    A top-level type failure (e.g. validating a plain string against a model)
+    has an empty `loc`; the path segment (and the prefix's trailing joiner) is
+    omitted then, rather than rendered as a dangling `:` separator.
+    """
+    details: list[str] = []
+    for err in ex.errors():
+        path = (prefix + ".".join(str(p) for p in err["loc"])).rstrip(".")
+        details.append(f"{path}: {err['msg']}" if path else err["msg"])
+    return "; ".join(details)
 
 
 # schema-valued positions `JSONSchema` models, i.e. where a nested schema (or a
@@ -186,8 +201,14 @@ def _unmodelled_schema_keywords(schema: Any) -> set[str]:
     return dropped
 
 
-def client_json_schema(schema: dict[str, Any], dialect_field: str) -> JSONSchema:
+def client_json_schema(
+    schema: Any, dialect_field: str, *, dialect_keywords: frozenset[str] = frozenset()
+) -> JSONSchema:
     """Parse a client-supplied JSON Schema, answering 400 rather than escaping.
+
+    `schema` is deliberately `Any`, not `dict`: a non-dict client value is
+    in-contract and must reach `model_validate` to produce the 400 -- callers
+    must not pre-enforce dict-ness.
 
     `JSONSchema.model_validate` raises `ValidationError`, and an uncaught one here
     is worse than the bad value that caused it: `provider_error_payload` reports
@@ -203,8 +224,15 @@ def client_json_schema(schema: dict[str, Any], dialect_field: str) -> JSONSchema
     so rejecting would be a regression against talking to it unbridged -- but the
     warning is what makes it diagnosable, since the client otherwise just sees a
     response that fails its own validation.
+
+    Pass `dialect_keywords` when the input is not standard JSON Schema (e.g.
+    Gemini's OpenAPI-style `responseSchema`): keywords native to that dialect
+    appear on routine requests, so a JSON Schema-phrased warning about them
+    would misread the request as degraded. Keywords outside the set still warn
+    -- a dropped constraint the dialect shares with JSON Schema (e.g.
+    `minItems`) weakens the request just as much there.
     """
-    if dropped := _unmodelled_schema_keywords(schema):
+    if dropped := _unmodelled_schema_keywords(schema) - dialect_keywords:
         warn_once(
             logger,
             f"The bridged request's {dialect_field} uses JSON Schema keywords "
@@ -216,13 +244,92 @@ def client_json_schema(schema: dict[str, Any], dialect_field: str) -> JSONSchema
     try:
         return JSONSchema.model_validate(schema)
     except ValidationError as ex:
-        details = "; ".join(
-            f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
-            for err in ex.errors()
-        )
         raise BridgePolicyError(
-            f"invalid response schema in bridged request ({dialect_field}: {details})"
+            "invalid response schema in bridged request "
+            f"({dialect_field}: {_validation_error_details(ex)})"
         ) from ex
+
+
+def client_response_schema(
+    *,
+    name: Any,
+    json_schema: JSONSchema,
+    dialect_field: str,
+    description: Any = None,
+    strict: Any = None,
+) -> ResponseSchema:
+    """Construct a `ResponseSchema` from client-supplied fields, answering 400.
+
+    `ResponseSchema` validates on construction, so a non-string `name` or
+    `description` (or a non-bool `strict`) read straight off the client request
+    escapes as a raw `ValidationError` -- the same status-less failure
+    `client_json_schema` exists to prevent for the sibling `schema` field. Route
+    it to the same 400 the real API answers.
+    """
+    try:
+        return ResponseSchema(
+            name=name, json_schema=json_schema, description=description, strict=strict
+        )
+    except ValidationError as ex:
+        raise BridgePolicyError(
+            "invalid response schema in bridged request "
+            f"({_validation_error_details(ex, f'{dialect_field}.')})"
+        ) from ex
+
+
+def client_request_object(value: Any, dialect_field: str) -> dict[str, Any] | None:
+    """Require a client request field to be a JSON object (or absent).
+
+    A non-dict container dereferenced with `.get` escapes as a raw
+    `AttributeError` -- the same status-less failure `client_json_schema`
+    prevents for the leaf values inside it -- so answer the 400 the real APIs
+    give for a mistyped container.
+    """
+    if value is None or isinstance(value, dict):
+        return value
+    raise BridgePolicyError(
+        f"invalid request field in bridged request ({dialect_field}: input "
+        f"should be an object, got {type(value).__name__})"
+    )
+
+
+def client_request_string(value: Any, dialect_field: str) -> str:
+    """Require a client request field to be a string.
+
+    Guards leaf values that feed unvalidated dataclasses such as `ToolFunction`:
+    a non-string tool name is legal in memory, serializes into the `ModelEvent`,
+    and then fails transcript read-back for the whole sample (a failure
+    `validate_client_config` cannot backstop, since `tool_choice` is not on
+    `GenerateConfig`). A missing one used to escape as a status-less `KeyError`.
+    Answer the 400 the real APIs give instead.
+    """
+    if isinstance(value, str):
+        return value
+    raise BridgePolicyError(
+        f"invalid request field in bridged request ({dialect_field}: input "
+        f"should be a string, got {type(value).__name__})"
+    )
+
+
+def tool_choice_from_openai_string(value: str, dialect_field: str) -> ToolChoice:
+    """Map an OpenAI string-form `tool_choice` (`auto`/`none`/`required`) to Inspect's.
+
+    Shared by the Chat Completions and Responses dialects, which accept the same
+    string set, so the accepted values and the 400 wording cannot drift apart.
+    Callers handle the object form; any other string answers 400.
+    """
+    match value:
+        case "auto":
+            return "auto"
+        case "none":
+            return "none"
+        case "required":
+            return "any"
+        case invalid:
+            raise BridgePolicyError(
+                f"invalid request field in bridged request ({dialect_field}: expected "
+                f"one of 'auto', 'none', 'required' or an object, got {invalid!r})"
+            )
 
 
 _bridge_model_generate: ContextVar[bool] = ContextVar(
@@ -478,6 +585,9 @@ async def bridge_generate(
         # never sees the rejected response.
         reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
         if reviewed.rejection is None:
+            bridge.register_tool_execution_grants(
+                reviewed.output.message.tool_calls or []
+            )
             return reviewed.output, c_message
 
         rejections += 1

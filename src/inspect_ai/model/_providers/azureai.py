@@ -1,13 +1,15 @@
 import functools
 import json
 import os
+import re
 from copy import copy
 from logging import getLogger
-from typing import Any
+from typing import Any, AsyncIterator, Literal, cast
 
 from azure.ai.inference.aio import ChatCompletionsClient
 from azure.ai.inference.models import (
     AssistantMessage,
+    AsyncStreamingChatCompletions,
     ChatChoice,
     ChatCompletions,
     ChatCompletionsNamedToolChoice,
@@ -23,6 +25,7 @@ from azure.ai.inference.models import (
     FunctionDefinition,
     ImageContentItem,
     ImageUrl,
+    StreamingChatCompletionsUpdate,
     SystemMessage,
     TextContentItem,
     ToolMessage,
@@ -32,6 +35,8 @@ from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import (
     AzureError,
     HttpResponseError,
+    IncompleteReadError,
+    ServiceRequestError,
     ServiceResponseError,
 )
 from typing_extensions import override
@@ -44,6 +49,7 @@ from inspect_ai._util.http import (
     parse_retry_after_from_exception,
 )
 from inspect_ai._util.images import inline_media_data_uri
+from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
@@ -73,9 +79,18 @@ from .._openai import (
     openai_media_filter,
     openai_stop_details,
 )
+from .._stream import (
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 from .util import (
     environment_prerequisite_error,
     model_base_url,
+    normalize_stream_arg,
 )
 from .util.chatapi import ChatAPIHandler
 from .util.llama31 import Llama31Handler
@@ -115,6 +130,20 @@ def _is_openai_model(name: str) -> bool:
     )
 
 
+class AzureAIStreamError(Exception):
+    """A chat-completions stream failed or ended before completing.
+
+    `azure-ai-inference` does no error-event handling: a non-`data:` SSE line
+    (e.g. an `event: error` frame) raises a bare `ValueError` from the update
+    iterator, and an OpenAI-style `data: {"error": ...}` frame is parsed and
+    then silently dropped, so the accumulator only sees a stream that ends
+    without a finish reason. Both are raised as this error and classified as
+    transient by `should_retry`: auto-streaming enabled by a display-only
+    `on_stream` callback must not turn a retried condition into a permanently
+    failed sample, nor into a successful but truncated output.
+    """
+
+
 class AzureAIAPI(ModelAPI):
     def __init__(
         self,
@@ -122,8 +151,13 @@ class AzureAIAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        streaming: bool | Literal["auto"] = "auto",
         **model_args: Any,
     ):
+        # record streaming preference (unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
+
         # Check for explicit org prefix: azureai/moonshotai/kimi-k2.5 -> org=moonshotai
         # We keep the full model_name (including prefix) so it appears in logs
         # but use service_model_name() for actual API calls
@@ -220,11 +254,15 @@ class AzureAIAPI(ModelAPI):
         if handler:
             input = handler.input_with_tools(input, tools)
 
-        # prepare request
+        # prepare request (resolve streaming while building it, so the
+        # ModelCall snapshot below matches the wire request)
+        streaming = self.resolve_streaming()
         request = dict(
             messages=await chat_request_messages(input, handler, self.is_mistral()),
             **self.completion_params(config),
         )
+        if streaming:
+            request["stream"] = True
         # newer versions of vllm reject requests with tools or tool_choice if the
         # server hasn't been started explicitly with the --tool-call-parser and
         # --enable-auto-tool-choice flags
@@ -263,9 +301,30 @@ class AzureAIAPI(ModelAPI):
 
         # make call
         try:
-            response: ChatCompletions = await client.complete(**request)
+            if streaming:
+                updates = cast(
+                    AsyncStreamingChatCompletions, await client.complete(**request)
+                )
+                try:
+                    response = await azureai_completion_from_stream(updates)
+                finally:
+                    await updates.aclose()
+            else:
+                response = cast(ChatCompletions, await client.complete(**request))
 
             model_call.set_response(response.as_dict())
+
+            # a streamed response may end without a usage chunk (e.g. servers
+            # that only report usage when stream_options.include_usage is
+            # set, which the azure-ai-inference API does not expose) — warn
+            # rather than under-count silently
+            if streaming and response.usage is None:
+                warn_once(
+                    logger,
+                    f"azureai model '{self.model_name}' reported no token "
+                    "usage for a streamed response; pass -M streaming=false "
+                    "if you require usage reporting.",
+                )
 
             return ModelOutput(
                 model=response.model,
@@ -276,12 +335,17 @@ class AzureAIAPI(ModelAPI):
                     input_tokens=response.usage.prompt_tokens,
                     output_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
-                ),
+                )
+                if response.usage is not None
+                else None,
             ), model_call
 
         except AzureError as ex:
             model_call.set_error({"error": {"message": str(ex.message)}})
             return self.handle_azure_error(ex), model_call
+        except AzureAIStreamError as ex:
+            model_call.set_error({"error": {"message": str(ex)}})
+            raise
         finally:
             await client.close()
 
@@ -307,6 +371,24 @@ class AzureAIAPI(ModelAPI):
 
         return params
 
+    def resolve_streaming(self) -> bool:
+        """Whether to use the streaming API for this generate call.
+
+        An explicit `streaming` model arg wins; when unset ("auto"), stream
+        when the caller passed `on_stream` to `Model.generate()`. Unlike the
+        openai provider's Azure chat-completions path (which never
+        auto-streams because the SDK accumulator only keeps the first chunk's
+        `content_filter_results`), the hand-rolled accumulation here
+        preserves the last filter annotation seen per choice — the update
+        that carries `finish_reason="content_filter"` also carries the
+        results for the filtered content — so stop details survive
+        streaming. (No config-based decline rules apply: this provider does
+        not request features the streamed accumulation would be lossy for.)
+        """
+        if self.streaming is not None:
+            return self.streaming
+        return model_stream_requested()
+
     @override
     def max_tokens(self) -> int | None:
         if self.is_llama():
@@ -323,6 +405,11 @@ class AzureAIAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: Exception) -> bool | RetryDecision:
+        if isinstance(ex, AzureAIStreamError | IncompleteReadError):
+            # the stream failed after HTTP 200: an in-band error (see
+            # AzureAIStreamError) or the connection dropped mid-body
+            # (IncompleteReadError is an HttpResponseError with no status)
+            return RetryDecision.transient()
         if isinstance(ex, HttpResponseError) and ex.status_code is not None:
             if not is_retryable_http_status(ex.status_code):
                 return RetryDecision.no()
@@ -330,7 +417,9 @@ class AzureAIAPI(ModelAPI):
             if ex.status_code == 429:
                 return RetryDecision.rate_limit(retry_after=retry_after)
             return RetryDecision.transient(retry_after=retry_after)
-        if isinstance(ex, ServiceResponseError):
+        if isinstance(ex, ServiceResponseError | ServiceRequestError):
+            # connection-level failures (azure-core maps a server disconnect
+            # while streaming the body to ServiceRequestError)
             return RetryDecision.transient()
         return RetryDecision.no()
 
@@ -400,6 +489,221 @@ class AzureAIAPI(ModelAPI):
                 return ex
 
         raise ex
+
+
+class _StreamChoice:
+    """Accumulated state for one streamed choice."""
+
+    def __init__(self) -> None:
+        self.content: list[str] = []
+        # keyed by wire index (or synthesized slot); each entry:
+        # {"id", "function": {"name", "arguments": [fragments]}}
+        self.tool_calls: dict[int, dict[str, Any]] = {}
+        self.finish_reason: str | None = None
+        self.content_filter_results: dict[str, Any] | None = None
+
+    def tool_call_slot(self, fragment: dict[str, Any]) -> int:
+        """Resolve which accumulated call a tool-call fragment belongs to.
+
+        OpenAI-compatible servers attribute fragments with an `index`
+        (azure-ai-inference doesn't declare the field, but the raw mapping
+        carries it through). Without one, a fragment bearing an `id` starts
+        a new call and bare argument fragments extend the latest.
+        """
+        index = fragment.get("index")
+        if isinstance(index, int):
+            return index
+        if fragment.get("id") or not self.tool_calls:
+            return max(self.tool_calls) + 1 if self.tool_calls else 0
+        return max(self.tool_calls)
+
+
+def _stream_read_failure(ex: ValueError) -> str | None:
+    """Describe an SDK read failure that means the stream failed, else None.
+
+    The SDK raises `ValueError` for anything it cannot parse; its "SSE event
+    not supported" rejection of an `event: error` line is how a server-sent
+    error event surfaces (the SDK stops before reading the event's data, so
+    the server's message is lost). Any other rejected line (an SSE comment,
+    `id:`, a non-error `event:` name, malformed JSON) is an endpoint the SDK
+    cannot read at all — a permanent condition that must not be retried as
+    transient.
+    """
+    message = str(ex)
+    if "SSE event not supported" in message and re.search(
+        r"\(line `b['\"]event:\s*error\b", message
+    ):
+        return f"server sent an error event ({message})"
+    return None
+
+
+async def _stream_updates(
+    updates: AsyncIterator[StreamingChatCompletionsUpdate],
+) -> AsyncIterator[StreamingChatCompletionsUpdate]:
+    """Iterate an update stream, raising SDK read failures as `AzureAIStreamError`.
+
+    Only failures raised by the iterator itself, and only those that indicate
+    a failed stream (see `_stream_read_failure`), are converted; the
+    accumulator's own errors propagate unchanged.
+    """
+    iterator = updates.__aiter__()
+    while True:
+        try:
+            update = await iterator.__anext__()
+        except StopAsyncIteration:
+            return
+        except ValueError as ex:
+            failure = _stream_read_failure(ex)
+            if failure is None:
+                raise
+            raise AzureAIStreamError(
+                f"Streaming response could not be read: {failure}"
+            ) from ex
+        yield update
+
+
+async def azureai_completion_from_stream(
+    updates: AsyncIterator[StreamingChatCompletionsUpdate],
+) -> ChatCompletions:
+    """Consume an Azure AI chat-completions update stream into a completion.
+
+    Reports each update once to the model layer's stream observer
+    (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
+    callback and the pending event's progress record. Accumulates all
+    choices, but reports content deltas from the first choice only —
+    interleaving multiple choices' fragments into the single delta stream
+    would corrupt accumulating consumers. Content deltas are gated on
+    `model_stream_requested()` (see `report_model_stream_delta`); the
+    usage/heartbeat progress channel runs regardless.
+
+    Updates are read through their raw mapping form (`azure.ai.inference`
+    models are dict-backed) so undeclared fields — notably the per-choice
+    `content_filter_results` Azure attaches — carry into the synthesized
+    response for stop-details extraction. Tool-call fragments carry no index;
+    a fragment bearing an `id` starts a new call and bare argument fragments
+    extend the latest one.
+    """
+    report_model_stream_start()
+    completion_id: str | None = None
+    created: int | None = None
+    model: str | None = None
+    usage: dict[str, Any] | None = None
+    choices: dict[int, _StreamChoice] = {}
+
+    async for update in _stream_updates(updates):
+        completion_id = completion_id or update.get("id")
+        created = created if created is not None else update.get("created")
+        model = model or update.get("model")
+        update_usage = update.get("usage")
+        if update_usage is not None:
+            usage = update_usage
+            report_model_stream_progress(update_usage.get("completion_tokens"))
+
+        # report deltas from the first choice only, and only when an
+        # on_stream consumer is present (see report_model_stream_delta) —
+        # accumulation into the completion always runs
+        deltas_requested = model_stream_requested()
+        reported = False
+        for update_choice in update.get("choices") or []:
+            index = update_choice.get("index", 0)
+            choice = choices.setdefault(index, _StreamChoice())
+            if update_choice.get("finish_reason") is not None:
+                choice.finish_reason = update_choice["finish_reason"]
+            filter_results = update_choice.get("content_filter_results")
+            if filter_results:
+                choice.content_filter_results = filter_results
+            delta = update_choice.get("delta") or {}
+            report = index == 0 and deltas_requested
+            content = delta.get("content")
+            if content:
+                choice.content.append(content)
+                if report:
+                    await report_model_stream_delta(StreamTextEvent(text=content))
+                    reported = True
+            for tool_call in delta.get("tool_calls") or []:
+                function = tool_call.get("function") or {}
+                arguments = function.get("arguments") or ""
+                slot = choice.tool_call_slot(tool_call)
+                current = choice.tool_calls.setdefault(
+                    slot,
+                    {"id": None, "function": {"name": None, "arguments": []}},
+                )
+                current["id"] = current["id"] or tool_call.get("id")
+                current_function = current["function"]
+                current_function["name"] = current_function["name"] or function.get(
+                    "name"
+                )
+                if arguments:
+                    current_function["arguments"].append(arguments)
+                if report:
+                    await report_model_stream_delta(
+                        StreamToolCallEvent(
+                            id=current["id"],
+                            function=current_function["name"],
+                            arguments=arguments,
+                        )
+                    )
+                    reported = True
+        if not reported and update_usage is None:
+            report_model_stream_progress()
+
+    # an error frame the SDK dropped (see AzureAIStreamError) leaves a stream
+    # with no choices, or choices that never reached a finish reason — fail
+    # rather than return a successful, silently truncated completion
+    if not choices:
+        raise AzureAIStreamError(
+            "Streaming response ended without delivering any choices."
+        )
+    if any(choice.finish_reason is None for choice in choices.values()):
+        raise AzureAIStreamError(
+            "Streaming response ended without delivering a finish reason "
+            "(an in-band error frame may have been dropped by the SDK)."
+        )
+
+    response: dict[str, Any] = {
+        "id": completion_id or "",
+        "created": created or 0,
+        "model": model or "",
+        "object": "chat.completion",
+        "choices": [
+            {
+                "index": index,
+                "finish_reason": choice.finish_reason,
+                "message": {
+                    "role": "assistant",
+                    "content": "".join(choice.content),
+                }
+                | (
+                    {
+                        "tool_calls": [
+                            {
+                                "id": tool_call["id"] or f"tool_call_{index}_{slot}",
+                                "type": "function",
+                                "function": {
+                                    "name": tool_call["function"]["name"] or "",
+                                    "arguments": "".join(
+                                        tool_call["function"]["arguments"]
+                                    ),
+                                },
+                            }
+                            for slot, tool_call in sorted(choice.tool_calls.items())
+                        ]
+                    }
+                    if choice.tool_calls
+                    else {}
+                ),
+            }
+            | (
+                {"content_filter_results": choice.content_filter_results}
+                if choice.content_filter_results
+                else {}
+            )
+            for index, choice in sorted(choices.items())
+        ],
+    }
+    if usage is not None:
+        response["usage"] = usage
+    return ChatCompletions(response)
 
 
 async def chat_request_messages(

@@ -3,19 +3,33 @@ import os
 from copy import copy
 from functools import partial
 from logging import getLogger
-from typing import Any, Dict, Iterable, List, Optional
+from typing import (
+    Any,
+    AsyncIterator,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    NamedTuple,
+    Optional,
+    cast,
+)
 
 from groq import (
     DEFAULT_TIMEOUT as GROQ_DEFAULT_TIMEOUT,
 )
 from groq import (
+    APIConnectionError,
+    APIError,
+    APIResponseValidationError,
     APIStatusError,
-    APITimeoutError,
     AsyncGroq,
+    AsyncStream,
 )
 from groq.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
+    ChatCompletionChunk,
     ChatCompletionContentPartImageParam,
     ChatCompletionContentPartParam,
     ChatCompletionContentPartTextParam,
@@ -25,6 +39,15 @@ from groq.types.chat import (
     ChatCompletionToolMessageParam,
     ChatCompletionUserMessageParam,
 )
+from groq.types.chat.chat_completion import Choice as GroqChoice
+from groq.types.chat.chat_completion_message import ChatCompletionMessage
+from groq.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+)
+from groq.types.chat.chat_completion_message_tool_call import (
+    Function as GroqToolCallFunction,
+)
+from groq.types.completion_usage import CompletionUsage
 from pydantic import JsonValue
 from typing_extensions import override
 
@@ -43,7 +66,9 @@ from inspect_ai._util.http_defaults import (
     default_limits,
     default_timeout,
 )
+from inspect_ai._util.httpx import httpx_classify_retry
 from inspect_ai._util.images import inline_media_data_uri
+from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import (
     clamp_reasoning_effort_to_low_medium_high,
@@ -70,16 +95,106 @@ from .._model_output import (
     as_stop_reason,
     collect_stop_details,
 )
-from .._openai import openai_stop_details
+from .._openai import (
+    classify_error_body,
+    http_status_from_error_code,
+    openai_stop_details,
+)
+from .._stream import (
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 from .util import (
     environment_prerequisite_error,
     model_base_url,
+    normalize_stream_arg,
 )
 from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
 
 GROQ_API_KEY = "GROQ_API_KEY"
+
+
+class GroqStreamError(Exception):
+    """The server stopped a chat-completions stream early (`x_groq.error`).
+
+    Classified as transient by `should_retry`: the canonical instance
+    ("over capacity") is the same condition a non-streamed request surfaces
+    as a retryable 429/503, and auto-streaming enabled by a display-only
+    `on_stream` callback must not turn a retried condition into a
+    permanently failed sample. (An error delivered as a top-level `error`
+    payload or an `event: error` frame is raised by the SDK itself as a bare
+    `APIError`; `should_retry` classifies that by its body `code`/`type`.)
+    """
+
+
+class GroqErrorInfo(NamedTuple):
+    """The `message`/`type`/`code` fields of a Groq error body."""
+
+    message: str
+    type: str | None
+    code: str | int | None
+
+
+def groq_error_info(ex: APIError) -> GroqErrorInfo:
+    """Read the error fields from a Groq SDK exception.
+
+    A status error's body is the full response payload (`{"error": {...}}`).
+    An error payload delivered in the stream body (HTTP 200 already sent) is
+    raised by the SDK as a plain `APIError` whose body is the inner error
+    object itself, or a bare string when the payload's `error` was not an
+    object. Unlike the OpenAI SDK, `groq.APIError` exposes no `code`/`type`
+    attributes, so both shapes are read here.
+    """
+    error: object = ex.body
+    if isinstance(error, dict) and isinstance(error.get("error"), dict):
+        error = error["error"]
+    if isinstance(error, str) and error:
+        # a bare string payload is the message itself (the SDK's own message
+        # for this shape is a generic placeholder)
+        return GroqErrorInfo(message=error, type=None, code=None)
+    if not isinstance(error, dict):
+        return GroqErrorInfo(message=ex.message, type=None, code=None)
+    message = error.get("message")
+    error_type = error.get("type")
+    code = error.get("code")
+    return GroqErrorInfo(
+        message=str(message) if message is not None else ex.message,
+        type=str(error_type) if error_type is not None else None,
+        code=code if isinstance(code, str | int) else None,
+    )
+
+
+GROQ_TRANSIENT_ERROR_NAMES = frozenset({"serviceunavailable", "overcapacity"})
+"""Groq's own transient `type`/`code` spellings (normalized for `classify_error_body`)."""
+
+
+def groq_classify_stream_error(ex: APIError) -> RetryDecision:
+    """Classify an error payload delivered mid-stream (a plain `APIError`).
+
+    The SDK raises it without a status code, so the body is read instead: the
+    shared `code`/`type` rules (`classify_error_body`) extended with Groq's
+    own spellings, then the message for the "over capacity" condition (see
+    `GroqStreamError` for why that must retry). A numeric HTTP status in
+    `code` is authoritative: when it is non-retryable (400/404/413/...) the
+    message is not consulted. Anything unrecognized stays unretried.
+    """
+    info = groq_error_info(ex)
+    decision = classify_error_body(info.code, info.type, GROQ_TRANSIENT_ERROR_NAMES)
+    if decision is not None:
+        return decision
+    if (
+        http_status_from_error_code(info.code) is None
+        and "over capacity" in info.message.lower()
+    ):
+        return RetryDecision.transient()
+    return RetryDecision.no()
 
 
 class GroqAPI(ModelAPI):
@@ -89,6 +204,7 @@ class GroqAPI(ModelAPI):
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         config: GenerateConfig = GenerateConfig(),
+        streaming: bool | Literal["auto"] = "auto",
         **model_args: Any,
     ):
         super().__init__(
@@ -98,6 +214,10 @@ class GroqAPI(ModelAPI):
             api_key_vars=[GROQ_API_KEY],
             config=config,
         )
+
+        # record streaming preference (unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
 
         if not self.api_key:
             self.api_key = os.environ.get(GROQ_API_KEY)
@@ -157,6 +277,9 @@ class GroqAPI(ModelAPI):
             if config.parallel_tool_calls is not None:
                 params["parallel_tool_calls"] = config.parallel_tool_calls
 
+        # resolve streaming and mutate the request accordingly before the
+        # ModelCall snapshot, so the logged request matches the wire request
+        streaming = self.resolve_streaming(config)
         request = dict(
             messages=messages,
             model=self.model_name,
@@ -164,6 +287,8 @@ class GroqAPI(ModelAPI):
             | (config.extra_headers or {}),
             **params,
         )
+        if streaming:
+            request["stream"] = True
 
         model_call = set_active_model_event_call(
             request=request,
@@ -171,13 +296,31 @@ class GroqAPI(ModelAPI):
         )
 
         try:
-            completion: ChatCompletion = await self.client.chat.completions.create(
-                **request,
-            )
+            if streaming:
+                async with cast(
+                    AsyncStream[ChatCompletionChunk],
+                    await self.client.chat.completions.create(**request),
+                ) as chunk_stream:
+                    completion = await groq_completion_from_stream(chunk_stream)
+            else:
+                completion = cast(
+                    ChatCompletion,
+                    await self.client.chat.completions.create(**request),
+                )
 
             model_call.set_response(
                 completion.model_dump(), self._http_hooks.end_request(request_id)
             )
+
+            # a streamed response should carry usage on its final chunk —
+            # warn rather than under-count silently if it does not
+            if streaming and completion.usage is None:
+                warn_once(
+                    logger,
+                    f"groq model '{self.model_name}' reported no token usage "
+                    "for a streamed response; pass -M streaming=false if you "
+                    "require usage reporting.",
+                )
 
             # extract metadata
             metadata: dict[str, Any] = {
@@ -217,11 +360,27 @@ class GroqAPI(ModelAPI):
 
             # return
             return output, model_call
-        except APIStatusError as ex:
+        except APIError as ex:
             model_call.set_error(
-                as_error_response(ex.body), self._http_hooks.end_request(request_id)
+                as_error_response(
+                    ex.body
+                    if ex.body is not None
+                    else {"error": {"message": ex.message}}
+                ),
+                self._http_hooks.end_request(request_id),
             )
-            return self.handle_bad_request(ex), model_call
+            if isinstance(ex, APIStatusError):
+                return self.handle_bad_request(ex), model_call
+            # an error payload delivered in the stream body (HTTP 200 already
+            # sent) arrives as a plain APIError: convert a recognized
+            # bad-request condition, otherwise re-raise so should_retry can
+            # classify it; connection/validation errors keep their own semantics
+            if isinstance(ex, APIConnectionError | APIResponseValidationError):
+                raise
+            converted = self.handle_bad_request(ex)
+            if not isinstance(converted, ModelOutput):
+                raise
+            return converted, model_call
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
         params: dict[str, Any] = {}
@@ -261,6 +420,29 @@ class GroqAPI(ModelAPI):
             )
         return params
 
+    def resolve_streaming(self, config: GenerateConfig) -> bool:
+        """Whether to use the streaming API for this generate call.
+
+        An explicit `streaming` model arg wins; when unset ("auto"), stream
+        when the caller passed `on_stream` to `Model.generate()`. A
+        display-only `on_stream` request must not risk degrading results, so
+        auto mode declines requests the stream accumulator is (or may be)
+        lossy for — those carrying a `response_schema` (structured output
+        under streaming is unverified for Groq) and compound models (which
+        execute tools server-side and report them via `executed_tools`,
+        not carried by the accumulator). An explicit `streaming=true` opt-in
+        still streams. There is no non-streamed retry when the server
+        rejects a streamed request (see the note on
+        `OpenAICompatibleAPI.resolve_stream`); `-M streaming=false` opts out.
+        """
+        if self.streaming is not None:
+            return self.streaming
+        return (
+            model_stream_requested()
+            and config.response_schema is None
+            and "compound" not in self.model_name.lower()
+        )
+
     def _chat_choices_from_response(
         self, response: Any, tools: list[ToolInfo]
     ) -> List[ChatCompletionChoice]:
@@ -286,9 +468,18 @@ class GroqAPI(ModelAPI):
             if ex.status_code == 429:
                 return RetryDecision.rate_limit(retry_after=retry_after)
             return RetryDecision.transient(retry_after=retry_after)
-        if isinstance(ex, APITimeoutError):
+        if isinstance(ex, APIConnectionError):  # includes APITimeoutError
             return RetryDecision.transient()
-        return RetryDecision.no()
+        if isinstance(ex, GroqStreamError):
+            return RetryDecision.transient()
+        if isinstance(ex, APIError) and not isinstance(
+            ex, APIConnectionError | APIResponseValidationError
+        ):
+            return groq_classify_stream_error(ex)
+        # a connection dropped while reading the stream body surfaces as a raw
+        # httpx transport error (the SDK only wraps request-time failures)
+        decision = httpx_classify_retry(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
@@ -328,26 +519,188 @@ class GroqAPI(ModelAPI):
     def max_tokens(self) -> Optional[int]:
         return DEFAULT_MAX_TOKENS
 
-    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
-        if ex.status_code == 400:
-            # extract code and message
-            content = ex.message
-            code = ""
-            if isinstance(ex.body, dict) and isinstance(
-                ex.body.get("error", None), dict
-            ):
-                error = ex.body.get("error", {})
-                content = str(error.get("message", content))
-                code = error.get("code", code)
+    def handle_bad_request(self, ex: APIError) -> ModelOutput | Exception:
+        """Convert a context-length rejection into `model_length` output.
 
-            if code == "context_length_exceeded" or "reduce the length" in content:
-                return ModelOutput.from_content(
-                    model=self.model_name,
-                    content=content,
-                    stop_reason="model_length",
-                )
-
+        Accepts the `APIError` base: a status error is only checked when it
+        is a 400, and an error payload delivered mid-stream (a plain
+        `APIError` with no status, see `groq_error_info`) is checked the same
+        way since the SDK could not infer a `BadRequestError` for it. Returns
+        the exception unchanged when it is not a recognized rejection.
+        """
+        if isinstance(ex, APIStatusError) and ex.status_code != 400:
+            return ex
+        info = groq_error_info(ex)
+        if (
+            info.code == "context_length_exceeded"
+            or "reduce the length" in info.message
+        ):
+            return ModelOutput.from_content(
+                model=self.model_name,
+                content=info.message,
+                stop_reason="model_length",
+            )
         return ex
+
+
+class _StreamToolCall(NamedTuple):
+    """Accumulated state for one streamed tool call."""
+
+    id: str | None
+    function: str | None
+    arguments: list[str]
+
+
+class _StreamChoice:
+    """Accumulated state for one streamed choice."""
+
+    def __init__(self) -> None:
+        self.content: list[str] = []
+        self.reasoning: list[str] = []
+        self.tool_calls: dict[int, _StreamToolCall] = {}
+        self.finish_reason: str | None = None
+
+
+async def groq_completion_from_stream(
+    stream: AsyncIterator[ChatCompletionChunk],
+) -> ChatCompletion:
+    """Consume a Groq chat-completions chunk stream into a final completion.
+
+    Reports each chunk once to the model layer's stream observer
+    (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
+    callback and the pending event's progress record. Accumulates all
+    choices, but reports content deltas from the first choice only —
+    interleaving multiple choices' fragments into the single delta stream
+    would corrupt accumulating consumers.
+
+    Usage arrives on the final chunk (under `x_groq` and/or the chunk-level
+    `usage` field), carrying the same timing metadata (queue/prompt/completion
+    time) as a non-streamed response. A chunk carrying `x_groq.error` (the
+    server stopped the stream early) raises `GroqStreamError` (retried as
+    transient) rather than returning a truncated completion. Content deltas
+    are gated on `model_stream_requested()` (see `report_model_stream_delta`);
+    the usage/heartbeat progress channel runs regardless.
+    """
+    report_model_stream_start()
+    completion_id: str | None = None
+    created: int | None = None
+    model: str | None = None
+    system_fingerprint: str | None = None
+    usage: CompletionUsage | None = None
+    choices: dict[int, _StreamChoice] = {}
+
+    async for chunk in stream:
+        completion_id = completion_id or chunk.id
+        created = created if created is not None else chunk.created
+        model = model or chunk.model
+        system_fingerprint = system_fingerprint or chunk.system_fingerprint
+        # the SDK raises only for top-level `error` payloads (as a plain
+        # APIError, classified by GroqAPI.should_retry); a chunk-level
+        # x_groq.error means the server stopped the stream early — fail rather
+        # than return a silently truncated completion
+        if chunk.x_groq is not None and chunk.x_groq.error:
+            raise GroqStreamError(
+                f"Streaming response stopped early: {chunk.x_groq.error}"
+            )
+        chunk_usage = chunk.usage or (chunk.x_groq.usage if chunk.x_groq else None)
+        if chunk_usage is not None:
+            usage = chunk_usage
+            report_model_stream_progress(chunk_usage.completion_tokens)
+
+        # report deltas from the first choice only, and only when an
+        # on_stream consumer is present (see report_model_stream_delta) —
+        # accumulation into the completion always runs
+        deltas_requested = model_stream_requested()
+        reported = False
+        for chunk_choice in chunk.choices:
+            choice = choices.setdefault(chunk_choice.index, _StreamChoice())
+            if chunk_choice.finish_reason is not None:
+                choice.finish_reason = chunk_choice.finish_reason
+            delta = chunk_choice.delta
+            if delta is None:
+                continue
+            report = chunk_choice.index == 0 and deltas_requested
+            if delta.reasoning:
+                choice.reasoning.append(delta.reasoning)
+                if report:
+                    await report_model_stream_delta(
+                        StreamReasoningEvent(reasoning=delta.reasoning)
+                    )
+                    reported = True
+            if delta.content:
+                choice.content.append(delta.content)
+                if report:
+                    await report_model_stream_delta(StreamTextEvent(text=delta.content))
+                    reported = True
+            for tool_call in delta.tool_calls or []:
+                function = tool_call.function
+                arguments = (function.arguments if function is not None else None) or ""
+                # id/function arrive only on a call's first fragment; remember
+                # them by index so continuation fragments are attributed
+                info = choice.tool_calls.get(
+                    tool_call.index, _StreamToolCall(None, None, [])
+                )
+                info = _StreamToolCall(
+                    id=tool_call.id or info.id,
+                    function=(function.name if function is not None else None)
+                    or info.function,
+                    arguments=info.arguments,
+                )
+                if arguments:
+                    info.arguments.append(arguments)
+                choice.tool_calls[tool_call.index] = info
+                if report:
+                    await report_model_stream_delta(
+                        StreamToolCallEvent(
+                            id=info.id, function=info.function, arguments=arguments
+                        )
+                    )
+                    reported = True
+        if not reported and chunk_usage is None:
+            report_model_stream_progress()
+
+    if completion_id is None or model is None:
+        raise RuntimeError("Streaming response ended without delivering any chunks.")
+    if not choices:
+        raise RuntimeError("Streaming response ended without delivering any choices.")
+
+    return ChatCompletion(
+        id=completion_id,
+        created=created or 0,
+        model=model,
+        object="chat.completion",
+        system_fingerprint=system_fingerprint,
+        usage=usage,
+        choices=[
+            # model_construct: chunk finish reasons include values (e.g.
+            # "content_filter") that the non-streaming Choice literal omits;
+            # validation would reject them where passthrough keeps the stop
+            # reason mapping intact
+            GroqChoice.model_construct(
+                index=index,
+                finish_reason=cast(Any, choice.finish_reason),
+                logprobs=None,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="".join(choice.content) if choice.content else None,
+                    reasoning="".join(choice.reasoning) if choice.reasoning else None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id=tool_call.id or f"tool_call_{index}_{call_index}",
+                            type="function",
+                            function=GroqToolCallFunction(
+                                name=tool_call.function or "",
+                                arguments="".join(tool_call.arguments),
+                            ),
+                        )
+                        for call_index, tool_call in sorted(choice.tool_calls.items())
+                    ]
+                    or None,
+                ),
+            )
+            for index, choice in sorted(choices.items())
+        ],
+    )
 
 
 async def as_groq_chat_messages(

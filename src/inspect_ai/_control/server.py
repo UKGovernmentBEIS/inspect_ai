@@ -63,6 +63,7 @@ from inspect_ai._control.cancel import (
     cancel_sample,
     cancel_task,
     cancel_tool_call,
+    drain_task,
 )
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import DEFAULT_PAGE_LIMIT, sample_events
@@ -883,6 +884,31 @@ class ControlServer:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
             return result
 
+        # Drain a running task (phase 3 — see design/ctl/task-drain.md):
+        # stop dispatching new samples, let in-flight samples finish
+        # naturally (scored on their own terms, no interrupts), then
+        # complete the task with an ordinary terminal log. Task-keyed like
+        # `cancel`; rides the cancel stamp without the interrupt sweep. Its
+        # own route (not a cancel action): drain inverts the cancel
+        # contract — the task ends on the samples' clock, unbounded, not
+        # the operator's — and the separate route gives the crisp version
+        # story (an older server 404s and the CLI reports "older inspect").
+        # Idempotent (`changed: false` on a repeat, on any pending
+        # resolution — drain is the weakest escalation rung — or on a
+        # finished task); a task between attempts abandons its pending
+        # retry, like a plain cancel; `dry_run=true` reports without acting.
+        @app.post("/tasks/{task_id}/drain")
+        async def task_drain(task_id: str, dry_run: bool = False) -> Any:
+            result = drain_task(task_id, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result["ok"] is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
         # Pause / resume a running task (phase 3 — see design/ctl/pause-resume.md).
         # Task-keyed like `config` / `log-flush` / `cancel` (a pause handle
         # must not dangle across a retry). Quiesce semantics: pause stops new
@@ -1203,7 +1229,8 @@ class ControlServer:
         # after a `/`); `key`/`key_limit` retune a named concurrency() registry
         # entry by exact name (400 for a name with no entry — named limits are
         # created lazily on first use). The override knobs (max_tasks and the
-        # retry knobs timeout / attempt_timeout / max_retries) set live
+        # retry knobs timeout / attempt_timeout / stream_idle_timeout /
+        # max_retries) set live
         # overrides; the keyword
         # `clear` removes one. `author`/`reason` are provenance for the eval-log
         # record of any applied change (see EvalLog.config_updates); the
@@ -1223,6 +1250,7 @@ class ControlServer:
             key_limit: int | None = None,
             timeout: str | None = None,
             attempt_timeout: str | None = None,
+            stream_idle_timeout: str | None = None,
             max_retries: str | None = None,
             author: str | None = None,
             reason: str | None = None,
@@ -1245,6 +1273,7 @@ class ControlServer:
                 MAX_GENERATE_CONFIG_OVERRIDE,
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
+                ("stream_idle_timeout", stream_idle_timeout),
                 ("max_retries", max_retries),
             )
             if retry_error is not None:
@@ -1263,6 +1292,7 @@ class ControlServer:
                     key_limit=key_limit,
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
+                    stream_idle_timeout=retry_knobs["stream_idle_timeout"],
                     max_retries=retry_knobs["max_retries"],
                     author=author,
                     reason=reason,
@@ -1316,6 +1346,7 @@ class ControlServer:
             log_shared: int | None = None,
             timeout: str | None = None,
             attempt_timeout: str | None = None,
+            stream_idle_timeout: str | None = None,
             max_retries: str | None = None,
             time_limit: str | None = None,
             token_limit: str | None = None,
@@ -1356,6 +1387,7 @@ class ControlServer:
                 MAX_GENERATE_CONFIG_OVERRIDE,
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
+                ("stream_idle_timeout", stream_idle_timeout),
                 ("max_retries", max_retries),
             )
             if retry_error is not None:
@@ -1386,6 +1418,7 @@ class ControlServer:
                     log_shared=log_shared,
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
+                    stream_idle_timeout=retry_knobs["stream_idle_timeout"],
                     max_retries=retry_knobs["max_retries"],
                     time_limit=limit_knobs["time_limit"],
                     token_limit=limit_knobs["token_limit"],

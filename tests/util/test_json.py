@@ -1,6 +1,13 @@
 import json
 
-from inspect_ai._util.json import json_changes, to_json_safe, to_json_str_safe
+from pydantic import BaseModel, ConfigDict
+
+from inspect_ai._util.json import (
+    exceeds_max_depth,
+    json_changes,
+    to_json_safe,
+    to_json_str_safe,
+)
 from inspect_ai.dataset._sources.json import (
     json_dataset_reader,
     jsonlines_dataset_reader,
@@ -348,3 +355,88 @@ def test_json_dataset_reader_kwargs(tmp_path):
     assert result == [
         {"x": None, "y": float("inf"), "z": float("-inf"), "a": "5", "b": 5}
     ]
+
+
+def test_exceeds_max_depth_measures_nesting():
+    assert not exceeds_max_depth({"a": 1}, 1)
+    assert exceeds_max_depth({"a": {"b": 1}}, 1)
+    assert not exceeds_max_depth({"a": {"b": 1}}, 2)
+    assert exceeds_max_depth([[1]], 1)
+    assert not exceeds_max_depth([[1]], 2)
+    assert not exceeds_max_depth("scalar", 1)
+
+
+def test_exceeds_max_depth_handles_pathologically_deep_values():
+    # measuring depth must not itself exhaust the interpreter stack
+    deep: dict[str, object] = {"a": 1}
+    for _ in range(100_000):
+        deep = {"a": deep}
+
+    assert exceeds_max_depth(deep, 100)
+
+
+def test_exceeds_max_depth_does_not_blow_up_on_shared_substructure():
+    # yaml anchors/aliases (reachable from model-emitted tool call arguments)
+    # build a DAG whose distinct root-to-leaf paths grow exponentially with its
+    # size. Re-expanding shared nodes per path would turn this sub-kilobyte
+    # value into ~2**60 visits — an uninterruptible CPU hang on the event loop.
+    dag: object = ["leaf"]
+    for _ in range(60):
+        dag = [dag, dag]
+
+    assert not exceeds_max_depth(dag, 100)
+    assert exceeds_max_depth(dag, 30)
+
+
+def test_exceeds_max_depth_reexpands_shared_node_reached_deeper():
+    # a node shared between a shallow and a deeper path must be measured from
+    # the deeper one — skipping it there would under-report the real depth
+    shared = {"deep": {"deeper": {"deepest": 1}}}
+    for value in (
+        {"shallow_first": shared, "deep_path": {"a": {"b": {"c": shared}}}},
+        {"deep_path": {"a": {"b": {"c": shared}}}, "shallow_last": shared},
+    ):
+        assert exceeds_max_depth(value, 6)
+        assert not exceeds_max_depth(value, 7)
+
+
+def test_exceeds_max_depth_traverses_frozensets():
+    # pydantic-core serializes frozensets recursively, so a deep frozenset
+    # chain must count toward depth — otherwise it slips past the
+    # condense-time guard and fails at flush-time serialization instead
+    deep: frozenset[object] = frozenset(["leaf"])
+    for _ in range(300):
+        deep = frozenset([deep])
+
+    assert exceeds_max_depth(deep, 250)
+    assert not exceeds_max_depth(frozenset([frozenset(["leaf"])]), 2)
+
+
+def test_exceeds_max_depth_traverses_pydantic_extra_fields():
+    # extra="allow" models keep extra values in __pydantic_extra__ rather than
+    # __dict__; pydantic-core serializes them recursively all the same, so
+    # they must count toward depth like declared fields do
+    class Declared(BaseModel):
+        value: object
+
+    class Extras(BaseModel):
+        model_config = ConfigDict(extra="allow")
+
+    deep: object = 1
+    for _ in range(50):
+        deep = {"a": deep}
+
+    assert exceeds_max_depth(Declared(value=deep), 10)
+    assert exceeds_max_depth(Extras(**{"extra_value": deep}), 10)
+    assert not exceeds_max_depth(Extras(**{"extra_value": {"a": 1}}), 3)
+    assert not exceeds_max_depth(Extras(), 1)
+
+
+def test_exceeds_max_depth_terminates_on_cycles():
+    cyclic: dict[str, object] = {}
+    cyclic["self"] = cyclic
+    assert exceeds_max_depth(cyclic, 100)
+
+    cyclic_list: list[object] = []
+    cyclic_list.append(cyclic_list)
+    assert exceeds_max_depth(cyclic_list, 100)

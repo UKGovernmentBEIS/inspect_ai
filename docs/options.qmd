@@ -67,7 +67,7 @@ For more detail on the different methods of configuration, see [Configuration](t
 |                    |                                              |
 |--------------------|----------------------------------------------|
 | `--model`          | Model used to evaluate tasks.                |
-| `--model-base-url` | Base URL for for model API                   |
+| `--model-base-url` | Base URL for model API                       |
 | `--model-config`   | Model specific arguments (JSON or YAML file) |
 | `-M`               | Model specific arguments (`key=value`).      |
 | `--model-spec`     | Model with its own generation config, model args, and base url (inline JSON or YAML, same fields as `--model-role`). Repeat for several models. Cannot be combined with the four options above, nor with the `model` field of `--run-config`. See [Multiple Models](models.qmd#multiple-models). |
@@ -107,6 +107,7 @@ For more detail on the different methods of configuration, see [Configuration](t
 | `--max-retries` | Maximum number of times to retry generate request (defaults to unlimited) |
 | `--timeout` | Generate timeout in seconds (defaults to no timeout) |
 | `--attempt-timeout` | Timeout (in seconds) for any given generate attempt (if exceeded, will abandon attempt and retry according to max_retries). |
+| `--stream-idle-timeout` | Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries). Setting it requests streaming; it has no effect on calls that do not stream. |
 
 ## Tasks and Solvers
 

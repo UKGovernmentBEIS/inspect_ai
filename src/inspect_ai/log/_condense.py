@@ -30,7 +30,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.json import JsonChange
+from inspect_ai._util.json import JsonChange, exceeds_max_depth, to_json_safe
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._pool import (
@@ -71,6 +71,29 @@ logger = getLogger(__name__)
 
 
 ATTACHMENT_PROTOCOL = "attachment://"
+
+MAX_SAMPLE_DUMP_DEPTH = 250
+"""Nesting depth at which a condensed sample is checked for serializability.
+
+Not a rejection threshold: exceeding it only triggers the explicit
+serialization check in `condense_sample` (see there). Set just below
+pydantic-core's hard JSON serialization limit (it writes 254 nested containers
+but fails at 255) and above `MAX_JSON_VALUE_DEPTH` (240) plus the nesting a
+walked value's position within the sample typically adds, so ordinary samples
+rarely pay for the check (and when a deep-but-writable sample does trip it,
+the serialization check — not this threshold — decides acceptance).
+"""
+
+
+class SampleSerializationError(ValueError):
+    """Sample content cannot be serialized to the eval log.
+
+    Raised by `condense_sample` when a sample's content defeats the log
+    writer's serializer (e.g. nested beyond pydantic-core's depth limit).
+    A `ValueError` subclass so callers handling condensation failures
+    generically keep working; `log_sample` catches this type specifically
+    so recorder/flush I/O errors are never mistaken for it.
+    """
 
 
 class WalkContext(TypedDict):
@@ -164,7 +187,7 @@ def attachment_refs_from_object(
                 stack.extend(extra.values())
         elif isinstance(v, dict):
             stack.extend(v.values())  # keys are never scanned, matching the dump path
-        elif isinstance(v, (list, tuple, set)):
+        elif isinstance(v, (list, tuple, set, frozenset)):
             stack.extend(v)
         elif dataclasses.is_dataclass(v) and not isinstance(v, type):
             # e.g. ToolCall - a pydantic dataclass, not a BaseModel
@@ -219,6 +242,23 @@ def expand_events(
     result = resolve_model_event_inputs(list(events), data["messages"])
     result = resolve_model_event_calls(result, data["calls"])
     return result
+
+
+def is_log_serializable(sample: EvalSample) -> bool:
+    """Whether every log writer can actually serialize this sample.
+
+    Uses the recorders' own serialization, probed at the deepest position a
+    writer places the sample: the `.eval` recorder writes it at the JSON root,
+    but the `.json` recorder writes the whole `EvalLog`, nesting each sample
+    two containers deeper (`EvalLog` -> `samples` list -> sample). The two
+    wrapper lists reproduce that nesting, so a sample accepted here cannot
+    fail later at flush time in either format.
+    """
+    try:
+        to_json_safe([[sample]], indent=None)
+        return True
+    except Exception:
+        return False
 
 
 def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
@@ -335,9 +375,29 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     # Rewrites can disagree across fields that share one attachment. Determine
     # liveness only after every field is condensed so no surviving reference is
     # orphaned; the full dump is the correctness cost of that final GC pass.
-    referenced_attachments = attachment_refs_from_value(
-        condensed_sample.model_dump(mode="python", exclude={"attachments"})
-    )
+    dumped_sample = condensed_sample.model_dump(mode="python", exclude={"attachments"})
+
+    # Refuse to produce a sample the log writer cannot serialize. pydantic-core
+    # enforces a hard recursion limit when writing JSON, and content nested
+    # beyond it (e.g. in un-walked `Any`-typed fields like store or metadata)
+    # is not rejected by the python-mode dump above — it would instead detonate
+    # later, when the recorder serializes the buffered sample at flush time,
+    # outside the sample-logging path that can degrade gracefully (see
+    # `log_sample` in _eval/task/run.py, which handles this error by logging a
+    # stripped record). Failing here keeps the failure attributable to one
+    # sample. The depth test only selects candidates: rejection is confirmed by
+    # the writers' own serialization, so content every log format can in fact
+    # write is never rejected (offline paths — convert, recover, log rewrite —
+    # call this on already-logged samples and must not start failing on them).
+    if exceeds_max_depth(
+        dumped_sample, MAX_SAMPLE_DUMP_DEPTH
+    ) and not is_log_serializable(condensed_sample):
+        raise SampleSerializationError(
+            f"Sample content (id: {sample.id}, epoch: {sample.epoch}) is nested "
+            "too deeply to be serialized to the eval log."
+        )
+
+    referenced_attachments = attachment_refs_from_value(dumped_sample)
     return condensed_sample.model_copy(
         update={
             "attachments": {
@@ -1018,15 +1078,39 @@ def walk_state_json_change(
     )
 
 
+MAX_JSON_VALUE_DEPTH = 240
+"""Maximum container nesting depth walked (and preserved) in JSON values.
+
+Deeper content is replaced with `JSON_VALUE_MAX_DEPTH_EXCEEDED`: the walk
+recurses per nesting level (unbounded depth would exhaust the interpreter
+stack), and pydantic-core refuses to serialize structures nested beyond a
+hard limit of ~255, which would otherwise crash sample logging. Set as close
+to that limit as the nesting a value's position within its sample adds
+(events/messages wrapper containers, well under 10 levels) allows, so values
+that serialize today keep round-tripping; it also leaves ample headroom over
+`MAX_TOOL_CALL_ARGUMENTS_DEPTH` (100), so depth-bounded tool arguments are
+never truncated here.
+"""
+
+JSON_VALUE_MAX_DEPTH_EXCEEDED = "<max nesting depth exceeded>"
+"""Marker substituted for JSON content nested beyond `MAX_JSON_VALUE_DEPTH`."""
+
+
 def walk_json_value(
-    value: JsonValue, content_fn: Callable[[str], str], context: WalkContext
+    value: JsonValue,
+    content_fn: Callable[[str], str],
+    context: WalkContext,
+    depth: int = 0,
 ) -> JsonValue:
     if isinstance(value, str):
         return content_fn(value)
-    elif isinstance(value, list):
-        return walk_json_list(value, content_fn, context)
-    elif isinstance(value, dict):
-        return walk_json_dict(value, content_fn, context)
+    elif isinstance(value, (list, dict)):
+        if depth >= MAX_JSON_VALUE_DEPTH:
+            return JSON_VALUE_MAX_DEPTH_EXCEEDED
+        elif isinstance(value, list):
+            return walk_json_list(value, content_fn, context, depth)
+        else:
+            return walk_json_dict(value, content_fn, context, depth)
     else:
         return value
 
@@ -1035,11 +1119,12 @@ def walk_json_list(
     value: list[JsonValue],
     content_fn: Callable[[str], str],
     context: WalkContext,
+    depth: int = 0,
 ) -> list[JsonValue]:
     walked_list: list[JsonValue] | None = None
 
     for i, v in enumerate(value):
-        walked = walk_json_value(v, content_fn, context)
+        walked = walk_json_value(v, content_fn, context, depth + 1)
         if walked is not v:
             if walked_list is None:
                 walked_list = list(value)
@@ -1052,11 +1137,12 @@ def walk_json_dict(
     value: dict[str, JsonValue],
     content_fn: Callable[[str], str],
     context: WalkContext,
+    depth: int = 0,
 ) -> dict[str, JsonValue]:
     walked_dict: dict[str, JsonValue] | None = None
 
     for k, v in value.items():
-        walked = walk_json_value(v, content_fn, context)
+        walked = walk_json_value(v, content_fn, context, depth + 1)
         if walked is not v:
             if walked_dict is None:
                 walked_dict = value.copy()

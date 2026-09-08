@@ -42,6 +42,20 @@ KIMI_TOOL_CHOICE_WARNING = (
     'and will be submitted as "required".'
 )
 
+KIMI_TOOL_CHOICE_DROPPED_WARNING = (
+    "Forcing use of the {name!r} tool is not supported by {model} (a named "
+    "tool_choice is incompatible with thinking, which is enabled by default). "
+    'The request will be submitted as "auto" and the model may choose not to '
+    "call the tool at all."
+)
+
+KIMI_ANY_TOOL_CHOICE_WARNING = (
+    'A tool_choice of "any" is not supported by {model} (tool_choice '
+    "'required' is incompatible with thinking, which is enabled by default). "
+    'The request will be submitted as "auto" and the model may choose not to '
+    "call a tool at all."
+)
+
 
 class MoonshotAPI(OpenAICompatibleAPI):
     def __init__(
@@ -100,18 +114,36 @@ class MoonshotAPI(OpenAICompatibleAPI):
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
     ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
         tools, tool_choice, config = super().resolve_tools(tools, tool_choice, config)
-        if (
-            self.is_kimi()
-            and not self.thinking_disabled(config)
-            and isinstance(tool_choice, ToolFunction)
-        ):
-            warn_once(
-                logger,
-                KIMI_TOOL_CHOICE_WARNING.format(
-                    name=tool_choice.name, model=self.service_model_name()
-                ),
-            )
-            tool_choice = "any"
+        if self.is_kimi() and not self.thinking_disabled(config):
+            # with thinking enabled, K3 rejects only a named tool_choice
+            # (accepting 'required'), while other Kimi models reject both a
+            # named tool_choice and 'required' — for those the best available
+            # fallback is "auto", which drops the forcing entirely
+            if isinstance(tool_choice, ToolFunction):
+                if self.is_kimi_k3():
+                    warn_once(
+                        logger,
+                        KIMI_TOOL_CHOICE_WARNING.format(
+                            name=tool_choice.name, model=self.service_model_name()
+                        ),
+                    )
+                    tool_choice = "any"
+                else:
+                    warn_once(
+                        logger,
+                        KIMI_TOOL_CHOICE_DROPPED_WARNING.format(
+                            name=tool_choice.name, model=self.service_model_name()
+                        ),
+                    )
+                    tool_choice = "auto"
+            elif tool_choice == "any" and not self.is_kimi_k3():
+                warn_once(
+                    logger,
+                    KIMI_ANY_TOOL_CHOICE_WARNING.format(
+                        model=self.service_model_name()
+                    ),
+                )
+                tool_choice = "auto"
         return tools, tool_choice, config
 
     # the service returns 503 when overloaded -- classify as a rate limit so

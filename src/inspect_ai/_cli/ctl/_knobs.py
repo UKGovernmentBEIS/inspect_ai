@@ -21,6 +21,7 @@ _KNOB_SCOPE: dict[str, str] = {
     "log_shared": "task",
     "timeout": "process",
     "attempt_timeout": "process",
+    "stream_idle_timeout": "process",
     "max_retries": "process",
     "time_limit": "task",
     "token_limit": "task",

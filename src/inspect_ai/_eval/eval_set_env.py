@@ -423,6 +423,7 @@ GENERATE_CONFIG_VARIABLES: dict[str, Callable[[str, str], Any]] = {
     "max_retries": _integer,
     "timeout": _integer,
     "attempt_timeout": _integer,
+    "stream_idle_timeout": _integer,
     "max_connections": _integer,
     "adaptive_connections": _text,
     "batch": _int_bool_or_str(DEFAULT_BATCH_SIZE),

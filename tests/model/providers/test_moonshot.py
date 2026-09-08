@@ -109,6 +109,49 @@ def test_moonshot_kimi_k3_coerces_forced_tool_choice(
     assert not _warn_once_messages
 
 
+def test_moonshot_kimi_k2_6_drops_forced_tool_choice(
+    mock_moonshot_env, _warn_once_messages
+):
+    """Non-K3 Kimi models reject both named and 'required' tool_choice with thinking — coerce to "auto"."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+    from inspect_ai.tool import ToolFunction
+
+    api = MoonshotAPI(model_name="kimi-k2.6")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice=ToolFunction(name="addition"), config=GenerateConfig()
+    )
+    assert tool_choice == "auto"
+    assert any(
+        "addition" in m and "kimi-k2.6" in m and '"auto"' in m
+        for m in _warn_once_messages
+    ), "expected a warning for dropped tool forcing"
+
+
+def test_moonshot_kimi_k2_6_coerces_any_tool_choice(
+    mock_moonshot_env, _warn_once_messages
+):
+    """Explicit tool_choice="any" (sent as 'required') also 400s on non-K3 Kimi — coerce to "auto"."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k2.6")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice="any", config=GenerateConfig()
+    )
+    assert tool_choice == "auto"
+    assert any("kimi-k2.6" in m and '"auto"' in m for m in _warn_once_messages), (
+        "expected a warning for coerced tool_choice"
+    )
+
+    # K3 accepts 'required', so "any" passes through there
+    _warn_once_messages.clear()
+    api = MoonshotAPI(model_name="kimi-k3")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice="any", config=GenerateConfig()
+    )
+    assert tool_choice == "any"
+    assert not _warn_once_messages
+
+
 def test_moonshot_thinking_disabled_preserves_forced_tool_choice(mock_moonshot_env):
     """Disabling thinking via extra_body lifts the named tool_choice restriction."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
