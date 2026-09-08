@@ -421,6 +421,7 @@ NOT_OVERRIDABLE: dict[str, str] = {
     "model_args": "part of task identity",
     "model_roles": "part of task identity",
     "task_args": "part of task identity",
+    "default_config": "part of task identity (decides whether a task's attached default applies, and that default sets identity-bearing values)",
     "solver": "part of task identity",
     "message_limit": "part of task identity",
     "token_limit": "part of task identity",

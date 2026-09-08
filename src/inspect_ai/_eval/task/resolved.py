@@ -26,6 +26,8 @@ class ResolvedTask:
     initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
     input_media_policy: InputMediaPolicy = field(default="inline_only")
+    run_config_source: str | None = None
+    run_config: dict[str, Any] = field(default_factory=dict)
 
     @property
     def has_sandbox(self) -> bool:

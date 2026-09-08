@@ -632,6 +632,72 @@ eval(**params)
 
 `merge_run_config_params()` follows CLI precedence: task arguments, model arguments, and model roles merge by key, while other values replace the configured value. Overrides of `None`, empty dictionaries, and `score=True` are ignored to match CLI defaults; this is not a general-purpose dictionary merge.
 
+### Default Run Config {#default-run-config}
+
+A task author can attach recommended run settings to a task definition with `@task(default_config=...)`. The path is resolved relative to the Python file defining the task. Include the configuration file as package data when distributing the task.
+
+``` python
+@task(default_config="recommended.yaml")
+def my_task(category: str | None = None) -> Task:
+    return Task(dataset=load_dataset(category), scorer=match())
+```
+
+The file uses the run-config format. The `task` section may omit the task reference and provide only `args`, or it may name the task it is attached to by its registry name (`my_task` here; `my_package/my_task` for tasks registered by a package):
+
+``` yaml
+task:
+  task: my_task
+  args:
+    category: Math
+
+generate_config:
+  temperature: 0.5
+  max_tokens: 2048
+
+model_roles:
+  grader:
+    model: openai/gpt-4o
+
+eval_config:
+  epochs: 3
+  message_limit: 50
+```
+
+Naming the task documents which task the file was written for and lets the same file select that task when passed standalone via `--run-config`. It cannot redirect a run: a task default that names any other task is rejected with an error identifying both tasks.
+
+A task default cannot set the top-level `model`, including its base URL or arguments. The evaluated model remains the runner's choice. Auxiliary models belong in `model_roles`.
+
+Inspect applies the file when resolving a task function, registered task name, or source-file reference. This includes `eval()`, `eval_async()`, `eval_set()`, and their CLI equivalents. Task arguments from the file are merged before invoking the function. Supplied arguments take precedence per parameter, including `None`, `False`, zero, and empty collections. Python signature defaults fill arguments absent from both sources. Runtime settings from the file override `Task(...)` constructor values, and supplied evaluation settings take precedence over the file.
+
+``` python
+eval(my_task, model="openai/gpt-4o", task_args={"category": None}, epochs=1)
+```
+
+Direct function calls retain ordinary Python behavior and do not read the attached file. Passing a constructed task to Inspect also skips the entire attached default, so these forms differ:
+
+``` python
+eval(my_task, model="openai/gpt-4o")
+eval(my_task(category="Math"), model="openai/gpt-4o")
+```
+
+The first form applies `recommended.yaml`. The second uses only the arguments passed to `my_task`, its Python defaults, and its constructor settings before applying any evaluation overrides. Use the second form when composing tasks with `task_with()`. Parameters with no Python fallback remain required for direct calls.
+
+To resolve a task definition without applying its attached configuration, use `default_config=False` or `--no-default-config`:
+
+``` python
+eval(my_task, model="openai/gpt-4o", default_config=False)
+```
+
+``` bash
+inspect eval tasks.py@my_task --model openai/gpt-4o --no-default-config
+```
+
+An expressly selected `--run-config` replaces the attached default entirely, even if the selected file is empty. When applying a standalone run config through the Python API, pass `default_config=False` alongside the parameters returned by `to_params()`. Disabling or replacing a default skips reading it, so a missing default file does not prevent those runs.
+
+`list_tasks()` exposes the declared path through `TaskInfo.default_config`; `inspect list tasks --json` includes it in `attribs.default_config`. Discovery does not read or validate the file. Validation occurs when Inspect resolves the task for execution.
+
+Runs using a task default display its filename and record `EvalSpec.run_config_source` as `task_default:<resolved-path>`. CLI-selected files are recorded as `cli:<path>`. `inspect log export-config` exports the effective settings for replay without the attached file, and retries preserve the settings recorded in the original log.
+
 ### Scorer Override {#scorer-override}
 
 The scorer can only be overridden with `task_with()` during a live eval; there is no `eval()` parameter or CLI flag for it:

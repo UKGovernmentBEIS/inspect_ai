@@ -142,6 +142,7 @@ from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
+from .task_defaults import resolve_task_eval_config, with_task_defaults
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import DeferredStatsProvider
@@ -224,6 +225,7 @@ def _overridden_epochs(
     return epochs
 
 
+@with_task_defaults
 def eval_set(
     tasks: Tasks,
     log_dir: str | None = None,
@@ -291,6 +293,7 @@ def eval_set(
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
     embed_viewer: bool = False,
+    default_config: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -451,6 +454,8 @@ def eval_set(
             for tasks in this eval set (defaults to False).
         eval_set_id: ID for the eval set. If not specified, a unique ID will be generated.
         embed_viewer: If True, embed a log viewer into the log directory.
+        default_config: Apply run configuration files attached to task
+            definitions via `@task(default_config=...)` (defaults to True).
         **kwargs: Model generation options.
 
     Returns:
@@ -522,6 +527,7 @@ def eval_set(
             model_args=model_args,
             model_roles=model_roles,
             task_args=task_args,
+            default_config=default_config,
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
             sandbox_prebuilt=sandbox_prebuilt,
@@ -1057,15 +1063,25 @@ def eval_set(
         # for those that haven't run, schedule them into models => tasks groups
         # (exclude logs where sample_shuffle changed with a limit -- a different
         # shuffle selects a different subset of samples so the log can't be reused)
-        reusable_logs = [
-            log
-            for log in all_logs
-            if not shuffle_changed(sample_shuffle, log.header.eval.config, limit)
-        ]
-        log_task_identifiers = [log.task_identifier for log in reusable_logs]
         all_tasks = [
             (task_identifier(task, eval_set_args), task) for task in resolved_tasks
         ]
+        tasks_by_identifier = dict(all_tasks)
+
+        def log_reusable(log: Log) -> bool:
+            # compare against the selection the task actually ran with, which
+            # a task default may have set where this call left it unset
+            task = tasks_by_identifier.get(log.task_identifier)
+            selection = resolve_task_eval_config(
+                task.run_config if task else {},
+                EvalConfig(sample_shuffle=sample_shuffle, limit=limit),
+            )
+            return not shuffle_changed(
+                selection.sample_shuffle, log.header.eval.config, selection.limit
+            )
+
+        reusable_logs = [log for log in all_logs if log_reusable(log)]
+        log_task_identifiers = [log.task_identifier for log in reusable_logs]
         pending_tasks = [
             task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
@@ -1837,8 +1853,17 @@ def log_samples_complete(
         return False
     epoch_count = epochs.epochs
 
+    # the log ran with the task default's sample selection where the eval-set
+    # call left it unset, so plan against the same selection
+    selection = resolve_task_eval_config(
+        task.run_config, EvalConfig(limit=limit, sample_id=sample_id)
+    )
     count = samples_selected(
-        task.task.dataset, limit, sample_id, task.task.name, task_names
+        task.task.dataset,
+        selection.limit,
+        selection.sample_id,
+        task.task.name,
+        task_names,
     )
     planned = count * epoch_count
 

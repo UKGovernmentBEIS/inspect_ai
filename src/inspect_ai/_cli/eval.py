@@ -312,6 +312,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with --generate-config, --task-config, or --solver-config.",
     )
     @click.option(
+        "--no-default-config",
+        is_flag=True,
+        default=False,
+        envvar="INSPECT_EVAL_NO_DEFAULT_CONFIG",
+        help="Ignore default run configurations attached to task definitions.",
+    )
+    @click.option(
         "--model-role",
         multiple=True,
         type=str,
@@ -1088,6 +1095,7 @@ def _eval_command_impl(
     model_config: str | None,
     model_spec: tuple[str, ...] | None,
     run_config: str | None,
+    no_default_config: bool,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -1221,6 +1229,7 @@ def _eval_command_impl(
         model_config=model_config,
         model_spec=model_spec,
         run_config=run_config,
+        no_default_config=no_default_config,
         model_role=model_role,
         t=t,
         task_config=task_config,
@@ -1409,6 +1418,7 @@ def eval_set_command(
     model_config: str | None,
     model_spec: tuple[str, ...] | None,
     run_config: str | None,
+    no_default_config: bool,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -1559,6 +1569,7 @@ def eval_set_command(
             model_config=model_config,
             model_spec=model_spec,
             run_config=run_config,
+            no_default_config=no_default_config,
             model_role=model_role,
             t=t,
             task_config=task_config,
@@ -1729,6 +1740,7 @@ def eval_exec(
     model_config: str | None,
     model_spec: tuple[str, ...] | None,
     run_config: str | None,
+    no_default_config: bool,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -1981,31 +1993,35 @@ def eval_exec(
         merge_run_config_params(run_params, cli_params) if run_params else cli_params
     )
 
+    params["default_config"] = not (no_default_config or run_config is not None)
+    from inspect_ai._eval.task_defaults import run_config_source
+
     # evaluate
-    if is_eval_set:
-        params["retry_attempts"] = retry_attempts
-        params["retry_immediate"] = retry_immediate
-        params["retry_wait"] = retry_wait
-        params["retry_connections"] = retry_connections
-        params["retry_cleanup"] = retry_cleanup
-        params["incomplete_action"] = incomplete_action
-        params["incomplete_max"] = incomplete_max
-        params["bundle_dir"] = bundle_dir
-        params["bundle_overwrite"] = bundle_overwrite
-        params["embed_viewer"] = embed_viewer
-        params["log_dir_allow_dirty"] = log_dir_allow_dirty
-        params["eval_set_id"] = eval_set_id
-        if json_output:
-            return _eval_exec_json(lambda: eval_set(**params), is_eval_set=True)
-        success, _ = eval_set(**params)
-        return success
-    else:
-        params["log_header_only"] = True  # cli invocation doesn't need full log
-        if json_output:
-            _eval_exec_json(lambda: (True, eval(**params)))
+    with run_config_source(f"cli:{run_config}" if run_config is not None else None):
+        if is_eval_set:
+            params["retry_attempts"] = retry_attempts
+            params["retry_immediate"] = retry_immediate
+            params["retry_wait"] = retry_wait
+            params["retry_connections"] = retry_connections
+            params["retry_cleanup"] = retry_cleanup
+            params["incomplete_action"] = incomplete_action
+            params["incomplete_max"] = incomplete_max
+            params["bundle_dir"] = bundle_dir
+            params["bundle_overwrite"] = bundle_overwrite
+            params["embed_viewer"] = embed_viewer
+            params["log_dir_allow_dirty"] = log_dir_allow_dirty
+            params["eval_set_id"] = eval_set_id
+            if json_output:
+                return _eval_exec_json(lambda: eval_set(**params), is_eval_set=True)
+            success, _ = eval_set(**params)
+            return success
         else:
-            eval(**params)
-        return True
+            params["log_header_only"] = True  # cli invocation doesn't need full log
+            if json_output:
+                _eval_exec_json(lambda: (True, eval(**params)))
+            else:
+                eval(**params)
+            return True
 
 
 def _eval_exec_json(
