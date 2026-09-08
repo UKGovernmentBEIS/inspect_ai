@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from inspect import isgenerator
 from typing import Any, Iterator
 
 from pydantic import BaseModel, Field
 
+import inspect_ai.model as model_module
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import Model, get_model
 
 
 class ModelConfig(BaseModel):
@@ -24,7 +26,7 @@ class ModelConfig(BaseModel):
 
 
 def model_roles_to_model_roles_config(
-    model_roles: dict[str, Model | list[Model]] | None,
+    model_roles: dict[str, model_module.Model | list[model_module.Model]] | None,
 ) -> dict[str, ModelConfig | list[ModelConfig]] | None:
     if model_roles is not None:
         return {
@@ -39,7 +41,7 @@ def model_roles_to_model_roles_config(
 
 def model_roles_config_to_model_roles(
     model_config: dict[str, ModelConfig | list[ModelConfig]] | None,
-) -> dict[str, Model | list[Model]] | None:
+) -> dict[str, model_module.Model | list[model_module.Model]] | None:
     if model_config is not None:
         return {
             k: [model_config_to_model(mc) for mc in v]
@@ -51,7 +53,7 @@ def model_roles_config_to_model_roles(
         return None
 
 
-def model_to_model_config(model: Model) -> ModelConfig:
+def model_to_model_config(model: model_module.Model) -> ModelConfig:
     return ModelConfig(
         model=str(model),
         config=model.config,
@@ -60,7 +62,9 @@ def model_to_model_config(model: Model) -> ModelConfig:
     )
 
 
-def model_config_to_model(model_config: ModelConfig) -> Model:
+def model_config_to_model(model_config: ModelConfig) -> model_module.Model:
+    from inspect_ai.model._model import get_model
+
     return get_model(
         model=model_config.model,
         config=model_config.config,
