@@ -1,23 +1,30 @@
+import json
 import os
 import tempfile
+from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import pytest
+import yaml
 from click.testing import CliRunner, Result
 from pydantic import ValidationError
 
-from inspect_ai import Task, eval, task
+from inspect_ai import Epochs, Task, eval, task
 from inspect_ai._cli.eval import (
     RunConfigInput,
     eval_command,
     eval_retry_command,
     eval_set_command,
+    merge_run_config_params,
+    parse_run_config,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.log import EvalLog
+from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import list_eval_logs, read_eval_log
-from inspect_ai.model import get_model
-from inspect_ai.solver import solver
+from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.solver import SolverSpec, solver
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
 def run_eval_cli(args: list[str], env: dict[str, str | None] | None = None) -> Result:
@@ -78,6 +85,593 @@ def test_run_config_rejects_unknown_generate_config_field():
 def test_run_config_rejects_unknown_eval_config_field():
     with pytest.raises(ValidationError, match="[Uu]nknown"):
         RunConfigInput.model_validate({"eval_config": {"limit": 10, "bad_field": 1}})
+
+
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        ({}, {}),
+        ({"task": None, "model": None, "solver": None, "sandbox": None}, {}),
+        ({"tags": [], "metadata": {}, "model_roles": {}}, {}),
+        ({"task": "task_ref"}, {"tasks": "task_ref"}),
+        ({"task": {"task": "task_ref", "args": {}}}, {"tasks": "task_ref"}),
+        (
+            {"task": {"task": "task_ref", "args": {"value": None}}},
+            {"tasks": "task_ref", "task_args": {"value": None}},
+        ),
+        ({"model": "mockllm/model"}, {"model": "mockllm/model"}),
+        (
+            {"model": {"model": "mockllm/model", "base_url": "", "args": {"x": 0}}},
+            {"model": "mockllm/model", "model_base_url": "", "model_args": {"x": 0}},
+        ),
+        ({"tags": ["one", "one"]}, {"tags": ["one", "one"]}),
+        (
+            {"metadata": {"nested": {"x": False}}},
+            {"metadata": {"nested": {"x": False}}},
+        ),
+        ({"eval_config": {"epochs_reducer": ["mean"]}}, {}),
+        (
+            {"generate_config": {"temperature": None}, "eval_config": {"limit": None}},
+            {},
+        ),
+    ],
+)
+def test_run_config_to_params_mapping(
+    config: dict[str, Any], expected: dict[str, Any]
+) -> None:
+    assert RunConfigInput.model_validate(config).to_params() == expected
+
+
+@pytest.mark.parametrize("structured", [False, True])
+def test_run_config_solver_and_sandbox_mapping(structured: bool) -> None:
+    config = RunConfigInput.model_validate(
+        {
+            "solver": {"solver": "solver_ref", "args": {"x": None}}
+            if structured
+            else "solver_ref",
+            "sandbox": {"type": "docker", "config": "file://compose.yaml"}
+            if structured
+            else "docker:file://compose.yaml",
+        }
+    )
+    params = config.to_params()
+    spec = params["solver"]
+    assert isinstance(spec, SolverSpec)
+    assert spec.solver == "solver_ref"
+    assert spec.args == ({"x": None} if structured else {})
+    assert spec.args_passed == spec.args
+    assert params["sandbox"] == SandboxEnvironmentSpec("docker", "file://compose.yaml")
+
+
+def test_run_config_generate_config_all_fields() -> None:
+    values = {
+        "max_retries": 0,
+        "timeout": 1,
+        "attempt_timeout": 2,
+        "stream_idle_timeout": 3,
+        "max_connections": 4,
+        "adaptive_connections": False,
+        "system_message": "system",
+        "max_tokens": 5,
+        "top_p": 0.5,
+        "temperature": 0.0,
+        "stop_seqs": [],
+        "best_of": 1,
+        "frequency_penalty": 0.1,
+        "presence_penalty": 0.2,
+        "logit_bias": {1: 0.5},
+        "seed": 0,
+        "top_k": 2,
+        "num_choices": 1,
+        "logprobs": False,
+        "top_logprobs": 0,
+        "prompt_logprobs": 1,
+        "parallel_tool_calls": False,
+        "internal_tools": False,
+        "max_tool_output": 10,
+        "cache_prompt": False,
+        "fallback_models": [],
+        "verbosity": "low",
+        "effort": "high",
+        "reasoning_effort": "low",
+        "reasoning_mode": "standard",
+        "reasoning_tokens": 10,
+        "reasoning_summary": "none",
+        "reasoning_history": "none",
+        "response_schema": {"name": "response", "json_schema": {"type": "object"}},
+        "extra_headers": {},
+        "extra_body": {"nested": {"x": 1}},
+        "modalities": ["image"],
+        "cache": False,
+        "batch": False,
+    }
+    assert set(values) == set(GenerateConfig.model_fields)
+    expected = GenerateConfig.model_validate(values).model_dump(exclude_none=True)
+    for config in (
+        {"generate_config": values},
+        {"model": {"model": "mockllm/model", "config": values}},
+    ):
+        params = RunConfigInput.model_validate(config).to_params()
+        params.pop("model", None)
+        assert params == expected
+
+
+def test_run_config_eval_config_all_fields() -> None:
+    values = {
+        "limit": [1, 3],
+        "sample_id": ["one", 2],
+        "sample_shuffle": False,
+        "approval": {"approvers": []},
+        "notification": False,
+        "fail_on_error": 0.5,
+        "continue_on_fail": False,
+        "retry_on_error": 0,
+        "score_on_error": False,
+        "message_limit": 1,
+        "token_limit": 2,
+        "token_limit_type": "output",
+        "turn_limit": 3,
+        "time_limit": 4,
+        "working_limit": 5,
+        "cost_limit": 0.0,
+        "max_samples": 1,
+        "max_dataset_memory": 2,
+        "max_tasks": 3,
+        "max_subprocesses": 4,
+        "max_sandboxes": 5,
+        "sandbox_cleanup": False,
+        "sandbox_prebuilt": False,
+        "log_samples": False,
+        "log_realtime": False,
+        "log_images": False,
+        "log_model_api": False,
+        "log_buffer": 0,
+        "log_shared": 0,
+        "score_display": False,
+        "acp_server": False,
+    }
+    assert set(values) == set(EvalConfig.model_fields) - {"epochs", "epochs_reducer"}
+    expected = EvalConfig.model_validate(values).model_dump(exclude_none=True)
+    assert (
+        RunConfigInput.model_validate({"eval_config": values}).to_params() == expected
+    )
+
+
+@pytest.mark.parametrize("reducers", [None, [], ["mean", "max"]])
+@pytest.mark.parametrize("count", [0, 2])
+def test_run_config_epochs_mapping(count: int, reducers: list[str] | None) -> None:
+    params = RunConfigInput.model_validate(
+        {"eval_config": {"epochs": count, "epochs_reducer": reducers}}
+    ).to_params()
+    assert set(params) == {"epochs"}
+    epochs = params["epochs"]
+    assert isinstance(epochs, Epochs)
+    assert epochs.epochs == count
+    assert (None if epochs.reducer is None else len(epochs.reducer)) == (
+        None if reducers is None else len(reducers)
+    )
+
+
+def test_run_config_generation_precedence_replaces_nested_values() -> None:
+    params = RunConfigInput.model_validate(
+        {
+            "model": {
+                "model": "mockllm/model",
+                "config": {
+                    "temperature": 0.8,
+                    "seed": 42,
+                    "extra_body": {"keep": True, "nested": {"a": 1}},
+                    "extra_headers": {"x": "old"},
+                },
+            },
+            "generate_config": {
+                "temperature": 0,
+                "seed": None,
+                "extra_body": {"nested": {"b": 2}},
+                "extra_headers": {},
+            },
+        }
+    ).to_params()
+    assert params == {
+        "model": "mockllm/model",
+        "temperature": 0.0,
+        "seed": 42,
+        "extra_body": {"nested": {"b": 2}},
+        "extra_headers": {},
+    }
+
+
+def test_run_config_model_roles_list_and_repeated_conversion() -> None:
+    config = RunConfigInput.model_validate(
+        {
+            "model_roles": {
+                "single": {
+                    "model": "mockllm/single",
+                    "base_url": "https://example.test",
+                    "args": {"foo": "bar"},
+                    "config": {"temperature": 0},
+                },
+                "group": [
+                    {"model": "mockllm/first"},
+                    {"model": "mockllm/second", "config": {"seed": 0}},
+                ],
+                "empty": [],
+            }
+        }
+    )
+    before = config.model_dump()
+    first = config.to_params()["model_roles"]
+    second = config.to_params()["model_roles"]
+    assert isinstance(first["single"], Model)
+    assert first["single"].api.base_url == "https://example.test"
+    assert first["single"].model_args == {"foo": "bar"}
+    assert first["single"].config.temperature == 0
+    assert [str(model) for model in first["group"]] == [
+        "mockllm/first",
+        "mockllm/second",
+    ]
+    assert first["group"][1].config.seed == 0
+    assert first["empty"] == []
+    assert first["single"] is not second["single"]
+    assert first["group"][0] is not second["group"][0]
+    assert config.model_dump() == before
+
+
+@pytest.mark.parametrize("section", ["task", "solver", "model"])
+def test_run_config_nested_unknown_fields_are_ignored(section: str) -> None:
+    name = "mockllm/model" if section == "model" else "reference"
+    config = RunConfigInput.model_validate({section: {section: name, "typo": 1}})
+    assert "typo" not in config.model_dump()[section]
+
+
+@pytest.mark.parametrize(
+    "section", ["generate_config", "eval_config", "tags", "metadata", "model_roles"]
+)
+def test_run_config_nonnullable_sections(section: str) -> None:
+    with pytest.raises(ValidationError):
+        RunConfigInput.model_validate({section: None})
+
+
+@pytest.mark.parametrize("suffix", [".yaml", ".json"])
+@pytest.mark.parametrize("uri", [False, True])
+def test_parse_run_config_files(tmp_path: Path, suffix: str, uri: bool) -> None:
+    path = tmp_path / f"run{suffix}"
+    data = {
+        "task": {"task": "task_ref", "args": {"value": None}},
+        "generate_config": {"temperature": 0},
+    }
+    path.write_text(json.dumps(data) if suffix == ".json" else yaml.safe_dump(data))
+    assert parse_run_config(path.as_uri() if uri else str(path)) == {
+        "tasks": "task_ref",
+        "task_args": {"value": None},
+        "temperature": 0.0,
+    }
+
+
+@pytest.mark.parametrize(
+    "data, message",
+    [
+        ({"typo": 1}, "Additional properties are not allowed"),
+        ({"task": 42}, "not valid under any of the given schemas"),
+        ({"generate_config": {"typo": 1}}, "Unknown generate_config fields"),
+        ({"eval_config": {"max_messages": 3}}, "Unknown eval_config fields"),
+    ],
+)
+def test_parse_run_config_validation_errors(
+    tmp_path: Path, data: dict[str, Any], message: str
+) -> None:
+    path = tmp_path / "invalid.yaml"
+    path.write_text(yaml.safe_dump(data))
+    with pytest.raises(PrerequisiteError) as exc:
+        parse_run_config(str(path))
+    assert f"Invalid run config '{path}':" in str(exc.value.message)
+    assert message in str(exc.value.message)
+
+
+@pytest.mark.parametrize("content", ["", "[]", "null", "not-an-object"])
+def test_parse_run_config_nonobject_errors(tmp_path: Path, content: str) -> None:
+    path = tmp_path / "invalid.yaml"
+    path.write_text(content)
+    with pytest.raises(ValueError, match="The config is not a valid object"):
+        parse_run_config(str(path))
+
+
+def test_parse_run_config_missing_file(tmp_path: Path) -> None:
+    path = tmp_path / "missing.yaml"
+    with pytest.raises(PrerequisiteError) as exc:
+        parse_run_config(str(path))
+    assert exc.value.message == f"The config file {path} does not exist."
+
+
+@pytest.mark.parametrize(
+    "value, overrides",
+    [
+        (None, False),
+        ({}, False),
+        ([], True),
+        ((), True),
+        ("", True),
+        (False, True),
+        (0, True),
+        (True, True),
+    ],
+)
+def test_merge_run_config_empty_and_falsey_values(value: Any, overrides: bool) -> None:
+    assert merge_run_config_params({"key": "run"}, {"key": value}) == {
+        "key": value if overrides else "run"
+    }
+    assert merge_run_config_params({}, {"key": value}) == (
+        {"key": value} if overrides else {}
+    )
+
+
+@pytest.mark.parametrize("run", [{}, {"score": True}, {"score": False}])
+@pytest.mark.parametrize("cli", [None, True, False])
+def test_merge_run_config_score_default(run: dict[str, Any], cli: bool | None) -> None:
+    assert merge_run_config_params(run, {"score": cli}) == (
+        {"score": False} if cli is False else run
+    )
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "task_args",
+        "model_args",
+        "model_roles",
+        "metadata",
+        "extra_body",
+        "extra_headers",
+    ],
+)
+def test_merge_run_config_shallow_merge_and_replacement(key: str) -> None:
+    run = {key: {"keep": 1, "nested": {"old": 2, "shared": 3}}}
+    cli = {key: {"nested": {"new": 4}}}
+    before_run, before_cli = deepcopy(run), deepcopy(cli)
+    result = merge_run_config_params(run, cli)
+    expected: dict[str, Any] = {"nested": {"new": 4}}
+    if key in ("task_args", "model_args", "model_roles"):
+        expected["keep"] = 1
+    assert result == {key: expected}
+    assert result is not run
+    assert run == before_run
+    assert cli == before_cli
+    assert merge_run_config_params(run, cli) == result
+
+
+@pytest.mark.parametrize("constructed", [False, True])
+@pytest.mark.parametrize("args", [{}, {"color": None}, {"color": "blue"}])
+def test_run_config_task_factory_vs_constructed_task(
+    constructed: bool, args: dict[str, Any]
+) -> None:
+    params = RunConfigInput.model_validate(
+        {
+            "task": {"task": "eval_config_characterization_task", "args": args},
+            "model": "mockllm/model",
+            "eval_config": {"epochs": 2},
+            "generate_config": {"temperature": 0},
+        }
+    ).to_params()
+    if constructed:
+        params["tasks"] = eval_config_characterization_task(color="constructed")
+    log = eval(**params)[0]
+    assert log.status == "success"
+    assert log.eval.task_args["color"] == (
+        "constructed" if constructed else args.get("color", "red")
+    )
+    assert log.eval.config.epochs == 2
+    assert log.plan.config.temperature == 0
+
+
+@pytest.mark.parametrize("source", ["environment", "run_config", "flag"])
+@pytest.mark.parametrize(
+    "name, option, envvar, value, config, expected",
+    [
+        (
+            "m",
+            "-M",
+            "INSPECT_EVAL_MODEL_ARGS",
+            "foo=env",
+            {"model": {"model": "mockllm/model", "args": {"foo": "run"}}},
+            ("foo=env",),
+        ),
+        (
+            "t",
+            "-T",
+            "INSPECT_EVAL_TASK_ARGS",
+            "color=env",
+            {"task": {"task": "eval_config_task", "args": {"color": "run"}}},
+            ("color=env",),
+        ),
+        (
+            "model_role",
+            "--model-role",
+            "INSPECT_EVAL_MODEL_ROLE",
+            "grader=mockllm/env",
+            {"model_roles": {"grader": {"model": "mockllm/run"}}},
+            ("grader=mockllm/env",),
+        ),
+        (
+            "model_spec",
+            "--model-spec",
+            "INSPECT_EVAL_MODEL_SPEC",
+            "mockllm/env",
+            {"model": "mockllm/run"},
+            ("mockllm/env",),
+        ),
+        (
+            "no_sandbox_cleanup",
+            "--no-sandbox-cleanup",
+            "INSPECT_EVAL_NO_SANDBOX_CLEANUP",
+            "true",
+            {"eval_config": {"sandbox_cleanup": True}},
+            True,
+        ),
+        (
+            "s",
+            "-S",
+            "INSPECT_EVAL_SOLVER_ARGS",
+            "shape=env",
+            {"solver": "eval_config_solver"},
+            ("shape=env",),
+        ),
+        (
+            "solver_config",
+            "--solver-config",
+            "INSPECT_EVAL_SOLVER_CONFIG",
+            "solver.yaml",
+            {"solver": "eval_config_solver"},
+            "solver.yaml",
+        ),
+        (
+            "temperature",
+            "--temperature",
+            "INSPECT_EVAL_TEMPERATURE",
+            "0.8",
+            {"generate_config": {"temperature": 0}},
+            0.8,
+        ),
+        (
+            "limit",
+            "--limit",
+            "INSPECT_EVAL_LIMIT",
+            "3",
+            {"eval_config": {"limit": 1}},
+            "3",
+        ),
+    ],
+)
+def test_run_config_cli_environment_key_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+    name: str,
+    option: str,
+    envvar: str,
+    value: str,
+    config: dict[str, Any],
+    expected: Any,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def capture(**params: Any) -> None:
+        captured.update(params)
+
+    monkeypatch.setattr("inspect_ai._cli.eval._eval_command_impl", capture)
+    path = tmp_path / "run.yaml"
+    path.write_text(yaml.safe_dump({} if source == "environment" else config))
+    args = ["--run-config", str(path)]
+    if source == "flag":
+        args.extend([option] if name == "no_sandbox_cleanup" else [option, value])
+    result = run_eval_cli(args, env={envvar: value, "TERM_PROGRAM": "xterm"})
+    assert_cli_success(result)
+    if source == "run_config":
+        expected = () if isinstance(expected, tuple) else None
+    assert captured[name] == expected
+
+
+@pytest.mark.parametrize(
+    "field, envvar",
+    [
+        ("log_samples", "INSPECT_EVAL_NO_LOG_SAMPLES"),
+        ("log_realtime", "INSPECT_EVAL_NO_LOG_REALTIME"),
+        ("score_display", "INSPECT_EVAL_SCORE_DISPLAY"),
+        ("fail_on_error", "INSPECT_EVAL_NO_FAIL_ON_ERROR"),
+    ],
+)
+def test_run_config_cli_unmapped_negated_env_overrides_config(
+    tmp_path: Path, field: str, envvar: str
+) -> None:
+    path = tmp_path / "run.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "task": "tests/test_eval_config.py@eval_config_characterization_task",
+                "model": "mockllm/model",
+                "eval_config": {field: True},
+            }
+        )
+    )
+    result = run_eval_cli(
+        ["--run-config", str(path), "--log-dir", str(tmp_path / "logs")],
+        env={envvar: "true", "TERM_PROGRAM": "xterm"},
+    )
+    assert_cli_success(result)
+    log = read_eval_log(list_eval_logs(str(tmp_path / "logs"))[0])
+    assert getattr(log.eval.config, field) is False
+
+
+def test_merge_run_config_replaces_role_lists_and_solver() -> None:
+    old = get_model("mockllm/old")
+    new = get_model("mockllm/new")
+    old_solver = SolverSpec("old", {"keep": 1}, {})
+    new_solver = SolverSpec("new", {"replace": 2}, {})
+    run = {"model_roles": {"keep": old, "replace": [old]}, "solver": old_solver}
+    result = merge_run_config_params(
+        run, {"model_roles": {"replace": [new]}, "solver": new_solver}
+    )
+    assert result["model_roles"] == {"keep": old, "replace": [new]}
+    assert result["solver"] is new_solver
+    assert run["model_roles"] == {"keep": old, "replace": [old]}
+    assert run["solver"] is old_solver
+
+
+def test_run_config_nested_model_generation_unknown_fields_are_rejected() -> None:
+    with pytest.raises(ValidationError, match="Unknown GenerateConfig field"):
+        RunConfigInput.model_validate(
+            {
+                "model": {
+                    "model": "mockllm/model",
+                    "config": {"temperature": 0, "typo": 1},
+                },
+            }
+        )
+
+
+def test_run_config_cli_model_config_merges_and_common_env_survives(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "run.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "task": "tests/test_eval_config.py@eval_config_task",
+                "model": {
+                    "model": "mockllm/model",
+                    "args": {"keep": True, "foo": "run"},
+                },
+                "metadata": {"keep": True, "shared": "run"},
+                "tags": ["run"],
+            }
+        )
+    )
+    result = run_eval_cli(
+        [
+            "--run-config",
+            str(path),
+            "--model-config",
+            config_path("model.yaml"),
+            "--metadata",
+            "shared=cli",
+            "--tags",
+            "cli",
+        ],
+        env={"INSPECT_LOG_DIR": str(tmp_path / "logs"), "TERM_PROGRAM": "xterm"},
+    )
+    assert_cli_success(result)
+    log = read_eval_log(list_eval_logs(str(tmp_path / "logs"))[0])
+    assert log.eval.model_args == {"keep": True, "foo": "bar"}
+    assert log.eval.metadata == {"shared": "cli"}
+    assert log.eval.tags == ["cli"]
+
+
+def test_eval_set_rejects_run_config(tmp_path: Path) -> None:
+    path = tmp_path / "run.yaml"
+    path.write_text("{}")
+    result = run_eval_set_cli(["--run-config", str(path)])
+    assert result.exit_code != 0
+    assert isinstance(result.exception, PrerequisiteError)
+    assert result.exception.message == "--run-config is only supported by inspect eval."
 
 
 def test_eval_config_task():
@@ -714,6 +1308,16 @@ def eval_config_solver(shape="square"):
         return await generate(state)
 
     return solve
+
+
+@task
+def eval_config_characterization_task(color: str | None = "red") -> Task:
+    return Task(
+        metadata={"color": color},
+        config=GenerateConfig(temperature=0.6, seed=42),
+        epochs=3,
+        score_on_error=True,
+    )
 
 
 @task
