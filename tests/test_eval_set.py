@@ -25,7 +25,7 @@ from test_helpers.utils import (
     sleep_for_solver,
 )
 
-from inspect_ai import Task, eval, task
+from inspect_ai import Epochs, Task, eval, task
 from inspect_ai._eval.evalset import (
     GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     EvalSetArgsInTaskIdentifier,
@@ -1426,6 +1426,88 @@ def test_eval_set_epochs_changed_to_none():
         )
         assert result
         verify_logs(logs, log_dir, epochs=1)
+
+
+def test_eval_set_reuses_log_with_task_epochs_reducer():
+    """A task whose Epochs carry a non-mean reducer is reused on the next call."""
+    task1 = Task(
+        dataset=[Sample(input="Say hello.", target="hello")],
+        solver=[generate()],
+        scorer=includes(),
+        epochs=Epochs(2, "max"),
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=2)
+        assert logs[0].eval.config.epochs_reducer == ["max"]
+        location = logs[0].location
+
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:01"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=2)
+            assert basename(logs[0].location) == basename(location)
+
+        # an eval-level epoch count keeps the task's reducer (as the runner
+        # does when recording the log) and so must also be reused
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            epochs=3,
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=3)
+        assert logs[0].eval.config.epochs_reducer == ["max"]
+        location = logs[0].location
+
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:02"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+                epochs=3,
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=3)
+            assert basename(logs[0].location) == basename(location)
+
+        # an eval-level reducer replaces the task's: re-run once, then reuse
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            epochs=Epochs(3, "mean"),
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=3)
+        assert logs[0].eval.config.epochs_reducer == ["mean"]
+        assert basename(logs[0].location) != basename(location)
+        location = logs[0].location
+
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:03"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+                epochs=Epochs(3, "mean"),
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=3)
+            assert basename(logs[0].location) == basename(location)
 
 
 def test_eval_set_limit_changed():
