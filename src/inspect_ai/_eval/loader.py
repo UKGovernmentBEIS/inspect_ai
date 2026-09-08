@@ -347,8 +347,9 @@ def resolve_previous_task(
         task_args=loaded_task_args,
         task_file=previous_task.log.eval.task_file,
         model=previous_task.model or loaded_task.model or model,
+        # same precedence as as_resolved_tasks: eval roles outrank task roles
         model_roles=_merge_model_roles(
-            model_roles, loaded_task.model_roles, previous_task.model_roles
+            loaded_task.model_roles, model_roles, previous_task.model_roles
         ),
         sandbox=resolve_task_file_sandbox(
             previous_task.log.eval.task_file, previous_task.log.eval.sandbox
