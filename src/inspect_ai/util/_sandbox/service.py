@@ -17,6 +17,7 @@ from pydantic import JsonValue
 
 from inspect_ai._util._async import coro_log_exceptions
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.trace import trace_message
 from inspect_ai.util._subprocess import ExecResult
 
 from ._framework_directory import (
@@ -313,7 +314,6 @@ class SandboxService:
         self._methods: dict[str, SandboxServiceMethod] = {}
         self._requests_dir: str = ""
         self._responses_dir: str = ""
-        self._client_script: str = ""
         self._in_flight: set[str] = set()
 
     def add_method(self, name: str, method: SandboxServiceMethod) -> None:
@@ -337,12 +337,9 @@ class SandboxService:
         self._responses_dir = await self._create_rpc_dir(RESPONSES_DIR)
 
         # client script
-        assert not self._client_script
-        client_script = f"{self._name}.py"
         await self._write_text_file(
-            self._service_dir.as_posix(), client_script, self._generate_client()
+            self._service_dir.as_posix(), f"{self._name}.py", self._generate_client()
         )
-        self._client_script = (self._service_dir / client_script).as_posix()
 
         # set started event if provided
         if self._started:
@@ -654,29 +651,41 @@ class SandboxService:
         Created as root wherever the sandbox allows: only a root-owned sticky
         directory lets services run as a mix of users, since the owner of a sticky
         directory can rename entries other users created in it (the helper refuses
-        a parent owned by any other non-root user). Only "cannot run as root" falls
-        back to the service user; a contract violation is never retried as another
-        user, and an existing parent in the wrong shape is refused, not repaired.
+        a parent owned by any other non-root user). A probe that could not run as
+        root (the provider refused the user or ran the command as someone else)
+        falls back to the service user; a contract violation or a timeout is never
+        retried, and an existing parent in the wrong shape is refused, not repaired.
         """
         try:
-            await self._ensure_dir(
-                SERVICES_DIR, user="root", expected_uid=0, shared=True
+            await ensure_framework_directory(
+                self._sandbox,
+                SERVICES_DIR,
+                user="root",
+                expected_uid=0,
+                shared=True,
+                timeout=_EXEC_TIMEOUT,
+                concurrency=False,
             )
-            return
         except (FrameworkDirectoryError, FrameworkDirectoryUnavailableError):
             raise
+        except TimeoutError:
+            raise RuntimeError(
+                f"Timed out preparing directory {SERVICES_DIR} in sandbox"
+            )
         except Exception as ex:
             # Broad catch is deliberate: providers signal "cannot exec as root" with
             # provider-specific exception types, or the helper's uid-mismatch error.
-            logger.debug(
-                f"Sandbox service '{self._name}' cannot prepare {SERVICES_DIR} as "
-                f"root; preparing it as the service user instead: {ex}"
+            trace_message(
+                logger,
+                "Sandbox Service",
+                f"cannot prepare {SERVICES_DIR} as root, preparing it as the "
+                f"service user instead: {ex}",
             )
-        await self._ensure_dir(SERVICES_DIR, user=self._user, shared=True)
+            await self._ensure_dir(SERVICES_DIR, user=self._user, shared=True)
 
     async def _ensure_service_dir(self) -> None:
-        # <name> first: the helper creates missing parents as 0755, so verifying
-        # only <name>/<instance> would leave <name> in a shape the contract refuses
+        # <name> first, as a leaf: verified only as the parent of <name>/<instance>, a
+        # symlink planted at <name> is followed and <instance> created at its target
         await self._ensure_dir(self._root_service_dir.as_posix(), user=self._user)
         if self._service_dir != self._root_service_dir:
             await self._ensure_dir(self._service_dir.as_posix(), user=self._user)
@@ -751,6 +760,12 @@ class SandboxService:
             )
 
     async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
+        """Run a command that names queue files by absolute path.
+
+        Reads and removals stay path-based: below the verified shared parent every
+        component is owned by the service user or root, so no other principal can
+        swap one in. Writes go through the verified directory instead.
+        """
         try:
             return await self._sandbox.exec(
                 cmd,

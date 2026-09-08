@@ -102,9 +102,8 @@ _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 # directory as cwd (optional). POSIX sh only (dash/BusyBox):
 # no arrays, no [[ ]], no local. `stat -c %u/%a` is common to GNU coreutils and
 # BusyBox. `umask 077` closes the window in BusyBox's non-atomic `mkdir -m`
-# (mkdir(0777) then chmod) for a private directory (a shared one passes through
-# 0700 for that instant, so a concurrent creator racing it fails loudly rather than
-# adopting the wrong mode) and also applies to whatever the wrapped command creates:
+# (mkdir(0777) then chmod; a shared directory still passes through 0700 for that
+# instant) and also applies to whatever the wrapped command creates:
 # a non-root `tar` extracts entries at 0700/0600 instead of the archive's modes
 # (root's `tar` preserves them). Inside a 0700 directory used by one uid this changes
 # nothing observable. Tool output is captured with stderr discarded so a warning
@@ -132,7 +131,7 @@ case $parent in
     /) dir=/$leaf ;;
     *) dir=$parent/$leaf ;;
 esac
-if [ "$shared" = 1 ]; then want=1777; else want=700; fi
+if [ "$shared" = 1 ]; then want_mode=1777; else want_mode=700; fi
 report() {
     printf '%s: %s\\n' "$1" "$2" >&2
     exit "$3"
@@ -179,7 +178,7 @@ case $phys in
 esac
 created=0
 if [ "$create" = 1 ] && [ ! -e "$leaf" ] && [ ! -L "$leaf" ]; then
-    if err=$(mkdir -m "$want" -- "$leaf" 2>&1); then
+    if err=$(mkdir -m "$want_mode" -- "$leaf" 2>&1); then
         created=1
     else
         [ -e "$leaf" ] || [ -L "$leaf" ] || createfailed "$err"
@@ -195,16 +194,13 @@ now=$(pwd -P)
 dstat=$(stat -c '%u %a' . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c '%u %a' . 2>&1 >/dev/null)"
 uid=${dstat% *}
 mode=${dstat#* }
-if [ "$uid" != "$me" ]; then
-    # A shared directory may be root's (the arrangement that lets users share it).
-    if [ "$shared" != 1 ] || [ "$uid" != 0 ]; then
-        if [ "$shared" = 1 ] && [ "$me" != 0 ]; then
-            violation "$dir is owned by uid $uid, expected uid $me or 0"
-        fi
-        violation "$dir is owned by uid $uid, expected uid $me"
-    fi
+# A shared directory may also be root's: that is what lets other users share it.
+accept="uid $me"
+if [ "$shared" = 1 ] && [ "$me" != 0 ]; then accept="uid $me or 0"; fi
+if [ "$uid" != "$me" ] && { [ "$shared" != 1 ] || [ "$uid" != 0 ]; }; then
+    violation "$dir is owned by uid $uid, expected $accept"
 fi
-if [ "$mode" != "$want" ]; then
+if [ "$mode" != "$want_mode" ]; then
     if [ "$created" = 1 ] || [ "$repair" = 1 ]; then
         # Either we just created it (a setgid parent may have added bits; a numeric
         # chmod alone does not clear setgid on a directory) or the caller asked for
@@ -220,7 +216,7 @@ if [ "$mode" != "$want" ]; then
         mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
     fi
 fi
-[ "$mode" = "$want" ] || violation "$dir has mode $mode, expected $want"
+[ "$mode" = "$want_mode" ] || violation "$dir has mode $mode, expected $want_mode"
 printf '%s\\n' @VERIFIED@ >&2
 [ $# -eq 0 ] || exec "$@"
 """
@@ -366,25 +362,27 @@ async def _run_verified(
 ) -> ExecResult[str]:
     parent, leaf = split_framework_path(path)
     expect = "" if expected_uid is None else str(expected_uid)
-    result = await sandbox.exec(
-        [
-            _SHELL,
-            "-c",
-            _SCRIPT,
-            "sh",
-            expect,
-            "1" if create else "0",
-            "1" if repair_mode else "0",
-            "1" if shared else "0",
-            parent,
-            leaf,
-            *cmd,
-        ],
-        user=user,
-        input=input,
-        timeout=timeout,
-        concurrency=concurrency,
-    )
+    argv = [
+        _SHELL,
+        "-c",
+        _SCRIPT,
+        "sh",
+        expect,
+        "1" if create else "0",
+        "1" if repair_mode else "0",
+        "1" if shared else "0",
+        parent,
+        leaf,
+        *cmd,
+    ]
+    if concurrency:
+        result = await sandbox.exec(argv, user=user, input=input, timeout=timeout)
+    else:
+        # Passed only when set, so a provider whose exec() predates the parameter
+        # keeps working at the default.
+        result = await sandbox.exec(
+            argv, user=user, input=input, timeout=timeout, concurrency=False
+        )
     if _VERIFIED_MARKER in result.stderr.splitlines():
         # Verification completed; whatever follows is the wrapped command's own
         # outcome (so any verdict-shaped line it printed is not ours).
@@ -440,11 +438,6 @@ async def ensure_framework_directory(
     Concurrent creation by another instance of this helper is tolerated (the
     survivor is verified like any other existing entry).
 
-    With ``shared=True`` the directory is instead a sticky, world-writable parent
-    for several users' private directories: created with mode ``1777``, and adopted
-    only as a real directory with exactly that mode owned by root or by the uid the
-    command runs as (see the module docstring). Nothing else changes.
-
     Args:
         sandbox: Sandbox to operate in.
         path: Absolute path of the directory.
@@ -464,10 +457,9 @@ async def ensure_framework_directory(
             protected anything. Leave it off for a privileged owner such as root:
             a root-owned directory in an unexpected mode may hold content other
             users placed there, and must be refused.
-        shared: Apply the shared-parent policy (mode ``1777``, owned by root or
-            the command's uid) instead of the private one. A pre-existing shared
-            directory is never repaired, so this cannot be combined with
-            ``repair_mode``.
+        shared: Apply the shared-parent policy described in the module docstring
+            (a sticky ``1777`` directory owned by root or the command's uid)
+            instead of the private one. Cannot be combined with ``repair_mode``.
         timeout: Optional timeout for the sandbox command.
         concurrency: Whether the sandbox command counts against the sandbox's
             concurrency limit (as for ``sandbox.exec``). Pass ``False`` from code
@@ -508,7 +500,6 @@ async def verify_framework_directory(
     *,
     user: str | None,
     expected_uid: int | None = None,
-    shared: bool = False,
     timeout: int | None = None,
     concurrency: bool = True,
 ) -> None:
@@ -524,8 +515,6 @@ async def verify_framework_directory(
         user: User to run as (as for ``sandbox.exec``); also the expected owner.
         expected_uid: If given, the uid the command must actually run as (see
             :func:`ensure_framework_directory`).
-        shared: Check against the shared-parent policy instead of the private one
-            (see :func:`ensure_framework_directory`).
         timeout: Optional timeout for the sandbox command.
         concurrency: As for :func:`ensure_framework_directory`.
 
@@ -542,7 +531,6 @@ async def verify_framework_directory(
         sandbox,
         path,
         create=False,
-        shared=shared,
         cmd=[],
         user=user,
         expected_uid=expected_uid,

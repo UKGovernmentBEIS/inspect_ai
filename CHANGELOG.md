@@ -23,7 +23,7 @@
 - Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
 - Inspect View: Requests for unreadable log headers now return 403 instead of 500.
 - Eval Set: Tasks that set a non-mean epochs reducer now reuse their completed log on subsequent `eval_set()` calls instead of being re-run every time.
-- Sandbox Services: A service's directory and request/response queues are now private (0700) to the service user, and a service refuses to start when its directory was pre-created by another user or is a symlink or file, instead of adopting it.
+- Sandbox Services: Service directories are now private to the service user, and a service refuses to start if its directory or the shared `/var/tmp/sandbox-services` parent already exists with the wrong owner, mode, or type.
 
 ## 0.3.263 (03 September 2026)
 

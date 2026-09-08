@@ -538,14 +538,14 @@ async def test_shared_creates_missing_directory_with_mode_1777(
     await ensure_framework_directory(local, str(target), user=None, shared=True)
     assert target.is_dir() and not target.is_symlink()
     assert _mode(target) == 0o1777
-    await verify_framework_directory(local, str(target), user=None, shared=True)
+    await ensure_framework_directory(local, str(target), user=None, shared=True)
     # A shared directory does not pass as a private one, nor the reverse.
     with pytest.raises(FrameworkDirectoryError, match="has mode 1777, expected 700"):
         await verify_framework_directory(local, str(target), user=None)
     private = parent / "fw"
     await ensure_framework_directory(local, str(private), user=None)
     with pytest.raises(FrameworkDirectoryError, match="has mode 700, expected 1777"):
-        await verify_framework_directory(local, str(private), user=None, shared=True)
+        await ensure_framework_directory(local, str(private), user=None, shared=True)
 
 
 async def test_shared_creates_in_setgid_parent_and_clears_inherited_bits(
@@ -561,7 +561,6 @@ async def test_shared_accepts_root_owned_directory_for_any_user(
     local: LocalSandboxEnvironment,
 ) -> None:
     """/var/tmp itself has the shape a shared directory must have: root-owned 1777."""
-    await verify_framework_directory(local, "/var/tmp", user=None, shared=True)
     await ensure_framework_directory(local, "/var/tmp", user=None, shared=True)
 
 
@@ -997,11 +996,9 @@ async def test_shared_flag_is_passed_to_the_script() -> None:
     await ensure_framework_directory(
         sandbox, "/var/tmp/shared", user="root", expected_uid=0, shared=True
     )
-    await verify_framework_directory(sandbox, "/var/tmp/shared", user=None, shared=True)
-    (ensure_cmd, ensure_user), (verify_cmd, _) = sandbox.exec_calls
-    assert ensure_user == "root"
-    assert ensure_cmd[-6:] == ["0", "1", "0", "1", "/var/tmp", "shared"]
-    assert verify_cmd[-6:] == ["", "0", "0", "1", "/var/tmp", "shared"]
+    ((cmd, user),) = sandbox.exec_calls
+    assert user == "root"
+    assert cmd[-6:] == ["0", "1", "0", "1", "/var/tmp", "shared"]
 
 
 async def test_shared_cannot_be_combined_with_repair_mode() -> None:

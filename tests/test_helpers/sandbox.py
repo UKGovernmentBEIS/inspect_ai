@@ -1,7 +1,9 @@
 """Fake ``SandboxEnvironment`` for tests that script ``exec`` results."""
 
-from typing import Callable, Literal, overload
+from pathlib import PurePosixPath
+from typing import Callable, Literal, NamedTuple, overload
 
+from inspect_ai.util._sandbox._framework_directory import _SCRIPT, _SHELL
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
@@ -71,3 +73,31 @@ class CannedSandbox(SandboxEnvironment):
         interrupted: bool,
     ) -> None:
         pass
+
+
+class FrameworkDirectoryCall(NamedTuple):
+    """A framework-directory helper invocation, decoded from its argv."""
+
+    path: str
+    expected_uid: str
+    """Uid the script must run as ("" when unconstrained)."""
+    create: bool
+    repair: bool
+    shared: bool
+    cmd: tuple[str, ...]
+    """The wrapped command (empty when only ensuring or verifying the directory)."""
+
+
+def framework_directory_call(cmd: list[str]) -> FrameworkDirectoryCall | None:
+    """Decode a framework-directory helper invocation; None for any other command."""
+    if cmd[:3] != [_SHELL, "-c", _SCRIPT]:
+        return None
+    _, expected_uid, create, repair, shared, parent, leaf, *wrapped = cmd[3:]
+    return FrameworkDirectoryCall(
+        path=str(PurePosixPath(parent, leaf)),
+        expected_uid=expected_uid,
+        create=create == "1",
+        repair=repair == "1",
+        shared=shared == "1",
+        cmd=tuple(wrapped),
+    )

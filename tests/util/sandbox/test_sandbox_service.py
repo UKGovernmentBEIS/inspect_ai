@@ -10,6 +10,11 @@ from unittest.mock import patch
 import anyio
 import pytest
 from pydantic import JsonValue
+from test_helpers.sandbox import (
+    CannedSandbox,
+    FrameworkDirectoryCall,
+    framework_directory_call,
+)
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
@@ -87,7 +92,7 @@ def math_service(
         asyncio.run(run())
         """)
         # run the math service in the background
-        background(run_math_service, state, user, handle_requests)
+        background(run_math_service, state, user)
 
         # run a script in the sandbox that talks to the service
         await sandbox().write_file(run_script, run_script_code)
@@ -223,48 +228,31 @@ class FakeExecResult:
     stderr: str = ""
 
 
-_VERIFIED = FakeExecResult(stderr=f"{_VERIFIED_MARKER}\n")
+_VERIFIED = ExecResult[str](
+    success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+)
 """A framework-directory helper result: verified, nothing else to report."""
 
-_USER_MISMATCH = FakeExecResult(
+_USER_MISMATCH = ExecResult[str](
     success=False,
     returncode=6,
+    stdout="",
     stderr=f"{_USER_MISMATCH_MARKER}: running as uid 1000, expected uid 0\n",
 )
 
 
-def _violation(message: str) -> FakeExecResult:
-    return FakeExecResult(
-        success=False, returncode=3, stderr=f"{_VIOLATION_MARKER}: {message}\n"
+def _violation(message: str) -> ExecResult[str]:
+    return ExecResult[str](
+        success=False,
+        returncode=3,
+        stdout="",
+        stderr=f"{_VIOLATION_MARKER}: {message}\n",
     )
 
 
-@dataclass(frozen=True)
-class HelperCall:
-    """A framework-directory helper invocation, decoded from its argv."""
-
-    path: str
-    user: str | None
-    expected_uid: str
-    create: bool
-    shared: bool
-    cmd: tuple[str, ...]
-    """The wrapped command (empty when only ensuring the directory)."""
-
-
-def _decode_helper(cmd: list[str], user: str | None) -> HelperCall | None:
-    """Decode a helper invocation; None for any other command."""
-    if cmd[:3] != [_SHELL, "-c", _SCRIPT]:
-        return None
-    _, expected_uid, create, _repair, shared, parent, leaf, *wrapped = cmd[3:]
-    return HelperCall(
-        path=f"{parent.rstrip('/')}/{leaf}",
-        user=user,
-        expected_uid=expected_uid,
-        create=create == "1",
-        shared=shared == "1",
-        cmd=tuple(wrapped),
-    )
+def _tee_target(call: FrameworkDirectoryCall) -> str | None:
+    """Full path a helper-wrapped ``tee`` writes to, or None for other commands."""
+    return f"{call.path}/{call.cmd[-1]}" if call.cmd[:1] == ("tee",) else None
 
 
 def _assert_no_shell_interpolation(calls: list[list[str]]) -> None:
@@ -274,37 +262,33 @@ def _assert_no_shell_interpolation(calls: list[list[str]]) -> None:
             assert cmd[:3] == [_SHELL, "-c", _SCRIPT], cmd
 
 
-HelperPolicy = Callable[[HelperCall], FakeExecResult]
+HelperPolicy = Callable[[FrameworkDirectoryCall, str | None], ExecResult[str]]
 
 
-@dataclass
-class _StartSandbox:
-    """Fake sandbox for `start()`: every command must be a helper invocation.
+def _start_sandbox(policy: HelperPolicy | None = None) -> CannedSandbox:
+    """A sandbox for `start()` in which every command must be a helper invocation.
 
-    `policy` decides each helper call's result (verified by default); the decoded
-    calls are recorded in `calls` and the raw exec arguments in `execs`.
+    `policy` decides each helper call's result (verified by default).
     """
 
-    policy: HelperPolicy = lambda call: _VERIFIED
-    calls: list[HelperCall] = field(default_factory=list)
-    execs: list[dict[str, Any]] = field(default_factory=list)
-
-    async def exec(
-        self,
-        cmd: list[str],
-        *,
-        user: str | None = None,
-        input: str | None = None,
-        timeout: int | None = None,
-        concurrency: bool = True,
-    ) -> ExecResult[str]:
-        self.execs.append(
-            {"cmd": cmd, "user": user, "input": input, "concurrency": concurrency}
-        )
-        call = _decode_helper(cmd, user)
+    def exec_policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        call = framework_directory_call(cmd)
         assert call is not None, f"start() ran a command outside the helper: {cmd}"
-        self.calls.append(call)
-        return cast(ExecResult[str], self.policy(call))
+        return policy(call, user) if policy else _VERIFIED
+
+    return CannedSandbox(exec_policy)
+
+
+def _helper_calls(
+    sandbox: CannedSandbox,
+) -> list[tuple[FrameworkDirectoryCall, str | None]]:
+    """Every recorded exec decoded as a helper call, with the user it ran as."""
+    calls = []
+    for cmd, user in sandbox.exec_calls:
+        call = framework_directory_call(cmd)
+        assert call is not None, cmd
+        calls.append((call, user))
+    return calls
 
 
 def _service(fake: object, **kwargs: Any) -> SandboxService:
@@ -313,22 +297,23 @@ def _service(fake: object, **kwargs: Any) -> SandboxService:
 
 async def test_every_start_command_is_hidden_from_the_transcript() -> None:
     """Service housekeeping is not a transcript event, the shared-parent probe included."""
-    fake = _StartSandbox()
-    await _service(fake, name="svc", user="agent").start()
-    assert all(is_sandbox_service_command(e["cmd"]) for e in fake.execs)
+    sandbox = _start_sandbox()
+    await _service(sandbox, name="svc", user="agent").start()
+    assert all(is_sandbox_service_command(cmd) for cmd, _ in sandbox.exec_calls)
     assert not is_sandbox_service_command(["ls", "-la", "/var/tmp"])
     assert not is_sandbox_service_command(["stat", "/var/tmp", "/etc"])
 
 
 async def test_start_prepares_every_directory_through_the_helper() -> None:
-    fake = _StartSandbox()
-    service = _service(fake, name="svc", user="agent")
+    sandbox = _start_sandbox()
+    service = _service(sandbox, name="svc", user="agent")
 
     await service.start()
 
     svc = f"{SERVICES_DIR}/svc"
     reset = ("rm", "-rf", "--", "requests", "responses")
-    assert [(c.path, c.user, c.create, c.shared, c.cmd) for c in fake.calls] == [
+    calls = _helper_calls(sandbox)
+    assert [(c.path, user, c.create, c.shared, c.cmd) for c, user in calls] == [
         (SERVICES_DIR, "root", True, True, ()),
         (svc, "agent", True, False, ()),
         (svc, "agent", False, False, reset),
@@ -337,33 +322,43 @@ async def test_start_prepares_every_directory_through_the_helper() -> None:
         (svc, "agent", False, False, ("tee", "--", "svc.py")),
     ]
     # the shared parent is prepared as root, and that must really be uid 0
-    assert fake.calls[0].expected_uid == "0"
-    assert all(e["concurrency"] is False for e in fake.execs)
-    assert "def call_svc(" in (fake.execs[-1]["input"] or "")
+    assert calls[0][0].expected_uid == "0"
+    assert sandbox.concurrency == [False] * 6
+    assert "def call_svc(" in str(sandbox.inputs[-1])
     assert service._requests_dir == f"{svc}/requests"
     assert service._responses_dir == f"{svc}/responses"
 
 
 async def test_start_with_instance_verifies_name_before_instance() -> None:
-    """<name> must itself be a private directory, not a helper-made 0755 parent."""
-    fake = _StartSandbox()
-    service = _service(fake, name="multi", user="agent", instance="inst1")
+    """<name> is verified as a leaf, so a symlink planted there cannot redirect it."""
+    sandbox = _start_sandbox()
+    service = _service(sandbox, name="multi", user="agent", instance="inst1")
 
     await service.start()
 
     inst = f"{SERVICES_DIR}/multi/inst1"
-    assert [c.path for c in fake.calls if c.create] == [
+    calls = [c for c, _ in _helper_calls(sandbox)]
+    assert [c.path for c in calls if c.create] == [
         SERVICES_DIR,
         f"{SERVICES_DIR}/multi",
         inst,
         f"{inst}/requests",
         f"{inst}/responses",
     ]
-    assert [c.path for c in fake.calls if c.cmd] == [inst, inst]
+    assert [c.path for c in calls if c.cmd] == [inst, inst]
 
 
-def _raise_no_root() -> FakeExecResult:
+def _raise_no_root() -> ExecResult[str]:
     raise PermissionError("this provider cannot exec as root")
+
+
+_NO_ROOT_USER = ExecResult[str](
+    success=False,
+    returncode=126,
+    stdout="",
+    stderr="unable to find user root: no matching entries in passwd file\n",
+)
+"""Docker refusing `--user root` on an image whose passwd file has no root entry."""
 
 
 @pytest.mark.parametrize(
@@ -371,49 +366,76 @@ def _raise_no_root() -> FakeExecResult:
     [
         pytest.param(lambda: _USER_MISMATCH, id="uid-mismatch-verdict"),
         pytest.param(_raise_no_root, id="provider-raises"),
+        pytest.param(lambda: _NO_ROOT_USER, id="exec-fails-without-verdict"),
     ],
 )
 async def test_start_prepares_shared_parent_as_service_user_when_root_unavailable(
-    root_failure: Callable[[], FakeExecResult],
+    root_failure: Callable[[], ExecResult[str]],
 ) -> None:
-    def policy(call: HelperCall) -> FakeExecResult:
-        return root_failure() if call.user == "root" else _VERIFIED
+    def policy(call: FrameworkDirectoryCall, user: str | None) -> ExecResult[str]:
+        return root_failure() if user == "root" else _VERIFIED
 
-    fake = _StartSandbox(policy)
-    service = _service(fake, name="svc", user="agent")
+    sandbox = _start_sandbox(policy)
+    service = _service(sandbox, name="svc", user="agent")
 
     await service.start()
 
-    assert [(c.path, c.user, c.shared) for c in fake.calls[:3]] == [
+    calls = _helper_calls(sandbox)
+    assert [(c.path, user, c.shared) for c, user in calls[:3]] == [
         (SERVICES_DIR, "root", True),
         (SERVICES_DIR, "agent", True),
         (f"{SERVICES_DIR}/svc", "agent", False),
     ]
-    assert fake.calls[1].expected_uid == ""
+    assert calls[1][0].expected_uid == ""
+
+
+async def test_start_does_not_fall_back_when_shared_parent_probe_times_out() -> None:
+    def policy(call: FrameworkDirectoryCall, user: str | None) -> ExecResult[str]:
+        raise TimeoutError("exec timed out")
+
+    sandbox = _start_sandbox(policy)
+    with pytest.raises(RuntimeError, match="Timed out preparing directory"):
+        await _service(sandbox, name="svc", user="agent").start()
+    assert [user for _, user in sandbox.exec_calls] == ["root"]
 
 
 async def test_start_does_not_retry_shared_parent_after_a_violation() -> None:
-    fake = _StartSandbox(
-        lambda call: _violation(f"{SERVICES_DIR} is owned by uid 1000, expected uid 0")
+    sandbox = _start_sandbox(
+        lambda call, user: _violation(
+            f"{SERVICES_DIR} is owned by uid 1000, expected uid 0"
+        )
     )
-    service = _service(fake, name="svc", user="agent")
-
     with pytest.raises(FrameworkDirectoryError, match="owned by uid 1000"):
-        await service.start()
+        await _service(sandbox, name="svc", user="agent").start()
+    assert [user for _, user in sandbox.exec_calls] == ["root"]
 
-    assert [(c.path, c.user) for c in fake.calls] == [(SERVICES_DIR, "root")]
+
+async def test_start_fails_when_shared_parent_is_another_users_without_root() -> None:
+    """With no root available, a parent another non-root user owns is refused."""
+
+    def policy(call: FrameworkDirectoryCall, user: str | None) -> ExecResult[str]:
+        if user == "root":
+            return _USER_MISMATCH
+        return _violation(
+            f"{SERVICES_DIR} is owned by uid 1001, expected uid 1000 or 0"
+        )
+
+    sandbox = _start_sandbox(policy)
+    with pytest.raises(FrameworkDirectoryError, match="owned by uid 1001"):
+        await _service(sandbox, name="svc", user="agent").start()
+    assert [user for _, user in sandbox.exec_calls] == ["root", "agent"]
 
 
 async def test_start_propagates_service_dir_violation_and_writes_nothing() -> None:
     svc = f"{SERVICES_DIR}/squatted"
 
-    def policy(call: HelperCall) -> FakeExecResult:
+    def policy(call: FrameworkDirectoryCall, user: str | None) -> ExecResult[str]:
         if call.path == svc:
             return _violation(f"{svc} is owned by uid 1000, expected uid 1001")
         return _VERIFIED
 
-    fake = _StartSandbox(policy)
-    service = _service(fake, name="squatted", user="agent")
+    sandbox = _start_sandbox(policy)
+    service = _service(sandbox, name="squatted", user="agent")
 
     with pytest.raises(FrameworkDirectoryError) as excinfo:
         await service.start()
@@ -421,28 +443,30 @@ async def test_start_propagates_service_dir_violation_and_writes_nothing() -> No
     assert not isinstance(excinfo.value, PrerequisiteError)
     assert svc in str(excinfo.value)
     assert "owned by uid 1000, expected uid 1001" in str(excinfo.value)
-    assert [c.path for c in fake.calls] == [SERVICES_DIR, svc]
+    assert [c.path for c, _ in _helper_calls(sandbox)] == [SERVICES_DIR, svc]
     assert not service._requests_dir and not service._responses_dir
 
 
 async def test_start_aborts_when_queue_reset_fails() -> None:
-    def policy(call: HelperCall) -> FakeExecResult:
+    def policy(call: FrameworkDirectoryCall, user: str | None) -> ExecResult[str]:
         if call.cmd[:2] == ("rm", "-rf"):
-            return FakeExecResult(
+            return ExecResult[str](
                 success=False,
                 returncode=1,
+                stdout="",
                 stderr=f"{_VERIFIED_MARKER}\nrm: cannot remove 'requests': Permission denied\n",
             )
         return _VERIFIED
 
-    fake = _StartSandbox(policy)
-    service = _service(fake, name="svc", user="agent")
+    sandbox = _start_sandbox(policy)
+    service = _service(sandbox, name="svc", user="agent")
 
     with pytest.raises(RuntimeError, match="Permission denied"):
         await service.start()
 
-    assert len(fake.calls) == 3
-    assert fake.calls[-1].cmd[:2] == ("rm", "-rf")
+    calls = _helper_calls(sandbox)
+    assert len(calls) == 3
+    assert calls[-1][0].cmd[:2] == ("rm", "-rf")
     assert not service._requests_dir and not service._responses_dir
 
 
@@ -468,7 +492,9 @@ class _RequestReadSandbox:
     writes: dict[str, str] = field(default_factory=dict)
     removed: list[str] = field(default_factory=list)
     calls: list[list[str]] = field(default_factory=list)
-    helper_calls: list[HelperCall] = field(default_factory=list)
+    helper_calls: list[tuple[FrameworkDirectoryCall, str | None]] = field(
+        default_factory=list
+    )
 
     async def exec(
         self,
@@ -480,12 +506,12 @@ class _RequestReadSandbox:
         concurrency: bool = True,
     ) -> ExecResult[str]:
         self.calls.append(cmd)
-        call = _decode_helper(cmd, user)
+        call = framework_directory_call(cmd)
         if call is not None:
-            self.helper_calls.append(call)
-            if call.cmd[:1] == ("tee",):
-                self.writes[f"{call.path}/{call.cmd[-1]}"] = input or ""
-            return cast(ExecResult[str], _VERIFIED)
+            self.helper_calls.append((call, user))
+            if (target := _tee_target(call)) is not None:
+                self.writes[target] = input or ""
+            return _VERIFIED
         if cmd[0] == "find":
             return cast(ExecResult[str], FakeExecResult(stdout=self.list_stdout))
         if cmd[0] == "cat":
@@ -541,8 +567,8 @@ async def test_write_response_goes_through_the_verified_responses_dir() -> None:
 
     await service._write_response(request_file, "req-1", {"ok": True})
 
-    (call,) = fake.helper_calls
-    assert (call.path, call.user, call.cmd) == (
+    ((call, user),) = fake.helper_calls
+    assert (call.path, user, call.cmd) == (
         service._responses_dir,
         None,
         ("tee", "--", "req-1.json"),
@@ -879,7 +905,7 @@ async def test_handle_requests_survives_stray_non_file_entry(tmp_path: Path) -> 
     ],
 )
 def test_sandbox_service_rejects_invalid_name(bad_name: str) -> None:
-    fake = _StartSandbox()
+    fake = _start_sandbox()
     with pytest.raises(ValueError, match="invalid service name"):
         SandboxService(
             name=bad_name,
@@ -907,7 +933,7 @@ def test_sandbox_service_rejects_invalid_name(bad_name: str) -> None:
 )
 def test_sandbox_service_rejects_invalid_instance(bad_instance: str) -> None:
     """Invalid instance filename tokens are rejected."""
-    fake = _StartSandbox()
+    fake = _start_sandbox()
     with pytest.raises(ValueError, match="invalid instance"):
         SandboxService(
             name="x",
@@ -953,7 +979,10 @@ def test_sandbox_service_nonroot_after_root_service() -> None:
 
 @solver
 def start_service_and_inspect(
-    name: str, user: str | None, prepare: Sequence[tuple[str | None, str]] = ()
+    name: str,
+    user: str | None,
+    prepare: Sequence[tuple[str | None, str]] = (),
+    instance: str | None = None,
 ) -> Solver:
     """Run `prepare` scripts (as the given users), start a service, record the outcome.
 
@@ -967,7 +996,7 @@ def start_service_and_inspect(
             prep = await sandbox().exec(["sh", "-c", script], user=prepare_user)
             assert prep.success, prep.stderr
 
-        service = SandboxService(name, sandbox(), user=user)
+        service = SandboxService(name, sandbox(), user=user, instance=instance)
         service.add_method("noop", _noop)
         try:
             await service.start()
@@ -975,7 +1004,7 @@ def start_service_and_inspect(
         except Exception as ex:
             state.store.set("error", f"{type(ex).__name__}: {ex}")
 
-        service_dir = f"{SERVICES_DIR}/{name}"
+        service_dir = f"{SERVICES_DIR}/{name}" + (f"/{instance}" if instance else "")
         if state.store.get("error") is None:
             await sandbox().write_file(
                 f"{service_dir}/requests/probe.json",
@@ -1034,28 +1063,43 @@ def test_sandbox_service_directories_are_private_to_the_service_user() -> None:
 @pytest.mark.slow
 @skip_if_no_docker
 @pytest.mark.parametrize(
-    "plant, fragment",
+    "plant, fragment, instance",
     [
-        pytest.param("mkdir -m 755 {svc}", "owned by uid 0", id="other-uid"),
-        pytest.param("ln -s /tmp/decoy {svc}", "is a symbolic link", id="symlink"),
-        pytest.param("touch {svc}", "is not a directory", id="file"),
+        pytest.param("mkdir -m 755 {svc}", "owned by uid 0", None, id="other-uid"),
+        pytest.param(
+            "ln -s /tmp/decoy {svc}", "is a symbolic link", None, id="symlink"
+        ),
+        pytest.param("touch {svc}", "is not a directory", None, id="file"),
+        pytest.param(
+            "ln -s /tmp/decoy {svc}",
+            "is a symbolic link",
+            "inst1",
+            id="symlink-instance",
+        ),
     ],
 )
-def test_sandbox_service_refuses_planted_service_dir(plant: str, fragment: str) -> None:
-    """An entry another user pre-created at the service path fails startup, untouched."""
+def test_sandbox_service_refuses_planted_service_dir(
+    plant: str, fragment: str, instance: str | None
+) -> None:
+    """An entry another user pre-created at the service path fails startup, untouched.
+
+    With an instance, <name> must be refused as a leaf before <name>/<instance> is
+    created through the planted symlink.
+    """
     svc = f"{SERVICES_DIR}/planted"
     prepare = [("root", f"{_SHARED_PARENT} && {_DECOY} && {plant.format(svc=svc)}")]
     store = _eval_service_solver(
-        start_service_and_inspect("planted", None, prepare), NONROOT_COMPOSE
+        start_service_and_inspect("planted", None, prepare, instance), NONROOT_COMPOSE
     )
     assert store["error"] is not None
     assert store["error"].startswith("FrameworkDirectoryError:")
     assert "cannot be trusted" in store["error"]
     assert fragment in store["error"]
+    service_dir = f"{svc}/{instance}" if instance else svc
     shapes = store["shapes"]
-    assert shapes[f"{svc}/requests"] is None
-    assert shapes[f"{svc}/responses"] is None
-    assert shapes[f"{svc}/planted.py"] is None
+    assert shapes[f"{service_dir}/requests"] is None
+    assert shapes[f"{service_dir}/responses"] is None
+    assert shapes[f"{service_dir}/planted.py"] is None
     assert store["decoy"] == ["sentinel"]
 
 
@@ -1119,11 +1163,11 @@ class _QueueSandbox:
         timeout: int | None = None,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        call = _decode_helper(cmd, user)
+        call = framework_directory_call(cmd)
         if call is not None:
-            if call.cmd[:1] == ("tee",):
-                self.files[f"{call.path}/{call.cmd[-1]}"] = input or ""
-            return cast(ExecResult[str], _VERIFIED)
+            if (target := _tee_target(call)) is not None:
+                self.files[target] = input or ""
+            return _VERIFIED
         if cmd[0] == "find":
             hits = [
                 path
@@ -1259,10 +1303,10 @@ class _DelayedWriteSandbox(_QueueSandbox):
         timeout: int | None = None,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        call = _decode_helper(cmd, user)
+        call = framework_directory_call(cmd)
         if (
             call is not None
-            and call.cmd[:1] == ("tee",)
+            and _tee_target(call) is not None
             and call.path.endswith("/responses")
         ):
             await anyio.sleep(self.write_delay)
