@@ -47,7 +47,6 @@ from inspect_ai.util._checkpoint._snapshot.registry import (
 )
 from inspect_ai.util._checkpoint._snapshot.types import (
     CommittedSnapshot,
-    PriorAttempt,
     SnapshotContext,
 )
 from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
@@ -320,7 +319,7 @@ async def test_archive_restore_without_ref_and_no_archives_errors(
 ) -> None:
     env = LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
-    with pytest.raises(RuntimeError, match="no adopted archives"):
+    with pytest.raises(RuntimeError, match="no inherited archives"):
         await strategy.restore(env, None, _context(tmp_path / "sample"))
 
 
@@ -613,36 +612,6 @@ async def test_copy_out_cancelled_mid_transfer_leaves_no_partial(
 
     assert not dest.exists()
     assert not partial.exists()
-
-
-async def test_archive_adopt_copies_prior_attempt(tmp_path: Path) -> None:
-    strategy = ArchiveStrategy(sandbox_dir=str(tmp_path / "sandbox-tools"))
-    ctx = _context(tmp_path / "new-sample", resuming=True)
-    prior_dir = tmp_path / "prior-sample"
-    prior = PriorAttempt(
-        sample_checkpoints_dir=str(prior_dir),
-        storage_subpath=ctx.storage_subpath,
-    )
-    prior_storage = prior_dir / ctx.storage_subpath
-    prior_storage.mkdir(parents=True)
-    (prior_storage / "ckpt-00004.tar.gz").write_bytes(b"archive-bytes")
-
-    await strategy.adopt(prior, ctx)
-
-    assert (
-        Path(ctx.storage_dir) / "ckpt-00004.tar.gz"
-    ).read_bytes() == b"archive-bytes"
-
-
-async def test_archive_adopt_raises_on_empty_prior(tmp_path: Path) -> None:
-    strategy = ArchiveStrategy(sandbox_dir=str(tmp_path / "sandbox-tools"))
-    ctx = _context(tmp_path / "new-sample", resuming=True)
-    prior = PriorAttempt(
-        sample_checkpoints_dir=str(tmp_path / "prior-sample"),
-        storage_subpath=ctx.storage_subpath,
-    )
-    with pytest.raises(RuntimeError, match="no files were found"):
-        await strategy.adopt(prior, ctx)
 
 
 async def test_archive_setup_reports_missing_tool(tmp_path: Path) -> None:

@@ -18,38 +18,53 @@ The optional ``_<retry>`` suffix on the dir name is omitted until
 
 from __future__ import annotations
 
+import re
 import secrets
+import shutil
+from logging import getLogger
+from pathlib import Path
 from typing import TypeVar
 
+import anyio.to_thread
 from pydantic import BaseModel, ValidationError
 
-from inspect_ai._util.asyncfiles import get_async_filesystem
+from inspect_ai._util.asyncfiles import (
+    get_async_filesystem,
+    is_s3_filename,
+    s3_bucket_and_key,
+)
+from inspect_ai._util.file import local_path
 
 from .._async_fs import async_mkdir
 from .schemas import Checkpoint, ResticConfig
-from .staging_dir import restic_config_path, restic_dir
+from .staging_dir import clear_sample_staging_dir, restic_config_path, restic_dir
+
+logger = getLogger(__name__)
 
 _M = TypeVar("_M", bound=BaseModel)
 
 
+_CHECKPOINT_FILE_RE = re.compile(r"^ckpt-(\d+)\.json$")
+
+
+def checkpoint_file_id(name: str) -> int | None:
+    """The id of a ``ckpt-NNNNN.json`` file name, or ``None`` for any other name.
+
+    The one predicate for "is this a checkpoint file" — the copy, the
+    delete, host egress, hydrate's validation, and the id scan all use it.
+    """
+    match = _CHECKPOINT_FILE_RE.match(name)
+    return int(match.group(1)) if match else None
+
+
+def sample_dir_name(sample_id: int | str, epoch: int) -> str:
+    """The name of a sample's checkpoints dir within its eval checkpoints dir."""
+    return f"{sample_id}__{epoch}"
+
+
 def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
     """Return the per-sample checkpoints dir path (no FS side effects)."""
-    return f"{eval_dir}/{sample_id}__{epoch}"
-
-
-async def has_sample_checkpoint(
-    eval_dir: str, sample_id: int | str, epoch: int
-) -> bool:
-    """Return True if any ``ckpt-*.json`` checkpoint file exists for this sample attempt.
-
-    Doesn't pre-check the dir's existence — S3 has no real directories,
-    so ``AsyncFilesystem.exists(prefix)`` always returns False for an
-    S3 dir prefix even when there are checkpoint files under it. The
-    iteration handles the "no checkpoint files" case naturally
-    (yields nothing).
-    """
-    sample_dir = sample_checkpoints_dir(eval_dir, sample_id, epoch)
-    return bool(await _list_checkpoint_ids(sample_dir))
+    return f"{eval_dir}/{sample_dir_name(sample_id, epoch)}"
 
 
 async def ensure_sample_checkpoints_dir(
@@ -108,16 +123,29 @@ async def scan_latest_committed_checkpoint(
     Walks ``ckpt-NNNNN.json`` files in the sample dir from highest N
     to lowest; the first whose contents validate as a
     :class:`Checkpoint` is the commit point. A torn-write checkpoint
-    file is silently skipped (see :func:`_read_checkpoint_file` for
-    what counts as torn). Returns ``None`` if no checkpoint file
-    exists or none parses (caller is responsible for treating that as
-    a meaningful state — typically an error on resume).
+    file is silently skipped. Returns ``None`` if no checkpoint file
+    exists or none parses — the dir holds nothing committed, and a
+    sample resolving against it runs fresh (with a warning when files
+    were present).
     """
     ids = await _list_checkpoint_ids(sample_checkpoints_dir)
     for n in sorted(ids, reverse=True):
-        checkpoint = await _read_checkpoint_file(sample_checkpoints_dir, n)
+        try:
+            checkpoint = await _read_checkpoint_file(sample_checkpoints_dir, n)
+        except FileNotFoundError:
+            # Preserve latest-only scanning's tolerance for a concurrent delete.
+            continue
         if checkpoint is not None:
             return checkpoint
+    if ids:
+        # checkpoint files present but none parse: callers treat the dir
+        # as holding nothing committed, and that should not pass silently
+        # — a torn write of the only checkpoint file is the likeliest cause
+        logger.warning(
+            f"Checkpoint files exist in {sample_checkpoints_dir} but none "
+            "parse as a valid checkpoint; treating the dir as holding no "
+            "committed checkpoint."
+        )
     return None
 
 
@@ -126,7 +154,9 @@ async def scan_committed_checkpoints(sample_checkpoints_dir: str) -> list[Checkp
 
     Same commit-point contract as :func:`scan_latest_committed_checkpoint`
     (a torn-write file is silently skipped); the last element is that
-    function's result. Resume uses the full list to decide which strategy
+    function's result when files remain available during both scans.
+    Unlike the latest-only scan, a listed file disappearing is an error.
+    Resume uses the full list to decide which strategy
     snapshots are acknowledged by a committed checkpoint — and deletes
     the rest — so a file that cannot be *read* fails the scan rather
     than passing as absent (see :func:`_read_checkpoint_file`).
@@ -161,6 +191,59 @@ async def _read_checkpoint_file(
         return None
 
 
+async def delete_sample_checkpoints_dir(
+    eval_dir: str, sample_id: int | str, epoch: int, *, log_location: str
+) -> None:
+    """Delete a sample's checkpoints dir and its staging dir (idempotent).
+
+    Used when a sample runs fresh in an attempt whose dir for it is not
+    empty: an invalidated prior's copied checkpoints, or repos from an
+    attempt that never committed a checkpoint file. Checkpoint files go
+    first, newest first: they are the dir's commit point, so an
+    interrupted delete leaves at most an older checkpoint behind. The
+    host-local staging dir a remote destination stages through is
+    cleared too, so fresh provisioning starts from nothing on both sides.
+    """
+    await clear_sample_staging_dir(log_location, sample_id, epoch)
+    target = sample_checkpoints_dir(eval_dir, sample_id, epoch)
+    if not is_s3_filename(target):
+
+        def rmtree_checkpoints_first() -> None:
+            root = Path(local_path(target))
+            for checkpoint_file in sorted(
+                root.glob("ckpt-*.json"),
+                key=lambda f: checkpoint_file_id(f.name) or 0,
+                reverse=True,
+            ):
+                checkpoint_file.unlink(missing_ok=True)
+            shutil.rmtree(root)
+
+        try:
+            await anyio.to_thread.run_sync(rmtree_checkpoints_first)
+        except FileNotFoundError:
+            pass
+        return
+    async_fs = get_async_filesystem()
+    # collect first: deleting while iterating a paginated S3 listing is
+    # undefined
+    try:
+        files = [uri async for uri in async_fs.iter_files(target, recursive=True)]
+    except FileNotFoundError:
+        files = []
+    bucket, key = s3_bucket_and_key(target)
+    prefix_len = len(f"s3://{bucket}/{key}".rstrip("/")) + 1
+    # top-level checkpoint files first (the anchored name pattern rejects
+    # any nested path), newest first
+    files.sort(
+        key=lambda uri: (
+            checkpoint_file_id(uri[prefix_len:]) is None,
+            -(checkpoint_file_id(uri[prefix_len:]) or 0),
+        )
+    )
+    for uri in files:
+        await async_fs.delete_file(uri)
+
+
 async def write_checkpoint_file(
     *,
     sample_checkpoints_dir: str,
@@ -185,19 +268,18 @@ async def _list_checkpoint_ids(sample_dir: str) -> list[int]:
 
     Unsorted. Names that don't parse as an int are silently skipped.
     Works over any ``AsyncFilesystem``-supported scheme; a missing dir
-    yields nothing (no pre-check needed — see note on
-    ``has_sample_checkpoint``).
+    yields nothing, so no existence pre-check is needed — S3 has no
+    real directories, and ``AsyncFilesystem.exists(prefix)`` returns
+    False for an S3 dir prefix even when files exist under it.
     """
     ids: list[int] = []
     try:
         async for uri in get_async_filesystem().iter_files(
             sample_dir, pattern="ckpt-*.json"
         ):
-            name = uri.rsplit("/", 1)[-1]
-            try:
-                ids.append(int(name.removeprefix("ckpt-").removesuffix(".json")))
-            except ValueError:
-                continue
+            checkpoint_id = checkpoint_file_id(uri.rsplit("/", 1)[-1])
+            if checkpoint_id is not None:
+                ids.append(checkpoint_id)
     except FileNotFoundError:
         pass
     return ids

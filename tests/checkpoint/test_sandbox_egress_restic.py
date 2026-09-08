@@ -546,6 +546,29 @@ async def test_forget_unrecorded_snapshots_keeps_only_recorded(repos: _Repos) ->
     assert remaining == {id1, id2}
 
 
+async def test_forget_unrecorded_snapshots_clears_inherited_locks(
+    repos: _Repos,
+) -> None:
+    id1 = repos.backup("ckpt-00001")
+    repos.backup("ckpt-00002")
+    lock = repos.repo / "locks" / ("a" * 64)
+    lock.parent.mkdir(exist_ok=True)
+    lock.write_bytes(b"lock residue copied from a killed attempt")
+
+    await forget_unrecorded_snapshots(
+        repos.restic,
+        str(repos.repo),
+        PASSWORD,
+        recorded_ids=[id1],
+        required_id=id1,
+    )
+
+    assert not lock.exists()
+    assert {
+        s["id"] for s in await list_snapshots(repos.restic, str(repos.repo), PASSWORD)
+    } == {id1}
+
+
 async def test_forget_unrecorded_snapshots_requires_latest_recorded(
     repos: _Repos,
 ) -> None:

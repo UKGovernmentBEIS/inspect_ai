@@ -54,11 +54,10 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._copy import DD_FULLBLOCK_PROBE, DEFAULT_COPY_CHUNK_SIZE, copy_out
 from .._layout.schemas import SnapshotDetails
-from .._repo_ops import checkpoint_tag, fs_copy_repo
+from .._repo_ops import checkpoint_tag
 from ..sandbox_paths import SandboxBackupPaths
 from .types import (
     CommittedSnapshot,
-    PriorAttempt,
     SandboxSnapshotStrategy,
     SnapshotContext,
 )
@@ -355,7 +354,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             )
 
     def _latest_archive_name(self, ctx: SnapshotContext) -> str:
-        """Newest adopted archive, for restores with no committed record."""
+        """Newest inherited archive, for restores with no committed record."""
         candidates = [
             entry.name
             for entry in Path(ctx.storage_dir).glob("ckpt-*")
@@ -364,26 +363,10 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         if not candidates:
             raise RuntimeError(
                 f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                f"no committed checkpoint records a snapshot and no adopted "
+                f"no committed checkpoint records a snapshot and no inherited "
                 f"archives exist in {ctx.storage_dir}"
             )
         return max(candidates, key=lambda name: _archive_checkpoint_id(name) or 0)
-
-    async def adopt(self, prior: PriorAttempt, ctx: SnapshotContext) -> None:
-        """Copy the prior attempt's archives into this attempt.
-
-        Cost is proportional to the prior attempt's checkpoint count —
-        the same shape as restic's whole-repo ``fs_copy_repo`` — and the
-        simple choice compliant with §4.5 (snapshots durable at this
-        attempt's destination before agent work runs, via the same
-        end-of-hydration host egress that ships the restic repos).
-        """
-        await fs_copy_repo(
-            prior.sample_checkpoints_dir,
-            prior.storage_subpath,
-            ctx.storage_dir,
-            label=f"sandbox {ctx.sandbox_name!r}",
-        )
 
     async def discard_orphans(
         self, committed: Sequence[CommittedSnapshot], ctx: SnapshotContext

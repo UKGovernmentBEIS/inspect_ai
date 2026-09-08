@@ -9,7 +9,6 @@ checkpointer call sites (see the extraction table in
 - ``snapshot`` ← ``run_sandbox_backup`` + ``egress_sandbox`` +
   ``list_changed_files``
 - ``restore``  ← ``ingress_sandbox``
-- ``adopt``    ← the per-sandbox ``fs_copy_repo``
 - ``discard_orphans`` ← ``forget_unrecorded_snapshots``
 
 The sandbox proposes a snapshot id. The host checks that it identifies
@@ -30,7 +29,7 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._copy import probe_dd_fullblock
 from .._layout.schemas import SnapshotDetails
-from .._repo_ops import checkpoint_tag, forget_unrecorded_snapshots, fs_copy_repo
+from .._repo_ops import checkpoint_tag, forget_unrecorded_snapshots
 from .._sandbox_restic import (
     egress_sandbox,
     ingress_sandbox,
@@ -42,7 +41,6 @@ from ..config import MAX_LISTED_FILES
 from ..sandbox_paths import SandboxBackupPaths
 from .types import (
     CommittedSnapshot,
-    PriorAttempt,
     SandboxSnapshotStrategy,
     SnapshotContext,
 )
@@ -119,14 +117,6 @@ class ResticIncrementalStrategy(SandboxSnapshotStrategy):
             ctx.storage_dir,
             ctx.secret,
             snapshot_id=ref.snapshot_id if ref is not None else None,
-        )
-
-    async def adopt(self, prior: PriorAttempt, ctx: SnapshotContext) -> None:
-        await fs_copy_repo(
-            prior.sample_checkpoints_dir,
-            prior.storage_subpath,
-            ctx.storage_dir,
-            label=f"sandbox {ctx.sandbox_name!r}",
         )
 
     async def discard_orphans(

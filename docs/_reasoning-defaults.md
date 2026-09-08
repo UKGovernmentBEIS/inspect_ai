@@ -51,3 +51,4 @@
 | openai/gpt-5.6-luna | medium |
 | openai/gpt-5.6-sol | medium |
 | openai/gpt-5.6-terra | medium |
+| openai/gpt-6-astra | medium |
