@@ -77,7 +77,10 @@ class TaskSource:
         individually by an operator (its ``error`` is then the cancellation,
         with no scores), but not for samples cancelled by the task itself
         unwinding (a task-level cancel or ^C) -- those reach the source only
-        via the log passed to ``task_complete``.
+        via the log passed to ``task_complete``. A cancelled sample's
+        ``error.message`` is the cancellation exception's repr (it starts
+        with ``CancelledError(`` or ``Cancelled(``), which is how to tell it
+        from a genuine error.
         """
         return None
 

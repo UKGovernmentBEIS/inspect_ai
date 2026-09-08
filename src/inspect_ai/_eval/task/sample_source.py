@@ -82,7 +82,9 @@ class SampleSource:
         individually by an operator (its ``error`` is then the cancellation,
         with no scores), but not for samples cancelled by the task itself
         unwinding (a task-level cancel or ^C), where any follow-ups could
-        never run.
+        never run. A cancelled sample's ``error.message`` is the cancellation
+        exception's repr (it starts with ``CancelledError(`` or
+        ``Cancelled(``), which is how to tell it from a genuine error.
 
         On a task retry this is also called for samples reused from the prior
         attempt, so a completion-driven source regenerates its follow-ups
