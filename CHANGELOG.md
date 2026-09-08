@@ -12,6 +12,8 @@
 - Sandboxes: Compose files using long syntax volume mounts, `pids_limit`, `read_only`, `cgroup`, `stop_grace_period`, `build.no_cache`, or `build.pull` no longer fail validation when starting an eval.
 - Sandbox Tools: The in-sandbox tool server's socket and control files now live inside the injected tools tree, out of reach of other users in the container.
 - Sandbox tools: `bash_session()`, `text_editor()`, `exec_remote()` and sandboxed MCP servers now run as the sandbox's default user instead of always as root; the three tools accept `user="root"` to restore the old behavior.
+- Sandbox tools: Fixed a race during injection that let a non-root sandbox user replace the tools archive before root unpacked it.
+- Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
 
 ## 0.3.263 (03 September 2026)
 
