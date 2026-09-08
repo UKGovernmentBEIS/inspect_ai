@@ -21,7 +21,7 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec, parse_s
 
 
 class TaskInput(BaseModel):
-    task: str
+    task: str | None = None
     args: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -98,7 +98,8 @@ class RunConfig(BaseModel):
             if isinstance(self.task, str):
                 params["tasks"] = self.task
             else:
-                params["tasks"] = self.task.task
+                if self.task.task is not None:
+                    params["tasks"] = self.task.task
                 if self.task.args:
                     params["task_args"] = self.task.args
 
