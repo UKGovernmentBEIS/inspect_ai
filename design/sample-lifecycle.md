@@ -117,6 +117,13 @@ all of the run's attempts; only the attempt that goes terminal reports.
 | early stop | completed | ✓ | — | — | never written |
 | reused prior sample (`run_sample`, never enters `task_run_sample`) | completed + prior usage | ✓ | ✓ | prior scores | re-logged |
 
+One accepted gap: the `SampleSource` / `TaskSource` `sample_complete`
+callbacks run after the log write and before the terminal report, in the live
+(unshielded) scope. A task-level cancel landing while a callback is suspended
+unwinds the attempt from there, so that run is logged but never counted or
+released. The task is ending and the eval finishes errored/cancelled
+regardless, so the missing count is only visible in the dead task's listing.
+
 Column meanings:
 
 - **Counter** — `record_sample_completed` / `errored` / `cancelled` in
