@@ -7,17 +7,18 @@ commit. The destination is *not* pre-initialized — the first cycle's
 tarball carries ``config``+``keys/*``, which makes the destination a
 valid restic repo on extraction.
 
-Everything the sandbox reports on this path — the diff list, the tar,
-the tar's size, the backup's snapshot id — is untrusted: where the
-sandbox default user is root the agent controls all of it directly, and
-the container owns its own filesystem, so a "forged" snapshot of its
-own state is indistinguishable from a real one. What the host verifies
-is therefore the narrower set of properties it *can* establish from
-host-side truth, and it establishes each of them from state it
-observed itself:
+The sandbox controls the state it supplies, including repository files
+and metadata. These checks limit what a transfer can write on the host,
+prevent replacement of previously accepted repository files, and tie
+resume to a recorded snapshot. They do not establish that a snapshot
+faithfully captures the sandbox, that its contents are recent, or that
+those contents are truthful. Root-only staging does not prevent an
+agent controlling sandbox root from modifying the transfer.
 
 Each checkpoint sends a tar archive containing new restic repository
 files. The host checks those files before accepting the checkpoint:
+
+Host protections:
 
 - **Previously accepted files cannot change.** Restic names its data,
   index, snapshot, and key files by the SHA-256 hash of their contents.
@@ -27,25 +28,9 @@ files. The host checks those files before accepting the checkpoint:
   safely. The configuration file has no hash in its name, so a resent
   copy must match the existing contents. New configuration and key
   files are accepted only before the destination has a configuration.
-- **The archive must contain exactly the files the sandbox listed.**
-  The host rejects missing files, extra files, duplicates, links, and
-  paths outside the expected restic layout. Every archive entry must
-  be a regular file and pass tarfile's path-safety checks. The list
-  itself is untrusted; this check ensures the transfer matches it.
-- **The checkpoint must name a newly received snapshot.** The host
-  compares the destination's snapshots before and after extraction.
-  Every added snapshot must correspond to a file the host just wrote.
-  The snapshot reported by the sandbox must be one of those additions
-  and carry exactly this checkpoint's tag; an old snapshot cannot be
-  presented as a new one. Other snapshots may arrive alongside it:
-  failed attempts can leave snapshots behind, even with the same tag
-  because failed checkpoint numbers are reused. These extras are not
-  recorded as committed checkpoints and are forgotten on resume by
-  ``forget_unrecorded_snapshots``. The host returns the verified full
-  snapshot id for the strategy to record.
-- **An empty transfer is an error.** Even when the captured files have
-  not changed, a restic backup creates a new snapshot file. A sandbox
-  claiming there is nothing to send has violated the protocol.
+- **Host writes stay within the restic layout.** Archive entries must
+  be regular files with allowed repository paths and pass tarfile's
+  path-safety checks. Links and paths outside that layout are rejected.
 - **Transfers have a size limit.** The host limits both the bytes copied
   out of the sandbox (see :mod:`.._copy`) and the bytes extracted from
   the archive. The file list is bounded by the transfer cap and limits
@@ -53,8 +38,32 @@ files. The host checks those files before accepting the checkpoint:
   before building the archive to avoid wasted work, but the host
   enforces the limit independently.
 
-If extraction or snapshot verification fails, the host removes the
-files it added during this attempt. Only after verification succeeds
+Transfer protocol checks reject inconsistent transfers. A compromised
+sandbox can satisfy them while supplying fabricated state:
+
+- **The archive must contain exactly the files the sandbox listed.**
+  The host rejects missing files, extra files, and duplicates. The
+  list itself is untrusted; this check ensures the transfer matches it.
+- **The checkpoint must name a newly received snapshot.** The host
+  compares the destination's snapshots before and after extraction.
+  Every added snapshot must correspond to a file the host just wrote.
+  The snapshot reported by the sandbox must be one of those additions
+  and carry exactly this checkpoint's tag; an old snapshot cannot be
+  presented as a new one. Other snapshots may arrive alongside it,
+  either left by failed attempts or deliberately supplied by the
+  sandbox. Failed attempts can reuse checkpoint numbers and tags.
+  These extras are not
+  recorded as committed checkpoints and are forgotten on resume by
+  ``forget_unrecorded_snapshots``. The host returns the full id of the
+  newly received snapshot for the strategy to record.
+- **An empty transfer is an error.** Even when the captured files have
+  not changed, a restic backup creates a new snapshot file. A sandbox
+  claiming there is nothing to send has violated the protocol.
+
+Recovery behavior:
+
+If extraction or snapshot receipt checks fail, the host removes the
+files it added during this attempt. Only after these checks succeed
 does it tell the sandbox to mark the accepted files as shipped. If
 that acknowledgment fails, the next attempt can safely resend them.
 
@@ -143,7 +152,7 @@ async def ingress_sandbox(
        sandbox so restored files land at their original absolute paths,
        replacing whatever the fresh sandbox came up with.
        ``snapshot_id`` is the latest committed checkpoint's recorded
-       (host-verified) id; ``None`` restores ``latest`` — the degenerate
+       id; ``None`` restores ``latest`` — the degenerate
        resume with no committed record for this sandbox.
 
     Egress's two-phase manifest is reseeded by writing a manifest line
@@ -255,10 +264,10 @@ async def egress_sandbox(
     ``tag`` names the per-cycle staging tarball and must be unique per
     cycle; it is also the tag the backup that immediately preceded this
     call carried, and ``snapshot_id`` is the id that backup reported.
-    Both are verified against the destination — see the module
-    docstring for the full set of host-side checks — and the
-    host-verified full snapshot id is returned for the caller to
-    record. ``max_bytes`` caps the tarball transfer and the bytes
+    The host checks that the reported id names a newly received snapshot
+    with exactly the expected tag, then returns its full id for the
+    caller to record. These checks do not authenticate the captured
+    state. ``max_bytes`` caps the tarball transfer and the bytes
     extracted; ``chunk_size``/``dd_fullblock`` tune the chunked
     copy-out (see :func:`.._copy.copy_out`).
 
@@ -358,7 +367,7 @@ async def egress_sandbox(
 
 
 class _EgressBuild(NamedTuple):
-    """Phase 1's sandbox-reported result (advisory: verified host-side)."""
+    """Sandbox-reported file list and size, subject to host transfer checks."""
 
     new_files: list[str]
     """Repo-relative paths the sandbox staged into this cycle's tarball."""
@@ -455,7 +464,7 @@ cat {paths.staging}/new.txt
 
 
 def _scan_repo_files(dest_repo: str) -> set[str]:
-    """Repo-relative paths of every file in ``dest_repo`` (host truth).
+    """Repo-relative paths of every file in ``dest_repo`` (observed on the host).
 
     Also removes ``*.partial`` residue a killed extraction may have left
     (restic ignores such files, but they would otherwise ride along to a
@@ -505,9 +514,13 @@ def _extract_verified(
     New ``config``/``keys/*`` files are accepted only on the first
     cycle. A member already present in ``dest_repo`` is accepted
     without writing only when the shipped bytes are the existing bytes
-    (both hash to the name; ``config`` compared byte-for-byte) — a
+    (both hash to the name; ``config`` contents compared by hash) — a
     re-ship after a failed phase-2 commit — and the existing file is
     never replaced.
+
+    Matching a hash to a filename binds that name to those bytes; it
+    does not authenticate their contents. The sandbox can supply
+    arbitrary new contents under their matching hash-derived names.
 
     On any failure, every file this call wrote is removed before the
     error propagates, so ``dest_repo`` is left as it was found.
@@ -709,8 +722,13 @@ async def _verify_fresh_snapshot(
     host just wrote. The snapshot reported by the sandbox must be one of
     them and have exactly the expected checkpoint tag.
 
-    The transfer may include other snapshots left behind by failed
-    checkpoint attempts. Accept these too, but do not record them in the
+    "New" means the snapshot id was absent from the host repository
+    before this transfer, not that its contents are recent. The tag
+    checks protocol consistency; it does not authenticate the capture.
+
+    Extra snapshots may be leftovers from interrupted attempts or
+    deliberately supplied by the sandbox. The host does not distinguish
+    these cases. Accept these too, but do not record them in the
     checkpoint file. On resume, snapshots that no checkpoint file records
     are removed.
 
@@ -753,8 +771,10 @@ async def _commit_egress(
 ) -> None:
     """Phase 2 (in-sandbox): advance the manifest, drop the tarball.
 
-    ``members`` is the host-validated member list, so the manifest can
-    only advance by files the host actually accepted.
+    Ask the sandbox to mark the accepted files as shipped. This supports
+    retries when the sandbox follows the protocol; the sandbox can modify
+    its own manifest, so the host does not rely on it as evidence of prior
+    receipt.
     """
     script = f"""\
 set -e

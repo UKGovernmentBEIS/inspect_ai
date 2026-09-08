@@ -33,7 +33,7 @@ DD_FULLBLOCK_PROBE = (
 
 
 class CopyOutResult(NamedTuple):
-    """What ``copy_out`` verified about the bytes it landed on the host."""
+    """The byte count and SHA-256 digest computed by the host during copying."""
 
     sha256: str
     """Digest of the bytes actually read from the sandbox."""
@@ -92,10 +92,15 @@ async def copy_out(
     Written to :func:`copy_out_partial_path` and renamed into place only
     after the copy completes (and, when ``expected_sha256`` is given,
     the digest of the bytes actually read matches it), so an
-    interrupted, over-cap, or corrupted copy — including cancellation
-    mid-transfer — never leaves a plausible-looking file at ``dest``.
+    interrupted, over-cap, or digest-mismatched copy never leaves a
+    completed file at ``dest``, including cancellation mid-transfer.
     Only a hard kill can leave the partial file behind; callers that
     care sweep it by that name. ``label`` prefixes error messages.
+
+    Comparing the received bytes with a sandbox-reported digest detects
+    a mismatch, such as accidental corruption during copying. A
+    compromised sandbox can supply matching bytes and a matching digest;
+    agreement does not authenticate the archive.
     """
     if size < 0:
         raise RuntimeError(f"{label}: sandbox reported a negative size ({size})")
@@ -143,7 +148,7 @@ async def copy_out(
                 index += 1
         if expected_sha256 is not None and digest.hexdigest() != expected_sha256:
             raise RuntimeError(
-                f"{label}: corrupted in transit: in-sandbox sha256 "
+                f"{label}: received bytes do not match the sandbox-reported SHA-256: "
                 f"{expected_sha256} != host-read sha256 {digest.hexdigest()}"
             )
     except BaseException:

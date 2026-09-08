@@ -26,13 +26,13 @@ Capture mechanics (design §7.2/§8, first implementation):
   an interrupted fire can never corrupt the next one (§4.2). There is
   no detached producer in this implementation, so cleanup is a plain
   delete.
-- The archive's sha256 is minted in-sandbox at capture time and
-  cross-checked against the digest of the bytes the host actually
-  read, so transport corruption cannot produce a "verified" archive
-  whose recorded hash matches corrupt bytes. ``restore`` re-verifies
-  the recorded digest in-sandbox after staging, before any byte is
-  extracted to a final path (verify-then-extract costs transient
-  sandbox disk equal to the archive size).
+- The host compares the received bytes' SHA-256 digest with the digest
+  reported by the sandbox. This detects mismatches, such as accidental
+  corruption during copying. A compromised sandbox can supply matching
+  bytes and a matching digest; agreement does not authenticate the
+  archive. On restore, a digest check runs inside the sandbox before
+  extraction. It detects mismatches when that sandbox follows the
+  protocol; it cannot constrain a sandbox controlled by the agent.
 - Compression is zstd when available in the sandbox, else gzip
   (present in effectively every image, busybox included) — the
   archive is always compressed. ``setup`` probes and records the
@@ -148,9 +148,6 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         )
         local_path = Path(ctx.storage_dir) / archive_name
         try:
-            # The in-sandbox digest is cross-checked against the bytes the
-            # host actually read, so transport corruption cannot produce a
-            # "verified" archive whose recorded hash matches corrupt bytes.
             await copy_out(
                 env,
                 src=archive,
@@ -250,9 +247,8 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             # e.g. the kill tore the only checkpoint file mid-write. Restic
             # parity (see ``ResticStrategy.restore``): orphan discard is
             # skipped in exactly this case, so restore the newest adopted
-            # archive — the best available capture, digest-verified when it
-            # was copied out. Transit into the sandbox is still verified
-            # below, against a digest computed during copy-in.
+            # archive. The digest check below compares against a digest
+            # computed during copy-in, not a committed checkpoint record.
             archive_name = self._latest_archive_name(ctx)
             expected_digest = None
         else:
@@ -268,9 +264,8 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                     f"metadata (archive/content_sha256)"
                 )
             # `archive_name` is joined into a host path and interpolated into
-            # root shell scripts below. Checkpoint records are host-written
-            # and trusted, but `snapshot()` only ever generates this exact
-            # form, so a corrupted record fails here instead of becoming a
+            # root shell scripts below. Require the filename form generated
+            # by `snapshot()` so a malformed record fails before becoming a
             # path-traversal or shell-injection surface (or a confusing
             # shell error).
             if not _ARCHIVE_NAME_RE.fullmatch(archive_name_extra):

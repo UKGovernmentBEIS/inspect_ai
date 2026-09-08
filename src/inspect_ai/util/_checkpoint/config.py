@@ -185,7 +185,8 @@ class CheckpointConfig(CheckpointSampleConfig):
     unshipped data only accumulates, every later checkpoint of that
     sample until the cap is raised (see ``max_consecutive_failures``).
     ``None`` = inherit / use the default
-    (4 GiB). Eval-wide — settable only at the task or eval layer, since
+    (4 GiB per transfer, not a total repository storage budget).
+    Eval-wide — settable only at the task or eval layer, since
     it bounds the host disk written on a sandbox's behalf."""
 
 

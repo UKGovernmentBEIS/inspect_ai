@@ -162,10 +162,11 @@ async def forget_unrecorded_snapshots(
     """Remove snapshots that no committed checkpoint file records.
 
     ``repo`` is the host-side restic repository copied from the previous
-    attempt for resume. It may contain snapshots from checkpoint attempts
-    that failed: their snapshot files arrived, but no checkpoint file was
-    written to commit them. Remove these leftovers before restoring the
-    sandbox.
+    attempt for resume. Extra snapshots may be leftovers from interrupted
+    attempts or deliberately supplied by the sandbox. The host does not
+    distinguish these cases: a snapshot is unrecorded when no committed
+    checkpoint file names it. Remove these snapshots before restoring
+    the sandbox.
 
     ``recorded_ids`` contains the snapshot ids from committed checkpoint
     files. ``required_id`` identifies the snapshot resume will restore.

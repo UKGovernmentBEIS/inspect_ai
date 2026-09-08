@@ -16,13 +16,14 @@ sandbox's bulk state for checkpointing, honoring these guarantees:
 - **Restore into a fresh sandbox (§4.3)**: ``restore()`` receives a
   fresh sandbox and must leave the captured paths byte-identical to
   capture time at their original absolute paths.
-- **Security (§4.6)**: tooling placed in the sandbox must be root-only
-  and invisible to the agent; bytes read out of the sandbox are
-  untrusted — every host-side acceptance decision (what landed, how
-  much, whether the capture is new) is made from host-observed state,
-  never from a sandbox-reported value alone, and the transfer is
-  bounded by ``SnapshotContext.max_snapshot_bytes``; secrets reach the
-  sandbox only via per-exec environment variables.
+- **Security (§4.6)**: sandbox-supplied bytes and metadata remain
+  untrusted after transfer checks. Strategies limit host writes and
+  transfer size; restic also prevents replacement of existing repository
+  files and checks whether the snapshot id was newly received. None of
+  these checks authenticates the captured state. Root-only tooling and
+  staging protect against an unprivileged agent, not one controlling
+  sandbox root. Secrets reach the sandbox via per-exec environment
+  variables, which also do not hide them from sandbox root.
 """
 
 from __future__ import annotations

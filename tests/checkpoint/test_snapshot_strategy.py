@@ -541,7 +541,9 @@ async def test_copy_out_rejects_short_file_and_digest_mismatch(tmp_path: Path) -
         )
     assert not dest.exists() and not partial.exists()
 
-    with pytest.raises(RuntimeError, match="corrupted in transit"):
+    with pytest.raises(
+        RuntimeError, match="received bytes do not match the sandbox-reported SHA-256"
+    ):
         await copy_out(
             LocalShellSandbox(),
             src=str(sandbox_dir / "blob"),

@@ -12,10 +12,12 @@ checkpointer call sites (see the extraction table in
 - ``adopt``    ← the per-sandbox ``fs_copy_repo``
 - ``discard_orphans`` ← ``forget_unrecorded_snapshots``
 
-The snapshot id recorded in checkpoint files is the one the *host*
-verified the destination gained during egress, not the id the
-in-sandbox backup reported; ``restore`` restores exactly that recorded
-snapshot, and ``discard_orphans`` keeps exactly the recorded ones.
+The sandbox proposes a snapshot id. The host checks that it identifies
+a newly received snapshot with the expected tag, resolves it to its
+full id, and returns that id for recording. This does not authenticate
+the captured state. With a committed record, restore uses that id and
+orphan discard keeps only recorded snapshots. Without a record for this
+sandbox, restore falls back to ``latest`` and skips orphan discard.
 """
 
 from __future__ import annotations

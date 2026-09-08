@@ -40,7 +40,9 @@
 >    records — not just ids past the latest — and the strategy must
 >    raise if the latest committed record's snapshot is absent from the
 >    adopted storage area. `restore` restores the recorded
->    `ref.snapshot_id` (host-verified during egress), never `latest`.
+>    `ref.snapshot_id`, whose receipt was checked during egress. When
+>    this sandbox has no committed record, restore still falls back to
+>    `latest` and skips orphan discard.
 >    The shared chunked copy-out (`_checkpoint/_copy.py`, capped by
 >    `SnapshotContext.max_snapshot_bytes` from
 >    `CheckpointConfig.max_sandbox_snapshot_bytes`) landed with this
@@ -127,9 +129,10 @@ class SandboxSnapshotStrategy(Protocol):
     """Captures and restores one sandbox's bulk state for checkpointing.
 
     Contract (see §4 for the guarantees each method must honor):
-    tooling placed in the sandbox must be root-only and invisible to
-    the agent; bytes read out of the sandbox are untrusted; secrets
-    reach the sandbox only via per-exec environment variables.
+    tooling and staging must be root-only to protect against an
+    unprivileged agent; sandbox root can access them. Transfer checks
+    do not authenticate sandbox-supplied state. Secrets reach the
+    sandbox only via per-exec environment variables.
     """
 
     async def setup(self, env: SandboxEnvironment, ctx: SnapshotContext) -> None:
@@ -313,10 +316,22 @@ compliant choice.
 
 ### 4.6 Security requirements (Protocol docstring, normative)
 
-Copied from the restic implementation's hard-won properties:
+The sandbox controls the state it supplies, including repository files
+and metadata. Host checks constrain transfer size and paths, prevent
+replacement of existing restic repository files, and tie resume to a
+recorded snapshot when one exists. They do not establish that a snapshot
+faithfully captures the sandbox or that its contents are recent or truthful.
+
+File-list agreement, newly received snapshot ids, and expected tags enforce
+transfer protocol consistency. A compromised sandbox can satisfy these
+checks with fabricated state. Content-addressed filenames bind names to
+bytes, not to an authentic capture. Root-only paths and per-exec secrets
+protect against an unprivileged agent, not one controlling sandbox root.
+
+Implementation requirements:
 
 - Tooling placed inside the sandbox lives under a root-only (0700)
-  path whose *parent* is unlistable by the agent (the
+  path whose *parent* is unlistable by an unprivileged agent (the
   `/root/.cache/inspect` pattern), streamed in via root `sh` stdin so
   bytes never touch an agent-readable temp path.
 - Any in-sandbox staging must sit inside that area and be excluded
@@ -546,9 +561,11 @@ restore).
   once complete, verify the recorded hash against the staged file
   in-sandbox, then `tar -x -C /` and delete the staging file.
   Verify-then-extract costs transient sandbox disk equal to the
-  archive size, but a corrupt archive is rejected before any byte
-  reaches a final path. Extraction happens *inside* the sandbox, so
-  untrusted-bytes handling on the host reduces to hash verification.
+  archive size. When the sandbox follows the protocol, a digest mismatch
+  stops extraction. A compromised sandbox can bypass that check. The
+  archive remains opaque on the host: copy-out is bounded and checks
+  agreement with the sandbox-reported digest, without authenticating
+  the archive contents. Extraction happens *inside* the sandbox.
 - `adopt`: copy the retained archives (bounded by `keep_last`) from
   the prior attempt's dir — the simple choice compliant with §4.5.
 - `discard_orphans` / `apply_retention`: delete one file per
