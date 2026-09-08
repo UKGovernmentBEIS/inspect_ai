@@ -14,6 +14,9 @@
 - Agent bridge: Bridged OpenAI and Google requests with a malformed `tool_choice`/`toolConfig` now return a 400 naming the bad field instead of a status-less error, and a non-string tool name no longer poisons the sample transcript.
 - Checkpointing: Sandbox transfers are size-limited, cannot overwrite existing repository files, and resume uses the recorded snapshot when available.
 - Checkpointing: Oversized sandbox archive headers are rejected before they can cause large host memory allocations.
+- Agent Bridge: Client-supplied HTTP headers are now forwarded through the sandbox agent-bridge model proxy to the bridged model request.
+- Agent Bridge: A bridged client's `reasoning` options now reach the model request verbatim when forwarding generation config, preserving fields like `context` that were previously dropped.
+- Agent Bridge: Transparent bridged requests now decode Brotli responses when clients advertise `br` through `Accept-Encoding`.
 - Sandboxes: Compose files using long syntax volume mounts, `pids_limit`, `read_only`, `cgroup`, `stop_grace_period`, `build.no_cache`, or `build.pull` no longer fail validation when starting an eval.
 - Sandbox Tools: The in-sandbox tool server's socket and control files now live inside the injected tools tree, out of reach of other users in the container.
 - Sandbox tools: `bash_session()`, `text_editor()`, `exec_remote()` and sandboxed MCP servers now run as the sandbox's default user instead of always as root; the three tools accept `user="root"` to restore the old behavior.
@@ -27,9 +30,6 @@
 - OpenAI: Fixed `temperature`, `top_p`, and `logprobs` causing a 400 error on GPT-5.5+ models when no `reasoning_effort` is set (they are now dropped with a warning).
 - Grok: Oversized prompts now return `stop_reason="model_length"` instead of failing with a generation error under xAI's current context-overflow wording.
 - Eval Log: Sample summaries now keep `Score.reason`, so an explicit reason is no longer dropped (and a stale `metadata["unscored_reason"]` cannot replace it).
-- Agent Bridge: Client-supplied HTTP headers are now forwarded through the sandbox agent-bridge model proxy to the bridged model request.
-- Agent Bridge: A bridged client's `reasoning` options now reach the model request verbatim when forwarding generation config, preserving fields like `context` that were previously dropped.
-- Agent Bridge: Transparent bridged requests now decode Brotli responses when clients advertise `br` through `Accept-Encoding`.
 - Agent bridge: A Chat Completions response truncated by the output-token limit now reports `finish_reason="length"` instead of `"stop"`.
 - Google: Batched evaluations with a system message now serialize `system_instruction` as REST `Content` instead of a bare JSON array, fixing batch submission failures; batch results are now parsed through the SDK converter so unknown REST fields (e.g. `usageMetadata.serviceTier`) no longer fail the whole batch. (#5100)
 - Google/Gemini: Faster client setup under high sandbox concurrency, with custom CA bundles now preserved on both sync and async requests.
