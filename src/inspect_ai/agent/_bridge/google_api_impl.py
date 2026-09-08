@@ -716,6 +716,28 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
         "modelVersion": model_name,
     }
 
+    logprobs = output.choices[0].logprobs
+    if logprobs and logprobs.content:
+        candidate = response["candidates"][0]
+        candidate["logprobsResult"] = {
+            "chosenCandidates": [
+                {"token": token.token, "logProbability": token.logprob}
+                for token in logprobs.content
+            ],
+            "topCandidates": [
+                {
+                    "candidates": [
+                        {"token": top.token, "logProbability": top.logprob}
+                        for top in token.top_logprobs or []
+                    ]
+                }
+                for token in logprobs.content
+            ],
+        }
+        candidate["avgLogprobs"] = sum(
+            token.logprob for token in logprobs.content
+        ) / len(logprobs.content)
+
     # Add convenience text field if there's text content (excluding embedded <think> tags)
     text_content = "".join(
         p.get("text", "")
