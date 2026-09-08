@@ -45,6 +45,16 @@ class InputResult:
 
 `request_input(message, schema)` returns an `InputResult`. There is no protocol for custom handlers — exactly one built-in surface collects each answer, selected per "Routing policy" above.
 
+### Multi-line strings
+
+A string property with `format: "multiline"` (and no `enum`/`one_of`) renders as a multi-line field; single-line is the default. `is_multiline()` in `_validate.py` is the single predicate all three surfaces consult.
+
+`format` rather than `_meta`, which was the other candidate: a model writing a JSON schema will guess `format` before it guesses a metadata key.
+
+Both silent-truncation paths this fixes are worth remembering. Textual's `Input._on_paste` does `splitlines()[0]` and drops the rest. The console's `Prompt.ask` returns line 1 and leaves lines 2..n in the tty buffer, where they become the answers to the *following* prompts. Bracketed paste can't rescue the console case — a `uv`-managed CPython links libedit, which doesn't distinguish a pasted newline — hence `_ask_multiline()` reads line by line to a sentinel (a lone `.`, or Ctrl-D) instead. The `.` sentinel does collide with real content (`ls -a` output, a Markdown paragraph break); Ctrl-D is collision-free and the hint names both. `:end`, matching `:decline`, remains a one-line change if the trade-off ever needs revisiting.
+
+Two consequences: EOF on a piped stdin is sticky, so `_ask_multiline()` propagates `EOFError` like `Prompt.ask` rather than re-prompting forever; and `validate_string` uses `re.fullmatch` without `DOTALL`, so a `pattern` over multi-line text needs `(?s)`.
+
 ## Components and files
 
 ### 1. Routing core — `src/inspect_ai/util/_input/`
@@ -55,7 +65,7 @@ Mirrors `src/inspect_ai/approval/_human/`. Files:
 - **`request.py`** — `request_input(*, message, schema) -> InputResult`. Orchestrates: (1) fire `notify(message)` (best-effort, bounded), (2) call `_dispatch_builtin(request)` to collect the answer, (3) record an `InputEvent` on the transcript.
 - **`builtin.py`** — `_dispatch_builtin(request)` selects exactly one of `acp_handler` / `panel_handler` / `console_handler` based on the routing policy above.
 - **`manager.py`** — `HumanQuestionManager` (parallel to `HumanApprovalManager`): in-process queue of pending questions for the Textual panel handler.
-- **`panel.py`** — `QuestionInputPanel(InputPanel)`. Renders form fields dynamically from `ElicitationSchema`: Textual `Input` for strings/numbers, `Checkbox` for booleans, `SelectionList` for multi-select. Submit / Decline buttons.
+- **`panel.py`** — `QuestionInputPanel(InputPanel)`. Renders form fields dynamically from `ElicitationSchema`: Textual `Input` for strings/numbers, `TextArea` for multi-line strings, `Checkbox` for booleans, `SelectionList` for multi-select. Submit / Decline buttons.
 - **`console.py`** — console-fallback handler. Walks schema properties using `input_screen()` (`util/_console.py`) + Rich's `Prompt.ask` / `Confirm.ask` / `IntPrompt.ask`.
 - **`acp.py`** — ACP-handler wrapper. Routes via `sample_active().acp_transport.request_elicitation(...)` (the outermost `LiveAcpTransport`, pinned at sample startup — see "Routing policy" for why this is NOT `current_acp_transport()`). Gated on `acp_server_accepting_clients()`: returns `None` when `--acp-server` is not active so the dispatcher falls through to panel / console. When the server IS active, parks until an elicitation-capable client attaches — no silent fallback.
 
