@@ -59,7 +59,7 @@ By default a refusal is just another model output: agents like `react()` retry i
 inspect eval ctf.py --model anthropic/claude-fable-5 --fail-on-refusal
 ```
 
-Like other generation config, `fail_on_refusal` can be set eval-wide (as above, or `eval(..., fail_on_refusal=True)`), on a `Task` (`config=GenerateConfig(fail_on_refusal=True)`), on a model (`--model-spec` or `get_model(..., config=...)`), or on an individual `generate()` call. Eval-wide and task settings also apply to [model roles](models.qmd#model-roles) such as graders, but a role's own setting wins, so you can fail on refusals from the agent while letting a grader refuse normally:
+Like other generation config, `fail_on_refusal` can be set eval-wide (as above, or `eval(..., fail_on_refusal=True)`), on a `Task` (`config=GenerateConfig(fail_on_refusal=True)`), on a model (`--model-spec` or `get_model(..., config=...)`), or on an individual `generate()` call. Eval-wide and task settings also apply to any other model used by the eval, including [model roles](models.qmd#model-roles) such as graders and ad hoc `get_model()` calls in solvers or scorers, but a model's own setting wins, so you can fail on refusals from the agent while letting a grader refuse normally:
 
 ``` bash
 inspect eval ctf.py --fail-on-refusal \
@@ -72,7 +72,9 @@ Some things to be aware of:
 - Refusal retries still apply: `retry_refusals=N` on `react()`, `deepagent()` or the agent bridge means the sample fails only after N+1 consecutive refusals in one step (`deepagent()` defaults to 3 retries, `react()` to none).
 - `retry_on_error` and `score_on_error` treat a refusal like any other sample error, and `eval_set()` retries a task whose log status is `error` as usual.
 - The refusal counter and `--log-refusals` still run, and `ModelRefusalError` (exported from `inspect_ai.model`) carries the refused `output`, so the category is available to code that catches it.
+- Because the CLI flag is unset by default, `--fail-on-refusal` never disables an option enabled by a task or model config; pass `--no-fail-on-refusal` to do that.
 - For scaffolds bridged in-process with `agent_bridge()`, the error surfaces as an exception from the scaffold's own SDK call, so a scaffold that catches broad exceptions around its API calls will swallow it. Scaffolds running in a sandbox via `sandbox_agent_bridge()` fail the sample regardless of how they handle the error response they receive.
+- A refusal during an MCP sampling request (a generation an [MCP server](tools-mcp.qmd) asks Inspect to perform on its behalf) is returned to the server as an MCP error rather than failing the sample, the same as an exceeded limit there today.
 
 ## Fallback Logging
 

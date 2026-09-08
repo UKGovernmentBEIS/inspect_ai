@@ -155,7 +155,8 @@ filter on failure, which would have swallowed a refused summary generation.
 It now re-raises `ModelRefusalError` ahead of that handler.
 
 **Known gaps.** Three paths do not go through `await model.generate()` in a
-way that lets the error reach the sample runner:
+way that lets the error reach the sample runner, and a fourth (MCP sampling,
+at the end of this list) is documented rather than fixed:
 
 - Background `deepagent` subagents. `_run_background` in
   `src/inspect_ai/agent/_deepagent/agent_tool.py` catches `Exception`,
@@ -224,6 +225,22 @@ way that lets the error reach the sample runner:
   `LimitExceededError` branch in `_handle_request`; rejected because it would
   teach the generic sandbox service about a model-layer error type, whereas
   the bridge already owns a mechanism built for exactly this.
+- MCP sampling. `sampling_fn` in `src/inspect_ai/tool/_mcp/sampling.py`
+  answers a server-initiated `sampling/createMessage` request by calling
+  `get_model().generate()` inside a bare `except Exception` that returns an
+  MCP `ErrorData`, so a refusal raised there reaches the MCP server as an
+  error and the sample continues. Re-raising would not help: the callback
+  runs inside the mcp SDK's request dispatcher, which catches any exception
+  from a handler, logs it with a traceback and answers the server with an
+  `INTERNAL_ERROR` response (`mcp/shared/direct_dispatcher.py` and
+  `jsonrpc_dispatcher.py` in mcp 2.x), the same constraint as the sandbox
+  service dispatcher above. Failing the sample from there would need a
+  failure signal into the task that owns the MCP connection, as the sandbox
+  bridge has. `LimitExceededError` is swallowed on this path today for the
+  same reason, so this is a pre-existing shape the new option inherits, and
+  the path is niche (an MCP server asking Inspect to generate on its behalf).
+  It is documented in `docs/fallbacks.qmd` next to the in-process bridge
+  caveat and left as is.
 
 ### 4. Sample outcome
 
@@ -367,13 +384,21 @@ than silently reusing logs.
 
 ### 8. CLI
 
-`--fail-on-refusal` as a boolean flag on `inspect eval` and
-`inspect eval-set`, env var `INSPECT_EVAL_FAIL_ON_REFUSAL`, converted in
-`src/inspect_ai/_util/generate_config_args.py` the same way `logprobs` is (a
-`False` flag becomes `None` so it does not clobber file config). The flag's
-help text and `docs/options.qmd` entry state that, with the default
-`fail_on_error`, the first refusal aborts the eval, and point at
-`--no-fail-on-error` and `--continue-on-fail` for per-sample failure.
+`--fail-on-refusal/--no-fail-on-refusal` as a boolean flag pair on
+`inspect eval` and `inspect eval-set`, env var `INSPECT_EVAL_FAIL_ON_REFUSAL`.
+The pair's click default is `None`, so an omitted flag reaches
+`GenerateConfigArgs` as `None` and does not clobber file, task or model
+config, `--fail-on-refusal` is `True`, and `--no-fail-on-refusal` is `False`.
+That last value matters: because eval-wide config wins over task and model
+config (section 6), the negated flag is the only way the CLI can turn the
+option off for a run whose `Task` or `--model-spec` config enables it. A
+single flag converted like `logprobs` (`False` becomes `None` in
+`src/inspect_ai/_util/generate_config_args.py`) was the first draft and was
+replaced in review for that reason; `config_from_locals` needs no
+special case for this field. The flag's help text and `docs/options.qmd`
+entry state that, with the default `fail_on_error`, the first refusal aborts
+the eval, and point at `--no-fail-on-error` and `--continue-on-fail` for
+per-sample failure.
 
 ## Alternatives considered
 
@@ -464,7 +489,8 @@ help text and `docs/options.qmd` entry state that, with the default
 - Default `fail_on_error` aborts the eval on the first refusal;
   `fail_on_error=False` records the sample error but the eval succeeds;
   `score_on_error=True` still scores.
-- CLI parsing of `--fail-on-refusal` and the env var.
+- CLI parsing of `--fail-on-refusal` (`True`), `--no-fail-on-refusal`
+  (`False`), the omitted flag (`None`) and the env var.
 
 ## Open questions
 

@@ -107,6 +107,9 @@ async def sampling_fn(
             )
 
     except Exception as ex:
+        # This includes LimitExceededError and ModelRefusalError: the mcp
+        # dispatcher converts anything raised here into an INTERNAL_ERROR
+        # response anyway, so re-raising would not reach the sample runner.
         return ErrorData(code=INTERNAL_ERROR, message=exception_message(ex))
 
 

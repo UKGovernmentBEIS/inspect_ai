@@ -285,6 +285,19 @@ def test_fail_on_refusal_task_config() -> None:
     assert _sample(log).error is not None
 
 
+def test_fail_on_refusal_eval_wide_false_overrides_task_config() -> None:
+    """An explicit eval-wide False (--no-fail-on-refusal) turns off a task's True."""
+    log = eval(
+        _task(config=GenerateConfig(fail_on_refusal=True)),
+        model=_refusing_model(),
+        fail_on_refusal=False,
+        fail_on_error=False,
+    )[0]
+    sample = _sample(log)
+    assert sample.error is None
+    assert sample.output.stop_reason == "content_filter"
+
+
 # ---------- fail_on_refusal and model roles ----------
 
 

@@ -121,7 +121,7 @@ LOG_IMAGES_HELP = (
 )
 LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error requests/responses are always logged."
 LOG_REFUSALS_HELP = "Log warnings for model refusals."
-FAIL_ON_REFUSAL_HELP = "Fail a sample (with a ModelRefusalError) when a model refuses a request (stop_reason 'content_filter'). Applies to the active model and all model roles. Note that with the default --fail-on-error the first refusal fails the whole eval; combine with --no-fail-on-error or --continue-on-fail to keep running."
+FAIL_ON_REFUSAL_HELP = "Fail a sample (with a ModelRefusalError) when a model refuses a request (stop_reason 'content_filter'). Applies to every model used by the eval, including model roles (a role's own setting wins). Note that with the default --fail-on-error the first refusal fails the whole eval; combine with --no-fail-on-error or --continue-on-fail to keep running. Use --no-fail-on-refusal to override a task or model config that enables it."
 LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
 LOG_SHARED_HELP = "Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds)."
 NO_SCORE_HELP = (
@@ -863,9 +863,10 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_FALLBACK_MODELS",
     )
     @click.option(
-        "--fail-on-refusal",
+        "--fail-on-refusal/--no-fail-on-refusal",
         type=bool,
         is_flag=True,
+        default=None,
         help=FAIL_ON_REFUSAL_HELP,
         envvar="INSPECT_EVAL_FAIL_ON_REFUSAL",
     )
