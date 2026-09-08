@@ -1,5 +1,4 @@
 import base64
-import binascii
 import json
 import re
 from logging import getLogger
@@ -1640,7 +1639,10 @@ def redacted_content_bytes(reasoning: ContentReasoning) -> bytes | None:
         return None
     try:
         return base64.b64decode(encoded, validate=True)
-    except binascii.Error:
+    except ValueError:
+        # ValueError, not binascii.Error: a non-ASCII string raises the base
+        # class, and binascii.Error is the subclass, so catching the subclass
+        # alone lets that through
         logger.warning(
             "bedrock: reasoning block carried an unreadable "
             f"{REDACTED_CONTENT_KEY}; dropping it from the replayed history."
@@ -1658,22 +1660,20 @@ def converse_reasoning_content(
     being the same carrier the Google provider uses for Gemini's redacted
     thinking). A block carrying both replays both.
 
-    Returns None when a redacted block has no recoverable bytes, leaving
-    nothing valid to send. Models that emit redacted reasoning reject a
-    substitute empty `reasoningText` outright ("This model doesn't support the
-    reasoningContent.reasoningText.text field for assistant messages") but
-    accept the block's absence, so omitting it is the only option that keeps
-    the conversation alive.
+    Returns None when there is no payload left to send. Models that emit
+    redacted reasoning reject an empty `reasoningText` outright ("This model
+    doesn't support the reasoningContent.reasoningText.text field for
+    assistant messages") but accept the block's absence, so omitting it is
+    the only option that keeps the conversation alive. Both halves are
+    therefore decided on their payload rather than on the `redacted` flag:
+    empty text and empty bytes each carry nothing to replay.
     """
-    redacted_content = redacted_content_bytes(reasoning)
-    if reasoning.redacted and redacted_content is None:
+    redacted_content = redacted_content_bytes(reasoning) or None
+    text = None if reasoning.redacted else (reasoning.reasoning or None)
+    if text is None and redacted_content is None:
         return None
     return ConverseReasoningContent(
-        reasoningText=(
-            None
-            if reasoning.redacted
-            else ConverseReasoningText(text=reasoning.reasoning)
-        ),
+        reasoningText=ConverseReasoningText(text=text) if text is not None else None,
         redactedContent=redacted_content,
     )
 

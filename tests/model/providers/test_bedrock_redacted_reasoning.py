@@ -39,6 +39,7 @@ pytest.importorskip("aiobotocore")
 pytest.importorskip("botocore")
 
 from inspect_ai._util.content import ContentReasoning, ContentText  # noqa: E402
+from inspect_ai.model._chat_message import ChatMessageAssistant  # noqa: E402
 from inspect_ai.model._providers.bedrock import (  # noqa: E402
     REDACTED_CONTENT_KEY,
     ConverseMessage,
@@ -50,9 +51,11 @@ from inspect_ai.model._providers.bedrock import (  # noqa: E402
     ConverseResponse,
     ConverseUsage,
     converse_contents,
+    converse_messages,
     converse_response_from_stream,
     model_output_from_response,
 )
+from inspect_ai.tool._tool_call import ToolCall  # noqa: E402
 
 # shaped like the real thing: the blob is ASCII base64-ish text carrying an
 # "rsn_" prefix, delivered in a bytes field
@@ -232,17 +235,53 @@ async def test_redacted_reasoning_without_bytes_is_dropped() -> None:
     assert all(b.reasoningContent is None for b in blocks)
 
 
-async def test_redacted_reasoning_with_corrupt_bytes_is_dropped() -> None:
-    """An unreadable internal payload is dropped rather than sent."""
+@pytest.mark.parametrize(
+    "encoded",
+    [
+        pytest.param("not!valid!base64!", id="invalid-base64"),
+        # a non-ASCII string raises a bare ValueError, not binascii.Error
+        pytest.param("café==", id="non-ascii"),
+        pytest.param("", id="empty"),
+    ],
+)
+async def test_redacted_reasoning_with_unusable_bytes_is_dropped(
+    encoded: str,
+) -> None:
+    """An unreadable or empty internal payload is dropped, never sent.
+
+    `internal` is JsonValue read back from an eval log, so any string can
+    turn up here; none of these may escape as an exception or as an empty
+    `redactedContent` on the wire.
+    """
     reasoning = ContentReasoning(
         reasoning="",
         redacted=True,
-        internal={REDACTED_CONTENT_KEY: "not!valid!base64!"},
+        internal={REDACTED_CONTENT_KEY: encoded},
     )
 
     blocks = await converse_contents([reasoning, ContentText(text="150")])
 
     assert [b.text for b in blocks] == ["150"]
+    assert all(b.reasoningContent is None for b in blocks)
+
+
+async def test_empty_reasoning_text_is_never_replayed() -> None:
+    """An empty reasoningText.text must not reach the wire alongside bytes.
+
+    It is the exact field the redacted-reasoning models reject, so a block
+    whose plaintext half is empty replays only its bytes.
+    """
+    reasoning = ContentReasoning(
+        reasoning="",
+        redacted=False,
+        internal={REDACTED_CONTENT_KEY: base64.b64encode(REDACTED_BYTES).decode()},
+    )
+
+    blocks = await converse_contents([reasoning])
+
+    assert blocks[0].reasoningContent is not None
+    assert blocks[0].reasoningContent.reasoningText is None
+    assert blocks[0].reasoningContent.redactedContent == REDACTED_BYTES
 
 
 async def test_redacted_only_message_gets_no_content_placeholder() -> None:
@@ -255,6 +294,26 @@ async def test_redacted_only_message_gets_no_content_placeholder() -> None:
     assert len(blocks) == 1
     assert blocks[0].text is not None
     assert blocks[0].reasoningContent is None
+
+
+async def test_dropped_block_with_tool_calls_keeps_message_non_empty() -> None:
+    """The tool-calling shape from the bug report must survive the drop.
+
+    `converse_chat_message` filters the NO_CONTENT placeholder back out for
+    assistant messages that carry tool calls, so this path relies on the
+    toolUse blocks rather than the placeholder to stay non-empty.
+    """
+    message = ChatMessageAssistant(
+        content=[ContentReasoning(reasoning="", redacted=True)],
+        tool_calls=[ToolCall(id="t1", function="ls", arguments={})],
+    )
+
+    _, messages = await converse_messages([message])
+
+    assert len(messages) == 1
+    assert len(messages[0].content) > 0
+    assert [c.toolUse.name for c in messages[0].content if c.toolUse] == ["ls"]
+    assert all(c.reasoningContent is None for c in messages[0].content)
 
 
 async def test_both_halves_round_trip_together() -> None:
@@ -392,6 +451,41 @@ async def test_streamed_redacted_reasoning_matches_non_streaming() -> None:
     )
 
     assert _reasoning_blocks(streamed) == _reasoning_blocks(non_streamed)
+
+
+async def test_streamed_block_carrying_both_halves() -> None:
+    """Plaintext and redacted deltas on one block keep both halves."""
+    events: list[dict[str, object]] = [
+        {"messageStart": {"role": "assistant"}},
+        {
+            "contentBlockDelta": {
+                "contentBlockIndex": 0,
+                "delta": {"reasoningContent": {"text": "visible part"}},
+            }
+        },
+        {
+            "contentBlockDelta": {
+                "contentBlockIndex": 0,
+                "delta": {"reasoningContent": {"redactedContent": REDACTED_BYTES}},
+            }
+        },
+        {"contentBlockStop": {"contentBlockIndex": 0}},
+        {"messageStop": {"stopReason": "end_turn"}},
+        {
+            "metadata": {
+                "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+                "metrics": {"latencyMs": 1},
+            }
+        },
+    ]
+
+    response = await converse_response_from_stream(_stream(events))
+
+    reasoning_content = response.output.message.content[0].reasoningContent
+    assert reasoning_content is not None
+    assert reasoning_content.reasoningText is not None
+    assert reasoning_content.reasoningText.text == "visible part"
+    assert reasoning_content.redactedContent == REDACTED_BYTES
 
 
 async def test_streamed_redacted_reasoning_accumulates_across_deltas() -> None:
