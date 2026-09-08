@@ -260,10 +260,12 @@ class EvalRecorder(FileRecorder):
             await log.flush(fsync=False)
 
     @override
-    async def log_discard(self, eval: EvalSpec) -> None:
+    async def log_discard(
+        self, eval: EvalSpec, *, keep_destination: bool = False
+    ) -> None:
         log = self.data.pop(self._log_file_key(eval), None)
         if log is not None:
-            await log.discard()
+            await log.discard(keep_destination=keep_destination)
 
     @override
     async def flush(self, eval: EvalSpec) -> None:
@@ -1351,7 +1353,7 @@ class ZipLogFile:
                 self._destination_written = True
                 self._etag = etag
 
-    async def discard(self) -> None:
+    async def discard(self, *, keep_destination: bool = False) -> None:
         """Release this never-finished log's resources without writing.
 
         Removes the destination file when this log wrote it (the header
@@ -1360,7 +1362,10 @@ class ZipLogFile:
         sweep by mtime over the errored prior attempt's log. A pre-existing
         destination the log was initialized over is left in place; a log
         seeded from a *prior attempt's* file (``seed_from_prior_log``) owns
-        its own destination and is removed like any other.
+        its own destination and is removed like any other. With
+        ``keep_destination`` the file stays whatever wrote it: an attempt
+        whose final write failed leaves a ``started`` log holding every
+        sample flushed so far, which the next attempt seeds from.
         """
         async with self._lock:
             try:
@@ -1369,7 +1374,11 @@ class ZipLogFile:
                     self._zip = None
             finally:
                 self._temp_file.close()
-            if self._destination_written and not self._destination_seeded:
+            if (
+                self._destination_written
+                and not self._destination_seeded
+                and not keep_destination
+            ):
                 # TODO: sync fsspec rm blocks the event loop on remote log
                 # dirs; route through AsyncFilesystem if it ever grows an rm
                 # helper (to_thread over remote fsspec can deadlock — see

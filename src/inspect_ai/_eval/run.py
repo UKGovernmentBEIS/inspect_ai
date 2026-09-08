@@ -871,25 +871,21 @@ async def run_task_retry_attempts(
 
                         # build sample_source from the failed log so completed
                         # samples are reused on retry (mirrors legacy eval_set
-                        # retry). An attempt whose log never finished — its
-                        # prior-log seed failed, or a log write did — has
-                        # left either no destination file or a partial one
-                        # that reinit() below discards, so the retry keeps
-                        # the source this attempt ran with (the same prior
-                        # log). Accepted cost: a partial file (log_finish
-                        # failed after earlier flushes) also held this
-                        # attempt's flushed live completions, which are
-                        # re-run rather than reused. Preferring it means
-                        # keeping it, and a kept `started` destination is
-                        # the stray log discard exists to remove: the
-                        # retry-cleanup sweep never deletes `started` logs,
-                        # so it would outlive the run, and by mtime it
-                        # would stand as the task's latest log should every
-                        # later attempt fail. The work is only re-run, never
-                        # lost (the prior log survives until retry cleanup).
+                        # retry). The attempt's destination is the newest
+                        # record on disk whenever a flush reached it, finished
+                        # or not: it holds the seeded prior set plus every
+                        # live completion flushed since. An unfinished one
+                        # (log_finish failed) sits under a `started` header,
+                        # which reinit() below leaves in place — sample
+                        # progress outranks the header it lacks. Only an
+                        # attempt that wrote nothing (its prior-log seed or
+                        # log_start flush failed) has nothing newer to offer:
+                        # the retry keeps the source this attempt ran with
+                        # (the same prior log). Decided from recorder state,
+                        # with no filesystem probe on the dispatcher's loop.
                         failed_location = options.logger.location
                         sample_source: EvalSampleSource | None
-                        if options.logger.finished:
+                        if options.logger.destination_written:
                             failed_log_info = EvalLogInfo(
                                 name=failed_location,
                                 type="file",
@@ -911,9 +907,9 @@ async def run_task_retry_attempts(
                             )
                         else:
                             log.info(
-                                f"Task '{options.task.name}' did not finish its log "
-                                "for this attempt; retrying with the prior attempt's "
-                                "sample source"
+                                f"Task '{options.task.name}' wrote no log for this "
+                                "attempt; retrying with the prior attempt's sample "
+                                "source"
                             )
                             sample_source = options.sample_source
 

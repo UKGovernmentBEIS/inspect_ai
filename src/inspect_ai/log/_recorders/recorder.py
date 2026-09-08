@@ -157,15 +157,20 @@ class Recorder(abc.ABC):
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...
 
-    async def log_discard(self, eval: EvalSpec) -> None:
-        """Discard a never-finished log (an abandoned task retry attempt).
+    async def log_discard(
+        self, eval: EvalSpec, *, keep_destination: bool = False
+    ) -> None:
+        """Discard a never-finished log (``log_finish`` will never run for it).
 
-        Drops the recorder's in-memory tracking for the eval (``log_finish``
-        will never run for it) and removes a destination file the log has
+        Drops the recorder's in-memory tracking for the eval and, unless
+        ``keep_destination`` is set, removes a destination file the log has
         already written itself — never a pre-existing file it was seeded
-        from. The base implementation is a no-op so recorder subclasses that
-        track nothing between init and finish keep working; the built-in
-        recorders override it.
+        from. ``keep_destination`` leaves a written destination in place
+        (an attempt whose final write failed: the file holds every sample
+        flushed so far and the next attempt reads it), releasing only the
+        in-memory resources. The base implementation is a no-op so recorder
+        subclasses that track nothing between init and finish keep working;
+        the built-in recorders override it.
         """
 
     @abc.abstractmethod

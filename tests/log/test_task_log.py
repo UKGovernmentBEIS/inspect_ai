@@ -166,7 +166,9 @@ class _FlushRecorder:
         self.init_count += 1
         return location or self.location
 
-    async def log_discard(self, eval_spec: EvalSpec) -> None:
+    async def log_discard(
+        self, eval_spec: EvalSpec, *, keep_destination: bool = False
+    ) -> None:
         self.discard_count += 1
 
     async def flush(self, eval_spec: EvalSpec) -> None:
@@ -869,14 +871,16 @@ async def test_task_logger_reinit_waits_for_in_flight_stale_flush_and_restarts(
     assert logger.flush_pending == []
 
 
-async def test_task_logger_reinit_discards_unfinished_attempt_log(
-    tmp_path: Path,
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+async def test_task_logger_reinit_releases_unfinished_attempt_but_keeps_its_log(
+    recorder_type: type, tmp_path: Path
 ) -> None:
-    # an attempt that never reached log_finish (its seed or a log write failed)
-    # still holds its recorder entry (open temp zip) and, once log_start
-    # flushed, a `started` destination; reinit releases both, as discard does
-    # for an abandoned attempt, so neither outlives the attempt
-    recorder = EvalRecorder(str(tmp_path))
+    # an attempt that never reached log_finish (a log write failed) still
+    # holds its recorder entry (open temp zip); reinit releases it, as discard
+    # does for an abandoned attempt, but leaves the `started` destination its
+    # flushes wrote: it holds every sample flushed so far and is the next
+    # attempt's sample source
+    recorder = recorder_type(str(tmp_path))
     logger = _seed_logger(recorder)
     logger.eval = logger.eval.model_copy(
         update={"config": EvalConfig(log_realtime=False)}
@@ -887,10 +891,11 @@ async def test_task_logger_reinit_discards_unfinished_attempt_log(
     assert Path(failed_location).exists()
     (failed_key,) = recorder.data
     assert not logger.finished
+    assert logger.destination_written
 
     await logger.reinit()
 
-    assert not Path(failed_location).exists()
+    assert Path(failed_location).exists()
     assert failed_key not in recorder.data
     assert len(recorder.data) == 1
     assert logger.location != failed_location
@@ -1526,7 +1531,9 @@ async def test_task_logger_discard_contains_recorder_failures() -> None:
     # from the destination removal must be logged, not raised — an escaping
     # exception would cancel every in-flight task in the run
     class _FailingDiscardRecorder:
-        async def log_discard(self, eval: EvalSpec) -> None:
+        async def log_discard(
+            self, eval: EvalSpec, *, keep_destination: bool = False
+        ) -> None:
             raise OSError("simulated transient storage failure")
 
     logger = TaskLoggerShim(_FlushBufferDB())

@@ -371,10 +371,11 @@ class TaskLogger:
         else:
             # the attempt failed before finishing its log (its prior-log seed
             # or a log write failed): log_finish never released its recorder
-            # entry (open temp zip) or buffer db, and a destination its
-            # log_start flushed would stand as a stray `started` log — drop
-            # them as for an abandoned attempt, before the eval_id moves on
-            await self.discard()
+            # entry (open temp zip) or buffer db, so release them before the
+            # eval_id moves on. A destination its flushes did write stays: it
+            # holds the seeded prior set plus this attempt's flushed
+            # completions, and the dispatcher makes it the retry's source
+            await self.discard(keep_destination=True)
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
         self._logged_sample_keys = set()
@@ -950,17 +951,21 @@ class TaskLogger:
             self._buffer_db.cleanup()
             self._buffer_db = None
 
-    async def discard(self) -> None:
-        """Discard this attempt's never-started log (an abandoned retry).
+    async def discard(self, *, keep_destination: bool = False) -> None:
+        """Discard this attempt's never-finished log.
 
         Beyond :meth:`cleanup` (stale-flush timer + realtime buffer db),
         drops the recorder's in-memory entry for this eval — ``log_finish``
-        never runs for an abandoned attempt, so the entry would otherwise
-        live for the rest of the run — and removes a destination file the
-        attempt already flushed (``log_start`` flushes the header): a stray
-        ``started`` log would otherwise win the end-of-run retry-cleanup
-        sweep by mtime, deleting the errored attempt's log that must stand
-        as the task's final state.
+        never runs for it, so the entry would otherwise live for the rest of
+        the run — and, unless ``keep_destination`` is set, removes a
+        destination file the attempt already flushed. For an abandoned retry
+        (``log_start`` flushed the seeded prior set and nothing ran) that
+        file is a stray: a ``started`` log that would otherwise win the
+        end-of-run retry-cleanup sweep by mtime, deleting the errored
+        attempt's log that must stand as the task's final state. For an
+        attempt whose final write failed (:meth:`reinit`) the file is kept:
+        it holds every sample flushed so far, which the next attempt seeds
+        from — sample progress outranks the header it lacks.
 
         Failures are contained (logged as a warning) rather than raised:
         callers run inside the dispatcher task group, where an escaping
@@ -978,7 +983,9 @@ class TaskLogger:
                 f"Error cleaning up abandoned log entry '{self.location}': {ex}"
             )
         try:
-            await self.recorder.log_discard(self.eval)
+            await self.recorder.log_discard(
+                self.eval, keep_destination=keep_destination
+            )
         except Exception as ex:
             logger.warning(
                 f"Error discarding abandoned log entry '{self.location}': {ex}"

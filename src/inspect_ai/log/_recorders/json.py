@@ -229,7 +229,9 @@ class JSONRecorder(FileRecorder):
         return log.data
 
     @override
-    async def log_discard(self, eval: EvalSpec) -> None:
+    async def log_discard(
+        self, eval: EvalSpec, *, keep_destination: bool = False
+    ) -> None:
         log = self.data.pop(self._log_file_key(eval), None)
         # `written` only becomes true via this process's own flush, and
         # TaskLogger.init() never passes a pre-existing location to log_init,
@@ -237,7 +239,7 @@ class JSONRecorder(FileRecorder):
         # TODO: sync fsspec rm blocks the event loop on remote log dirs; route
         # through AsyncFilesystem if it ever grows an rm helper (to_thread
         # over remote fsspec can deadlock — see AGENTS.md).
-        if log is not None and log.written:
+        if log is not None and log.written and not keep_destination:
             try:
                 self.fs.rm(log.file)
             except FileNotFoundError:

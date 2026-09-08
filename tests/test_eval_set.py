@@ -2340,6 +2340,71 @@ def test_retry_seed_failure_writes_no_log_and_next_attempt_reuses(
         assert {s.id for s in log.samples} == {"s1", "s2", "s3", "s4"}
 
 
+@pytest.mark.parametrize("retry_immediate", [True, False])
+def test_retry_log_finish_failure_keeps_partial_log_as_next_source(
+    retry_immediate: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An attempt whose final log write fails leaves a `started` log the next attempt reuses.
+
+    Attempt 1 completes s1–s3 and errors on s4. Attempt 2 is seeded with
+    s1–s3, completes s4 (flushed to its destination with ``log_buffer=1``),
+    then its ``log_finish`` write fails. Its destination — a ``started`` log
+    holding all four completed samples — stays on disk and is attempt 3's
+    sample source, so attempt 3 runs nothing. Sample progress outranks the
+    header the unfinished log lacks.
+    """
+    original_flush = ZipLogFile.flush
+    finished_files: list[str] = []
+
+    async def flaky_final_flush(self: ZipLogFile, fsync: bool = False) -> None:
+        # every durable (finish) write of the second attempt's log fails: the
+        # success write and the error-status write the runner attempts after
+        # it (storage unreachable at finish). The intermediate flushes land.
+        if fsync:
+            if self._file not in finished_files:
+                finished_files.append(self._file)
+            if finished_files.index(self._file) == 1:
+                raise OSError("simulated storage failure at finish")
+        await original_flush(self, fsync=fsync)
+
+    monkeypatch.setattr(ZipLogFile, "flush", flaky_final_flush)
+
+    calls: list[str] = []
+    seeded_task = _seeded_retry_task(calls, fail_s4_times=1)
+
+    log_dir = str(tmp_path / "logs")
+    # three attempts are needed; the legacy pass loop counts the initial pass
+    # against retry_attempts, so allow one more than the immediate path needs
+    success, _ = eval_set(
+        tasks=[seeded_task],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=3,
+        retry_wait=0.1,
+        retry_immediate=retry_immediate,
+        retry_cleanup=False,
+        retry_on_error=0,
+        max_samples=1,
+        log_buffer=1,
+    )
+    assert success
+    assert len(finished_files) == 3
+    assert calls == ["s1", "s2", "s3", "s4", "s4"], calls
+
+    all_logs = sorted(
+        (read_eval_log(info.name) for info in list_eval_logs(log_dir)),
+        key=lambda log: log.eval.created,
+    )
+    # attempt 2's unfinished log stays, under its `started` header
+    assert [log.status for log in all_logs] == ["error", "started", "success"]
+    for log in all_logs:
+        assert log.samples is not None
+        assert {s.id for s in log.samples} == {"s1", "s2", "s3", "s4"}
+        assert {s.id for s in log.samples if s.error is not None} == (
+            {"s4"} if log.status == "error" else set()
+        )
+
+
 def test_retry_abandoned_during_seed_never_starts_the_log(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
