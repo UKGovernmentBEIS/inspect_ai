@@ -16,43 +16,47 @@ is therefore the narrower set of properties it *can* establish from
 host-side truth, and it establishes each of them from state it
 observed itself:
 
-- **Committed history is immutable.** A member may not replace a file
-  already in the destination (an identical re-ship after a failed
-  phase-2 commit is tolerated: both copies must hash to the name, and
-  the existing bytes are left untouched). Restic names ``data/``,
-  ``index/``, ``snapshots/`` and ``keys/`` files by the SHA-256 of their
-  content, and every such member must hash to its own name — so
-  rewriting history would take a SHA-256 collision, whatever the
-  container ships. ``config`` (not content-addressed) and ``keys/*`` are
-  accepted only while the destination has no ``config`` yet.
-- **The member set is exactly the diff list**, every member a regular
-  file in the restic layout (``filter="data"`` stays as the path-safety
-  layer beneath the layout check), so a ``ckpt-N.json`` that names a
-  snapshot means exactly the files this fire accepted were added.
-- **Freshness, not membership.** The snapshot ids the destination
-  gains must be exactly the ``snapshots/`` files this fire wrote (so no
-  snapshot appears that the host did not watch land), the reported id
-  must be among them, and that snapshot's tags must be exactly this
-  cycle's tag. A replayed old id fails. Any other new snapshot is
-  tolerated as an orphan: a fire that failed between its backup and
-  its commit leaves its snapshot unshipped in the sandbox repo, so the
-  next fire's diff legitimately carries it (it may even share this
-  cycle's tag, since a failed fire's checkpoint id is reused). No
-  checkpoint file records an orphan, so resume forgets it
-  (``forget_unrecorded_snapshots``). The host-verified full id is what
-  the strategy records.
-- **A fire that captured nothing is an error.** A restic backup always
-  writes a new ``snapshots/`` file, so an honest post-backup diff is
-  never empty; an empty one is a protocol violation, not a no-op.
-- **The transfer is bounded** by ``max_bytes`` on bytes actually read
-  (see :mod:`.._copy`), and extraction bounds member count (the diff
-  list's length, itself bounded by the tar cap) and cumulative bytes. A
-  delta already over the cap is refused in-sandbox before it is tarred.
+Each checkpoint sends a tar archive containing new restic repository
+files. The host checks those files before accepting the checkpoint:
 
-Any failure after extraction begins rolls back the files this fire
-wrote, so the destination is unchanged and the in-sandbox manifest —
-advanced only in phase 2, from the host-validated member list — still
-lists the files as unshipped for the next fire.
+- **Previously accepted files cannot change.** Restic names its data,
+  index, snapshot, and key files by the SHA-256 hash of their contents.
+  The host checks that each incoming file's contents hash to its name.
+  If the file already exists, both copies must hash to that name, and
+  the existing file is left untouched. This lets retries resend files
+  safely. The configuration file has no hash in its name, so a resent
+  copy must match the existing contents. New configuration and key
+  files are accepted only before the destination has a configuration.
+- **The archive must contain exactly the files the sandbox listed.**
+  The host rejects missing files, extra files, duplicates, links, and
+  paths outside the expected restic layout. Every archive entry must
+  be a regular file and pass tarfile's path-safety checks. The list
+  itself is untrusted; this check ensures the transfer matches it.
+- **The checkpoint must name a newly received snapshot.** The host
+  compares the destination's snapshots before and after extraction.
+  Every added snapshot must correspond to a file the host just wrote.
+  The snapshot reported by the sandbox must be one of those additions
+  and carry exactly this checkpoint's tag; an old snapshot cannot be
+  presented as a new one. Other snapshots may arrive alongside it:
+  failed attempts can leave snapshots behind, even with the same tag
+  because failed checkpoint numbers are reused. These extras are not
+  recorded as committed checkpoints and are forgotten on resume by
+  ``forget_unrecorded_snapshots``. The host returns the verified full
+  snapshot id for the strategy to record.
+- **An empty transfer is an error.** Even when the captured files have
+  not changed, a restic backup creates a new snapshot file. A sandbox
+  claiming there is nothing to send has violated the protocol.
+- **Transfers have a size limit.** The host limits both the bytes copied
+  out of the sandbox (see :mod:`.._copy`) and the bytes extracted from
+  the archive. The file list is bounded by the transfer cap and limits
+  the number of archive entries accepted. The sandbox also checks size
+  before building the archive to avoid wasted work, but the host
+  enforces the limit independently.
+
+If extraction or snapshot verification fails, the host removes the
+files it added during this attempt. Only after verification succeeds
+does it tell the sandbox to mark the accepted files as shipped. If
+that acknowledgment fails, the next attempt can safely resend them.
 
 Ingress is the inverse: on resume, copy a host-side repo back into the
 sandbox and restic-restore the recorded snapshot at its original
