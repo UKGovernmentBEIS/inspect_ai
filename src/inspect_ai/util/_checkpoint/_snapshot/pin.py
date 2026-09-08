@@ -4,8 +4,8 @@ Resume must never run one strategy over another strategy's data, and a
 strategy change between attempts must surface as an error, never be
 applied silently. The pin file (``restic/snapshot-strategies.json``,
 sandbox name → strategy name) is written by the core at fresh-sample
-hydration and rides across attempts with the cross-cutting retry copy,
-so every attempt's dir carries it no matter how many retries preceded.
+hydration and rides across attempts with the retry startup copy, so
+every attempt's dir carries it no matter how many retries preceded.
 Absent file ⇒ ``restic-incremental`` for every sandbox (pre-pin dirs).
 
 It lives under ``restic/`` deliberately: that directory is already the

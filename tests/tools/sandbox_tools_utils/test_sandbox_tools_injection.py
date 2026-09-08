@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import AsyncIterator, BinaryIO, NamedTuple
 
+import anyio
 import pytest
 from test_helpers.sandbox import CannedSandbox
 
@@ -105,6 +106,10 @@ def helper_flags(cmd: list[str]) -> HelperFlags:
     assert is_framework_dir_call(cmd)
     leaf = SANDBOX_TOOLS_DIR.rsplit("/", 1)[1]
     return HelperFlags(*cmd[cmd.index(leaf) - 4 : cmd.index(leaf) - 1])
+
+
+TAR_XZF_STDIN = "tar xzf - || { cat >/dev/null; exit 1; }"
+TAR_XF_STDIN = "tar xf - || { cat >/dev/null; exit 1; }"
 
 
 def helper_ok(cmd: list[str], user: str | None) -> ExecResult[str]:
@@ -353,17 +358,30 @@ async def test_inject_aborts_when_reverification_before_start_fails(
     assert not any(cmd[:1] == [SANDBOX_CLI] for cmd, _ in sandbox.exec_calls)
 
 
-async def test_extract_runs_tar_inside_verified_directory() -> None:
+async def test_inject_names_a_message_less_exception(
+    stub_artifact: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A broken stdin write raises with no message; the error still says what happened."""
+
+    async def broken_extract(*_args: object) -> None:
+        raise anyio.BrokenResourceError()
+
+    monkeypatch.setattr(sandbox_tools, "_extract_tools_tree", broken_extract)
+    with pytest.raises(
+        sandbox_tools.SandboxInjectionError, match="BrokenResourceError"
+    ):
+        await sandbox_tools._inject_container_tools_code(CannedSandbox(helper_ok))
+
+
+async def test_extract_streams_archive_to_tar_inside_verified_directory() -> None:
     sandbox = CannedSandbox(helper_ok)
     await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
 
-    (tar_cmd, user), (rm_cmd, rm_user) = sandbox.exec_calls
+    [(tar_cmd, user)] = sandbox.exec_calls
     assert user == "root"
-    assert wrapped_command(tar_cmd) == ["tar", "xzf", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"]
-    assert "-C" not in tar_cmd
-    # Cleanup also goes through the helper (pinned PATH), never a bare-name rm as root.
-    assert rm_user == "root"
-    assert wrapped_command(rm_cmd) == ["rm", "-f", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"]
+    assert wrapped_command(tar_cmd) == ["sh", "-c", TAR_XZF_STDIN]
+    assert sandbox.inputs == [b"gz"]
+    assert sandbox.written == []
 
 
 async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
@@ -374,7 +392,7 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
     )
 
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if is_framework_dir_call(cmd) and "xzf" in cmd:
+        if is_framework_dir_call(cmd) and TAR_XZF_STDIN in cmd:
             return ExecResult(
                 success=False,
                 returncode=2,
@@ -386,43 +404,41 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
     sandbox = CannedSandbox(policy)
     await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", None)
 
-    tar_calls = [
-        wrapped_command(cmd)
-        for cmd, _ in sandbox.exec_calls
-        if is_framework_dir_call(cmd) and wrapped_command(cmd)[:1] == ["tar"]
+    assert [wrapped_command(cmd) for cmd, _ in sandbox.exec_calls] == [
+        ["sh", "-c", TAR_XZF_STDIN],
+        ["sh", "-c", TAR_XF_STDIN],
     ]
-    assert tar_calls == [
-        ["tar", "xzf", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"],
-        ["tar", "xf", f"{SANDBOX_TOOLS_DIR}.pkg.tar"],
-    ]
+    assert sandbox.inputs == [b"gz", b"tar"]
+    assert sandbox.written == []
 
 
-async def test_extract_propagates_tar_failure_and_removes_archive() -> None:
-    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if is_framework_dir_call(cmd) and wrapped_command(cmd)[:1] == ["tar"]:
-            return violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
-        return helper_ok(cmd, user)
-
-    sandbox = CannedSandbox(policy)
-    with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
-        await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
-    # The staged archive is not left behind in the world-writable parent.
-    assert [
-        wrapped_command(cmd)
-        for cmd, user in sandbox.exec_calls
-        if is_framework_dir_call(cmd) and user == "root"
-    ][-1] == ["rm", "-f", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"]
-    assert not any(cmd[:1] == ["rm"] for cmd, _ in sandbox.exec_calls)
-
-
-async def test_extract_cleanup_verdict_does_not_mask_original_error() -> None:
-    """If the directory is untrusted, the rm is skipped rather than raising over tar's error."""
+async def test_extract_propagates_helper_verdict() -> None:
     sandbox = CannedSandbox(
         lambda cmd, user: violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
     )
     with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
         await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
-    assert not any(cmd[:1] == ["rm"] for cmd, _ in sandbox.exec_calls)
+    assert len(sandbox.exec_calls) == 1
+    assert sandbox.written == []
+
+
+async def test_extract_reports_failure_of_both_tar_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sandbox_tools, "_uncompressed_tar_bytes", lambda name, gz: b"tar"
+    )
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=2,
+            stdout="",
+            stderr=f"{_VERIFIED_MARKER}\ntar: short read\n",
+        )
+    )
+    with pytest.raises(RuntimeError, match="Failed to extract sandbox tools"):
+        await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
+    assert len(sandbox.exec_calls) == 2
 
 
 async def test_detector_checks_as_known_tools_user() -> None:

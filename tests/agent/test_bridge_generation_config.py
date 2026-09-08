@@ -31,6 +31,7 @@ from inspect_ai.agent._bridge.util import (
     validate_client_config,
 )
 from inspect_ai.model import GenerateConfig
+from inspect_ai.tool._tool_choice import ToolFunction
 
 # generation-tuning fields that must be dropped when not forwarding.
 # Hard-coded (not derived from the implementation's list) so this test fails if
@@ -643,11 +644,310 @@ def test_anthropic_tool_choice_tool_with_valid_name():
     from inspect_ai.agent._bridge.anthropic_api_impl import (
         tool_choice_from_anthropic_tool_choice,
     )
-    from inspect_ai.tool._tool_choice import ToolFunction
 
     assert tool_choice_from_anthropic_tool_choice(
         {"type": "tool", "name": "grep"}
     ) == ToolFunction(name="grep")
+
+
+# ---------------------------------------------------------------------------
+# tool_choice shape guards on the OpenAI (completions / responses) and Google
+# request paths. Each converter reads client-controlled JSON; a mistyped value
+# used to escape as a raw TypeError/KeyError/AttributeError/AssertionError
+# (status None), and a non-string tool name was accepted into the unvalidated
+# `ToolFunction` dataclass and poisoned the transcript.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "tool_choice,field",
+    [
+        ("banana", "tool_choice"),
+        (5, "tool_choice"),
+        (["auto"], "tool_choice"),
+        ({}, "tool_choice.type"),
+        ({"type": "custom", "custom": {"name": "grep"}}, "tool_choice.type"),
+        ({"type": "allowed_tools"}, "tool_choice.type"),
+        ({"type": "function"}, "tool_choice.function.name"),
+        ({"type": "function", "function": "grep"}, "tool_choice.function"),
+        ({"type": "function", "function": {}}, "tool_choice.function.name"),
+        ({"type": "function", "function": {"name": 5}}, "tool_choice.function.name"),
+    ],
+)
+def test_openai_completions_invalid_tool_choice_rejected(tool_choice: Any, field: str):
+    from inspect_ai.agent._bridge.completions import tool_choice_from_openai_tool_choice
+
+    with pytest.raises(BridgePolicyError) as ex:
+        tool_choice_from_openai_tool_choice(tool_choice)
+    assert f"({field}:" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "tool_choice,expected",
+    [
+        (None, None),
+        ("auto", "auto"),
+        ("none", "none"),
+        ("required", "any"),
+        (
+            {"type": "function", "function": {"name": "grep"}},
+            ToolFunction(name="grep"),
+        ),
+    ],
+)
+def test_openai_completions_valid_tool_choice(tool_choice: Any, expected: Any):
+    from inspect_ai.agent._bridge.completions import tool_choice_from_openai_tool_choice
+
+    assert tool_choice_from_openai_tool_choice(tool_choice) == expected
+
+
+@pytest.mark.anyio
+async def test_openai_completions_mistyped_tool_choice_rejected_on_request_path():
+    """Drive the real impl so the guard is pinned on the request path (400, no model call)."""
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.completions import inspect_completions_api_request
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    called = []
+
+    def _never(input, tools, tool_choice, config):
+        called.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="unreachable")
+
+    model = get_model("mockllm/model", custom_outputs=_never)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+    )
+    bridge.model_aliases = {"gpt-5": model}
+
+    with pytest.raises(BridgePolicyError, match="tool_choice") as ex:
+        await inspect_completions_api_request(
+            json_data={
+                "model": "gpt-5",
+                "messages": [{"role": "user", "content": "hi"}],
+                "tool_choice": {"type": "custom", "custom": {"name": "grep"}},
+            },
+            headers=None,
+            bridge=bridge,
+        )
+
+    assert provider_error_payload(ex.value)["status"] == 400
+    assert called == [], "request must be rejected before the model is called"
+
+
+@pytest.mark.parametrize(
+    "tool_choice,field",
+    [
+        ("banana", "tool_choice"),
+        (5, "tool_choice"),
+        (["auto"], "tool_choice"),
+        ({}, "tool_choice.type"),
+        ({"type": 5}, "tool_choice.type"),
+        ({"type": "function"}, "tool_choice.name"),
+        ({"type": "function", "name": 5}, "tool_choice.name"),
+        ({"type": "mcp", "server_label": "srv"}, "tool_choice.name"),
+        ({"type": "mcp", "server_label": "srv", "name": 5}, "tool_choice.name"),
+        ({"type": "allowed_tools", "tools": []}, "tool_choice.type"),
+        ({"type": "custom", "name": "grep"}, "tool_choice.type"),
+    ],
+)
+def test_openai_responses_invalid_tool_choice_rejected(tool_choice: Any, field: str):
+    from inspect_ai.agent._bridge.responses_impl import (
+        tool_choice_from_responses_tool_choice,
+    )
+
+    with pytest.raises(BridgePolicyError) as ex:
+        tool_choice_from_responses_tool_choice(tool_choice)
+    assert f"({field}:" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "tool_choice,expected",
+    [
+        (None, None),
+        ("auto", "auto"),
+        ("none", "none"),
+        ("required", "any"),
+        ({"type": "function", "name": "grep"}, ToolFunction(name="grep")),
+        (
+            {"type": "mcp", "server_label": "srv", "name": "grep"},
+            ToolFunction(name="grep"),
+        ),
+        ({"type": "web_search_preview"}, ToolFunction(name="web_search")),
+        ({"type": "web_search_preview_2025_03_11"}, ToolFunction(name="web_search")),
+        ({"type": "code_interpreter"}, ToolFunction(name="code_execution")),
+        ({"type": "file_search"}, ToolFunction(name="file_search")),
+    ],
+)
+def test_openai_responses_valid_tool_choice(tool_choice: Any, expected: Any):
+    from inspect_ai.agent._bridge.responses_impl import (
+        tool_choice_from_responses_tool_choice,
+    )
+
+    assert tool_choice_from_responses_tool_choice(tool_choice) == expected
+
+
+@pytest.mark.anyio
+async def test_openai_responses_mistyped_tool_choice_rejected_on_request_path():
+    """Drive the real impl so the guard is pinned on the request path (400, no model call)."""
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.responses_impl import (
+        inspect_responses_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    called = []
+
+    def _never(input, tools, tool_choice, config):
+        called.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="unreachable")
+
+    model = get_model("mockllm/model", custom_outputs=_never)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+    )
+    bridge.model_aliases = {"gpt-5": model}
+
+    with pytest.raises(BridgePolicyError, match="tool_choice") as ex:
+        await inspect_responses_api_request_impl(
+            json_data={
+                "model": "gpt-5",
+                "input": [{"role": "user", "content": "hi"}],
+                "tool_choice": {"type": "function"},
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+
+    assert provider_error_payload(ex.value)["status"] == 400
+    assert called == [], "request must be rejected before the model is called"
+
+
+@pytest.mark.parametrize(
+    "tool_config,field",
+    [
+        ("AUTO", "toolConfig"),
+        (["AUTO"], "toolConfig"),
+        ({"functionCallingConfig": "ANY"}, "toolConfig.functionCallingConfig"),
+        (
+            {"functionCallingConfig": {"mode": 5}},
+            "toolConfig.functionCallingConfig.mode",
+        ),
+        (
+            {"functionCallingConfig": {"mode": "ANY", "allowedFunctionNames": "grep"}},
+            "toolConfig.functionCallingConfig.allowedFunctionNames",
+        ),
+        (
+            {
+                "functionCallingConfig": {
+                    "mode": "VALIDATED",
+                    "allowedFunctionNames": ["grep", 5],
+                }
+            },
+            "toolConfig.functionCallingConfig.allowedFunctionNames.1",
+        ),
+    ],
+)
+def test_google_invalid_tool_config_rejected(tool_config: Any, field: str):
+    from inspect_ai.agent._bridge.google_api_impl import (
+        tool_choice_from_google_tool_config,
+    )
+
+    with pytest.raises(BridgePolicyError) as ex:
+        tool_choice_from_google_tool_config(tool_config)
+    assert f"({field}:" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "tool_config,expected",
+    [
+        (None, None),
+        ({}, None),
+        ({"functionCallingConfig": {}}, "auto"),
+        ({"functionCallingConfig": {"mode": None}}, "auto"),
+        ({"functionCallingConfig": {"mode": "AUTO"}}, "auto"),
+        ({"functionCallingConfig": {"mode": "ANY"}}, "any"),
+        ({"functionCallingConfig": {"mode": "NONE"}}, "none"),
+        (
+            {
+                "functionCallingConfig": {
+                    "mode": "VALIDATED",
+                    "allowedFunctionNames": ["grep"],
+                }
+            },
+            ToolFunction(name="grep"),
+        ),
+        (
+            {
+                "functionCallingConfig": {
+                    "mode": "VALIDATED",
+                    "allowedFunctionNames": ["grep", "ls"],
+                }
+            },
+            "auto",
+        ),
+    ],
+)
+def test_google_valid_tool_config(tool_config: Any, expected: Any):
+    from inspect_ai.agent._bridge.google_api_impl import (
+        tool_choice_from_google_tool_config,
+    )
+
+    assert tool_choice_from_google_tool_config(tool_config) == expected
+
+
+@pytest.mark.anyio
+async def test_google_mistyped_tool_config_rejected_on_request_path():
+    """Drive the real impl so the guard is pinned on the request path (400, no model call)."""
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.google_api_impl import (
+        inspect_google_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    called = []
+
+    def _never(input, tools, tool_choice, config):
+        called.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="unreachable")
+
+    model = get_model("mockllm/model", custom_outputs=_never)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+    )
+    bridge.model_aliases = {"gemini-3-pro": model}
+
+    with pytest.raises(BridgePolicyError, match="toolConfig") as ex:
+        await inspect_google_api_request_impl(
+            json_data={
+                "model": "gemini-3-pro",
+                "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
+                "toolConfig": "AUTO",
+            },
+            web_search_providers=None,
+            code_execution_providers=None,
+            bridge=bridge,
+        )
+
+    assert provider_error_payload(ex.value)["status"] == 400
+    assert called == [], "request must be rejected before the model is called"
 
 
 def test_google_generation_config_fields_the_provider_sends_are_all_read():
