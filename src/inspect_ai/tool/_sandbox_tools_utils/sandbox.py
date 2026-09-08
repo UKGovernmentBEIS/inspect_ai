@@ -298,7 +298,8 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
             raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
     except Exception as e:
         raise SandboxInjectionError(
-            f"Failed to inject sandbox tools into sandbox: {e}", cause=e
+            f"Failed to inject sandbox tools into sandbox: {str(e) or type(e).__name__}",
+            cause=e,
         ) from e
 
 
@@ -343,13 +344,22 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
         return False
 
 
+_EXTRACT_TIMEOUT = 600
+"""Bounds the archive transfer and extraction (docker `write_file`'s timeout, which
+carried the transfer before); a timeout also arms compose's retry of a hung exec."""
+
+
 async def _extract_tools_tree(
     sandbox: SandboxEnvironment, name: str, gz_bytes: bytes, user: str | None
 ) -> None:
     """Extract the gzipped onedir tar into SANDBOX_TOOLS_DIR.
 
-    The artifact is staged to a temp file via write_file (which base64-encodes binary
-    content reliably; raw binary stdin through exec is not safe) and then extracted.
+    The archive travels to `tar` on stdin, so no copy of it exists at a path another
+    principal could write to before the tools user reads it. `write_file` cannot do
+    this: it has no `user` parameter, so it stages as the default user, and a
+    root-owned 0700 directory is closed to that user. Large binary stdin is part of the
+    sandbox contract (`self_check`), though a provider that inlines stdin into a shell
+    script may cap it lower; the uncompressed fallback is the largest payload here.
     Extraction runs through the framework-directory helper, so `tar` unpacks into the
     verified directory object (its cwd) rather than into whatever the path names at
     that moment.
@@ -358,19 +368,20 @@ async def _extract_tools_tree(
     container's `tar` lacks gzip support, fall back to injecting an uncompressed tar,
     which only needs plain `tar xf` (the broadest assumption). The uncompressed tar is
     cached in the binaries dir so we decompress at most once per artifact.
+
+    A failing `tar` exits before reading stdin, and providers then raise on the broken
+    stdin write instead of returning tar's status, so on failure the wrapper drains
+    stdin and fails explicitly.
     """
-    gz_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tgz"
-    await sandbox.write_file(gz_tmp, gz_bytes)
-    try:
-        result = await exec_in_framework_directory(
-            sandbox,
-            SANDBOX_TOOLS_DIR,
-            ["tar", "xzf", gz_tmp],
-            user=user,
-            expected_uid=_expected_uid(user),
-        )
-    finally:
-        await _remove_staged_archive(sandbox, gz_tmp, user)
+    result = await exec_in_framework_directory(
+        sandbox,
+        SANDBOX_TOOLS_DIR,
+        ["sh", "-c", "tar xzf - || { cat >/dev/null; exit 1; }"],
+        user=user,
+        expected_uid=_expected_uid(user),
+        input=gz_bytes,
+        timeout=_EXTRACT_TIMEOUT,
+    )
     if result.success:
         return
 
@@ -380,55 +391,17 @@ async def _extract_tools_tree(
         TRACE_SANDBOX_TOOLS,
         f"tar xzf failed ({result.stderr.strip()}); retrying with uncompressed tar",
     )
-    tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
-    await sandbox.write_file(tar_tmp, _uncompressed_tar_bytes(name, gz_bytes))
-    try:
-        result = await exec_in_framework_directory(
-            sandbox,
-            SANDBOX_TOOLS_DIR,
-            ["tar", "xf", tar_tmp],
-            user=user,
-            expected_uid=_expected_uid(user),
-        )
-    finally:
-        await _remove_staged_archive(sandbox, tar_tmp, user)
+    result = await exec_in_framework_directory(
+        sandbox,
+        SANDBOX_TOOLS_DIR,
+        ["sh", "-c", "tar xf - || { cat >/dev/null; exit 1; }"],
+        user=user,
+        expected_uid=_expected_uid(user),
+        input=_uncompressed_tar_bytes(name, gz_bytes),
+        timeout=_EXTRACT_TIMEOUT,
+    )
     if not result.success:
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
-
-
-async def _remove_staged_archive(
-    sandbox: SandboxEnvironment, path: str, user: str | None
-) -> None:
-    """Best-effort removal of a staged archive, as the extraction user.
-
-    Runs through the framework-directory helper rather than as a bare-name ``rm``
-    so the command resolves through the helper's pinned ``PATH``, not the image's
-    (this runs as root in a root-capable sandbox, and in a ``finally``, so it would
-    otherwise run even right after verification refused a planted entry). A helper
-    verdict here means the tools directory is gone or untrusted; the archive is then
-    left behind rather than masking the exception that is already propagating.
-    """
-    try:
-        result = await exec_in_framework_directory(
-            sandbox,
-            SANDBOX_TOOLS_DIR,
-            ["rm", "-f", path],
-            user=user,
-            expected_uid=_expected_uid(user),
-        )
-    except RuntimeError as ex:
-        # Covers every helper verdict (all subclass RuntimeError) as well as the
-        # helper's own "check never ran" failure; anything else propagates.
-        trace_message(
-            logger, TRACE_SANDBOX_TOOLS, f"staged archive {path} not removed: {ex}"
-        )
-        return
-    if not result.success:
-        trace_message(
-            logger,
-            TRACE_SANDBOX_TOOLS,
-            f"staged archive {path} not removed: {result.stderr.strip()}",
-        )
 
 
 def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:
@@ -583,16 +556,6 @@ def _binaries_dir() -> Path:
     return Path(inspect_ai.__file__).parent / "binaries"
 
 
-# Soft launch of digest verification: failures warn by default and are fatal
-# only when this env var is set (any value other than "", "0", "false"). A
-# follow-on release makes them fatal unconditionally and removes the var.
-STRICT_DIGESTS_VAR = "INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS"
-
-
-def _strict_digests() -> bool:
-    return os.environ.get(STRICT_DIGESTS_VAR, "").lower() not in ("", "0", "false")
-
-
 async def _download_from_s3(filename: str) -> bool:
     """Download executable from S3, verified against the vendored SHA256SUMS.
 
@@ -600,25 +563,20 @@ async def _download_from_s3(filename: str) -> bool:
     (403/404 — not yet published; the caller falls through to the local-build
     tier). A digest mismatch or a missing sums entry must never be conflated
     with "missing" — they are the tampering/corruption signals this
-    verification exists to surface. With ``STRICT_DIGESTS_VAR`` set they raise
-    (reaching the user wrapped in SandboxInjectionError); by default they log
-    a warning and the unverified bytes are used anyway.
+    verification exists to surface. They raise ``PrerequisiteError`` (reaching
+    the user wrapped in SandboxInjectionError) with nothing written to the
+    binaries directory.
     """
-    expected_sha256: str | None
     try:
         # Raises if the sums file is unreadable or has no entry for this name —
         # deliberately before any network I/O.
         expected_sha256 = lookup_digest(filename)
     except RuntimeError as e:
-        if _strict_digests():
-            raise
-        warn_once(
-            logger,
-            f"Sandbox tools digest lookup failed ({e}); downloading without "
-            f"verification. This will become a fatal error in a future "
-            f"release; set {STRICT_DIGESTS_VAR}=1 to make it fatal now.",
-        )
-        expected_sha256 = None
+        raise PrerequisiteError(
+            f"Cannot verify sandbox tools executable {filename}: {e} If "
+            f"reinstalling inspect_ai does not resolve this, report it to the "
+            f"inspect_ai maintainers rather than retrying."
+        ) from e
 
     binaries_path = _binaries_dir()
     binaries_path.mkdir(exist_ok=True)
@@ -626,38 +584,21 @@ async def _download_from_s3(filename: str) -> bool:
     url = f"{_BUCKET_BASE_URL}/{filename}"
 
     try:
-        if expected_sha256 is not None:
-            try:
-                await anyio.to_thread.run_sync(
-                    _download_and_verify_blocking,
-                    url,
-                    expected_sha256,
-                    executable_path,
-                )
-                return True
-            except ValueError as e:
-                message = (
-                    f"Digest verification failed for {filename} downloaded from "
-                    f"S3: {e}. The published artifact does not match the digest "
-                    f"pinned in this inspect_ai release, which may indicate a "
-                    f"compromised or corrupted artifact — please report this to "
-                    f"the inspect_ai maintainers rather than retrying."
-                )
-                if _strict_digests():
-                    raise PrerequisiteError(message) from e
-                warn_once(
-                    logger,
-                    f"{message} Proceeding with the unverified artifact. This "
-                    f"will become a fatal error in a future release; set "
-                    f"{STRICT_DIGESTS_VAR}=1 to make it fatal now.",
-                )
-        # Unverified download — no pinned digest, or verification failed and
-        # strict mode is off (download() discarded the mismatching bytes, so
-        # fetch again without verification).
         await anyio.to_thread.run_sync(
-            _download_unverified_blocking, url, executable_path
+            _download_and_verify_blocking,
+            url,
+            expected_sha256,
+            executable_path,
         )
         return True
+    except ValueError as e:
+        raise PrerequisiteError(
+            f"Digest verification failed for {filename} downloaded from "
+            f"S3: {e}. The published artifact does not match the digest "
+            f"pinned in this inspect_ai release, which may indicate a "
+            f"compromised or corrupted artifact — please report this to "
+            f"the inspect_ai maintainers rather than retrying."
+        ) from e
     except httpx.HTTPStatusError as e:
         if e.response.status_code in (403, 404):
             print(f"Executable '{filename}' not found on S3")
@@ -683,29 +624,6 @@ def _download_and_verify_blocking(url: str, sha256: str, dest: Path) -> None:
     tmp = Path(tmp_path)
     try:
         download(url, sha256, tmp, timeout=60)
-        tmp.chmod(0o755)
-        os.replace(tmp, dest)
-    finally:
-        tmp.unlink(missing_ok=True)
-
-
-def _download_unverified_blocking(url: str, dest: Path) -> None:
-    """Download ``url`` to ``dest`` with no digest check (blocking).
-
-    Soft-launch fallback only (see ``_download_from_s3``). Same unique-tempfile
-    + ``os.replace`` discipline as ``_download_and_verify_blocking``.
-
-    Raises ``httpx.HTTPStatusError`` on HTTP errors (no transient retries).
-    """
-    fd, tmp_path = tempfile.mkstemp(prefix=f"{dest.name}.", dir=dest.parent)
-    os.close(fd)
-    tmp = Path(tmp_path)
-    try:
-        with httpx.stream("GET", url, timeout=60, follow_redirects=True) as response:
-            response.raise_for_status()
-            with open(tmp, "wb") as f:
-                for chunk in response.iter_bytes():
-                    f.write(chunk)
         tmp.chmod(0o755)
         os.replace(tmp, dest)
     finally:
