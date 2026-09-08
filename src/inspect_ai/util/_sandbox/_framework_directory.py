@@ -102,8 +102,8 @@ _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 # directory as cwd (optional). POSIX sh only (dash/BusyBox):
 # no arrays, no [[ ]], no local. `stat -c %u/%a` is common to GNU coreutils and
 # BusyBox. `umask 077` closes the window in BusyBox's non-atomic `mkdir -m`
-# (mkdir(0777) then chmod; a shared directory still passes through 0700 for that
-# instant) and also applies to whatever the wrapped command creates:
+# (mkdir(0777) then chmod) for a private directory, and also applies to whatever
+# the wrapped command creates:
 # a non-root `tar` extracts entries at 0700/0600 instead of the archive's modes
 # (root's `tar` preserves them). Inside a 0700 directory used by one uid this changes
 # nothing observable. Tool output is captured with stderr discarded so a warning
@@ -215,6 +215,13 @@ if [ "$mode" != "$want_mode" ]; then
         fi
         mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
     fi
+fi
+if [ "$shared" = 1 ] && [ "$created" = 0 ] && [ "$mode" != "$want_mode" ]; then
+    # Both BusyBox and GNU `mkdir -m 1777` set the mode in a second step after the
+    # mkdir, so a wrong mode on a directory we did not create may be a concurrent
+    # creator's work in progress: look once more before refusing it.
+    sleep 1
+    mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
 fi
 [ "$mode" = "$want_mode" ] || violation "$dir has mode $mode, expected $want_mode"
 printf '%s\\n' @VERIFIED@ >&2

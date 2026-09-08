@@ -590,6 +590,32 @@ async def test_shared_rejects_directory_owned_by_another_non_root_uid(
         shutil.rmtree(target, ignore_errors=True)
 
 
+async def test_shared_tolerates_a_concurrent_creator_still_setting_the_mode(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    """`mkdir -m 1777` sets the mode after the mkdir; a racing helper may look first.
+
+    The shimmed `stat` reports the intermediate mode the first time the helper
+    inspects the directory and the truth afterwards.
+    """
+    real_stat = shutil.which("stat")
+    assert real_stat
+    target = parent / "shared"
+    target.mkdir()
+    target.chmod(0o1777)
+    bindir = _tool_dir(
+        tmp_path,
+        ["sh", "id", "mkdir", "chmod", "pwd"],
+        {
+            "stat": f'if [ "$2" = "%u %a" ] && [ "$(pwd -P)" = "{target.resolve()}" ]; '
+            f'then echo "$(id -u) 1755"; else exec "{real_stat}" "$@"; fi'
+        },
+    )
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    await ensure_framework_directory(sandbox, str(target), user=None, shared=True)
+    assert _mode(target) == 0o1777
+
+
 @pytest.mark.parametrize("mode", [0o755, 0o777, 0o1755, 0o700], ids=oct)
 async def test_shared_rejects_wrong_mode_and_never_repairs(
     local: LocalSandboxEnvironment, parent: Path, mode: int
