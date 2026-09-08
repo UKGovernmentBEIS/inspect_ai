@@ -1619,7 +1619,6 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
-
     # opportunistically recover crashed logs before retrying
     from inspect_ai.log._recover import (
         RecoveryNotAvailable,
