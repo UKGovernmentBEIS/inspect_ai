@@ -443,7 +443,7 @@ def test_custom_property_type_rejected() -> None:
 def test_long_lines_not_hard_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
     # Rich would otherwise break the command at the console width, which
     # inserts newlines into whatever the user copies from the terminal.
-    _patch_prompt(monkeypatch, ["ok"])
+    _patch_prompt(monkeypatch, ["ok", "keep"])
     command = "aws ec2 describe-instances --filters Name=tag:owner,Values=me " + (
         "--query 'Reservations[].Instances[].InstanceId' --output text"
     )
@@ -451,14 +451,24 @@ def test_long_lines_not_hard_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
     buf = io.StringIO()
     console = Console(file=buf, width=80, force_terminal=False)
     schema = ElicitationSchema(
+        title="Instance check: " + command,
         properties={
             "output": ElicitationStringPropertySchema(
                 type="string", description="Paste the output of: " + command
-            )
+            ),
+            "action": ElicitationStringPropertySchema(
+                type="string",
+                one_of=[
+                    EnumOption(const="keep", title="Keep: " + command),
+                    EnumOption(const="stop", title="Stop"),
+                ],
+            ),
         },
-        required=["output"],
+        required=["output", "action"],
     )
     _ask_schema("Run this and paste the output:\n" + command, schema, console)
     lines = buf.getvalue().splitlines()
     assert command in lines
+    assert "Instance check: " + command in lines
     assert "Paste the output of: " + command in lines
+    assert "  keep: Keep: " + command in lines

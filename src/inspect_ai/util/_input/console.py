@@ -72,10 +72,10 @@ def _ask_console() -> Iterator[Console]:
 def _ask_schema(
     message: str, schema: ElicitationSchema, console: Console
 ) -> InputResult:
-    if schema.title:
-        console.print(f"[bold]{schema.title}[/bold]", soft_wrap=True)
     # Model-authored text is printed with soft_wrap so a long command stays on
     # one line for the terminal to wrap: Rich's hard wrap breaks copy/paste.
+    if schema.title:
+        console.print(f"[bold]{schema.title}[/bold]", soft_wrap=True)
     console.print(message, soft_wrap=True)
     if schema.description:
         console.print(f"[dim]{schema.description}[/dim]", soft_wrap=True)
@@ -127,7 +127,7 @@ def _ask_string(
     console: Console,
 ) -> Any:
     if prop.format:
-        console.print(f"[dim](format: {prop.format})[/dim]")
+        console.print(f"[dim](format: {prop.format})[/dim]", soft_wrap=True)
 
     # Print options for bounded-choice strings; we deliberately do NOT pass
     # `choices=` to Prompt.ask because Rich would reject `:decline` before we
@@ -160,7 +160,7 @@ def _ask_string(
 
         accepted, error = validate_string(prop, value)
         if error is not None:
-            console.print(f"[red]{error}[/red]")
+            console.print(f"[red]{error}[/red]", soft_wrap=True)
             continue
         return accepted
 
@@ -222,7 +222,7 @@ def _ask_numeric(
         else:
             result, error = validate_number(prop, raw)
         if error is not None:
-            console.print(f"[red]{error}[/red]")
+            console.print(f"[red]{error}[/red]", soft_wrap=True)
             continue
         return result
 
@@ -333,6 +333,6 @@ def _ask_multiselect(
         values = [options[i - 1][0] for i in unique_indices]
         accepted, error = validate_multiselect(prop, values)
         if error is not None:
-            console.print(f"[red]{error}[/red]")
+            console.print(f"[red]{error}[/red]", soft_wrap=True)
             continue
         return accepted
