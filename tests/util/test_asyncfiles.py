@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import io
+import os
 import tempfile
 import time
 from pathlib import Path
@@ -21,6 +22,64 @@ from inspect_ai._util.asyncfiles import (
 )
 
 S3_BUCKET = "s3://test-bucket"
+
+
+# =============================================================================
+# Tests for read_file_into(): copy a file into an open file object
+# =============================================================================
+async def test_read_file_into_local_file(tmp_path: Path) -> None:
+    # local branch: one copyfileobj in a worker thread, honouring chunk_size
+    payload = os.urandom(3 * 1024 + 100)
+    source = tmp_path / "source.bin"
+    source.write_bytes(payload)
+
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            await fs.read_file_into(str(source), dest, chunk_size=1024)
+        dest.seek(0)
+        assert dest.read() == payload
+
+
+async def test_read_file_into_missing_local_file_raises(tmp_path: Path) -> None:
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            with pytest.raises(FileNotFoundError):
+                await fs.read_file_into(str(tmp_path / "missing.bin"), dest)
+
+
+async def test_read_file_into_non_s3_remote_reads_in_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a non-S3 remote filesystem (memory:// stands in for gs://, az://) has no
+    # async client and cannot be read in a worker thread (the fsspec rule), so
+    # it is read on the event loop one chunk at a time, yielding between chunks
+    import anyio.lowlevel
+
+    from inspect_ai._util.file import file
+
+    chunk_size = 1024
+    payload = os.urandom(chunk_size * 3 + 100)
+    location = "memory://read_file_into/source.bin"
+    with file(location, "wb") as f:
+        f.write(payload)
+
+    yields = 0
+    original_checkpoint = anyio.lowlevel.checkpoint
+
+    async def counting_checkpoint() -> None:
+        nonlocal yields
+        yields += 1
+        await original_checkpoint()
+
+    monkeypatch.setattr(anyio.lowlevel, "checkpoint", counting_checkpoint)
+
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            await fs.read_file_into(location, dest, chunk_size=chunk_size)
+        dest.seek(0)
+        assert dest.read() == payload
+    # one yield per chunk read (three full chunks and the partial last one)
+    assert yields == 4
 
 
 # =============================================================================

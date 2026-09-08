@@ -468,7 +468,8 @@ config update) — and the swap onward under it:
 1. **Copy bytes** into a fresh anonymous `tempfile.TemporaryFile()`. Being
    unlinked, it has no path `AsyncFilesystem.get_file(remote, local_path)`
    could target; the seed instead pumps the bytes into the open file object
-   (a local file copies in a worker thread). For S3 that is
+   via `AsyncFilesystem.read_file_into` (a local file copies in a worker
+   thread). For S3 that is
    `AsyncFilesystem.read_file_bytes(prior_log, 0, None)` — a
    `ByteReceiveStream`: the body stream on asyncio (constant memory, never
    blocks the loop), the whole object read in a worker thread under trio
@@ -479,7 +480,8 @@ config update) — and the swap onward under it:
    chunk at a time with an `anyio.lowlevel.checkpoint()` between chunks:
    each stall is bounded by one chunk's fetch rather than the whole
    download (which is what `read_file_bytes` would do for those backends,
-   and what `read_log`'s `fs.get_file` download does today). Transient
+   and what `read_log`'s `fs.get_file` download does today —
+   meridianlabs-ai/inspect_ai#460 moves it onto the same helper). Transient
    failures are
    retried with the same `tenacity.AsyncRetrying` idiom the S3 put retry
    uses (`SEED_COPY_ATTEMPTS`, jittered exponential backoff); a missing

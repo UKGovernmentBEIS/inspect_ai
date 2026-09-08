@@ -54,6 +54,9 @@ logger = logging.getLogger(__name__)
 
 _S3_MISSING_OBJECT_CODES = ("404", "NoSuchKey", "NotFound")
 
+# default chunk size for read_file_into
+_READ_INTO_CHUNK_SIZE = 1024 * 1024  # 1 MB
+
 
 @contextmanager
 def _map_missing_s3_object(filename: str) -> Iterator[None]:
@@ -440,6 +443,48 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         finally:
             await stream.aclose()
         return b"".join(chunks)
+
+    async def read_file_into(
+        self, filename: str, dest: BinaryIO, chunk_size: int = _READ_INTO_CHUNK_SIZE
+    ) -> None:
+        """Copy a file's full contents into an open binary file object.
+
+        The download counterpart of :meth:`write_file_streaming`, for a
+        destination that is a file object rather than a path (an anonymous
+        temp file). A local source is one ``copyfileobj`` in a worker thread
+        (a thread hop per chunk through an async file would cost more than
+        the copy). An S3 source pumps :meth:`read_file_bytes` — a byte
+        stream under asyncio, the whole object read in a worker thread under
+        trio — into ``dest`` chunk by chunk, written inline (a buffered
+        write of one chunk lands in the page cache faster than a thread hop
+        would). Any other remote filesystem (``gs://``, ``az://``, ...) has
+        no async client and, per the fsspec rule in AGENTS.md, cannot be read
+        in a worker thread either, so it is read synchronously on the event
+        loop one chunk at a time with a checkpoint between chunks: each
+        stall is bounded by one chunk's fetch rather than the whole download.
+
+        Raises ``FileNotFoundError`` for a missing file on every backend.
+        """
+        if is_s3_filename(filename):
+            stream = await self.read_file_bytes(filename, 0, None)
+            try:
+                while True:
+                    try:
+                        chunk = await stream.receive(chunk_size)
+                    except EndOfStream:
+                        break
+                    dest.write(chunk)
+            finally:
+                await stream.aclose()
+        elif filesystem(filename).is_local():
+            await anyio.to_thread.run_sync(
+                _copy_local_file_into, local_path(filename), dest, chunk_size
+            )
+        else:
+            with file(filename, "rb") as src:
+                while chunk := src.read(chunk_size):
+                    dest.write(chunk)
+                    await anyio.lowlevel.checkpoint()
 
     async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
         """Read the last suffix_length bytes of a file.
@@ -1324,3 +1369,9 @@ _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
 # Granularity for `read_file_bytes_fully`: one read hop per chunk while
 # accumulating a range into memory.
 _READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB
+
+
+def _copy_local_file_into(path: str, dest: BinaryIO, chunk_size: int) -> None:
+    """Blocking local copy for ``read_file_into`` — run in a worker thread."""
+    with open(path, "rb") as src:
+        shutil.copyfileobj(src, dest, length=chunk_size)

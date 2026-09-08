@@ -2024,20 +2024,21 @@ async def test_eval_recorder_seed_missing_prior_raises_and_keeps_log_usable(
 async def test_eval_recorder_seed_retries_transient_copy_failure(
     tmp_path, monkeypatch
 ) -> None:
+    import inspect_ai._util.asyncfiles as asyncfiles_module
     import inspect_ai.log._recorders.eval as eval_module
     from inspect_ai.log._recorders.eval import EvalRecorder
 
     prior = await _write_seed_prior(tmp_path / "prior", [_seed_sample(1, "one")])
-    original = eval_module._copy_local_file
+    original = asyncfiles_module._copy_local_file_into
     failures = {"n": 0}
 
-    def flaky_copy(path: str, dest: BinaryIO) -> None:
+    def flaky_copy(path: str, dest: BinaryIO, chunk_size: int) -> None:
         if failures["n"] < 2:
             failures["n"] += 1
             raise OSError("simulated storage failure")
-        original(path, dest)
+        original(path, dest, chunk_size)
 
-    monkeypatch.setattr(eval_module, "_copy_local_file", flaky_copy)
+    monkeypatch.setattr(asyncfiles_module, "_copy_local_file_into", flaky_copy)
     monkeypatch.setattr(eval_module, "SEED_COPY_BACKOFF_SECONDS", 0.0)
 
     spec = _seed_spec("retry-attempt")
@@ -2062,23 +2063,21 @@ async def test_copy_prior_log_does_not_retry_a_cancellation(monkeypatch) -> None
     # as a "transient failure" (a spurious retrying warning and a temp-file
     # reset before the next sleep re-raised it)
     import inspect_ai.log._recorders.eval as eval_module
-
-    class _RemoteFS:
-        def is_local(self) -> bool:
-            return False
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
 
     attempts = 0
     started = anyio.Event()
 
-    async def hanging_copy(location: str, dest: BinaryIO) -> None:
+    async def hanging_copy(
+        self: AsyncFilesystem, location: str, dest: BinaryIO, chunk_size: int
+    ) -> None:
         nonlocal attempts
         attempts += 1
         dest.write(b"partial")
         started.set()
         await anyio.sleep_forever()
 
-    monkeypatch.setattr(eval_module, "filesystem", lambda path: _RemoteFS())
-    monkeypatch.setattr(eval_module, "_copy_remote_file", hanging_copy)
+    monkeypatch.setattr(AsyncFilesystem, "read_file_into", hanging_copy)
 
     with tempfile.TemporaryFile() as dest:
         with patch.object(eval_module.logger, "warning") as warning:

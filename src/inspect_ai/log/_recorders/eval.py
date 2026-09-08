@@ -27,7 +27,6 @@ from typing import (
 from zipfile import ZipFile
 
 import anyio
-from anyio import EndOfStream
 from pydantic import BaseModel, Field, JsonValue
 from tenacity import (
     AsyncRetrying,
@@ -41,7 +40,7 @@ from typing_extensions import override
 from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
@@ -840,20 +839,12 @@ _SEED_COPY_CHUNK_SIZE = 1024 * 1024
 async def _copy_prior_log(prior_log: str, dest: BinaryIO) -> None:
     """Copy a prior log's bytes into ``dest`` (empty, positioned at 0).
 
-    Local files copy in a worker thread. S3 files pump
-    ``AsyncFilesystem.read_file_bytes`` — a byte stream under asyncio, the
-    whole object read in a worker thread under trio — into ``dest`` (an
+    ``AsyncFilesystem.read_file_into`` does the copy (``dest`` is an
     anonymous temp file, so it has no path a filesystem download could
-    target). Any other remote filesystem (``gs://``, ``az://``, ...) has no
-    async client and, per the fsspec rule in AGENTS.md, cannot be read in a
-    worker thread either, so it is read synchronously on the event loop one
-    chunk at a time with a checkpoint between chunks: each stall is bounded
-    by one chunk's fetch rather than the whole download. Transient failures
-    are retried with backoff (the same ``AsyncRetrying`` idiom as the S3
-    put retry in ``asyncfiles``); a missing prior log raises
-    ``FileNotFoundError`` immediately.
+    target). Transient failures are retried with backoff (the same
+    ``AsyncRetrying`` idiom as the S3 put retry in ``asyncfiles``); a
+    missing prior log raises ``FileNotFoundError`` immediately.
     """
-    fs = filesystem(prior_log)
 
     def is_transient_failure(exception: BaseException) -> bool:
         # a positive predicate: tenacity's attempt manager catches
@@ -885,40 +876,8 @@ async def _copy_prior_log(prior_log: str, dest: BinaryIO) -> None:
         reraise=True,
     ):
         with attempt:
-            if fs.is_local():
-                await anyio.to_thread.run_sync(
-                    _copy_local_file, local_path(prior_log), dest
-                )
-            else:
-                await _copy_remote_file(prior_log, dest)
-
-
-def _copy_local_file(path: str, dest: BinaryIO) -> None:
-    with open(path, "rb") as src:
-        shutil.copyfileobj(src, dest, length=_SEED_COPY_CHUNK_SIZE)
-
-
-async def _copy_remote_file(location: str, dest: BinaryIO) -> None:
-    # a buffered write of one chunk into an anonymous temp file lands in the
-    # page cache far faster than a thread hop would, so both branches write
-    # inline
-    if is_s3_filename(location):
-        async with AsyncFilesystem() as async_fs:
-            stream = await async_fs.read_file_bytes(location, 0, None)
-            try:
-                while True:
-                    try:
-                        chunk = await stream.receive(_SEED_COPY_CHUNK_SIZE)
-                    except EndOfStream:
-                        break
-                    dest.write(chunk)
-            finally:
-                await stream.aclose()
-    else:
-        with file(location, "rb") as src:
-            while chunk := src.read(_SEED_COPY_CHUNK_SIZE):
-                dest.write(chunk)
-                await anyio.lowlevel.checkpoint()
+            async with AsyncFilesystem() as async_fs:
+                await async_fs.read_file_into(prior_log, dest, _SEED_COPY_CHUNK_SIZE)
 
 
 def _read_prior_summaries(prior: BinaryIO) -> list[EvalSampleSummary]:
