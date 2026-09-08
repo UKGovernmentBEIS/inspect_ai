@@ -49,6 +49,10 @@ def human_cli(
           list before it is installed (and before the instructions command is
           built, so `task instructions` lists any added commands). Lets a caller
           swap or append `HumanAgentCommand`s without forking this function.
+          The filtered list must still include a command named `"start"`
+          (`raises ValueError` otherwise): the login shell unconditionally
+          runs `task start` to begin the task clock, and submission refuses
+          to complete while it never has.
 
     Returns:
        Agent: Human CLI agent.

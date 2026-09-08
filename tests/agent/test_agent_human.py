@@ -129,6 +129,23 @@ def test_human_cli_accepts_public_commands_filter():
     assert callable(human_cli(commands_filter=filter_))
 
 
+def test_human_cli_commands_filter_rejects_dropping_start() -> None:
+    def commands_filter(
+        commands: list[HumanAgentCommand],
+    ) -> list[HumanAgentCommand]:
+        return [command for command in commands if command.name != "start"]
+
+    with pytest.raises(ValueError, match="start"):
+        human_agent_commands(
+            AgentState(messages=[]),
+            answer=True,
+            intermediate_scoring=False,
+            record_session=False,
+            instructions=None,
+            commands_filter=commands_filter,
+        )
+
+
 def test_human_cli_runs_stateful_appended_command(tmp_path: Path) -> None:
     def commands_filter(
         commands: list[HumanAgentCommand],

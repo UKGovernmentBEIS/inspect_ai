@@ -40,6 +40,17 @@ def human_agent_commands(
     # let the caller swap/append commands before instructions is built
     if commands_filter is not None:
         commands = commands_filter(commands)
+        if not any(command.name == "start" for command in commands):
+            raise ValueError(
+                "commands_filter removed the 'start' command: the human "
+                "agent's login shell unconditionally runs `task start` to "
+                "begin the task clock, and `task submit`/`task validate` "
+                "refuse to complete while the clock has never started, so a "
+                "command list without one named 'start' leaves the task "
+                "permanently stuck. Retain a command named 'start' (a "
+                "subclass of StartCommand, or your own with equivalent "
+                "clock-start semantics)."
+            )
 
     # with instructions (letting it see the other commands)
     return commands + [InstructionsCommand(commands, instructions)]
