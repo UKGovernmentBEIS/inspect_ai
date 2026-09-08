@@ -368,6 +368,9 @@ async def score_async(
             scorer_names,
             early_stopping=log.results.early_stopping if log.results else None,
             metadata=log.results.metadata if log.results else None,
+            # eval-set completeness contract (see EvalResults.logged_samples):
+            # rescoring must not make a drained log read complete
+            logged_samples=log.results.logged_samples if log.results else None,
             completed_samples=sum(sample_completed),
             # resolved below instead: these results cover only the scorers run
             # in this pass, so an "append" would resolve the headline against a

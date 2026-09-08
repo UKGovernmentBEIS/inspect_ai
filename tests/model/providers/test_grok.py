@@ -12,6 +12,7 @@ from inspect_ai.model import (
     BatchConfig,
     ChatMessageUser,
     GenerateConfig,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.model._providers._grok_batch import GrokBatcher
@@ -57,6 +58,44 @@ def test_grok_service_tier_omitted_for_batch() -> None:
     api = GrokAPI(model_name="grok-4.6", api_key="test-key", service_tier="priority")
     api._batcher = cast(Any, object())
     assert "service_tier" not in api._grok_params(GenerateConfig())
+
+
+@pytest.mark.parametrize(
+    "details",
+    [
+        # current xAI wording (structured error code)
+        "Failed to start sampling: [input_too_large] Current message "
+        "(1149677 tokens) exceeds budget (975424 tokens)",
+        # legacy xAI wording
+        "The prompt length exceeds the maximum context length",
+    ],
+)
+def test_grok_context_overflow_maps_to_model_length(details: str) -> None:
+    """INVALID_ARGUMENT context-overflow errors map to stop_reason=model_length."""
+    from inspect_ai.model._providers._grok_batch import _BatchRpcError
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4.3", api_key="test-key")
+    ex = _BatchRpcError(status_code=grpc.StatusCode.INVALID_ARGUMENT, message=details)
+    output = api._handle_grpc_bad_request(ex)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "model_length"
+    assert output.completion == details
+
+
+def test_grok_unrelated_bad_request_is_returned_as_error() -> None:
+    """INVALID_ARGUMENT errors that are not context overflows surface as errors."""
+    from inspect_ai.model._providers._grok_batch import _BatchRpcError
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4.3", api_key="test-key")
+    ex = _BatchRpcError(
+        status_code=grpc.StatusCode.INVALID_ARGUMENT,
+        message="Reasoning budget exceeds budget (1000 tokens)",
+    )
+    result = api._handle_grpc_bad_request(ex)
+    assert isinstance(result, Exception)
+    assert result is ex
 
 
 def test_grok_service_tier_requires_sdk_support(monkeypatch) -> None:

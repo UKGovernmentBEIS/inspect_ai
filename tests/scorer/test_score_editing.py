@@ -675,6 +675,31 @@ async def test_recompute_preserves_results_metadata():
 
 
 @pytest.mark.anyio
+async def test_recompute_preserves_logged_samples():
+    """recompute_metrics must carry EvalResults.logged_samples across the rebuild.
+
+    The eval-set run-vs-reuse check classifies a drained log by this count;
+    a rebuild that dropped it would make the log read complete and the
+    abandoned remainder would silently never re-run.
+    """
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+    assert log.results.logged_samples is None
+
+    log.results.logged_samples = 0
+
+    edit_score(
+        log,
+        log.samples[0].id,
+        "single_metric_scorer",
+        ScoreEdit(value=0),
+        recompute_metrics=False,
+    )
+    recompute_metrics(log)
+    assert log.results.logged_samples == 0
+
+
+@pytest.mark.anyio
 async def test_edit_preserves_reason_by_default():
     """An edit that doesn't mention reason leaves it unchanged (UNCHANGED default)."""
     logs = await eval_async(single_metric_task())

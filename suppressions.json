@@ -876,6 +876,14 @@
       "undescribed": 1
     }
   },
+  "src/inspect_ai/model/_providers/util/hidden_states.py": {
+    "type: ignore[import-not-found]": {
+      "count": 1
+    },
+    "type: ignore[unused-ignore]": {
+      "count": 1
+    }
+  },
   "src/inspect_ai/model/_providers/util/hooks.py": {
     "type: ignore[assignment]": {
       "count": 1,

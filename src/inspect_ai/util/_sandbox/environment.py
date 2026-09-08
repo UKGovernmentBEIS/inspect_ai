@@ -135,6 +135,11 @@ class SandboxEnvironment(abc.ABC):
         self._inject_lock = anyio.Lock()
         self._tools_injected: bool = False
         self._tools_user: str | None = None
+        # True once the sandbox-tools user has been decided for this object (root
+        # or, for a rootless sandbox, the default user), so the detector stops
+        # probing root on every tool call. `_tools_user is None` alone cannot say
+        # this because None also means "default user".
+        self._tools_user_resolved: bool = False
 
     @abc.abstractmethod
     async def exec(

@@ -49,6 +49,9 @@ def recompute_metrics(log: EvalLog) -> None:
         metrics=metrics,
         early_stopping=log.results.early_stopping if log.results else None,
         metadata=log.results.metadata if log.results else None,
+        # eval-set completeness contract (see EvalResults.logged_samples):
+        # recomputing metrics must not make a drained log read complete
+        logged_samples=log.results.logged_samples if log.results else None,
         # the count isn't persisted but the per-sample error state is, so
         # recompute it rather than letting eval_results() fall back to
         # len(scores) (which is scorer-order dependent)
