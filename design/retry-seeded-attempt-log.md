@@ -718,42 +718,49 @@ reconstructed as `FileHeader(zip64=True)`, exact for the streamed members
 (`force_zip64`) and 20 bytes over for `writestr` members, so the measure
 errs toward *not* compacting.
 
-### `run_task_retry_attempts`: keep the prior source when the attempt wrote no log
+### `run_task_retry_attempts`: the retry's source is the newest record on disk
 
-The retry branch checks `TaskLogger.finished` — whether the attempt's
-`log_finish` completed — which needs no I/O (a filesystem probe would block
-the dispatcher's loop on a remote log dir and could itself fail
-transiently). When it did not — a seed failure, a failed `log_start` flush,
-or a failed `log_finish` — the retry reuses `options.sample_source` instead
-of building one from an absent or partial file. Today that case degrades
-to no reuse; this is the E change and A needs it for the seed-failure path
-(the seed raises inside `task_run`, which `_run_task` already converts into
-an errored `EvalLog` without a file, the same path a failed `log_start`
-flush takes). eval_set with `retry_immediate=False` needs nothing: no file
-means the next pass selects the older log.
+The retry branch decides without I/O (a filesystem probe would block the
+dispatcher's loop on a remote log dir and could itself fail transiently),
+from two flags the logger already tracks: `TaskLogger.finished` (the
+attempt's `log_finish` completed) and `TaskLogger.destination_written`
+(some flush reached the destination, `log_start`'s at least).
 
-The partial-file case gives something up (trade-off 6): a seeded attempt
-whose `log_finish` failed after earlier flushes has a destination holding
-the prior set *plus this attempt's flushed live completions*, and falling
-back to the prior source re-runs those completions where, before this
-change, they were reused from the partial log. Whether a snapshot landed is
-known without a probe (`ZipLogFile.destination_written`), but preferring the
-partial file means keeping it, and a kept `started` destination is the stray
-log `discard` exists to remove: the retry-cleanup sweep never deletes
-`started` logs, so it would outlive the run, and by mtime it would stand as
-the task's latest log should every later attempt fail (the very selection
-problem noted under `TaskLogger.discard`). Finalizing its header instead
-would be another write to storage that has just failed, as would the next
-attempt's seed download from it. All to recover work that is only re-run,
-never lost. Not worth it.
+- **Finished**: the retry's source is the attempt's log, as today.
+- **Unfinished, destination written** (a later flush or `log_finish`
+  failed): the destination holds the complete prior set (the seed landed
+  with `log_start`'s flush) plus every live completion a later flush
+  carried, under a `started` header. It is a superset of every earlier log,
+  so it is the retry's source too — the same `eval_log_sample_source` over
+  the attempt's location, checkpoint dir included, so the flushed samples'
+  checkpointed progress resumes as well. `TaskLogger.reinit` releases what
+  the attempt left open (the recorder entry with its temp zip, the buffer
+  db) and leaves the destination in place.
+- **Unfinished, nothing written** (the seed or `log_start`'s flush failed):
+  no file. The retry keeps `options.sample_source`, the same prior. Today
+  that case degrades to no reuse; this is the E change, and A needs it for
+  the seed-failure path (the seed raises inside `task_run`, which
+  `_run_task` already converts into an errored `EvalLog` without a file,
+  the same path a failed `log_start` flush takes). eval_set with
+  `retry_immediate=False` needs nothing: no file means the next pass
+  selects the older log.
 
-`TaskLogger.reinit` then releases what the unfinished attempt left behind,
-as `TaskLogger.discard` does for an abandoned attempt: `log_finish` never
-ran, so the recorder still holds the attempt's entry (its open temp zip,
-plus any members a partially re-logged in-memory or `.json` prior wrote
-through), and a `log_start` flush that did land left a `started`
-destination that would otherwise stand as a stray log. Both go before the
-`eval_id` moves on; a finished attempt's log is untouched.
+Sample progress outranks header information, which is why a written
+`started` destination is kept and used rather than discarded. It lacks only
+what `log_finish` writes — status, the task-level error, stats, results —
+and `started` is the accurate status for an attempt that was still running
+when its write failed. The retry-cleanup sweep never deletes `started`
+logs, so should every later attempt also fail to write, this file stands as
+the task's newest log: an interrupted log carrying every sample the task
+has completed, which the next eval_set pass seeds from. An earlier draft
+discarded it (as `TaskLogger.discard` does for an abandoned attempt's
+destination) and fell back to the prior source, keeping the log dir tidier
+at the cost of re-running the attempt's flushed completions; that trades
+the wrong way (trade-off 6). Finalizing the header instead would be another
+write to storage that has just failed. The abandoned-attempt discard is a
+different case: that destination holds the prior set and nothing new, so
+the finished prior log it was copied from is the better record and the
+`started` copy is removed.
 
 ### Seed download retry (H)
 
@@ -786,6 +793,10 @@ warning names the prior log and the error.
   discovers the `started` log again (reversing #4933's trade-off 2) and the
   recovered log is a superset of the prior — recovery no longer "cements the
   loss".
+- **`log_finish` fails after earlier flushes**: the destination holds the
+  complete prior set plus the flushed completions under a `started` header,
+  and the retry seeds from it (see the `run_task_retry_attempts` section).
+  Only completions since the last flush are re-run.
 - **Compaction fails**: warn and flush the uncompacted zip (correct, just
   larger). Never let compaction fail a successful finish.
 - **Destination flush fails**: unchanged from today (warning, stale-timer
@@ -834,17 +845,21 @@ warning names the prior log and the error.
    compaction: with no upfront plan there is nothing to prune against.
    Harmless (never re-injected keys are never consulted) and cleaned at the
    successful finish.
-6. **A `log_finish` failure after earlier flushes re-runs that attempt's
-   live completions.** The retry keeps the prior source and discards the
-   partial destination rather than keeping a `started` log around as its
-   source (see the `run_task_retry_attempts` section). Needs a storage
-   failure at finish; the cost is re-running rather than losing those
-   samples (the prior log survives until retry cleanup), and the partial
-   file may well be unreadable in the same outage. The attempt's checkpoint
-   dir (keyed on its log basename) is likewise not the next attempt's copy
-   source, so its samples' checkpointed progress is redone rather than
-   resumed. The CHANGELOG states the re-run cost alongside the stray-log
-   fix.
+6. **A `log_finish` failure after earlier flushes leaves a `started` log as
+   the task's newest.** The retry's source is that partial destination (the
+   prior set plus this attempt's flushed completions, so no completed
+   sample on disk is re-run), and the file stays until retry cleanup, which
+   never removes `started` logs, so it outlives the run. What it lacks is
+   the header only (status, task-level error, stats, results), and
+   `started` is the accurate status for an attempt still running when its
+   write failed. Completions between the last flush and the failed finish
+   were never on disk and are re-run under any design. Chosen over
+   discarding the file and falling back to the prior source (an earlier
+   draft), which kept the log dir tidier by re-running finished work. If
+   the partial file is unreadable in the same outage, the next attempt's
+   seed fails as for any prior-read failure (see the failure analysis).
+   Removing older `started` logs in the cleanup sweep, which would take
+   this file with it, is meridianlabs-ai/inspect_ai#459.
 
 ## Edge cases
 
@@ -962,3 +977,10 @@ Run the async tests with `--runtrio` as well.
   than only the named file.
 - **F (one log per task)** becomes a small increment on A if per-attempt log
   identity is ever judged more cost than value.
+- **Retry cleanup of older `started` logs.** The sweep keeps every
+  `started` log for post-mortem debugging, a rule from before seeding, when
+  an interrupted attempt's log could hold samples no other log had. Every
+  finished attempt's log is now a superset of the `started` logs before it,
+  so those hold nothing the newest log lacks and could be removed like
+  errored ones; only a task's newest log ever needs recovery. Tracked as
+  meridianlabs-ai/inspect_ai#459.
