@@ -1,8 +1,10 @@
 # Fail on Refusal — terminate a sample when a model returns `content_filter`
 
-> **Status: proposed** (design only, not implemented). Originating issue:
-> meridianlabs-ai/inspect_ai#437. Builds on the existing `StopReason`
-> value `"content_filter"` rather than introducing a new signal.
+> **Status: implemented** (meridianlabs-ai/inspect_ai#438). Originating
+> issue: meridianlabs-ai/inspect_ai#437. Builds on the existing `StopReason`
+> value `"content_filter"` rather than introducing a new signal. Deviations
+> from the proposal found during implementation are noted inline as
+> "Implementation note".
 
 ## Summary
 
@@ -83,6 +85,11 @@ Exported from `inspect_ai.model`. Message format:
 Including the category and a stable `Model refusal` prefix makes these errors
 easy to filter in the dataframe `error` column and in `inspect view`.
 
+*Implementation note.* The sample runner records a generic exception's
+`EvalError.message` as its repr (`ModelRefusalError('Model refusal (...)')`),
+so in logs and dataframes the `Model refusal` text is a stable substring
+rather than the first characters of the message. Filter with `contains`.
+
 ### 3. Raise point
 
 In the outer frame of `Model.generate()`, as the last step before
@@ -131,6 +138,21 @@ and adding `--fail-on-refusal` to an existing run would get zero cache hits.
 The field never reaches the provider request, so it is added to
 `_CACHE_KEY_DROPPED_FIELDS`. Cached entries are never refusals, so a cache
 hit can never need to raise.
+
+*Implementation note.* `tests/model/test_cache.py` asserts that the cache
+key's inert fields equal `GENERATE_CONFIG_FIELDS_TO_EXCLUDE` (eval-set task
+identity), on the reasoning that both answer "can this field change what the
+provider returns". `fail_on_refusal` is the first field where the two answers
+differ: the provider never sees it (cache-inert) but it changes sample
+outcomes (identity-relevant, section 7). The test now carves out a named
+`_CACHE_NEUTRAL_OUTCOME_FIELDS` set for exactly this case rather than
+forcing the field into one classification or the other.
+
+*Implementation note.* Compaction is covered with one exception found in
+review: `_handle_overflow` in `_react.py` wraps *forced* compaction (after a
+`model_length` stop) in `except Exception` and degrades to the overflow
+filter on failure, which would have swallowed a refused summary generation.
+It now re-raises `ModelRefusalError` ahead of that handler.
 
 **Known gaps.** Three paths do not go through `await model.generate()` in a
 way that lets the error reach the sample runner:

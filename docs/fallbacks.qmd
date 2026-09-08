@@ -51,6 +51,29 @@ Without fallbacks configured (or when every fallback also declines), the refusal
 
 When a fallback serves a request, the API does not report the declining attempt's refusal category (the declined attempt is unbilled and only its token counts appear in the response diagnostics). Refusal categories are available only on responses that actually ended in a refusal.
 
+## Failing on Refusals {#failing-on-refusals}
+
+By default a refusal is just another model output: agents like `react()` retry it if `retry_refusals` is set and otherwise stop, and the sample proceeds to scoring (typically scoring zero, which is indistinguishable from a genuine failure of the task). If you would rather be told loudly that a refusal occurred, set the `fail_on_refusal` generation option. When enabled, `generate()` raises a `ModelRefusalError` after a generation ends with `stop_reason="content_filter"`, which fails the sample with an error whose message starts with `Model refusal` and includes the model, role and refusal category:
+
+``` bash
+inspect eval ctf.py --model anthropic/claude-fable-5 --fail-on-refusal
+```
+
+Like other generation config, `fail_on_refusal` can be set eval-wide (as above, or `eval(..., fail_on_refusal=True)`), on a `Task` (`config=GenerateConfig(fail_on_refusal=True)`), on a model (`--model-spec` or `get_model(..., config=...)`), or on an individual `generate()` call. Eval-wide and task settings also apply to [model roles](models.qmd#model-roles) such as graders, but a role's own setting wins, so you can fail on refusals from the agent while letting a grader refuse normally:
+
+``` bash
+inspect eval ctf.py --fail-on-refusal \
+  --model-role grader="{model: openai/gpt-5, fail_on_refusal: false}"
+```
+
+Some things to be aware of:
+
+- With the default `fail_on_error`, the first sample error fails the whole eval, so `--fail-on-refusal` on its own stops the eval at the first refusal. To record failed samples and keep running, combine it with `--no-fail-on-error` (or a `--fail-on-error` threshold, or `--continue-on-fail`). See [Handling Errors](handling-errors.qmd) for details.
+- Refusal retries still apply: `retry_refusals=N` on `react()`, `deepagent()` or the agent bridge means the sample fails only after N+1 consecutive refusals in one step (`deepagent()` defaults to 3 retries, `react()` to none).
+- `retry_on_error` and `score_on_error` treat a refusal like any other sample error, and `eval_set()` retries a task whose log status is `error` as usual.
+- The refusal counter and `--log-refusals` still run, and `ModelRefusalError` (exported from `inspect_ai.model`) carries the refused `output`, so the category is available to code that catches it.
+- For scaffolds bridged in-process with `agent_bridge()`, the error surfaces as an exception from the scaffold's own SDK call, so a scaffold that catches broad exceptions around its API calls will swallow it. Scaffolds running in a sandbox via `sandbox_agent_bridge()` fail the sample regardless of how they handle the error response they receive.
+
 ## Fallback Logging
 
 When a fallback serves a generation, Inspect records it on the model output, in the message content, and in a per-sample rollup.

@@ -41,6 +41,7 @@ from inspect_ai.model._model import (
     Model,
     ModelGenerateFilter,
     ModelName,
+    ModelRefusalError,
     active_model,
     get_model,
     model_roles,
@@ -558,12 +559,23 @@ async def bridge_generate(
         # control when / under which span events appear.
         if output is None:
             with bridge_model_generate(), use_model_event_sink(bridge.model_event_sink):
-                output = await model.generate(
-                    input=input_messages,
-                    tool_choice=tool_choice,
-                    tools=tools,
-                    config=config,
-                )
+                # with fail_on_refusal set a refusal raises rather than
+                # returning; it still gets its retries, the last one propagates
+                try:
+                    output = await model.generate(
+                        input=input_messages,
+                        tool_choice=tool_choice,
+                        tools=tools,
+                        config=config,
+                    )
+                except ModelRefusalError:
+                    if (
+                        bridge.retry_refusals is not None
+                        and refusals < bridge.retry_refusals
+                    ):
+                        refusals += 1
+                        continue
+                    raise
 
         # Update the compaction baseline with the actual input token
         # count from the generate call (most accurate source of truth)
@@ -571,13 +583,14 @@ async def bridge_generate(
             await compact.record_output(input_messages, output)
 
         # Check for refusal and retry if needed
-        if (
-            output.stop_reason == "content_filter"
-            and bridge.retry_refusals is not None
-            and refusals < bridge.retry_refusals
-        ):
-            refusals += 1
-            continue
+        if not output.empty and output.stop_reason == "content_filter":
+            if bridge.retry_refusals is not None and refusals < bridge.retry_refusals:
+                refusals += 1
+                continue
+            # a refusal produced by the filter never went through
+            # model.generate(), so fail_on_refusal is applied here instead
+            if model._resolve_config(config).fail_on_refusal:
+                raise ModelRefusalError(output, str(model), model.role)
 
         # Approve the tool calls the scaffold is about to run. A rejection comes back
         # as the messages to replay to the model (the rejected call plus a result for

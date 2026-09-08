@@ -77,6 +77,8 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                 value = [m.strip() for m in value.split(",")]
             if key == "logprobs" and value is False:
                 value = None
+            if key == "fail_on_refusal" and value is False:
+                value = None
             if key == "logit_bias" and value is not None:
                 value = parse_logit_bias(value)
             if key == "cache_prompt":

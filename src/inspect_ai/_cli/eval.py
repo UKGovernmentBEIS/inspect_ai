@@ -121,6 +121,7 @@ LOG_IMAGES_HELP = (
 )
 LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error requests/responses are always logged."
 LOG_REFUSALS_HELP = "Log warnings for model refusals."
+FAIL_ON_REFUSAL_HELP = "Fail a sample (with a ModelRefusalError) when a model refuses a request (stop_reason 'content_filter'). Applies to the active model and all model roles. Note that with the default --fail-on-error the first refusal fails the whole eval; combine with --no-fail-on-error or --continue-on-fail to keep running."
 LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
 LOG_SHARED_HELP = "Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds)."
 NO_SCORE_HELP = (
@@ -862,6 +863,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_FALLBACK_MODELS",
     )
     @click.option(
+        "--fail-on-refusal",
+        type=bool,
+        is_flag=True,
+        help=FAIL_ON_REFUSAL_HELP,
+        envvar="INSPECT_EVAL_FAIL_ON_REFUSAL",
+    )
+    @click.option(
         "--verbosity",
         type=click.Choice(["low", "medium", "high"]),
         help='Constrains the verbosity of the model\'s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)',
@@ -1152,6 +1160,7 @@ def _eval_command_impl(
     max_tool_output: int | None,
     cache_prompt: str | None,
     fallback_models: str | None,
+    fail_on_refusal: bool | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
@@ -1470,6 +1479,7 @@ def eval_set_command(
     max_tool_output: int | None,
     cache_prompt: str | None,
     fallback_models: str | None,
+    fail_on_refusal: bool | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,

@@ -1022,3 +1022,102 @@ def test_react_agent_retry_refusals_recovery() -> None:
     assert log.status == "success"
     assert log.results
     assert log.results.scores[0].metrics["accuracy"].value == 1
+
+
+def _refusal(i: int = 0) -> ModelOutput:
+    return ModelOutput.from_content(
+        model="mockllm/model",
+        content=f"I cannot help ({i}).",
+        stop_reason="content_filter",
+    )
+
+
+def _submit_two() -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        model="mockllm/model",
+        tool_name="submit",
+        tool_arguments={"answer": "2"},
+    )
+
+
+def _model_event_count(log: EvalLog) -> int:
+    assert log.samples
+    return sum(1 for event in log.samples[0].events if event.event == "model")
+
+
+def test_react_agent_fail_on_refusal_after_retries() -> None:
+    """With fail_on_refusal, retry_refusals=N still applies: N+1 refusals fail the sample."""
+    task = Task(
+        dataset=addition_dataset(),
+        solver=react(tools=[addition()], retry_refusals=2),
+        scorer=includes(),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[_refusal(0), _refusal(1), _refusal(2), _submit_two()],
+    )
+
+    log = eval(task, model=model, fail_on_refusal=True, fail_on_error=False)[0]
+    assert log.samples
+    error = log.samples[0].error
+    assert error is not None
+    assert "Model refusal (mockllm/model): I cannot help (2)." in error.message
+    # initial attempt + 2 retries, then the sample failed
+    assert _model_event_count(log) == 3
+
+
+def test_react_agent_fail_on_refusal_retry_recovers() -> None:
+    """Refusals within the retry budget don't fail the sample."""
+    task = Task(
+        dataset=addition_dataset(),
+        solver=react(tools=[addition()], retry_refusals=2),
+        scorer=includes(),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[_refusal(0), _refusal(1), _submit_two()],
+    )
+
+    log = eval(task, model=model, fail_on_refusal=True)[0]
+    assert log.status == "success"
+    assert log.results
+    assert log.results.scores[0].metrics["accuracy"].value == 1
+    assert log.samples
+    assert log.samples[0].error is None
+
+
+def test_react_agent_fail_on_refusal_no_retries() -> None:
+    """Without retry_refusals a single refusal fails the sample."""
+    task = Task(
+        dataset=addition_dataset(),
+        solver=react(tools=[addition()]),
+        scorer=includes(),
+    )
+    model = get_model("mockllm/model", custom_outputs=[_refusal(), _submit_two()])
+
+    log = eval(task, model=model, fail_on_refusal=True, fail_on_error=False)[0]
+    assert log.samples
+    assert log.samples[0].error is not None
+    assert _model_event_count(log) == 1
+
+
+def test_react_agent_fail_on_refusal_no_submit() -> None:
+    """The react_no_submit() loop gets the same retry-then-fail behaviour."""
+    task = Task(
+        dataset=addition_dataset(),
+        solver=react(tools=[addition()], submit=False, retry_refusals=1),
+        scorer=includes(),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            _refusal(0),
+            _refusal(1),
+            ModelOutput.from_content(model="mockllm/model", content="2"),
+        ],
+    )
+
+    log = eval(task, model=model, fail_on_refusal=True, fail_on_error=False)[0]
+    assert log.samples
+    assert log.samples[0].error is not None
+    assert _model_event_count(log) == 2

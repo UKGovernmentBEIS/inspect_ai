@@ -1794,6 +1794,96 @@ class TestBackgroundErrors:
         assert "kaboom" in body
 
 
+def _build_refusing_subagent(name: str):
+    """Build a subagent whose model always refuses (stop_reason content_filter)."""
+    from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+    bg_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="I cannot help with that.",
+                stop_reason="content_filter",
+            )
+        ],
+    )
+    return subagent_factory(
+        name=name,
+        description=f"Refusing {name} subagent.",
+        prompt=f"You are a {name} agent.",
+        model=bg_model,
+    )
+
+
+class TestRefusals:
+    """Under fail_on_refusal a subagent refusal fails the sample, foreground or background."""
+
+    def _eval(self, background: bool, monkeypatch: pytest.MonkeyPatch) -> tuple:
+        worker_errors: list[str] = []
+        monkeypatch.setattr(
+            "inspect_ai.util._background.logger.error",
+            lambda msg, *args, **kwargs: worker_errors.append(str(msg)),
+        )
+        refuser = _build_refusing_subagent("refuser")
+        da = deepagent(
+            subagents=[refuser],
+            tools=[_wait_test_helper()],
+            submit=True,
+            background=True,
+            # the default (3) would need four refusal outputs per attempt
+            retry_refusals=None,
+        )
+        task = Task(dataset=[Sample(input="Do the task")], solver=da, message_limit=30)
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                _agent_call(prompt="go", background=background),
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        log = eval(task, model=model, fail_on_refusal=True, fail_on_error=False)[0]
+        return log, worker_errors
+
+    def test_background_refusal_fails_sample(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        log, worker_errors = self._eval(True, monkeypatch)
+        assert log.samples
+        error = log.samples[0].error
+        assert error is not None
+        assert "Model refusal (mockllm/model)" in error.message
+        # propagated as sample control flow, not double-reported as a worker failure
+        assert not any("Background worker error" in e for e in worker_errors)
+
+    def test_foreground_refusal_fails_sample(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        log, _ = self._eval(False, monkeypatch)
+        assert log.samples
+        error = log.samples[0].error
+        assert error is not None
+        assert "Model refusal (mockllm/model)" in error.message
+
+    def test_refusal_without_option_does_not_fail_sample(self) -> None:
+        """Without fail_on_refusal the background refusal is just the subagent's output."""
+        refuser = _build_refusing_subagent("refuser")
+        result = _eval_deepagent(
+            agent_kwargs={
+                "subagents": [refuser],
+                "tools": [_wait_test_helper()],
+                "retry_refusals": None,
+            },
+            outputs=[
+                _agent_call(prompt="go"),
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+
+
 class TestForkedBackground:
     """fork=True works with background=True (forked timeline-branch path)."""
 

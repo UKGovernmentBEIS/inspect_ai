@@ -13,6 +13,7 @@
 - Sandbox Tools: Binaries downloaded from S3 that fail SHA256 verification or lack a pinned digest are now rejected instead of run with a warning; `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` has been removed.
 - Sandbox tools: Fixed a race during injection that let a non-root sandbox user replace the tools archive before root unpacked it.
 - Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
+- Model refusals: New `fail_on_refusal` generate config option (`--fail-on-refusal`) fails a sample with a `ModelRefusalError` when a model refuses a request, settable eval-wide, per task, per model, per model role, or per call.
 
 ## 0.3.263 (03 September 2026)
 
