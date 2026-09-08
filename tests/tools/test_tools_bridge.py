@@ -5,6 +5,7 @@ via the MCP protocol using BridgedToolsSpec and sandbox_agent_bridge.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 from test_helpers.utils import skip_if_no_docker
@@ -96,17 +97,21 @@ def image_content_returning_tool(call_log: list[dict]):
 
 
 @task
-def bridged_tools_task(test_solver: Solver):
+def bridged_tools_task(test_solver: Solver, sandbox: str | tuple[str, str] = "docker"):
     return Task(
         dataset=[Sample(input="Test", target="Test")],
         solver=[test_solver],
         scorer=includes(),
-        sandbox="docker",
+        sandbox=sandbox,
     )
 
 
-def eval_bridged_tools_task(test_solver: Solver) -> EvalLog:
-    log = eval(bridged_tools_task(test_solver), model=get_model("mockllm/model"))[0]
+def eval_bridged_tools_task(
+    test_solver: Solver, sandbox: str | tuple[str, str] = "docker"
+) -> EvalLog:
+    log = eval(
+        bridged_tools_task(test_solver, sandbox), model=get_model("mockllm/model")
+    )[0]
     assert log.status == "success"
     return log
 
@@ -176,9 +181,20 @@ async def call_mcp_tools_list(config: MCPServerConfigHTTP) -> dict:
 # =============================================================================
 
 
+# The nonroot compose checks the bridge still starts its in-sandbox proxy (which
+# lives in the root-owned tools tree) when the sandbox default user is not root.
+@pytest.mark.parametrize(
+    "sandbox",
+    [
+        "docker",
+        ("docker", str(Path(__file__).parent / "test_sandbox_compose.yaml")),
+    ],
+)
 @skip_if_no_docker
 @pytest.mark.slow
-def test_single_tool_call_returns_correct_result() -> None:
+def test_single_tool_call_returns_correct_result(
+    sandbox: str | tuple[str, str],
+) -> None:
     """Call a single bridged tool via MCP and verify the result."""
     call_log: list[dict] = []
 
@@ -203,7 +219,7 @@ def test_single_tool_call_returns_correct_result() -> None:
 
         return solve
 
-    eval_bridged_tools_task(test_solver())
+    eval_bridged_tools_task(test_solver(), sandbox)
 
     assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
 
