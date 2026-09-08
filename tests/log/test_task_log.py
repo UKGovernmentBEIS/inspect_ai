@@ -1067,6 +1067,11 @@ async def test_task_logger_seeded_records_surface_as_the_sweep_resolves_them(
     # cancel / error-detail directives resolve state from; still served to
     # the sweep
     assert await logger.read_sample(2, 1) is None
+    # the control channel supplies the id as a string, which the recorder
+    # resolves to the same record: the guard must hold for that form too, or
+    # a requeue/cancel resolving state through it sees the prior's error as
+    # this attempt's terminal state (a duplicate re-run, a "finished" cancel)
+    assert await logger.read_sample("2", 1) is None
     assert await logger.read_prior_sample(2, 1) is not None
 
     clean = await logger.read_prior_sample(1, 1)
@@ -1099,6 +1104,7 @@ async def test_task_logger_seeded_records_surface_as_the_sweep_resolves_them(
     assert read is not None and read.error is None
     # the cancelled prior record stays withheld until its own re-run completes
     assert 3 not in by_id
+    assert await logger.read_sample("3", 1) is None
 
     await logger.log_finish("error", EvalStats(), None, None, _error("boom"))
     # torn down: the control channel falls back to the on-disk log, where the

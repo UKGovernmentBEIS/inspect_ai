@@ -148,6 +148,16 @@ def _is_high_throughput(sample_count: int) -> bool:
     return sample_count >= 1000
 
 
+def _seeded_key(id: str | int, epoch: int) -> tuple[str, int]:
+    """The ``_seeded_pending`` key for a sample: its id in string form.
+
+    The recorder names a sample's record by ``f"{id}_epoch_{epoch}"``, so an
+    int-id sample answers to its string id too; the pending set must match
+    the same way or a control request's string id bypasses the guard.
+    """
+    return (str(id), epoch)
+
+
 class TaskLogger:
     def __init__(
         self,
@@ -312,8 +322,11 @@ class TaskLogger:
         # seeded (id, epoch) keys the reuse sweep has not yet resolved: the
         # records sample_summaries withholds from the control channel (see
         # its docstring). A key leaves when the sweep accepts its record
-        # (note_reused_sample) or a completion for it lands.
-        self._seeded_pending: set[tuple[str | int, int]] = set()
+        # (note_reused_sample) or a completion for it lands. Keyed by
+        # _seeded_key (id as str): the control channel supplies string ids,
+        # and the recorder resolves them against a sample's string form, so
+        # a dataset-typed int key would let "2" read the withheld record 2.
+        self._seeded_pending: set[tuple[str, int]] = set()
 
         # sample buffer db
         self._buffer_db: SampleBufferDatabase | None = None
@@ -524,7 +537,7 @@ class TaskLogger:
             return
         self._prior_seeded = True
         seeded = await self.recorder.sample_summaries(self.eval)
-        self._seeded_pending = {(s.id, s.epoch) for s in seeded or []}
+        self._seeded_pending = {_seeded_key(s.id, s.epoch) for s in seeded or []}
 
     async def read_prior_sample(self, id: str | int, epoch: int) -> EvalSample | None:
         """The seeded prior record for ``(id, epoch)``, read from the recorder, or None.
@@ -581,7 +594,11 @@ class TaskLogger:
         summaries = await self.recorder.sample_summaries(self.eval)
         if summaries is None or not self._seeded_pending:
             return summaries
-        return [s for s in summaries if (s.id, s.epoch) not in self._seeded_pending]
+        return [
+            s
+            for s in summaries
+            if _seeded_key(s.id, s.epoch) not in self._seeded_pending
+        ]
 
     async def read_sample(
         self,
@@ -607,7 +624,7 @@ class TaskLogger:
         # to the finalized on-disk log once it's flushed / the recorder is torn
         # down — otherwise those reads see only the on-disk log and miss a
         # just-completed (or reused-on-retry) sample the listing already shows.
-        if (id, epoch) in self._seeded_pending:
+        if _seeded_key(id, epoch) in self._seeded_pending:
             return None
         buffered = await self.recorder.buffered_sample(self.eval, id, epoch)
         if buffered is not None:
@@ -701,7 +718,7 @@ class TaskLogger:
         self._logged_sample_keys.add(key)
         # a seeded record is resolved: accepted by the sweep as-is, or
         # superseded by its re-run's completion
-        self._seeded_pending.discard(key)
+        self._seeded_pending.discard(_seeded_key(sample.id, sample.epoch))
         # same classifier the read/requeue/retry surfaces use to tell a
         # cancelled sample from an errored one; discard on re-log so a
         # requeued cancelled sample's re-run counts again
