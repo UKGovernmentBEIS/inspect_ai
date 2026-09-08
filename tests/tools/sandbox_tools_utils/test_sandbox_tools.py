@@ -1,8 +1,10 @@
+import textwrap
 from pathlib import Path
 
 import pytest
 from test_helpers.tool_call_utils import (
     get_tool_call,
+    get_tool_calls,
     get_tool_response,
 )
 from test_helpers.utils import flaky_retry
@@ -15,11 +17,21 @@ from inspect_ai.model import (
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import (
+    Generate,
+    TaskState,
     generate,
+    solver,
     use_tools,
 )
 from inspect_ai.tool import ToolCallError, bash_session, text_editor
+from inspect_ai.util import sandbox, store
 from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_DIR
+
+NONROOT_COMPOSE = str(Path(__file__).parent / ".." / "test_sandbox_compose.yaml")
+ROOTLESS_COMPOSE = str(
+    Path(__file__).parent / ".." / "test_sandbox_compose_rootless.yaml"
+)
+SERVER_DIR = f"{SANDBOX_TOOLS_DIR}/.server"
 
 
 # The Alpine variant exercises the musl injectable: detection routes musl sandboxes
@@ -28,7 +40,7 @@ from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_DIR
     "sandbox",
     [
         "docker",
-        ("docker", str(Path(__file__).parent / ".." / "test_sandbox_compose.yaml")),
+        ("docker", NONROOT_COMPOSE),
         (
             "docker",
             str(Path(__file__).parent / ".." / "test_sandbox_compose_alpine.yaml"),
@@ -109,19 +121,8 @@ def test_text_editor_read_missing():
     )
 
 
-@pytest.mark.slow
-def test_bash_session_root():
-    task = Task(
-        dataset=[
-            Sample(
-                input='What is the output of running the command echo "start $(whoami) end"?'
-            )
-        ],
-        solver=[use_tools([bash_session()]), generate()],
-        scorer=match(),
-        sandbox="docker",
-    )
-    model = get_model(
+def _whoami_model():
+    return get_model(
         "mockllm/model",
         custom_outputs=[
             ModelOutput.for_tool_call(
@@ -135,7 +136,21 @@ def test_bash_session_root():
             ModelOutput.from_content(model="mockllm/model", content="All done."),
         ],
     )
-    log = eval(task, model=model)[0]
+
+
+@pytest.mark.slow
+def test_bash_session_root():
+    task = Task(
+        dataset=[
+            Sample(
+                input='What is the output of running the command echo "start $(whoami) end"?'
+            )
+        ],
+        solver=[use_tools([bash_session()]), generate()],
+        scorer=match(),
+        sandbox="docker",
+    )
+    log = eval(task, model=_whoami_model())[0]
 
     assert log.status == "success"
     assert log.samples
@@ -162,21 +177,7 @@ def test_bash_session_non_root():
         scorer=match(),
         sandbox="docker",
     )
-    model = get_model(
-        "mockllm/model",
-        custom_outputs=[
-            ModelOutput.for_tool_call(
-                model="mockllm/model",
-                tool_name="bash_session",
-                tool_arguments={
-                    "action": "type_submit",
-                    "input": 'echo "start $(whoami) end"',
-                },
-            ),
-            ModelOutput.from_content(model="mockllm/model", content="All done."),
-        ],
-    )
-    log = eval(task, model=model)[0]
+    log = eval(task, model=_whoami_model())[0]
 
     assert log.status == "success"
     assert log.samples
@@ -191,17 +192,65 @@ def test_bash_session_non_root():
     )
 
 
+_SOCKET_PROBE = textwrap.dedent(
+    f"""
+    import socket
+    sock = socket.socket(socket.AF_UNIX)
+    try:
+        sock.connect("{SERVER_DIR}/sandbox-tools.sock")
+        print("connected")
+    except OSError as ex:
+        print(f"refused errno={{ex.errno}}")
+    """
+)
+
+
+@solver
+def _probe_server_dir_access(tools_user: str | None, other_user: str | None):
+    """Record who can reach the server's state directory and socket."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        owner = await sb.exec(["stat", "-c", "%u %a", SERVER_DIR], user=tools_user)
+        as_tools_user = await sb.exec(["python3", "-c", _SOCKET_PROBE], user=tools_user)
+        as_other_user = await sb.exec(["python3", "-c", _SOCKET_PROBE], user=other_user)
+        listing = await sb.exec(["ls", SERVER_DIR], user=other_user)
+        store().set(
+            "probe",
+            {
+                "owner": owner.stdout.strip(),
+                "as_tools_user": as_tools_user.stdout.strip(),
+                "as_other_user": as_other_user.stdout.strip(),
+                "listing_success": listing.success,
+                "listing_stderr": listing.stderr,
+            },
+        )
+        return state
+
+    return solve
+
+
+# Run from the agent's own shell: connect_ex prints the errno instead of raising.
+_AGENT_SOCKET_PROBE = (
+    'python3 -c "import socket; s = socket.socket(socket.AF_UNIX); '
+    f"print('probe-result', s.connect_ex('{SERVER_DIR}/sandbox-tools.sock'))\""
+)
+
+
 @pytest.mark.slow
-def test_bash_session_missing_user():
+def test_root_server_state_is_private_to_root():
+    # Root-capable sandbox with a non-root default user, agent shell running as
+    # that user: the server's state lives inside the root-owned tools tree, so the
+    # agent can neither reach the socket from its own shell nor (via a host-side
+    # exec as the default user) list the directory, while root still connects.
     task = Task(
-        dataset=[
-            Sample(
-                input='What is the output of running the command echo "start $(whoami) end"?'
-            )
+        dataset=[Sample(input="whoami")],
+        solver=[
+            use_tools([bash_session(user="nonroot")]),
+            generate(),
+            _probe_server_dir_access(tools_user="root", other_user=None),
         ],
-        solver=[use_tools([bash_session(user="foo")]), generate()],
-        scorer=match(),
-        sandbox="docker",
+        sandbox=("docker", NONROOT_COMPOSE),
     )
     model = get_model(
         "mockllm/model",
@@ -214,10 +263,82 @@ def test_bash_session_missing_user():
                     "input": 'echo "start $(whoami) end"',
                 },
             ),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="bash_session",
+                tool_arguments={"action": "type_submit", "input": _AGENT_SOCKET_PROBE},
+            ),
             ModelOutput.from_content(model="mockllm/model", content="All done."),
         ],
     )
+
     log = eval(task, model=model)[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    messages = log.samples[0].messages
+    whoami_call, probe_call = get_tool_calls(messages, "bash_session")
+    whoami = get_tool_response(messages, whoami_call)
+    assert whoami and "start nonroot end" in whoami.content, whoami
+    agent_probe = get_tool_response(messages, probe_call)
+    assert agent_probe and "probe-result 13" in agent_probe.content, agent_probe
+
+    probe = log.samples[0].store["probe"]
+    assert probe["owner"] == "0 700", probe
+    assert probe["as_tools_user"] == "connected", probe
+    assert probe["as_other_user"] == "refused errno=13", probe
+    assert not probe["listing_success"], probe
+    assert "Permission denied" in probe["listing_stderr"], probe
+
+
+@pytest.mark.slow
+def test_rootless_server_state_is_private_to_the_tools_user():
+    # Rootless sandbox: the server runs as the default user (uid 1111). Another
+    # uid in the container must not be able to reach its socket or list its
+    # control files, while the tools user itself still connects.
+    task = Task(
+        dataset=[Sample(input="whoami")],
+        solver=[
+            use_tools([bash_session()]),
+            generate(),
+            _probe_server_dir_access(tools_user=None, other_user="nobody"),
+        ],
+        sandbox=("docker", ROOTLESS_COMPOSE),
+    )
+
+    log = eval(task, model=_whoami_model())[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    messages = log.samples[0].messages
+    tool_call = get_tool_call(messages, "bash_session")
+    assert tool_call
+    response = get_tool_response(messages, tool_call)
+    assert response
+    assert response.error is None, f"Tool call returns error: {response.error}"
+    assert "start nonroot end" in response.content, response.content
+
+    probe = log.samples[0].store["probe"]
+    assert probe["owner"] == "1111 700", probe
+    assert probe["as_tools_user"] == "connected", probe
+    assert probe["as_other_user"] == "refused errno=13", probe
+    assert not probe["listing_success"], probe
+    assert "Permission denied" in probe["listing_stderr"], probe
+
+
+@pytest.mark.slow
+def test_bash_session_missing_user():
+    task = Task(
+        dataset=[
+            Sample(
+                input='What is the output of running the command echo "start $(whoami) end"?'
+            )
+        ],
+        solver=[use_tools([bash_session(user="foo")]), generate()],
+        scorer=match(),
+        sandbox="docker",
+    )
+    log = eval(task, model=_whoami_model())[0]
 
     # This eval should entirely fail to run as the tool cannot be set up correctly.
     # I.e., it's not that the model has called the tool wrong, but the user made a mistake.
@@ -277,9 +398,6 @@ def test_text_editor_user():
 
     assert editor_response
     assert flag not in editor_response.content
-
-
-NONROOT_COMPOSE = str(Path(__file__).parent / ".." / "test_sandbox_compose.yaml")
 
 
 @pytest.mark.slow
