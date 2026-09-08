@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Evaluation: Read, validate, and apply run configuration files from Python, with optional deferred model initialization and CLI-compatible overrides.
+- Tasks: Attach default run configuration files to task definitions, with runtime overrides, opt-out, and configuration provenance in evaluation logs.
 
 ## 0.3.268 (22 September 2026)
 

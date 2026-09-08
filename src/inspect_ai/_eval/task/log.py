@@ -220,6 +220,7 @@ class TaskLogger:
         recorder: Recorder,
         header_only: bool,
         dynamic_dataset: bool = False,
+        run_config_source: str | None = None,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -289,6 +290,7 @@ class TaskLogger:
             task_registry_name=task_registry_name,
             task_display_name=task_display_name,
             task_attribs=task_attribs,
+            run_config_source=run_config_source,
             task_args=task_args,
             task_args_passed=task_args_passed,
             solver=solver.solver if solver else None,
