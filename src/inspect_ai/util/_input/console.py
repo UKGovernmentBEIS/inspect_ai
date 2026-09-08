@@ -73,10 +73,12 @@ def _ask_schema(
     message: str, schema: ElicitationSchema, console: Console
 ) -> InputResult:
     if schema.title:
-        console.print(f"[bold]{schema.title}[/bold]")
-    console.print(message)
+        console.print(f"[bold]{schema.title}[/bold]", soft_wrap=True)
+    # Model-authored text is printed with soft_wrap so a long command stays on
+    # one line for the terminal to wrap: Rich's hard wrap breaks copy/paste.
+    console.print(message, soft_wrap=True)
     if schema.description:
-        console.print(f"[dim]{schema.description}[/dim]")
+        console.print(f"[dim]{schema.description}[/dim]", soft_wrap=True)
     console.print(f"[dim](Type {DECLINE_TOKEN} at any prompt to decline.)[/dim]")
 
     required = set(schema.required or [])
@@ -98,7 +100,7 @@ def _ask_property(
 ) -> Any:
     label = prop.title or name
     if prop.description:
-        console.print(f"[dim]{prop.description}[/dim]")
+        console.print(f"[dim]{prop.description}[/dim]", soft_wrap=True)
 
     if isinstance(prop, ElicitationStringPropertySchema):
         return _ask_string(label, prop, required, console)
@@ -134,10 +136,11 @@ def _ask_string(
     if labels is not None:
         if prop.one_of is not None:
             for const, title in labels:
-                console.print(f"  [cyan]{const}[/cyan]: {title}")
+                console.print(f"  [cyan]{const}[/cyan]: {title}", soft_wrap=True)
         else:
             console.print(
-                f"[dim]options: {', '.join(string_choices(prop) or [])}[/dim]"
+                f"[dim]options: {', '.join(string_choices(prop) or [])}[/dim]",
+                soft_wrap=True,
             )
 
     while True:
@@ -268,9 +271,9 @@ def _ask_multiselect(
 
     for i, (const, title) in enumerate(options, start=1):
         if const == title:
-            console.print(f"  [cyan]{i}[/cyan]: {title}")
+            console.print(f"  [cyan]{i}[/cyan]: {title}", soft_wrap=True)
         else:
-            console.print(f"  [cyan]{i}[/cyan]: {title} ({const})")
+            console.print(f"  [cyan]{i}[/cyan]: {title} ({const})", soft_wrap=True)
 
     min_items = prop.min_items
     max_items = prop.max_items
