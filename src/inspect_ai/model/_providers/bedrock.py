@@ -1,4 +1,5 @@
 import base64
+import binascii
 import json
 import re
 from logging import getLogger
@@ -70,6 +71,12 @@ from .util import (
 from .util.hooks import ConverseHooks
 
 logger = getLogger(__name__)
+
+# Key under ContentReasoning.internal that carries the base64 of a Converse
+# `redactedContent` blob (an opaque, provider-encrypted reasoning trace).
+# `internal` is the same carrier the Google provider uses to round-trip
+# Gemini's redacted thinking. See `redacted_content_bytes`.
+REDACTED_CONTENT_KEY = "bedrock_redacted_content"
 
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
@@ -152,16 +159,16 @@ class ConverseGuardContent(BaseModel):
 
 class ConverseReasoningText(BaseModel):
     text: str
-    signature: str | None = None
 
 
 class ConverseReasoningContent(BaseModel):
     """A Converse API reasoningContent block.
 
-    Either `reasoningText` (plaintext reasoning, as returned by Anthropic
-    Claude models) or `redactedContent` (an opaque, provider-encrypted
-    reasoning trace with no plaintext to surface -- returned by, e.g.,
-    OpenAI's GPT-5.6 family on Bedrock) is present, never both.
+    `reasoningText` carries plaintext reasoning; `redactedContent` carries an
+    opaque, provider-encrypted trace with no plaintext to surface (the only
+    shape returned by OpenAI's GPT-5.6 family on Bedrock). The API documents
+    the two as co-occurring rather than exclusive, so treat each as
+    independently optional.
     """
 
     reasoningText: ConverseReasoningText | None = None
@@ -1070,6 +1077,7 @@ class _StreamContentBlock:
     def __init__(self) -> None:
         self.text: list[str] = []
         self.reasoning: list[str] = []
+        self.redacted_content: list[bytes] = []
         self.tool_use_id: str | None = None
         self.tool_name: str | None = None
         self.tool_input: list[str] = []
@@ -1084,9 +1092,10 @@ async def converse_response_from_stream(
     (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
     callback and the pending event's progress record. Content blocks
     accumulate by `contentBlockIndex` (tool-use input arrives as partial-JSON
-    string fragments, parsed once the stream completes; reasoning signatures
-    and redacted content are dropped, matching the non-streaming response
-    model). Usage, metrics, and any guardrail trace arrive on the trailing
+    string fragments, parsed once the stream completes; redacted-reasoning
+    deltas accumulate into the block's `redactedContent` so both paths yield
+    the same response model, while reasoning signatures are dropped, matching
+    it). Usage, metrics, and any guardrail trace arrive on the trailing
     `metadata` event. Exception members of the event union never arrive here
     as events: botocore raises them from the iterator as `EventStreamError`
     (a `ClientError`) whose code is the member name — see
@@ -1120,13 +1129,17 @@ async def converse_response_from_stream(
             index = event["contentBlockDelta"].get("contentBlockIndex", 0)
             block = blocks.setdefault(index, _StreamContentBlock())
             delta = event["contentBlockDelta"].get("delta") or {}
+            reasoning_delta = delta.get("reasoningContent") or {}
             text = delta.get("text")
-            reasoning = (delta.get("reasoningContent") or {}).get("text")
+            reasoning = reasoning_delta.get("text")
+            redacted = reasoning_delta.get("redactedContent")
             tool_input = (delta.get("toolUse") or {}).get("input")
             if text:
                 block.text.append(text)
             elif reasoning:
                 block.reasoning.append(reasoning)
+            elif redacted:
+                block.redacted_content.append(redacted)
             elif tool_input:
                 block.tool_input.append(tool_input)
             if not model_stream_requested() or not (text or reasoning or tool_input):
@@ -1206,13 +1219,20 @@ async def converse_response_from_stream(
                     )
                 )
             )
-        elif block.reasoning:
+        elif block.reasoning or block.redacted_content:
             content.append(
                 ConverseMessageContent(
                     reasoningContent=ConverseReasoningContent(
-                        reasoningText=ConverseReasoningText(
-                            text="".join(block.reasoning)
-                        )
+                        reasoningText=(
+                            ConverseReasoningText(text="".join(block.reasoning))
+                            if block.reasoning
+                            else None
+                        ),
+                        redactedContent=(
+                            b"".join(block.redacted_content)
+                            if block.redacted_content
+                            else None
+                        ),
                     )
                 )
             )
@@ -1325,19 +1345,36 @@ def model_output_from_response(
                 )
             )
         elif c.reasoningContent is not None:
-            # Handle reasoning content. Some models (e.g. OpenAI's GPT-5.6
-            # family on Bedrock) return an opaque `redactedContent` block
-            # instead of plaintext `reasoningText` -- there is no text to
-            # surface, so record it as redacted rather than crashing.
-            if c.reasoningContent.reasoningText is not None:
-                content.append(
-                    ContentReasoning(
-                        reasoning=c.reasoningContent.reasoningText.text,
-                        signature=c.reasoningContent.reasoningText.signature,
-                    )
+            reasoning_text = c.reasoningContent.reasoningText
+            redacted_content = c.reasoningContent.redactedContent
+            if reasoning_text is None and redacted_content is None:
+                # An unmodeled reasoningContent shape. Recording it as
+                # redacted beats raising: crashing on an unrecognised
+                # reasoning shape is the bug this branch exists to fix.
+                warn_once(
+                    logger,
+                    "bedrock: reasoningContent block carried neither "
+                    "reasoningText nor redactedContent; recording it as "
+                    "redacted reasoning.",
                 )
-            else:
-                content.append(ContentReasoning(reasoning="", redacted=True))
+            content.append(
+                ContentReasoning(
+                    reasoning=reasoning_text.text if reasoning_text is not None else "",
+                    # no plaintext means the whole trace is redacted
+                    redacted=reasoning_text is None,
+                    # the bytes are opaque but must go back verbatim on the
+                    # next turn, so carry them (see converse_reasoning_content)
+                    internal=(
+                        {
+                            REDACTED_CONTENT_KEY: base64.b64encode(
+                                redacted_content
+                            ).decode()
+                        }
+                        if redacted_content is not None
+                        else None
+                    ),
+                )
+            )
         else:
             raise ValueError("Unexpected message response in Bedrock provider")
 
@@ -1590,6 +1627,57 @@ async def converse_chat_message(
         raise ValueError(f"Unexpected message role {message.role}")
 
 
+def redacted_content_bytes(reasoning: ContentReasoning) -> bytes | None:
+    """Recover the Converse `redactedContent` blob a reasoning block carries.
+
+    Returns None when the block carries none: reasoning captured from another
+    provider, or from a log written before the bytes were preserved.
+    """
+    if not isinstance(reasoning.internal, dict):
+        return None
+    encoded = reasoning.internal.get(REDACTED_CONTENT_KEY)
+    if not isinstance(encoded, str):
+        return None
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except binascii.Error:
+        logger.warning(
+            "bedrock: reasoning block carried an unreadable "
+            f"{REDACTED_CONTENT_KEY}; dropping it from the replayed history."
+        )
+        return None
+
+
+def converse_reasoning_content(
+    reasoning: ContentReasoning,
+) -> ConverseReasoningContent | None:
+    """Rebuild the Converse reasoningContent block a ContentReasoning came from.
+
+    Plaintext reasoning replays as `reasoningText`; a redacted trace replays as
+    the `redactedContent` bytes stashed on `internal` at parse time (`internal`
+    being the same carrier the Google provider uses for Gemini's redacted
+    thinking). A block carrying both replays both.
+
+    Returns None when a redacted block has no recoverable bytes, leaving
+    nothing valid to send. Models that emit redacted reasoning reject a
+    substitute empty `reasoningText` outright ("This model doesn't support the
+    reasoningContent.reasoningText.text field for assistant messages") but
+    accept the block's absence, so omitting it is the only option that keeps
+    the conversation alive.
+    """
+    redacted_content = redacted_content_bytes(reasoning)
+    if reasoning.redacted and redacted_content is None:
+        return None
+    return ConverseReasoningContent(
+        reasoningText=(
+            None
+            if reasoning.redacted
+            else ConverseReasoningText(text=reasoning.reasoning)
+        ),
+        redactedContent=redacted_content,
+    )
+
+
 async def converse_contents(
     content: list[Content] | str, emulate_reasoning: bool = False
 ) -> list[ConverseMessageContent]:
@@ -1613,17 +1701,29 @@ async def converse_contents(
             elif c.type == "reasoning":
                 # claude needs emulation because signatures aren't propagated
                 if emulate_reasoning:
-                    result.append(
-                        ConverseMessageContent(text=reasoning_to_think_tag(c))
-                    )
-                else:
-                    result.append(
-                        ConverseMessageContent(
-                            reasoningContent=ConverseReasoningContent(
-                                reasoningText=ConverseReasoningText(text=c.reasoning)
+                    # a redacted block has no plaintext to emulate, only
+                    # opaque state that would reach the model as base64
+                    # attributes on an empty <think> tag
+                    if not c.redacted:
+                        # same reason the carrier is stripped even when there
+                        # is text: reasoning_to_think_tag encodes `internal`
+                        # into an attribute the model would then read
+                        emulated = (
+                            c.model_copy(update={"internal": None})
+                            if c.internal is not None
+                            else c
+                        )
+                        result.append(
+                            ConverseMessageContent(
+                                text=reasoning_to_think_tag(emulated)
                             )
                         )
-                    )
+                else:
+                    reasoning_content = converse_reasoning_content(c)
+                    if reasoning_content is not None:
+                        result.append(
+                            ConverseMessageContent(reasoningContent=reasoning_content)
+                        )
             else:
                 raise RuntimeError(f"Unsupported content type {c.type}")
 
