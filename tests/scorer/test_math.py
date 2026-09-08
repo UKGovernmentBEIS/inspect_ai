@@ -730,3 +730,31 @@ def test_symbolic_notations_score_the_same() -> None:
     # A genuinely different target must still score incorrect.
     result = _score_answer(r"\boxed{\frac{x}{2}}", ("x/3",))
     assert result.status == "incorrect"
+
+
+def test_real_only_identity_survives_symbol_normalization() -> None:
+    r"""The assumption normalization must not lose real-only identities.
+
+    sympy only proves sqrt(x**2) == Abs(x) under real=True; normalizing by
+    stripping that assumption regresses the LaTeX/LaTeX path that never had
+    the #5259 mismatch (review on #5266).
+    """
+    real_identities = [
+        (r"\boxed{\sqrt{x^2}}", r"|x|"),
+        (r"\boxed{\sqrt{x^{2}}}", r"\left|x\right|"),
+    ]
+    for completion, target in real_identities:
+        result = _score_answer(completion, (target,))
+        assert result.status == "correct", f"{completion!r} vs {target!r}"
+
+
+def test_symbol_promotion_does_not_rule_unequal_pairs_equal() -> None:
+    r"""Promoting bare symbols to real must not merge unequal pairs."""
+    unequal = [
+        (r"\boxed{x}", "y"),
+        (r"\boxed{1+i}", "2"),
+        (r"\boxed{\frac{x}{2}}", "x/3"),
+    ]
+    for completion, target in unequal:
+        result = _score_answer(completion, (target,))
+        assert result.status == "incorrect", f"{completion!r} vs {target!r}"

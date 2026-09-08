@@ -997,13 +997,13 @@ def _numeric_equivalent(left: Any, right: Any, sympy: Any) -> bool:
 
 
 def _normalized_symbols(expression: Any, sympy: Any) -> Any:
-    """Rewrite parser-attached symbol assumptions to bare symbols."""
-    bare = {
-        symbol: sympy.Symbol(symbol.name)
+    """Promote bare symbols to the real assumption the LaTeX parser attaches."""
+    promoted = {
+        symbol: sympy.Symbol(symbol.name, real=True)
         for symbol in expression.free_symbols
-        if symbol.assumptions0 != sympy.Symbol(symbol.name).assumptions0
+        if not symbol.assumptions0.get("real")
     }
-    return expression.xreplace(bare) if bare else expression
+    return expression.xreplace(promoted) if promoted else expression
 
 
 def _expression_equivalent(left: _ParsedValue, right: _ParsedValue, sympy: Any) -> bool:
@@ -1072,8 +1072,9 @@ def _expression_equivalent(left: _ParsedValue, right: _ParsedValue, sympy: Any) 
     # Parsers attach their own symbol assumptions (latex2sympy marks symbols
     # real/complex/finite, plain parsing leaves them bare), and equals()
     # treats the same name under different assumptions as different symbols.
-    # Normalize to bare symbols so a target written in plain notation scores
-    # the same as the LaTeX form of the same value.
+    # Promote bare symbols to the LaTeX parser's real assumption rather than
+    # stripping it: stripping loses real-only identities like
+    # sqrt(x^2) == |x|, which sympy only proves under real=True.
     left_expression = _normalized_symbols(left_expression, sympy)
     right_expression = _normalized_symbols(right_expression, sympy)
 
