@@ -37,7 +37,12 @@ from inspect_sandbox_tools._util.server_dir import (
     read_private_text,
     write_private_text,
 )
-from inspect_sandbox_tools._util.user_switch import get_home_dir, switch_user
+from inspect_sandbox_tools._util.user_switch import (
+    RunAs,
+    get_home_dir,
+    switch_target,
+    switch_user,
+)
 
 # Resource shutdown has a 30s graceful budget plus a 5s post-SIGKILL wait.
 # This 45s CLI deadline also leaves time for HTTP shutdown; LocalSandbox's 55s
@@ -184,20 +189,29 @@ async def _exec(request: str | None) -> None:
     # in-process tools leak this private location to their user subprocesses.
     os.environ.pop(SERVER_DIR_ENV, None)
 
-    # For in-process tools, extract _run_as_user and setuid before dispatching.
-    # The CLI is short-lived (one invocation per request), so in-process setuid is safe.
+    # For in-process tools, extract _run_as (a username or the sandbox default
+    # user's identity) and setuid before dispatching. The CLI is short-lived (one
+    # invocation per request), so in-process setuid is safe. HOME follows the user
+    # only when an identity switch happens, as in the server's tools.
     if tool_name in in_process_tools:
-        run_as_user = None
+        run_as: str | RunAs | None = None
         if isinstance(request_data.get("params"), dict):
-            run_as_user = request_data["params"].pop("_run_as_user", None)
-        if run_as_user is not None:
-            if not isinstance(run_as_user, str):
-                raise TypeError(
-                    f"_run_as_user must be a string, got {type(run_as_user).__name__}"
-                )
+            run_as_spec = request_data["params"].pop("_run_as", None)
+            if isinstance(run_as_spec, dict):
+                run_as = RunAs.model_validate(run_as_spec)
+            elif run_as_spec is not None:
+                if not isinstance(run_as_spec, str):
+                    raise TypeError(
+                        "_run_as must be a username or an identity object, "
+                        f"got {type(run_as_spec).__name__}"
+                    )
+                run_as = run_as_spec
+        if run_as is not None:
             request_json_str = json.dumps(request_data)
-            switch_user(run_as_user)
-            os.environ["HOME"] = get_home_dir(run_as_user)
+            target = switch_target(run_as, can_switch_user=os.getuid() == 0)
+            if target is not None:
+                switch_user(target)
+                os.environ["HOME"] = get_home_dir(target)
 
     response = await (
         _dispatch_local_method

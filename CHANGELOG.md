@@ -11,6 +11,7 @@
 - Agent bridge: Bridged OpenAI and Google requests with a malformed `tool_choice`/`toolConfig` now return a 400 naming the bad field instead of a status-less error, and a non-string tool name no longer poisons the sample transcript.
 - Sandboxes: Compose files using long syntax volume mounts, `pids_limit`, `read_only`, `cgroup`, `stop_grace_period`, `build.no_cache`, or `build.pull` no longer fail validation when starting an eval.
 - Sandbox Tools: The in-sandbox tool server's socket and control files now live inside the injected tools tree, out of reach of other users in the container.
+- Sandbox tools: `bash_session()`, `text_editor()`, `exec_remote()` and sandboxed MCP servers now run as the sandbox's default user instead of always as root; the three tools accept `user="root"` to restore the old behavior.
 
 ## 0.3.263 (03 September 2026)
 
