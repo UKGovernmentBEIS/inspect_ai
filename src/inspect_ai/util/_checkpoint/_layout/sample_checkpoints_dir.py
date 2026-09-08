@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TypeVar
 
 import anyio.to_thread
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from inspect_ai._util.asyncfiles import (
     get_async_filesystem,
@@ -129,19 +129,14 @@ async def scan_latest_committed_checkpoint(
     were present).
     """
     ids = await _list_checkpoint_ids(sample_checkpoints_dir)
-    async_fs = get_async_filesystem()
     for n in sorted(ids, reverse=True):
-        path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
         try:
-            raw = await async_fs.read_file(path)
-            return Checkpoint.model_validate_json(raw)
-        except (ValueError, FileNotFoundError):
-            # torn write (unparseable; ValidationError is a ValueError) or
-            # a file deleted since the listing — fall back to the next
-            # lower checkpoint. Anything else (e.g. a transient S3 error)
-            # propagates: this scan is a sample's only shot at resuming,
-            # and swallowing an I/O failure would silently run it fresh.
+            checkpoint = await _read_checkpoint_file(sample_checkpoints_dir, n)
+        except FileNotFoundError:
+            # Preserve latest-only scanning's tolerance for a concurrent delete.
             continue
+        if checkpoint is not None:
+            return checkpoint
     if ids:
         # checkpoint files present but none parse: callers treat the dir
         # as holding nothing committed, and that should not pass silently
@@ -152,6 +147,48 @@ async def scan_latest_committed_checkpoint(
             "committed checkpoint."
         )
     return None
+
+
+async def scan_committed_checkpoints(sample_checkpoints_dir: str) -> list[Checkpoint]:
+    """Return every checkpoint whose file parses cleanly, in ascending id order.
+
+    Same commit-point contract as :func:`scan_latest_committed_checkpoint`
+    (a torn-write file is silently skipped); the last element is that
+    function's result when files remain available during both scans.
+    Unlike the latest-only scan, a listed file disappearing is an error.
+    Resume uses the full list to decide which strategy
+    snapshots are acknowledged by a committed checkpoint — and deletes
+    the rest — so a file that cannot be *read* fails the scan rather
+    than passing as absent (see :func:`_read_checkpoint_file`).
+    """
+    ids = await _list_checkpoint_ids(sample_checkpoints_dir)
+    committed: list[Checkpoint] = []
+    for n in sorted(ids):
+        checkpoint = await _read_checkpoint_file(sample_checkpoints_dir, n)
+        if checkpoint is not None:
+            committed.append(checkpoint)
+    return committed
+
+
+async def _read_checkpoint_file(
+    sample_checkpoints_dir: str, n: int
+) -> Checkpoint | None:
+    """Read ``ckpt-NNNNN.json``; ``None`` if its contents don't validate.
+
+    Only a parse/validation failure is the torn-write case the commit
+    point contract skips. An I/O error (a throttled or reset remote GET)
+    propagates: treating an unreadable file as absent would present a
+    committed checkpoint as uncommitted to callers that act on the
+    result — orphan discard would delete its snapshot, the next fire
+    would reuse its id and overwrite it.
+    """
+    raw = await get_async_filesystem().read_file(
+        f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
+    )
+    try:
+        return Checkpoint.model_validate_json(raw)
+    except ValidationError:
+        return None
 
 
 async def delete_sample_checkpoints_dir(

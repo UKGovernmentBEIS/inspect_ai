@@ -147,6 +147,7 @@ All async test functions automatically run under both asyncio and trio backends 
 
 - **Do NOT use `@pytest.mark.asyncio`** — it conflicts with anyio and is blocked by conftest. Just write `async def test_...` and the hook handles the rest.
 - **Use `anyio.sleep()` not `asyncio.sleep()`** in tests; `anyio.Event()` not `asyncio.Event()`; `tg_collect()` not `asyncio.gather()`.
+- **Don't synchronize concurrent test tasks with a sleep** (e.g. sleeping so a sibling sample "has time to start") — it races on a loaded runner. Have the task being waited on set an `anyio.Event` and await that.
 - **Use `@skip_if_trio`** (from `test_helpers.utils`) for tests that cannot run under trio (e.g. they test asyncio-specific fallback paths).
 - **`@pytest.mark.anyio`** is not required but harmless — use it to signal intentional dual-backend coverage.
 - **Cancellation and ownership**: for an async change, run the affected
