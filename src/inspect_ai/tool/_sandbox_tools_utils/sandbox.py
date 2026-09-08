@@ -42,7 +42,10 @@ from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_with_injection,
 )
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.environment import (
+    SandboxDefaultUser,
+    SandboxEnvironment,
+)
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
@@ -58,6 +61,10 @@ logger = getLogger(__name__)
 
 
 TRACE_SANDBOX_TOOLS = "Sandbox Tools"
+
+
+class SandboxDefaultUserError(RuntimeError):
+    """A trustworthy tools install exists but the default exec identity could not be read."""
 
 
 class SandboxInjectionError(Exception):
@@ -142,10 +149,19 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     argv carries the whole verification script, so logging it would add kilobytes
     of identical shell to the transcript per call (the injection itself, which runs
     once per sandbox, is still recorded).
+
+    Raises:
+        SandboxDefaultUserError: A trustworthy root installation was found but the
+            default exec identity could not be read (see the handler below).
     """
     try:
         with _without_sandbox_events(sandbox):
             return await _detect_sandbox_tools(sandbox)
+    except SandboxDefaultUserError:
+        # The install is healthy, so reinjecting cannot fix this, and running the
+        # tools with no identity would misreport as a permission error. Nothing is
+        # cached, so the next call retries the probe.
+        raise
     except Exception as ex:
         # Broad catch is deliberate: detectors run against every candidate sandbox
         # and providers raise provider-specific types for an unusable one. Treat it
@@ -176,10 +192,10 @@ async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
         )
         installed = await _tools_installed_as(sandbox, None)
         if installed and isinstance(ex, FrameworkDirectoryUserError):
-            _set_tools_user(sandbox, None)
+            await _set_tools_user(sandbox, None)
         return installed
     if installed:
-        _set_tools_user(sandbox, "root")
+        await _set_tools_user(sandbox, "root")
     return installed
 
 
@@ -196,10 +212,16 @@ def _without_sandbox_events(
     return nullcontext()
 
 
-def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
-    """Record which user the sandbox tools run as (``None`` = default user)."""
+async def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
+    """Record which user the sandbox tools run as (``None`` = default user).
+
+    With a root tools user, also capture the default exec identity so tool calls
+    without an explicit user can run as it (see ``_detect_default_user``).
+    """
+    default_user = await _detect_default_user(sandbox) if user == "root" else None
     sandbox._tools_user = user
     sandbox._tools_user_resolved = True
+    sandbox._tools_default_user = default_user
 
 
 def _expected_uid(user: str | None) -> int | None:
@@ -269,12 +291,12 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         # uid owns is tightened to 0700 rather than refused: older releases left
         # rootless installs at 0755 (on the host, for the `local` sandbox).
         if await _create_tools_dir_as_root(sandbox):
-            _set_tools_user(sandbox, "root")
+            await _set_tools_user(sandbox, "root")
         else:
             await ensure_framework_directory(
                 sandbox, SANDBOX_TOOLS_DIR, user=None, repair_mode=True
             )
-            _set_tools_user(sandbox, None)
+            await _set_tools_user(sandbox, None)
 
         await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)
 
@@ -303,6 +325,18 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         ) from e
 
 
+# Root is only useful if it can switch users; e.g. `cap_drop: [ALL]` leaves root
+# without CAP_SETGID/CAP_SETUID, and a user namespace may deny setgroups(), so the
+# tools must run as the default user instead. Prints CapEff then the setgroups mode.
+_ROOT_PROBE_CMD = (
+    'while read k v; do case "$k" in Uid:|CapEff:) echo "$k $v";; esac; done'
+    " < /proc/self/status;"
+    " if [ -e /proc/self/setgroups ]; then read s < /proc/self/setgroups; else s=allow; fi;"
+    ' echo "setgroups: $s"'
+)
+_SWITCH_USER_CAPS = (1 << 6) | (1 << 7)  # CAP_SETGID | CAP_SETUID
+
+
 async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     """Prepare the tools dir as root; False if the sandbox cannot exec as root.
 
@@ -318,6 +352,29 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     planted the entry decide which user the tools run as.
     """
     try:
+        probe = await sandbox.exec(["/bin/sh", "-c", _ROOT_PROBE_CMD], user="root")
+        fields = _fields(probe.stdout)
+        if not probe.success or not fields.keys() >= {"Uid", "CapEff", "setgroups"}:
+            raise RuntimeError(f"root probe failed: {probe.stderr or probe.stdout!r}")
+        if fields["Uid"].split()[0] != "0":
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                "sandbox does not run commands as root; using default user",
+            )
+            return False
+        cap_eff, setgroups = fields["CapEff"].strip(), fields["setgroups"].strip()
+        if (
+            int(cap_eff, 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
+            or setgroups != "allow"
+        ):
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                f"root cannot switch users (CapEff {cap_eff}, setgroups {setgroups}); "
+                "falling back to default user",
+            )
+            return False
         await ensure_framework_directory(
             sandbox, SANDBOX_TOOLS_DIR, user="root", expected_uid=0
         )
@@ -342,6 +399,52 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
             f"root sandbox tools dir probe failed; falling back to default user: {ex}",
         )
         return False
+
+
+# Shell builtins only: numeric ids from /proc so uids with no passwd entry work.
+_DEFAULT_USER_CMD = (
+    'while read k v; do case "$k" in Uid:|Gid:|Groups:) echo "$k $v";; esac; done'
+    ' < /proc/self/status; echo "HOME: $HOME"; echo "HOME_SET: ${HOME+1}"'
+)
+
+
+async def _detect_default_user(sandbox: SandboxEnvironment) -> SandboxDefaultUser:
+    try:
+        result = await sandbox.exec(["/bin/sh", "-c", _DEFAULT_USER_CMD])
+    except Exception as ex:
+        raise SandboxDefaultUserError(
+            f"Failed to detect sandbox default user: {ex}"
+        ) from ex
+    if not result.success:
+        raise SandboxDefaultUserError(
+            f"Failed to detect sandbox default user: {result.stderr}"
+        )
+    try:
+        return _parse_default_user(result.stdout)
+    except (KeyError, IndexError, ValueError) as e:
+        raise SandboxDefaultUserError(
+            f"Failed to parse sandbox default user from {result.stdout!r}: {e!r}"
+        ) from e
+
+
+def _fields(output: str) -> dict[str, str]:
+    """`key: value` lines of a probe, keyed by name.
+
+    The last occurrence wins: a login banner prints before the probe output, so a
+    banner line that happens to look like a field cannot shadow the real value.
+    """
+    lines = output.splitlines()
+    return {k: v for k, _, v in (ln.partition(":") for ln in lines) if _}
+
+
+def _parse_default_user(output: str) -> SandboxDefaultUser:
+    fields = _fields(output)
+    return SandboxDefaultUser(
+        uid=int(fields["Uid"].split()[0]),
+        gid=int(fields["Gid"].split()[0]),
+        groups=[int(g) for g in fields["Groups"].split()],
+        home=fields["HOME"].strip() if fields["HOME_SET"].strip() == "1" else None,
+    )
 
 
 _EXTRACT_TIMEOUT = 600
@@ -556,16 +659,6 @@ def _binaries_dir() -> Path:
     return Path(inspect_ai.__file__).parent / "binaries"
 
 
-# Soft launch of digest verification: failures warn by default and are fatal
-# only when this env var is set (any value other than "", "0", "false"). A
-# follow-on release makes them fatal unconditionally and removes the var.
-STRICT_DIGESTS_VAR = "INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS"
-
-
-def _strict_digests() -> bool:
-    return os.environ.get(STRICT_DIGESTS_VAR, "").lower() not in ("", "0", "false")
-
-
 async def _download_from_s3(filename: str) -> bool:
     """Download executable from S3, verified against the vendored SHA256SUMS.
 
@@ -573,25 +666,20 @@ async def _download_from_s3(filename: str) -> bool:
     (403/404 — not yet published; the caller falls through to the local-build
     tier). A digest mismatch or a missing sums entry must never be conflated
     with "missing" — they are the tampering/corruption signals this
-    verification exists to surface. With ``STRICT_DIGESTS_VAR`` set they raise
-    (reaching the user wrapped in SandboxInjectionError); by default they log
-    a warning and the unverified bytes are used anyway.
+    verification exists to surface. They raise ``PrerequisiteError`` (reaching
+    the user wrapped in SandboxInjectionError) with nothing written to the
+    binaries directory.
     """
-    expected_sha256: str | None
     try:
         # Raises if the sums file is unreadable or has no entry for this name —
         # deliberately before any network I/O.
         expected_sha256 = lookup_digest(filename)
     except RuntimeError as e:
-        if _strict_digests():
-            raise
-        warn_once(
-            logger,
-            f"Sandbox tools digest lookup failed ({e}); downloading without "
-            f"verification. This will become a fatal error in a future "
-            f"release; set {STRICT_DIGESTS_VAR}=1 to make it fatal now.",
-        )
-        expected_sha256 = None
+        raise PrerequisiteError(
+            f"Cannot verify sandbox tools executable {filename}: {e} If "
+            f"reinstalling inspect_ai does not resolve this, report it to the "
+            f"inspect_ai maintainers rather than retrying."
+        ) from e
 
     binaries_path = _binaries_dir()
     binaries_path.mkdir(exist_ok=True)
@@ -599,38 +687,21 @@ async def _download_from_s3(filename: str) -> bool:
     url = f"{_BUCKET_BASE_URL}/{filename}"
 
     try:
-        if expected_sha256 is not None:
-            try:
-                await anyio.to_thread.run_sync(
-                    _download_and_verify_blocking,
-                    url,
-                    expected_sha256,
-                    executable_path,
-                )
-                return True
-            except ValueError as e:
-                message = (
-                    f"Digest verification failed for {filename} downloaded from "
-                    f"S3: {e}. The published artifact does not match the digest "
-                    f"pinned in this inspect_ai release, which may indicate a "
-                    f"compromised or corrupted artifact — please report this to "
-                    f"the inspect_ai maintainers rather than retrying."
-                )
-                if _strict_digests():
-                    raise PrerequisiteError(message) from e
-                warn_once(
-                    logger,
-                    f"{message} Proceeding with the unverified artifact. This "
-                    f"will become a fatal error in a future release; set "
-                    f"{STRICT_DIGESTS_VAR}=1 to make it fatal now.",
-                )
-        # Unverified download — no pinned digest, or verification failed and
-        # strict mode is off (download() discarded the mismatching bytes, so
-        # fetch again without verification).
         await anyio.to_thread.run_sync(
-            _download_unverified_blocking, url, executable_path
+            _download_and_verify_blocking,
+            url,
+            expected_sha256,
+            executable_path,
         )
         return True
+    except ValueError as e:
+        raise PrerequisiteError(
+            f"Digest verification failed for {filename} downloaded from "
+            f"S3: {e}. The published artifact does not match the digest "
+            f"pinned in this inspect_ai release, which may indicate a "
+            f"compromised or corrupted artifact — please report this to "
+            f"the inspect_ai maintainers rather than retrying."
+        ) from e
     except httpx.HTTPStatusError as e:
         if e.response.status_code in (403, 404):
             print(f"Executable '{filename}' not found on S3")
@@ -656,29 +727,6 @@ def _download_and_verify_blocking(url: str, sha256: str, dest: Path) -> None:
     tmp = Path(tmp_path)
     try:
         download(url, sha256, tmp, timeout=60)
-        tmp.chmod(0o755)
-        os.replace(tmp, dest)
-    finally:
-        tmp.unlink(missing_ok=True)
-
-
-def _download_unverified_blocking(url: str, dest: Path) -> None:
-    """Download ``url`` to ``dest`` with no digest check (blocking).
-
-    Soft-launch fallback only (see ``_download_from_s3``). Same unique-tempfile
-    + ``os.replace`` discipline as ``_download_and_verify_blocking``.
-
-    Raises ``httpx.HTTPStatusError`` on HTTP errors (no transient retries).
-    """
-    fd, tmp_path = tempfile.mkstemp(prefix=f"{dest.name}.", dir=dest.parent)
-    os.close(fd)
-    tmp = Path(tmp_path)
-    try:
-        with httpx.stream("GET", url, timeout=60, follow_redirects=True) as response:
-            response.raise_for_status()
-            with open(tmp, "wb") as f:
-                for chunk in response.iter_bytes():
-                    f.write(chunk)
         tmp.chmod(0o755)
         os.replace(tmp, dest)
     finally:
