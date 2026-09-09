@@ -19,9 +19,9 @@ from inspect_ai.util._sandbox._framework_directory import (
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
-    SHELL_PATH,
     FrameworkDirectoryError,
 )
+from inspect_ai.util._sandbox._privileged import SHELL_PATH
 from inspect_ai.util._sandbox.environment import (
     SandboxDefaultUser,
     SandboxEnvironment,

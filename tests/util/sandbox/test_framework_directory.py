@@ -31,7 +31,6 @@ from inspect_ai.util._sandbox._framework_directory import (
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
     _WRITE_ENTRY,
-    SHELL_PATH,
     FrameworkDirectoryError,
     FrameworkDirectoryNotFoundError,
     FrameworkDirectoryUnavailableError,
@@ -48,6 +47,7 @@ from inspect_ai.util._sandbox._framework_directory import (
     verify_framework_directory,
     write_file_in_framework_directory,
 )
+from inspect_ai.util._sandbox._privileged import SHELL_PATH
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,

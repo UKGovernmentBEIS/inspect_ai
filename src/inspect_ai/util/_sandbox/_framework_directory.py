@@ -79,26 +79,6 @@ from inspect_ai.util._subprocess import ExecResult
 from ._privileged import SHELL_PATH, SYSTEM_PATH, pinned_env
 from .environment import SandboxEnvironment
 
-__all__ = [
-    "SHELL_PATH",
-    "FrameworkDirectoryError",
-    "FrameworkDirectoryNotFoundError",
-    "FrameworkDirectoryUnavailableError",
-    "FrameworkDirectoryUserError",
-    "FrameworkPath",
-    "split_framework_path",
-    "DEFAULT_MODE",
-    "expected_uid_for",
-    "framework_directory_mode",
-    "ensure_framework_directory",
-    "try_ensure_framework_directory_as_root",
-    "verify_framework_directory",
-    "exec_in_framework_directory",
-    "stat_in_framework_directory",
-    "framework_file_mode",
-    "write_file_in_framework_directory",
-]
-
 logger = getLogger(__name__)
 
 # The script reports a verdict with a marker line on stderr and announces successful
