@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -22,6 +23,12 @@ from inspect_ai.util._checkpoint._host_egress import (
     host_egress,
     seed_manifest,
 )
+from inspect_ai.util._checkpoint._layout._paths import sample_dir_segment
+from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
+    ensure_sample_checkpoints_dir,
+    sample_checkpoints_dir,
+    write_checkpoint_file,
+)
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint._resume_copy import (
     _SAMPLE_FILE_COPY_CONCURRENCY,
@@ -29,6 +36,7 @@ from inspect_ai.util._checkpoint._resume_copy import (
     copy_resume_payloads,
 )
 from inspect_ai.util._checkpoint.hydrate import _inherit_restic_config
+from inspect_ai.util._checkpoint.resume import resolve_resume_checkpoint
 
 S3_BUCKET = "s3://test-bucket"
 
@@ -37,25 +45,25 @@ async def _put(fs: AsyncFilesystem, uri: str, content: bytes) -> None:
     await fs.write_file(uri, content)
 
 
-def _checkpoint_bytes(checkpoint_id: int) -> bytes:
-    return (
-        Checkpoint(
-            checkpoint_id=checkpoint_id,
-            trigger="turn",
-            turn=checkpoint_id,
-            created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
-            duration_ms=10,
+def _checkpoint(checkpoint_id: int) -> Checkpoint:
+    return Checkpoint(
+        checkpoint_id=checkpoint_id,
+        trigger="turn",
+        turn=checkpoint_id,
+        created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
+        duration_ms=10,
+        size_bytes=100 + checkpoint_id,
+        host=SnapshotDetails(
+            snapshot_id=f"snap-{checkpoint_id}",
             size_bytes=100 + checkpoint_id,
-            host=SnapshotDetails(
-                snapshot_id=f"snap-{checkpoint_id}",
-                size_bytes=100 + checkpoint_id,
-                duration_ms=10,
-            ),
-            sandboxes={},
-        )
-        .model_dump_json()
-        .encode()
+            duration_ms=10,
+        ),
+        sandboxes={},
     )
+
+
+def _checkpoint_bytes(checkpoint_id: int) -> bytes:
+    return _checkpoint(checkpoint_id).model_dump_json().encode()
 
 
 async def test_copy_payload_files_downloads_from_s3(
@@ -312,11 +320,58 @@ async def test_copy_resume_payloads_refuses_sample_dir_named_dotdot(
     async with AsyncFilesystem() as fs:
         await _put(fs, f"{source_eval}/s__0/restic/host/config", b"cfg")
         await _put(fs, f"{source_eval}/../x__1/ckpt-00001.json", _checkpoint_bytes(1))
-        with pytest.raises(ValueError, match=r"'\.\.' is not allowed"):
+        with pytest.raises(ValueError, match=r"'\.\.' is not allowed") as excinfo:
             await copy_resume_payloads(
                 source_eval_dir=source_eval,
                 destination_eval_dir=str(dest_eval),
             )
 
+    # The error names the offending dir and the remedy: the startup copy
+    # never skips silently, so this recurs on every retry until it is removed.
+    assert "'..'" in str(excinfo.value)
+    assert "Remove that directory" in str(excinfo.value)
     assert not (dest_eval / "s__0").exists()
     _assert_nothing_outside(dest_eval)
+
+
+async def test_hashed_sample_dir_round_trips_through_s3(
+    tmp_path: Path, mock_s3: None
+) -> None:
+    """A hashed (``~``-joined) sample dir name works end to end on S3.
+
+    ``~`` is on AWS's "characters to avoid" list for object keys, so
+    prove the write path, the resume lookup and the startup copy agree
+    on a hashed segment through the real S3 client rather than only on
+    the string they compute.
+    """
+    old_eval = f"{S3_BUCKET}/hashed-{uuid4().hex}.checkpoints"
+    new_eval = f"{S3_BUCKET}/hashed-{uuid4().hex}.checkpoints"
+    sample_id = "task/variant-3"
+    segment = f"{sample_dir_segment(sample_id)}__0"
+    assert "~" in segment
+
+    async with AsyncFilesystem() as fs:
+        sample_dir = await ensure_sample_checkpoints_dir(old_eval, sample_id, 0)
+        assert sample_dir == f"{old_eval}/{segment}"
+        assert sample_dir == sample_checkpoints_dir(old_eval, sample_id, 0)
+        assert await resolve_resume_checkpoint(old_eval, sample_id, 0) is None
+
+        await write_checkpoint_file(
+            sample_checkpoints_dir=sample_dir, checkpoint=_checkpoint(1)
+        )
+        await _put(fs, f"{sample_dir}/restic/host/config", b"cfg")
+        resume = await resolve_resume_checkpoint(old_eval, sample_id, 0)
+        assert resume is not None and resume.attempt == "resume"
+
+        await copy_resume_payloads(
+            source_eval_dir=old_eval, destination_eval_dir=new_eval
+        )
+
+        new_sample_dir = f"{new_eval}/{segment}"
+        copied = Checkpoint.model_validate_json(
+            await fs.read_file(f"{new_sample_dir}/ckpt-00001.json")
+        )
+        assert copied.checkpoint_id == 1
+        assert await fs.read_file(f"{new_sample_dir}/restic/host/config") == b"cfg"
+        resume = await resolve_resume_checkpoint(new_eval, sample_id, 0)
+        assert resume is not None and resume.attempt == "resume"

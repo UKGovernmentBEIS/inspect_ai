@@ -128,7 +128,9 @@ async def _dir_names(base: str) -> list[str]:
     Each name is joined onto the destination eval dir, and the listing is
     untrusted (an object store yields whatever keys the prefix holds), so
     a name that is not one contained path component raises rather than
-    walking the copy out of the destination.
+    walking the copy out of the destination. The startup copy never skips
+    silently, so the error names the dir and the remedy (remove it from the
+    source), since it recurs on every retry until then.
     """
     names: list[str] = []
     try:
@@ -139,7 +141,8 @@ async def _dir_names(base: str) -> list[str]:
             except ValueError as exc:
                 raise ValueError(
                     f"resume copy: sample dir name {name!r} under {base} "
-                    f"cannot be copied: {exc}"
+                    f"cannot be copied: {exc}. Remove that directory from the "
+                    "source checkpoints dir to retry."
                 ) from exc
             names.append(name)
     except FileNotFoundError:

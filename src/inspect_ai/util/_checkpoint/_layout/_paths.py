@@ -19,7 +19,6 @@ single segment) instead of becoming a traversal.
 from __future__ import annotations
 
 import hashlib
-from pathlib import PurePosixPath
 
 from inspect_ai._util.file import safe_filename
 
@@ -63,7 +62,7 @@ def contained_component(name: str) -> str:
     return name
 
 
-def contained_relative(rel: str) -> PurePosixPath:
+def contained_relative(rel: str) -> None:
     """Validate ``rel`` as a relative path that cannot escape its join root.
 
     Accepts ``rel`` only if it is not absolute and every ``/``-separated
@@ -72,6 +71,9 @@ def contained_relative(rel: str) -> PurePosixPath:
     leading, trailing or doubled slash) is rejected rather than
     normalized away: a doubled slash in a remote key is exactly the
     shape that turns the remainder absolute.
+
+    Validate-only: callers join the very string they validated, so
+    nothing is returned that could drift from it.
 
     Raises:
         ValueError: naming the offending component.
@@ -85,7 +87,6 @@ def contained_relative(rel: str) -> PurePosixPath:
             contained_component(component)
         except ValueError as exc:
             raise ValueError(f"path {rel!r} is not contained: {exc}") from exc
-    return PurePosixPath(rel)
 
 
 def sample_dir_segment(sample_id: int | str) -> str:

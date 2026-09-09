@@ -774,7 +774,9 @@ def test_warn_if_sample_dir_renamed_fires_once_per_process(
         hydrate_mod._warn_if_sample_dir_renamed("plain-id")
         hydrate_mod._warn_if_sample_dir_renamed(42)
         assert not [
-            r for r in caplog.records if "cannot name a directory" in r.getMessage()
+            r
+            for r in caplog.records
+            if "is not used as its checkpoint directory name" in r.getMessage()
         ]
 
         hydrate_mod._warn_if_sample_dir_renamed("task/1")
@@ -784,7 +786,7 @@ def test_warn_if_sample_dir_renamed_fires_once_per_process(
     warnings = [
         r.getMessage()
         for r in caplog.records
-        if "cannot name a directory" in r.getMessage()
+        if "is not used as its checkpoint directory name" in r.getMessage()
     ]
     assert len(warnings) == 1
     assert "'task/1'" in warnings[0]

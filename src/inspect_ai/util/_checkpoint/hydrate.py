@@ -215,10 +215,11 @@ thread, so two samples cannot race here.
 def _warn_if_sample_dir_renamed(sample_id: int | str) -> None:
     """Warn once per process when a sample id is not its checkpoint dir name.
 
-    ``sample_dir_segment`` rewrites an id that cannot be one directory name
-    (a ``/``, ``..``, ``~``, or over 200 bytes) to a hashed segment. Ids
-    with a ``/`` used to nest a level down and resume from there, so after
-    an upgrade their earlier checkpoints are not found. The warning makes
+    ``sample_dir_segment`` rewrites an id that is not used verbatim as a
+    directory name (one with a slash, backslash, NUL or the reserved ``~``,
+    ``.``/``..``, or over 200 bytes) to a hashed segment. Ids with a ``/``
+    used to nest a level down and resume from there, so after an upgrade
+    their earlier checkpoints are not found. The warning makes
     that visible at fresh provision, the moment a new name is first used;
     it names the first such id and fires once, because an id shape like
     ``owner/task`` usually runs through a whole dataset and one warning per
@@ -238,8 +239,9 @@ def _warn_if_sample_dir_renamed(sample_id: int | str) -> None:
         return
     _sample_dir_rename_warned = True
     logger.warning(
-        f"checkpoint: sample id {str(sample_id)!r} cannot name a directory; "
-        f"its checkpoints are stored under {segment!r} (further ids like it are "
+        f"checkpoint: sample id {str(sample_id)!r} is not used as its checkpoint "
+        f"directory name; its checkpoints are stored under {segment!r} (further "
+        "ids like it are "
         "recorded in the trace log). Checkpoints written by earlier versions "
         "under the raw id are not resumed."
     )

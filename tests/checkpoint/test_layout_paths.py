@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import re
-from pathlib import PurePosixPath
 
 import pytest
 
@@ -29,8 +28,8 @@ from inspect_ai.util._checkpoint._layout._paths import (
     ],
 )
 def test_contained_relative_accepts_plain_relative_paths(rel: str) -> None:
-    assert contained_relative(rel) == PurePosixPath(rel)
-    assert contained_relative(rel).as_posix() == rel
+    """Validate-only: an accepted path simply does not raise."""
+    contained_relative(rel)
 
 
 @pytest.mark.parametrize(
