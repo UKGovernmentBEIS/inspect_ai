@@ -617,3 +617,20 @@ async def test_i_dont_know_should_not_mark_choices():
     new_state = await solver(state=state, generate=generate_i_dont_know)
 
     assert choices_marked_correct(new_state.choices) == set()
+
+
+def test_choices_multiple_shuffles_preserve_original_positions() -> None:
+    from inspect_ai.solver._task_state import Choices
+
+    choices = Choices(["A", "B", "C", "D"])
+    assert [c.original_position for c in choices] == [0, 1, 2, 3]
+
+    # First shuffle
+    choices.shuffle(Random(42))
+    val_to_orig = {c.value: c.original_position for c in choices}
+    assert val_to_orig == {"A": 0, "B": 1, "C": 2, "D": 3}
+
+    # Second shuffle
+    choices.shuffle(Random(123))
+    val_to_orig = {c.value: c.original_position for c in choices}
+    assert val_to_orig == {"A": 0, "B": 1, "C": 2, "D": 3}

@@ -557,6 +557,7 @@ def test_claude_4_6_opus(model_name: str) -> None:
         # Bedrock
         "anthropic.claude-opus-5",
         "anthropic.claude-fable-5",
+        "anthropic.claude-fable-5-1",
         # Point releases (hyphen + dot forms)
         "claude-fable-5-1",
         "claude-mythos-5-1",

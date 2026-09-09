@@ -6,12 +6,12 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
 from urllib.parse import urlparse
 from zipfile import ZipFile
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import override
+from typing_extensions import NotRequired, TypedDict, override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
@@ -36,19 +36,25 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
-class Segment(BaseModel):
+class Segment(TypedDict):
+    # Not a BaseModel: a manifest holds tens of thousands of these, and each
+    # model is two GC-tracked objects where a dict of scalars is tracked none.
     id: int
     last_event_id: int
     last_attachment_id: int
-    last_message_pool_id: int = 0
-    last_call_pool_id: int = 0
+    # Absent in manifests written before #3681. Pydantic fills the default on
+    # validation, so a legacy manifest is rewritten with them present; only
+    # hand-built segments can lack the keys, hence .get() at the read sites.
+    last_message_pool_id: NotRequired[Annotated[int, Field(default=0)]]
+    last_call_pool_id: NotRequired[Annotated[int, Field(default=0)]]
 
 
-class SampleSegment(Segment):
-    # Same shape as Segment, but scoped to one sample's contribution.
-    pass
+# A segment scoped to one sample's contribution. Identical shape, so this is an
+# alias: narrow the union below on `isinstance(x, dict)`, never on SampleSegment
+# -- isinstance against a TypedDict raises TypeError.
+SampleSegment: TypeAlias = Segment
 
-
+# Manifests written before #4207 store a bare segment id here instead.
 SampleSegmentEntry: TypeAlias = int | SampleSegment
 
 
@@ -90,13 +96,13 @@ def _find_sample(
 
 
 def sample_segment_id(segment: SampleSegmentEntry) -> int:
-    return segment if isinstance(segment, int) else segment.id
+    return segment if isinstance(segment, int) else segment["id"]
 
 
 def sample_segment_cursor(
     segment: SampleSegmentEntry, segments_by_id: dict[int, Segment]
 ) -> Segment | None:
-    if isinstance(segment, SampleSegment):
+    if isinstance(segment, dict):
         return segment
     return segments_by_id.get(segment)
 
@@ -132,7 +138,7 @@ def segments_for_sample_cursor(
     after_message_pool = max(0, after_message_pool_id or 0)
     after_call_pool = max(0, after_call_pool_id or 0)
 
-    segments_by_id = {s.id: s for s in manifest.segments}
+    segments_by_id = {s["id"]: s for s in manifest.segments}
     matching: list[Segment] = []
     seen_ids: set[int] = set()
     for sample_segment in sample.segments:
@@ -142,19 +148,17 @@ def segments_for_sample_cursor(
         segment = segments_by_id.get(segment_id)
         if segment is None:
             continue
-        cursor = (
-            sample_segment if isinstance(sample_segment, SampleSegment) else segment
-        )
+        cursor = segment if isinstance(sample_segment, int) else sample_segment
         if (
-            cursor.last_event_id > after_event
-            or cursor.last_attachment_id > after_attachment
-            or cursor.last_message_pool_id > after_message_pool
-            or cursor.last_call_pool_id > after_call_pool
+            cursor["last_event_id"] > after_event
+            or cursor["last_attachment_id"] > after_attachment
+            or cursor.get("last_message_pool_id", 0) > after_message_pool
+            or cursor.get("last_call_pool_id", 0) > after_call_pool
         ):
             seen_ids.add(segment_id)
             matching.append(segment)
 
-    return sorted(matching, key=lambda s: s.id)
+    return sorted(matching, key=lambda s: s["id"])
 
 
 @dataclass(frozen=True)
@@ -255,7 +259,9 @@ class SampleBufferFilestore(SampleBuffer):
                 f.write(data)
 
     def write_manifest(self, manifest: Manifest) -> None:
-        self._write_bytes(self._manifest_file(), to_json_safe(manifest))
+        # Machine-read only, so no indentation. Set here rather than in
+        # to_json_safe, whose bytes are hashed for the eval-set task identifier.
+        self._write_bytes(self._manifest_file(), to_json_safe(manifest, indent=None))
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
         # write the file locally
@@ -359,14 +365,15 @@ class SampleBufferFilestore(SampleBuffer):
             return
 
         sample_segment_ids = {sample_segment_id(segment) for segment in sample.segments}
-        for segment in sorted(manifest.segments, key=lambda s: s.id):
-            if segment.id not in sample_segment_ids:
+        for segment in sorted(manifest.segments, key=lambda s: s["id"]):
+            segment_id = segment["id"]
+            if segment_id not in sample_segment_ids:
                 continue
             try:
-                data = self.read_segment_data(segment.id, id, epoch)
-                yield (segment.id, data)
+                data = self.read_segment_data(segment_id, id, epoch)
+                yield (segment_id, data)
             except Exception as ex:
-                logger.warning(f"Skipping segment {segment.id}: {ex}")
+                logger.warning(f"Skipping segment {segment_id}: {ex}")
 
     @override
     def cleanup(self) -> None:
@@ -460,7 +467,7 @@ class SampleBufferFilestore(SampleBuffer):
                 events=[], attachments=[], message_pool=[], call_pool=[]
             )
             for segment in segments:
-                data = self.read_segment_data(segment.id, id, epoch)
+                data = self.read_segment_data(segment["id"], id, epoch)
                 sample_data.events.extend(data.events)
                 sample_data.attachments.extend(data.attachments)
                 sample_data.message_pool.extend(data.message_pool)
@@ -581,8 +588,8 @@ class SampleBufferFilestore(SampleBuffer):
         member_name = segment_file_name(sample.summary.id, sample.summary.epoch)
         locations = [
             SegmentLocation(
-                id=seg.id,
-                path=f"{self._dir}{segment_name(seg.id)}",
+                id=seg["id"],
+                path=f"{self._dir}{segment_name(seg['id'])}",
                 member_name=member_name,
             )
             for seg in segments

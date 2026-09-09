@@ -12,7 +12,10 @@ from ..extract import list_as_str, remove_namespace
 from ..validate import resolved_schema
 from .extract import (
     eval_log_headline_metric,
+    eval_log_headline_name,
+    eval_log_headline_score,
     eval_log_headline_stderr,
+    eval_log_headline_value,
     eval_log_location,
     eval_log_scores_dict,
     eval_log_task_display_name,
@@ -124,9 +127,10 @@ EvalResults: list[Column] = [
     EvalColumn("error_traceback", path="error.traceback"),
     EvalColumn("total_samples", path="results.total_samples"),
     EvalColumn("completed_samples", path="results.completed_samples"),
-    EvalColumn("score_headline_name", path="results.scores[0].scorer"),
+    EvalColumn("score_headline_name", path=eval_log_headline_name),
+    EvalColumn("score_headline_score", path=eval_log_headline_score),
     EvalColumn("score_headline_metric", path=eval_log_headline_metric),
-    EvalColumn("score_headline_value", path="results.scores[0].metrics.*.value"),
+    EvalColumn("score_headline_value", path=eval_log_headline_value),
     EvalColumn("score_headline_stderr", path=eval_log_headline_stderr),
 ]
 """Eval results columns."""

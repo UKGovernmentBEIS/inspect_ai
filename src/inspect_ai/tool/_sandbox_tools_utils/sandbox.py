@@ -1,10 +1,11 @@
 import gzip
 import os
+import stat
 import subprocess
 import sys
 import tempfile
 import warnings
-from contextlib import asynccontextmanager
+from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from importlib import resources
 from logging import getLogger
 from pathlib import Path
@@ -23,13 +24,32 @@ from inspect_ai._util.package import get_package_direct_url
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util import input_screen
 from inspect_ai.util._concurrency import concurrency
-from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
+from inspect_ai.util._sandbox._cli import (
+    SANDBOX_CLI,
+    SANDBOX_TOOLS_BASE_NAME,
+    SANDBOX_TOOLS_DIR,
+)
+from inspect_ai.util._sandbox._framework_directory import (
+    FrameworkDirectoryError,
+    FrameworkDirectoryNotFoundError,
+    FrameworkDirectoryUnavailableError,
+    FrameworkDirectoryUserError,
+    ensure_framework_directory,
+    exec_in_framework_directory,
+    expected_uid_for,
+    stat_in_framework_directory,
+    try_ensure_framework_directory_as_root,
+    verify_framework_directory,
+)
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
-    sandbox_file_detector,
     sandbox_with_injection,
 )
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.environment import (
+    SandboxDefaultUser,
+    SandboxEnvironment,
+)
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
 from ._build_config import (
@@ -44,6 +64,10 @@ logger = getLogger(__name__)
 
 
 TRACE_SANDBOX_TOOLS = "Sandbox Tools"
+
+
+class SandboxDefaultUserError(RuntimeError):
+    """A trustworthy tools install exists but the default exec identity could not be read."""
 
 
 class SandboxInjectionError(Exception):
@@ -88,12 +112,144 @@ async def sandbox_with_injected_tools(
     """
     return await sandbox_with_injection(
         SandboxInjectable(
-            sandbox_file_detector(SANDBOX_CLI),
+            _sandbox_tools_installed,
             _inject_container_tools_code,
         ),
         name=sandbox_name,
         target=sandbox,
     )
+
+
+async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
+    """Detect a trustworthy existing sandbox-tools installation.
+
+    An installation is reused only when ``SANDBOX_TOOLS_DIR`` satisfies the
+    framework-directory contract for the tools user and the launcher inside it is a
+    regular file. A merely readable launcher is not enough: a tree owned by another
+    principal could substitute its own launcher.
+
+    The tools user is known once an injection has run on this sandbox object (root
+    when the sandbox can exec as root, otherwise the default user). Before that (a
+    fresh object attached to a sandbox that may already hold an installation) the
+    check runs as root first, because a root-owned 0700 tree cannot even be entered
+    by the default user; a trustworthy root installation found that way is adopted
+    by recording root as the tools user. Only when the sandbox cannot exec as root
+    at all (it refuses the user, or silently runs the command as someone else) is the
+    default user's view consulted. A trustworthy installation found there is used for
+    this call, but the default user is recorded as the tools user only when the root
+    failure was definitive: the helper's uid-mismatch verdict, which says the provider
+    ran the command as someone else and will keep doing so. A provider exception or a
+    failing exit status may be transient on a root-capable sandbox, and pinning on it
+    would let a tree the agent planted under its own uid be adopted for the rest of
+    the sample; instead the next call probes root again, root sees the planted tree as
+    a violation, and injection fails loud. The cost falls only on providers that
+    refuse root by exception: one failing root exec per tool call until injection
+    runs on this object and records the tools user itself. When the default user's
+    view finds an existing installation, injection never runs on this object, so
+    the extra exec repeats for the object's lifetime.
+
+    The probe records no transcript events: it repeats on every tool call and its
+    argv carries the whole verification script, so logging it would add kilobytes
+    of identical shell to the transcript per call (the injection itself, which runs
+    once per sandbox, is still recorded).
+
+    Raises:
+        SandboxDefaultUserError: A trustworthy root installation was found but the
+            default exec identity could not be read (see the handler below).
+    """
+    try:
+        with _without_sandbox_events(sandbox):
+            return await _detect_sandbox_tools(sandbox)
+    except SandboxDefaultUserError:
+        # The install is healthy, so reinjecting cannot fix this, and running the
+        # tools with no identity would misreport as a permission error. Nothing is
+        # cached, so the next call retries the probe.
+        raise
+    except Exception as ex:
+        # Broad catch is deliberate: detectors run against every candidate sandbox
+        # and providers raise provider-specific types for an unusable one. Treat it
+        # as "not installed"; injection then surfaces any real failure.
+        trace_message(logger, TRACE_SANDBOX_TOOLS, f"tools detection failed: {ex}")
+        return False
+
+
+async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
+    if sandbox._tools_user_resolved or sandbox._tools_user is not None:
+        return await _tools_installed_as(sandbox, sandbox._tools_user)
+
+    try:
+        installed = await _tools_installed_as(sandbox, "root")
+    except FrameworkDirectoryUnavailableError:
+        raise
+    except Exception as ex:
+        # Broad catch is deliberate: providers signal "cannot exec as root" by
+        # raising provider-specific exception types or by a failing exit status
+        # (which the helper reports as a RuntimeError when its check never ran).
+        # Only the uid-mismatch verdict is a definitive "this sandbox has no root";
+        # anything else may be transient, so it must not pin the tools user (see
+        # the docstring above).
+        trace_message(
+            logger,
+            TRACE_SANDBOX_TOOLS,
+            f"root tools detection failed; checking as default user: {ex}",
+        )
+        installed = await _tools_installed_as(sandbox, None)
+        if installed and isinstance(ex, FrameworkDirectoryUserError):
+            await _set_tools_user(sandbox, None)
+        return installed
+    if installed:
+        await _set_tools_user(sandbox, "root")
+    return installed
+
+
+def _without_sandbox_events(
+    sandbox: SandboxEnvironment,
+) -> AbstractContextManager[None]:
+    """Suppress transcript events for commands run on ``sandbox`` inside the block.
+
+    Only the event-recording proxy that wraps sample sandboxes emits events; any
+    other sandbox object (a provider used directly, or a test fake) needs nothing.
+    """
+    if isinstance(sandbox, SandboxEnvironmentProxy):
+        return sandbox.no_events()
+    return nullcontext()
+
+
+async def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
+    """Record which user the sandbox tools run as (``None`` = default user).
+
+    With a root tools user, also capture the default exec identity so tool calls
+    without an explicit user can run as it (see ``_detect_default_user``).
+    """
+    default_user = await _detect_default_user(sandbox) if user == "root" else None
+    sandbox._tools_user = user
+    sandbox._tools_user_resolved = True
+    sandbox._tools_default_user = default_user
+
+
+async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> bool:
+    """Check for a trustworthy installation from ``user``'s point of view.
+
+    Returns False when the tools directory is missing, violates the contract, or
+    does not hold a regular-file launcher (injection then creates it, fails loudly,
+    or re-extracts; a symlink at the launcher name reports its own type and is
+    rejected). Raises when the check did not run (the provider cannot exec as
+    ``user``) or could not be performed.
+    """
+    try:
+        st_mode = await stat_in_framework_directory(
+            sandbox,
+            SANDBOX_TOOLS_DIR,
+            SANDBOX_TOOLS_BASE_NAME,
+            user=user,
+            expected_uid=expected_uid_for(user),
+        )
+    except FrameworkDirectoryNotFoundError:
+        return False
+    except FrameworkDirectoryError as ex:
+        trace_message(logger, TRACE_SANDBOX_TOOLS, f"tools dir not reusable: {ex}")
+        return False
+    return st_mode is not None and stat.S_ISREG(st_mode)
 
 
 async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
@@ -104,32 +260,34 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         async with _open_executable_for_arch(info["architecture"], musl) as (name, f):
             gz_bytes = f.read()  # gzipped tar of the PyInstaller --onedir tree
 
-        # Create the install dir as root if possible so the tree is root-owned and
-        # can be hidden from the agent; fall back to the default user for rootless
-        # sandboxes (where user-switching will be disabled, auto-detected by the
-        # server).
+        # Prepare the install dir as root if possible; fall back to the default user
+        # for rootless sandboxes (where user-switching will be disabled,
+        # auto-detected by the server). Either way the directory is verified to be a
+        # real directory owned by that user with mode 0700 before anything is
+        # extracted into it. A root-owned 0700 tree prevents access by other,
+        # non-root users, but not by a process running in the sandbox as root. In a
+        # rootless sandbox the agent shares the tools user's uid, so a directory that
+        # uid owns is tightened to 0700 rather than refused: older releases left
+        # rootless installs at 0755 (on the host, for the `local` sandbox).
         if await _create_tools_dir_as_root(sandbox):
-            sandbox._tools_user = "root"
+            await _set_tools_user(sandbox, "root")
         else:
-            result = await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR])
-            if not result.success:
-                raise RuntimeError(
-                    f"Failed to create sandbox tools dir: {result.stderr}"
-                )
+            await ensure_framework_directory(
+                sandbox, SANDBOX_TOOLS_DIR, user=None, repair_mode=True
+            )
+            await _set_tools_user(sandbox, None)
 
         await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)
 
-        # When running as root, restrict the tree so the agent can neither read nor
-        # execute the tools. The default user (the one that runs `exec`) is root, so
-        # this does not impede tool calls.
-        if sandbox._tools_user == "root":
-            result = await sandbox.exec(
-                ["chmod", "700", SANDBOX_TOOLS_DIR], user="root"
-            )
-            if not result.success:
-                raise RuntimeError(
-                    f"Failed to chmod sandbox tools dir: {result.stderr}"
-                )
+        # Re-verify immediately before the launcher runs with the tools user's
+        # authority. Extraction targets the verified directory object, so this
+        # only fails if the entry at the path was swapped or removed in between.
+        await verify_framework_directory(
+            sandbox,
+            SANDBOX_TOOLS_DIR,
+            user=sandbox._tools_user,
+            expected_uid=expected_uid_for(sandbox._tools_user),
+        )
 
         # Start the server as root so it can setuid to any user for exec_remote.
         # If root isn't available, fall back to the sandbox's default user —
@@ -141,25 +299,122 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
             raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
     except Exception as e:
         raise SandboxInjectionError(
-            f"Failed to inject sandbox tools into sandbox: {e}", cause=e
+            f"Failed to inject sandbox tools into sandbox: {str(e) or type(e).__name__}",
+            cause=e,
         ) from e
 
 
+# Root is only useful if it can switch users; e.g. `cap_drop: [ALL]` leaves root
+# without CAP_SETGID/CAP_SETUID, and a user namespace may deny setgroups(), so the
+# tools must run as the default user instead. Prints CapEff then the setgroups mode.
+_ROOT_PROBE_CMD = (
+    'while read k v; do case "$k" in Uid:|CapEff:) echo "$k $v";; esac; done'
+    " < /proc/self/status;"
+    " if [ -e /proc/self/setgroups ]; then read s < /proc/self/setgroups; else s=allow; fi;"
+    ' echo "setgroups: $s"'
+)
+_SWITCH_USER_CAPS = (1 << 6) | (1 << 7)  # CAP_SETGID | CAP_SETUID
+
+
 async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
+    """Prepare the tools dir as root; False if the tools cannot run as root.
+
+    Root is unusable for the tools when the sandbox cannot exec as root at all or
+    when root there cannot switch users (the server must setuid for
+    ``exec_remote``), so the capability probe runs first and nothing is created
+    when it fails. Once root is known usable the directory is created or adopted
+    through :func:`try_ensure_framework_directory_as_root`, which pins uid 0 and
+    re-raises a contract violation rather than reading it as "no root".
+    """
     try:
-        return (
-            await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR], user="root")
-        ).success
+        probe = await sandbox.exec(["/bin/sh", "-c", _ROOT_PROBE_CMD], user="root")
+        fields = _fields(probe.stdout)
+        if not probe.success or not fields.keys() >= {"Uid", "CapEff", "setgroups"}:
+            raise RuntimeError(f"root probe failed: {probe.stderr or probe.stdout!r}")
     except Exception as ex:
         # Broad catch is deliberate: providers signal "cannot exec as root" by
-        # raising provider-specific exception types, so no narrower type is
-        # available. Trade-off: any probe failure selects the rootless install.
+        # raising provider-specific exception types (or a failing exit status), so
+        # no narrower type is available. Trade-off: any other probe failure selects
+        # the rootless install.
         trace_message(
             logger,
             TRACE_SANDBOX_TOOLS,
             f"root sandbox tools dir probe failed; falling back to default user: {ex}",
         )
         return False
+    if fields["Uid"].split()[0] != "0":
+        trace_message(
+            logger,
+            TRACE_SANDBOX_TOOLS,
+            "sandbox does not run commands as root; using default user",
+        )
+        return False
+    cap_eff, setgroups = fields["CapEff"].strip(), fields["setgroups"].strip()
+    if (
+        int(cap_eff, 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
+        or setgroups != "allow"
+    ):
+        trace_message(
+            logger,
+            TRACE_SANDBOX_TOOLS,
+            f"root cannot switch users (CapEff {cap_eff}, setgroups {setgroups}); "
+            "falling back to default user",
+        )
+        return False
+    return await try_ensure_framework_directory_as_root(
+        sandbox, SANDBOX_TOOLS_DIR, trace_tag=TRACE_SANDBOX_TOOLS
+    )
+
+
+# Shell builtins only: numeric ids from /proc so uids with no passwd entry work.
+_DEFAULT_USER_CMD = (
+    'while read k v; do case "$k" in Uid:|Gid:|Groups:) echo "$k $v";; esac; done'
+    ' < /proc/self/status; echo "HOME: $HOME"; echo "HOME_SET: ${HOME+1}"'
+)
+
+
+async def _detect_default_user(sandbox: SandboxEnvironment) -> SandboxDefaultUser:
+    try:
+        result = await sandbox.exec(["/bin/sh", "-c", _DEFAULT_USER_CMD])
+    except Exception as ex:
+        raise SandboxDefaultUserError(
+            f"Failed to detect sandbox default user: {ex}"
+        ) from ex
+    if not result.success:
+        raise SandboxDefaultUserError(
+            f"Failed to detect sandbox default user: {result.stderr}"
+        )
+    try:
+        return _parse_default_user(result.stdout)
+    except (KeyError, IndexError, ValueError) as e:
+        raise SandboxDefaultUserError(
+            f"Failed to parse sandbox default user from {result.stdout!r}: {e!r}"
+        ) from e
+
+
+def _fields(output: str) -> dict[str, str]:
+    """`key: value` lines of a probe, keyed by name.
+
+    The last occurrence wins: a login banner prints before the probe output, so a
+    banner line that happens to look like a field cannot shadow the real value.
+    """
+    lines = output.splitlines()
+    return {k: v for k, _, v in (ln.partition(":") for ln in lines) if _}
+
+
+def _parse_default_user(output: str) -> SandboxDefaultUser:
+    fields = _fields(output)
+    return SandboxDefaultUser(
+        uid=int(fields["Uid"].split()[0]),
+        gid=int(fields["Gid"].split()[0]),
+        groups=[int(g) for g in fields["Groups"].split()],
+        home=fields["HOME"].strip() if fields["HOME_SET"].strip() == "1" else None,
+    )
+
+
+_EXTRACT_TIMEOUT = 600
+"""Bounds the archive transfer and extraction (docker `write_file`'s timeout, which
+carried the transfer before); a timeout also arms compose's retry of a hung exec."""
 
 
 async def _extract_tools_tree(
@@ -167,20 +422,34 @@ async def _extract_tools_tree(
 ) -> None:
     """Extract the gzipped onedir tar into SANDBOX_TOOLS_DIR.
 
-    The artifact is staged to a temp file via write_file (which base64-encodes binary
-    content reliably; raw binary stdin through exec is not safe) and then extracted.
+    The archive travels to `tar` on stdin, so no copy of it exists at a path another
+    principal could write to before the tools user reads it. `write_file` cannot do
+    this: it has no `user` parameter, so it stages as the default user, and a
+    root-owned 0700 directory is closed to that user. Large binary stdin is part of the
+    sandbox contract (`self_check`), though a provider that inlines stdin into a shell
+    script may cap it lower; the uncompressed fallback is the largest payload here.
+    Extraction runs through the framework-directory helper, so `tar` unpacks into the
+    verified directory object (its cwd) rather than into whatever the path names at
+    that moment.
 
     Optimistic path: ship the compressed artifact and extract with `tar xzf`. If the
     container's `tar` lacks gzip support, fall back to injecting an uncompressed tar,
     which only needs plain `tar xf` (the broadest assumption). The uncompressed tar is
     cached in the binaries dir so we decompress at most once per artifact.
+
+    A failing `tar` exits before reading stdin, and providers then raise on the broken
+    stdin write instead of returning tar's status, so on failure the wrapper drains
+    stdin and fails explicitly.
     """
-    gz_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tgz"
-    await sandbox.write_file(gz_tmp, gz_bytes)
-    result = await sandbox.exec(
-        ["tar", "xzf", gz_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
+    result = await exec_in_framework_directory(
+        sandbox,
+        SANDBOX_TOOLS_DIR,
+        ["sh", "-c", "tar xzf - || { cat >/dev/null; exit 1; }"],
+        user=user,
+        expected_uid=expected_uid_for(user),
+        input=gz_bytes,
+        timeout=_EXTRACT_TIMEOUT,
     )
-    await sandbox.exec(["rm", "-f", gz_tmp], user=user)
     if result.success:
         return
 
@@ -190,12 +459,15 @@ async def _extract_tools_tree(
         TRACE_SANDBOX_TOOLS,
         f"tar xzf failed ({result.stderr.strip()}); retrying with uncompressed tar",
     )
-    tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
-    await sandbox.write_file(tar_tmp, _uncompressed_tar_bytes(name, gz_bytes))
-    result = await sandbox.exec(
-        ["tar", "xf", tar_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
+    result = await exec_in_framework_directory(
+        sandbox,
+        SANDBOX_TOOLS_DIR,
+        ["sh", "-c", "tar xf - || { cat >/dev/null; exit 1; }"],
+        user=user,
+        expected_uid=expected_uid_for(user),
+        input=_uncompressed_tar_bytes(name, gz_bytes),
+        timeout=_EXTRACT_TIMEOUT,
     )
-    await sandbox.exec(["rm", "-f", tar_tmp], user=user)
     if not result.success:
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
 
@@ -352,16 +624,6 @@ def _binaries_dir() -> Path:
     return Path(inspect_ai.__file__).parent / "binaries"
 
 
-# Soft launch of digest verification: failures warn by default and are fatal
-# only when this env var is set (any value other than "", "0", "false"). A
-# follow-on release makes them fatal unconditionally and removes the var.
-STRICT_DIGESTS_VAR = "INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS"
-
-
-def _strict_digests() -> bool:
-    return os.environ.get(STRICT_DIGESTS_VAR, "").lower() not in ("", "0", "false")
-
-
 async def _download_from_s3(filename: str) -> bool:
     """Download executable from S3, verified against the vendored SHA256SUMS.
 
@@ -369,25 +631,20 @@ async def _download_from_s3(filename: str) -> bool:
     (403/404 — not yet published; the caller falls through to the local-build
     tier). A digest mismatch or a missing sums entry must never be conflated
     with "missing" — they are the tampering/corruption signals this
-    verification exists to surface. With ``STRICT_DIGESTS_VAR`` set they raise
-    (reaching the user wrapped in SandboxInjectionError); by default they log
-    a warning and the unverified bytes are used anyway.
+    verification exists to surface. They raise ``PrerequisiteError`` (reaching
+    the user wrapped in SandboxInjectionError) with nothing written to the
+    binaries directory.
     """
-    expected_sha256: str | None
     try:
         # Raises if the sums file is unreadable or has no entry for this name —
         # deliberately before any network I/O.
         expected_sha256 = lookup_digest(filename)
     except RuntimeError as e:
-        if _strict_digests():
-            raise
-        warn_once(
-            logger,
-            f"Sandbox tools digest lookup failed ({e}); downloading without "
-            f"verification. This will become a fatal error in a future "
-            f"release; set {STRICT_DIGESTS_VAR}=1 to make it fatal now.",
-        )
-        expected_sha256 = None
+        raise PrerequisiteError(
+            f"Cannot verify sandbox tools executable {filename}: {e} If "
+            f"reinstalling inspect_ai does not resolve this, report it to the "
+            f"inspect_ai maintainers rather than retrying."
+        ) from e
 
     binaries_path = _binaries_dir()
     binaries_path.mkdir(exist_ok=True)
@@ -395,38 +652,21 @@ async def _download_from_s3(filename: str) -> bool:
     url = f"{_BUCKET_BASE_URL}/{filename}"
 
     try:
-        if expected_sha256 is not None:
-            try:
-                await anyio.to_thread.run_sync(
-                    _download_and_verify_blocking,
-                    url,
-                    expected_sha256,
-                    executable_path,
-                )
-                return True
-            except ValueError as e:
-                message = (
-                    f"Digest verification failed for {filename} downloaded from "
-                    f"S3: {e}. The published artifact does not match the digest "
-                    f"pinned in this inspect_ai release, which may indicate a "
-                    f"compromised or corrupted artifact — please report this to "
-                    f"the inspect_ai maintainers rather than retrying."
-                )
-                if _strict_digests():
-                    raise PrerequisiteError(message) from e
-                warn_once(
-                    logger,
-                    f"{message} Proceeding with the unverified artifact. This "
-                    f"will become a fatal error in a future release; set "
-                    f"{STRICT_DIGESTS_VAR}=1 to make it fatal now.",
-                )
-        # Unverified download — no pinned digest, or verification failed and
-        # strict mode is off (download() discarded the mismatching bytes, so
-        # fetch again without verification).
         await anyio.to_thread.run_sync(
-            _download_unverified_blocking, url, executable_path
+            _download_and_verify_blocking,
+            url,
+            expected_sha256,
+            executable_path,
         )
         return True
+    except ValueError as e:
+        raise PrerequisiteError(
+            f"Digest verification failed for {filename} downloaded from "
+            f"S3: {e}. The published artifact does not match the digest "
+            f"pinned in this inspect_ai release, which may indicate a "
+            f"compromised or corrupted artifact — please report this to "
+            f"the inspect_ai maintainers rather than retrying."
+        ) from e
     except httpx.HTTPStatusError as e:
         if e.response.status_code in (403, 404):
             print(f"Executable '{filename}' not found on S3")
@@ -452,29 +692,6 @@ def _download_and_verify_blocking(url: str, sha256: str, dest: Path) -> None:
     tmp = Path(tmp_path)
     try:
         download(url, sha256, tmp, timeout=60)
-        tmp.chmod(0o755)
-        os.replace(tmp, dest)
-    finally:
-        tmp.unlink(missing_ok=True)
-
-
-def _download_unverified_blocking(url: str, dest: Path) -> None:
-    """Download ``url`` to ``dest`` with no digest check (blocking).
-
-    Soft-launch fallback only (see ``_download_from_s3``). Same unique-tempfile
-    + ``os.replace`` discipline as ``_download_and_verify_blocking``.
-
-    Raises ``httpx.HTTPStatusError`` on HTTP errors (no transient retries).
-    """
-    fd, tmp_path = tempfile.mkstemp(prefix=f"{dest.name}.", dir=dest.parent)
-    os.close(fd)
-    tmp = Path(tmp_path)
-    try:
-        with httpx.stream("GET", url, timeout=60, follow_redirects=True) as response:
-            response.raise_for_status()
-            with open(tmp, "wb") as f:
-                for chunk in response.iter_bytes():
-                    f.write(chunk)
         tmp.chmod(0o755)
         os.replace(tmp, dest)
     finally:

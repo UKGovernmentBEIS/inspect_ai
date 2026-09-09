@@ -4,6 +4,7 @@ from inspect_ai import task_with
 from inspect_ai._eval.task.task import Task
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
+from inspect_ai.log import HeadlineMetric
 
 
 def test_task_with_add_options():
@@ -61,6 +62,15 @@ def test_task_with_approval_policy():
     assert len(task.approval) == 2
     assert task.approval[0].tools == "new_tool"
     assert task.approval[1].tools == "new_tool_2"
+
+
+def test_task_with_headline_metric():
+    task = task_with(minimal_task(), headline_metric=HeadlineMetric(metric="accuracy"))
+    assert task.headline_metric == HeadlineMetric(metric="accuracy")
+
+    # passing None clears an existing declaration
+    task = task_with(task, headline_metric=None)
+    assert task.headline_metric is None
 
 
 def test_task_with_version():

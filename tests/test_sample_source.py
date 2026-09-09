@@ -310,6 +310,105 @@ def test_live_injection_runs_concurrently_with_in_flight_sample() -> None:
     assert _sample_inputs(log) == ["blocker", "injected", "injector"]
 
 
+def test_sample_complete_fires_for_per_sample_cancel() -> None:
+    """A per-sample `cancel` interrupt still notifies the source.
+
+    Only a task-level unwind skips `sample_complete`; a sample the operator
+    cancelled individually completes (as cancelled) while the task runs on,
+    so a source waiting on it must hear about it.
+    """
+    from inspect_ai.log._samples import sample_active
+
+    completed: list[str] = []
+
+    async def on_complete(sample: EvalSample) -> list[Sample] | None:
+        completed.append(str(sample.id))
+        return None
+
+    @solver(name="self_cancel_solver")
+    def self_cancel_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "a":
+                active = sample_active()
+                assert active is not None
+                active.interrupt("cancel")
+                await anyio.sleep(10)
+            return state
+
+        return solve
+
+    source = SampleSource.from_samples(
+        [Sample(id="a", input="x"), Sample(id="b", input="x")],
+        sample_complete=on_complete,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        logs = eval(
+            Task(dataset=source, solver=self_cancel_solver(), name="per_sample_cancel"),
+            model="mockllm/model",
+            log_dir=log_dir,
+        )
+        log = read_eval_log(logs[0].location)
+        assert log.status == "success"
+        assert sorted(completed) == ["a", "b"]
+        assert log.samples is not None
+        cancelled = next(s for s in log.samples if s.id == "a")
+        assert cancelled.error is not None
+
+
+def test_sample_complete_skipped_for_task_cancel() -> None:
+    """A task-level cancel does not notify the source for any sample.
+
+    Unlike a per-sample cancel, `cancel_task(..., action="cancel")` unwinds
+    the whole task: every in-flight sample (the one issuing the cancel and a
+    sibling still running) is resolved as cancelled by the task unwind, and
+    `sample_complete` fires for none of them.
+    """
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import get_eval_states
+
+    completed: list[str] = []
+    sibling_started = anyio.Event()
+
+    async def on_complete(sample: EvalSample) -> list[Sample] | None:
+        completed.append(str(sample.id))
+        return None
+
+    @solver(name="task_cancel_solver")
+    def task_cancel_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "a":
+                # wait for sibling `b` to be in flight before the task-level
+                # cancel lands, so the unwind resolves both samples
+                await sibling_started.wait()
+                result = ctl_cancel_task(get_eval_states()[0].task_id, action="cancel")
+                assert result is not None and result["ok"] is True
+            else:
+                sibling_started.set()
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    source = SampleSource.from_samples(
+        [Sample(id="a", input="x"), Sample(id="b", input="x")],
+        sample_complete=on_complete,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        logs = eval(
+            Task(dataset=source, solver=task_cancel_solver(), name="task_cancel"),
+            model="mockllm/model",
+            log_dir=log_dir,
+        )
+        log = read_eval_log(logs[0].location)
+        # an operator task cancel is logged as an error (not "cancelled", which
+        # eval_set would take for an external ^C)
+        assert log.status == "error"
+        assert log.error is not None and "cancelled by user" in log.error.message
+        assert log.samples is not None and len(log.samples) == 2
+        assert all(s.error is not None for s in log.samples)
+        assert completed == []
+
+
 def test_enqueue_sample_rejected_outside_sample_source_task() -> None:
     # enqueue_sample() requires a running SampleSource-driven task: a plain
     # task has a fixed sample set (no loop to run additions)
@@ -835,8 +934,8 @@ def test_sample_source_task_retry_regenerates_followups() -> None:
 def test_sample_source_task_retry_reuses_completed_followup() -> None:
     # on a task retry, an injected follow-up that *completed* in the prior
     # attempt is reused via the prior-attempt lookup (never re-run) — the
-    # early-return that also releases the follow-up's in-memory slot, which
-    # otherwise happens in task_run_sample's sample_terminal callback. The
+    # early-return that also releases the follow-up's in-memory slot through
+    # the run's SampleTerminalReporter, like every other terminal path. The
     # flaky sample errors only after the follow-up completes (synchronized
     # via the source's sample_complete), so the first attempt's log carries
     # a completed follow-up for the retry to reuse.
@@ -900,3 +999,75 @@ def test_sample_source_task_retry_reuses_completed_followup() -> None:
     # the retry reused the completed follow-up rather than re-running it
     assert followup_runs["n"] == 1
     assert flaky_runs["n"] == 2
+
+
+def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:
+    # the reuse path reports the reused run terminal (counted `completed`)
+    # *before* notifying the source, so a raising `sample_complete` tears the
+    # retry attempt down with the run already in its terminal bucket — the
+    # accepted ordering in design/sample-lifecycle.md's side-effect table
+    from inspect_ai._control.eval_state import (
+        clear_all_eval_states,
+        get_eval_states,
+    )
+
+    observed: list[tuple[int, int, int]] = []
+
+    @solver
+    def fail_followup() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.input_text == "followup":
+                raise RuntimeError("followup failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self.seed_completions = 0
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.id == 1:
+                self.seed_completions += 1
+                if self.seed_completions >= 2:
+                    # the retry's reuse notification: capture the live
+                    # attempt's terminal counters as seen by the raising feed
+                    state = next(s for s in get_eval_states() if s.completed_at is None)
+                    observed.append((state.completed, state.errored, state.cancelled))
+                    raise RuntimeError("feed failure")
+                return [Sample(id=2, input="followup", target="ok")]
+            return None
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="seed", target="ok")]
+
+    @task
+    def feed_raise_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[fail_followup()],
+            name="feed_raise_task",
+        )
+
+    clear_all_eval_states()
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            log_dir = str(Path(d) / "logs")
+            Path(log_dir).mkdir()
+            ok, logs = eval_set(
+                tasks=[feed_raise_task()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=2,
+                retry_on_error=0,  # no sample-level retry -> task-level retry
+            )
+            # the feed raise failed the retry attempt...
+            assert not ok
+            final = read_eval_log(logs[0].location)
+            assert final.status == "error"
+            assert final.error is not None and "feed failure" in final.error.message
+    finally:
+        clear_all_eval_states()
+
+    # ...but the reused run was already counted completed, not cancelled
+    assert observed and observed[0] == (1, 0, 0)

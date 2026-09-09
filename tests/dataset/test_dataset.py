@@ -1,3 +1,4 @@
+import csv as csv_module
 import json as json_module
 import os
 from pathlib import Path
@@ -262,6 +263,30 @@ def test_dataset_image_paths_file_uri() -> None:
     assert exists(content.image)
 
 
+def test_dataset_empty_string_files_not_resolved(tmp_path: Path) -> None:
+    # empty-string files/setup values are literal contents, and must not be
+    # resolved against the dataset's parent directory (which exists, so would
+    # replace the value with a directory path and later copy that whole
+    # directory into the sandbox)
+    dataset_file = tmp_path / "dataset.jsonl"
+    dataset_file.write_text(
+        json_module.dumps(
+            {
+                "input": "Say hello",
+                "target": "hello",
+                "files": {"submission/report.md": ""},
+                "setup": "",
+                "sandbox": ["docker", ""],
+            }
+        )
+        + "\n"
+    )
+    sample = json_dataset(dataset_file.as_posix())[0]
+    assert sample.files == {"submission/report.md": ""}
+    assert sample.setup == ""
+    assert sample.sandbox is not None and sample.sandbox.config == ""
+
+
 def test_dataset_auto_id() -> None:
     dataset = json_dataset(dataset_path("dataset.jsonl"))
     assert all(sample.id is None for sample in dataset)
@@ -367,6 +392,54 @@ def write_ragged_csv(tmp_path: Path, body: str) -> str:
     path = tmp_path / "data.csv"
     path.write_text(body, newline="")
     return str(path)
+
+
+@pytest.mark.parametrize("dialect", ["unix", "excel", "excel-tab"])
+@pytest.mark.parametrize("fieldnames", [None, ["input", "target"]])
+def test_csv_dialect_delimiter(
+    tmp_path: Path, dialect: str, fieldnames: list[str] | None
+) -> None:
+    delimiter = csv_module.get_dialect(dialect).delimiter
+    body = f'"hello, world"{delimiter}A\n'
+    if fieldnames is None:
+        body = f"input{delimiter}target\n" + body
+
+    dataset = csv_dataset(
+        write_ragged_csv(tmp_path, body), dialect=dialect, fieldnames=fieldnames
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello, world"
+    assert dataset[0].target == "A"
+
+
+def test_csv_registered_dialect_delimiter(tmp_path: Path) -> None:
+    csv_module.register_dialect("inspect-test-semicolon", "unix", delimiter=";")
+    try:
+        dataset = csv_dataset(
+            write_ragged_csv(tmp_path, 'input;target\n"hello; world";A\n'),
+            dialect="inspect-test-semicolon",
+        )
+        assert len(dataset) == 1
+        assert dataset[0].input == "hello; world"
+        assert dataset[0].target == "A"
+    finally:
+        csv_module.unregister_dialect("inspect-test-semicolon")
+
+
+@pytest.mark.parametrize("dialect,delimiter", [("excel-tab", ","), ("unix", "\t")])
+def test_csv_delimiter_overrides_dialect(
+    tmp_path: Path, dialect: str, delimiter: str
+) -> None:
+    dataset = csv_dataset(
+        write_ragged_csv(tmp_path, f"input{delimiter}target\nhello{delimiter}A\n"),
+        dialect=dialect,
+        delimiter=delimiter,
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello"
+    assert dataset[0].target == "A"
 
 
 def test_csv_short_blank_row_names_the_line(tmp_path: Path) -> None:

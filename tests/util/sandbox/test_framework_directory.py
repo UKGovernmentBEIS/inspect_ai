@@ -1,0 +1,1469 @@
+"""Tests for the verified framework-directory helper.
+
+The helper's verification is a POSIX ``sh`` script run inside the sandbox, so most
+tests here run it for real through ``LocalSandboxEnvironment`` against a temporary
+parent directory on the host (Linux only, via the ``local`` fixture: the script
+relies on ``stat -c``). Tests that need another uid, a missing tool, or a lost
+``mkdir`` race arrange it with a ``PATH`` shim. The remaining tests run anywhere:
+path splitting, script syntax, and a scripted fake sandbox covering the Python-side
+classification of results a provider might return.
+"""
+
+import os
+import shutil
+import stat
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+from typing import Callable, Iterator, Literal, overload
+
+import pytest
+from test_helpers.sandbox import CannedSandbox
+
+from inspect_ai.util._sandbox._framework_directory import (
+    _CREATE_FAILED_MARKER,
+    _MISSING_MARKER,
+    _SCRIPT,
+    _STAT_ENTRY,
+    _UNAVAILABLE_MARKER,
+    _USER_MISMATCH_MARKER,
+    _VERIFIED_MARKER,
+    _VIOLATION_MARKER,
+    _WRITE_ENTRY,
+    SHELL_PATH,
+    FrameworkDirectoryError,
+    FrameworkDirectoryNotFoundError,
+    FrameworkDirectoryUnavailableError,
+    FrameworkDirectoryUserError,
+    FrameworkPath,
+    ensure_framework_directory,
+    exec_in_framework_directory,
+    expected_uid_for,
+    framework_directory_mode,
+    framework_file_mode,
+    split_framework_path,
+    stat_in_framework_directory,
+    try_ensure_framework_directory_as_root,
+    verify_framework_directory,
+    write_file_in_framework_directory,
+)
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+)
+from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
+from inspect_ai.util._subprocess import ExecResult
+
+
+@pytest.fixture
+def parent(tmp_path: Path) -> Path:
+    """A parent directory owned by the test user and not writable by others."""
+    parent = tmp_path / "parent"
+    parent.mkdir(mode=0o700)
+    return parent
+
+
+@pytest.fixture
+def local() -> Iterator[LocalSandboxEnvironment]:
+    """A real local sandbox for running the verification script (Linux only)."""
+    if sys.platform != "linux":
+        pytest.skip("verification script requires GNU/BusyBox stat")
+    sandbox = LocalSandboxEnvironment()
+    yield sandbox
+    sandbox.directory.cleanup()
+
+
+def _mode(path: Path) -> int:
+    return stat.S_IMODE(os.lstat(path).st_mode)
+
+
+class _EnvSandbox(SandboxEnvironment):
+    """Runs commands via another sandbox with extra environment variables."""
+
+    def __init__(self, inner: SandboxEnvironment, env: dict[str, str]) -> None:
+        super().__init__()
+        self.inner = inner
+        self.env = env
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        return await self.inner.exec(cmd, input, cwd, {**(env or {}), **self.env})
+
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        raise NotImplementedError
+
+    @overload
+    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+
+    @overload
+    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+
+    async def read_file(self, file: str, text: bool = True) -> str | bytes:
+        raise NotImplementedError
+
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        environments: dict[str, SandboxEnvironment],
+        interrupted: bool,
+    ) -> None:
+        pass
+
+
+def _tool_dir(tmp_path: Path, tools: list[str], shims: dict[str, str]) -> Path:
+    """Build a bin dir with symlinks to real ``tools`` and scripted ``shims``."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    for tool in tools:
+        found = shutil.which(tool)
+        assert found, f"{tool} not found on host"
+        os.symlink(found, bindir / tool)
+    for name, body in shims.items():
+        (bindir / name).write_text(f"#!/bin/sh\n{body}\n")
+        (bindir / name).chmod(0o700)
+    return bindir
+
+
+_SCRIPT_PATH_LINE = "PATH=/usr/sbin:/usr/bin:/sbin:/bin"
+
+
+def _script_with_path(bindir: Path) -> str:
+    """The verification script with its PATH pinned to ``bindir`` only.
+
+    The real script uses the system directories and nothing else, so a tool can
+    only be shimmed (or hidden) by replacing that line for the test.
+    """
+    assert _SCRIPT_PATH_LINE in _SCRIPT
+    return _SCRIPT.replace(_SCRIPT_PATH_LINE, f"PATH={bindir}")
+
+
+class _ScriptOverrideSandbox(_EnvSandbox):
+    """Substitutes a variant of the verification script (for PATH shims)."""
+
+    def __init__(self, inner: SandboxEnvironment, script: str) -> None:
+        super().__init__(inner, {})
+        self.script = script
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        assert cmd[:3] == [SHELL_PATH, "-c", _SCRIPT]
+        return await self.inner.exec(
+            [SHELL_PATH, "-c", self.script, *cmd[3:]], input, cwd
+        )
+
+
+async def test_creates_missing_directory_with_mode_0700(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    assert target.is_dir() and not target.is_symlink()
+    assert _mode(target) == 0o700
+
+
+async def test_creates_missing_parent_chain(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """Auto-created parents get the conventional 0755, not the leaf's 0700."""
+    target = parent / "a" / "b" / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    assert _mode(target) == 0o700
+    assert _mode(parent / "a") == 0o755
+    assert _mode(parent / "a" / "b") == 0o755
+
+
+async def test_creates_directory_whose_name_starts_with_a_dash(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "-dashed"
+    await ensure_framework_directory(local, str(target), user=None)
+    assert target.is_dir() and _mode(target) == 0o700
+
+
+async def test_adopts_existing_conforming_directory(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    target.mkdir(mode=0o700)
+    (target / "keep").write_text("x")
+    await ensure_framework_directory(local, str(target), user=None)
+    await verify_framework_directory(local, str(target), user=None)
+    assert (target / "keep").read_text() == "x"
+
+
+async def test_creates_in_setgid_parent_and_clears_inherited_bits(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    parent.chmod(0o2700)
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    assert _mode(target) == 0o700
+
+
+async def test_creates_and_adopts_directory_in_a_wider_requested_mode(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """A caller may ask for a traversable directory; the mode is then pinned to that."""
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None, mode=0o755)
+    assert target.is_dir() and _mode(target) == 0o755
+    (target / "keep").write_text("x")
+
+    await ensure_framework_directory(local, str(target), user=None, mode=0o755)
+    await verify_framework_directory(local, str(target), user=None, mode=0o755)
+    result = await exec_in_framework_directory(
+        local, str(target), ["cat", "keep"], user=None, mode=0o755
+    )
+    assert result.stdout == "x"
+    # The default (private) contract does not accept it, and vice versa.
+    with pytest.raises(FrameworkDirectoryError, match="has mode 755, expected 700"):
+        await verify_framework_directory(local, str(target), user=None)
+    private = parent / "private"
+    await ensure_framework_directory(local, str(private), user=None)
+    with pytest.raises(FrameworkDirectoryError, match="has mode 700, expected 755"):
+        await ensure_framework_directory(local, str(private), user=None, mode=0o755)
+    assert _mode(target) == 0o755 and _mode(private) == 0o700
+
+
+async def test_wider_mode_in_setgid_parent_clears_inherited_bits(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    parent.chmod(0o2700)
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None, mode=0o755)
+    assert _mode(target) == 0o755
+
+
+@pytest.mark.parametrize("mode", [0o700, 0o2755, 0o1755, 0o770], ids=oct)
+async def test_repair_mode_sets_owned_directory_to_the_requested_mode(
+    local: LocalSandboxEnvironment, parent: Path, mode: int
+) -> None:
+    target = parent / "fw"
+    target.mkdir()
+    target.chmod(mode)
+    (target / "keep").write_text("x")
+    await ensure_framework_directory(
+        local, str(target), user=None, mode=0o755, repair_mode=True
+    )
+    assert _mode(target) == 0o755
+    assert (target / "keep").read_text() == "x"
+    await verify_framework_directory(local, str(target), user=None, mode=0o755)
+
+
+def _chmod_after_mkdir(mode: int) -> Callable[[Path], None]:
+    def arrange(target: Path) -> None:
+        target.mkdir()
+        target.chmod(mode)
+
+    return arrange
+
+
+@pytest.mark.parametrize(
+    "arrange, expected_fragment",
+    [
+        pytest.param(
+            lambda t: os.symlink(t.parent, t),
+            "is a symbolic link",
+            id="symlink-to-directory",
+        ),
+        pytest.param(
+            lambda t: os.symlink(t.parent / "missing", t),
+            "is a symbolic link",
+            id="dangling-symlink",
+        ),
+        pytest.param(
+            lambda t: t.write_text(""),
+            "is not a directory",
+            id="regular-file",
+        ),
+        pytest.param(
+            _chmod_after_mkdir(0o755),
+            "has mode 755, expected 700",
+            id="group-other-readable",
+        ),
+        pytest.param(
+            _chmod_after_mkdir(0o770),
+            "has mode 770, expected 700",
+            id="group-writable",
+        ),
+        pytest.param(
+            _chmod_after_mkdir(0o2700),
+            "has mode 2700, expected 700",
+            id="pre-existing-setgid",
+        ),
+    ],
+)
+async def test_rejects_nonconforming_entry_and_leaves_it_alone(
+    local: LocalSandboxEnvironment,
+    parent: Path,
+    arrange: Callable[[Path], object],
+    expected_fragment: str,
+) -> None:
+    target = parent / "fw"
+    arrange(target)
+    before = os.lstat(target)
+
+    with pytest.raises(FrameworkDirectoryError, match=expected_fragment) as excinfo:
+        await ensure_framework_directory(local, str(target), user=None)
+    assert not isinstance(excinfo.value, FrameworkDirectoryNotFoundError)
+
+    after = os.lstat(target)
+    assert (after.st_ino, after.st_mode) == (before.st_ino, before.st_mode)
+
+
+@pytest.mark.parametrize("mode", [0o755, 0o770, 0o2700, 0o4755, 0o1700], ids=oct)
+async def test_repair_mode_tightens_owned_directory_and_keeps_contents(
+    local: LocalSandboxEnvironment, parent: Path, mode: int
+) -> None:
+    """The shape an older rootless install left behind is reused, not refused."""
+    target = parent / "fw"
+    target.mkdir()
+    target.chmod(mode)
+    (target / "keep").write_text("x")
+    before = os.lstat(target)
+
+    await ensure_framework_directory(local, str(target), user=None, repair_mode=True)
+
+    assert _mode(target) == 0o700
+    assert os.lstat(target).st_ino == before.st_ino
+    assert (target / "keep").read_text() == "x"
+    # Once repaired, the plain (non-repairing) checks accept it.
+    await verify_framework_directory(local, str(target), user=None)
+
+
+@pytest.mark.parametrize(
+    "arrange, expected_fragment",
+    [
+        pytest.param(
+            lambda t: os.symlink(t.parent, t), "is a symbolic link", id="symlink"
+        ),
+        pytest.param(lambda t: t.write_text(""), "is not a directory", id="file"),
+    ],
+)
+async def test_repair_mode_only_relaxes_the_mode_check(
+    local: LocalSandboxEnvironment,
+    parent: Path,
+    arrange: Callable[[Path], object],
+    expected_fragment: str,
+) -> None:
+    target = parent / "fw"
+    arrange(target)
+    before = os.lstat(target)
+    with pytest.raises(FrameworkDirectoryError, match=expected_fragment):
+        await ensure_framework_directory(
+            local, str(target), user=None, repair_mode=True
+        )
+    after = os.lstat(target)
+    assert (after.st_ino, after.st_mode) == (before.st_ino, before.st_mode)
+
+
+async def test_repair_mode_does_not_touch_directory_owned_by_another_uid(
+    local: LocalSandboxEnvironment, tmp_path: Path
+) -> None:
+    """Pretend to be uid 4242 under root-owned /var/tmp: the directory is not ours."""
+    bindir = _tool_dir(
+        tmp_path, ["sh", "stat", "mkdir", "chmod", "pwd"], {"id": "echo 4242"}
+    )
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    target = Path("/var/tmp") / f".inspect-fw-test-{uuid.uuid4().hex}"
+    target.mkdir()
+    target.chmod(0o755)
+    try:
+        with pytest.raises(
+            FrameworkDirectoryError,
+            match=f"owned by uid {os.getuid()}, expected uid 4242",
+        ):
+            await ensure_framework_directory(
+                sandbox, str(target), user=None, repair_mode=True
+            )
+        assert _mode(target) == 0o755
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+
+
+async def test_creation_failure_is_not_reported_as_untrustworthy(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """An unwritable parent (or read-only filesystem) leaves nothing to remove."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user (root can write anywhere)")
+    parent.chmod(0o500)
+    try:
+        for target in (parent / "fw", parent / "missing" / "fw"):
+            with pytest.raises(
+                FrameworkDirectoryError, match="Permission denied"
+            ) as ei:
+                await ensure_framework_directory(local, str(target), user=None)
+            assert not isinstance(ei.value, FrameworkDirectoryNotFoundError)
+            assert str(ei.value).startswith(
+                f"Cannot create sandbox framework directory {target}: "
+            )
+            assert "cannot be trusted" not in str(ei.value)
+            assert "Remove the entry" not in str(ei.value)
+        assert list(parent.iterdir()) == []
+    finally:
+        parent.chmod(0o700)
+
+
+@pytest.mark.parametrize(
+    "arrange",
+    [
+        pytest.param(_chmod_after_mkdir(0o000), id="no-search-permission"),
+        pytest.param(lambda p: p.write_text(""), id="regular-file"),
+    ],
+)
+async def test_unenterable_parent_is_unavailable_not_violation(
+    local: LocalSandboxEnvironment,
+    parent: Path,
+    arrange: Callable[[Path], object],
+) -> None:
+    """A parent that cannot be entered is an environment problem: nothing to remove."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user (root can enter anything)")
+    blocked = parent / "blocked"
+    arrange(blocked)
+    try:
+        for op in (ensure_framework_directory, verify_framework_directory):
+            # dash reports only "can't cd to <dir>", so match our text, not errno's.
+            with pytest.raises(
+                FrameworkDirectoryUnavailableError,
+                match=f"cannot enter parent directory {blocked}",
+            ) as ei:
+                await op(local, str(blocked / "fw"), user=None)
+            assert "Remove the entry" not in str(ei.value)
+    finally:
+        if blocked.is_dir():
+            blocked.chmod(0o700)
+
+
+async def test_rejects_directory_owned_by_another_uid(
+    local: LocalSandboxEnvironment,
+) -> None:
+    # /tmp is root-owned; the test user is (normally) not root.
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user")
+    with pytest.raises(FrameworkDirectoryError, match="owned by uid 0, expected uid"):
+        await exec_in_framework_directory(local, "/tmp", ["true"], user=None)
+
+
+async def test_rejects_parent_owned_by_another_non_root_uid(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    """Pretend to be uid 4242: the test-user-owned parent is then someone else's."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user (a root-owned parent is accepted)")
+    bindir = _tool_dir(
+        tmp_path, ["sh", "stat", "mkdir", "chmod", "pwd"], {"id": "echo 4242"}
+    )
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    target = parent / "fw"
+    with pytest.raises(FrameworkDirectoryError, match="its owner could replace"):
+        await ensure_framework_directory(sandbox, str(target), user=None)
+    assert not target.exists()
+
+
+async def test_rejects_running_as_a_uid_other_than_expected(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """LocalSandboxEnvironment ignores `user`; expected_uid=0 must expose that."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user")
+    target = parent / "fw"
+    with pytest.raises(FrameworkDirectoryUserError) as excinfo:
+        await ensure_framework_directory(
+            local, str(target), user="root", expected_uid=0
+        )
+    assert f"running as uid {os.getuid()}, expected uid 0" in str(excinfo.value)
+    assert "as the requested user root" in str(excinfo.value)
+    assert not isinstance(excinfo.value, FrameworkDirectoryError)
+    assert not target.exists()  # refused before creating anything
+
+    with pytest.raises(FrameworkDirectoryUserError):
+        await exec_in_framework_directory(
+            local, str(parent), ["touch", "ran"], user=None, expected_uid=0
+        )
+    assert not (parent / "ran").exists()
+
+
+async def test_accepts_matching_expected_uid(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(
+        local, str(target), user=None, expected_uid=os.getuid()
+    )
+    assert _mode(target) == 0o700
+    result = await exec_in_framework_directory(
+        local, str(target), ["id", "-u"], user=None, expected_uid=os.getuid()
+    )
+    assert result.stdout.strip() == str(os.getuid())
+
+
+async def test_tool_warnings_on_stderr_do_not_corrupt_values(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    """`id`/`stat` stderr must not be folded into the uid or mode being compared."""
+    real_id = shutil.which("id")
+    real_stat = shutil.which("stat")
+    assert real_id and real_stat
+    bindir = _tool_dir(
+        tmp_path,
+        ["sh", "mkdir", "chmod", "pwd"],
+        {
+            "id": f'echo "id: spurious warning" >&2; exec {real_id} "$@"',
+            "stat": f'echo "stat: spurious warning" >&2; exec {real_stat} "$@"',
+        },
+    )
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    target = parent / "fw"
+    await ensure_framework_directory(
+        sandbox, str(target), user=None, expected_uid=os.getuid()
+    )
+    assert _mode(target) == 0o700
+
+
+async def test_garbage_from_id_is_unavailable_not_violation(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    bindir = _tool_dir(
+        tmp_path, ["sh", "stat", "mkdir", "chmod", "pwd"], {"id": "echo not-a-uid"}
+    )
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    target = parent / "fw"
+    with pytest.raises(FrameworkDirectoryUnavailableError, match="not-a-uid"):
+        await ensure_framework_directory(sandbox, str(target), user=None)
+    assert not target.exists()
+
+
+async def test_rejects_parent_that_lets_others_replace_the_directory(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    target.mkdir(mode=0o700)
+    parent.chmod(0o777)
+    with pytest.raises(FrameworkDirectoryError, match="other users could replace"):
+        await ensure_framework_directory(local, str(target), user=None)
+
+
+async def test_accepts_sticky_world_writable_parent_owned_by_user(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    parent.chmod(0o1777)
+    await ensure_framework_directory(local, str(target), user=None)
+    assert _mode(target) == 0o700
+
+
+async def test_accepts_sticky_world_writable_parent_owned_by_root(
+    local: LocalSandboxEnvironment,
+) -> None:
+    """The production shape: /var/tmp is root-owned 1777."""
+    target = Path("/var/tmp") / f".inspect-fw-test-{uuid.uuid4().hex}"
+    try:
+        await ensure_framework_directory(local, str(target), user=None)
+        assert _mode(target) == 0o700
+        result = await exec_in_framework_directory(
+            local, str(target), ["pwd", "-P"], user=None
+        )
+        assert result.stdout.strip() == str(target.resolve())
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+
+
+async def test_exec_runs_with_verified_directory_as_cwd(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    result = await exec_in_framework_directory(
+        local, str(target), ["sh", "-c", "pwd -P && touch marker"], user=None
+    )
+    assert result.success
+    assert result.stdout.strip() == str(target.resolve())
+    assert (target / "marker").exists()
+    assert _VERIFIED_MARKER not in result.stderr
+
+
+async def test_wrapped_command_stays_in_verified_directory_after_leaf_swap(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    """A hostile swap of the leaf after verification must not redirect writes.
+
+    The command itself plays the attacker: from inside the verified cwd it renames
+    the directory away and plants a symlink to a decoy at the original pathname,
+    then writes through a relative path. The write must land in the directory that
+    was verified (now under its new name), never in the decoy.
+    """
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    decoy = tmp_path / "decoy"
+    decoy.mkdir(mode=0o700)
+    moved = parent / "moved"
+
+    result = await exec_in_framework_directory(
+        local,
+        str(target),
+        [
+            "sh",
+            "-c",
+            'mv -- "$1" "$2" && ln -s -- "$3" "$1" && touch ./marker && pwd -P',
+            "sh",
+            str(target),
+            str(moved),
+            str(decoy),
+        ],
+        user=None,
+    )
+    assert result.success, result.stderr
+    assert result.stdout.strip() == str(moved.resolve())
+    assert (moved / "marker").exists()
+    assert not (decoy / "marker").exists()
+    assert target.is_symlink()
+    # The pathname now names the attacker's symlink; a fresh check refuses it.
+    with pytest.raises(FrameworkDirectoryError, match="symbolic link"):
+        await verify_framework_directory(local, str(target), user=None)
+
+
+async def test_wrapped_command_fails_cleanly_when_leaf_is_removed(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """Removing the verified directory from under the command makes writes fail."""
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    result = await exec_in_framework_directory(
+        local,
+        str(target),
+        ["sh", "-c", 'rmdir -- "$1" && touch ./marker', "sh", str(target)],
+        user=None,
+    )
+    assert not result.success
+    assert not target.exists()
+    assert not (parent / "marker").exists()
+    with pytest.raises(FrameworkDirectoryNotFoundError):
+        await verify_framework_directory(local, str(target), user=None)
+
+
+async def test_exec_passes_stdin_to_the_wrapped_command(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """The script reads nothing from stdin, so `input` reaches the command whole."""
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    result = await exec_in_framework_directory(
+        local,
+        str(target),
+        ["sh", "-c", "cat > ./from-stdin"],
+        user=None,
+        input="streamed\ncontent\n",
+    )
+    assert result.success, result.stderr
+    assert (target / "from-stdin").read_text() == "streamed\ncontent\n"
+
+
+async def test_exec_ignores_cdpath(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    decoy = tmp_path / "decoy" / "fw"
+    decoy.mkdir(parents=True, mode=0o700)
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    sandbox = _EnvSandbox(local, {"CDPATH": f"{decoy.parent}:."})
+    result = await exec_in_framework_directory(
+        sandbox, str(target), ["pwd", "-P"], user=None
+    )
+    assert result.stdout.strip() == str(target.resolve())
+
+
+async def test_inherited_path_is_not_consulted(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    """A utility that exists only on the sandbox's PATH must not be found.
+
+    The inherited PATH here also carries an empty component (cwd, the parent while
+    it is being checked) to show neither it nor the shim directory survives.
+    """
+    bindir = _tool_dir(tmp_path, [], {"frobnicate": 'touch "$PWD/ran-shim"'})
+    sandbox = _EnvSandbox(local, {"PATH": f"{bindir}::{os.environ['PATH']}"})
+    target = parent / "fw"
+    await ensure_framework_directory(sandbox, str(target), user=None)
+    result = await exec_in_framework_directory(
+        sandbox, str(target), ["sh", "-c", 'printf %s "$PATH"'], user=None
+    )
+    assert result.stdout == _SCRIPT_PATH_LINE.removeprefix("PATH=")
+    result = await exec_in_framework_directory(
+        sandbox, str(target), ["frobnicate"], user=None
+    )
+    assert not result.success
+    assert "not found" in result.stderr
+    assert not (target / "ran-shim").exists()
+
+
+async def test_exec_forwards_input_to_the_provider() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await exec_in_framework_directory(
+        sandbox, "/var/tmp/.x", ["tar", "xzf", "-"], user="root", input=b"archive"
+    )
+    assert sandbox.inputs == [b"archive"]
+    await verify_framework_directory(sandbox, "/var/tmp/.x", user="root")
+    assert sandbox.inputs[-1] is None
+
+
+async def test_verifier_is_launched_by_absolute_shell_path() -> None:
+    """The provider resolves the shell through the image PATH; give it no choice."""
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await verify_framework_directory(sandbox, "/var/tmp/.x", user="root")
+    (cmd, _), *_ = sandbox.exec_calls
+    assert cmd[0] == SHELL_PATH == "/bin/sh"
+
+
+async def test_exec_does_not_create_and_does_not_run_command_on_violation(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    missing = parent / "missing"
+    with pytest.raises(FrameworkDirectoryNotFoundError, match="does not exist"):
+        await exec_in_framework_directory(
+            local, str(missing), ["touch", "ran"], user=None
+        )
+    assert not missing.exists()
+
+    with pytest.raises(FrameworkDirectoryNotFoundError, match="parent directory"):
+        await verify_framework_directory(local, str(missing / "deeper"), user=None)
+    assert not missing.exists()
+
+    link = parent / "link"
+    os.symlink(parent, link)
+    with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
+        await exec_in_framework_directory(local, str(link), ["touch", "ran"], user=None)
+    assert not (parent / "ran").exists()
+
+
+async def test_exec_returns_failing_command_result(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    result = await exec_in_framework_directory(
+        local, str(target), ["sh", "-c", "echo boom >&2; exit 7"], user=None
+    )
+    assert not result.success
+    assert result.returncode == 7
+    assert result.stderr == "boom\n"
+
+
+async def test_command_cannot_forge_a_verdict(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    for marker, code in (
+        (_VIOLATION_MARKER, 3),
+        (_MISSING_MARKER, 4),
+        (_UNAVAILABLE_MARKER, 5),
+        (_USER_MISMATCH_MARKER, 6),
+        (_CREATE_FAILED_MARKER, 7),
+    ):
+        # Same marker line *and* the same exit status the script would use.
+        result = await exec_in_framework_directory(
+            local,
+            str(target),
+            ["sh", "-c", f"echo '{marker}: forged' >&2; exit {code}"],
+            user=None,
+        )
+        assert result.returncode == code and "forged" in result.stderr
+
+
+async def test_missing_stat_is_reported_as_unavailable_not_violation(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    bindir = _tool_dir(tmp_path, ["sh", "id", "mkdir", "chmod", "pwd"], {})
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    with pytest.raises(FrameworkDirectoryUnavailableError, match="cannot stat"):
+        await ensure_framework_directory(sandbox, str(parent / "fw"), user=None)
+
+
+async def test_concurrent_creators_both_end_with_a_verified_directory(
+    local: LocalSandboxEnvironment, parent: Path, tmp_path: Path
+) -> None:
+    """Losing the mkdir race is not an error: the survivor is verified as usual."""
+    real_mkdir = shutil.which("mkdir")
+    assert real_mkdir
+    # The shimmed mkdir succeeds silently first (the racing winner) and then runs
+    # again so the script's own attempt observes EEXIST, as the loser would.
+    bindir = _tool_dir(
+        tmp_path,
+        ["sh", "id", "stat", "chmod", "pwd"],
+        {"mkdir": f'"{real_mkdir}" "$@" >/dev/null 2>&1\n"{real_mkdir}" "$@"'},
+    )
+    sandbox = _ScriptOverrideSandbox(local, _script_with_path(bindir))
+    target = parent / "fw"
+    await ensure_framework_directory(sandbox, str(target), user=None)
+    assert _mode(target) == 0o700
+
+
+async def test_exec_requires_a_command(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    with pytest.raises(ValueError, match="cmd must not be empty"):
+        await exec_in_framework_directory(local, str(parent / "fw"), [], user=None)
+
+
+@pytest.mark.parametrize("path", ["relative/dir", "/", "/var/tmp/../x", "/.."])
+def test_split_framework_path_rejects_unsafe_paths(path: str) -> None:
+    with pytest.raises(ValueError):
+        split_framework_path(path)
+
+
+def test_split_framework_path_normalizes() -> None:
+    assert split_framework_path("/var/tmp/.x/") == FrameworkPath("/var/tmp", ".x")
+    assert split_framework_path("/var/tmp/./.x") == FrameworkPath("/var/tmp", ".x")
+    assert split_framework_path("/x") == FrameworkPath("/", "x")
+
+
+def test_script_is_valid_posix_sh() -> None:
+    subprocess.run(["sh", "-n", "-c", _SCRIPT], check=True)
+
+
+async def test_violation_verdict_becomes_framework_directory_error() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=3,
+            stdout="",
+            stderr=f"{_VIOLATION_MARKER}: /var/tmp/.x is owned by uid 1111, expected uid 0\n",
+        )
+    )
+    with pytest.raises(FrameworkDirectoryError) as excinfo:
+        await ensure_framework_directory(sandbox, "/var/tmp/.x", user="root")
+    assert not isinstance(excinfo.value, FrameworkDirectoryNotFoundError)
+    assert "owned by uid 1111, expected uid 0" in str(excinfo.value)
+    assert "/var/tmp/.x" in str(excinfo.value)
+    # The request ran as the intended owner, via sh, with parent and leaf split.
+    (cmd, user), *_ = sandbox.exec_calls
+    assert user == "root"
+    assert cmd[:2] == [SHELL_PATH, "-c"]
+    assert cmd[-2:] == ["/var/tmp", ".x"]
+
+
+async def test_verdict_is_honoured_when_exit_status_is_not_propagated() -> None:
+    """A provider that flattens exit statuses must not turn a violation into 'did not run'."""
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True,
+            returncode=0,
+            stdout="",
+            stderr=f"{_VIOLATION_MARKER}: /var/tmp/.x is a symbolic link\n",
+        )
+    )
+    with pytest.raises(FrameworkDirectoryError, match="symbolic link") as excinfo:
+        await ensure_framework_directory(sandbox, "/var/tmp/.x", user="root")
+    assert not isinstance(excinfo.value, FrameworkDirectoryNotFoundError)
+
+
+async def test_unavailable_verdict_is_not_a_contract_violation() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=5,
+            stdout="",
+            stderr=f"sh: stat: not found\n{_UNAVAILABLE_MARKER}: cannot stat parent directory /var/tmp: sh: stat: not found\n",
+        )
+    )
+    with pytest.raises(FrameworkDirectoryUnavailableError, match="stat: not found"):
+        await ensure_framework_directory(sandbox, "/var/tmp/.x", user="root")
+
+
+async def test_user_mismatch_verdict_becomes_user_error() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=6,
+            stdout="",
+            stderr=f"{_USER_MISMATCH_MARKER}: running as uid 1000, expected uid 0\n",
+        )
+    )
+    with pytest.raises(FrameworkDirectoryUserError, match="expected uid 0") as excinfo:
+        await ensure_framework_directory(
+            sandbox, "/var/tmp/.x", user="root", expected_uid=0
+        )
+    assert not isinstance(
+        excinfo.value, (FrameworkDirectoryError, FrameworkDirectoryUnavailableError)
+    )
+    # The expectation is passed to the script ahead of the create and repair flags
+    # and the required mode.
+    (cmd, user), *_ = sandbox.exec_calls
+    assert user == "root"
+    assert cmd[-6:] == ["0", "1", "0", "700", "/var/tmp", ".x"]
+
+
+def test_expected_uid_is_known_only_for_root() -> None:
+    assert expected_uid_for("root") == 0
+    assert expected_uid_for("nonroot") is None
+    assert expected_uid_for(None) is None
+
+
+async def test_root_probe_creates_as_root_insisting_on_uid_0() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    assert (
+        await try_ensure_framework_directory_as_root(
+            sandbox, "/var/tmp/.x", mode=0o755, trace_tag="Test"
+        )
+        is True
+    )
+    (cmd, user), *rest = sandbox.exec_calls
+    assert rest == []
+    assert user == "root"
+    assert cmd[-6:] == ["0", "1", "0", "755", "/var/tmp", ".x"]
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=6,
+                stdout="",
+                stderr=f"{_USER_MISMATCH_MARKER}: running as uid 1000, expected uid 0\n",
+            ),
+            id="ran-as-someone-else",
+        ),
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=126,
+                stdout="",
+                stderr="unable to find user root: no matching entries in passwd file\n",
+            ),
+            id="failing-status",
+        ),
+    ],
+)
+async def test_root_probe_is_false_when_root_is_unavailable(
+    result: ExecResult[str],
+) -> None:
+    sandbox = CannedSandbox.returning(result)
+    assert (
+        await try_ensure_framework_directory_as_root(
+            sandbox, "/var/tmp/.x", trace_tag="Test"
+        )
+        is False
+    )
+
+
+async def test_root_probe_is_false_when_the_provider_raises() -> None:
+    class Refused(Exception):
+        pass
+
+    def policy(_cmd: list[str], _user: str | None) -> ExecResult[str]:
+        raise Refused("no root in this sandbox")
+
+    sandbox = CannedSandbox(policy)
+    assert (
+        await try_ensure_framework_directory_as_root(
+            sandbox, "/var/tmp/.x", trace_tag="Test"
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    "result, expected",
+    [
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=3,
+                stdout="",
+                stderr=f"{_VIOLATION_MARKER}: /var/tmp/.x is owned by uid 1111, expected uid 0\n",
+            ),
+            FrameworkDirectoryError,
+            id="violation",
+        ),
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=7,
+                stdout="",
+                stderr=f"{_CREATE_FAILED_MARKER}: mkdir: read-only file system\n",
+            ),
+            FrameworkDirectoryError,
+            id="create-failed",
+        ),
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=5,
+                stdout="",
+                stderr=f"{_UNAVAILABLE_MARKER}: cannot stat parent directory /var/tmp: stat: not found\n",
+            ),
+            FrameworkDirectoryUnavailableError,
+            id="unavailable",
+        ),
+    ],
+)
+async def test_root_probe_reraises_verdicts_instead_of_downgrading(
+    result: ExecResult[str], expected: type[Exception]
+) -> None:
+    """A planted entry or an unverifiable check must never select the rootless path."""
+    sandbox = CannedSandbox.returning(result)
+    with pytest.raises(expected):
+        await try_ensure_framework_directory_as_root(
+            sandbox, "/var/tmp/.x", trace_tag="Test"
+        )
+
+
+async def test_root_probe_rejects_bad_arguments_rather_than_falling_back() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(success=True, returncode=0, stdout="", stderr="")
+    )
+    with pytest.raises(ValueError):
+        await try_ensure_framework_directory_as_root(
+            sandbox, "relative", trace_tag="Test"
+        )
+    with pytest.raises(ValueError):
+        await try_ensure_framework_directory_as_root(
+            sandbox, "/var/tmp/.x", mode=0o777, trace_tag="Test"
+        )
+    assert sandbox.exec_calls == []
+
+
+async def test_root_probe_is_false_on_local_sandbox(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """LocalSandboxEnvironment ignores `user`, so it must not report root."""
+    if os.getuid() == 0:
+        pytest.skip("requires a non-root test user")
+    target = parent / "fw"
+    with pytest.warns(UserWarning, match="'user' parameter is ignored"):
+        assert (
+            await try_ensure_framework_directory_as_root(
+                local, str(target), trace_tag="Test"
+            )
+            is False
+        )
+    assert not target.exists()  # refused before creating anything
+
+
+async def test_no_expected_uid_passes_an_empty_expectation() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await verify_framework_directory(sandbox, "/var/tmp/.x", user=None)
+    (cmd, _), *_ = sandbox.exec_calls
+    assert cmd[-6:] == ["", "0", "0", "700", "/var/tmp", ".x"]
+
+
+async def test_repair_mode_is_passed_to_the_script() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await ensure_framework_directory(
+        sandbox, "/var/tmp/.x", user=None, repair_mode=True
+    )
+    (cmd, _), *_ = sandbox.exec_calls
+    assert cmd[-6:] == ["", "1", "1", "700", "/var/tmp", ".x"]
+
+
+async def test_mode_is_passed_to_the_script_as_stat_prints_it() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await ensure_framework_directory(sandbox, "/var/tmp/.x", user="root", mode=0o755)
+    await verify_framework_directory(sandbox, "/var/tmp/.x", user="root", mode=0o750)
+    await exec_in_framework_directory(
+        sandbox, "/var/tmp/.x", ["true"], user="root", mode=0o755
+    )
+    assert [cmd[-3] for cmd, _ in sandbox.exec_calls[:2]] == ["755", "750"]
+    assert sandbox.exec_calls[2][0][-4:] == ["755", "/var/tmp", ".x", "true"]
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        pytest.param(0o1755, "set-id or sticky", id="sticky"),
+        pytest.param(0o2700, "set-id or sticky", id="setgid"),
+        pytest.param(0o500, "owner rwx", id="owner-cannot-write"),
+        pytest.param(0o775, "writable by group or others", id="group-writable"),
+        pytest.param(0o757, "writable by group or others", id="other-writable"),
+    ],
+)
+async def test_unacceptable_mode_is_rejected_before_running_anything(
+    mode: int, expected: str
+) -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    with pytest.raises(ValueError, match=expected):
+        framework_directory_mode(mode)
+    for op in (ensure_framework_directory, verify_framework_directory):
+        with pytest.raises(ValueError, match=expected):
+            await op(sandbox, "/var/tmp/.x", user="root", mode=mode)
+    with pytest.raises(ValueError, match=expected):
+        await exec_in_framework_directory(
+            sandbox, "/var/tmp/.x", ["true"], user="root", mode=mode
+        )
+    assert sandbox.exec_calls == []
+
+
+def test_framework_directory_mode_formats_like_stat() -> None:
+    assert framework_directory_mode(0o700) == "700"
+    assert framework_directory_mode(0o755) == "755"
+    assert framework_directory_mode(0o750) == "750"
+
+
+async def test_failure_before_verification_is_a_plain_runtime_error() -> None:
+    """A provider refusing the user (or no sh) is neither a verdict nor a result."""
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=126,
+            stdout="",
+            stderr="runuser: may not be used by non-root users\n",
+        )
+    )
+    with pytest.raises(RuntimeError, match="runuser") as excinfo:
+        await ensure_framework_directory(sandbox, "/var/tmp/.x", user="root")
+    assert not isinstance(
+        excinfo.value, (FrameworkDirectoryError, FrameworkDirectoryUnavailableError)
+    )
+    with pytest.raises(RuntimeError, match="did not run as root"):
+        await exec_in_framework_directory(sandbox, "/var/tmp/.x", ["true"], user="root")
+
+
+async def test_exec_success_passes_result_through() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True,
+            returncode=0,
+            stdout="regular file\n",
+            stderr=f"{_VERIFIED_MARKER}\n",
+        )
+    )
+    result = await exec_in_framework_directory(
+        sandbox, "/var/tmp/.x", ["stat", "-c", "%F", "launcher"], user=None
+    )
+    assert result.stdout == "regular file\n"
+    assert result.stderr == ""
+    (cmd, user), *_ = sandbox.exec_calls
+    assert user is None
+    assert cmd[-9:] == [
+        "0",
+        "0",
+        "700",
+        "/var/tmp",
+        ".x",
+        "stat",
+        "-c",
+        "%F",
+        "launcher",
+    ]
+
+
+async def test_verdict_after_verification_belongs_to_the_command() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=3,
+            stdout="",
+            stderr=f"{_VERIFIED_MARKER}\n{_VIOLATION_MARKER}: forged by the command\n",
+        )
+    )
+    result = await exec_in_framework_directory(
+        sandbox, "/var/tmp/.x", ["some", "command"], user=None
+    )
+    assert result.returncode == 3
+    assert result.stderr == f"{_VIOLATION_MARKER}: forged by the command\n"
+
+
+# ---------------------------------------------------------------------------
+# Entry operations: stat and atomic write inside a verified directory
+# ---------------------------------------------------------------------------
+
+
+async def test_stat_reports_missing_regular_and_symlink_entries(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    assert await stat_in_framework_directory(local, str(target), "f", user=None) is None
+
+    (target / "f").write_text("x")
+    st_mode = await stat_in_framework_directory(local, str(target), "f", user=None)
+    assert st_mode is not None and stat.S_ISREG(st_mode)
+
+    # A symlink reports its own type (it is not followed), even a dangling one.
+    os.symlink("nowhere", target / "-link")
+    st_mode = await stat_in_framework_directory(local, str(target), "-link", user=None)
+    assert st_mode is not None and stat.S_ISLNK(st_mode)
+
+    (target / "d").mkdir()
+    st_mode = await stat_in_framework_directory(local, str(target), "d", user=None)
+    assert st_mode is not None and stat.S_ISDIR(st_mode)
+
+
+async def test_stat_runs_the_entry_probe_in_the_verified_directory() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="81ed\n", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    st_mode = await stat_in_framework_directory(
+        sandbox, "/var/tmp/.x", "launcher", user="root", expected_uid=0, mode=0o755
+    )
+    assert st_mode == 0o100755
+    [(cmd, user)] = sandbox.exec_calls
+    assert user == "root"
+    assert cmd[:3] == [SHELL_PATH, "-c", _SCRIPT]
+    leaf = cmd.index(".x")
+    assert cmd[leaf - 5 : leaf - 1] == ["0", "0", "0", "755"]
+    assert cmd[leaf + 1 :] == ["sh", "-c", _STAT_ENTRY, "sh", "launcher"]
+
+
+@pytest.mark.parametrize(
+    "result, expected",
+    [
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=1,
+                stdout="",
+                stderr=f"{_VERIFIED_MARKER}\nstat: cannot statx 'f': Input/output error\n",
+            ),
+            "Input/output error",
+            id="stat-failed",
+        ),
+        pytest.param(
+            ExecResult(
+                success=True,
+                returncode=0,
+                stdout="regular file\n",
+                stderr=f"{_VERIFIED_MARKER}\n",
+            ),
+            "Unexpected output",
+            id="not-a-hex-mode",
+        ),
+        pytest.param(
+            ExecResult(
+                success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+            ),
+            "Unexpected output",
+            id="empty",
+        ),
+    ],
+)
+async def test_stat_failure_is_an_error_not_missing(
+    result: ExecResult[str], expected: str
+) -> None:
+    sandbox = CannedSandbox.returning(result)
+    with pytest.raises(RuntimeError, match=expected):
+        await stat_in_framework_directory(sandbox, "/var/tmp/.x", "f", user=None)
+
+
+async def test_stat_propagates_directory_verdicts() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=3,
+            stdout="",
+            stderr=f"{_VIOLATION_MARKER}: /var/tmp/.x is a symbolic link\n",
+        )
+    )
+    with pytest.raises(FrameworkDirectoryError, match="symbolic link"):
+        await stat_in_framework_directory(sandbox, "/var/tmp/.x", "f", user=None)
+
+
+@pytest.mark.parametrize("name", ["", ".", "..", "a/b", "/abs", "a/"])
+async def test_entry_operations_reject_names_that_are_not_a_single_component(
+    name: str,
+) -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(success=True, returncode=0, stdout="", stderr="")
+    )
+    with pytest.raises(ValueError, match="single path component"):
+        await stat_in_framework_directory(sandbox, "/var/tmp/.x", name, user=None)
+    with pytest.raises(ValueError, match="single path component"):
+        await write_file_in_framework_directory(
+            sandbox, "/var/tmp/.x", name, "x", user=None, file_mode=0o600
+        )
+    assert sandbox.exec_calls == []
+
+
+async def test_write_publishes_complete_file_in_requested_mode(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None, mode=0o755)
+    await write_file_in_framework_directory(
+        local,
+        str(target),
+        "-task.py",
+        "print('hi')\n",
+        user=None,
+        mode=0o755,
+        file_mode=0o755,
+    )
+    published = target / "-task.py"
+    assert published.read_text() == "print('hi')\n"
+    assert _mode(published) == 0o755
+    assert sorted(p.name for p in target.iterdir()) == ["-task.py"]
+
+
+async def test_write_never_replaces_an_existing_entry(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    existing = target / "f"
+    existing.write_text("original\n")
+    with pytest.raises(RuntimeError, match="File exists"):
+        await write_file_in_framework_directory(
+            local, str(target), "f", "replacement\n", user=None, file_mode=0o600
+        )
+    assert existing.read_text() == "original\n"
+    # No temporary file is left behind either.
+    assert sorted(p.name for p in target.iterdir()) == ["f"]
+
+    # A symlink at the name is not written through, and the write still fails.
+    existing.unlink()
+    decoy = parent / "decoy"
+    decoy.write_text("decoy\n")
+    os.symlink(decoy, existing)
+    with pytest.raises(RuntimeError, match="File exists"):
+        await write_file_in_framework_directory(
+            local, str(target), "f", "replacement\n", user=None, file_mode=0o600
+        )
+    assert decoy.read_text() == "decoy\n"
+    assert sorted(p.name for p in target.iterdir()) == ["f"]
+
+
+async def test_write_refuses_a_directory_at_the_target_name(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """Without ``ln -T`` the link would land inside the directory and succeed."""
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    planted = target / "f"
+    planted.mkdir()
+    with pytest.raises(RuntimeError, match=f"Cannot write {target}/f"):
+        await write_file_in_framework_directory(
+            local, str(target), "f", "content\n", user=None, file_mode=0o600
+        )
+    assert planted.is_dir()
+    assert list(planted.iterdir()) == []
+    assert sorted(p.name for p in target.iterdir()) == ["f"]
+
+
+async def test_write_clears_a_leftover_temporary_file_and_refuses_a_planted_one(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    # Leftover from an interrupted earlier write: removed, then the write proceeds.
+    (target / "f.tmp").write_text("partial")
+    await write_file_in_framework_directory(
+        local, str(target), "f", "done\n", user=None, file_mode=0o600
+    )
+    assert (target / "f").read_text() == "done\n"
+    assert _mode(target / "f") == 0o600
+    assert sorted(p.name for p in target.iterdir()) == ["f"]
+
+
+async def test_write_passes_content_on_stdin_and_mode_as_an_argument() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
+        )
+    )
+    await write_file_in_framework_directory(
+        sandbox,
+        "/var/tmp/.x",
+        "f",
+        "content\n",
+        user="root",
+        expected_uid=0,
+        mode=0o755,
+        file_mode=0o755,
+    )
+    [(cmd, user)] = sandbox.exec_calls
+    assert user == "root"
+    assert cmd[:3] == [SHELL_PATH, "-c", _SCRIPT]
+    leaf = cmd.index(".x")
+    assert cmd[leaf - 5 : leaf - 1] == ["0", "0", "0", "755"]
+    assert cmd[leaf + 1 :] == ["sh", "-c", _WRITE_ENTRY, "sh", "f", "755"]
+    assert sandbox.inputs == ["content\n"]
+
+
+async def test_write_failure_is_reported_with_the_command_error() -> None:
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=1,
+            stdout="",
+            stderr=f"{_VERIFIED_MARKER}\ncat: write error: No space left on device\n",
+        )
+    )
+    with pytest.raises(RuntimeError, match="No space left on device"):
+        await write_file_in_framework_directory(
+            sandbox, "/var/tmp/.x", "f", "x", user=None, file_mode=0o600
+        )
+
+
+@pytest.mark.parametrize("mode", [0o600, 0o644, 0o755, 0o400, 0o700], ids=oct)
+def test_framework_file_mode_accepts_owner_readable_non_writable_by_others(
+    mode: int,
+) -> None:
+    assert framework_file_mode(mode) == format(mode, "o")
+
+
+@pytest.mark.parametrize(
+    "mode", [0o666, 0o775, 0o757, 0o200, 0o000, 0o4755, 0o2644, 0o1644], ids=oct
+)
+def test_framework_file_mode_rejects_unsafe_modes(mode: int) -> None:
+    with pytest.raises(ValueError, match="framework file mode"):
+        framework_file_mode(mode)
+
+
+def test_entry_scripts_are_valid_posix_sh() -> None:
+    for script in (_STAT_ENTRY, _WRITE_ENTRY):
+        subprocess.run(["sh", "-n", "-c", script], check=True)

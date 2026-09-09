@@ -3,7 +3,7 @@ import textwrap
 import pytest
 from test_helpers.utils import simple_task_state
 
-from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, Target, answer
+from inspect_ai.scorer import CORRECT, INCORRECT, Target, answer
 
 
 @pytest.mark.anyio
@@ -39,7 +39,8 @@ async def test_word_failure():
     state = simple_task_state(model_output="ANSWER: Yes")
     result = await scorer(state, Target(["No"]))
 
-    assert result.text == NOANSWER
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
 
 
 @pytest.mark.anyio
@@ -72,12 +73,13 @@ async def test_word_matching(model_output: str, target: str):
         ("ANSWER: No, because reasons", "No"),
     ],
 )
-async def test_word_trailing_prose_noanswer(model_output: str, target: str):
+async def test_word_trailing_prose_is_format_violation(model_output: str, target: str):
     scorer = answer("word")
     state = simple_task_state(model_output=model_output)
     result = await scorer(state, Target([target]))
 
-    assert result is not None and result.text == NOANSWER
+    assert result is not None and result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
 
 
 @pytest.mark.anyio

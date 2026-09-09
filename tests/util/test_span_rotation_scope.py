@@ -11,7 +11,6 @@ from collections.abc import Iterator
 
 import anyio
 import pytest
-from test_helpers.utils import attach_caplog_to_module_logger
 
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
@@ -125,18 +124,16 @@ async def test_current_span_is_parent_between_spans() -> None:
 async def test_no_cross_context_warning_on_cross_task_rotation(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # inspect_ai loggers don't propagate; attach caplog's handler directly
-    with attach_caplog_to_module_logger(caplog, "inspect_ai.util._span"):
-        scope = SpanRotationScope(type="checkpoint")
-        await scope.open("checkpoint 1")
+    scope = SpanRotationScope(type="checkpoint")
+    await scope.open("checkpoint 1")
 
-        async def rotate() -> None:
-            await scope.end_span()
-            await scope.begin_span("checkpoint 2")
+    async def rotate() -> None:
+        await scope.end_span()
+        await scope.begin_span("checkpoint 2")
 
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(rotate)
-        await scope.close()
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(rotate)
+    await scope.close()
 
     assert not [r for r in caplog.records if "another context" in r.getMessage()]
 

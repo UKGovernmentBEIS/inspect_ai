@@ -4,7 +4,7 @@ Verifies that dotted vLLM arguments like `speculative-config.num_speculative_tok
 are correctly normalized through the CLI layer without mangling nested key segments.
 """
 
-from inspect_ai._cli.util import parse_cli_args
+from inspect_ai._util.config import parse_cli_args
 
 
 def test_simple_hyphenated_key() -> None:

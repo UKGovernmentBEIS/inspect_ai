@@ -223,7 +223,7 @@ class EvalConfig(BaseModel):
     """Expose this eval over an Agent Client Protocol server.
 
     `True` enables a default AF_UNIX socket at
-    `<inspect_data_dir>/acp/<eval_id>.sock`; an integer binds a TCP
+    `<inspect_data_dir>/acp/<pid>.sock`; an integer binds a TCP
     loopback port (127.0.0.1:<int>); a string of the form `host:port`
     (e.g. `0.0.0.0:4444`) binds TCP on a specific interface; any other
     string is taken as a custom AF_UNIX socket path; `None` (default)
@@ -349,13 +349,19 @@ class EvalSampleSummary(BaseModel):
     """Number of turns (top-level model generations) in the sample."""
 
     token_limit: int | None = Field(default=None)
-    """Configured token limit ceiling for the sample (None when no limit)."""
+    """Token limit ceiling the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
 
     token_limit_type: str | None = Field(default=None)
     """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
 
     token_limit_usage: int | None = Field(default=None)
     """Metered usage for the sample's token limit (respects the limit's type)."""
+
+    message_limit: int | None = Field(default=None)
+    """Message limit ceiling the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
+
+    time_limit: int | None = Field(default=None)
+    """Time limit ceiling in seconds the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
 
     @model_validator(mode="after")
     def thin_data(self) -> "EvalSampleSummary":
@@ -379,6 +385,9 @@ class EvalSampleSummary(BaseModel):
                     explanation=thin_text(score.explanation)
                     if score.explanation is not None
                     else None,
+                    reason=thin_text(score.reason)
+                    if isinstance(score.reason, str)
+                    else score.reason,
                     metadata=thin_metadata(score.metadata)
                     if score.metadata is not None
                     else None,
@@ -546,13 +555,19 @@ class EvalSample(BaseModel):
     """Number of turns (top-level model generations) in the sample."""
 
     token_limit: int | None = Field(default=None)
-    """Configured token limit ceiling for the sample (None when no limit)."""
+    """Token limit ceiling the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
 
     token_limit_type: str | None = Field(default=None)
     """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
 
     token_limit_usage: int | None = Field(default=None)
     """Metered usage for the sample's token limit (respects the limit's type)."""
+
+    message_limit: int | None = Field(default=None)
+    """Message limit ceiling the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
+
+    time_limit: int | None = Field(default=None)
+    """Time limit ceiling in seconds the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
 
     def summary(self) -> EvalSampleSummary:
         """Summary of sample.
@@ -592,6 +607,8 @@ class EvalSample(BaseModel):
             token_limit=self.token_limit,
             token_limit_type=self.token_limit_type,
             token_limit_usage=self.token_limit_usage,
+            message_limit=self.message_limit,
+            time_limit=self.time_limit,
         )
 
     # deprecated properties
@@ -719,6 +736,39 @@ class EvalPlan(BaseModel):
     """Generation config."""
 
 
+class HeadlineMetric(BaseModel):
+    """Reference to the headline metric of an eval.
+
+    The headline metric is the single number that best summarises an eval (e.g.
+    for a leaderboard or log listing). Set fields narrow ``EvalResults.scores``
+    in turn; unset ones resolve by convention. A ``metric`` on its own selects
+    the first score *carrying* that metric, so ``HeadlineMetric(metric="accuracy")``
+    skips scores that don't report one. With no ``metric``, the first metric of
+    the first remaining score is used — the default when nothing is declared.
+
+    Fields are matched literally. ``Task(headline_metric=...)`` additionally
+    accepts a ``"<scorer>.<score>"`` shorthand string, which is split into these
+    fields before it reaches the model — scorer names may themselves contain a
+    dot (``@scorer(name="judge.v2")``), so the shorthand is only applied where
+    it is unambiguously requested.
+    """
+
+    scorer: str | None = Field(default=None)
+    """Scorer to read, matched against `EvalScore.scorer`."""
+
+    score: str | None = Field(default=None)
+    """Score to read, matched against `EvalScore.name`. Only meaningful for
+    scorers returning a dict of scores, where one scorer yields several scores
+    named for its value keys."""
+
+    metric: str | None = Field(default=None)
+    """Metric to read (a key of `EvalScore.metrics`)."""
+
+    reducer: str | None = Field(default=None)
+    """Reducer view to select, in its logged form (e.g. "pass_at_5"). Only
+    required when epochs declare more than one reducer."""
+
+
 class EvalMetric(BaseModel):
     """Metric for evaluation score."""
 
@@ -804,6 +854,18 @@ class EvalResults(BaseModel):
     or when there is early stopping.
     """
 
+    logged_samples: int | None = Field(default=None)
+    """Samples this log actually resolved (present in the log and not
+    cancelled), when a graceful task cancel or drain abandoned queued samples.
+
+    `total_samples` records the *planned* count, so a log finished by
+    `inspect ctl task drain` or `inspect ctl task cancel --action score|error`
+    would otherwise read complete to an eval set; the eval set's run-vs-reuse
+    check prefers this count when present so the abandoned remainder is
+    re-run by a later invocation. None on ordinary logs (and logs written by
+    older versions), which classify by `total_samples` as before.
+    """
+
     early_stopping: EarlyStoppingSummary | None = Field(default=None)
     """Early stopping summary (if an early stopping manager was present)."""
 
@@ -827,6 +889,12 @@ class EvalResults(BaseModel):
 
     scores: list[EvalScore] = Field(default=[])
     """Scorers used to compute results"""
+
+    headline: HeadlineMetric | None = Field(default=None)
+    """Resolved headline metric — which entry of `scores` and which of its
+    `metrics` best summarises this eval. Resolved from the task's declared
+    `EvalSpec.headline_metric`, falling back to the first metric of the first
+    score."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional results metadata."""
@@ -1010,8 +1078,8 @@ class EvalSpec(BaseModel):
     model_args: dict[str, Any] = Field(default_factory=dict)
     """Model specific arguments."""
 
-    model_roles: dict[str, ModelConfig] | None = Field(default=None)
-    """Model roles."""
+    model_roles: dict[str, ModelConfig | list[ModelConfig]] | None = Field(default=None)
+    """Model roles (a role bound to a list of models holds a list of configs)."""
 
     config: EvalConfig
     """Configuration values for eval."""
@@ -1038,6 +1106,11 @@ class EvalSpec(BaseModel):
         | None
     ) = Field(default=None)
     """metrics and args for this eval"""
+
+    headline_metric: HeadlineMetric | None = Field(default=None)
+    """Headline metric declared by the task — which score/metric best summarises
+    this eval. Authored via `Task(headline_metric=...)`. When unset, readers fall
+    back to the first metric of the first score."""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())

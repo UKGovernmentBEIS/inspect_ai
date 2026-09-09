@@ -36,28 +36,25 @@ def perplexity() -> Scorer:
     weighted by token count.
     """
 
-    # NaN signals "unscorable sample" — the metrics skip these
-    # gracefully instead of crashing the eval run.  This matches
-    # how classification scorers use NOANSWER for the same purpose.
     async def score(state: TaskState, target: Target) -> Score:
         if not state.output.choices:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation="No model output choices available.",
             )
 
         choice = state.output.choices[0]
         if not choice.prompt_logprobs or choice.prompt_logprobs.content is None:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation="No prompt logprobs available. Ensure prompt_logprobs is set in GenerateConfig.",
             )
 
         log_probs = [lp.logprob for lp in choice.prompt_logprobs.content]
         num_tokens = len(log_probs)
         if num_tokens == 0:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation="prompt_logprobs.content is empty.",
             )
         sum_log_probs = sum(log_probs)

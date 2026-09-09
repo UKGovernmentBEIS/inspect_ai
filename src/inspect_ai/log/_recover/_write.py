@@ -17,13 +17,16 @@ from inspect_ai.log._log import (
     EvalSample,
     EvalSampleReductions,
     EvalSampleSummary,
+    EvalSpec,
     EvalStats,
+    EvalStatus,
 )
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
-from inspect_ai.log._recorders.eval import EvalRecorder
+from inspect_ai.log._recorders.eval import EvalRecorder, _sample_filename
 from inspect_ai.model._model_output import ModelUsage
 
 from ._read import CrashedEvalLog, read_flushed_sample
+from ._reconstruct import IncompleteAction
 from ._stream import _write_sample_streaming
 
 logger = getLogger(__name__)
@@ -38,17 +41,61 @@ class RecoveryStats:
 
     sample_count: int = 0
     failed_count: int = 0
+    in_progress_count: int = 0
+    not_finalized_reason: str | None = None
+    """Why a resolving disposition left the log with status "error".
+
+    Set only when `incomplete_action="error"` did not finalize the log, so
+    callers can tell "expected samples are missing" (retryable by design)
+    apart from "metrics could not be recomputed" (nothing left to run, but
+    the log will still be retried).
+    """
+
+
+def expected_samples(eval: EvalSpec) -> int:
+    """Total samples the eval expected to run (selected samples x epochs).
+
+    `EvalDataset.sample_ids` is recorded after `limit` / `sample_id` slicing
+    (it is what the task logger sizes its own sample total from), whereas
+    `EvalDataset.samples` is the unsliced dataset size — so a limited eval
+    must be sized from the ids or it can never be complete. Logs written
+    before ids were recorded fall back to the dataset size.
+    """
+    if eval.dataset is None:
+        return 0
+    if eval.dataset.sample_ids is not None:
+        dataset_samples = len(eval.dataset.sample_ids)
+    else:
+        dataset_samples = eval.dataset.samples or 0
+    return dataset_samples * (eval.config.epochs or 1)
+
+
+def expected_sample_keys(eval: EvalSpec) -> set[str] | None:
+    """Sample entry keys (`_sample_filename`) the eval expected to write.
+
+    One key per `(sample_id, epoch)` in `sample_ids x epochs`, or `None` for
+    logs written before ids were recorded (callers fall back to counting).
+    """
+    if eval.dataset is None or eval.dataset.sample_ids is None:
+        return None
+    epochs = eval.config.epochs or 1
+    return {
+        _sample_filename(id, epoch)
+        for id in eval.dataset.sample_ids
+        for epoch in range(1, epochs + 1)
+    }
 
 
 async def write_recovered_eval_log(
     crashed: CrashedEvalLog,
-    buffer_samples: Iterator[EvalSample],
+    buffer_samples: Iterator[tuple[EvalSample, bool]],
     output: str,
     *,
     streaming_buffer: SampleBufferFilestore | None = None,
     streaming_summaries: list[tuple[EvalSampleSummary, bool]] | None = None,
     flushed_keys: set[str] | None = None,
     no_events: bool = False,
+    incomplete_action: IncompleteAction = "retry",
     stats: RecoveryStats | None = None,
 ) -> EvalLog:
     """Write a recovered .eval file with true streaming.
@@ -64,12 +111,19 @@ async def write_recovered_eval_log(
 
     Args:
         crashed: Start data from the crashed .eval file.
-        buffer_samples: Iterator of reconstructed buffer DB samples.
+        buffer_samples: Iterator of (reconstructed buffer DB sample,
+            is_in_progress) tuples.
         output: Output file path.
         streaming_buffer: If set, use streaming segment-at-a-time path.
         streaming_summaries: (summary, is_in_progress) tuples for streaming.
         flushed_keys: Sample entry keys already flushed (for dedup).
         no_events: Exclude event transcript from recovered samples.
+        incomplete_action: Disposition for samples in progress at crash.
+            With `"error"` they are resolved (final, recorded as operator
+            terminations), and when every expected sample is then final the
+            recovered log is finalized with `status="success"`; with
+            `"retry"` (default) they become cancelled errors and the log
+            keeps `status="error"` so retries re-run them.
         stats: If provided, populated with sample and failed counts so
             callers can report progress without re-reading the just-written
             file (which would trigger lazy loading of all samples).
@@ -94,11 +148,16 @@ async def write_recovered_eval_log(
 
     sample_count = 0
     failed_count = 0
+    in_progress_count = 0
+    written_keys: set[str] = set()
     stats_acc = _StatsAccumulator(crashed)
     scores_acc: list[dict[str, SampleScore]] = []
 
-    async def _write_sample(sample: EvalSample) -> None:
-        nonlocal sample_count, failed_count
+    async def _write_sample(sample: EvalSample, in_progress: bool = False) -> None:
+        nonlocal sample_count, failed_count, in_progress_count
+        if in_progress:
+            in_progress_count += 1
+        written_keys.add(_sample_filename(sample.id, sample.epoch))
         stats_acc.add_sample(sample)
         if sample.scores:
             scores_acc.append(
@@ -137,10 +196,12 @@ async def write_recovered_eval_log(
             total_streaming = len(streaming_summaries)
             processed = 0
             for summary, is_in_progress in streaming_summaries:
-                entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
+                entry = _sample_filename(summary.id, summary.epoch)
                 if entry in effective_flushed:
                     continue
                 processed += 1
+                if is_in_progress:
+                    in_progress_count += 1
                 seg_count = next(
                     (
                         len(sm.segments)
@@ -161,8 +222,10 @@ async def write_recovered_eval_log(
                     manifest,
                     eval_spec=crashed.eval,
                     is_in_progress=is_in_progress,
+                    incomplete_action=incomplete_action,
                     include_events=not no_events,
                 )
+                written_keys.add(entry)
                 stats_acc.add_summary(written_summary)
                 if is_in_progress or written_summary.error is not None:
                     failed_count += 1
@@ -187,8 +250,8 @@ async def write_recovered_eval_log(
                     await recorder.flush(crashed.eval)
     else:
         # Non-streaming path: consume buffer_samples iterator
-        for sample in buffer_samples:
-            await _write_sample(sample)
+        for sample, in_progress in buffer_samples:
+            await _write_sample(sample, in_progress)
 
     # Compute results from collected scores
     results: EvalResults | None = None
@@ -214,23 +277,85 @@ async def write_recovered_eval_log(
             # failed_count covers errored and still-in-progress samples, so
             # the remainder is exactly the samples that completed cleanly
             completed_samples=sample_count - failed_count,
+            headline_metric=header.eval.headline_metric,
         )
     except Exception as ex:
         logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
 
-    error = EvalError(
-        message="Eval recovered from crash",
-        traceback="Eval process crashed; log recovered from sample buffer database.\n",
-        traceback_ansi="Eval process crashed; log recovered from sample buffer database.\n",
-    )
+    # A resolving disposition finalizes the log with status "success" when
+    # every expected sample is final (present in the recovered log: flushed,
+    # buffer-complete, or resolved) — nothing is left to run, so eval_set's
+    # completeness predicate is satisfied and nothing will retry it. If
+    # expected samples are missing entirely (never started, or lost between
+    # flush and crash), the log keeps status "error" and stays retryable.
+    # The check is by identity, not count: the written (id, epoch) keys must
+    # be exactly the recorded `sample_ids x epochs`. A dynamic `sample_source`
+    # records only its seed ids while produced samples are written under
+    # their own, so a count could be satisfied with produced samples still
+    # unstarted; a written id outside the recorded set keeps the log
+    # retryable instead. Logs without recorded ids fall back to counting.
+    # `fail_on_error` is deliberately not applied: the operator explicitly
+    # chose to complete the eval; recording the resolved samples as errors
+    # is for analysis honesty, not for status computation. Finalization also
+    # requires recomputed results — without them the log would fail the
+    # completeness predicate and be re-run despite its "success" status.
+    expected_keys = expected_sample_keys(crashed.eval)
+    if expected_keys is not None:
+        complete = len(expected_keys) > 0 and written_keys == expected_keys
+        missing = len(expected_keys - written_keys)
+    else:
+        expected = expected_samples(crashed.eval)
+        complete = expected > 0 and sample_count >= expected
+        missing = max(expected - sample_count, 0)
+    finalized = incomplete_action == "error" and results is not None and complete
+
+    # Under a resolving disposition, say why the log was not finalized: the
+    # in-progress samples have already been rewritten as resolved either way,
+    # and a retry of the recovered log re-runs them, which is expected when
+    # samples are missing but surprising when only metrics failed.
+    not_finalized_reason: str | None = None
+    if incomplete_action == "error" and not finalized:
+        if not complete:
+            if missing > 0:
+                not_finalized_reason = (
+                    f"{missing} expected samples missing from the recovered log"
+                )
+            elif expected_keys is not None and len(expected_keys) > 0:
+                not_finalized_reason = (
+                    "written samples do not match the recorded sample ids"
+                )
+            else:
+                not_finalized_reason = "the log records no expected sample count"
+        else:
+            not_finalized_reason = "metrics could not be recomputed"
+            logger.warning(
+                "Recovered log not finalized: every expected sample is final "
+                "but metrics could not be recomputed, so the log keeps status "
+                "'error' and a retry will re-run the samples resolved during "
+                "recovery."
+            )
+
+    status: EvalStatus
+    if finalized:
+        status = "success"
+        error = None
+    else:
+        status = "error"
+        error = EvalError(
+            message="Eval recovered from crash",
+            traceback="Eval process crashed; log recovered from sample buffer database.\n",
+            traceback_ansi="Eval process crashed; log recovered from sample buffer database.\n",
+        )
 
     if stats is not None:
         stats.sample_count = sample_count
         stats.failed_count = failed_count
+        stats.in_progress_count = in_progress_count
+        stats.not_finalized_reason = not_finalized_reason
 
     return await recorder.log_finish(
         crashed.eval,
-        "error",
+        status,
         stats_acc.stats(),
         results,
         reductions,

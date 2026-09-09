@@ -1,3 +1,4 @@
+from copy import copy
 from logging import getLogger
 from typing import Literal, Sequence
 
@@ -167,8 +168,16 @@ def react(
             description=submit.description,
         )
         if not isinstance(submit.tool, ToolDef)
-        else submit.tool
+        else copy(submit.tool)
     )
+    # The submit result becomes the completion, so truncating it would score a
+    # truncation notice in place of the model's answer. Defaulted rather than
+    # forced: an explicit max_output on a caller's submit tool is their call.
+    # The copy above leaves their ToolDef alone, but note `as_tool()` writes
+    # tool attributes onto the shared underlying callable, so this (like the
+    # `name`/`description` above it) does reach a Tool they also use elsewhere.
+    if submit_tool.max_output is None:
+        submit_tool.max_output = 0
     tools.append(submit_tool)
 
     # resolve prompt / system message

@@ -16,6 +16,7 @@ from anyio import ClosedResourceError, create_task_group, open_process
 from anyio.abc import ByteReceiveStream, Process
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.cpu import effective_cpu_count
 from inspect_ai._util.trace import trace_action
 
 from ._concurrency import concurrency as concurrency_manager
@@ -87,8 +88,9 @@ async def subprocess(
 
     Convenience method for solvers, scorers, and tools to launch
     subprocesses. Automatically enforces a limit on concurrent
-    subprocesses (defaulting to os.cpu_count() but controllable
-    via the `max_subprocesses` eval config option).
+    subprocesses (defaulting to the number of processors available
+    to the eval, but controllable via the `max_subprocesses` eval
+    config option).
 
     Args:
        args (str | list[str]): Command and arguments to execute.
@@ -245,8 +247,10 @@ def init_max_subprocesses(max_subprocesses: int | None = None) -> None:
 
 
 def default_max_subprocesses() -> int:
-    cpus = os.cpu_count()
-    return cpus if cpus else 1
+    # the processors this process may use rather than the machine's: under a
+    # container CPU limit `os.cpu_count()` reports the host's, and sizing the
+    # subprocess limiter off that oversubscribes the eval's own quota
+    return effective_cpu_count()
 
 
 # Upper bound on `await process.wait()` after we have already SIGKILLed the

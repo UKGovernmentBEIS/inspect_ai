@@ -3,13 +3,12 @@ import logging
 import tempfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 from unittest import mock
 
 import anyio
 import pytest
 from botocore.exceptions import ClientError
-from test_helpers.utils import attach_caplog_to_module_logger
 
 from inspect_ai import (
     Epochs,
@@ -102,6 +101,29 @@ def test_eval_sample_token_limit_fields_none_without_limit():
     assert sample.token_limit is None
     assert sample.token_limit_type is None
     assert sample.token_limit_usage is None
+    # and so are the other per-sample limit ceilings
+    assert sample.message_limit is None
+    assert sample.time_limit is None
+
+
+def test_eval_sample_records_message_and_time_limits():
+    task = Task(
+        dataset=[Sample(input="s1")],
+        message_limit=10,
+        time_limit=600,
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+
+    # the configured ceilings are persisted on the sample record
+    assert sample.message_limit == 10
+    assert sample.time_limit == 600
+    # the summary carries the same values
+    summary = sample.summary()
+    assert summary.message_limit == 10
+    assert summary.time_limit == 600
 
 
 def test_dynamic_token_limit_updates_active_sample() -> None:
@@ -460,19 +482,11 @@ def task_args_warning_check(task_arg: str = "default") -> Task:
     return Task(dataset=[Sample(input=f"{task_arg}: test input")])
 
 
-@pytest.fixture
-def capture_eval_warnings(caplog):
-    # the warning is emitted from resolve_tasks (the loader module)
-    with attach_caplog_to_module_logger(caplog, "inspect_ai._eval.loader"):
-        yield caplog
-
-
 def _task_args_warnings(caplog) -> list[logging.LogRecord]:
     return [r for r in caplog.records if TASK_ARGS_WARNING_SNIPPET in r.message]
 
 
-def test_task_instance_with_task_args_warns(capture_eval_warnings) -> None:
-    caplog = capture_eval_warnings
+def test_task_instance_with_task_args_warns(caplog) -> None:
     log = eval(
         task_args_warning_check(),
         task_args={"task_arg": "custom"},
@@ -484,10 +498,9 @@ def test_task_instance_with_task_args_warns(capture_eval_warnings) -> None:
     assert "task_arg" in records[0].message
 
 
-def test_task_instance_multiple_models_warns_once(capture_eval_warnings) -> None:
+def test_task_instance_multiple_models_warns_once(caplog) -> None:
     # resolve_tasks runs once per model; the warning is gated to the first
     # model so it fires exactly once regardless of the model count
-    caplog = capture_eval_warnings
     logs = eval(
         task_args_warning_check(),
         task_args={"task_arg": "custom"},
@@ -497,8 +510,7 @@ def test_task_instance_multiple_models_warns_once(capture_eval_warnings) -> None
     assert len(_task_args_warnings(caplog)) == 1
 
 
-def test_string_task_with_task_args_no_warning(capture_eval_warnings) -> None:
-    caplog = capture_eval_warnings
+def test_string_task_with_task_args_no_warning(caplog) -> None:
     log = eval(
         "task_args_warning_check",
         task_args={"task_arg": "custom"},
@@ -510,17 +522,15 @@ def test_string_task_with_task_args_no_warning(capture_eval_warnings) -> None:
     assert not _task_args_warnings(caplog)
 
 
-def test_task_instance_without_task_args_no_warning(capture_eval_warnings) -> None:
-    caplog = capture_eval_warnings
+def test_task_instance_without_task_args_no_warning(caplog) -> None:
     log = eval(task_args_warning_check(), model="mockllm/model")[0]
     assert log.status == "success"
     assert not _task_args_warnings(caplog)
 
 
-def test_eval_set_task_instance_warns_once(capture_eval_warnings) -> None:
+def test_eval_set_task_instance_warns_once(caplog) -> None:
     # eval_set re-enters resolution internally with ResolvedTask objects;
     # the warning must fire exactly once, not per resolution pass
-    caplog = capture_eval_warnings
     with tempfile.TemporaryDirectory() as log_dir:
         success, _ = eval_set(
             tasks=task_args_warning_check(),
@@ -554,10 +564,9 @@ def task_args_warning_source(count: int = 1) -> TaskSource:
     return _SeedTasks(count)
 
 
-def test_task_source_with_task_args_no_warning(capture_eval_warnings) -> None:
+def test_task_source_with_task_args_no_warning(caplog) -> None:
     # task_args are consumed by the source (resolve_task_source) to build its
     # seed; resolving the seed Task instances must not false-warn (#4194)
-    caplog = capture_eval_warnings
     logs = eval(
         "task_args_warning_source",
         task_args={"count": 2},
@@ -625,6 +634,55 @@ def test_failed_log_start_returns_errored_log(
     assert logs[0].location  # the path the failed write was destined for
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_unserializable_score_metadata_does_not_abort_eval(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    """Score metadata the log writer cannot serialize degrades, end to end.
+
+    The same `Score` objects are logged in the sample record and again as
+    reductions at log finish, so stripping the record alone would still abort
+    the eval at finish (leaving the log `started` with no results). The
+    results must follow the logged record: metrics are still computed from
+    the values, the reductions are written, and the record and reductions
+    agree on the stripped scores.
+    """
+    from inspect_ai.scorer import Score, Target, accuracy, scorer
+    from inspect_ai.solver import TaskState
+
+    deep: dict[str, Any] = {"a": 1}
+    for _ in range(1000):
+        deep = {"a": deep}
+
+    @scorer(metrics=[accuracy()])
+    def deep_metadata():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1, answer="x", metadata={"deep": deep})
+
+        return score
+
+    task = Task(dataset=[Sample(id=1, input="x", target="x")], scorer=deep_metadata())
+    log = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path), log_format=log_format
+    )[0]
+
+    assert log.status == "success", log.error
+    assert log.results is not None
+    assert log.results.scores[0].metrics["accuracy"].value == 1
+    assert log.samples is not None and len(log.samples) == 1
+    sample = log.samples[0]
+    assert sample.scores is not None
+    assert sample.scores["deep_metadata"].value == 1
+    assert sample.scores["deep_metadata"].answer == "x"
+    assert sample.scores["deep_metadata"].metadata is None
+    assert sample.error is not None
+    assert "score metadata" in sample.error.message
+    assert log.reductions is not None
+    (reduced,) = log.reductions[0].samples
+    assert reduced.value == 1
+    assert reduced.metadata is None
+
+
 def test_failed_log_start_is_retried(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -654,6 +712,39 @@ def test_failed_log_start_is_retried(
     assert len(logs) == 1
     assert logs[0].status == "success"
     assert calls["n"] == 2
+
+
+def test_abandoned_attempt_not_traced_as_task_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An attempt abandoned by a task drain/cancel is not a task error.
+
+    The attempt-start bail (``TaskRetryAbandonedError``) is an
+    operator-requested outcome, so the dispatcher's "Run Task" trace action
+    must record a clean exit rather than an ``error`` event with a
+    stacktrace (which would show up in ``inspect trace dump`` as a failure).
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai._util.constants import TRACE
+
+    monkeypatch.setattr(task_run_module, "task_retry_abandoned", lambda _: True)
+    caplog.set_level(TRACE, logger="inspect_ai._eval.run")
+
+    logs = eval(
+        log_write_failure_task(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+    )
+
+    assert logs == []
+    run_task_events = [
+        getattr(r, "event")
+        for r in caplog.records
+        if getattr(r, "action", None) == "Run Task"
+    ]
+    assert run_task_events == ["enter", "exit"]
 
 
 async def test_retry_sample_source_tolerates_missing_log_file(tmp_path: Path) -> None:
@@ -713,12 +804,6 @@ def _retry_source_log_info(location: str) -> Any:
     )
 
 
-@pytest.fixture
-def capture_probe_warnings(caplog):
-    with attach_caplog_to_module_logger(caplog, "inspect_ai._eval.task.run"):
-        yield caplog
-
-
 def _write_prior_eval_log(log_dir: Path) -> tuple[Any, bytes]:
     """Run a one-sample eval and return its log plus the .eval file bytes."""
     task = Task(
@@ -762,7 +847,7 @@ def test_retry_presence_probe_retries_transient_failure(tmp_path: Path) -> None:
 
 
 def test_retry_presence_probe_gives_up_after_max_failures(
-    tmp_path: Path, capture_probe_warnings: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Persistent fetch failures stop being retried after the cap, with a warning."""
     from inspect_ai._eval.task.run import (
@@ -790,7 +875,6 @@ def test_retry_presence_probe_gives_up_after_max_failures(
             probe_path.write_bytes(real_bytes)
             assert await source.prior_exists(1, 1) is False
 
-    caplog = capture_probe_warnings
     with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
         anyio.run(check)
 
@@ -800,7 +884,7 @@ def test_retry_presence_probe_gives_up_after_max_failures(
 
 def test_retry_presence_probe_concurrent_failures_respect_cap(
     tmp_path: Path,
-    capture_probe_warnings: pytest.LogCaptureFixture,
+    caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Concurrent probes share the failure cap: fetch attempts and the warning stay bounded.
@@ -848,7 +932,6 @@ def test_retry_presence_probe_concurrent_failures_respect_cap(
             )
             assert all(result is False for result in results)
 
-    caplog = capture_probe_warnings
     with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
         anyio.run(check)
 
@@ -858,7 +941,7 @@ def test_retry_presence_probe_concurrent_failures_respect_cap(
 
 
 def test_retry_presence_probe_missing_log_cached_without_warning(
-    tmp_path: Path, capture_probe_warnings: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A missing prior log caches no-presence on the first probe, silently."""
     from inspect_ai._eval.task.run import eval_log_sample_source
@@ -881,7 +964,6 @@ def test_retry_presence_probe_missing_log_cached_without_warning(
             probe_path.write_bytes(real_bytes)
             assert await source.prior_exists(1, 1) is False
 
-    caplog = capture_probe_warnings
     with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
         anyio.run(check)
 
@@ -900,3 +982,252 @@ def test_retry_presence_probe_not_used_for_json_logs(tmp_path: Path) -> None:
         MemoryDataset([Sample(id=1, input="x", target="y")]),
     )
     assert source.prior_exists is _never_prior_exists
+
+
+def test_eval_raising_early_stopping_hook_keeps_sample_counted() -> None:
+    """A raising `EarlyStopping.complete_sample` cannot leave a sample uncounted.
+
+    Terminal state is recorded before the metrics/early-stopping await
+    (design/sample-lifecycle.md): the hook raise still tears the eval down,
+    but the errored-with-scores sample that triggered it has already reached
+    its terminal bucket and the eval its finish stamp — with metrics-first
+    ordering it landed in no bucket at all, so the dying eval could never
+    reach `total`. The counters are observed from inside the hook (the
+    registry is cleared at the run boundary, so there is nothing to read
+    after `eval()` returns).
+    """
+    from inspect_ai._control.eval_state import clear_all_eval_states, get_eval_states
+    from inspect_ai.log._log import EvalSpec
+    from inspect_ai.scorer import SampleScore, Score, Target, accuracy, scorer
+    from inspect_ai.solver import Generate, TaskState, solver
+    from inspect_ai.util import EarlyStop
+
+    @solver
+    def always_boom():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            raise RuntimeError("solver boom")
+
+        return solve
+
+    @scorer(metrics=[accuracy()])
+    def always_one():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1)
+
+        return score
+
+    observed: list[tuple[tuple[int, int, int], bool]] = []
+
+    class RaisingEarlyStopping:
+        async def start_task(
+            self, task: EvalSpec, samples: list[Sample], epochs: int
+        ) -> str:
+            return "raiser"
+
+        async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
+            return None
+
+        async def complete_sample(
+            self, id: str | int, epoch: int, scores: dict[str, SampleScore]
+        ) -> None:
+            (state,) = get_eval_states()
+            observed.append(
+                (
+                    (state.completed, state.errored, state.cancelled),
+                    state.completed_at is not None,
+                )
+            )
+            raise RuntimeError("hook failure")
+
+        async def complete_task(self) -> dict[str, Any]:
+            return {}
+
+    clear_all_eval_states()
+    try:
+        log = eval(
+            Task(
+                dataset=[Sample(id="s1", input="x", target="y")],
+                solver=always_boom(),
+                scorer=always_one(),
+                early_stopping=RaisingEarlyStopping(),
+            ),
+            model="mockllm/model",
+            # score_on_error scores the errored sample, so its terminal
+            # report reaches the metrics/early-stopping hook
+            score_on_error=True,
+            fail_on_error=False,
+        )[0]
+    finally:
+        clear_all_eval_states()
+
+    assert log.status == "error"
+    assert log.error is not None and "hook failure" in log.error.message
+    # the sample was in its terminal bucket, and the eval finish-stamped,
+    # before the hook ran
+    assert observed == [((0, 1, 0), True)]
+
+
+def test_retry_attempt_dying_in_checkpoint_copy_leaves_no_log(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A retry that fails in its checkpoint startup copy is not the next source.
+
+    The copy runs before the attempt's first log write, so the attempt
+    leaves no log; the following attempt retries from the log the dead
+    attempt was retrying (the newest log that exists), not from the dead
+    attempt's possibly partial checkpoint dir.
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    import inspect_ai.log._samples as samples_module
+    from inspect_ai.log import list_eval_logs
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+    from inspect_ai.util import CheckpointConfig, TurnInterval
+    from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+    # the checkpoint config is what gives a retry a prior checkpoints dir to
+    # copy; the per-sample checkpointer itself (restic) is not under test
+    monkeypatch.setattr(
+        samples_module, "create_checkpointer", lambda **kwargs: _NoopCheckpointer()
+    )
+
+    copies: list[tuple[str, str]] = []
+
+    async def flaky_copy(*, source_eval_dir: str, destination_eval_dir: str) -> None:
+        copies.append((source_eval_dir, destination_eval_dir))
+        if len(copies) == 1:
+            raise OSError("simulated copy failure")
+
+    monkeypatch.setattr(task_run_module, "copy_resume_payloads", flaky_copy)
+
+    attempts = {"n": 0}
+
+    @solver
+    def fail_first() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise RuntimeError("first attempt fails")
+            return state
+
+        return solve
+
+    logs = eval(
+        Task(
+            dataset=[Sample(id=1, input="x", target="x")],
+            solver=fail_first(),
+            checkpoint=CheckpointConfig(trigger=TurnInterval(every=1)),
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=2,
+    )
+
+    assert len(logs) == 1
+    assert logs[0].status == "success"
+    # attempt 1 errored (has a log); attempt 2 died in the copy (no log);
+    # attempt 3 succeeded (has a log)
+    assert len(list_eval_logs(str(tmp_path))) == 2
+    # both retries sourced attempt 1's checkpoints dir: attempt 3 fell back
+    # to the log attempt 2 was retrying rather than attempt 2's own dir
+    assert len(copies) == 2
+    assert copies[0][0] == copies[1][0]
+
+
+def _committed_checkpoint_json(checkpoint_id: int) -> str:
+    from datetime import datetime, timezone
+
+    from inspect_ai.util._checkpoint._layout.schemas import (
+        Checkpoint,
+        SnapshotDetails,
+    )
+
+    return Checkpoint(
+        checkpoint_id=checkpoint_id,
+        trigger="turn",
+        turn=checkpoint_id,
+        created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
+        duration_ms=10,
+        size_bytes=100,
+        host=SnapshotDetails(snapshot_id="snap", size_bytes=100, duration_ms=10),
+        sandboxes={},
+    ).model_dump_json()
+
+
+@task
+def _retry_precedence_task(counter_file: str) -> Task:
+    """Fails its sample on the first attempt only.
+
+    eval_retry re-creates the task from the registry (re-importing this
+    module), so the attempt counter lives in a file named by a task arg.
+    """
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+    from inspect_ai.util import CheckpointConfig, TurnInterval
+
+    @solver
+    def fail_first() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            counter = Path(counter_file)
+            attempts = int(counter.read_text() or "0") if counter.exists() else 0
+            counter.write_text(str(attempts + 1))
+            if attempts == 0:
+                raise RuntimeError("first attempt fails")
+            return state
+
+        return solve
+
+    return Task(
+        dataset=[Sample(id="s", input="x", target="x")],
+        solver=fail_first(),
+        checkpoint=CheckpointConfig(trigger=TurnInterval(every=1)),
+    )
+
+
+def test_retry_resumes_from_own_checkpoint_or_discards_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """run_sample's resume decision on a retry, without docker or restic.
+
+    An errored prior sample with a committed checkpoint in the copied dir
+    resumes (checkpoint outranks the error seed); an invalidated prior
+    with the same checkpoint runs fresh and its copied dir is deleted
+    first, so provisioning starts from an empty dir.
+    """
+    import inspect_ai.log._samples as samples_module
+    from inspect_ai import eval_retry
+    from inspect_ai.log import ProvenanceData, invalidate_samples
+    from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
+        eval_checkpoints_dir,
+    )
+    from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+    seen: list[object] = []
+
+    def fake_create_checkpointer(**kwargs: Any) -> _NoopCheckpointer:
+        seen.append(kwargs["resume_checkpoint"])
+        return _NoopCheckpointer()
+
+    monkeypatch.setattr(samples_module, "create_checkpointer", fake_create_checkpointer)
+
+    first = eval(
+        _retry_precedence_task(counter_file=str(tmp_path / "attempts.txt")),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    assert first.status == "error"
+
+    # a committed checkpoint the (noop) checkpointer never wrote itself
+    sample_dir = Path(eval_checkpoints_dir(first.location, None)) / "s__1"
+    sample_dir.mkdir(parents=True)
+    (sample_dir / "ckpt-00001.json").write_text(_committed_checkpoint_json(1))
+
+    # errored prior + committed checkpoint → resume
+    retried = eval_retry(first, log_dir=str(tmp_path / "logs"))[0]
+    assert retried.status == "success"
+    assert seen[-1] is not None and getattr(seen[-1], "attempt") == "resume"
+
+    # invalidated prior + the same checkpoint → fresh, copied dir deleted
+    invalidated = invalidate_samples(first, "all", ProvenanceData(author="test"))
+    retried = eval_retry(invalidated, log_dir=str(tmp_path / "logs"))[0]
+    assert retried.status == "success"
+    assert seen[-1] is None
+    assert not (Path(eval_checkpoints_dir(retried.location, None)) / "s__1").exists()

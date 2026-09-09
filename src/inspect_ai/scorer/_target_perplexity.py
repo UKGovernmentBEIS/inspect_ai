@@ -68,15 +68,15 @@ def target_perplexity(
 
     async def score(state: TaskState, target: Target) -> Score:
         if not state.output.choices:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation="No model output choices available.",
             )
 
         choice = state.output.choices[0]
         if not choice.prompt_logprobs or choice.prompt_logprobs.content is None:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation=(
                     "No prompt logprobs available. "
                     "Ensure prompt_logprobs is set in GenerateConfig."
@@ -104,15 +104,15 @@ def target_perplexity(
                 n = 1
 
         if n <= 0:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation=f"num_target_tokens must be > 0, got {n}.",
             )
 
         all_lps = choice.prompt_logprobs.content
         if len(all_lps) < n:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation=(
                     f"prompt_logprobs has {len(all_lps)} entries but "
                     f"num_target_tokens={n}."

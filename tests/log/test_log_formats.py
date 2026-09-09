@@ -31,6 +31,29 @@ def temp_dir():
         yield Path(tmpdirname)
 
 
+def test_logged_samples_absent_on_older_logs(original_log):
+    """A log written before EvalResults.logged_samples existed reads None."""
+    assert original_log.results is not None
+    assert original_log.results.logged_samples is None
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_logged_samples_round_trip(original_log, temp_dir, format):
+    """EvalResults.logged_samples survives a write/read cycle in both formats.
+
+    The eval-set completeness check reads it from the log header, so the
+    persisted value (not just the in-memory one) is the contract.
+    """
+    original_log.results.logged_samples = 2
+    new_log_path = temp_dir / f"logged_samples.{format}"
+    write_eval_log(original_log, str(new_log_path), format=format)
+
+    assert read_eval_log(str(new_log_path)).results.logged_samples == 2
+    assert (
+        read_eval_log(str(new_log_path), header_only=True).results.logged_samples == 2
+    )
+
+
 def test_log_format_round_trip_single(original_log, temp_dir):
     """Test round-trip consistency within the same format."""
     formats = ["json", "eval"]

@@ -46,6 +46,8 @@ from inspect_ai.approval._human.acp import (
     _separator_block,
     request_human_approval_via_acp,
 )
+from inspect_ai.approval._human.approver import human_approver
+from inspect_ai.log._samples import ActiveSample, PendingInteraction
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 
 # ---------------------------------------------------------------------------
@@ -859,28 +861,19 @@ async def test_entry_parks_when_live_with_no_clients(
     assert result.decision == "approve"
 
 
-class _PendingSample:
-    """Stub sample exposing the pending-interaction counter API.
+class _PendingSample(ActiveSample):
+    """Stub sample exposing the pending-interaction API.
 
-    Mirrors :class:`ActiveSample`'s contract just enough for the
-    routing shim: ``_pending_approvals`` / ``_pending_questions``
-    counters that the shim increments/decrements, and a derived
-    ``pending_interaction`` property the picker reads. Used by tests
-    that exercise the set/clear contract under concurrent waits.
+    A real :class:`ActiveSample` with its (heavy, irrelevant) constructor
+    skipped, rather than a hand-written mirror of the bookkeeping — a stub
+    that reimplemented it would go on passing after the thing it stands in
+    for changed. Used by tests that exercise the shim's set/clear contract
+    under concurrent waits.
     """
 
     def __init__(self) -> None:
-        self._pending_approvals = 0
-        self._pending_questions = 0
+        self._pending_interactions: list[PendingInteraction] = []
         self.acp_transport: Any = None
-
-    @property
-    def pending_interaction(self) -> str | None:
-        if self._pending_approvals > 0:
-            return "approval"
-        if self._pending_questions > 0:
-            return "question"
-        return None
 
 
 @skip_if_trio
@@ -901,14 +894,11 @@ async def test_entry_marks_pending_interaction_during_park(
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
 
     shim_task = asyncio.create_task(
-        request_human_approval_via_acp(
-            message="please confirm",
-            call=_make_call(),
-            view=_make_view(),
-            choices=["approve", "reject"],
+        human_approver(["approve", "reject"])(
+            "please confirm", _make_call(), _make_view(), []
         )
     )
-    # Wait long enough for the entry to set the flag and park on attach.
+    # Wait long enough for the dispatch to set the flag and park on attach.
     await asyncio.sleep(0.05)
     assert not shim_task.done()
     assert sample.pending_interaction == "approval"
@@ -941,11 +931,8 @@ async def test_entry_clears_pending_interaction_on_cancellation(
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
 
     shim_task = asyncio.create_task(
-        request_human_approval_via_acp(
-            message="please confirm",
-            call=_make_call(),
-            view=_make_view(),
-            choices=["approve", "reject"],
+        human_approver(["approve", "reject"])(
+            "please confirm", _make_call(), _make_view(), []
         )
     )
     await asyncio.sleep(0.05)
@@ -989,29 +976,23 @@ async def test_entry_pending_counter_handles_concurrent_approvals(
     # Fire two approvals back-to-back. Both should set their
     # counters before either finishes.
     task_a = asyncio.create_task(
-        request_human_approval_via_acp(
-            message="confirm A",
-            call=_make_call(),
-            view=_make_view(),
-            choices=["approve", "reject"],
+        human_approver(["approve", "reject"])(
+            "confirm A", _make_call("bash"), _make_view(), []
         )
     )
     task_b = asyncio.create_task(
-        request_human_approval_via_acp(
-            message="confirm B",
-            call=_make_call(),
-            view=_make_view(),
-            choices=["approve", "reject"],
+        human_approver(["approve", "reject"])(
+            "confirm B", _make_call("python"), _make_view(), []
         )
     )
     # Let both enter their respective `try` blocks.
     await asyncio.sleep(0.02)
-    assert sample._pending_approvals == 2
+    assert len(sample.pending_interactions) == 2
     assert sample.pending_interaction == "approval"
 
-    # Resolve both — counter must return to zero.
+    # Resolve both — the record must empty out.
     await asyncio.gather(task_a, task_b)
-    assert sample._pending_approvals == 0
+    assert len(sample.pending_interactions) == 0
     assert sample.pending_interaction is None
 
 

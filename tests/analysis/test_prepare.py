@@ -16,6 +16,12 @@ LOGS_DIR = Path(__file__).parent / "test_logs"
 
 
 def test_task_info():
+    import pandas as pd
+
+    df_empty = pd.DataFrame()
+    out_empty = prepare(df_empty, task_info({}))
+    assert out_empty.empty
+
     df = evals_df(LOGS_DIR / "2025-05-12T20-27-36-04-00_browser.json")
     df = prepare(df, task_info({}))
     assert df["task_display_name"].to_list() == ["browser"]
@@ -24,6 +30,12 @@ def test_task_info():
 
 
 def test_prepare_log_viewer():
+    import pandas as pd
+
+    df_empty = pd.DataFrame()
+    out_empty = prepare(df_empty, log_viewer("eval", {}))
+    assert out_empty.empty
+
     df = evals_df(LOGS_DIR)
     check_log_viewer(df, {LOGS_DIR.as_posix(): "https://logs.example.com"})
     check_log_viewer(df, {LOGS_DIR.as_posix(): "https://logs.example.com/"})

@@ -54,6 +54,25 @@ _sample_timing: ContextVar[SampleTiming] = ContextVar(
 
 
 @contextlib.asynccontextmanager
+async def sample_waiting() -> AsyncIterator[None]:
+    """Track a waiting span without owning a semaphore hold.
+
+    The acquire-only counterpart to :func:`sample_waiting_for`: wraps just
+    the wait (the caller keeps whatever it acquired), with the same
+    concurrent-wait dedup so overlapping waits within one sample aren't
+    double-counted.
+    """
+    timing = _sample_timing.get()
+    if timing.concurrent_wait_count == 0:
+        timing.concurrent_wait_start = time.monotonic()
+    timing.concurrent_wait_count += 1
+    try:
+        yield
+    finally:
+        _end_sample_wait()
+
+
+@contextlib.asynccontextmanager
 async def sample_waiting_for(
     semaphore: contextlib.AbstractAsyncContextManager[Any],
 ) -> AsyncIterator[None]:
