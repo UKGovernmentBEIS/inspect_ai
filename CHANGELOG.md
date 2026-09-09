@@ -20,6 +20,7 @@
 - Sandbox Tools: Binaries downloaded from S3 that fail SHA256 verification or lack a pinned digest are now rejected instead of run with a warning; `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` has been removed.
 - Sandbox tools: Fixed a race during injection that let a non-root sandbox user replace the tools archive before root unpacked it.
 - Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
+- Inspect View: Requests for unreadable log headers now return 403 instead of 500.
 
 ## 0.3.263 (03 September 2026)
 
@@ -85,7 +86,6 @@
 - Agent bridge: A bridged Gemini response's `candidatesTokenCount` no longer double-counts thinking tokens alongside `thoughtsTokenCount`.
 - Agent bridge: A bridged structured-output request whose JSON Schema uses keywords Inspect does not model (e.g. `$ref`) now warns, instead of silently constraining the model more weakly than asked.
 - Agent bridge: An invalid response schema or mistyped request field in a bridged OpenAI, Anthropic, or Google request is now rejected with a 400 instead of escaping as a status-less internal error.
-- Inspect View: Requests for unreadable log headers now return 403 instead of 500.
 - Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
 - Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
 - Agent bridge: Fixed a tool-approval bypass where a sandboxed agent could run approval-gated `bridged_tools` by calling the bridge service directly; unapproved host tool calls are now denied.
