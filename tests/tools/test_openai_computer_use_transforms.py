@@ -405,8 +405,10 @@ def test_maybe_computer_use_tool_gpt54():
         "gpt-5.6-luna",
         "gpt-6",
         "gpt-6.0",
+        "gpt-6-astra",
         "gpt-7.2",
         "GPT-5.4",
+        "my-gpt-6-deployment",
     ],
 )
 def test_maybe_computer_use_tool_accepts(model_name):

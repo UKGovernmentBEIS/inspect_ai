@@ -1,5 +1,6 @@
 """Tests for model_info lookup functionality."""
 
+from datetime import date
 from typing import Any
 
 import pytest
@@ -62,6 +63,15 @@ class TestGetModelInfo:
         assert info is not None
         assert info.context_length is not None
         assert info.organization == "OpenAI"
+
+    def test_gpt_6_astra_model_info(self):
+        info = get_model_info("openai/gpt-6-astra")
+        assert info is not None
+        assert info.context_length == 1050000
+        assert info.output_tokens == 128000
+        assert info.input_tokens == 922000
+        assert info.reasoning is True
+        assert info.knowledge_cutoff_date == date(2026, 4, 30)
 
     def test_known_kimi_model(self):
         """Test lookup of a known Moonshot AI Kimi model."""

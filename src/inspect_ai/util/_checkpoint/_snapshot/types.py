@@ -16,20 +16,31 @@ sandbox's bulk state for checkpointing, honoring these guarantees:
 - **Restore into a fresh sandbox (§4.3)**: ``restore()`` receives a
   fresh sandbox and must leave the captured paths byte-identical to
   capture time at their original absolute paths.
-- **Security (§4.6)**: tooling placed in the sandbox must be root-only
-  and invisible to the agent; bytes read out of the sandbox are
-  untrusted; secrets reach the sandbox only via per-exec environment
-  variables.
+- **Storage areas travel verbatim (§4.5)**: the core carries a
+  strategy's storage area across retry attempts as an opaque file
+  tree (the retry startup copy — see ``_resume_copy``), so a strategy
+  never copies prior-attempt state itself and must keep everything a
+  restore needs inside its storage area.
+- **Security (§4.6)**: sandbox-supplied bytes and metadata remain
+  untrusted after transfer checks. Strategies limit host writes and
+  transfer size; restic also prevents replacement of existing repository
+  files and checks whether the snapshot id was newly received. None of
+  these checks authenticates the captured state. Root-only tooling and
+  staging protect against an unprivileged agent, not one controlling
+  sandbox root. Secrets reach the sandbox via per-exec environment
+  variables, which also do not hide them from sandbox root.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import NamedTuple, Protocol
 
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
-from .._layout.schemas import SnapshotDetails
+from .._layout.schemas import Checkpoint, SnapshotDetails
+from ..config import DEFAULT_MAX_SANDBOX_SNAPSHOT_BYTES
 from ..sandbox_paths import SandboxBackupPaths
 
 DEFAULT_STRATEGY_NAME = "restic-incremental"
@@ -67,22 +78,41 @@ class SnapshotContext:
     resuming: bool
     """Whether this attempt resumes a prior attempt's checkpoints."""
 
+    max_snapshot_bytes: int = DEFAULT_MAX_SANDBOX_SNAPSHOT_BYTES
+    """Hard cap on the bytes one ``snapshot()`` may copy out of the
+    sandbox (``CheckpointConfig.max_sandbox_snapshot_bytes``). The
+    strategy enforces it host-side against bytes actually read — never
+    against a sandbox-reported size alone — and raises when exceeded."""
+
 
 @dataclass(frozen=True)
-class PriorAttempt:
-    """Where a prior attempt's strategy state lives, for ``adopt``."""
+class CommittedSnapshot:
+    """One sandbox's snapshot record from a committed checkpoint file."""
 
-    sample_checkpoints_dir: str
-    """The prior attempt's sample checkpoints dir (possibly remote)."""
+    checkpoint_id: int
+    """The committed checkpoint's ordinal (``ckpt-NNNNN.json``)."""
 
-    storage_subpath: str
-    """The strategy's storage area subpath under that dir (same layout
-    as this attempt's ``SnapshotContext.storage_subpath``)."""
+    details: SnapshotDetails
+    """The strategy's recorded details for this sandbox at that checkpoint."""
 
-    @property
-    def storage_prefix(self) -> str:
-        """Full URI prefix of the prior attempt's storage area."""
-        return f"{self.sample_checkpoints_dir}/{self.storage_subpath}"
+
+def committed_snapshots_for(
+    checkpoints: Sequence[Checkpoint], sandbox_name: str
+) -> list[CommittedSnapshot]:
+    """One sandbox's snapshot records across committed checkpoints, in order.
+
+    Checkpoints that record nothing for ``sandbox_name`` are skipped;
+    ``checkpoints`` is expected in ascending checkpoint-id order (as
+    ``scan_committed_checkpoints`` returns it).
+    """
+    return [
+        CommittedSnapshot(
+            checkpoint_id=checkpoint.checkpoint_id,
+            details=checkpoint.sandboxes[sandbox_name],
+        )
+        for checkpoint in checkpoints
+        if sandbox_name in checkpoint.sandboxes
+    ]
 
 
 class SandboxSnapshotStrategy(Protocol):
@@ -141,25 +171,28 @@ class SandboxSnapshotStrategy(Protocol):
         ``ref`` is that snapshot's details from the latest committed
         checkpoint file (``None`` only in degenerate resume states with
         no per-sandbox record; strategies that need it must raise). May
-        assume ``setup``, ``adopt``, and ``discard_orphans`` ran first.
-        """
-        ...
-
-    async def adopt(self, prior: PriorAttempt, ctx: SnapshotContext) -> None:
-        """Carry strategy state from a prior attempt into this one.
-
-        After ``adopt``, ``restore``/``discard_orphans``/``snapshot``
-        must work against this attempt's storage area.
+        assume ``setup`` and ``discard_orphans`` ran first, and that the
+        storage area holds the prior attempt's state (the core copied
+        it there before this attempt started).
         """
         ...
 
     async def discard_orphans(
-        self, latest_committed_id: int, ctx: SnapshotContext
+        self, committed: Sequence[CommittedSnapshot], ctx: SnapshotContext
     ) -> None:
-        """Drop snapshots with ``checkpoint_id > latest_committed_id``.
+        """Drop every snapshot not recorded in ``committed``.
 
+        ``committed`` lists this sandbox's snapshot record from every
+        committed checkpoint file, in checkpoint order (never empty:
+        the core only calls this when a committed checkpoint exists).
         Orphans come from fires that completed their capture but never
-        committed a checkpoint file.
+        committed a checkpoint file — and, for a captured-state format
+        the sandbox itself writes into, from anything the sandbox
+        planted that no checkpoint file acknowledges. Must raise if the
+        latest committed record's snapshot is absent from the adopted
+        storage area (the state ``restore`` is about to materialize).
+        For a remote destination the core mirrors whatever the pull
+        brought in and this call removed.
         """
         ...
 
