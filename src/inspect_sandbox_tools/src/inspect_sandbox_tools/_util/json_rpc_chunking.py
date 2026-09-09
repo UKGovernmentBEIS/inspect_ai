@@ -1,4 +1,5 @@
 import base64
+import errno
 import json
 import os
 import re
@@ -7,9 +8,12 @@ import sys
 import tempfile
 import time
 import uuid
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager, suppress
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO, NamedTuple
+
+from inspect_sandbox_tools._util.framework_directory import open_framework_directory
 
 JSON_RPC_RESPONSE_CHUNK_METHOD = "__inspect_json_rpc_response_chunk__"
 JSON_RPC_RESPONSE_CHUNK_FIELD = "__inspect_json_rpc_response_chunk__"
@@ -20,14 +24,15 @@ _DEFAULT_MAX_RESPONSE_BYTES = 64 * 1024
 _MAX_CHUNK_BYTES = 512 * 1024
 _CHUNK_TTL_SECONDS = 60 * 60
 _VALID_HANDLE = re.compile(r"^[0-9a-f]{32}$")
+_CHUNK_DIR_KIND = "JSON-RPC response chunk directory"
 
 
 def _default_chunk_dir() -> Path:
-    """Return a hidden per-injection chunk-storage root.
+    """Return the chunk-storage root, a hidden sibling of the tools directory.
 
-    Frozen sandbox tools run from a dot-prefixed random directory under
-    ``/var/tmp``. Keeping chunk storage beside that directory avoids a stable,
-    self-describing path that an agent could pre-occupy or discover casually.
+    It cannot live inside the tools tree, which is private to the tools user,
+    because sandbox users write their own chunks. Ownership checks, not the
+    location, keep it trustworthy.
     """
     executable = Path(sys.executable).resolve()
     if getattr(sys, "frozen", False):
@@ -38,80 +43,53 @@ def _default_chunk_dir() -> Path:
 _CHUNK_DIR = _default_chunk_dir()
 
 
-def ensure_json_rpc_response_chunk_dir() -> None:
-    """Ensure the hidden chunk-storage root is safe to use.
+def prepare_json_rpc_response_chunk_root() -> None:
+    """Create the shared chunk root and this user's directory in it.
 
-    Individual responses live in private UID subdirectories created lazily only
-    when a response exceeds the transport limit.
+    Runs as the tools user when the server starts and again before the CLI
+    switches to a sandbox user, so a sandbox user later finds a root and a
+    tools-user directory it neither owns nor can replace. Failure is not
+    reported here: small responses never need the root, and chunking raises the
+    error if a large response does.
     """
-    try:
-        _CHUNK_DIR.mkdir(mode=0o1733)
-    except FileExistsError:
-        pass
+    with suppress(RuntimeError, OSError):
+        with _closing(_open_chunk_root(create=True)) as root_fd:
+            os.close(_open_user_dir(root_fd, os.geteuid(), create=True))
 
-    # A `user=`-scoped exec may have created this directory, so the entry can be
-    # owned - and replaced - by a sandbox user. Inspect and modify it through a
-    # descriptor: a path-based check leaves a window to swap in a symlink, and
-    # chmod on a path follows it. O_DIRECTORY|O_NOFOLLOW also subsumes the
-    # is-it-really-a-directory check. Another identity's 1733 root has no read
-    # bit for us, so fall back to O_PATH, which needs no permission and still
-    # supports fstat (only the owner or root chmods, and they can open O_RDONLY).
-    flags = os.O_DIRECTORY | os.O_NOFOLLOW
-    try:
-        try:
-            dir_fd = os.open(_CHUNK_DIR, os.O_RDONLY | flags)
-        except PermissionError:
-            dir_fd = os.open(_CHUNK_DIR, os.O_PATH | flags)
-    except OSError as ex:
-        raise RuntimeError(
-            f"JSON-RPC response chunk path is not a directory: {_CHUNK_DIR}"
-        ) from ex
 
-    try:
-        chunk_dir_stat = os.fstat(dir_fd)
-        current_uid = os.getuid()
-        if chunk_dir_stat.st_uid not in (0, current_uid) and current_uid != 0:
-            raise RuntimeError(
-                f"JSON-RPC response chunk directory has unexpected owner: {_CHUNK_DIR}"
-            )
+def _open_chunk_root(*, create: bool) -> int:
+    """Open the shared root, owned by root or (for a rootless tools user) by us.
 
-        # Private per-identity subdirectories hold response files. The sticky bit
-        # and absent read bit prevent deletion and enumeration of another
-        # identity's entries.
-        required_mode = 0o1733
-        if chunk_dir_stat.st_uid == current_uid or current_uid == 0:
-            os.fchmod(dir_fd, required_mode)
-        elif stat.S_IMODE(chunk_dir_stat.st_mode) != required_mode:
-            raise RuntimeError(
-                f"JSON-RPC response chunk directory has unsafe permissions: {_CHUNK_DIR}"
-            )
+    Its sticky 1733 mode lets every uid create a private subdirectory while
+    denying enumeration and deletion of another uid's entries.
+    """
+    return open_framework_directory(
+        _CHUNK_DIR,
+        kind=_CHUNK_DIR_KIND,
+        owners=(0, os.geteuid()),
+        mode=0o1733,
+        create=create,
+        shared=True,
+    )
+
+
+def _open_user_dir(root_fd: int, uid: int, *, create: bool) -> int:
+    return open_framework_directory(
+        _CHUNK_DIR / str(uid),
+        kind=_CHUNK_DIR_KIND,
+        owners=(uid,),
+        mode=0o700,
+        create=create,
+        dir_fd=root_fd,
+    )
+
+
+@contextmanager
+def _closing(fd: int) -> Iterator[int]:
+    try:
+        yield fd
     finally:
-        os.close(dir_fd)
-
-
-def _current_user_chunk_dir() -> Path:
-    """Return a private chunk directory owned by the current identity."""
-    ensure_json_rpc_response_chunk_dir()
-
-    current_uid = os.getuid()
-    chunk_dir = _CHUNK_DIR / str(current_uid)
-    try:
-        chunk_dir.mkdir(mode=0o700)
-    except FileExistsError:
-        pass
-
-    chunk_dir_stat = chunk_dir.lstat()
-    if (
-        stat.S_ISLNK(chunk_dir_stat.st_mode)
-        or not stat.S_ISDIR(chunk_dir_stat.st_mode)
-        or chunk_dir_stat.st_uid != current_uid
-    ):
-        raise RuntimeError(
-            f"JSON-RPC response chunk directory has unexpected owner: {chunk_dir}"
-        )
-    chunk_dir.chmod(0o700)
-    _remove_stale_chunks(chunk_dir)
-    return chunk_dir
+        os.close(fd)
 
 
 def chunk_json_rpc_response_if_needed(
@@ -129,12 +107,22 @@ def chunk_json_rpc_response_if_needed(
     if len(response_bytes) + 1 <= response_limit:
         return response
 
-    handle, chunk_path = _write_response(response_bytes)
-    try:
-        return _read_chunk_response(request_id, handle, chunk_path, 0, response_limit)
-    except Exception:
-        chunk_path.unlink(missing_ok=True)
-        raise
+    with ExitStack() as stack:
+        root_fd = stack.enter_context(_closing(_open_chunk_root(create=True)))
+        user_dir_fd = stack.enter_context(
+            _closing(_open_user_dir(root_fd, os.geteuid(), create=True))
+        )
+        _remove_stale_chunks(user_dir_fd)
+        written = _write_response(user_dir_fd, response_bytes)
+        stack.enter_context(written.file)
+        try:
+            return _read_chunk_response(
+                request_id, written.handle, written.file, 0, response_limit
+            )
+        except Exception:
+            with suppress(OSError):
+                os.unlink(_chunk_name(written.handle), dir_fd=user_dir_fd)
+            raise
 
 
 def handle_json_rpc_response_chunk_request(
@@ -149,10 +137,14 @@ def handle_json_rpc_response_chunk_request(
     handle = params.get("handle")
     if not isinstance(handle, str) or not _VALID_HANDLE.fullmatch(handle):
         return _json_rpc_error(request_id, -32602, "invalid chunk handle")
-    chunk_path = _chunk_path(handle)
 
     if params.get("release") is True:
-        chunk_path.unlink(missing_ok=True)
+        try:
+            with _locate_chunk(handle) as located:
+                if located is not None:
+                    os.unlink(located.name, dir_fd=located.dir_fd)
+        except (RuntimeError, OSError) as ex:
+            return _json_rpc_error(request_id, -32000, f"unable to release chunk: {ex}")
         return _json_rpc_success(request_id, None)
     if "release" in params:
         return _json_rpc_error(request_id, -32602, "release must be true")
@@ -162,54 +154,68 @@ def handle_json_rpc_response_chunk_request(
         return _json_rpc_error(request_id, -32602, "invalid chunk offset")
 
     try:
-        return _read_chunk_response(
-            request_id,
-            handle,
-            chunk_path,
-            offset,
-            _response_byte_limit(max_response_bytes),
-        )
-    except FileNotFoundError:
-        return _json_rpc_error(request_id, -32000, "chunk handle not found")
+        with _locate_chunk(handle) as located:
+            if located is None:
+                return _json_rpc_error(request_id, -32000, "chunk handle not found")
+            return _read_chunk_response(
+                request_id,
+                handle,
+                located.file,
+                offset,
+                _response_byte_limit(max_response_bytes),
+            )
     except ValueError as ex:
         return _json_rpc_error(request_id, -32602, str(ex))
-    except OSError as ex:
+    except (RuntimeError, OSError) as ex:
         return _json_rpc_error(request_id, -32000, f"unable to read chunk: {ex}")
 
 
-def _write_response(response_bytes: bytes) -> tuple[str, Path]:
-    chunk_dir = _current_user_chunk_dir()
+class _WrittenChunk(NamedTuple):
+    handle: str
+    file: BinaryIO
+
+
+def _write_response(user_dir_fd: int, response_bytes: bytes) -> _WrittenChunk:
     while True:
         handle = uuid.uuid4().hex
-        chunk_path = chunk_dir / f"{handle}.jsonrpc"
+        name = _chunk_name(handle)
         try:
             descriptor = os.open(
-                chunk_path,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                name,
+                os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC,
                 0o600,
+                dir_fd=user_dir_fd,
             )
         except FileExistsError:
             continue
 
-        with os.fdopen(descriptor, "wb") as chunk_file:
+        chunk_file = os.fdopen(descriptor, "rb+")
+        try:
+            # The umask may have masked owner bits; the owner reopens it later.
+            os.fchmod(descriptor, 0o600)
             chunk_file.write(response_bytes)
-        return handle, chunk_path
+            chunk_file.flush()
+        except BaseException:
+            chunk_file.close()
+            with suppress(OSError):
+                os.unlink(name, dir_fd=user_dir_fd)
+            raise
+        return _WrittenChunk(handle, chunk_file)
 
 
 def _read_chunk_response(
     request_id: Any,
     handle: str,
-    chunk_path: Path,
+    chunk_file: BinaryIO,
     offset: int,
     max_response_bytes: int,
 ) -> str:
-    total_size = chunk_path.stat().st_size
+    total_size = os.fstat(chunk_file.fileno()).st_size
     if offset >= total_size:
         raise ValueError("chunk offset is beyond the response")
 
-    with chunk_path.open("rb") as chunk_file:
-        chunk_file.seek(offset)
-        candidate = chunk_file.read(min(_MAX_CHUNK_BYTES, total_size - offset))
+    chunk_file.seek(offset)
+    candidate = chunk_file.read(min(_MAX_CHUNK_BYTES, total_size - offset))
     if not candidate:
         raise OSError("chunk file ended before its declared size")
 
@@ -221,7 +227,7 @@ def _read_chunk_response(
         candidate,
         max_response_bytes,
     )
-    os.utime(chunk_path, None)
+    os.utime(chunk_file.fileno())
     return response
 
 
@@ -281,56 +287,87 @@ def _chunk_response(
     )
 
 
-def _chunk_path(handle: str) -> Path:
-    if not _VALID_HANDLE.fullmatch(handle):
-        raise ValueError("invalid chunk handle")
-    filename = f"{handle}.jsonrpc"
-    current_user_path = _CHUNK_DIR / str(os.getuid()) / filename
-    if _is_owned_chunk_file(current_user_path, os.getuid()):
-        return current_user_path
-
-    # The host invokes continuations as the tools user (normally root), even
-    # when an in-process request switched to a sandbox user before producing
-    # the original response. Root can locate that user's private chunk without
-    # making the directory enumerable or writable to sandbox users.
-    if os.getuid() == 0:
-        found_path = _find_chunk_path_for_root(filename)
-        if found_path is not None:
-            return found_path
-    return current_user_path
+def _chunk_name(handle: str) -> str:
+    return f"{handle}.jsonrpc"
 
 
-def _find_chunk_path_for_root(filename: str) -> Path | None:
-    with suppress(OSError):
-        for user_dir in _CHUNK_DIR.iterdir():
-            try:
-                user_uid = int(user_dir.name)
-                user_dir_stat = user_dir.lstat()
-            except (OSError, ValueError):
-                continue
-            if (
-                stat.S_ISLNK(user_dir_stat.st_mode)
-                or not stat.S_ISDIR(user_dir_stat.st_mode)
-                or user_dir_stat.st_uid != user_uid
-                or stat.S_IMODE(user_dir_stat.st_mode) != 0o700
-            ):
-                continue
-            chunk_path = user_dir / filename
-            if _is_owned_chunk_file(chunk_path, user_uid):
-                return chunk_path
-    return None
+class _LocatedChunk(NamedTuple):
+    dir_fd: int
+    """The verified directory of the uid that wrote the chunk."""
+    name: str
+    file: BinaryIO
+    """The chunk, verified as a regular file owned by that uid."""
 
 
-def _is_owned_chunk_file(chunk_path: Path, expected_uid: int) -> bool:
+@contextmanager
+def _locate_chunk(handle: str) -> Iterator[_LocatedChunk | None]:
+    """Find the chunk for ``handle``, holding its directory and file open.
+
+    Every directory and the file itself are verified as they are opened, and the
+    descriptors returned are the objects that were verified: the uid that owns a
+    chunk directory can rename or replace its entries at any time.
+    """
+    name = _chunk_name(handle)
     try:
-        chunk_stat = chunk_path.lstat()
-    except OSError:
-        return False
-    return (
-        not stat.S_ISLNK(chunk_stat.st_mode)
-        and stat.S_ISREG(chunk_stat.st_mode)
-        and chunk_stat.st_uid == expected_uid
-    )
+        root_fd = _open_chunk_root(create=False)
+    except FileNotFoundError:
+        yield None
+        return
+    with _closing(root_fd):
+        for uid in _chunk_owner_candidates(root_fd):
+            try:
+                user_dir_fd = _open_user_dir(root_fd, uid, create=False)
+            except (FileNotFoundError, RuntimeError):
+                continue
+            with _closing(user_dir_fd):
+                chunk_file = _open_chunk_file(user_dir_fd, name, uid)
+                if chunk_file is None:
+                    continue
+                with chunk_file:
+                    yield _LocatedChunk(user_dir_fd, name, chunk_file)
+                    return
+        yield None
+
+
+def _chunk_owner_candidates(root_fd: int) -> list[int]:
+    current_uid = os.geteuid()
+    if current_uid != 0:
+        return [current_uid]
+    # The host sends continuations as the tools user (normally root) even when
+    # the in-process request that produced the response had switched to a
+    # sandbox user, so root also searches the other uids' directories.
+    others = {
+        int(entry)
+        for entry in os.listdir(root_fd)
+        if entry.isdecimal() and str(int(entry)) == entry
+    }
+    return [current_uid, *sorted(others - {current_uid})]
+
+
+def _open_chunk_file(user_dir_fd: int, name: str, owner: int) -> BinaryIO | None:
+    """Open a chunk that must be a regular file owned by ``owner``, else None.
+
+    O_NOFOLLOW rejects a symlink planted at the name; O_NONBLOCK keeps a planted
+    FIFO from blocking the open, so the fstat that follows can reject it.
+    """
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    try:
+        fd = os.open(name, flags, dir_fd=user_dir_fd)
+    except FileNotFoundError:
+        return None
+    except OSError as ex:
+        if ex.errno in (errno.ELOOP, errno.ENXIO):
+            return None
+        raise
+    try:
+        info = os.fstat(fd)
+    except BaseException:
+        os.close(fd)
+        raise
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != owner:
+        os.close(fd)
+        return None
+    return os.fdopen(fd, "rb")
 
 
 def _response_byte_limit(explicit_limit: int | None) -> int:
@@ -346,13 +383,16 @@ def _response_byte_limit(explicit_limit: int | None) -> int:
     return limit if limit > 0 else _DEFAULT_MAX_RESPONSE_BYTES
 
 
-def _remove_stale_chunks(chunk_dir: Path) -> None:
+def _remove_stale_chunks(user_dir_fd: int) -> None:
     stale_before = time.time() - _CHUNK_TTL_SECONDS
-    with suppress(OSError):
-        for chunk_path in chunk_dir.glob("*.jsonrpc"):
+    with suppress(OSError), os.scandir(user_dir_fd) as entries:
+        for entry in entries:
+            if not entry.name.endswith(".jsonrpc"):
+                continue
             with suppress(OSError):
-                if chunk_path.stat().st_mtime < stale_before:
-                    chunk_path.unlink()
+                info = entry.stat(follow_symlinks=False)
+                if stat.S_ISREG(info.st_mode) and info.st_mtime < stale_before:
+                    os.unlink(entry.name, dir_fd=user_dir_fd)
 
 
 def _json_rpc_success(request_id: Any, result: object) -> str:

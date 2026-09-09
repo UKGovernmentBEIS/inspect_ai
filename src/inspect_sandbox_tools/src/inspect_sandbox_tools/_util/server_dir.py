@@ -16,6 +16,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TextIO
 
+from inspect_sandbox_tools._util.framework_directory import open_framework_directory
+
 # Also defined in inspect_ai.util._sandbox.local — keep in sync.
 SERVER_DIR_ENV = "INSPECT_SANDBOX_TOOLS_DIR"
 
@@ -65,17 +67,11 @@ def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
     its private per-sample temp dir; source mode (development and tests) falls back
     to the system temp dir, where other users may be able to plant an entry before
     the server first starts. Either way an existing entry is adopted only if it is
-    a real directory (not a symlink) owned by the current effective uid, and it is
-    then tightened to mode 0700; an owned directory the uid cannot even enter is
-    refused rather than repaired. This holds for root and non-root servers alike: a
-    rootless server shares its uid with the sandbox's default user, but no other uid
-    in the container may reach its socket or rewrite its control files (older
-    releases left rootless directories at 0777).
-
-    Verification and tightening go through a descriptor so they bind to the entry
-    that was inspected; a path-based chmod would follow a symlink swapped in later.
-    Only the final path component is checked: the caller must supply a parent that
-    other principals cannot write to (or that is sticky), and it must already exist.
+    a real directory owned by the current effective uid, and it is then tightened
+    to mode 0700. This holds for root and non-root servers alike: a rootless server
+    shares its uid with the sandbox's default user, but no other uid in the
+    container may reach its socket or rewrite its control files (older releases
+    left rootless directories at 0777).
 
     Args:
         server_dir: The directory to create or verify.
@@ -87,71 +83,14 @@ def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
             directory cannot be created.
         FileNotFoundError: ``create`` is False and nothing exists at the path.
     """
-    if create:
-        # The inherited umask filters the requested mode and could leave the new
-        # directory without owner permissions, which would then be refused.
-        old_umask = os.umask(0o077)
-        try:
-            server_dir.mkdir(mode=0o700)
-        except FileExistsError:
-            pass
-        except OSError as ex:
-            raise RuntimeError(
-                f"Sandbox-tools server directory {server_dir} cannot be created: "
-                f"{ex.strerror or ex}"
-            ) from ex
-        finally:
-            os.umask(old_umask)
-
-    try:
-        dir_fd = _open_directory(server_dir)
-    except FileNotFoundError:
-        raise
-    except OSError as ex:
-        raise _untrusted_server_dir(server_dir, _describe_entry(server_dir, ex)) from ex
-
-    try:
-        info = os.fstat(dir_fd)
-        expected_uid = os.geteuid()
-        if info.st_uid != expected_uid:
-            raise _untrusted_server_dir(
-                server_dir, f"it is owned by uid {info.st_uid}, not uid {expected_uid}"
-            )
-        if stat.S_IMODE(info.st_mode) != 0o700:
-            os.fchmod(dir_fd, 0o700)
-    finally:
-        os.close(dir_fd)
-
-
-def _open_directory(path: Path) -> int:
-    return os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-
-
-def _describe_entry(path: Path, open_error: OSError) -> str:
-    """Explain why opening ``path`` as a directory failed, for an error message.
-
-    The errno alone is not portable: for a symlink, Linux reports ELOOP but macOS
-    reports ENOTDIR once O_DIRECTORY is combined with O_NOFOLLOW.
-    """
-    detail = open_error.strerror or str(open_error)
-    try:
-        info = path.lstat()
-    except OSError:
-        return detail
-    if stat.S_ISLNK(info.st_mode):
-        return "it is a symbolic link"
-    if not stat.S_ISDIR(info.st_mode):
-        return "it is not a directory"
-    return (
-        f"it is owned by uid {info.st_uid} with mode {stat.S_IMODE(info.st_mode):04o} "
-        f"and cannot be opened ({detail})"
-    )
-
-
-def _untrusted_server_dir(server_dir: Path, reason: str) -> RuntimeError:
-    return RuntimeError(
-        f"Sandbox-tools server directory {server_dir} cannot be trusted: {reason}. "
-        "Remove the entry (or correct its ownership and permissions) and retry."
+    os.close(
+        open_framework_directory(
+            server_dir,
+            kind="Sandbox-tools server directory",
+            owners=(os.geteuid(),),
+            mode=0o700,
+            create=create,
+        )
     )
 
 
