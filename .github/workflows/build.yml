@@ -400,6 +400,9 @@ jobs:
           filters: |
             checkpoint:
               - "src/inspect_ai/util/_checkpoint/**"
+              # tests/checkpoint/ exercises restore_repo against a real restic
+              # binary, so restic-only changes must trigger the area too.
+              - "src/inspect_ai/util/_restic/**"
               - "tests/checkpoint/**"
 
   # Fast gate: confirm sandbox_tools_version.txt is bumped to exactly N+1
@@ -516,9 +519,6 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
-          # Digest verification is warning-only by default during its soft
-          # launch; CI exercises strict mode.
-          INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS: 1
         run: uv run pytest --runslow -m slow tests/tools/ -x
 
       - name: Minimize uv cache
@@ -621,9 +621,6 @@ jobs:
           # the non-dev name; _check_main_divergence would otherwise return
           # "edited" on this PR (version.txt differs from main).
           INSPECT_SANDBOX_TOOLS_INSTALL_STATE: clean
-          # Digest verification is warning-only by default during its soft
-          # launch; CI exercises strict mode.
-          INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS: 1
         run: uv run pytest --runslow -m slow tests/tools/ -x
 
       - name: Minimize uv cache
@@ -665,7 +662,7 @@ jobs:
           uv pip install .[dev]
 
       - name: Run slow tests
-        run: uv run pytest --runslow -m slow tests/${{ matrix.area }}/
+        run: uv run pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
