@@ -45,6 +45,16 @@ class InputResult:
 
 `request_input(message, schema)` returns an `InputResult`. There is no protocol for custom handlers — exactly one built-in surface collects each answer, selected per "Routing policy" above.
 
+### Multi-line strings
+
+A string property with `format: "multiline"` (and no `enum`/`one_of`) renders as a multi-line field; single-line is the default. `is_multiline()` in `_validate.py` is the single predicate all three surfaces consult.
+
+`format` rather than `_meta`, which was the other candidate: a model writing a JSON schema will guess `format` before it guesses a metadata key.
+
+Prior art, and why `"multiline"` is the spelling. [MCP SEP-1371](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/1371) proposed exactly this format value on `StringSchema` in August 2025; it was closed as dormant in January 2026 for want of a core-maintainer sponsor, not on the merits, so there is no standard value to adopt and reviving it would not change our spelling. The objection raised there was that every other known format is in the [OpenAPI Format Registry](https://spec.openapis.org/registry/format) whereas `multiline` is not, and that rendering hints don't belong in a data-model schema. ACP resolves that for us: its elicitation RFD states that formats beyond `email`/`uri`/`date`/`date-time` "are annotations", and that implementations "MUST preserve unknown formats … and MUST NOT reject a schema solely because its string format is unknown". Worth knowing that some clients infer the control instead — `fast-agent` renders a multi-line input when `maxLength` exceeds 100 — so a schema that sets neither may still come back multi-line from a third-party client.
+
+The console reads to a sentinel rather than relying on bracketed paste; why is in the `_ask_multiline()` header comment. The `.` sentinel collides with real content (`ls -a` output, a Markdown paragraph break), ending the read early — Ctrl-D is collision-free and the hint names both. `:end`, matching `:decline`, remains a one-line change if that trade-off needs revisiting.
+
 ## Components and files
 
 ### 1. Routing core — `src/inspect_ai/util/_input/`
@@ -55,7 +65,7 @@ Mirrors `src/inspect_ai/approval/_human/`. Files:
 - **`request.py`** — `request_input(*, message, schema) -> InputResult`. Orchestrates: (1) fire `notify(message)` (best-effort, bounded), (2) call `_dispatch_builtin(request)` to collect the answer, (3) record an `InputEvent` on the transcript.
 - **`builtin.py`** — `_dispatch_builtin(request)` selects exactly one of `acp_handler` / `panel_handler` / `console_handler` based on the routing policy above.
 - **`manager.py`** — `HumanQuestionManager` (parallel to `HumanApprovalManager`): in-process queue of pending questions for the Textual panel handler.
-- **`panel.py`** — `QuestionInputPanel(InputPanel)`. Renders form fields dynamically from `ElicitationSchema`: Textual `Input` for strings/numbers, `Checkbox` for booleans, `SelectionList` for multi-select. Submit / Decline buttons.
+- **`panel.py`** — `QuestionInputPanel(InputPanel)`. Renders form fields dynamically from `ElicitationSchema`: Textual `Input` for strings/numbers, `TextArea` for multi-line strings, `Checkbox` for booleans, `SelectionList` for multi-select. Submit / Decline buttons.
 - **`console.py`** — console-fallback handler. Walks schema properties using `input_screen()` (`util/_console.py`) + Rich's `Prompt.ask` / `Confirm.ask` / `IntPrompt.ask`.
 - **`acp.py`** — ACP-handler wrapper. Routes via `sample_active().acp_transport.request_elicitation(...)` (the outermost `LiveAcpTransport`, pinned at sample startup — see "Routing policy" for why this is NOT `current_acp_transport()`). Gated on `acp_server_accepting_clients()`: returns `None` when `--acp-server` is not active so the dispatcher falls through to panel / console. When the server IS active, parks until an elicitation-capable client attaches — no silent fallback.
 

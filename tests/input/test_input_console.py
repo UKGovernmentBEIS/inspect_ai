@@ -22,6 +22,7 @@ from inspect_ai.util import InputRequest
 from inspect_ai.util._input import console as console_module
 from inspect_ai.util._input.console import (
     DECLINE_TOKEN,
+    MULTILINE_END_TOKEN,
     _ask_schema,
     console_handler,
 )
@@ -43,6 +44,36 @@ def _patch_prompt(
 
     monkeypatch.setattr(Prompt, "ask", fake_ask)
     return calls
+
+
+def _patch_input_lines(
+    monkeypatch: pytest.MonkeyPatch, lines: list[str | EOFError]
+) -> None:
+    """Feed the multi-line reader (`Console.input`) one entry per call.
+
+    An `EOFError` entry simulates Ctrl-D; running off the end also raises
+    `EOFError` so a reader that ignores the sentinel terminates the test.
+    """
+    it = iter(lines)
+
+    def fake_input(self: Console, *args: Any, **kwargs: Any) -> str:
+        item = next(it, EOFError())
+        if isinstance(item, EOFError):
+            raise item
+        return item
+
+    monkeypatch.setattr(Console, "input", fake_input)
+
+
+def _multiline_schema(**kwargs: Any) -> ElicitationSchema:
+    return ElicitationSchema(
+        properties={
+            "output": ElicitationStringPropertySchema(
+                type="string", format="multiline", **kwargs
+            )
+        },
+        required=["output"],
+    )
 
 
 # -- string --------------------------------------------------------------
@@ -148,6 +179,103 @@ def test_string_max_length_reprompts(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     result = _ask_schema("hi", schema, _silent_console())
     assert result.content == {"name": "ab"}
+
+
+# -- string: multiline -------------------------------------------------------
+
+
+def test_multiline_terminates_on_dot(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_input_lines(
+        monkeypatch, ["Filesystem  Size", "/dev/root   40G", MULTILINE_END_TOKEN]
+    )
+    result = _ask_schema("paste", _multiline_schema(), _silent_console())
+    assert result.outcome == "accepted"
+    assert result.content == {"output": "Filesystem  Size\n/dev/root   40G"}
+
+
+def test_multiline_terminates_on_eof(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_input_lines(monkeypatch, ["  indented", "", "last", EOFError()])
+    result = _ask_schema("paste", _multiline_schema(), _silent_console())
+    # Leading whitespace and blank interior lines survive; nothing is stripped.
+    assert result.content == {"output": "  indented\n\nlast"}
+
+
+def test_multiline_decline_on_first_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_input_lines(monkeypatch, [DECLINE_TOKEN])
+    result = _ask_schema("paste", _multiline_schema(), _silent_console())
+    assert result.outcome == "declined"
+
+
+def test_multiline_decline_token_in_body_is_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_input_lines(monkeypatch, ["line 1", DECLINE_TOKEN, MULTILINE_END_TOKEN])
+    result = _ask_schema("paste", _multiline_schema(), _silent_console())
+    assert result.outcome == "accepted"
+    assert result.content == {"output": f"line 1\n{DECLINE_TOKEN}"}
+
+
+def test_multiline_required_blank_reprompts(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_input_lines(
+        monkeypatch, [MULTILINE_END_TOKEN, "second try", MULTILINE_END_TOKEN]
+    )
+    result = _ask_schema("paste", _multiline_schema(), _silent_console())
+    assert result.content == {"output": "second try"}
+
+
+def test_multiline_blank_uses_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_input_lines(monkeypatch, [MULTILINE_END_TOKEN])
+    result = _ask_schema("paste", _multiline_schema(default="a\nb"), _silent_console())
+    assert result.content == {"output": "a\nb"}
+
+
+def test_multiline_eof_without_input_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Sticky EOF (stdin is a pipe or closed) must not become an endless
+    # "is required" re-prompt; it raises like the single-line Prompt.ask path.
+    _patch_input_lines(monkeypatch, ["too long for max_length", EOFError()])
+    with pytest.raises(EOFError):
+        _ask_schema("paste", _multiline_schema(max_length=3), _silent_console())
+
+
+def test_multiline_shows_default_and_sentinel_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_input_lines(monkeypatch, [MULTILINE_END_TOKEN])
+    buf = io.StringIO()
+    console = Console(file=buf, width=80, force_terminal=False)
+    _ask_schema("paste", _multiline_schema(default="x [y]"), console)
+    out = buf.getvalue()
+    assert "default: x [y]" in out
+    assert f"'{MULTILINE_END_TOKEN}'" in out and "Ctrl-D" in out
+
+
+def test_enum_with_multiline_format_stays_single_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _patch_prompt(monkeypatch, ["red"])
+    buf = io.StringIO()
+    console = Console(file=buf, width=80, force_terminal=False)
+    schema = ElicitationSchema(
+        properties={
+            "color": ElicitationStringPropertySchema(
+                type="string", enum=["red", "blue"], format="multiline"
+            )
+        },
+        required=["color"],
+    )
+    result = _ask_schema("pick", schema, console)
+    assert result.content == {"color": "red"}
+    assert len(calls) == 1
+    assert "multiline" not in buf.getvalue()
+
+
+def test_multiline_does_not_use_prompt_ask(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _patch_prompt(monkeypatch, [])
+    _patch_input_lines(monkeypatch, ["x", MULTILINE_END_TOKEN])
+    _ask_schema("paste", _multiline_schema(), _silent_console())
+    assert calls == []
 
 
 # -- integer / number ----------------------------------------------------
