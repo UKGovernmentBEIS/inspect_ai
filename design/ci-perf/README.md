@@ -14,7 +14,11 @@ compression, plus the much smaller reports and summaries.
 snapshots, collected from 2026-08-04 through 2026-09-01. It is a fixed migration
 baseline. New summaries go to tracking-issue comments, not this file. The
 baseline retains workflow/job timings, pytest outcomes and wall, sample counts,
-and runner minutes. It omits individual runs, steps, and test identities.
+and runner minutes. It was generated with `summarize_ci_data.summarize`, then
+`slow_tests_seconds` and `slow_steps_seconds` were removed from each summary.
+The baseline omits individual runs, steps, and test identities. Recurring
+summaries retain the top 15 observed tests and steps. Runner minutes are
+measured job execution time, not GitHub's rounded billed minutes.
 
 `report.md` and `prs.md` are historical records. Their snapshot references name
 files removed in this migration. Those files remain available in Git history.

@@ -232,7 +232,7 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True, help="snapshot JSON path")
     parser.add_argument("--summary-out", type=Path, help="compact aggregate JSON path")
     args = parser.parse_args()
-    if args.out.resolve().is_relative_to(Path(__file__).resolve().parents[4]):
+    if any((parent / ".git").exists() for parent in args.out.resolve().parents):
         parser.error(
             "Raw snapshots must be written outside the repository, e.g. under /tmp"
         )

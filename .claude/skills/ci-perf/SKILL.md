@@ -112,6 +112,10 @@ Write `$CI_PERF_OUTPUT_DIR/findings.json` as a JSON list, at most five items:
 ]
 ```
 
+When reusing an issue, copy its current title exactly into `title`; the publisher
+checks it before adding evidence or a trigger. Do not put automation mentions
+in the report, since the report also goes to the trend tracking issue.
+
 Omit `existing_issue` only after searching the fork's open and closed issues and
 open PRs for the problem. Match meaning, not just titles. If a PR already fixes
 it, report its status and omit the finding. Use the same key across runs. Do not

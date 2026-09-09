@@ -33,23 +33,12 @@ def api(path: str, fields: dict[str, str]) -> Any:
     return json.loads(result.stdout)
 
 
-def issues(search: str) -> list[dict[str, Any]]:
-    return list(
-        gh(
-            "issue",
-            "list",
-            "--repo",
-            REPO,
-            "--state",
-            "all",
-            "--search",
-            search,
-            "--limit",
-            "100",
-            "--json",
-            "number,title,body,state",
-        )
+def issues() -> list[dict[str, Any]]:
+    """List issues through REST so retries do not depend on the search index."""
+    pages = gh(
+        "api", "--paginate", "--slurp", f"repos/{REPO}/issues?state=all&per_page=100"
     )
+    return [issue for page in pages for issue in page if "pull_request" not in issue]
 
 
 def comments(number: int) -> list[dict[str, Any]]:
@@ -62,11 +51,12 @@ def comments(number: int) -> list[dict[str, Any]]:
     return [comment for page in pages for comment in page]
 
 
-def tracking_issue() -> dict[str, Any] | None:
+def tracking_issue(known: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
     matches = [
         issue
-        for issue in issues(f'"{TRACKING_TITLE}" in:title')
-        if issue["title"] == TRACKING_TITLE and TRACKING_MARKER in issue["body"]
+        for issue in (issues() if known is None else known)
+        if issue["title"] == TRACKING_TITLE
+        and TRACKING_MARKER in (issue.get("body") or "")
     ]
     if len(matches) > 1:
         raise ValueError("Multiple CI trend tracking issues found")
@@ -81,12 +71,12 @@ def read_history() -> list[dict[str, Any]]:
     summaries = []
     for comment in comments(issue["number"]):
         body = comment["body"]
-        if "<!-- ci-perf-summary:" not in body:
+        if not body.startswith("<!-- ci-perf-summary:"):
             continue
-        match = re.search(r"```json\n(.*?)\n```", body, re.DOTALL)
-        if match is None:
+        blocks = re.findall(r"```json\n(.*?)\n```", body, re.DOTALL)
+        if not blocks:
             raise ValueError(f"Malformed trend summary: {comment['html_url']}")
-        summary = json.loads(match.group(1))
+        summary = json.loads(blocks[-1])
         if summary.get("schema_version") != 1:
             raise ValueError(f"Unsupported trend schema: {comment['html_url']}")
         summaries.append(summary)
@@ -126,6 +116,17 @@ def validate_findings(value: Any) -> list[dict[str, Any]]:
     return list(value)
 
 
+def validate_report(summary: dict[str, Any], report: str) -> None:
+    """Apply publication limits in both dry-run and live mode."""
+    if summary.get("schema_version") != 1 or not report.strip():
+        raise ValueError("Missing report or unsupported summary schema")
+    payload = json.dumps(summary, separators=(",", ":")) + report
+    if "@auto" in payload or "@review" in payload:
+        raise ValueError("Trend comments must not trigger automation")
+    if len(report.encode()) > 12000 or len(payload.encode()) > 58000:
+        raise ValueError("Report exceeds 12 KB or report plus summary exceeds 58 KB")
+
+
 def publish(
     findings: list[dict[str, Any]], summary: dict[str, Any], report: str, run_url: str
 ) -> list[str]:
@@ -139,22 +140,21 @@ def publish(
     )
     if match is None:
         raise ValueError("Expected an actions-repo workflow run URL")
+    validate_report(summary, report)
     run_id = match.group(1)
     summary_body = f"<!-- ci-perf-summary:{run_id} -->\n{run_url}\n\n{report}\n\n```json\n{json.dumps(summary, separators=(',', ':'))}\n```"
     if len(summary_body.encode()) > 60000:
         raise ValueError(
             "Report and compact summary exceed the 60 KB issue-comment budget"
         )
+    known = issues()
+    tracking = tracking_issue(known)
     urls = []
     for finding in findings:
         marker = f"<!-- ci-perf-finding:{finding['key']} -->"
         number = finding.get("existing_issue")
         if number is None:
-            matches = [
-                issue
-                for issue in issues(f'"{finding["key"]}" in:body')
-                if marker in issue["body"]
-            ]
+            matches = [issue for issue in known if marker in (issue.get("body") or "")]
             if len(matches) > 1:
                 raise ValueError(f"Duplicate finding key: {finding['key']}")
             if matches:
@@ -168,20 +168,23 @@ def publish(
             issue = gh("api", f"repos/{REPO}/issues/{number}")
             if "pull_request" in issue:
                 raise ValueError(f"#{number} is a PR, not an issue")
+            if finding.get("existing_issue") and issue["title"] != finding["title"]:
+                raise ValueError(
+                    f"#{number} title does not match the observed existing issue"
+                )
         urls.append(issue["html_url"])
         if issue["state"] != "open" or any(
             label["name"] == "deferred" for label in issue.get("labels", [])
         ):
             continue
         existing = comments(number)
-        if evidence_marker not in issue["body"] and not any(
+        if evidence_marker not in (issue.get("body") or "") and not any(
             evidence_marker in comment["body"] for comment in existing
         ):
             api(f"issues/{number}/comments", {"body": body})
         if not any("@auto" in comment["body"] for comment in existing):
             api(f"issues/{number}/comments", {"body": "@auto"})
 
-    tracking = tracking_issue()
     if tracking is None:
         tracking = api(
             "issues",
@@ -195,7 +198,12 @@ def publish(
         f"<!-- ci-perf-summary:{run_id} -->" in comment["body"]
         for comment in comments(number)
     ):
-        api(f"issues/{number}/comments", {"body": summary_body})
+        links = (
+            "\n\nFinding issues:\n" + "\n".join(urls)
+            if urls
+            else "\n\nNo new actionable findings."
+        )
+        api(f"issues/{number}/comments", {"body": summary_body + links})
     return urls
 
 
@@ -219,8 +227,7 @@ def main() -> None:
     )
     summary = json.loads((args.directory / "summary.json").read_text())
     report = (args.directory / "report.md").read_text()
-    if summary.get("schema_version") != 1 or not report.strip():
-        raise ValueError("Missing report or unsupported summary schema")
+    validate_report(summary, report)
     if args.publish:
         if not args.run_url:
             parser.error("--publish requires --run-url")

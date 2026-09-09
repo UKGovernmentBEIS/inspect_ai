@@ -115,6 +115,7 @@ def test_dry_run_never_calls_gh(
     def fail(*args: Any, **kwargs: Any) -> Any:
         pytest.fail("Dry-run called GitHub")
 
+    monkeypatch.setattr(publisher.subprocess, "run", fail)
     monkeypatch.setattr(publisher, "gh", fail)
     monkeypatch.setattr(publisher, "api", fail)
     publisher.main()
@@ -126,7 +127,7 @@ def test_publication_retry_does_not_repeat_trigger(
     stored: list[dict[str, Any]] = []
     posted: dict[int, list[dict[str, Any]]] = {}
 
-    def fake_issues(search: str) -> list[dict[str, Any]]:
+    def fake_issues() -> list[dict[str, Any]]:
         return stored
 
     def fake_comments(number: int) -> list[dict[str, Any]]:
@@ -196,11 +197,13 @@ def test_closed_and_deferred_findings_are_not_retriggered(
         lambda *args: {
             "number": 7,
             "html_url": "https://github.com/meridianlabs-ai/inspect_ai/issues/7",
+            "title": "Slow job",
             "state": state,
             "labels": labels,
         },
     )
-    monkeypatch.setattr(publisher, "tracking_issue", lambda: {"number": 8})
+    monkeypatch.setattr(publisher, "issues", lambda: [])
+    monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 8})
     monkeypatch.setattr(
         publisher, "comments", lambda number: [{"body": "<!-- ci-perf-summary:123 -->"}]
     )
@@ -222,3 +225,107 @@ def test_closed_and_deferred_findings_are_not_retriggered(
         "Report",
         "https://github.com/meridianlabs-ai/actions/actions/runs/123",
     )
+
+
+@pytest.mark.parametrize("title", ["Slow job", "Unrelated issue"])
+def test_existing_issue_identity_and_empty_body(
+    title: str, snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writes: list[dict[str, str]] = []
+    monkeypatch.setattr(publisher, "issues", lambda: [])
+    monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 2})
+    monkeypatch.setattr(
+        publisher,
+        "comments",
+        lambda number: []
+        if number == 1
+        else [{"body": "<!-- ci-perf-summary:123 -->"}],
+    )
+    monkeypatch.setattr(
+        publisher,
+        "gh",
+        lambda *args: {
+            "number": 1,
+            "title": title,
+            "html_url": "https://github.com/meridianlabs-ai/inspect_ai/issues/1",
+            "state": "open",
+            "body": None,
+        },
+    )
+    monkeypatch.setattr(publisher, "api", lambda path, fields: writes.append(fields))
+    findings = [
+        {
+            "key": "slow-job",
+            "title": "Slow job",
+            "body": "Evidence",
+            "existing_issue": 1,
+        }
+    ]
+    if title == "Slow job":
+        publish(
+            findings,
+            summarize(snapshot),
+            "Report",
+            "https://github.com/meridianlabs-ai/actions/actions/runs/123",
+        )
+        assert len(writes) == 2
+        assert writes[-1] == {"body": "@auto"}
+    else:
+        with pytest.raises(ValueError, match="title does not match"):
+            publish(
+                findings,
+                summarize(snapshot),
+                "Report",
+                "https://github.com/meridianlabs-ai/actions/actions/runs/123",
+            )
+        assert writes == []
+
+
+def test_issue_lookup_uses_paginated_rest(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_gh(*args: str) -> Any:
+        assert args[:3] == ("api", "--paginate", "--slurp")
+        assert (
+            args[-1] == "repos/meridianlabs-ai/inspect_ai/issues?state=all&per_page=100"
+        )
+        return [
+            [{"number": 1, "body": None}, {"number": 2, "pull_request": {}}],
+            [{"number": 3}],
+        ]
+
+    monkeypatch.setattr(publisher, "gh", fake_gh)
+    assert [issue["number"] for issue in publisher.issues()] == [1, 3]
+
+
+def test_history_uses_final_json_block(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(publisher, "tracking_issue", lambda: {"number": 1})
+    monkeypatch.setattr(
+        publisher,
+        "comments",
+        lambda number: [
+            {"body": "A quoted <!-- ci-perf-summary:1 -->"},
+            {
+                "body": '<!-- ci-perf-summary:2 -->\n```json\n{"example":true}\n```\n```json\n{"schema_version":1}\n```'
+            },
+        ],
+    )
+    assert publisher.read_history() == [{"schema_version": 1}]
+
+
+@pytest.mark.parametrize("report", ["@auto", "@review", "x" * 12001])
+def test_unsafe_or_oversized_trend_comment_is_rejected(
+    report: str, snapshot: dict[str, Any]
+) -> None:
+    with pytest.raises(ValueError):
+        publisher.validate_report(summarize(snapshot), report)
+
+
+def test_raw_output_in_another_checkout_rejected(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+    script = Path(__file__).with_name("collect_ci_data.py")
+    result = subprocess.run(
+        [sys.executable, str(script), "--out", str(tmp_path / "raw.json")],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert "outside the repository" in result.stderr
