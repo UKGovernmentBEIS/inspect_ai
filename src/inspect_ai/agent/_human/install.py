@@ -155,20 +155,19 @@ async def _task_py_installed(sb: SandboxEnvironment, owner: str | None) -> bool:
     return True
 
 
-# Runs as the login user with the content to append on stdin; $1 = file name,
-# $2 = login user name (empty for the default user), $3 = marker line; a line equal
-# to it means the block is already there. The home directory comes from the passwd
-# database, by name when one was given (two accounts may share a uid) and by the uid
-# the command actually runs as otherwise (docker exec does not always set HOME for
-# -u). A named user missing from passwd is an error: falling back to HOME would
-# write into whichever home the command happens to run in (root's, if the provider
-# ignored ``user``). Only the uid lookup falls back to HOME, for images without
-# getent; a named login on such an image is an error that says getent is missing,
-# not that the account is. A named login must also own the uid the script runs as:
-# a provider that ignores or downgrades ``user`` would otherwise append as the
-# default user (root in most images) through a ``.bashrc`` the login user cannot
-# write, so a mismatch is an error naming both uids. PATH is pinned to the base
-# system directories for the same reason the framework-directory helper pins it:
+# Runs as the login user with the content to append on stdin; $1 = file name, $2 =
+# login user name (empty for the default user), $3 = marker line; a line equal to it
+# means the block is already there. The home directory comes from the passwd database,
+# by name when one was given (two accounts may share a uid) and by the uid the command
+# actually runs as otherwise. A named user missing from passwd is an error: falling
+# back to HOME would write into whichever home the command happens to run in (root's,
+# if the provider ignored ``user``). Only the uid lookup falls back to HOME, and only
+# for images without getent; a named login on such an image is an error that says
+# getent is missing, not that the account is. A named login must also own the uid the
+# script runs as: a provider that ignores or downgrades ``user`` would otherwise
+# append as the default user (root in most images) through a ``.bashrc`` the login
+# user cannot write, so a mismatch is an error naming both uids. PATH is pinned to the
+# base system directories for the same reason the framework-directory helper pins it:
 # this may run as root.
 _BASHRC_APPEND_SCRIPT = """
 set -u
