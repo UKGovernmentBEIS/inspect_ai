@@ -1,5 +1,34 @@
 ## Unreleased
 
+- Control Channel: `inspect ctl sample cancel` now works on a sample that is still initializing (e.g. waiting on sandbox provisioning) — the cancel applies the moment the sample starts, and `inspect ctl sample list` marks the pending cancel.
+- Bugfix: MockLLM callable `custom_outputs` now populate default token usage when the returned `ModelOutput` omits `usage`, matching iterable/generator behavior.
+- Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.
+- Sample and Task Sources: `sample_complete()` now fires for a running sample cancelled individually, so a source waiting on that sample no longer stalls; a blocking callback can no longer hang a task cancel.
+- Agent Bridge: Google clients now receive token log probabilities and top candidates returned by the host model.
+- Scoring: `math()` now records `reason="invalid_response_format"` when no answer can be extracted, so format failures are distinguishable from wrong answers.
+- Scorer: metrics that own a degenerate shape (e.g. `grouped()`) now report it on an all-unscored run instead of collapsing to a synthesized flat NaN, on both the list and dict metric paths; metrics that raise on empty input still report NaN, with a one-time warning. (#5150)
+- Checkpoints: Invalidating a sample now re-runs it from scratch on retry (its checkpoints are discarded) instead of resuming from its last checkpoint.
+- Bugfix: Interrupting a checkpointed eval's retry (Ctrl-C, crash, OOM) no longer loses checkpointed progress, including for samples the retry never reached.
+- Checkpointing: Resuming from a checkpoint now rejects a host-context snapshot containing symlinks or other non-regular files instead of following them into host files.
+- Checkpointing: Resuming into a context directory left by an interrupted attempt no longer keeps files newer than the committed checkpoint alongside the restored ones.
+- Groq: An over-capacity, server, or rate-limit error delivered inside a streamed response is now retried instead of failing the sample, and a streamed context-length rejection yields `model_length` output.
+- Bedrock, Groq, Mistral, Azure AI: Transient errors delivered mid-stream (throttling, capacity, dropped connections) are now retried instead of failing the sample or returning a truncated output.
+- Agent bridge: Bridged OpenAI and Google requests with a malformed `tool_choice`/`toolConfig` now return a 400 naming the bad field instead of a status-less error, and a non-string tool name no longer poisons the sample transcript.
+- Checkpointing: Sandbox transfers are size-limited, cannot overwrite existing repository files, and resume uses the recorded snapshot when available.
+- Checkpointing: Oversized sandbox archive headers are rejected before they can cause large host memory allocations.
+- Sandboxes: Compose files using long syntax volume mounts, `pids_limit`, `read_only`, `cgroup`, `stop_grace_period`, `build.no_cache`, or `build.pull` no longer fail validation when starting an eval.
+- Sandbox Tools: The in-sandbox tool server's socket and control files now live inside the injected tools tree, out of reach of other users in the container.
+- Sandbox tools: `bash_session()`, `text_editor()`, `exec_remote()` and sandboxed MCP servers now run as the sandbox's default user instead of always as root; the three tools accept `user="root"` to restore the old behavior.
+- Sandbox Tools: Binaries downloaded from S3 that fail SHA256 verification or lack a pinned digest are now rejected instead of run with a warning; `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` has been removed.
+- Sandbox tools: Fixed a race during injection that let a non-root sandbox user replace the tools archive before root unpacked it.
+- Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
+- Inspect View: Requests for unreadable log headers now return 403 instead of 500.
+- Eval Set: Tasks that set a non-mean epochs reducer now reuse their completed log on subsequent `eval_set()` calls instead of being re-run every time.
+
+## 0.3.263 (03 September 2026)
+
+- OpenAI: Added support for GPT-6 Astra (`gpt-6-astra`).
+- OpenAI: Fixed `temperature`, `top_p`, and `logprobs` causing a 400 error on GPT-5.5+ models when no `reasoning_effort` is set (they are now dropped with a warning).
 - Grok: Oversized prompts now return `stop_reason="model_length"` instead of failing with a generation error under xAI's current context-overflow wording.
 - Eval Log: Sample summaries now keep `Score.reason`, so an explicit reason is no longer dropped (and a stale `metadata["unscored_reason"]` cannot replace it).
 - Agent bridge: A Chat Completions response truncated by the output-token limit now reports `finish_reason="length"` instead of `"stop"`.
@@ -7,15 +36,16 @@
 - Google/Gemini: Faster client setup under high sandbox concurrency, with custom CA bundles now preserved on both sync and async requests.
 - Solver: `chain_of_thought()` now uses `format_template()` for prompt interpolation, matching the other prompt solvers: custom templates with extra `{name}` placeholders no longer raise `KeyError` (unknown placeholders pass through unchanged; JSON-style braces still need `{{ }}` escaping). (#5166)
 - Model Info: Explicit model info database entries for GLM 5.2 and 5.3.
+- Model Info: `claude-mythos-preview` now reports its release date, context window and output limit instead of resolving to no model info.
 - Util: Support datetime instances in UtcDatetimeStr. (#5157)
 - Control Channel: New `inspect ctl task drain` command stops dispatching a task's queued samples while in-flight samples finish naturally, completing the task with an ordinary log whose abandoned remainder a later `inspect eval-set` re-invocation or `inspect eval-retry` still runs.
 - Control Channel: A later `inspect eval-set` re-invocation now re-runs samples left queued (never dispatched) when a task was ended with `inspect ctl task cancel --action score|error`; previously the cancelled task's log read as complete and was reused, so those samples never ran.
 - Eval Log: `EvalResults` gains an optional `logged_samples` field, set on logs finished by a graceful `inspect ctl task cancel` or `inspect ctl task drain`, recording how many samples the log actually resolved.
 - Control Channel: `inspect ctl task cancel` of a task between retry attempts (including one still writing its errored attempt's final log) now abandons the queued retry (the task ends with its last attempt's error log) instead of asking to re-issue once the retry starts.
 - Control Channel: `inspect ctl task list` rows now report a pending graceful resolution (`resolving`: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as `pending`.
-- Control Channel: `inspect ctl sample cancel` now works on a sample that is still initializing (e.g. waiting on sandbox provisioning) — the cancel applies the moment the sample starts, and `inspect ctl sample list` marks the pending cancel.
 - Bugfix: Changing `attempt_timeout` or `cache_prompt` no longer misses the model cache, since neither changes what the provider returns.
 - Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
+- Bugfix: Hugging Face and nnterp providers now record `hidden_states` (from `-M hidden_states`) as JSON-serializable nested lists instead of silently dropping them to `None` in the log; the batched Hugging Face path now records each sample's own activations rather than the whole batch's. Note: code reading `ModelOutput.metadata["hidden_states"]` live (in a solver or scorer) now receives nested lists rather than tensors — wrap with `torch.tensor(...)` if tensor operations are needed. (#2860)
 - Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
 
 ## 0.3.262 (02 September 2026)
@@ -189,7 +219,6 @@
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Eval Log: A retry attempt killed before it finishes reusing the prior log's completed samples no longer causes the next retry to re-run (and eventually lose) those samples.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
-- Bugfix: Hugging Face and nnterp providers now record `hidden_states` (from `-M hidden_states`) as JSON-serializable nested lists instead of silently dropping them to `None` in the log; the batched Hugging Face path now records each sample's own activations rather than the whole batch's. Note: code reading `ModelOutput.metadata["hidden_states"]` live (in a solver or scorer) now receives nested lists rather than tensors — wrap with `torch.tensor(...)` if tensor operations are needed. (#2860)
 
 ## 0.3.259 (16 August 2026)
 

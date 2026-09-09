@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import AsyncIterator, BinaryIO, NamedTuple
 
+import anyio
 import pytest
 from test_helpers.sandbox import CannedSandbox
 
@@ -22,7 +23,10 @@ from inspect_ai.util._sandbox._framework_directory import (
     _VIOLATION_MARKER,
     FrameworkDirectoryError,
 )
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.environment import (
+    SandboxDefaultUser,
+    SandboxEnvironment,
+)
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, SupportedContainerOSInfo
@@ -107,9 +111,52 @@ def helper_flags(cmd: list[str]) -> HelperFlags:
     return HelperFlags(*cmd[cmd.index(leaf) - 4 : cmd.index(leaf) - 1])
 
 
+DEFAULT_USER = ExecResult(
+    success=True,
+    returncode=0,
+    stdout="Uid: 1111\t1111\t1111\t1111\nGid: 1111\t1111\t1111\t1111\nGroups: 1111 \nHOME: /home/nonroot\nHOME_SET: 1\n",
+    stderr="",
+)
+"""Result of the default-user identity probe (compose `user: nonroot`)."""
+NONROOT = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/home/nonroot")
+
+
+def is_identity_probe(cmd: list[str]) -> bool:
+    return cmd[:2] == ["/bin/sh", "-c"] and "Groups:" in cmd[2]
+
+
+def caps_probe_result(
+    cap_eff: str, setgroups: str = "allow", uid: str = "0", noise: str = ""
+) -> ExecResult[str]:
+    return ExecResult(
+        success=True,
+        returncode=0,
+        stdout=f"{noise}Uid: {uid} {uid} {uid} {uid}\nCapEff: {cap_eff}\nsetgroups: {setgroups}\n",
+        stderr="",
+    )
+
+
+ROOT_CAPS = caps_probe_result("000001ffffffffff")
+"""Result of the root capability probe when root can switch users."""
+
+
+def is_caps_probe(cmd: list[str]) -> bool:
+    return cmd[:2] == ["/bin/sh", "-c"] and "CapEff:" in cmd[2]
+
+
+TAR_XZF_STDIN = "tar xzf - || { cat >/dev/null; exit 1; }"
+TAR_XF_STDIN = "tar xf - || { cat >/dev/null; exit 1; }"
+
+
 def helper_ok(cmd: list[str], user: str | None) -> ExecResult[str]:
     """Every helper call verifies; every other command succeeds."""
-    return VERIFIED if is_framework_dir_call(cmd) else OK
+    if is_framework_dir_call(cmd):
+        return VERIFIED
+    if is_identity_probe(cmd):
+        return DEFAULT_USER
+    if is_caps_probe(cmd):
+        return ROOT_CAPS
+    return OK
 
 
 @pytest.fixture
@@ -158,10 +205,11 @@ async def test_inject_falls_back_to_default_user_when_root_probe_raises(
     await sandbox_tools._inject_container_tools_code(sandbox)
 
     assert sandbox._tools_user is None
+    assert sandbox._tools_default_user is None
     assert stub_artifact["extracted_as"] is None
-    # The root probe went through the verified-directory helper, not a bare mkdir.
+    # Root was probed, but never with a bare mkdir.
     root_calls = [cmd for cmd, user in sandbox.exec_calls if user == "root"]
-    assert root_calls and all(is_framework_dir_call(cmd) for cmd in root_calls)
+    assert root_calls and not any(cmd[:1] == ["mkdir"] for cmd in root_calls)
     assert ([SANDBOX_CLI, "start-server"], None) in sandbox.exec_calls
 
 
@@ -204,6 +252,8 @@ async def test_inject_uses_root_and_verifies_before_start(
     await sandbox_tools._inject_container_tools_code(sandbox)
 
     assert sandbox._tools_user == "root"
+    assert sandbox._tools_default_user == NONROOT
+    assert [u for cmd, u in sandbox.exec_calls if is_identity_probe(cmd)] == [None]
     assert stub_artifact["extracted_as"] == "root"
     # Verified before extraction and again immediately before the launcher starts,
     # the latter without creating anything.
@@ -343,7 +393,7 @@ async def test_inject_aborts_when_reverification_before_start_fails(
             if calls["n"] == 2:  # between extraction and launch
                 return result
             return VERIFIED
-        return OK
+        return helper_ok(cmd, user)
 
     sandbox = CannedSandbox(policy)
     with pytest.raises(sandbox_tools.SandboxInjectionError, match=expected):
@@ -353,17 +403,30 @@ async def test_inject_aborts_when_reverification_before_start_fails(
     assert not any(cmd[:1] == [SANDBOX_CLI] for cmd, _ in sandbox.exec_calls)
 
 
-async def test_extract_runs_tar_inside_verified_directory() -> None:
+async def test_inject_names_a_message_less_exception(
+    stub_artifact: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A broken stdin write raises with no message; the error still says what happened."""
+
+    async def broken_extract(*_args: object) -> None:
+        raise anyio.BrokenResourceError()
+
+    monkeypatch.setattr(sandbox_tools, "_extract_tools_tree", broken_extract)
+    with pytest.raises(
+        sandbox_tools.SandboxInjectionError, match="BrokenResourceError"
+    ):
+        await sandbox_tools._inject_container_tools_code(CannedSandbox(helper_ok))
+
+
+async def test_extract_streams_archive_to_tar_inside_verified_directory() -> None:
     sandbox = CannedSandbox(helper_ok)
     await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
 
-    (tar_cmd, user), (rm_cmd, rm_user) = sandbox.exec_calls
+    [(tar_cmd, user)] = sandbox.exec_calls
     assert user == "root"
-    assert wrapped_command(tar_cmd) == ["tar", "xzf", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"]
-    assert "-C" not in tar_cmd
-    # Cleanup also goes through the helper (pinned PATH), never a bare-name rm as root.
-    assert rm_user == "root"
-    assert wrapped_command(rm_cmd) == ["rm", "-f", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"]
+    assert wrapped_command(tar_cmd) == ["sh", "-c", TAR_XZF_STDIN]
+    assert sandbox.inputs == [b"gz"]
+    assert sandbox.written == []
 
 
 async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
@@ -374,7 +437,7 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
     )
 
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if is_framework_dir_call(cmd) and "xzf" in cmd:
+        if is_framework_dir_call(cmd) and TAR_XZF_STDIN in cmd:
             return ExecResult(
                 success=False,
                 returncode=2,
@@ -386,43 +449,41 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
     sandbox = CannedSandbox(policy)
     await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", None)
 
-    tar_calls = [
-        wrapped_command(cmd)
-        for cmd, _ in sandbox.exec_calls
-        if is_framework_dir_call(cmd) and wrapped_command(cmd)[:1] == ["tar"]
+    assert [wrapped_command(cmd) for cmd, _ in sandbox.exec_calls] == [
+        ["sh", "-c", TAR_XZF_STDIN],
+        ["sh", "-c", TAR_XF_STDIN],
     ]
-    assert tar_calls == [
-        ["tar", "xzf", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"],
-        ["tar", "xf", f"{SANDBOX_TOOLS_DIR}.pkg.tar"],
-    ]
+    assert sandbox.inputs == [b"gz", b"tar"]
+    assert sandbox.written == []
 
 
-async def test_extract_propagates_tar_failure_and_removes_archive() -> None:
-    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if is_framework_dir_call(cmd) and wrapped_command(cmd)[:1] == ["tar"]:
-            return violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
-        return helper_ok(cmd, user)
-
-    sandbox = CannedSandbox(policy)
-    with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
-        await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
-    # The staged archive is not left behind in the world-writable parent.
-    assert [
-        wrapped_command(cmd)
-        for cmd, user in sandbox.exec_calls
-        if is_framework_dir_call(cmd) and user == "root"
-    ][-1] == ["rm", "-f", f"{SANDBOX_TOOLS_DIR}.pkg.tgz"]
-    assert not any(cmd[:1] == ["rm"] for cmd, _ in sandbox.exec_calls)
-
-
-async def test_extract_cleanup_verdict_does_not_mask_original_error() -> None:
-    """If the directory is untrusted, the rm is skipped rather than raising over tar's error."""
+async def test_extract_propagates_helper_verdict() -> None:
     sandbox = CannedSandbox(
         lambda cmd, user: violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
     )
     with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
         await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
-    assert not any(cmd[:1] == ["rm"] for cmd, _ in sandbox.exec_calls)
+    assert len(sandbox.exec_calls) == 1
+    assert sandbox.written == []
+
+
+async def test_extract_reports_failure_of_both_tar_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sandbox_tools, "_uncompressed_tar_bytes", lambda name, gz: b"tar"
+    )
+    sandbox = CannedSandbox.returning(
+        ExecResult(
+            success=False,
+            returncode=2,
+            stdout="",
+            stderr=f"{_VERIFIED_MARKER}\ntar: short read\n",
+        )
+    )
+    with pytest.raises(RuntimeError, match="Failed to extract sandbox tools"):
+        await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
+    assert len(sandbox.exec_calls) == 2
 
 
 async def test_detector_checks_as_known_tools_user() -> None:
@@ -461,12 +522,15 @@ async def test_detector_reads_launcher_type_from_raw_mode(
 
 async def test_detector_adopts_existing_root_installation() -> None:
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_identity_probe(cmd):
+            return DEFAULT_USER
         assert user == "root", "default user must not be consulted when root works"
         return REGULAR_FILE
 
     sandbox = CannedSandbox(policy)
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
     assert sandbox._tools_user == "root"
+    assert sandbox._tools_default_user == NONROOT
 
 
 async def test_detector_pins_default_user_after_definitive_uid_mismatch() -> None:
@@ -539,7 +603,7 @@ async def test_transient_root_failure_cannot_pin_a_planted_tree(
             return violation(
                 f"{SANDBOX_TOOLS_DIR} is owned by uid 1111, expected uid 0"
             )
-        return REGULAR_FILE if is_framework_dir_call(cmd) else OK
+        return REGULAR_FILE if is_framework_dir_call(cmd) else helper_ok(cmd, user)
 
     sandbox = CannedSandbox(policy)
     assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
@@ -609,7 +673,9 @@ async def test_detector_records_no_transcript_events() -> None:
     """The per-tool-call probe must not add its script to the transcript each time."""
     transcript = Transcript()
     init_transcript(transcript)
-    inner = CannedSandbox(lambda cmd, user: REGULAR_FILE)
+    inner = CannedSandbox(
+        lambda cmd, user: DEFAULT_USER if is_identity_probe(cmd) else REGULAR_FILE
+    )
     proxy = SandboxEnvironmentProxy(inner)
 
     assert await sandbox_tools._sandbox_tools_installed(proxy) is True
@@ -619,3 +685,174 @@ async def test_detector_records_no_transcript_events() -> None:
     await proxy.exec(["echo", "hi"])
     [event] = [e for e in transcript.events if isinstance(e, SandboxEvent)]
     assert event.cmd == "echo hi"
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        ExecResult(success=False, returncode=1, stdout="", stderr="sh: boom"),
+        ExecResult(success=True, returncode=0, stdout="garbage", stderr=""),
+    ],
+)
+async def test_inject_fails_when_default_user_unknown(
+    stub_artifact: dict[str, object], result: ExecResult[str]
+) -> None:
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        return result if is_identity_probe(cmd) else helper_ok(cmd, user)
+
+    with pytest.raises(sandbox_tools.SandboxInjectionError, match="default user"):
+        await sandbox_tools._inject_container_tools_code(CannedSandbox(policy))
+
+
+def test_parse_default_user() -> None:
+    parse = sandbox_tools._parse_default_user
+    assert parse(
+        "Uid: 0\t0\t0\t0\nGid: 0\t0\t0\t0\nGroups: \nHOME: /root\nHOME_SET: 1\n"
+    ) == (SandboxDefaultUser(uid=0, gid=0, groups=[], home="/root"))
+    assert parse(
+        "Uid: 1000 1000 1000 1000\nGid: 5 5 5 5\nGroups: 4 20 1000\nHOME: /\nHOME_SET: 1\n"
+    ) == (SandboxDefaultUser(uid=1000, gid=5, groups=[4, 20, 1000], home="/"))
+    assert (
+        parse("Uid: 5 5 5 5\nGid: 5 5 5 5\nGroups: 5\nHOME: \nHOME_SET: 1\n").home == ""
+    )
+    assert (
+        parse("Uid: 5 5 5 5\nGid: 5 5 5 5\nGroups: 5\nHOME: \nHOME_SET: \n").home
+        is None
+    )
+    # a login banner precedes the probe output and must not shadow it
+    assert (
+        parse(
+            "HOME: /banner\nUid: 5 5 5 5\nGid: 5 5 5 5\nGroups: 5\nHOME: /real\nHOME_SET: 1\n"
+        ).home
+        == "/real"
+    )
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        pytest.param(RuntimeError("docker exec: transient failure"), id="exception"),
+        pytest.param(
+            ExecResult(success=False, returncode=1, stdout="", stderr="boom"),
+            id="failed",
+        ),
+        pytest.param(
+            ExecResult(success=True, returncode=0, stdout="garbage\n", stderr=""),
+            id="unparsable",
+        ),
+    ],
+)
+async def test_detector_fails_loud_when_identity_probe_fails(
+    failure: Exception | ExecResult[str],
+) -> None:
+    """An unreadable default identity on a healthy root install is an error.
+
+    Not a reinjection; nothing is cached, so the next call retries the probe.
+    """
+    probes = {"n": 0}
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_identity_probe(cmd):
+            probes["n"] += 1
+            if probes["n"] == 1:
+                if isinstance(failure, Exception):
+                    raise failure
+                return failure
+            return DEFAULT_USER
+        return REGULAR_FILE
+
+    sandbox = CannedSandbox(policy)
+    with pytest.raises(sandbox_tools.SandboxDefaultUserError, match="default user"):
+        await sandbox_tools._sandbox_tools_installed(sandbox)
+    assert sandbox._tools_user is None
+    assert sandbox._tools_user_resolved is False
+    assert sandbox._tools_default_user is None
+
+    assert await sandbox_tools._sandbox_tools_installed(sandbox) is True
+    assert sandbox._tools_user == "root"
+    assert sandbox._tools_default_user == NONROOT
+
+
+@pytest.mark.parametrize(
+    "probe",
+    [
+        pytest.param(caps_probe_result("0000000000000000"), id="cap_drop-all"),
+        pytest.param(caps_probe_result("0000000000000040"), id="setgid-without-setuid"),
+        pytest.param(
+            caps_probe_result("000001ffffffffff", "deny"), id="setgroups-denied"
+        ),
+        pytest.param(
+            ExecResult(success=False, returncode=1, stdout="", stderr="exec failed"),
+            id="probe-failed",
+        ),
+        pytest.param(
+            ExecResult(success=True, returncode=0, stdout="allow\n", stderr=""),
+            id="probe-output-short",
+        ),
+        pytest.param(
+            ExecResult(
+                success=True,
+                returncode=0,
+                stdout="Welcome: to the VM\nUid: 0 0 0 0\nCapEff: 000001ffffffffff\n",
+                stderr="",
+            ),
+            id="probe-missing-key-with-noise",
+        ),
+        pytest.param(caps_probe_result("000001ffffffffff", uid="1000"), id="not-root"),
+    ],
+)
+async def test_inject_falls_back_when_root_cannot_switch_users(
+    stub_artifact: dict[str, object], probe: ExecResult[str]
+) -> None:
+    """Root that cannot (or cannot be shown to) switch identity is not used."""
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        return probe if is_caps_probe(cmd) else helper_ok(cmd, user)
+
+    sandbox = CannedSandbox(policy)
+    await sandbox_tools._inject_container_tools_code(sandbox)
+
+    assert sandbox._tools_user is None
+    assert sandbox._tools_default_user is None
+    assert stub_artifact["extracted_as"] is None
+    assert not any(
+        is_framework_dir_call(cmd) and user == "root"
+        for cmd, user in sandbox.exec_calls
+    )
+
+
+async def test_root_probe_reports_missing_key_despite_noise(
+    stub_artifact: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A noise line must not turn a short probe into a KeyError; it is reported as such."""
+    traces: list[str] = []
+    monkeypatch.setattr(
+        sandbox_tools, "trace_message", lambda _l, _c, msg: traces.append(msg)
+    )
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_caps_probe(cmd):
+            return ExecResult(
+                success=True,
+                returncode=0,
+                stdout="Welcome: to the VM\nUid: 0 0 0 0\nCapEff: 000001ffffffffff\n",
+                stderr="",
+            )
+        return helper_ok(cmd, user)
+
+    await sandbox_tools._inject_container_tools_code(CannedSandbox(policy))
+    assert any("root probe failed" in t for t in traces), traces
+    assert not any("KeyError" in t for t in traces), traces
+
+
+async def test_root_probe_tolerates_login_shell_noise(
+    stub_artifact: dict[str, object],
+) -> None:
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_caps_probe(cmd):
+            return caps_probe_result("000001ffffffffff", noise="Welcome to the VM\n")
+        return helper_ok(cmd, user)
+
+    sandbox = CannedSandbox(policy)
+    await sandbox_tools._inject_container_tools_code(sandbox)
+    assert sandbox._tools_user == "root"

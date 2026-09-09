@@ -147,6 +147,7 @@ All async test functions automatically run under both asyncio and trio backends 
 
 - **Do NOT use `@pytest.mark.asyncio`** — it conflicts with anyio and is blocked by conftest. Just write `async def test_...` and the hook handles the rest.
 - **Use `anyio.sleep()` not `asyncio.sleep()`** in tests; `anyio.Event()` not `asyncio.Event()`; `tg_collect()` not `asyncio.gather()`.
+- **Don't synchronize concurrent test tasks with a sleep** (e.g. sleeping so a sibling sample "has time to start") — it races on a loaded runner. Have the task being waited on set an `anyio.Event` and await that.
 - **Use `@skip_if_trio`** (from `test_helpers.utils`) for tests that cannot run under trio (e.g. they test asyncio-specific fallback paths).
 - **`@pytest.mark.anyio`** is not required but harmless — use it to signal intentional dual-backend coverage.
 - **Cancellation and ownership**: for an async change, run the affected
@@ -156,6 +157,30 @@ All async test functions automatically run under both asyncio and trio backends 
   that crosses an async boundary (a bridge, a spawned process, a background
   task) is owned by whichever component created it — cleanup belongs there,
   not in a caller or bridge that merely passes it through.
+
+## Gated tests (slow, api, flaky, trio)
+
+Plain `pytest` skips the Docker-based slow tests, the live model-provider
+tests, flaky tests, and trio variants. PR CI runs only the slow tests under
+`tests/tools/` and a short list of other areas; it never runs the live
+provider tests, because they need API keys. So a PR that changes model
+providers, sandbox or tool code, agents, or async plumbing must run the gated
+tests that cover the change locally, and the PR description must report the
+run. The `slow-tests` skill (`.claude/skills/slow-tests/SKILL.md`) says which
+flags and directories go with which change and what each class needs.
+
+Report the run under "Other information" in the PR description, in a
+`### Slow tests` section with:
+
+- the exact command(s) run
+- what ran, per class or provider, with the passed and skipped counts from
+  the summary
+- what you could not run, and why (no key, no Docker, no model access,
+  needs a local server)
+
+A test that skipped did not run. Say so rather than counting it. If you ran
+nothing, say that, so a maintainer with the keys or Docker runs the tests
+before merge.
 
 ## Subsystem Documentation
 
