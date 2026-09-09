@@ -11,6 +11,7 @@
 - Control Channel: `inspect ctl sample cancel` now works on a sample that is still initializing (e.g. waiting on sandbox provisioning) — the cancel applies the moment the sample starts, and `inspect ctl sample list` marks the pending cancel.
 - Sample and Task Sources: `sample_complete()` now fires for a running sample cancelled individually, so a source waiting on that sample no longer stalls; a blocking callback can no longer hang a task cancel.
 - Agent Bridge: Google clients now receive token log probabilities and top candidates returned by the host model.
+- Google: OAuth/ADC requests to the Gemini Developer API no longer send the placeholder API-key header alongside bearer authentication.
 - Scoring: `math()` now records `reason="invalid_response_format"` when no answer can be extracted, so format failures are distinguishable from wrong answers.
 - Scorer: metrics that own a degenerate shape (e.g. `grouped()`) now report it on an all-unscored run instead of collapsing to a synthesized flat NaN, on both the list and dict metric paths; metrics that raise on empty input still report NaN, with a one-time warning. (#5150)
 - Approval: Policy files given as percent-encoded `file://` URIs (e.g. paths with spaces, as `Path.as_uri()` produces) are now accepted by `eval()`, `Task()`, and `--approval`.

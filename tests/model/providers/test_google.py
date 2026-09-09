@@ -1889,22 +1889,15 @@ async def test_google_oauth_count_tokens_headers() -> None:
     assert headers["x-goog-user-project"] == "proj"
 
 
-def test_google_oauth_headers_survive_real_client() -> None:
-    """Contract test against the real google-genai client (no mocking).
-
-    The OAuth approach relies on undocumented SDK behavior: the dev-endpoint
-    client accepts a placeholder api_key, and `patch_http_options` merges
-    caller-supplied headers with caller precedence, so `Authorization` survives
-    alongside the SDK-set `x-goog-api-key`. Guards against a google-genai
-    release changing that merge.
-    """
+def test_google_oauth_real_client_excludes_placeholder_api_key() -> None:
+    """OAuth requests must not send the SDK's required placeholder as an API key."""
     api = _adc_api(_FakeCreds(token="tok-real"), quota_project_id="proj-real")
     client = api.model_client(api._http_options())
     headers = client._api_client._http_options.headers
     assert headers is not None
     assert headers["Authorization"] == "Bearer tok-real"
     assert headers["x-goog-user-project"] == "proj-real"
-    assert headers["x-goog-api-key"] == OAUTH_PLACEHOLDER_API_KEY
+    assert "x-goog-api-key" not in headers
 
 
 def test_google_use_adc_rejected_on_vertex() -> None:
