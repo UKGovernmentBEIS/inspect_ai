@@ -38,6 +38,42 @@ class SampleRecordKey(NamedTuple):
     epoch: int
 
 
+def sample_read_exclusions(exclude_fields: set[str] | None) -> set[str]:
+    """Keep required fields and omit event-dependent data with excluded events.
+
+    Included events need their pool to resolve references. Excluded events
+    cannot support timelines, whose UUID references point back into them.
+    """
+    fields = EvalSample.model_fields
+    excluded = {
+        field
+        for field in exclude_fields or set()
+        if field not in fields or not fields[field].is_required()
+    }
+    if "events" in excluded:
+        excluded.update({"events_data", "timelines"})
+    else:
+        excluded.discard("events_data")
+    return excluded
+
+
+def exclude_sample_fields(
+    sample: EvalSample, exclude_fields: set[str] | None
+) -> EvalSample:
+    """Omit optional fields from a resident sample without changing the stored copy."""
+    excluded = sample_read_exclusions(exclude_fields)
+    if not excluded:
+        return sample
+    fields = EvalSample.model_fields
+    return sample.model_copy(
+        update={
+            field: fields[field].get_default(call_default_factory=True)
+            for field in excluded
+            if field in fields
+        }
+    )
+
+
 class Recorder(abc.ABC):
     @classmethod
     @abc.abstractmethod
@@ -86,8 +122,16 @@ class Recorder(abc.ABC):
             if isinstance(prior, str)
             else prior
         )
+        kept_keys = (
+            {SampleRecordKey(str(id), epoch) for id, epoch in keep}
+            if keep is not None
+            else None
+        )
         for sample in samples:
-            if keep is None or (sample.id, sample.epoch) in keep:
+            if (
+                kept_keys is None
+                or SampleRecordKey(str(sample.id), sample.epoch) in kept_keys
+            ):
                 await self.log_sample(eval, condense_sample(sample), write_through=True)
 
     @abc.abstractmethod
@@ -145,7 +189,12 @@ class Recorder(abc.ABC):
         return None
 
     async def buffered_sample(
-        self, eval: EvalSpec, id: str | int, epoch: int
+        self,
+        eval: EvalSpec,
+        id: str | int,
+        epoch: int,
+        *,
+        exclude_fields: set[str] | None = None,
     ) -> EvalSample | None:
         """The full ``EvalSample`` for one sample, if held in-memory.
 
@@ -155,7 +204,10 @@ class Recorder(abc.ABC):
         and ahead of disk, so a just-completed sample is readable before it's
         flushed. Returns ``None`` when the recorder can't serve it in-memory
         (already flushed, eval torn down, or this recorder type doesn't buffer
-        whole samples); callers then read the on-disk log.
+        whole samples); callers then read the on-disk log. IDs match by their
+        string form, as on-disk records do. ``exclude_fields`` omits optional
+        fields; file-backed buffers should skip them during parsing so a
+        lightweight read need not materialize the full transcript.
         """
         return None
 

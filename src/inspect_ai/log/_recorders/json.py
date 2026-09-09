@@ -37,7 +37,7 @@ from .._log import (
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3
 from .file import FileRecorder, write_local_snapshot
-from .recorder import SampleRecordKey
+from .recorder import SampleRecordKey, exclude_sample_fields
 
 logger = getLogger(__name__)
 
@@ -83,9 +83,7 @@ class JSONRecorder(FileRecorder):
         # per-sample lookup (`buffered_sample`, called for every planned key
         # by a seeded retry's reuse sweep) stay O(1) and only a re-log of an
         # existing key pays for superseding it in the ordered lists
-        samples_by_key: dict[tuple[str | int, int], EvalSample] = Field(
-            default_factory=dict
-        )
+        samples_by_key: dict[SampleRecordKey, EvalSample] = Field(default_factory=dict)
 
     def __init__(
         self,
@@ -147,10 +145,16 @@ class JSONRecorder(FileRecorder):
         # requeued sample's re-run, or a retry re-running a prior attempt's
         # errored sample that seeded this log — matching the .eval readers'
         # last-entry-wins rule rather than listing the sample twice
-        key = (sample.id, sample.epoch)
+        key = SampleRecordKey(str(sample.id), sample.epoch)
         if key in log.samples_by_key:
-            log.data.samples = [s for s in log.data.samples if (s.id, s.epoch) != key]
-            log.summaries = [s for s in log.summaries if (s.id, s.epoch) != key]
+            log.data.samples = [
+                s
+                for s in log.data.samples
+                if SampleRecordKey(str(s.id), s.epoch) != key
+            ]
+            log.summaries = [
+                s for s in log.summaries if SampleRecordKey(str(s.id), s.epoch) != key
+            ]
         log.samples_by_key[key] = sample
         log.data.samples.append(sample)
         log.summaries.append(sample.summary())
@@ -164,7 +168,12 @@ class JSONRecorder(FileRecorder):
 
     @override
     async def buffered_sample(
-        self, eval: EvalSpec, id: str | int, epoch: int
+        self,
+        eval: EvalSpec,
+        id: str | int,
+        epoch: int,
+        *,
+        exclude_fields: set[str] | None = None,
     ) -> EvalSample | None:
         # The whole in-memory log (full samples, events included) is retained
         # until log_finish, so this is gap-free and ahead of disk for the entire
@@ -172,7 +181,7 @@ class JSONRecorder(FileRecorder):
         log = self.data.get(self._log_file_key(eval))
         if log is None:
             return None
-        sample = log.samples_by_key.get((id, epoch))
+        sample = log.samples_by_key.get(SampleRecordKey(str(id), epoch))
         if sample is None:
             return None
         # a seeded prior record is stored condensed (log_seed re-logs
@@ -181,7 +190,9 @@ class JSONRecorder(FileRecorder):
         # recorder's log_finish do, so the reuse sweep's callbacks and the
         # control channel see populated ModelEvent.input. A live completion is
         # stored whole and passes through unchanged (no events_data to resolve)
-        return rebind_sample_timelines(resolve_sample_events_data(sample))
+        return rebind_sample_timelines(
+            resolve_sample_events_data(exclude_sample_fields(sample, exclude_fields))
+        )
 
     @override
     async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
@@ -252,7 +263,7 @@ class JSONRecorder(FileRecorder):
         log.samples_by_key = {
             key: sample
             for key, sample in log.samples_by_key.items()
-            if not pruned(key[0], key[1])
+            if key not in keys
         }
 
     @override

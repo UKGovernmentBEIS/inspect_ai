@@ -471,11 +471,11 @@ config update) — and the swap onward under it:
    unlinked, it has no path `AsyncFilesystem.get_file(remote, local_path)`
    could target; the seed instead pumps the bytes into the open file object
    via `AsyncFilesystem.read_file_into` (a local file copies in a worker
-   thread). For S3 that is
-   `AsyncFilesystem.read_file_bytes(prior_log, 0, None)` — a
-   `ByteReceiveStream`: the body stream on asyncio (constant memory, never
-   blocks the loop), the whole object read in a worker thread under trio
-   (`to_thread` over `s3_read_file_bytes`; loop free, memory not bounded).
+   thread). S3 streams with bounded memory on both backends: asyncio pumps
+   `AsyncFilesystem.read_file_bytes(prior_log, 0, None)` into the destination;
+   trio copies the synchronous response body directly into it in a worker
+   thread, checking cancellation between chunks and closing the response on
+   every exit. The worker finishes before the caller can close the temp file.
    Every other remote backend (GCS/Azure) has no async client and cannot
    be read in a worker thread either (the fsspec rule in AGENTS.md), so it
    is read synchronously *on the event loop*, one `_SEED_COPY_CHUNK_SIZE`
@@ -533,8 +533,9 @@ config update) — and the swap onward under it:
    `_samples` or `_streaming_samples`. Then re-journal the config updates
    recorded before the seed.
 6. Register the kept member names in `_local_sample_names` (the set
-   `buffered_sample` serves from the local zip) and the pruned members'
-   compressed size in `_pruned_bytes` for the compaction heuristic.
+   `buffered_sample` serves from the local zip). Compaction measures dead
+   bytes from the file size and live member sizes, including dead bytes
+   inherited from earlier attempts; there is no per-seed byte counter.
 
 `buffered_sample(id, epoch)` gains a tier between `_samples` and
 `_streaming_samples`: a member registered in `_local_sample_names` (a
@@ -546,15 +547,22 @@ whole sample body, so it runs in `anyio.to_thread.run_sync` — the temp file
 is local, so the fsspec rule does not apply — while `_lock` is held, exactly
 as a flush holds it. The event loop stays free; concurrent sample writes
 wait on the lock for the read's duration, which is the same contention a
-flush imposes today. Parsing, validation and the read-time resolution every
-log read applies (`resolve_sample_events_data`, `rebind_sample_timelines`)
-run in a worker thread after the lock is released, so a sample served from
-the recorder's local copy and one read from the destination look alike.
+flush imposes today. Validation and the read-time resolution every log read
+applies (`resolve_sample_events_data`, `rebind_sample_timelines`) run in a
+worker thread after the lock is released; full reads also parse JSON there,
+while selective reads parse as the member is streamed under the lock. A
+sample served from the recorder's local copy and one read from the destination
+look alike.
 `TaskLogger.read_sample`'s disk fallback therefore never needs the
-destination for a seeded sample; when the control channel asks it to
-exclude fields it drops them from the whole record rather than parsing
-selectively as the disk read does. Live samples' flushed members stay on
-the disk path (its `exclude_fields` streaming serves the control channel's
+destination for a seeded sample. When the control channel excludes fields,
+`buffered_sample` streams the local member through the same selective JSON
+builder as the disk reader, retaining only included fields before validating
+and resolving the sample. Required fields stay present, and the event pool
+and dependent timelines are omitted when events are excluded. As on disk,
+Python's non-finite numbers and oversized integers retain the full-parse
+compatibility fallback.
+Resident samples omit fields from a copy before event resolution. Live
+samples' flushed members stay on the disk path (its `exclude_fields` streaming serves the control channel's
 event-page reads). The write-through path no longer retains an event-less
 copy in `_streaming_samples`: the local-zip tier is consulted before it and
 always has the member.
@@ -567,9 +575,12 @@ reads the prior (`read_eval_log_async`, or the in-memory samples of an
 `EvalLog` source — `eval_retry` on a loaded log, `log_info=None`) and
 writes each kept sample through `log_sample(write_through=True)` before
 `log_start`, today's write-through done sequentially up front, keeping
-images as the prior recorded them so both paths agree.
+images as the prior recorded them so both paths agree. Filtering and lookup
+use `(str(id), epoch)`, matching file reads when a loader changes an integer
+ID to its string form or vice versa. Buffered completions and summaries use
+that same key, so a fresh completion takes precedence over the prior record.
 `JSONRecorder.log_sample` supersedes an existing record for the same
-`(id, epoch)` (rather than appending a duplicate; an index of logged keys
+`(str(id), epoch)` (rather than appending a duplicate; an index of logged keys
 keeps the common append O(1)) so a seeded errored record is replaced by
 its re-run, matching the `.eval` readers' rule. Rejecting a format mismatch
 instead would break a retry that works today, so the fallback is the only
@@ -837,10 +848,10 @@ warning names the prior log and the error.
    minutes of startup delay per attempt. If that matters in practice, A2
    restores the overlap at the cost of the seed-failure-after-live-work
    rule (discard and write nothing). The download streams in constant
-   memory on S3 under asyncio and for local files, and chunk by chunk for
-   the non-S3 remote backends (GCS, Azure); S3 under trio buffers the whole
-   prior log in memory (in a worker thread), as `read_log` does for it
-   today (see step 1 of the mechanism). For the non-S3 remote backends the
+   memory on S3 under both asyncio and trio, for local files, and chunk by
+   chunk for the non-S3 remote backends (GCS, Azure). Trio's S3 worker checks
+   cancellation between chunks and closes its response before returning
+   (see step 1 of the mechanism). For the non-S3 remote backends the
    chunked read is synchronous fsspec I/O *on the event loop* — `to_thread`
    over a remote fsspec filesystem is ruled out (AGENTS.md) and no async
    GCS/Azure path exists — so every sibling task's samples and the control
@@ -957,17 +968,24 @@ Unit (`tests/log/test_task_log.py` and a recorder test module):
   prior-log seed removes the attempt's destination (the
   `_destination_seeded` rule does not apply); a `.json` prior is declined.
 - `seed.classify`: a clean record is returned as-is, an errored one yields
-  `PreviousError`, an invalidated or absent one yields `None`.
-- Cross-format: a `.eval` prior retried with `log_format="json"` and a
-  `.json` prior retried with `log_format="eval"` both reuse every clean
-  sample through the write-through fallback.
+  `PreviousError`, an invalidated one yields `InvalidatedPrior`, and an
+  absent one yields `None`.
+- Cross-format and in-memory: both recorders preserve clean records and
+  error history when IDs change between integer and string form; both forms
+  read the newest completion before flushing and after the log round-trips.
+- Local seeded and write-through reads skip excluded fields before building
+  or validating the sample; required fields and included nested data survive.
+- S3 downloads write each bounded chunk before reading the next, close the
+  response on read/write failure or cancellation, and leave the caller's
+  destination open; missing objects and other provider errors stay distinct.
 - `TaskLogger.seed_from_prior` (`tests/log/test_task_log.py`): seeded and
   re-logged (cross-format, in-memory) seeds alike leave `samples_logged`
   and `samples_completed` at zero until the sweep accepts a record or a
   re-run completes, `read_prior_sample` serves
   them locally, `note_reused_sample` counts a completion, `log_start`
   creates the destination containing the prior set, and a missing prior
-  raises before any destination write; `eval_log_sample_source` sets `seed`
+  warns and continues unseeded without writing a destination during seeding;
+  `eval_log_sample_source` sets `seed`
   only when the eligibility checks pass (shuffled-without-ids and
   size-mismatch priors yield `None`) (`tests/test_eval.py`).
 - Live listing source (`tests/log/test_task_log.py`): after the seed

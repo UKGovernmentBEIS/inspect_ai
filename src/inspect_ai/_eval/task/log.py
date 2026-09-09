@@ -627,23 +627,10 @@ class TaskLogger:
         # just-completed (or reused-on-retry) sample the listing already shows.
         if _seeded_key(id, epoch) in self._seeded_pending:
             return None
-        buffered = await self.recorder.buffered_sample(self.eval, id, epoch)
+        buffered = await self.recorder.buffered_sample(
+            self.eval, id, epoch, exclude_fields=exclude_fields
+        )
         if buffered is not None:
-            # the recorder's copy is whole (resident, or a local zip member
-            # read in full); honour the exclusion by resetting the fields to
-            # their defaults rather than parsing them selectively as the disk
-            # read does. A required field (id, epoch, input, target) has no
-            # default to reset to — `get_default` would plant PydanticUndefined
-            # in the unvalidated copy and fail at serialization — so it stays
-            if exclude_fields:
-                fields = EvalSample.model_fields
-                buffered = buffered.model_copy(
-                    update={
-                        field: fields[field].get_default(call_default_factory=True)
-                        for field in exclude_fields
-                        if field in fields and not fields[field].is_required()
-                    }
-                )
             return buffered
 
         from inspect_ai.log._file import read_eval_log_sample_async

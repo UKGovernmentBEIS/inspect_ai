@@ -24,9 +24,11 @@ from inspect_ai._util.git import GitContext
 from inspect_ai._util.package import DirectUrl, VcsInfo
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._timeline import timeline_build
 from inspect_ai.log import EvalRevision
 from inspect_ai.log._file import (
     read_eval_log_async,
+    read_eval_log_sample_async,
     read_eval_log_sample_summaries_async,
 )
 from inspect_ai.log._log import (
@@ -190,7 +192,12 @@ class _FlushRecorder:
         pass
 
     async def buffered_sample(
-        self, eval_spec: EvalSpec, id: str | int, epoch: int
+        self,
+        eval_spec: EvalSpec,
+        id: str | int,
+        epoch: int,
+        *,
+        exclude_fields: set[str] | None = None,
     ) -> EvalSample | None:
         return None
 
@@ -1102,8 +1109,11 @@ async def test_task_logger_seeded_records_surface_as_the_sweep_resolves_them(
     assert set(by_id) == {1, 2}
     # the listed record is the re-run's, not the seeded prior error
     assert by_id[2].error is None and by_id[2].retries == 1
-    read = await logger.read_sample(2, 1)
-    assert read is not None and read.error is None
+    request_ids: tuple[str | int, ...] = (2, "2")
+    for id in request_ids:
+        read = await logger.read_sample(id, 1)
+        assert read is not None and read.error is None
+        assert read.error_retries == rerun.error_retries
     # the cancelled prior record stays withheld until its own re-run completes
     assert 3 not in by_id
     assert await logger.read_sample("3", 1) is None
@@ -1297,6 +1307,7 @@ async def test_task_logger_seeded_sample_reads_resolved(
             )
         ],
     )
+    prior_sample.timelines = [timeline_build(prior_sample.events)]
     recorder = recorder_type(str(tmp_path))
     prior = await _write_prior_log(recorder, [prior_sample])
     logger = _seed_logger(recorder)
@@ -1317,6 +1328,14 @@ async def test_task_logger_seeded_sample_reads_resolved(
     served = await logger.read_sample(1, 1)
     assert served is not None
     assert input_texts(served) == ["hello"]
+
+    excluded = await logger.read_sample(1, 1, exclude_fields={"events"})
+    assert excluded is not None and excluded.events == []
+    assert excluded.events_data is None and excluded.timelines is None
+    included = await logger.read_sample(1, 1, exclude_fields={"events_data"})
+    assert included is not None and input_texts(included) == ["hello"]
+    assert included.timelines
+    await logger.log_finish("success", EvalStats())
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
@@ -1382,6 +1401,126 @@ async def test_task_logger_seed_from_prior_relogs_across_formats(
     assert {
         s.id for s in await read_eval_log_sample_summaries_async(logger.location)
     } == {1, 2}
+
+
+@pytest.mark.parametrize("prior_type", [EvalRecorder, JSONRecorder, None])
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("string_ids", [False, True])
+async def test_task_logger_seed_preserves_record_id_matching(
+    prior_type: type[EvalRecorder] | type[JSONRecorder] | None,
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    string_ids: bool,
+    tmp_path: Path,
+) -> None:
+    samples = _prior_samples()
+    if string_ids:
+        samples = [s.model_copy(update={"id": str(s.id)}) for s in samples]
+    samples[1].error_retries = [
+        EvalRetryError(message="earlier error", traceback="", traceback_ansi="")
+    ]
+    prior = (
+        await _write_prior_log(prior_type(str(tmp_path / "prior")), samples)
+        if prior_type is not None
+        else samples
+    )
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    keep: set[tuple[str | int, int]] = (
+        {(1, 1), (2, 1)} if string_ids else {("1", 1), ("2", 1)}
+    )
+    await logger.seed_from_prior(prior, keep=keep)
+    assert logger.prior_seeded
+    await logger.log_start(EvalPlan())
+
+    for id, epoch in keep:
+        seeded = await logger.read_prior_sample(id, epoch)
+        assert seeded is not None
+        expected = samples[int(id) - 1]
+        assert seeded.id == expected.id
+        assert seeded.error == expected.error
+        assert seeded.error_retries == expected.error_retries
+        if str(id) == "1":
+            logger.note_reused_sample(seeded)
+    assert await logger.read_prior_sample("3", 1) is None
+
+    rerun = samples[1].model_copy(
+        update={"id": 2 if string_ids else "2", "error": None}
+    )
+    await logger.complete_sample(rerun, flush=False)
+    request_ids: tuple[str | int, ...] = (2, "2")
+    for id in request_ids:
+        read = await logger.read_sample(id, 1)
+        assert read is not None and read.error is None
+        assert read.error_retries == samples[1].error_retries
+    summaries = await logger.sample_summaries()
+    assert summaries is not None and len(summaries) == 2
+    await recorder.flush(logger.eval)
+    disk_summaries = await read_eval_log_sample_summaries_async(logger.location)
+    assert len(disk_summaries) == 2
+    assert all(s.error is None for s in disk_summaries)
+
+    await logger.log_finish("success", EvalStats())
+    finished = await read_eval_log_async(logger.location)
+    assert finished.samples is not None and len(finished.samples) == 2
+    for id in request_ids:
+        read = await read_eval_log_sample_async(logger.location, id, 1)
+        assert read.error is None
+        assert read.error_retries == samples[1].error_retries
+
+
+@pytest.mark.parametrize("write_through", [False, True])
+async def test_task_logger_seeded_read_excludes_before_materializing(
+    write_through: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai.log._recorders.eval as eval_module
+
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="q1",
+        target="a",
+        store={"retained": [1, {"nested": True}]},
+        attachments={"large": "excluded attachment" * 100_000},
+    )
+    recorder = EvalRecorder(str(tmp_path))
+    prior = await _write_prior_log(recorder, [sample])
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior([sample] if write_through else prior, keep=None)
+    await logger.log_start(EvalPlan())
+    logger.note_reused_sample(sample)
+
+    original_parse = eval_module._parse_sample_data
+
+    def parse_included_fields(data: bytes | dict[str, Any]) -> EvalSample:
+        # Exclusions must precede both whole-body JSON loading and validation.
+        assert isinstance(data, dict)
+        assert "attachments" not in data
+        assert "events" not in data and "events_data" not in data
+        return original_parse(data)
+
+    monkeypatch.setattr(eval_module, "_parse_sample_data", parse_included_fields)
+    with patch.object(
+        eval_module.ObjectBuilder,
+        "event",
+        autospec=True,
+        side_effect=eval_module.ObjectBuilder.event,
+    ) as build_event:
+        read = await logger.read_sample(
+            "1", 1, exclude_fields={"attachments", "events", "id", "input"}
+        )
+        assert read is not None and read.attachments == {}
+        assert read.id == 1 and read.input == "q1"
+        assert read.store == sample.store
+        assert all(
+            call.args[-1] != sample.attachments["large"]
+            for call in build_event.call_args_list
+        )
+    monkeypatch.undo()
+    full = await logger.read_sample("1", 1)
+    assert full is not None and full.attachments == sample.attachments
+    await logger.log_finish("success", EvalStats())
 
 
 async def test_task_logger_seed_from_prior_in_memory_samples(tmp_path: Path) -> None:

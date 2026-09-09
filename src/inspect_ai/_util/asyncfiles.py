@@ -453,9 +453,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         destination that is a file object rather than a path (an anonymous
         temp file). A local source is one ``copyfileobj`` in a worker thread
         (a thread hop per chunk through an async file would cost more than
-        the copy). An S3 source pumps :meth:`read_file_bytes` — a byte
-        stream under asyncio, the whole object read in a worker thread under
-        trio — into ``dest`` chunk by chunk, written inline (a buffered
+        the copy). An S3 source streams into ``dest`` chunk by chunk: under
+        trio the synchronous response is copied in a worker thread, with
+        cancellation checks between chunks; under asyncio a byte stream
+        from :meth:`read_file_bytes` is written inline (a buffered
         write of one chunk lands in the page cache faster than a thread hop
         would). Any other remote filesystem (``gs://``, ``az://``, ...) has
         no async client and, per the fsspec rule in AGENTS.md, cannot be read
@@ -464,8 +465,16 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         stall is bounded by one chunk's fetch rather than the whole download.
 
         Raises ``FileNotFoundError`` for a missing file on every backend.
+        Cancellation waits for an active worker to close its response before
+        returning, so the caller can safely close or reuse ``dest``.
         """
-        if is_s3_filename(filename):
+        if is_s3_filename(filename) and current_async_backend() != "asyncio":
+            bucket, key = s3_bucket_and_key(filename)
+            with _map_missing_s3_object(filename):
+                await anyio.to_thread.run_sync(
+                    s3_read_file_into, self.s3_client(), bucket, key, dest, chunk_size
+                )
+        elif is_s3_filename(filename):
             stream = await self.read_file_bytes(filename, 0, None)
             try:
                 while True:
@@ -1057,6 +1066,27 @@ def s3_read_file_bytes(
 ) -> bytes:
     response = s3.get_object(Bucket=bucket, Key=key, Range=s3_range_header(start, end))
     return cast(bytes, response["Body"].read())
+
+
+def s3_read_file_into(
+    s3: Any, bucket: str, key: str, dest: BinaryIO, chunk_size: int
+) -> None:
+    """Stream an S3 response into a caller-owned file from an AnyIO worker.
+
+    Memory is bounded by ``chunk_size``. Close the response on success,
+    failure or cancellation, leaving the destination's lifecycle to its owner.
+    """
+    response = s3.get_object(Bucket=bucket, Key=key)
+    body = response["Body"]
+    try:
+        while True:
+            anyio.from_thread.check_cancelled()
+            chunk = body.read(chunk_size)
+            if not chunk:
+                break
+            dest.write(chunk)
+    finally:
+        body.close()
 
 
 def s3_read_file_suffix(

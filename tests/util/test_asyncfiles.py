@@ -3,10 +3,13 @@ import functools
 import io
 import os
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import AsyncMock, Mock
 
+import anyio
 import pytest
 from anyio import EndOfStream
 from botocore.exceptions import ClientError
@@ -80,6 +83,133 @@ async def test_read_file_into_non_s3_remote_reads_in_chunks(
         assert dest.read() == payload
     # one yield per chunk read (three full chunks and the partial last one)
     assert yields == 4
+
+
+@pytest.mark.parametrize("s3_backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("failure", [None, "read", "write"])
+async def test_read_file_into_s3_streams_and_closes_response(
+    s3_backend: str, failure: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai._util.asyncfiles as asyncfiles
+
+    monkeypatch.setattr(asyncfiles, "current_async_backend", lambda: s3_backend)
+    payload = b"bounded download" * 1000
+    chunk_size = 1024
+
+    with tempfile.TemporaryFile() as dest:
+        position = 0
+        closed = False
+
+        def read(size: int = -1) -> bytes:
+            nonlocal position
+            assert size == chunk_size
+            # Each chunk reaches the destination before the next is fetched.
+            assert dest.tell() == position
+            if failure == "read" and position:
+                raise OSError("read failed")
+            chunk = payload[position : position + size]
+            position += len(chunk)
+            return chunk
+
+        async def read_async(size: int = -1) -> bytes:
+            await anyio.lowlevel.checkpoint()
+            return read(size)
+
+        def close() -> None:
+            nonlocal closed
+            closed = True
+
+        body = Mock(read=read_async if s3_backend == "asyncio" else read, close=close)
+        client = Mock(get_object=Mock(return_value={"Body": body}))
+        if s3_backend == "asyncio":
+            client.get_object = AsyncMock(return_value={"Body": body})
+        if failure == "write":
+            monkeypatch.setattr(
+                dest, "write", Mock(side_effect=OSError("write failed"))
+            )
+
+        async with AsyncFilesystem() as fs:
+            monkeypatch.setattr(fs, "s3_client", lambda: client)
+            monkeypatch.setattr(fs, "s3_client_async", AsyncMock(return_value=client))
+            if failure:
+                with pytest.raises(OSError, match=f"{failure} failed"):
+                    await fs.read_file_into(f"{S3_BUCKET}/prior.eval", dest, chunk_size)
+            else:
+                await fs.read_file_into(f"{S3_BUCKET}/prior.eval", dest, chunk_size)
+                dest.seek(0)
+                assert dest.read() == payload
+        assert closed
+        assert not dest.closed
+        assert client.get_object.call_count == 1
+
+
+async def test_read_file_into_s3_cancellation_closes_worker_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import inspect_ai._util.asyncfiles as asyncfiles
+
+    monkeypatch.setattr(asyncfiles, "current_async_backend", lambda: "trio")
+    reading = anyio.Event()
+    # This gate crosses the worker-thread boundary; the loop signals reading
+    # with AnyIO, and releases the blocking SDK read after cancellation.
+    release = threading.Event()
+    closed = False
+    cancelled = False
+    reads = 0
+
+    def read(size: int = -1) -> bytes:
+        nonlocal reads
+        reads += 1
+        assert size == 1024
+        anyio.from_thread.run_sync(reading.set)
+        assert release.wait(timeout=10)
+        return b"partial"
+
+    def close() -> None:
+        nonlocal closed
+        closed = True
+
+    client = Mock(get_object=Mock(return_value={"Body": Mock(read=read, close=close)}))
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            monkeypatch.setattr(fs, "s3_client", lambda: client)
+
+            async def copy() -> None:
+                nonlocal cancelled
+                try:
+                    await fs.read_file_into(f"{S3_BUCKET}/prior.eval", dest, 1024)
+                except anyio.get_cancelled_exc_class():
+                    cancelled = True
+                    raise
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(copy)
+                try:
+                    await reading.wait()
+                    tg.cancel_scope.cancel()
+                finally:
+                    release.set()
+            assert cancelled and closed
+            assert reads == 1
+            assert not dest.closed
+
+
+@pytest.mark.parametrize("code", ["NoSuchKey", "AccessDenied"])
+async def test_read_file_into_sync_s3_preserves_error_contract(
+    code: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai._util.asyncfiles as asyncfiles
+
+    monkeypatch.setattr(asyncfiles, "current_async_backend", lambda: "trio")
+    error = ClientError({"Error": {"Code": code}}, "GetObject")
+    client = Mock(get_object=Mock(side_effect=error))
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            monkeypatch.setattr(fs, "s3_client", lambda: client)
+            expected = FileNotFoundError if code == "NoSuchKey" else ClientError
+            with pytest.raises(expected):
+                await fs.read_file_into(f"{S3_BUCKET}/prior.eval", dest)
+            assert not dest.closed
 
 
 # =============================================================================

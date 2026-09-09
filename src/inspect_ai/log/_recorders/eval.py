@@ -27,6 +27,10 @@ from typing import (
 from zipfile import ZipFile
 
 import anyio
+from ijson import IncompleteJSONError, ObjectBuilder  # type: ignore[import-untyped]
+from ijson.backends.python import (  # type: ignore[import-untyped]
+    UnexpectedSymbol,
+)
 from pydantic import BaseModel, Field, JsonValue
 from tenacity import (
     AsyncRetrying,
@@ -76,7 +80,7 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .file import FileRecorder, write_local_snapshot
-from .recorder import SampleRecordKey
+from .recorder import SampleRecordKey, exclude_sample_fields, sample_read_exclusions
 
 logger = getLogger(__name__)
 
@@ -238,12 +242,17 @@ class EvalRecorder(FileRecorder):
 
     @override
     async def buffered_sample(
-        self, eval: EvalSpec, id: str | int, epoch: int
+        self,
+        eval: EvalSpec,
+        id: str | int,
+        epoch: int,
+        *,
+        exclude_fields: set[str] | None = None,
     ) -> EvalSample | None:
         log = self.data.get(self._log_file_key(eval))
         if log is None:
             return None
-        return await log.buffered_sample(id, epoch)
+        return await log.buffered_sample(id, epoch, exclude_fields=exclude_fields)
 
     @override
     async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
@@ -645,6 +654,58 @@ def _rewrite_eval_zip_via_filesystem(location: str, log: EvalLog) -> None:
         f.write(new_bytes)
 
 
+class _SampleJSONBuilder:
+    """Build included top-level JSON fields without retaining excluded subtrees."""
+
+    def __init__(self, exclude_fields: set[str]) -> None:
+        self.data: dict[str, Any] = {}
+        self._excluded = exclude_fields
+        self._depth = 0
+        self._key = ""
+        self._builder: ObjectBuilder | None = None
+
+    def event(self, event: str, value: Any) -> None:
+        if event in ("start_map", "start_array"):
+            self._depth += 1
+        elif event in ("end_map", "end_array"):
+            self._depth -= 1
+
+        if self._depth == 1 and event == "map_key":
+            self._key = value
+            self._builder = None if value in self._excluded else ObjectBuilder()
+        elif self._builder is not None:
+            self._builder.event(event, value)
+            if self._depth == 1:
+                self.data[self._key] = self._builder.value
+                self._builder = None
+
+
+def _read_local_sample_excluding(
+    zip: ZipFile, member: str, exclude_fields: set[str]
+) -> dict[str, Any]:
+    """Stream a local member's included JSON fields in a worker thread.
+
+    Like the async disk reader, retain the stdlib fallback for Python's
+    non-finite numbers and integers too large for the streaming parser.
+    """
+    from inspect_ai._util.json import get_ijson_backend
+
+    try:
+        builder = _SampleJSONBuilder(exclude_fields)
+        with zip.open(member) as stream:
+            for prefix, event, value in get_ijson_backend().parse(
+                stream, use_float=True
+            ):
+                builder.event(event, value)
+        return builder.data
+    except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
+        if not (is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex)):
+            raise
+        with zip.open(member) as stream:
+            data: dict[str, Any] = json.load(stream)
+        return {key: value for key, value in data.items() if key not in exclude_fields}
+
+
 async def _read_member_json_excluding(
     reader: AsyncZipReader,
     member: str,
@@ -656,38 +717,16 @@ async def _read_member_json_excluding(
     from inspect_ai._util.json import get_ijson_backend
 
     ijson = get_ijson_backend()
-    from ijson import IncompleteJSONError, ObjectBuilder  # type: ignore[import-untyped]
-    from ijson.backends.python import (  # type: ignore[import-untyped]
-        UnexpectedSymbol,
-    )
 
     try:
         data: dict[str, Any] = {}
         async with await reader.open_member(member) as f:
-            depth = 0
-            current_key: str = ""
-            builder: ObjectBuilder | None = None
+            builder = _SampleJSONBuilder(exclude_fields)
             async for prefix, event, value in ijson.parse_async(
                 adapt_to_reader(f), use_float=True
             ):
-                # Depth must be updated before the completion check
-                # so that a closing bracket that returns depth to 1
-                # is recognised as completing the current value.
-                if event in ("start_map", "start_array"):
-                    depth += 1
-                elif event in ("end_map", "end_array"):
-                    depth -= 1
-
-                if depth == 1 and event == "map_key":
-                    current_key = value
-                    builder = None if current_key in exclude_fields else ObjectBuilder()
-                elif builder is not None:
-                    builder.event(event, value)
-                    # Depth 1 means we have returned to the top-level
-                    # object, so the current field's value is complete.
-                    if depth == 1:
-                        data[current_key] = builder.value
-                        builder = None
+                builder.event(event, value)
+            data = builder.data
     except (
         ValueError,
         IncompleteJSONError,
@@ -918,8 +957,8 @@ def _read_all_summaries(zip: ZipFile) -> list[EvalSampleSummary]:
     return _dedupe_summaries(summaries)
 
 
-def _parse_sample_bytes(data: bytes) -> EvalSample:
-    """Parse a sample member read from the zip, resolved as a log read is.
+def _parse_sample_data(data: bytes | dict[str, Any]) -> EvalSample:
+    """Validate a full or selectively parsed member, resolved as a log read is.
 
     The same read-time resolution ``read_eval_log_sample`` applies
     (``events_data`` references bound back into the events, timelines
@@ -928,7 +967,8 @@ def _parse_sample_bytes(data: bytes) -> EvalSample:
     of a whole transcript) — run in a worker thread.
     """
     sample = EvalSample.model_validate(
-        json.loads(data), context=get_deserializing_context()
+        json.loads(data) if isinstance(data, bytes) else data,
+        context=get_deserializing_context(),
     )
     return rebind_sample_timelines(resolve_sample_events_data(sample))
 
@@ -986,7 +1026,7 @@ class ZipLogFile:
         self._lock = anyio.Lock()
         self._temp_file = tempfile.TemporaryFile()
         self._samples: list[_BufferedSample] = []
-        self._streaming_samples: dict[tuple[str | int, int], EvalSample] = {}
+        self._streaming_samples: dict[SampleRecordKey, EvalSample] = {}
         self._summary_counter = 0
         self._summaries: list[EvalSampleSummary] = []
         self._config_update_counter = 0
@@ -1078,9 +1118,11 @@ class ZipLogFile:
             # ``buffered_sample``, and (when the prior arrived via the
             # streaming path, whose member is already zip-written) leave a
             # stale event-less fallback in ``_streaming_samples``.
-            key = (sample.id, sample.epoch)
+            key = SampleRecordKey(str(sample.id), sample.epoch)
             self._samples = [
-                s for s in self._samples if (s.sample.id, s.sample.epoch) != key
+                s
+                for s in self._samples
+                if SampleRecordKey(str(s.sample.id), s.sample.epoch) != key
             ]
             self._streaming_samples.pop(key, None)
             self._samples.append(buffered)
@@ -1119,7 +1161,8 @@ class ZipLogFile:
         summary_path = _journal_summary_path(summary_file)
         self._zip_writestr(summary_path, [summary])
         self._summaries = [
-            s for s in self._summaries if (s.id, s.epoch) != (summary.id, summary.epoch)
+            s for s in self._summaries if SampleRecordKey(str(s.id), s.epoch)
+            != SampleRecordKey(str(summary.id), summary.epoch)
         ]
         self._summaries.append(summary)
 
@@ -1150,6 +1193,7 @@ class ZipLogFile:
 
             self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
 
+            key = SampleRecordKey(str(sample.id), sample.epoch)
             # evict a buffered prior record for the same (id, epoch): its
             # member would otherwise be flush-written *after* the streaming
             # write above, and the readers' name-based last-entry-wins rule
@@ -1157,14 +1201,14 @@ class ZipLogFile:
             self._samples = [
                 s
                 for s in self._samples
-                if (s.sample.id, s.sample.epoch) != (sample.id, sample.epoch)
+                if SampleRecordKey(str(s.sample.id), s.sample.epoch) != key
             ]
 
             # Retain the event-less sample so the control channel can read its
             # error detail before the next flush makes it on-disk-readable
             # (events stay in the buffer database — see ``buffered_sample``).
             # Cleared in ``flush`` once the sample lands on disk.
-            self._streaming_samples[(sample.id, sample.epoch)] = sample
+            self._streaming_samples[key] = sample
 
             self._journal_summary(sample)
 
@@ -1198,9 +1242,11 @@ class ZipLogFile:
                 # replace any existing summaries for the same (id, epoch)
                 # (e.g. when re-logging completed samples after log_init
                 # with clean=False during eval_retry / score --overwrite)
-                new_keys = {(s.id, s.epoch) for s in summaries}
+                new_keys = {SampleRecordKey(str(s.id), s.epoch) for s in summaries}
                 self._summaries = [
-                    s for s in self._summaries if (s.id, s.epoch) not in new_keys
+                    s
+                    for s in self._summaries
+                    if SampleRecordKey(str(s.id), s.epoch) not in new_keys
                 ]
                 self._summaries.extend(summaries)
 
@@ -1218,12 +1264,18 @@ class ZipLogFile:
         large the buffered samples are or how often the control channel polls.
         """
         async with self._lock:
-            by_key = {(s.id, s.epoch): s for s in self._summaries}
+            by_key = {SampleRecordKey(str(s.id), s.epoch): s for s in self._summaries}
             for b in self._samples:
-                by_key[(b.summary.id, b.summary.epoch)] = b.summary
+                by_key[SampleRecordKey(str(b.summary.id), b.summary.epoch)] = b.summary
             return list(by_key.values())
 
-    async def buffered_sample(self, id: str | int, epoch: int) -> EvalSample | None:
+    async def buffered_sample(
+        self,
+        id: str | int,
+        epoch: int,
+        *,
+        exclude_fields: set[str] | None = None,
+    ) -> EvalSample | None:
         """A not-yet-flushed full sample by ``(id, epoch)``, or None.
 
         Gap-free counterpart to :meth:`sample_summaries`, covering both
@@ -1236,7 +1288,9 @@ class ZipLogFile:
           complete record under that name (a re-run's superseding member
           wins, as for every zip reader), read and decompressed in a worker
           thread while the lock is held — the same contention a flush
-          imposes — then parsed and resolved like a log read outside it.
+          imposes — then validated and resolved like a log read outside it.
+          Excluded fields are skipped during streaming JSON parsing, before
+          building the sample, rather than loaded and discarded afterward.
         - ``_streaming_samples`` — event-less samples from the streaming path
           (their events live in the buffer database, so this carries error
           detail / scores but not events).
@@ -1246,18 +1300,33 @@ class ZipLogFile:
         """
         async with self._lock:
             for buffered in self._samples:
-                if buffered.sample.id == id and buffered.sample.epoch == epoch:
-                    return buffered.sample
+                if (
+                    str(buffered.sample.id) == str(id)
+                    and buffered.sample.epoch == epoch
+                ):
+                    return exclude_sample_fields(buffered.sample, exclude_fields)
             name = _sample_filename(id, epoch)
             if (
                 name in self._local_sample_names
                 and self._zip is not None
                 and name in self._zip.NameToInfo
             ):
-                data = await anyio.to_thread.run_sync(self._zip.read, name)
+                data: bytes | dict[str, Any]
+                excluded = sample_read_exclusions(exclude_fields)
+                if excluded:
+                    data = await anyio.to_thread.run_sync(
+                        _read_local_sample_excluding, self._zip, name, excluded
+                    )
+                else:
+                    data = await anyio.to_thread.run_sync(self._zip.read, name)
             else:
-                return self._streaming_samples.get((id, epoch))
-        return await anyio.to_thread.run_sync(_parse_sample_bytes, data)
+                sample = self._streaming_samples.get(SampleRecordKey(str(id), epoch))
+                return (
+                    exclude_sample_fields(sample, exclude_fields)
+                    if sample is not None
+                    else None
+                )
+        return await anyio.to_thread.run_sync(_parse_sample_data, data)
 
     async def write(self, filename: str, data: Any) -> None:
         async with self._lock:
@@ -1894,15 +1963,15 @@ def _parse_summaries(data: Any, source: str) -> list[EvalSampleSummary]:
 def _dedupe_summaries(
     summaries: Iterable[EvalSampleSummary],
 ) -> list[EvalSampleSummary]:
-    """Keep the last row per ``(id, epoch)``.
+    """Keep the last row per ``(str(id), epoch)``.
 
     The same last-entry-wins rule the zip sample readers apply: a requeued
     sample's re-run is recorded after its superseded prior attempt, so the
     later row is the current one.
     """
-    by_key: dict[tuple[int | str, int], EvalSampleSummary] = {}
+    by_key: dict[SampleRecordKey, EvalSampleSummary] = {}
     for summary in summaries:
-        by_key[(summary.id, summary.epoch)] = summary
+        by_key[SampleRecordKey(str(summary.id), summary.epoch)] = summary
     return list(by_key.values())
 
 
