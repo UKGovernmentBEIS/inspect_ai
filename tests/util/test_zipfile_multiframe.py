@@ -7,8 +7,10 @@ size limits (fzstd @ 256 MiB) can decode large inspect_ai .eval files.
 
 from __future__ import annotations
 
+import random
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 import zstandard
@@ -20,7 +22,7 @@ from test_helpers.zstd import (
 
 # Importing this module installs the zstd compression patches (both the
 # zipfile_zstd delegation on Python < 3.14 and our multi-frame wrapper).
-import inspect_ai._util.zipfile  # noqa: F401
+import inspect_ai._util.zipfile
 
 MAX_INPUT_PER_FRAME = 200 * 1024 * 1024  # must match the value in _util/zipfile.py
 
@@ -100,3 +102,74 @@ def test_large_entry_round_trip(tmp_path: Path, large_payload: bytes) -> None:
     assert got == large_payload, (
         f"round-trip mismatch: input {len(large_payload)} bytes, got {len(got)} bytes"
     )
+
+
+MIN_READ_SIZE = 4096  # zipfile.ZipExtFile.MIN_READ_SIZE
+
+
+def _read_like_post_gh156002(decomp: Any, compressed: bytes, n: int) -> bytes:
+    """Mirror ``ZipExtFile._read1`` after CPython gh-156002.
+
+    It probes ``needs_input`` (falling back to ``_needs_input`` like the stdlib)
+    before reading more, calls ``decompress(data, max_length)``, and stops on
+    ``eof or (input exhausted and needs_input)``.
+    """
+
+    def needs_input(d: Any) -> bool:
+        probe = getattr(d, "needs_input", None)
+        return d._needs_input if probe is None else probe
+
+    out, pos, eof, calls = bytearray(), 0, False, 0
+    while not eof:
+        calls += 1
+        assert calls <= len(compressed) // MIN_READ_SIZE + 4, (
+            "drain loop never terminates"
+        )
+        if needs_input(decomp):
+            chunk = compressed[pos : pos + max(n, MIN_READ_SIZE)]
+            pos += len(chunk)
+        else:
+            chunk = b""
+        out += decomp.decompress(chunk, max(n, MIN_READ_SIZE))
+        eof = decomp.eof or (pos >= len(compressed) and needs_input(decomp))
+    return bytes(out)
+
+
+# 4096 reads the 50 KB stream in a dozen slices across the frame boundary;
+# 65_536 reads it in one.
+@pytest.mark.parametrize("n", [4096, 65_536])
+def test_post_gh156002_read1_loop_reassembles_multi_frame_entry(n: int) -> None:
+    payload = random.Random(0).randbytes(50_000)  # incompressible: ~1:1
+    cctx = zstandard.ZstdCompressor(level=3)
+    stream = cctx.compress(payload[:17_000]) + cctx.compress(payload[17_000:])
+    get_decompressor = getattr(zipfile, "_get_decompressor", None)
+    assert get_decompressor is not None
+    assert (
+        _read_like_post_gh156002(get_decompressor(ZIP_ZSTANDARD), stream, n) == payload
+    )
+
+
+def test_zip_member_read_paths_round_trip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``read``, ``read1`` and ``readline`` reassemble a multi-frame entry."""
+    # Shrink the frame cap so a 3 MiB payload becomes a 3-frame entry.
+    monkeypatch.setattr(inspect_ai._util.zipfile, "_MAX_INPUT_PER_FRAME", 1024 * 1024)
+    payload = moderately_compressible_payload(3 * 1024 * 1024)
+    zip_path = tmp_path / "paths.zip"
+    with zipfile.ZipFile(zip_path, "w", compression=ZIP_ZSTANDARD) as zf:
+        zf.writestr("entry.json", payload)
+    assert read_raw_compressed_entry(zip_path, "entry.json").count(ZSTD_MAGIC) == 3
+
+    with zipfile.ZipFile(zip_path) as zf:
+        assert zf.read("entry.json") == payload
+
+        with zf.open("entry.json") as fp:
+            assert isinstance(fp, zipfile.ZipExtFile)
+            got = bytearray()
+            while chunk := fp.read1(7_000):
+                got += chunk
+            assert bytes(got) == payload
+
+        with zf.open("entry.json") as fp:
+            assert b"".join(iter(fp.readline, b"")) == payload
