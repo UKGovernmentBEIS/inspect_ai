@@ -29,17 +29,22 @@ async def view(path_str: str, view_range: list[int] | None = None) -> str:
     if path.is_dir():
         path_str = str(path).rstrip("/") + "/"
 
-        _, stdout, stderr = await run(
-            rf"find {path_str} -maxdepth 2 -not -path '*/\.*'"
-        )
-
-        if stderr:
+        try:
+            result = await run(
+                ["find", path_str, "-maxdepth", "2", "-not", "-path", r"*/\.*"]
+            )
+        except OSError as exc:
             raise ToolException(
-                f"Encountered error attempting to view {path}: '{stderr}'"
+                f"Encountered error attempting to view {path}: {exc}"
+            ) from exc
+
+        if result.stderr:
+            raise ToolException(
+                f"Encountered error attempting to view {path}: '{result.stderr}'"
             )
 
         stdout = "\n".join(
-            os.path.normpath(line) for line in stdout.strip().split("\n")
+            os.path.normpath(line) for line in result.stdout.strip().split("\n")
         )
         return f"Here are the files and directories up to 2 levels deep in {path}, excluding hidden items:\n{stdout}\n"
 

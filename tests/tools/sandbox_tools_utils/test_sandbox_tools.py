@@ -10,7 +10,7 @@ from test_helpers.tool_call_utils import (
 )
 from test_helpers.utils import flaky_retry
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, eval_async
 from inspect_ai.dataset import Sample
 from inspect_ai.model import (
     ContentText,
@@ -86,6 +86,59 @@ def test_text_editor_read(sandbox: str | tuple[str, str]):
     assert "root:x:0:0:root" in response.content, (
         f"Unexpected output from file read: {response.content}"
     )
+
+
+@pytest.mark.parametrize(
+    "sandbox_config",
+    [
+        "docker",
+        ("docker", NONROOT_COMPOSE),
+        (
+            "docker",
+            str(Path(__file__).parent / ".." / "test_sandbox_compose_alpine.yaml"),
+        ),
+    ],
+)
+@pytest.mark.slow
+async def test_text_editor_directory_path_is_literal(
+    sandbox_config: str | tuple[str, str],
+) -> None:
+    @solver
+    def check_directory_view() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            sb = sandbox()
+            directory = await sb.exec(["mktemp", "-d"])
+            assert directory.success, directory.stderr
+            base = directory.stdout.strip()
+            marker = f"inspect-463-{uuid.uuid4().hex}"
+            target = f"{base}/x$(touch {marker})"
+            created = await sb.exec(["mkdir", target])
+            assert created.success, created.stderr
+            await sb.write_file(f"{target}/child.txt", "hello")
+            link = f"{base}/link"
+            linked = await sb.exec(["ln", "-s", target, link])
+            assert linked.success, linked.stderr
+
+            for user in [None, "root"]:
+                for path in [target, link]:
+                    result = str(
+                        await text_editor(user=user)(command="view", path=path)
+                    )
+                    assert f"{target}/child.txt" in result
+                    assert not (await sb.exec(["test", "-e", marker])).success
+            return state
+
+        return solve
+
+    [log] = await eval_async(
+        Task(
+            dataset=[Sample(input="View a directory containing shell syntax")],
+            solver=check_directory_view(),
+            sandbox=sandbox_config,
+        ),
+        model="mockllm/model",
+    )
+    assert log.status == "success", log.error
 
 
 @pytest.mark.slow

@@ -1,11 +1,19 @@
-"""Utility to run shell commands asynchronously with a timeout."""
+"""Utility to run commands asynchronously with a timeout."""
 
 # TODO: Cloned from computer tool temporarily. Should resolve when we have a unified container package.
 
 import asyncio
+from collections.abc import Sequence
+from typing import NamedTuple
 
 TRUNCATED_MESSAGE: str = "<response clipped><NOTE>To save on context only part of this file has been shown to you. You should retry this tool after you have searched inside the file with `grep -n` in order to find the line numbers of what you are looking for.</NOTE>"
 MAX_RESPONSE_LEN: int = 16000
+
+
+class CommandResult(NamedTuple):
+    returncode: int
+    stdout: str
+    stderr: str
 
 
 def maybe_truncate(content: str, truncate_after: int | None = MAX_RESPONSE_LEN) -> str:
@@ -18,27 +26,30 @@ def maybe_truncate(content: str, truncate_after: int | None = MAX_RESPONSE_LEN) 
 
 
 async def run(
-    cmd: str,
+    cmd: Sequence[str],
     timeout: float | None = 120.0,  # seconds
     truncate_after: int | None = MAX_RESPONSE_LEN,
-) -> tuple[int, str, str]:
-    """Run a shell command asynchronously with a timeout."""
-    process = await asyncio.create_subprocess_shell(
-        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+) -> CommandResult:
+    """Run an argument vector without a shell; reap the process on every exit."""
+    process = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
 
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-        return (
-            process.returncode or 0,
-            maybe_truncate(stdout.decode(), truncate_after=truncate_after),
-            maybe_truncate(stderr.decode(), truncate_after=truncate_after),
+        return CommandResult(
+            returncode=process.returncode or 0,
+            stdout=maybe_truncate(stdout.decode(), truncate_after=truncate_after),
+            stderr=maybe_truncate(stderr.decode(), truncate_after=truncate_after),
         )
     except (TimeoutError, asyncio.TimeoutError) as exc:
-        try:
-            process.kill()
-        except ProcessLookupError:
-            pass
         raise TimeoutError(
             f"Command '{cmd}' timed out after {timeout} seconds"
         ) from exc
+    finally:
+        if process.returncode is None:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+        await process.wait()
