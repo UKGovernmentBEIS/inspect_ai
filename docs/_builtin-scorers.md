@@ -9,7 +9,7 @@ Inspect includes both text matching scorers as well as model graded scorers. Bel
 :   Check whether the `target` appears at a known position: `begin`, `end` (the default), or `any`. With `location="exact"` the whole output must equal the target. Ignores case and white-space by default. Pass `numeric=True` to compare numbers rather than text; currency symbols (`$`, `€`, `£`), thousands separators (`,`), and formatting markers (`*`, `_`) are stripped first.
 
 `pattern()`
-:   Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match.
+:   Extract an answer using a regular expression and compare it with the target. Uses the captured values when capture groups are present, or the full match otherwise. For example, `pattern(r"\d+")` extracts `42` from `The answer is 42`. With multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match.
 
 `answer()`
 :   For prompts that instruct the model to end with `ANSWER: X`. Extracts the letter, word, or remainder of the line that follows.
@@ -27,10 +27,10 @@ Inspect includes both text matching scorers as well as model graded scorers. Bel
 :   Compute the F1 score (the harmonic mean of precision and recall) over token overlap, for short free-text answers such as extractive QA. Accepts an `answer_fn` to extract the answer from the completion and a `stop_words` list to exclude from tokenization. Reports `mean` and `stderr` metrics.
 
 `choice()`
-:   Score multiple-choice questions produced by the `multiple_choice()` solver. Unshuffles any choices the solver shuffled before scoring, and supports multiple correct answers via a comma-separated `target` (e.g. `"A,B"`).
+:   Score multiple-choice questions produced by the `multiple_choice()` solver. Unshuffles any choices the solver shuffled before scoring, and supports multiple correct answers via a comma-separated `target` (e.g. `"A,B"`). Raises a scoring error if the sample has no choices.
 
 `math()`
-:   Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both `\boxed{}` LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; an invalid or over-budget target is unscored rather than counted against the model. Requires the optional math dependencies (install with `pip install inspect-ai[math]`).
+:   Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both `\boxed{}` LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; a sample with no usable reference answer raises a scoring error. Requires the optional math dependencies (install with `pip install inspect-ai[math]`).
 
 `perplexity()`
 :   Compute per-token negative log-likelihood (NLL) from prompt log probabilities, for full-text perplexity benchmarks (WikiText, C4). Requires `prompt_logprobs` in `GenerateConfig`. See [Perplexity](perplexity.qmd).
@@ -42,15 +42,9 @@ Inspect includes both text matching scorers as well as model graded scorers. Bel
 
 ## When the output doesn't match
 
-These scorers use the `CORRECT` and `INCORRECT` constants, which the default metrics convert to `1.0` and `0.0` (see [Custom Scorers](custom-scorers.qmd#score) for the `Value` types and `value_to_float()`). They differ in how they treat output that does not match the target:
+`includes()`, `match()`, and `exact()` return `INCORRECT` for a non-matching response. `pattern()` and `answer()` return `INCORRECT` when the extracted answer is wrong or the required pattern is absent. An absent pattern also sets `reason="invalid_response_format"`.
 
-`includes()`, `match()`, and `exact()`
-:   Score a non-matching output `INCORRECT`, so the sample stays in the denominator as a `0.0`.
-
-`pattern()` (and `answer()`, which builds on it)
-:   Score `INCORRECT` whether the pattern matches but the captured value is wrong, or the pattern does not match at all. When the pattern does not match, `Score.reason` is set to `"invalid_response_format"` — a distinct, filterable label for "no answer was found in the expected form" rather than "the model answered incorrectly", without excusing the sample from the metric denominator.
-
-Failing to follow the requested output format is itself an instruction-following failure, so it stays `INCORRECT` rather than `NOANSWER` — see [Scoring Policy](scoring-policy.qmd#verdicts-on-the-model) for the underlying attribution rule and [Recording the Reason](scoring-policy.qmd#recording-the-reason) for the `reason` field.
+These incorrect scores contribute `0.0` to the default metrics. See [Scoring Policy](scoring-policy.qmd) for how scores, unscored results, and errors affect metrics and coverage.
 
 ## Metrics
 

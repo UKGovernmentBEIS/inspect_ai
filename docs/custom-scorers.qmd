@@ -86,6 +86,7 @@ The components of `Score` include:
 | `value` | `Value` | Value assigned to the sample (e.g. "C" or "I", or a raw numeric value). |
 | `answer` | `str` | Text extracted from model output for comparison (optional). |
 | `explanation` | `str` | Explanation of score, e.g. full model output or grader model output (optional). |
+| `reason` | `ScoreReason \| str` | Standard outcome label or custom string (optional). |
 | `metadata` | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional). |
 
 : {tbl-colwidths=\[20,20,60\]}
@@ -119,21 +120,23 @@ If you are extracting an answer from within a completion (e.g. looking for text 
 
 ### Unscored Samples
 
-When a scorer cannot render a verdict after reasonable due diligence even though nothing malfunctioned (for example, a grader model repeatedly returned an unparsable verdict), use `Score.unscored()` to exclude the sample from metrics while preserving context:
+Return `None` when a sample is outside the scorer's scope. For example, a code-test scorer in a mixed dataset can return `None` for essay questions. This creates no score entry and does not increase `unscored_samples`.
+
+Use `Score.unscored()` when a judgment is expected but could not be obtained, such as an unparseable grader verdict:
 
 ``` python
 return Score.unscored(
     reason="grader_failed",
     answer=extracted,
-    explanation="grader did not return a parseable verdict after 3 attempts",
+    explanation="Grader did not return a parseable verdict.",
 )
 ```
 
-The optional `reason` field records a machine-readable failure mode — use a standard `ScoreReason` value (e.g. `"grader_failed"`, `"invalid_response_format"`) where one fits, or any custom string.
+This creates a score with a `NaN` value and preserves the supplied reason, answer, and explanation. Metrics exclude the value. Coverage counts are calculated after epoch reduction: the default mean reducer ignores unscored epochs, while other reducers can handle them differently. See [Interpreting coverage](scoring-policy.qmd#interpreting-coverage).
 
-Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers.
+The optional `reason` accepts standard `ScoreReason` labels or custom strings. Use a reason that describes the outcome and an explanation with the details needed to understand it.
 
-For guidance on *when* to return `Score.unscored()` versus a score or an error, see [Scoring Policy](scoring-policy.qmd).
+Return a scored verdict for an incorrect answer or a failure to follow the task's required format. Raise an exception for execution failures or invalid scorer inputs so Inspect can apply the run's error-handling settings. See [Scoring Policy](scoring-policy.qmd) for how these outcomes affect results.
 
 ## Score Value
 
@@ -256,10 +259,6 @@ def model_graded_qa(
                 explanation=result.completion,
             )
         else:
-            # The grader failed to produce a parseable verdict. That is a
-            # failure of the measurement instrument, not a wrong answer from the
-            # model, so record it as unscored (excluded from metrics) rather than
-            # charging the model INCORRECT. See Scoring Policy for the rationale.
             return Score.unscored(
                 reason="grader_failed",
                 explanation="Grade not found in model output: "
@@ -269,7 +268,7 @@ def model_graded_qa(
     return score
 ```
 
-The grade-parse-failure branch returns `Score.unscored()` rather than `INCORRECT`: a grader that cannot render a verdict is an instrument failure, not a verdict on the model. See [Scoring Policy](scoring-policy.qmd#model-graded-scorers) for when to score, raise, or return `Score.unscored()`.
+If the grade cannot be parsed, this scorer records an unscored result with the grader output as its explanation. See [Unscored Samples](#unscored-samples) for choosing score outcomes.
 
 Note that the call to `model_grader.generate()` is done with `await`. This is critical to ensure that the scorer participates correctly in the scheduling of generation work.
 
