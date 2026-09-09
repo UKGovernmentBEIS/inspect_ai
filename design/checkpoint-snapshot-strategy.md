@@ -22,7 +22,8 @@
 >    streaming write.
 > 2. **The archive copy-out stages the complete archive in-sandbox**
 >    (root-only area), then chunk-copies it out via per-chunk `dd` +
->    `read_file` — host RAM is bounded by one chunk, but transient
+>    `read_file`. Chunking limits host buffering when the sandbox follows
+>    the protocol; it does not bound staging inside `read_file`. Transient
 >    sandbox disk equals the archive size plus one chunk. The §8
 >    detached-producer pipeline (two-chunk sandbox disk bound) is the
 >    compatible follow-up; §8 point (d)'s cross-fire isolation reduces
@@ -32,6 +33,21 @@
 >    rather than a declared schema field (same absent ⇒
 >    `restic-incremental` rule): declaring it would change the
 >    generated public event schema / viewer types.
+> 4. **`discard_orphans` receives the committed snapshot records**
+>    (`Sequence[CommittedSnapshot]`, one per committed checkpoint that
+>    records this sandbox) rather than a bare `latest_committed_id`.
+>    The sandbox writes into its own restic repo, so "orphan" for the
+>    restic strategy means *any* snapshot no committed checkpoint
+>    records — not just ids past the latest — and the strategy must
+>    raise if the latest committed record's snapshot is absent from the
+>    adopted storage area. `restore` restores the recorded
+>    `ref.snapshot_id`, whose receipt was checked during egress. When
+>    this sandbox has no committed record, restore still falls back to
+>    `latest` and skips orphan discard.
+>    The shared chunked copy-out (`_checkpoint/_copy.py`, capped by
+>    `SnapshotContext.max_snapshot_bytes` from
+>    `CheckpointConfig.max_sandbox_snapshot_bytes`) landed with this
+>    change; both strategies use it.
 >
 > Strategy selection is accepted at every config layer — sample, task,
 > and eval: `sandbox_paths` values are `list[str] |
@@ -87,7 +103,7 @@ The interface already exists in the code, inlined at two call sites:
 | Fresh sample | `hydrate._hydrate_sandbox` (resume=None): `inject_restic(env)` → `init_sandbox_repo(env, password)` |
 | Fire | `checkpointer_impl._backup_and_egress_sandbox`: `run_sandbox_backup(env, ...)` → `egress_sandbox(env, dest_repo=sandbox_repo_dir(sample_root, name), ...)`; then `_fire_once` runs `list_changed_files` host-side and records a `SnapshotDetails` per sandbox |
 | Remote shipping | `_host_egress.host_egress`: manifest-diff the staging dir, ship in restic-aware safe order (`config`/`keys` → `data` → `index` → `snapshots` → catch-all (everything unmatched) → `restic-config.json` → `ckpt-*.json` last) |
-| Resume | retry startup copy (`_resume_copy.copy_resume_payloads`, old attempt's sample dirs → new attempt's eval dir, before the new log exists) → `hydrate._hydrate_sandbox` (resume set): `drop_orphan_snapshots` → `ingress_sandbox` (tar repo into container, `restic restore latest --target /`) |
+| Resume | retry startup copy (`_resume_copy.copy_resume_payloads`, before the new log exists) → `hydrate._hydrate_sandbox` (resume set): `forget_unrecorded_snapshots` (keep exactly the snapshots committed checkpoints record; the latest committed one must be present) → `ingress_sandbox` (tar repo into container, `restic restore <recorded snapshot id> --target /`) |
 | Retention | `retention: "delete" \| "retain"` — all-or-nothing at eval end *(defined and merged in `config.py`, but not yet enforced — no eval-end delete is implemented)* |
 
 Two pieces of restic knowledge currently leak outside this boundary and
@@ -114,9 +130,10 @@ class SandboxSnapshotStrategy(Protocol):
     """Captures and restores one sandbox's bulk state for checkpointing.
 
     Contract (see §4 for the guarantees each method must honor):
-    tooling placed in the sandbox must be root-only and invisible to
-    the agent; bytes read out of the sandbox are untrusted; secrets
-    reach the sandbox only via per-exec environment variables.
+    tooling and staging must be root-only to protect against an
+    unprivileged agent; sandbox root can access them. Transfer checks
+    do not authenticate sandbox-supplied state. Secrets reach the
+    sandbox only via per-exec environment variables.
     """
 
     async def setup(self, env: SandboxEnvironment, ctx: SnapshotContext) -> None:
@@ -144,9 +161,10 @@ class SandboxSnapshotStrategy(Protocol):
         """Materialize the snapshot `ref` into a fresh sandbox."""
 
     async def discard_orphans(
-        self, latest_committed_id: int, ctx: SnapshotContext
+        self, committed: Sequence[CommittedSnapshot], ctx: SnapshotContext
     ) -> None:
-        """Drop snapshots with checkpoint_id > latest_committed_id (§4.5)."""
+        """Drop every snapshot not recorded in `committed`; raise if the
+        latest committed record's snapshot is absent."""
 
     async def apply_retention(
         self,
@@ -191,7 +209,7 @@ Call-site mapping (extraction, not redesign):
 | `setup` | `inject_restic` (both paths) + `init_sandbox_repo` (fresh only, gated on `ctx.resuming`) |
 | `snapshot` | `run_sandbox_backup` + `egress_sandbox` + the sandbox-repo tiers of `host_egress` + `list_changed_files` |
 | `restore` | `ingress_sandbox` |
-| `discard_orphans` | `drop_orphan_snapshots` |
+| `discard_orphans` | `_drop_orphan_snapshots` (now `forget_unrecorded_snapshots`, keyed on the committed records rather than a latest id) |
 | `apply_retention` | *(new — restic no-op until generation rotation)* |
 | `cleanup` | eval-end retention delete, scoped to the storage area *(net-new enforcement — the `retention` option is defined in `config.py` today but nothing reads it outside config resolution; no eval-end delete exists yet)* |
 
@@ -301,10 +319,22 @@ internal ordering). Consequences for a strategy:
 
 ### 4.6 Security requirements (Protocol docstring, normative)
 
-Copied from the restic implementation's hard-won properties:
+The sandbox controls the state it supplies, including repository files
+and metadata. Host checks constrain transfer size and paths, prevent
+replacement of existing restic repository files, and tie resume to a
+recorded snapshot when one exists. They do not establish that a snapshot
+faithfully captures the sandbox or that its contents are recent or truthful.
+
+File-list agreement, newly received snapshot ids, and expected tags enforce
+transfer protocol consistency. A compromised sandbox can satisfy these
+checks with fabricated state. Content-addressed filenames bind names to
+bytes, not to an authentic capture. Root-only paths and per-exec secrets
+protect against an unprivileged agent, not one controlling sandbox root.
+
+Implementation requirements:
 
 - Tooling placed inside the sandbox lives under a root-only (0700)
-  path whose *parent* is unlistable by the agent (the
+  path whose *parent* is unlistable by an unprivileged agent (the
   `/root/.cache/inspect` pattern), streamed in via root `sh` stdin so
   bytes never touch an agent-readable temp path.
 - Any in-sandbox staging must sit inside that area and be excluded
@@ -313,6 +343,10 @@ Copied from the restic implementation's hard-won properties:
   handling must never extract them onto the host filesystem without
   path-safety (`tarfile filter="data"`; see `_extract_tar`), and never
   execute or parse them with anything less than full distrust.
+- Restic egress limits header reads to 64 KiB per archive member before
+  tarfile processes them, including chained extension headers and sparse
+  maps. Ordinary file contents stream separately under the extraction
+  byte cap. Archives with larger metadata fail the checkpoint attempt.
 - Secrets reach the sandbox only via per-exec environment variables
   (`env=` on `exec`), never persisted to sandbox disk.
 - All in-sandbox execution runs as `user="root"`; output must respect
@@ -530,9 +564,11 @@ restore).
   once complete, verify the recorded hash against the staged file
   in-sandbox, then `tar -x -C /` and delete the staging file.
   Verify-then-extract costs transient sandbox disk equal to the
-  archive size, but a corrupt archive is rejected before any byte
-  reaches a final path. Extraction happens *inside* the sandbox, so
-  untrusted-bytes handling on the host reduces to hash verification.
+  archive size. When the sandbox follows the protocol, a digest mismatch
+  stops extraction. A compromised sandbox can bypass that check. The
+  archive remains opaque on the host: copy-out caps accepted bytes and checks
+  agreement with the sandbox-reported digest, without authenticating
+  the archive contents. Extraction happens *inside* the sandbox.
 - `discard_orphans` / `apply_retention`: delete one file per
   checkpoint. This is the strategy where mid-run reclamation is
   trivial, which is the point.
@@ -562,7 +598,8 @@ kept here as a future strategy so the config surface (§6) and the
 
 ## 8. Enabling infrastructure: streaming copy-out and copy-in
 
-`egress_sandbox` already carries a TODO: `read_file` on a single big
+`egress_sandbox` carried a TODO (since retired by the shared
+`_checkpoint/_copy.py` primitive): `read_file` on a single big
 tar peaks host RAM at tarball size and can hit per-call timeouts on
 slow providers. The archive strategy makes this unavoidable, so Phase 2
 builds the shared primitive both need:
