@@ -310,17 +310,33 @@ async def test_copy_payload_files_refuses_key_escaping_sample_dir(
     _assert_nothing_outside(dest)
 
 
-async def test_copy_resume_payloads_refuses_sample_dir_named_dotdot(
-    tmp_path: Path, mock_s3: None
+@pytest.mark.parametrize(
+    "hostile_dir,match",
+    [
+        # `<eval>/../x__1/...`: a "sample dir" named `..`.
+        ("..", r"'\.\.' is not allowed"),
+        # `<eval>//x__1/...`: S3 lists the CommonPrefix `<eval>//`, whose
+        # terminal name is empty. Collapsing both slashes would turn that
+        # into the eval dir's own name, which passes containment and then
+        # copies nothing, silently.
+        ("", "is empty"),
+    ],
+)
+async def test_copy_resume_payloads_refuses_hostile_sample_dir_key(
+    tmp_path: Path, mock_s3: None, hostile_dir: str, match: str
 ) -> None:
-    """A source "sample dir" named `..` fails the startup copy before any file moves."""
+    """A source "sample dir" key that is not one component fails the startup copy before any file moves."""
     source_eval = f"{S3_BUCKET}/{tmp_path.name}.checkpoints"
     dest_eval = tmp_path / "root" / "new-eval.checkpoints"
 
     async with AsyncFilesystem() as fs:
         await _put(fs, f"{source_eval}/s__0/restic/host/config", b"cfg")
-        await _put(fs, f"{source_eval}/../x__1/ckpt-00001.json", _checkpoint_bytes(1))
-        with pytest.raises(ValueError, match=r"'\.\.' is not allowed") as excinfo:
+        await _put(
+            fs,
+            f"{source_eval}/{hostile_dir}/x__1/ckpt-00001.json",
+            _checkpoint_bytes(1),
+        )
+        with pytest.raises(ValueError, match=match) as excinfo:
             await copy_resume_payloads(
                 source_eval_dir=source_eval,
                 destination_eval_dir=str(dest_eval),
@@ -328,9 +344,35 @@ async def test_copy_resume_payloads_refuses_sample_dir_named_dotdot(
 
     # The error names the offending dir and the remedy: the startup copy
     # never skips silently, so this recurs on every retry until it is removed.
-    assert "'..'" in str(excinfo.value)
+    assert f"sample dir name {hostile_dir!r}" in str(excinfo.value)
     assert "Remove that directory" in str(excinfo.value)
     assert not (dest_eval / "s__0").exists()
+    _assert_nothing_outside(dest_eval)
+
+
+async def test_copy_resume_payloads_refuses_local_sample_dir_with_backslash(
+    tmp_path: Path,
+) -> None:
+    """A local sample dir named with a backslash (legal on Linux) fails the startup copy.
+
+    `basename` flips backslashes to slashes before taking the last segment,
+    which would hide the separator from containment and report a name the
+    source does not have; the copy takes the terminal name itself.
+    """
+    source_eval = tmp_path / "old-eval.checkpoints"
+    dest_eval = tmp_path / "root" / "new-eval.checkpoints"
+    hostile = source_eval / "a\\b__0"
+    hostile.mkdir(parents=True)
+    (hostile / "ckpt-00001.json").write_bytes(_checkpoint_bytes(1))
+
+    with pytest.raises(ValueError, match="contains a separator") as excinfo:
+        await copy_resume_payloads(
+            source_eval_dir=str(source_eval),
+            destination_eval_dir=str(dest_eval),
+        )
+
+    assert "sample dir name 'a\\\\b__0'" in str(excinfo.value)
+    assert not any(dest_eval.iterdir())
     _assert_nothing_outside(dest_eval)
 
 

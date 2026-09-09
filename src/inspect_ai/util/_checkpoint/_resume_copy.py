@@ -50,7 +50,7 @@ from inspect_ai._util.asyncfiles import (
     is_s3_filename,
     s3_bucket_and_key,
 )
-from inspect_ai._util.file import basename, dirname, filesystem
+from inspect_ai._util.file import dirname, filesystem
 from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
@@ -131,11 +131,18 @@ async def _dir_names(base: str) -> list[str]:
     walking the copy out of the destination. The startup copy never skips
     silently, so the error names the dir and the remedy (remove it from the
     source), since it recurs on every retry until then.
+
+    The name is the URI's own terminal segment, not ``basename()``: that
+    helper strips every trailing slash and flips backslashes, so a doubled
+    slash key (``<eval>//``) would collapse to the eval dir's name and a
+    local dir named with a backslash to the part after it, both passing
+    containment and then copying nothing. ``iter_dirs`` yields exactly one
+    trailing slash.
     """
     names: list[str] = []
     try:
         async for uri in get_async_filesystem().iter_dirs(base):
-            name = basename(uri.rstrip("/"))
+            name = uri.removesuffix("/").rsplit("/", 1)[-1]
             try:
                 contained_component(name)
             except ValueError as exc:
