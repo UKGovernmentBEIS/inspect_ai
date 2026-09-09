@@ -12,7 +12,7 @@ from inspect_ai.scorer._choice import choice
 from inspect_ai.scorer._metric import CORRECT, INCORRECT
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import MultipleChoiceTemplate, TaskState, multiple_choice
-from inspect_ai.solver._task_state import Choice
+from inspect_ai.solver._task_state import Choice, Choices
 
 
 async def generate(state: TaskState, **kwargs: Any) -> TaskState:
@@ -542,7 +542,7 @@ async def test_single_choice_trailing_comma():
     assert choices_marked_correct(new_state.choices) == {"choice 1"}
 
 
-def choices_marked_correct(choices: list[Choice]) -> set[str]:
+def choices_marked_correct(choices: Choices) -> set[str]:
     """Helper function"""
     return set([choice.value for choice in choices if choice.correct])
 
@@ -651,7 +651,7 @@ async def test_model_answer_zero_scores_incorrect() -> None:
     )
 
     new_state = await solver(state=state, generate=cast(Any, generate_zero))
-    assert choices_marked_correct(list(new_state.choices)) == set()
+    assert choices_marked_correct(new_state.choices) == set()
 
     scorer = choice()
     result = await scorer(new_state, Target("A"))
