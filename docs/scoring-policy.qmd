@@ -54,7 +54,7 @@ The sections below work through each outcome and the details recorded by Inspect
 
 ### Verdicts on the model
 
-An incorrect answer stays in the denominator. This includes output that doesn't follow the requested format: `pattern()` and `answer()` return `INCORRECT` with `reason="invalid_response_format"` when the expected answer pattern is absent. Use extraction rules that match the answer format requested in the task.
+An incorrect answer stays in the denominator. This includes output that doesn't follow the requested format: `pattern()` and `answer()` return `INCORRECT` with `reason="invalid_response_format"` when the expected answer pattern is absent, and `math()` does the same when no answer can be extracted. Use extraction rules that match the answer format requested in the task.
 
 Inspect provides two labels for incorrect or missing answers. Both map to `0.0` by default and both stay in the denominator:
 
@@ -70,13 +70,13 @@ The default `mean` epoch reducer converts `NOANSWER` to `0.0` before metrics run
 An exception during scoring is recorded as a sample error. Failures can be transient or require a change to the code, inputs, or environment:
 
 - **Transient**: an API error, a network interruption, a container that died. A retry may succeed, and `retry_on_error` enables sample retries.
-- **A defect**: a bug in the solver or scorer, a broken environment, a missing or unusable reference answer. For example, `choice()` raises an error for a sample without choices, and `math()` raises an error when none of the reference answers can be parsed.
+- **A defect**: a bug in the solver or scorer, a broken environment, a missing or unusable reference answer. For example, `choice()` raises an error for a sample without choices.
 
 Exceptions route the sample to Inspect's error-handling machinery. The error details are recorded in `sample.error`. See [Handling Errors](handling-errors.qmd) for `retry_on_error`, `fail_on_error`, and `score_on_error`.
 
 ### Unscoreable samples
 
-A scorer can complete without obtaining a verdict. For example, a grader model may return output from which the scorer cannot extract a grade. The built-in model graders record this as `Score.unscored(reason="grader_failed")`.
+A scorer can complete without obtaining a verdict. For example, a grader model may return output from which the scorer cannot extract a grade. The built-in model graders record this as `Score.unscored(reason="grader_failed")`. An unusable reference answer can have the same effect: `math()` leaves the sample unscored when none of its targets can be parsed, rather than counting it against the model.
 
 `Score.unscored()` produces a `Score` whose `value` is `NaN`, which Inspect excludes from metric computation. The score entry retains its reason and explanation, including the grader output for built-in model graders. See [Unscored Samples](custom-scorers.qmd#unscored-samples) for the API details and [Interpreting coverage](#interpreting-coverage) for counts after epoch reduction.
 
