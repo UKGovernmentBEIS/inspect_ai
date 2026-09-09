@@ -74,7 +74,7 @@ planned-but-unqueued 409 rows — see the first note below):
 |---|---|---|
 | task finished / between attempts / task cancel in flight (queued + planned-but-unqueued rows; on the latter only the cancel-in-flight gate is reachable — see the first note below) | **409** (new — mirrors requeue's task-level gates) | same |
 | running (`ActiveSample`, started) | interrupt — unchanged | unchanged (score / error, with the fail-on-error gate) |
-| initializing (`ActiveSample`, `started is None`) | 409 — unchanged, message reworded ("initializing", not "queued") | 409 — unchanged |
+| initializing (`ActiveSample`, `started is None`) | 409 here; since made cancellable — a deferred interrupt that fires as the sample starts — by [`initializing-sample-cancel.md`](initializing-sample-cancel.md) | 409 here; same follow-up (all three actions) |
 | **queued re-run** (pending-requeue key, no `ActiveSample`) | **applied — un-requeue**: the pending entry is withdrawn and the prior terminal record stands | **409** — there is no work to score and no error to record; the message names `--action cancel` (in the departed blind window, every action gets the departed 409 instead — the `--action cancel` hint would immediately 409 there) |
 | **never started** (planned, *at the queue* — arrival-stamped, not departed — no `ActiveSample`, no record, fanout open) | **applied — cancelled before start**: removed from the queue, counted `cancelled`, absent from the log | **409** — same message (upgrades today's 404 to a truthful answer) |
 | **not yet at the queue** (planned, no `ActiveSample`, no record, no arrival stamp — reuse resolution in flight on a retry attempt, or a seed's first tick) | **409** — "not at the queue yet (it may be reused from the prior attempt) — retry" (upgrades today's 404) | **409** — same |
@@ -418,16 +418,20 @@ And it must sit at the park point, not at `run_sample`'s top: stamped at the top
 reuse-bound key on a retry attempt would read as queued, reintroducing the hole this
 section closes.
 
-### What stays rejected: the initializing window
+### What stayed rejected here: the initializing window (follow-up — #289, since shipped)
 
-Flavor 2 (past the semaphore, `ActiveSample` with `started is None`) keeps its 409,
-reworded to say *initializing* rather than "queued". The sample is mid-materialization —
-sandbox init may be in flight — so neither `interrupt` (no task group) nor a queue-exit
-check (already exited) applies, and tearing it down externally would leak half-built
-state. The window is short and self-resolving: retry the cancel once it's running. A
-possible follow-up mirrors the task-cancel machinery — stamp a per-sample intent the
-sample checks as it starts (the same self-interrupt hook the graceful drain uses for
-this window) — but it's not needed for the queued cases this design targets.
+Flavor 2 (past the semaphore, `ActiveSample` with `started is None`) kept its 409 in
+this design, reworded to say *initializing* rather than "queued". The sample is
+mid-materialization — sandbox init may be in flight — so at the time neither
+`interrupt` (no task group) nor a queue-exit check (already exited) applied, and tearing
+it down externally would leak half-built state. The 409 was truthful and usually
+self-resolving, but the window is not always short: slow sandbox provisioning can hold
+a sample here for minutes. The follow-up
+[`initializing-sample-cancel.md`](initializing-sample-cancel.md) (issue #289) made it
+cancellable: `interrupt` now *defers* when there is no task group — the intent is
+stamped on the `ActiveSample` and fires through the start-time self-interrupt the
+task-drain work landed for this window. Only the departed-but-unregistered instant
+(between queue exit and `ActiveSample` registration) keeps a retryable 409.
 
 ## Failure modes and edges worth naming
 
