@@ -763,6 +763,35 @@ def test_validate_resume_state_allows_unreadable_interior_checkpoint_entry(
     _validate_resume_state(events, str(sample_root), 3)
 
 
+def test_warn_if_sample_dir_renamed_fires_once_per_process(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Passthrough ids never warn; the first renamed id warns, later ones only trace."""
+    from inspect_ai.util._checkpoint import hydrate as hydrate_mod
+
+    monkeypatch.setattr(hydrate_mod, "_sample_dir_rename_warned", False)
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        hydrate_mod._warn_if_sample_dir_renamed("plain-id")
+        hydrate_mod._warn_if_sample_dir_renamed(42)
+        assert not [
+            r for r in caplog.records if "cannot name a directory" in r.getMessage()
+        ]
+
+        hydrate_mod._warn_if_sample_dir_renamed("task/1")
+        hydrate_mod._warn_if_sample_dir_renamed("task/2")
+        hydrate_mod._warn_if_sample_dir_renamed("task/1")
+
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if "cannot name a directory" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "'task/1'" in warnings[0]
+    assert "task/2" not in warnings[0]
+    assert hydrate_mod._sample_dir_rename_warned is True
+
+
 def test_validate_resume_state_ignores_names_outside_checkpoint_file_form(
     tmp_path: Path,
 ) -> None:

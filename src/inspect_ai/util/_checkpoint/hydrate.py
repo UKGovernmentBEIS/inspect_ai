@@ -57,7 +57,6 @@ from shortuuid import uuid as shortuuid
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.file import file, local_path
-from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.event._event import Event
@@ -205,23 +204,45 @@ class HydrationResult:
     default (empty-path entries opt out)."""
 
 
+_sample_dir_rename_warned = False
+"""Whether the sample-id rename warning has been emitted in this process.
+
+A plain flag, not a lock: hydration runs on the eval's single event loop
+thread, so two samples cannot race here.
+"""
+
+
 def _warn_if_sample_dir_renamed(sample_id: int | str) -> None:
-    """Warn once per id when the checkpoint dir name is not the sample id.
+    """Warn once per process when a sample id is not its checkpoint dir name.
 
     ``sample_dir_segment`` rewrites an id that cannot be one directory name
     (a ``/``, ``..``, ``~``, or over 200 bytes) to a hashed segment. Ids
     with a ``/`` used to nest a level down and resume from there, so after
-    an upgrade their earlier checkpoints are not found; the warning makes
-    that visible at fresh provision, the moment the new name is first used.
+    an upgrade their earlier checkpoints are not found. The warning makes
+    that visible at fresh provision, the moment a new name is first used;
+    it names the first such id and fires once, because an id shape like
+    ``owner/task`` usually runs through a whole dataset and one warning per
+    sample would drown the log. Every renamed id is recorded in the trace
+    log so the mapping stays recoverable.
     """
+    global _sample_dir_rename_warned
     segment = sample_dir_segment(sample_id)
-    if segment != str(sample_id):
-        warn_once(
-            logger,
-            f"checkpoint: sample id {str(sample_id)!r} cannot name a directory; "
-            f"its checkpoints are stored under {segment!r}. Checkpoints written "
-            "by earlier versions under the raw id are not resumed.",
-        )
+    if segment == str(sample_id):
+        return
+    trace_message(
+        logger,
+        "Checkpoint",
+        f"sample id {str(sample_id)!r} checkpoints stored under {segment!r}",
+    )
+    if _sample_dir_rename_warned:
+        return
+    _sample_dir_rename_warned = True
+    logger.warning(
+        f"checkpoint: sample id {str(sample_id)!r} cannot name a directory; "
+        f"its checkpoints are stored under {segment!r} (further ids like it are "
+        "recorded in the trace log). Checkpoints written by earlier versions "
+        "under the raw id are not resumed."
+    )
 
 
 async def hydrate(
