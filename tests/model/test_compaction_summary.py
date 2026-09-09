@@ -11,6 +11,7 @@ from inspect_ai.model import (
     Model,
     ModelOutput,
 )
+from inspect_ai.model._compaction import summary as summary_module
 from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._model import get_model
@@ -323,13 +324,14 @@ async def test_summary_strips_analysis_quoting_its_own_tags() -> None:
     assert "</analysis>" not in summary.text
 
 
-async def test_summary_strips_analysis_that_names_the_tags_in_prose() -> None:
-    """Prose mentions of the tags don't stop the strip.
+async def test_summary_keeps_analysis_that_names_the_summary_tag() -> None:
+    """Reasoning that names `<summary>` is kept rather than risking a bad cut.
 
-    Live-observed: an agent that read a prompt template writes "its content was a
-    templated structure with `<analysis>` and `<summary>` tags" inside its own
-    reasoning, long before closing it. Only the closing/opening *pair* marks the
-    boundary.
+    Live-observed against claude-sonnet-5: an agent that had read a prompt
+    template wrote "its content was a templated structure with `<analysis>` and
+    `<summary>` tags" inside its own reasoning. A `<summary>` in the span being
+    cut can't be told apart from one the summary quoted, so the scratchpad is
+    kept — the summary itself is never put at risk.
     """
     strategy = CompactionSummary()
     model = summarizer_model(
@@ -337,7 +339,6 @@ async def test_summary_strips_analysis_that_names_the_tags_in_prose() -> None:
         "<analysis>\n"
         "1. I read alpha.txt. Its content was a templated structure with "
         "<analysis> and <summary> tags containing placeholder instructions.\n"
-        "2. Then I read beta.txt, same shape.\n"
         "</analysis>\n"
         "<summary>\n1. Primary Request and Intent: read the templates.\n</summary>",
     )
@@ -346,8 +347,40 @@ async def test_summary_strips_analysis_that_names_the_tags_in_prose() -> None:
 
     assert summary is not None
     assert "1. Primary Request and Intent: read the templates." in summary.text
-    assert "templated structure" not in summary.text
-    assert "Then I read beta.txt" not in summary.text
+    # the cost of that caution: this scratchpad survives into the compacted history
+    assert "templated structure" in summary.text
+
+
+def test_summary_text_never_loses_summary_content() -> None:
+    """Stripping either removes the scratchpad or does nothing — never eats the summary.
+
+    Sweeps tag-shaped fragments through the three places a completion can carry
+    them (inside the analysis, between the blocks, inside the summary body). The
+    guarantee that matters is one-directional: an unrecognised shape costs wasted
+    context, never a section of the summary.
+    """
+    fragments = [
+        "",
+        "the file has <analysis> and <summary> tags",
+        'the user said "</analysis>" here',
+        "<analysis>their block</analysis>",
+        "<details><summary>FAQ</summary>",
+        "<analysis>\nWalk it.\n</analysis>\n<summary>\n[describe]\n</summary>",
+        "</summary>",
+    ]
+    for in_analysis in fragments:
+        for between in fragments:
+            for in_body in fragments:
+                completion = (
+                    f"<analysis>MY REASONING {in_analysis}</analysis>\n"
+                    f"{between}<summary>\n"
+                    f"1. Primary Request and Intent: KEEP-HEAD\n"
+                    f"{in_body}\n"
+                    f"9. Optional Next Step: KEEP-TAIL\n</summary>"
+                )
+                result = summary_module._summary_text(completion)
+                assert "KEEP-HEAD" in result, f"lost head: {between!r} / {in_body!r}"
+                assert "KEEP-TAIL" in result, f"lost tail: {between!r} / {in_body!r}"
 
 
 async def test_summary_keeps_head_when_body_reproduces_a_template() -> None:

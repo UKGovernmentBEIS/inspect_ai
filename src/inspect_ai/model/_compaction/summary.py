@@ -260,6 +260,7 @@ class CompactionSummary(CompactionStrategy):
 
 
 _ANALYSIS_OPEN = "<analysis>"
+_SUMMARY_OPEN = "<summary>"
 
 # the analysis closing immediately before the summary opens: the one structure
 # quoted prose and stray tag mentions don't reproduce
@@ -282,15 +283,15 @@ def _summary_text(completion: str) -> str:
     The boundary that does hold is the *pair*: the model closes its analysis and
     opens the summary immediately after, which quoted prose and stray mentions
     don't reproduce. So cut at the first `</analysis>` directly followed by
-    `<summary>`. Taking the first such pair rather than the last matters when the
-    summary itself reproduces a prompt template carrying the same adjacency —
-    then the later pair sits inside the summary, and cutting there would delete
-    the summary's opening sections.
+    `<summary>`, and only when no `<summary>` opens inside the span being cut —
+    one there means the pair was quoted by the summary rather than written by the
+    model, and cutting would take the summary's own opening sections with it.
 
-    Returned unchanged when no such boundary exists — no analysis, a block left
-    unclosed by a `max_tokens` cutoff, a completion that is nothing but analysis,
-    or a quoted block inside a summary. The scratchpad is then kept rather than
-    risking the summary, so this fails toward wasted context, never lost content.
+    Whenever those conditions don't hold the completion is returned unchanged, so
+    the scratchpad survives instead of the summary being damaged: this fails
+    toward wasted context, never toward lost content. The same applies when there
+    is no analysis, when a `max_tokens` cutoff left one unclosed, and when the
+    completion is nothing but analysis.
     """
     open_at = completion.find(_ANALYSIS_OPEN)
     if open_at == -1:
@@ -298,6 +299,12 @@ def _summary_text(completion: str) -> str:
 
     boundary = _ANALYSIS_BOUNDARY.search(completion, open_at)
     if boundary is None:
+        return completion
+
+    # a summary opening inside the span means the boundary belongs to something
+    # the summary quoted, not to the model's own analysis — cutting there would
+    # take the summary's opening sections with it
+    if _SUMMARY_OPEN in completion[open_at : boundary.start()]:
         return completion
 
     remainder = completion[:open_at] + completion[boundary.end() :]
