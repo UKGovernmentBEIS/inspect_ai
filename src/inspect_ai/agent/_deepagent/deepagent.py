@@ -239,11 +239,13 @@ def deepagent(
             approval=approval,
         )
 
-        # The background registry lives for the duration of inner(state) so
-        # the agent tool and lifecycle tools can read it via the ContextVar.
+        # Keep the registry installed through child cancellation and drain so
+        # scorer-time deepagents never borrow the sample task group's lifetime.
         if background_enabled:
-            with background_registry(BackgroundRegistry(max_background=max_background)):
-                return await inner(state)
+            registry = BackgroundRegistry(max_background=max_background)
+            with background_registry(registry):
+                async with registry._children():
+                    return await inner(state)
         else:
             return await inner(state)
 

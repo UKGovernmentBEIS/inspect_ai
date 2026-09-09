@@ -15,6 +15,7 @@ import pytest
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import deepagent, subagent
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._deepagent.agent_tool import (
     AgentFuture,
     BackgroundRegistry,
@@ -29,6 +30,8 @@ from inspect_ai.agent._deepagent.deepagent import (
 from inspect_ai.dataset import Sample
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model import ModelOutput, get_model
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.tool import Tool, tool
 from inspect_ai.util import message_limit
 
@@ -87,6 +90,27 @@ def _snapshot_test_helper() -> Tool:
         return ",".join(items)
 
     return execute
+
+
+def _capture_background_registry(
+    captured: list[BackgroundRegistry],
+) -> Tool:
+    """Build a parent tool that retains the current registry for assertions."""
+
+    @tool
+    def capture_background_registry() -> Tool:
+        """Record the current deepagent background registry."""
+
+        async def execute() -> str:
+            """Capture the active background registry for the parent."""
+            registry = current_background_registry()
+            assert registry is not None
+            captured.append(registry)
+            return "captured"
+
+        return execute
+
+    return capture_background_registry()
 
 
 def _submit(answer: str = "done") -> ModelOutput:
@@ -522,29 +546,30 @@ class TestDispatchBackground:
 
         reg = BackgroundRegistry(max_background=2)
         with background_registry(reg):
-            self._stub_future(reg)
-            self._stub_future(reg)
-            # Both running; cap is 2 → next dispatch should raise.
-            sa = subagent_factory(
-                name="general",
-                description="d",
-                prompt="p",
-            )
-
-            async def dummy_agent(state):
-                return state
-
-            with pytest.raises(Exception) as exc_info:
-                _dispatch_background(
-                    child_agent=dummy_agent,
-                    sa=sa,
-                    dispatch_input="ignored",
-                    span_id="x",
-                    forked=False,
-                    from_message=None,
+            async with reg._children():
+                self._stub_future(reg)
+                self._stub_future(reg)
+                # Both running; cap is 2 → next dispatch should raise.
+                sa = subagent_factory(
+                    name="general",
+                    description="d",
+                    prompt="p",
                 )
-            assert "Maximum 2" in str(exc_info.value)
-            assert "agent_wait" in str(exc_info.value)
+
+                async def dummy_agent(state):
+                    return state
+
+                with pytest.raises(Exception) as exc_info:
+                    _dispatch_background(
+                        child_agent=dummy_agent,
+                        sa=sa,
+                        dispatch_input="ignored",
+                        span_id="x",
+                        forked=False,
+                        from_message=None,
+                    )
+                assert "Maximum 2" in str(exc_info.value)
+                assert "agent_wait" in str(exc_info.value)
 
     async def test_cap_check_excludes_terminal_futures(self) -> None:
         """Completed/cancelled/errored futures don't count toward the cap."""
@@ -589,6 +614,36 @@ class TestDispatchBackground:
                 from_message=None,
             )
         assert "Background dispatch is not available" in str(exc_info.value)
+
+    async def test_scheduling_failure_rolls_back_registration(self) -> None:
+        """A closed registry task group cannot leave a ghost future behind."""
+        from inspect_ai.agent._deepagent.agent_tool import _dispatch_background
+        from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+        async with anyio.create_task_group() as task_group:
+            pass
+
+        registry = BackgroundRegistry(max_background=1)
+        registry._task_group = task_group
+        subagent = subagent_factory(name="general", description="d", prompt="p")
+
+        async def child_agent(state):
+            return state
+
+        with background_registry(registry):
+            with pytest.raises(RuntimeError):
+                _dispatch_background(
+                    child_agent=child_agent,
+                    sa=subagent,
+                    dispatch_input="ignored",
+                    span_id="x",
+                    forked=False,
+                    from_message=None,
+                )
+
+        assert registry.futures == {}
+        assert registry.running_count() == 0
+        assert registry.counter == 0
 
 
 class TestBackgroundExecution:
@@ -883,6 +938,41 @@ class TestRegistryIsolation:
 
             # Restored: outer's one agent is visible again
             assert len(active_background_agents()) == 1
+
+    async def test_parallel_contexts_do_not_share_futures(self) -> None:
+        """Concurrent ContextVar scopes retain only their own futures."""
+        both_entered = anyio.Event()
+        release = anyio.Event()
+        registries: dict[str, BackgroundRegistry] = {}
+        observed: dict[str, list[str]] = {}
+
+        async def observe(label: str) -> None:
+            registry = BackgroundRegistry(max_background=1)
+            registry.futures["AGENT-1"] = AgentFuture(
+                agent_id="AGENT-1",
+                span_id=label,
+                subagent_name=label,
+                cancel_scope=anyio.CancelScope(),
+                started_at=anyio.current_time(),
+            )
+            with background_registry(registry):
+                registries[label] = registry
+                if len(registries) == 2:
+                    both_entered.set()
+                await both_entered.wait()
+                observed[label] = [
+                    future.subagent_name for future in active_background_agents()
+                ]
+                if len(observed) == 2:
+                    release.set()
+                await release.wait()
+
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(observe, "alpha")
+            task_group.start_soon(observe, "beta")
+
+        assert registries["alpha"] is not registries["beta"]
+        assert observed == {"alpha": ["alpha"], "beta": ["beta"]}
 
 
 # ---------------------------------------------------------------------------
@@ -1661,7 +1751,6 @@ class TestReminderE2E:
     def test_composes_with_callable_on_continue(self) -> None:
         # A user-supplied on_continue is still invoked, and the reminder
         # rides along on top of it.
-        from inspect_ai.agent._agent import AgentState
 
         calls = {"n": 0}
 
@@ -1854,6 +1943,243 @@ class TestAbandonOnExit:
         assert "AGENT-1" in str(agent_events[0].result)
 
 
+class TestBackgroundRegistryLifetime:
+    """A deepagent owns and drains its children before its caller continues."""
+
+    async def test_immediate_group_exit_settles_future(self) -> None:
+        """Immediate group exit leaves a terminal cancelled future."""
+        from inspect_ai.agent._deepagent.agent_tool import _dispatch_background
+        from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+        registry = BackgroundRegistry(max_background=1)
+        subagent_type = subagent_factory(name="general", description="d", prompt="p")
+
+        async def child_agent(state):
+            await anyio.sleep_forever()
+            return state
+
+        with background_registry(registry):
+            async with registry._children():
+                _dispatch_background(
+                    child_agent=child_agent,
+                    sa=subagent_type,
+                    dispatch_input="ignored",
+                    span_id="x",
+                    forked=False,
+                    from_message=None,
+                )
+                future = registry.futures["AGENT-1"]
+
+        assert registry.running_count() == 0
+        assert future.status == "cancelled"
+        assert future.done.is_set()
+
+    def test_scorer_waits_for_background_reviewer_after_solver(self) -> None:
+        """A scorer can dispatch and collect a reviewer after solver completion."""
+        reviewer = _build_submit_subagent("reviewer", "reviewed")
+        reviewer_model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                _agent_call(prompt="Review the completed solver output."),
+                _tool_call(
+                    "agent_wait",
+                    agent_ids=["AGENT-1"],
+                    mode="all",
+                    timeout=0.2,
+                ),
+                _submit("scorecard complete"),
+            ],
+        )
+
+        @scorer(metrics=[accuracy()])
+        def score_with_reviewer() -> Scorer:
+            async def score(state: TaskState, target: Target) -> Score:
+                review_agent = deepagent(
+                    subagents=[reviewer],
+                    model=reviewer_model,
+                    background=True,
+                    submit=True,
+                )
+                await review_agent(AgentState(messages=list(state.messages)))
+                return Score(value=1.0)
+
+            return score
+
+        task = Task(
+            dataset=[Sample(input="Solve this.", target="done")],
+            solver=[generate()],
+            scorer=score_with_reviewer(),
+        )
+        solver_model = get_model(
+            "mockllm/model",
+            custom_outputs=[ModelOutput.from_content("mockllm/model", "done")],
+        )
+        log = eval(task, model=solver_model)[0]
+
+        assert log.status == "success"
+        assert log.samples is not None
+        sample = log.samples[0]
+        submit_events = [
+            event
+            for event in sample.events
+            if isinstance(event, ToolEvent) and event.function == "submit"
+        ]
+        assert any("scorecard complete" in str(event.result) for event in submit_events)
+        agent_events = [
+            event
+            for event in sample.events
+            if isinstance(event, ToolEvent) and event.function == "agent"
+        ]
+        assert len(agent_events) == 1
+        assert agent_events[0].error is None
+        wait_events = [
+            event
+            for event in sample.events
+            if isinstance(event, ToolEvent) and event.function == "agent_wait"
+        ]
+        assert len(wait_events) == 1
+        assert wait_events[0].error is None
+        assert "completed" in str(wait_events[0].result)
+        assert "reviewed" in str(wait_events[0].result)
+
+    def test_normal_return_drains_background_children(self) -> None:
+        """A parent return settles a child before the enclosing solver continues."""
+        captured: list[BackgroundRegistry] = []
+        child = _build_blocking_subagent("normal_child")
+        parent = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                _agent_call(prompt="Start the child."),
+                _tool_call("capture_background_registry"),
+                _submit("complete"),
+            ],
+        )
+        agent = deepagent(
+            subagents=[child],
+            tools=[_capture_background_registry(captured)],
+            model=parent,
+            background=True,
+            submit=True,
+        )
+
+        @solver
+        def run_agent() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                await agent(AgentState(messages=list(state.messages)))
+                assert len(captured) == 1
+                future = captured[0].futures["AGENT-1"]
+                assert future.status == "cancelled"
+                assert future.done.is_set()
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="Do work.")], solver=[run_agent()]),
+            model="mockllm/model",
+        )[0]
+        assert log.status == "success"
+
+    def test_root_failure_drains_background_children(self) -> None:
+        """A root model error drains a child before the caller receives it."""
+        captured: list[BackgroundRegistry] = []
+        child = _build_blocking_subagent("failing_child")
+        output_count = 0
+
+        def parent_output(input, tools, tool_choice, config):
+            nonlocal output_count
+            output_count += 1
+            if output_count == 1:
+                return _agent_call(prompt="Start the child.")
+            if output_count == 2:
+                return _tool_call("capture_background_registry")
+            raise RuntimeError("root failure")
+
+        agent = deepagent(
+            subagents=[child],
+            tools=[_capture_background_registry(captured)],
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            background=True,
+            submit=True,
+        )
+
+        @solver
+        def run_agent() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                with pytest.raises(RuntimeError, match="root failure"):
+                    await agent(AgentState(messages=list(state.messages)))
+                assert len(captured) == 1
+                future = captured[0].futures["AGENT-1"]
+                assert future.status == "cancelled"
+                assert future.done.is_set()
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="Do work.")], solver=[run_agent()]),
+            model="mockllm/model",
+        )[0]
+        assert log.status == "success"
+
+    def test_parent_cancellation_drains_background_children(self) -> None:
+        """A parent cancellation settles a child before the caller resumes."""
+        captured: list[BackgroundRegistry] = []
+        child = _build_blocking_subagent("cancelled_child")
+
+        @solver
+        def run_agent() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                with anyio.CancelScope() as cancel_scope:
+
+                    @tool
+                    def cancel_parent() -> Tool:
+                        """Cancel the root deepagent."""
+
+                        async def execute() -> str:
+                            """Cancel the enclosing deepagent execution."""
+                            cancel_scope.cancel()
+                            await anyio.sleep(0)
+                            return "unreachable"
+
+                        return execute
+
+                    parent = get_model(
+                        "mockllm/model",
+                        custom_outputs=[
+                            _agent_call(prompt="Start the child."),
+                            _tool_call("capture_background_registry"),
+                            _tool_call("cancel_parent"),
+                        ],
+                    )
+                    agent = deepagent(
+                        subagents=[child],
+                        tools=[
+                            _capture_background_registry(captured),
+                            cancel_parent(),
+                        ],
+                        model=parent,
+                        background=True,
+                        submit=True,
+                    )
+                    await agent(AgentState(messages=list(state.messages)))
+
+                assert cancel_scope.cancel_called
+                assert len(captured) == 1
+                future = captured[0].futures["AGENT-1"]
+                assert future.status == "cancelled"
+                assert future.done.is_set()
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="Do work.")], solver=[run_agent()]),
+            model="mockllm/model",
+        )[0]
+        assert log.status == "success"
+
+
 # ---------------------------------------------------------------------------
 # Phase 5 Tier 2 — async edge branches
 # ---------------------------------------------------------------------------
@@ -1938,8 +2264,6 @@ class TestReminderComposition:
         assert len(_reminder_messages(result)) >= 1
 
     def test_on_continue_false_suppresses_reminder(self) -> None:
-        from inspect_ai.agent._agent import AgentState
-
         calls = {"n": 0}
 
         async def my_continue(state: AgentState) -> bool:
