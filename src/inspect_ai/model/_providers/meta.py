@@ -55,10 +55,12 @@ def _flag_refusal_stop(output: ModelOutput) -> None:
 
     A policy block reaches us three ways depending on protocol and streaming:
     a 400 with `content_policy_violation`, a `content_filter` finish reason,
-    or (streamed Responses) a completed response whose only content is a
-    `refusal` part. The first two already stop as `content_filter`; the last
-    arrives as an ordinary `stop` that agent loops would treat as compliance,
-    so promote it. Keyed on the API's own refusal field, never on message text.
+    or a completed response carrying the API's refusal field (a `refusal`
+    output part on Responses, `message.refusal` on Chat Completions). The
+    first two already stop as `content_filter`; the last arrives as an
+    ordinary `stop` that agent loops would treat as compliance, so promote it
+    on both protocols. Keyed on the API's own refusal field, never on message
+    text.
     """
     for choice in output.choices:
         details = choice.stop_details
