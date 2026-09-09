@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import math as stdlib_math
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -478,10 +479,42 @@ def _split_plain_equation(text: str) -> tuple[str, str] | None:
     return text[:split_at], text[split_at + 1 :]
 
 
+@dataclass(frozen=True)
+class _SymbolPolicy:
+    """How a candidate's symbols are built, for both notations.
+
+    SymPy treats ``Symbol("x")``, ``Symbol("X", real=True)`` and
+    ``Symbol("x", real=True)`` as three different variables, so the plain
+    builder and the LaTeX converter must agree on case and on the real/complex
+    assumption or the same symbol compares unequal across notations (#5259).
+    `for_candidate` makes both decisions once per candidate and the two paths
+    only consume the result, so neither can drift from the other.
+
+    Detecting the imaginary unit stays with the caller because its spelling is
+    notation-specific (`_looks_complex` for LaTeX, `_plain_looks_complex` for
+    plain, which also accepts `I` and Python's `2j`).
+    """
+
+    lowercase: bool
+    is_real: bool
+
+    @classmethod
+    def for_candidate(
+        cls, candidate: str, looks_complex: Callable[[str], bool]
+    ) -> "_SymbolPolicy":
+        """Decide the policy for one candidate, given its notation's detector."""
+        # Symbols match case-insensitively: the LaTeX converter has always
+        # lowercased them, and the plain builder follows it.
+        return cls(lowercase=True, is_real=not looks_complex(candidate))
+
+    def symbol(self, sympy: Any, name: str) -> Any:
+        return sympy.Symbol(name.lower() if self.lowercase else name, real=self.is_real)
+
+
 class _PlainExpressionBuilder(ast.NodeVisitor):
-    def __init__(self, sympy: Any, is_real: bool) -> None:
+    def __init__(self, sympy: Any, policy: _SymbolPolicy) -> None:
         self.sympy = sympy
-        self.is_real = is_real
+        self.policy = policy
         self.nodes = 0
 
     def visit(self, node: ast.AST) -> Any:
@@ -539,11 +572,7 @@ class _PlainExpressionBuilder(ast.NodeVisitor):
         constant = constants.get(node.id)
         if constant is not None:
             return constant
-        # Build symbols exactly as the LaTeX parser does (lowercased, with the
-        # same real/complex assumption): SymPy treats Symbol("x") and
-        # Symbol("x", real=True) as different variables, so a symbol built any
-        # other way can never compare equal to its LaTeX-parsed counterpart.
-        return self.sympy.Symbol(node.id.lower(), real=self.is_real)
+        return self.policy.symbol(self.sympy, node.id)
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
         operand = self.visit(node.operand)
@@ -661,12 +690,14 @@ class _PlainExpressionBuilder(ast.NodeVisitor):
 
 
 def _parse_plain_expression(
-    candidate: str, sympy: Any, is_real: bool | None = None
+    candidate: str, sympy: Any, policy: _SymbolPolicy | None = None
 ) -> Any | None:
     if "\\" in candidate or re.search(r"\^\s*\{", candidate):
         return None
-    if is_real is None:
-        is_real = not _plain_looks_complex(candidate)
+    # An equation's halves inherit the whole candidate's policy: "z = 1+i" is
+    # complex on both sides even though "z" alone does not look complex.
+    if policy is None:
+        policy = _SymbolPolicy.for_candidate(candidate, _plain_looks_complex)
     text = candidate.strip()
     text = text.replace("\u00d7", "*").replace("\u00f7", "/").replace("^", "**")
 
@@ -680,8 +711,8 @@ def _parse_plain_expression(
     equation = _split_plain_equation(text)
     if equation is not None:
         left_text, right_text = equation
-        left = _parse_plain_expression(left_text, sympy, is_real)
-        right = _parse_plain_expression(right_text, sympy, is_real)
+        left = _parse_plain_expression(left_text, sympy, policy)
+        right = _parse_plain_expression(right_text, sympy, policy)
         if left is None or right is None:
             raise _MathParseError("invalid equation")
         return sympy.Eq(left, right, evaluate=False)
@@ -690,7 +721,7 @@ def _parse_plain_expression(
         parsed = ast.parse(text, mode="eval")
     except (SyntaxError, ValueError):
         return None
-    return _PlainExpressionBuilder(sympy, is_real).visit(parsed)
+    return _PlainExpressionBuilder(sympy, policy).visit(parsed)
 
 
 def _looks_complex(candidate: str) -> bool:
@@ -765,15 +796,16 @@ def _parse_latex_expression(candidate: str, sympy: Any) -> Any:
         def parse_number(self, text: str) -> Any:
             return _parse_latex_number(text, sympy)
 
+    policy = _SymbolPolicy.for_candidate(candidate, _looks_complex)
     converter = _InspectLatex2Sympy(
         variable_values=None,
-        is_real=not _looks_complex(candidate),
+        is_real=policy.is_real,
         convert_degrees=False,
         config=ConversionConfig(
             interpret_as_mixed_fractions=True,
             interpret_simple_eq_as_assignment=False,
             interpret_contains_as_eq=True,
-            lowercase_symbols=True,
+            lowercase_symbols=policy.lowercase,
         ),
     )
 

@@ -488,9 +488,25 @@ def test_prose_wrapped_numeric_answers_are_extracted(answer: str, target: str) -
         # Plain symbols are matched case-insensitively, as LaTeX ones always were.
         ("N/2", "n/2"),
         (r"\boxed{\frac{N}{2}}", "n/2"),
-        # Complex-valued candidates must agree on the imaginary unit's spelling.
+        (r"\boxed{N \cdot k}", "n*K"),
+        # Real-valued symbols let real-only identities hold in either notation.
+        # The first two cross the parsers; the third is plain on both sides.
+        (r"\boxed{\sqrt{x^2}}", "abs(x)"),
+        (r"\boxed{sqrt(x**2)}", r"|x|"),
+        ("sqrt(x**2)", "abs(x)"),
+        # Plain notation's imaginary spellings must agree with each other: a
+        # boxed answer without a backslash is parsed by the plain parser, so
+        # these pin `i`/`I`/`2j` equivalence rather than a cross-parser match.
         (r"\boxed{z = 1+i}", "z = 1+I"),
         (r"\boxed{x+i}", "x+I"),
+        (r"\boxed{1+2j}", "1+2*i"),
+        (r"\boxed{2j}", "2*i"),
+        (r"\boxed{z = 1+2j}", "z = 1+2*i"),
+        # Cross-parser agreement on the imaginary unit itself. These carry no
+        # free symbols, so they pin only that LaTeX `\sqrt{-1}` and plain `i`
+        # denote the same constant, not the symbol policy's two axes.
+        (r"\boxed{\sqrt{-1}}", "i"),
+        (r"\boxed{i}", r"\sqrt{-1}"),
     ],
 )
 def test_symbolic_answers_match_across_notations(answer: str, target: str) -> None:
@@ -506,6 +522,13 @@ def test_symbolic_answers_match_across_notations(answer: str, target: str) -> No
         (r"\boxed{\frac{x}{2}}", "y/2"),
         (r"\boxed{\sqrt{x}}", "sqrt(y)"),
         (r"\boxed{2\pi r}", "2*pi*r**2"),
+        # Case-insensitive matching must not collapse distinct letters.
+        ("N/2", "m/2"),
+        (r"\boxed{\frac{N}{2}}", "m/2"),
+        # Complex answers stay distinguishable from one another.
+        (r"\boxed{x+i}", "x+2*i"),
+        (r"\boxed{1+2j}", "1+3*i"),
+        (r"\boxed{z = 1+i}", "z = 1-i"),
     ],
 )
 def test_symbolic_mismatches_stay_incorrect_across_notations(
@@ -514,12 +537,146 @@ def test_symbolic_mismatches_stay_incorrect_across_notations(
     assert _score_answer(answer, (target,)).status == "incorrect"
 
 
+def test_imaginary_unit_cancellation_is_consistent_across_notations() -> None:
+    # A candidate that mentions the imaginary unit builds non-real symbols, so
+    # it does not match a target built from real ones even when the imaginary
+    # parts cancel — `x + i - i` vs `x` is a false negative in both notations.
+    # That is a deliberate consequence of aligning the parsers, not an accident:
+    # the LaTeX path already scored its own spelling of this pair incorrect
+    # before this fix, and the plain path (which scored it correct) now agrees,
+    # so the verdict stops depending on notation. Pinned so that anyone who
+    # later removes the false negative has to change both paths together.
+    assert _score_answer(r"\boxed{x + i - i}", ("x",)).status == "incorrect"
+    assert (
+        _score_answer(r"\boxed{\frac{x + i - i}{1}}", (r"\frac{x}{1}",)).status
+        == "incorrect"
+    )
+    # When both sides are complex the cancellation matches.
+    assert _score_answer(r"\boxed{x + i - i}", ("x + i - i",)).status == "correct"
+    assert _score_answer(r"\boxed{x*i*i}", ("-x + i - i",)).status == "correct"
+
+
 def test_plain_and_latex_parsers_build_identical_symbols() -> None:
     plain = _parse_candidate("x/2").expression
     latex = _parse_candidate(r"\frac{x}{2}").expression
     assert plain is not None and latex is not None
     assert plain.free_symbols == latex.free_symbols
     assert plain.equals(latex)
+
+
+def _symbol_assumptions(candidate: str) -> dict[str, bool | None]:
+    """Map each parsed symbol's name to its `real` assumption."""
+    parsed = _parse_candidate(candidate).expression
+    assert parsed is not None, f"expected an expression for {candidate!r}"
+    return {symbol.name: symbol.is_real for symbol in parsed.free_symbols}
+
+
+def _takes_latex_path(candidate: str) -> bool:
+    """Whether the plain parser declines, leaving the LaTeX converter to run."""
+    import sympy
+
+    from inspect_ai.scorer._math import _parse_plain_expression
+
+    try:
+        return _parse_plain_expression(candidate, sympy) is None
+    except _MathParseError:
+        return True
+
+
+@pytest.mark.parametrize(
+    "plain,latex,expected",
+    [
+        ("x/2", r"\frac{x}{2}", {"x": True}),
+        # Case normalization: an uppercase symbol lowercases in both notations.
+        ("X/2", r"\frac{X}{2}", {"x": True}),
+        ("n*K", r"n \cdot K", {"n": True, "k": True}),
+        ("sqrt(x**2)", r"\sqrt{x^2}", {"x": True}),
+        ("abs(x)", r"|x|", {"x": True}),
+    ],
+)
+def test_symbol_policy_holds_in_both_notations(
+    plain: str, latex: str, expected: dict[str, bool]
+) -> None:
+    # Both parsers apply one shared policy, so the same source text yields the
+    # same symbol names and the same `real` assumption whichever notation it is
+    # written in. Pinning the assumption (not just the name) catches drift on
+    # the real/complex axis; pinning the name catches drift on the case axis.
+    assert not _takes_latex_path(plain), f"{plain!r} should use the plain parser"
+    assert _takes_latex_path(latex), f"{latex!r} should use the LaTeX parser"
+    assert _symbol_assumptions(plain) == expected
+    assert _symbol_assumptions(latex) == expected
+
+
+@pytest.mark.parametrize(
+    "candidate,latex_path",
+    [
+        ("x+i", False),
+        # Plain notation additionally spells the imaginary unit `I` and accepts
+        # Python complex literals; LaTeX does not, hence per-notation detection.
+        ("x+I", False),
+        ("x+2j", False),
+        # An equation propagates the whole candidate's policy to both halves.
+        ("z = 1+i", False),
+        ("z = 1+I", False),
+        ("z = 1+2j", False),
+        # The LaTeX converter must reach the same assumption on its own path.
+        (r"\frac{x+i}{2}", True),
+        (r"\frac{z}{1} = 1+i", True),
+    ],
+)
+def test_complex_candidates_build_non_real_symbols(
+    candidate: str, latex_path: bool
+) -> None:
+    # Assert the notation actually routes where the case intends, so a LaTeX
+    # case cannot silently degrade into plain-parser coverage.
+    assert _takes_latex_path(candidate) is latex_path
+    assumptions = _symbol_assumptions(candidate)
+    assert assumptions, f"expected at least one symbol in {candidate!r}"
+    # Pin the literal assumption `real=False`, not merely "not real=True":
+    # Symbol("x") (is_real None) is a third, distinct SymPy variable, so
+    # accepting it here would let the cross-notation mismatch back in.
+    assert all(is_real is False for is_real in assumptions.values()), assumptions
+
+
+def test_imaginary_unit_notation_semantics_are_unchanged() -> None:
+    # Notation-specific, and deliberately left alone by the symbol policy: the
+    # plain parser maps a bare `i` to SymPy's imaginary unit, while the LaTeX
+    # converter reads it as an ordinary symbol named `i`. Both are non-real, so
+    # the policy agrees, but the two spellings are not interchangeable and a
+    # LaTeX-only complex expression does not match its plain counterpart.
+    import sympy
+
+    plain = _parse_candidate("x+i").expression
+    latex = _parse_candidate(r"\frac{x+i}{2}").expression
+    assert plain is not None and latex is not None
+    assert sympy.I in plain.atoms(type(sympy.I))
+    assert not plain.free_symbols - {sympy.Symbol("x", real=False)}
+    assert {str(symbol) for symbol in latex.free_symbols} == {"i", "x"}
+    assert _score_answer(r"\boxed{\frac{x+i}{2}}", ("(x+i)/2",)).status == "incorrect"
+
+
+def test_symbol_policy_decides_case_and_assumption_once() -> None:
+    import sympy
+
+    from inspect_ai.scorer._math import (
+        _looks_complex,
+        _plain_looks_complex,
+        _SymbolPolicy,
+    )
+
+    real = _SymbolPolicy.for_candidate("x/2", _plain_looks_complex)
+    assert (real.lowercase, real.is_real) == (True, True)
+    assert real.symbol(sympy, "X") == sympy.Symbol("x", real=True)
+
+    complex_ = _SymbolPolicy.for_candidate("x+i", _plain_looks_complex)
+    assert complex_.is_real is False
+    assert complex_.symbol(sympy, "X") == sympy.Symbol("x", real=False)
+    assert complex_.symbol(sympy, "X") != sympy.Symbol("x")
+
+    # The detector is a per-notation input precisely because the spellings
+    # differ: only the plain parser treats a bare `I` as the imaginary unit.
+    assert _SymbolPolicy.for_candidate("x+I", _plain_looks_complex).is_real is False
+    assert _SymbolPolicy.for_candidate("x+I", _looks_complex).is_real is True
 
 
 def test_prose_fallback_does_not_manufacture_false_matches() -> None:
