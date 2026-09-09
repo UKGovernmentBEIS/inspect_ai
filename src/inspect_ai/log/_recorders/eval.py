@@ -1560,6 +1560,19 @@ class ZipLogFile:
                 if SampleRecordKey(str(s.id), s.epoch) not in keys
             ]
 
+    def _restrict_members(self, live: frozenset[str]) -> None:
+        """Drop every member not in ``live`` from the open zip's central directory.
+
+        Re-applies the in-memory directory after a reopen that re-read a
+        stale on-disk one (a failed :meth:`compact`). Caller holds ``_lock``.
+        """
+        assert self._zip is not None
+        self._zip.filelist = [
+            info for info in self._zip.filelist if info.filename in live
+        ]
+        for name in [name for name in self._zip.NameToInfo if name not in live]:
+            self._zip.NameToInfo.pop(name, None)
+
     def _rejournal_config_updates(self) -> None:
         """Re-append the config updates recorded so far as journal members 1..n.
 
@@ -1607,10 +1620,15 @@ class ZipLogFile:
                 )
             except Exception as ex:
                 logger.warning(f"Unable to compact eval log {self._file}: {ex}")
+                # reopening the original file re-reads its on-disk central
+                # directory, which a prune since the last write has not
+                # reached (see _compact_zip): restore the live set, or the
+                # pruned members come back as bodies without summaries
+                self._open()
+                self._restrict_members(live)
             else:
                 self._temp_file.close()
                 self._temp_file = compacted
-            finally:
                 self._open()
 
     def _should_compact(self) -> bool:

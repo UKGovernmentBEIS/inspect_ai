@@ -1184,6 +1184,46 @@ async def test_task_logger_finish_prunes_unresolved_seeded_records_on_natural_su
     } == expected_ids
 
 
+async def test_task_logger_prune_survives_failed_compaction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # compaction closes the zip and reopens the original temp file when the
+    # rewrite fails; the reopened zip re-reads the on-disk central directory,
+    # which a prune with nothing written behind it has not reached
+    # (ZipFile.close rewrites it only after a write). The pruned members must
+    # not come back: a success log with summaries [1] but bodies [1, 2, 3, 4]
+    import inspect_ai.log._recorders.eval as eval_module
+
+    monkeypatch.setattr(eval_module, "COMPACT_DEAD_BYTES_FRACTION", 0.0)
+
+    def failing_compact(src_file: Any, live: Any) -> Any:
+        raise RuntimeError("simulated compaction failure")
+
+    monkeypatch.setattr(eval_module, "_compact_zip", failing_compact)
+
+    recorder = EvalRecorder(str(tmp_path))
+    prior = await _write_prior_log(recorder, _prior_samples())
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=None)
+    await logger.log_start(EvalPlan())
+    clean = await logger.read_prior_sample(1, 1)
+    assert clean is not None
+    logger.note_reused_sample(clean)
+
+    with patch.object(eval_module.logger, "warning") as warning:
+        await logger.log_finish("success", EvalStats(), prune_unplanned=True)
+    assert warning.call_count == 1
+    assert "simulated compaction failure" in warning.call_args.args[0]
+
+    log = await read_eval_log_async(logger.location)
+    assert log.samples is not None
+    assert {s.id for s in log.samples} == {1}
+    assert {
+        s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+    } == {1}
+
+
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 async def test_task_logger_seeded_sample_reads_resolved(
     recorder_type: type, tmp_path: Path

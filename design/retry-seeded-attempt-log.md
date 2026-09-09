@@ -718,7 +718,9 @@ exceed `COMPACT_DEAD_BYTES_FRACTION` (10%) of the member area: rewrite the
 temp zip keeping only the referenced members — referenced per the writer's
 in-memory central directory, since `ZipFile.close` rewrites the on-disk one
 only after a write and a finish-time prune with nothing buffered behind it
-would otherwise be undone by the copy — in a worker thread (local
+would otherwise be undone by the copy (a failed rewrite reopens the
+original file and restricts it to the same live set, for the same reason)
+— in a worker thread (local
 file, CPU-bound), using the decompress+recompress loop from
 `_rewrite_eval_zip_with_new_header` (`zipfile` has no documented raw-copy
 surface). Then write `summaries.json`/`reductions.json`/`header.json` and
