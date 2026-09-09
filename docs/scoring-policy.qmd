@@ -21,7 +21,7 @@ A scorer has three ways to record what happened on a sample, and each routes to 
 
 A scorer can also return `None`, leaving no score entry and adding nothing to `unscored_samples`. See [Custom Scorers](custom-scorers.qmd#unscored-samples) for how scorers handle samples outside their scope.
 
-Using `accuracy` as an example, a run with one correct answer, one incorrect answer, one scoring error, and one unparseable grader verdict will report an accuracy of **0.5**, provided the run continues after the error. This example uses a single scorer and one epoch per sample:
+Using `accuracy` as an example, a run with one correct answer, one incorrect answer, one scoring error, and one unparsable grader verdict will report an accuracy of **0.5**, provided the run continues after the error. This example uses a single scorer and one epoch per sample:
 
 | Sample | Scorer outcome     | Value | Counts in denominator? |
 |--------|--------------------|-------|------------------------|
@@ -82,7 +82,7 @@ A scorer can complete without obtaining a verdict. For example, a grader model m
 
 ### Attribution: whose output failed?
 
-The source of an unparseable response determines how the scorer handles it:
+The source of an unparsable response determines how the scorer handles it:
 
 - **The model's output**: extraction scorers such as `pattern()` and `answer()` return `INCORRECT` when the required answer pattern is absent.
 - **The grader's output**: built-in model graders return an unscored result when the verdict cannot be parsed.
@@ -91,7 +91,7 @@ The score's `reason` and `explanation` identify the failure. For example, `inval
 
 ## Model-graded scorers
 
-When a model grades the model under test, the grader is the *measurement instrument*. Inspect's built-in model graders make one grading request per grader. An unparseable verdict produces `Score.unscored(reason="grader_failed")`; there is no automatic verdict retry.
+When a model grades the model under test, the grader is the *measurement instrument*. Inspect's built-in model graders make one grading request per grader. An unparsable verdict produces `Score.unscored(reason="grader_failed")`; there is no automatic verdict retry.
 
 The grading instructions specify the expected verdict format, and `grade_pattern` controls how the scorer extracts it. When customising the instructions, use a grade pattern that matches that format. See [Model Grading](model-graded.qmd) for configuration and [Reproducible Grading](model-graded.qmd#reproducible-grading) for generation settings.
 

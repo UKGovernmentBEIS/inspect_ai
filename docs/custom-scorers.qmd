@@ -122,7 +122,7 @@ If you are extracting an answer from within a completion (e.g. looking for text 
 
 Return `None` when a sample is outside the scorer's scope. For example, a code-test scorer in a mixed dataset can return `None` for essay questions. This creates no score entry and does not increase `unscored_samples`.
 
-Use `Score.unscored()` when a judgment is expected but could not be obtained, such as an unparseable grader verdict:
+Use `Score.unscored()` when a judgment is expected but could not be obtained, such as an unparsable grader verdict:
 
 ``` python
 return Score.unscored(
