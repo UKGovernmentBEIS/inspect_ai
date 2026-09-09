@@ -1614,22 +1614,29 @@ class ZipLogFile:
             live = frozenset(self._zip.NameToInfo)
             self._zip.close()
             self._zip = None
+            compacted: BinaryIO | None = None
             try:
                 compacted = await anyio.to_thread.run_sync(
                     _compact_zip, self._temp_file, live
                 )
             except Exception as ex:
                 logger.warning(f"Unable to compact eval log {self._file}: {ex}")
-                # reopening the original file re-reads its on-disk central
-                # directory, which a prune since the last write has not
-                # reached (see _compact_zip): restore the live set, or the
-                # pruned members come back as bodies without summaries
-                self._open()
-                self._restrict_members(live)
-            else:
-                self._temp_file.close()
-                self._temp_file = compacted
-                self._open()
+            finally:
+                # reopen on every exit, a cancellation landing at the await
+                # above included: whatever follows (the finish's remaining
+                # writes, or the cancel path's discard) expects an open zip.
+                # Without a compacted file the original is reopened, which
+                # re-reads its on-disk central directory; a prune since the
+                # last write has not reached that (see _compact_zip), so
+                # restore the live set or the pruned members come back as
+                # bodies without summaries
+                if compacted is not None:
+                    self._temp_file.close()
+                    self._temp_file = compacted
+                    self._open()
+                else:
+                    self._open()
+                    self._restrict_members(live)
 
     def _should_compact(self) -> bool:
         """Whether dead bytes are at least ``COMPACT_DEAD_BYTES_FRACTION`` of the member area.

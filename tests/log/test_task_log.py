@@ -1224,6 +1224,53 @@ async def test_task_logger_prune_survives_failed_compaction(
     } == {1}
 
 
+async def test_compact_reopens_the_zip_when_cancelled_before_the_worker_starts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # compaction closes the zip before handing the rewrite to a worker thread;
+    # a cancellation landing at that await (before the worker starts) must
+    # still leave the zip reopened — the cancel path's finish/discard asserts
+    # on it — and with the live set intact, not the stale on-disk directory
+    import inspect_ai.log._recorders.eval as eval_module
+
+    monkeypatch.setattr(eval_module, "COMPACT_DEAD_BYTES_FRACTION", 0.0)
+    recorder = EvalRecorder(str(tmp_path))
+    prior = await _write_prior_log(recorder, _prior_samples())
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=None)
+    await logger.log_start(EvalPlan())
+    clean = await logger.read_prior_sample(1, 1)
+    assert clean is not None
+    logger.note_reused_sample(clean)
+    await recorder.log_prune(logger.eval, set(logger._seeded_pending))
+    (zip_log,) = recorder.data.values()
+
+    original_run_sync = anyio.to_thread.run_sync
+    cancelled_once = {"done": False}
+
+    async def cancel_at_the_await(func: Any, *args: Any, **kwargs: Any) -> Any:
+        if func is eval_module._compact_zip and not cancelled_once["done"]:
+            cancelled_once["done"] = True
+            scope.cancel()
+            await anyio.lowlevel.checkpoint()
+        return await original_run_sync(func, *args, **kwargs)
+
+    monkeypatch.setattr(anyio.to_thread, "run_sync", cancel_at_the_await)
+    with anyio.CancelScope() as scope:
+        await zip_log.compact()
+    assert scope.cancelled_caught
+
+    assert zip_log._zip is not None
+    assert {n for n in zip_log._zip.NameToInfo if n.startswith("samples/")} == {
+        "samples/1_epoch_1.json"
+    }
+    # the finish that follows (compacting for real this time) sees the same
+    await logger.log_finish("success", EvalStats(), prune_unplanned=True)
+    log = await read_eval_log_async(logger.location)
+    assert log.samples is not None and {s.id for s in log.samples} == {1}
+
+
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 async def test_task_logger_seeded_sample_reads_resolved(
     recorder_type: type, tmp_path: Path
