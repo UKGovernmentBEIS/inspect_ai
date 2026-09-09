@@ -139,7 +139,7 @@ from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
 from .task.resolved import ResolvedTask
 from .task.scan import scan_context
-from .task.task import PreviousTask, resolve_epochs
+from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
 
@@ -217,7 +217,7 @@ def _overridden_epochs(
 ) -> int | Epochs | None:
     """An overrides document's epochs as `eval_set()` takes them.
 
-    A bare count stays a count — it means what `eval_set(epochs=4)` means, reducers included, which is that the definition's are dropped along with its count. The object form is the wire shape of `Epochs`, whose reducers travel as registry names because they resolve to callables.
+    A bare count stays a count — it means what `eval_set(epochs=4)` means: the definition's count is replaced but its reducers are kept (see `resolve_task_epochs`). The object form is the wire shape of `Epochs`, whose reducers travel as registry names because they resolve to callables.
     """
     if isinstance(epochs, EvalSetOverridesEpochs):
         return Epochs(epochs.epochs, epochs.reducer)
@@ -1786,10 +1786,10 @@ def list_latest_eval_logs(
     # figure out which logs still need work
     complete_logs: list[Log] = []
     incomplete_logs: list[Log] = []
+    # epochs_changed is applied per task inside log_samples_complete, where
+    # the eval-level epochs can be merged with the task's own reducer
     for log in latest_logs:
-        if epochs_changed(epochs, log.header.eval.config):
-            incomplete_logs.append(log)
-        elif log.header.status != "success":
+        if log.header.status != "success":
             incomplete_logs.append(log)
         elif log.header.invalidated:
             incomplete_logs.append(log)
@@ -1819,10 +1819,10 @@ def log_samples_complete(
         raise PrerequisiteError(
             f"[bold]ERROR[/bold]: Could not find task for log '{log.header.location}'."
         )
-    epochs = epochs or resolve_epochs(task.task.epochs or 1)
+    epochs = resolve_task_epochs(task.task, epochs)
     if epochs_changed(epochs, log.header.eval.config):
         return False
-    epoch_count = epochs.epochs if epochs else 1
+    epoch_count = epochs.epochs
 
     count = samples_selected(task.task.dataset, limit, sample_id, task.task.name)
     planned = count * epoch_count
