@@ -2,7 +2,7 @@ import base64
 import json
 
 import pytest
-from test_helpers.utils import skip_if_no_openai
+from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset._dataset import Sample
@@ -14,6 +14,7 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._openai import openai_completion_params
+from inspect_ai.tool import tool
 
 
 @pytest.mark.anyio
@@ -36,6 +37,18 @@ async def test_openai_api() -> None:
     message = ChatMessageUser(content="This is a test string. What are you?")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+@skip_if_no_openai
+@pytest.mark.parametrize("model_name", ["openai/gpt-5.5", "openai/gpt-5.6-luna"])
+async def test_openai_temperature_dropped_for_default_reasoning_models(
+    model_name: str,
+) -> None:
+    # gpt-5.5+ reject sampling params when reasoning at the server default
+    # effort; inspect must drop them rather than send a request that 400s
+    model = get_model(model_name, config=GenerateConfig(temperature=0.5))
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
 
 
 @skip_if_no_openai
@@ -589,3 +602,176 @@ async def test_chat_completions_streaming_converts_mid_stream_safeguard_block() 
     assert output.choices[0].stop_reason == "content_filter"
     assert "blocked" in output.completion
     assert model_call.error is True
+
+
+# -- GPT-6 Astra (live) --
+#
+# Astra always reasons and rejects sampling params, so these exercise the
+# frontier request shape end to end. gpt-6-astra is gated per-account, so they
+# skip (rather than fail with 404 model_not_found) when the key lacks access.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-astra")
+async def test_openai_gpt_6_astra_generate() -> None:
+    # temperature is dropped (with a warning) rather than sent, so this must not 400
+    model = get_model(
+        "openai/gpt-6-astra",
+        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
+    )
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+    assert output.usage is not None
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-astra")
+async def test_openai_gpt_6_astra_max_reasoning_effort() -> None:
+    model = get_model(
+        "openai/gpt-6-astra", config=GenerateConfig(reasoning_effort="max")
+    )
+    output = await model.generate([ChatMessageUser(content="What is 2 + 2?")])
+    assert "4" in output.completion
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-astra")
+async def test_openai_gpt_6_astra_tool_call() -> None:
+    @tool
+    def addition():
+        async def execute(x: int, y: int):
+            """Add two numbers.
+
+            Args:
+                x: First number.
+                y: Second number.
+            """
+            return x + y
+
+        return execute
+
+    model = get_model("openai/gpt-6-astra")
+    output = await model.generate(
+        [ChatMessageUser(content="Use the addition tool to add 3 and 4.")],
+        tools=[addition()],
+    )
+    assert output.message.tool_calls
+    assert output.message.tool_calls[0].function == "addition"
+
+
+# -- skip_if_no_openai_model gate (no network) --
+
+
+class _FakeOpenAIClient:
+    """Stands in for openai.AsyncOpenAI: `models.retrieve` raises `error` if set."""
+
+    def __init__(self, error: Exception | None) -> None:
+        self._error = error
+        self.models = self
+        self.closed = False
+
+    async def retrieve(self, model: str) -> None:
+        if self._error is not None:
+            raise self._error
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+def _install_fake_openai(
+    monkeypatch: pytest.MonkeyPatch, error: Exception | None
+) -> list[_FakeOpenAIClient]:
+    import openai
+    from test_helpers import utils
+
+    clients: list[_FakeOpenAIClient] = []
+
+    def make_client(*args: object, **kwargs: object) -> _FakeOpenAIClient:
+        clients.append(_FakeOpenAIClient(error))
+        return clients[-1]
+
+    monkeypatch.setattr(openai, "AsyncOpenAI", make_client)
+    monkeypatch.setattr(utils, "_openai_model_access", {})
+    return clients
+
+
+def _openai_api_error(status: int, code: str | None) -> Exception:
+    # openai >= 3 is built on httpx2, so its errors expect httpx2 responses
+    import httpx2
+    import openai
+
+    request = httpx2.Request("GET", "https://api.openai.com/v1/models/gpt-6-astra")
+    response = httpx2.Response(status, request=request)
+    message = f"Error code: {status} - {code}"
+    body = {"code": code}
+    if status == 404:
+        return openai.NotFoundError(message, response=response, body=body)
+    if status == 403:
+        return openai.PermissionDeniedError(message, response=response, body=body)
+    return openai.AuthenticationError(message, response=response, body=body)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(_openai_api_error(404, "model_not_found"), id="model_not_found"),
+        pytest.param(_openai_api_error(403, None), id="permission_denied"),
+    ],
+)
+async def test_skip_if_no_openai_model_skips_without_access(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    clients = _install_fake_openai(monkeypatch, error)
+    ran = False
+
+    @skip_if_no_openai_model("gpt-6-astra")
+    async def gated() -> None:
+        nonlocal ran
+        ran = True
+
+    with pytest.raises(pytest.skip.Exception, match="no access to model gpt-6-astra"):
+        await gated()
+    assert not ran
+    assert [c.closed for c in clients] == [True]
+
+
+async def test_skip_if_no_openai_model_runs_with_access_and_probes_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install_fake_openai(monkeypatch, None)
+    runs = 0
+
+    @skip_if_no_openai_model("gpt-6-astra")
+    async def gated() -> None:
+        nonlocal runs
+        runs += 1
+
+    await gated()
+    await gated()
+    assert runs == 2
+    assert len(clients) == 1
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(_openai_api_error(401, "invalid_api_key"), id="bad_key"),
+        # a 404 that isn't model_not_found (e.g. a gateway without /models)
+        pytest.param(_openai_api_error(404, None), id="endpoint_not_found"),
+    ],
+)
+async def test_skip_if_no_openai_model_propagates_other_errors(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    clients = _install_fake_openai(monkeypatch, error)
+
+    @skip_if_no_openai_model("gpt-6-astra")
+    async def gated() -> None:
+        pass
+
+    # the error must not be cached: a bad key or an outage re-probes on the
+    # next test (or flaky retry) instead of poisoning the per-process cache
+    for _ in range(2):
+        with pytest.raises(type(error)):
+            await gated()
+    assert [c.closed for c in clients] == [True, True]

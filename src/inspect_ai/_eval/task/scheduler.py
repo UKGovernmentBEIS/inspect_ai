@@ -533,12 +533,20 @@ class SampleRequeue:
         )
 
     async def checkpoint_available(self, sample_id: str | int, epoch: int) -> bool:
-        """Whether the re-run would resume from an on-disk checkpoint."""
+        """Whether the re-run would resume from an on-disk checkpoint.
+
+        Resolves against the sample's own checkpoints dir the same way
+        the re-run does (`resolve_resume_checkpoint`), so the answer
+        matches what the requeue will actually do.
+        """
         if self._checkpoints_dir is None:
             return False
-        from inspect_ai.util._checkpoint._layout import has_sample_checkpoint
+        from inspect_ai.util._checkpoint.resume import resolve_resume_checkpoint
 
-        return await has_sample_checkpoint(self._checkpoints_dir, sample_id, epoch)
+        return (
+            await resolve_resume_checkpoint(self._checkpoints_dir, sample_id, epoch)
+            is not None
+        )
 
     def accept(
         self, prior: "EvalSample", prior_status: Literal["error", "cancelled"]
@@ -697,12 +705,11 @@ class SampleRequeue:
         The drain records the cancel in the counters but writes no record,
         so without this stamp no read surface ever sees the outcome: the
         listing keeps rendering the key ``pending`` and the cancel
-        resolver's departed branch advises "retry once it is running"
-        forever. ``departed`` is set alongside so the run reads
-        ``"discarded"`` directly — the coroutine is returning, so there is
-        no parked window to un-cancel. Re-runs take no stamp: clearing their
-        pending key (``on_terminal``) reverts them to their prior terminal
-        record.
+        resolver's departed branch advises "retry in a moment" forever.
+        ``departed`` is set alongside so the run reads ``"discarded"``
+        directly — the coroutine is returning, so there is no parked window
+        to un-cancel. Re-runs take no stamp: clearing their pending key
+        (``on_terminal``) reverts them to their prior terminal record.
         """
         if run.prior is not None:
             return
