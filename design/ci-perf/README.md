@@ -5,7 +5,9 @@ Recurring CI reports live in the Actions job summary and on the fork's
 separate issues on meridianlabs-ai/inspect_ai. The publisher applies the `auto`
 label to start implementation; a marker comment prevents repeat triggers even
 if a maintainer later removes the label. The analysis run does not push
-branches or open PRs.
+branches or open PRs. A finding gets full evidence on its first occurrence on an
+issue, then a short still-observed comment with the run link. Findings whose only
+proposed change requires a human omit the automation label.
 
 Raw snapshots, reports, and proposed findings are workflow artifacts with
 90-day retention in meridianlabs-ai/actions. No raw snapshots belong in Git.
@@ -46,3 +48,8 @@ workflow with `dry_run=true`, `inspect_ai_ref=main`, and `ci_perf_ref` set to th
 fork's tooling branch. `ci_perf_ref` executes that branch's code; workflow
 dispatch requires collaborator write access. The dry-run creates only workflow
 outputs and artifacts.
+
+Analysis and publication run in one job. Their separation is between tokens:
+analysis uses the read-only workflow token, and publication uses the fork write
+token on the same runner. The first live publication uses the schedule; manual
+post-merge verification uses dry-run.

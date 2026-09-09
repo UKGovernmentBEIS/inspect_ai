@@ -111,6 +111,7 @@ def validate_findings(value: Any) -> list[dict[str, Any]]:
             "title",
             "body",
             "existing_issue",
+            "human_implementation",
         }:
             raise ValueError("Unexpected finding fields")
         for field, maximum in (("key", 80), ("title", 200), ("body", 20000)):
@@ -127,6 +128,8 @@ def validate_findings(value: Any) -> list[dict[str, Any]]:
         ):
             raise ValueError("Finding keys must be unique lowercase slugs")
         keys.add(finding["key"])
+        if type(finding.get("human_implementation", False)) is not bool:
+            raise ValueError("human_implementation must be a boolean")
         number = finding.get("existing_issue")
         if number is not None and (type(number) is not int or number <= 0):
             raise ValueError("existing_issue must be a positive issue number")
@@ -186,9 +189,12 @@ def publish(
                 if matched:
                     number = matched["number"]
             evidence_marker = f"<!-- ci-perf-evidence:{run_id}:{finding['key']} -->"
-            body = (
-                f"{marker}\n{evidence_marker}\n{finding['body']}\n\nEvidence: {run_url}"
+            human_note = (
+                "\n\nRequires human implementation; automatic kickoff omitted."
+                if finding.get("human_implementation", False)
+                else ""
             )
+            body = f"{marker}\n{evidence_marker}\n{finding['body']}\n\nEvidence: {run_url}{human_note}"
             if number is None:
                 issue = api("issues", {"title": finding["title"], "body": body})
                 number = issue["number"]
@@ -209,7 +215,17 @@ def publish(
             if evidence_marker not in (issue.get("body") or "") and not any(
                 evidence_marker in comment["body"] for comment in existing
             ):
-                api(f"issues/{number}/comments", {"body": body})
+                previously_observed = marker in (issue.get("body") or "") or any(
+                    marker in comment["body"] for comment in existing
+                )
+                evidence = (
+                    f"{marker}\n{evidence_marker}\nStill observed: {run_url}{human_note}"
+                    if previously_observed
+                    else body
+                )
+                api(f"issues/{number}/comments", {"body": evidence})
+            if finding.get("human_implementation", False):
+                continue
             if not any(
                 "<!-- ci-perf-trigger:" in comment["body"] for comment in existing
             ):

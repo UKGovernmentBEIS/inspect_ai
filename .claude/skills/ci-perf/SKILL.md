@@ -110,10 +110,15 @@ Write `$CI_PERF_OUTPUT_DIR/findings.json` as a JSON list, at most five items:
     "key": "stable-problem-slug",
     "title": "CI: concrete problem or outcome",
     "body": "Measured evidence, run links, proposed change, expected impact, validation, and any maintainer decision or human implementation needed.",
+    "human_implementation": false,
     "existing_issue": 123
   }
 ]
 ```
+
+Set `human_implementation` to true only when the only proposed change requires
+a human (for example workflow edits or node/pnpm work). The publisher records
+that need and omits the automation label. Otherwise set it to false.
 
 When reusing an issue, copy its current title exactly into `title`; the publisher
 checks it before adding evidence or a trigger. Do not put automation mentions

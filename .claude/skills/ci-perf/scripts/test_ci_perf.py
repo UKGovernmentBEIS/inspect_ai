@@ -635,3 +635,88 @@ def test_trigger_label_retry(
         with pytest.raises(RuntimeError, match="label request failed"):
             publish(*args)
         assert writes == ["issues/1/labels"]
+
+
+@pytest.mark.parametrize("human", [True, False])
+def test_reused_issue_evidence_cadence_and_human_handoff(
+    snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch, human: bool
+) -> None:
+    posted: list[dict[str, Any]] = []
+    labels: list[dict[str, Any]] = []
+    monkeypatch.setattr(publisher, "issues", lambda: [])
+    monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 2})
+    monkeypatch.setattr(
+        publisher,
+        "comments",
+        lambda number: posted
+        if number == 1
+        else [
+            {"body": "<!-- ci-perf-summary:123:1 -->"},
+            {"body": "<!-- ci-perf-summary:124:1 -->"},
+        ],
+    )
+    monkeypatch.setattr(
+        publisher,
+        "gh",
+        lambda *args: {
+            "number": 1,
+            "title": "Slow job",
+            "html_url": "https://github.com/meridianlabs-ai/inspect_ai/issues/1",
+            "state": "open",
+            "body": "Existing human issue",
+            "labels": labels,
+        },
+    )
+
+    def fake_api(path: str, fields: dict[str, Any]) -> None:
+        if path.endswith("/labels"):
+            labels.append({"name": "auto"})
+        else:
+            posted.append(fields)
+
+    monkeypatch.setattr(publisher, "api", fake_api)
+    findings = validate_findings(
+        [
+            {
+                "key": "slow-job",
+                "title": "Slow job",
+                "body": "Full measured evidence",
+                "existing_issue": 1,
+                "human_implementation": human,
+            }
+        ]
+    )
+    for run_id in [123, 124, 124]:
+        publish(
+            findings,
+            summarize(snapshot),
+            "Report",
+            f"https://github.com/meridianlabs-ai/actions/actions/runs/{run_id}",
+        )
+    evidence = [item["body"] for item in posted if "ci-perf-evidence:" in item["body"]]
+    assert len(evidence) == 2
+    assert "Full measured evidence" in evidence[0]
+    assert "Full measured evidence" not in evidence[1]
+    assert (
+        "Still observed: https://github.com/meridianlabs-ai/actions/actions/runs/124"
+        in evidence[1]
+    )
+    assert labels == ([] if human else [{"name": "auto"}])
+    if human:
+        assert all("Requires human implementation" in body for body in evidence)
+        assert len(posted) == 2
+
+
+@pytest.mark.parametrize("value", ["true", 1, None])
+def test_human_implementation_requires_boolean(value: Any) -> None:
+    with pytest.raises(ValueError, match="human_implementation must be a boolean"):
+        validate_findings(
+            [
+                {
+                    "key": "slow-job",
+                    "title": "Slow job",
+                    "body": "Evidence",
+                    "human_implementation": value,
+                }
+            ]
+        )
