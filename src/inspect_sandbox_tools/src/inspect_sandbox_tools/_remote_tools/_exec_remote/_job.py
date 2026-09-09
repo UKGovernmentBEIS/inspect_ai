@@ -12,9 +12,10 @@ from inspect_sandbox_tools._util.process_tree import (
     terminate_process_tree,
 )
 from inspect_sandbox_tools._util.user_switch import (
+    RunAs,
     get_home_dir,
-    is_current_user,
     make_preexec,
+    switch_target,
 )
 
 from ._acked_chunk_buffer import AckedChunkBuffer
@@ -51,7 +52,7 @@ class Job:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
-        user: str | None = None,
+        user: str | RunAs | None = None,
         can_switch_user: bool = False,
     ) -> "Job":
         """Create and start a new Job for the given command.
@@ -70,24 +71,16 @@ class Job:
             user: User to run the command as (requires can_switch_user=True).
             can_switch_user: Whether the server can switch users (running as root).
         """
-        # If the requested user matches the current process user, no setuid needed
-        if user is not None and is_current_user(user):
-            user = None
-        if user is not None and not can_switch_user:
-            raise ToolException(
-                f"Cannot switch to user {user!r}: server is not running as root"
-            )
+        user = switch_target(user, can_switch_user)
 
         # Use stdin=PIPE if we have input to send or if stdin should stay open
         stdin = asyncio.subprocess.PIPE if (input is not None or stdin_open) else None
 
-        # Merge additional env vars with current environment if provided.
-        # When switching user, set HOME from /etc/passwd to match docker exec --user.
+        # Merge additional env vars with current environment if provided. When
+        # switching user, HOME follows the user unless the caller set it explicitly.
         subprocess_env: dict[str, str] | None = {**os.environ, **env} if env else None
         if user is not None:
-            if subprocess_env is None:
-                subprocess_env = {**os.environ}
-            subprocess_env["HOME"] = get_home_dir(user)
+            subprocess_env = {**os.environ, "HOME": get_home_dir(user), **(env or {})}
 
         process = await asyncio.create_subprocess_shell(
             command,
