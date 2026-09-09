@@ -10,6 +10,7 @@ from inspect_ai.util._json import (
     json_schema,
     json_schema_dump,
     json_schema_to_base_model,
+    set_additional_properties_false,
 )
 
 
@@ -636,3 +637,29 @@ def test_json_schema_dump_anyof_exclude():
     assert "minimum" not in result["anyOf"][1]
     assert result["anyOf"][0]["type"] == "string"
     assert result["anyOf"][1]["type"] == "integer"
+
+
+def test_set_additional_properties_false_stamps_object_nodes_only():
+    """Optional fields render as anyOf; providers reject additionalProperties there."""
+
+    class Inner(BaseModel):
+        label: str
+
+    class Outer(BaseModel):
+        name: str
+        nickname: str | None = None
+        inner: Inner
+        items: list[Inner]
+
+    schema = json_schema(Outer)
+    set_additional_properties_false(schema)
+    dumped = json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS)
+
+    assert dumped["additionalProperties"] is False
+    assert dumped["properties"]["inner"]["additionalProperties"] is False
+    assert dumped["properties"]["items"]["items"]["additionalProperties"] is False
+    assert "additionalProperties" not in dumped["properties"]["name"]
+    nickname = dumped["properties"]["nickname"]
+    assert "anyOf" in nickname
+    assert "additionalProperties" not in nickname
+    assert all("additionalProperties" not in member for member in nickname["anyOf"])

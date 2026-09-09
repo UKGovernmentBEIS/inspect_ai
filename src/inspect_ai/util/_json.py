@@ -351,10 +351,18 @@ def resolve_schema_references(schema: dict[str, Any]) -> dict[str, Any]:
 
 
 def set_additional_properties_false(schema: JSONSchema) -> None:
-    # Set on top level
-    schema.additionalProperties = False
+    """Set `additionalProperties: false` on every object node of a schema.
 
-    # Recursively process nested schemas
+    Structured-output providers require objects to forbid extra properties but
+    reject `additionalProperties` on non-object nodes: the Anthropic API answers
+    HTTP 400 ("For 'anyOf', 'additionalProperties' is not supported") when the
+    keyword lands on the `anyOf` that Pydantic emits for an optional field, and
+    Bedrock's grammar compiler does the same. Only object nodes are stamped,
+    matching the transformation the Anthropic and OpenAI SDKs apply themselves.
+    """
+    if schema.type == "object" or schema.properties:
+        schema.additionalProperties = False
+
     if schema.items:
         set_additional_properties_false(schema.items)
 
