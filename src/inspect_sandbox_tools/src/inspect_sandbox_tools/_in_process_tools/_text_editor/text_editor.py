@@ -25,6 +25,7 @@ HistoryType = dict[Path, list[HistoryEntryType]]
 
 
 async def view(path_str: str, view_range: list[int] | None = None) -> str:
+    """View a file or directory, reporting I/O errors and listing timeouts as tool errors."""
     path = _validated_path(path_str, "view")
     if path.is_dir():
         path_str = str(path).rstrip("/") + "/"

@@ -3,7 +3,6 @@
 # TODO: Cloned from computer tool temporarily. Should resolve when we have a unified container package.
 
 import asyncio
-from collections.abc import Sequence
 from typing import NamedTuple
 
 TRUNCATED_MESSAGE: str = "<response clipped><NOTE>To save on context only part of this file has been shown to you. You should retry this tool after you have searched inside the file with `grep -n` in order to find the line numbers of what you are looking for.</NOTE>"
@@ -26,11 +25,15 @@ def maybe_truncate(content: str, truncate_after: int | None = MAX_RESPONSE_LEN) 
 
 
 async def run(
-    cmd: Sequence[str],
+    cmd: list[str],
     timeout: float | None = 120.0,  # seconds
     truncate_after: int | None = MAX_RESPONSE_LEN,
 ) -> CommandResult:
-    """Run an argument vector without a shell; reap the process on every exit."""
+    """Run an argument vector without a shell; reap the process on every exit.
+
+    Drain pipes during cleanup: after interruption, paused readers can prevent
+    wait() from completing even after the child has been killed.
+    """
     process = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
@@ -52,4 +55,4 @@ async def run(
                 process.kill()
             except ProcessLookupError:
                 pass
-        await process.wait()
+        await process.communicate()

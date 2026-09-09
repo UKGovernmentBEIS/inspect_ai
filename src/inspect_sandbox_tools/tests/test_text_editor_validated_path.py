@@ -1,4 +1,4 @@
-"""Unit tests for `_validated_path` in the text_editor sandbox tool."""
+"""Tests for text-editor operations, subprocess cleanup, and RPC errors."""
 
 import asyncio
 import json
@@ -145,19 +145,54 @@ def test_view_directory_launch_failure_is_tool_error(
     assert str(tmp_path.resolve()) in response["error"]["message"]
 
 
-@pytest.mark.parametrize("cancel", [False, True])
+def test_view_directory_timeout_is_tool_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from inspect_sandbox_tools._cli.main import _exec
+
+    monkeypatch.setattr(
+        text_editor_module,
+        "run",
+        AsyncMock(side_effect=TimeoutError("find timed out after 120 seconds")),
+    )
+    request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "text_editor",
+        "params": {"command": "view", "path": str(tmp_path)},
+    }
+
+    asyncio.run(_exec(json.dumps(request)))
+    response = json.loads(capsys.readouterr().out)
+
+    assert response["error"] == {
+        "code": -32099,
+        "message": f"Encountered error attempting to view {tmp_path.resolve()}: find timed out after 120 seconds",
+    }
+
+
+@pytest.mark.parametrize("output_fd", [None, 1, 2], ids=["quiet", "stdout", "stderr"])
+@pytest.mark.parametrize("cancel", [False, True], ids=["timeout", "cancel"])
 async def test_directory_command_reaped_when_interrupted(
-    monkeypatch: pytest.MonkeyPatch, cancel: bool
+    monkeypatch: pytest.MonkeyPatch, cancel: bool, output_fd: int | None
 ) -> None:
     create_subprocess_exec = asyncio.create_subprocess_exec
     started = asyncio.Event()
     processes: list[asyncio.subprocess.Process] = []
+    child_code = "import os, time; print('ready', flush=True)\n"
+    child_code += (
+        f"while True: os.write({output_fd}, b'x' * 65536)"
+        if output_fd is not None
+        else "time.sleep(60)"
+    )
 
     async def start(*args: str, **kwargs: object) -> asyncio.subprocess.Process:
         process = await create_subprocess_exec(
             sys.executable,
             "-c",
-            "import time; print('ready', flush=True); time.sleep(60)",
+            child_code,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -168,20 +203,38 @@ async def test_directory_command_reaped_when_interrupted(
         return process
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", start)
-    task = asyncio.create_task(run(["find", "/unused"], timeout=None if cancel else 0))
+    interrupt_after = 0.5 if output_fd is not None else 0
+    task = asyncio.create_task(
+        run(["find", "/unused"], timeout=None if cancel else interrupt_after)
+    )
+    cancel_handle: asyncio.TimerHandle | None = None
     try:
         await asyncio.wait_for(started.wait(), timeout=5)
         if cancel:
-            task.cancel()
+            cancel_handle = asyncio.get_running_loop().call_later(
+                interrupt_after, task.cancel
+            )
+        done, _ = await asyncio.wait({task}, timeout=5)
+        assert task in done, "Interrupted command did not finish cleanup"
         with pytest.raises(asyncio.CancelledError if cancel else TimeoutError):
             await task
-        assert processes[0].returncode is not None
+        process = processes[0]
+        assert process.returncode is not None
+        assert process.stdout is not None and process.stdout.at_eof()
+        assert process.stderr is not None and process.stderr.at_eof()
     finally:
+        if cancel_handle is not None:
+            cancel_handle.cancel()
         task.cancel()
-        for process in processes:
-            if process.returncode is None:
-                process.kill()
-            await process.wait()
+        try:
+            await task
+        except (asyncio.CancelledError, TimeoutError):
+            pass
+        finally:
+            for process in processes:
+                if process.returncode is None:
+                    process.kill()
+                await process.communicate()
 
 
 def _set_history_path(monkeypatch: pytest.MonkeyPatch, history_path: Path) -> None:
