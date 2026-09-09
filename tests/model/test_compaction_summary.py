@@ -1,5 +1,7 @@
 """Tests for CompactionSummary strategy."""
 
+import re
+
 import pytest
 
 from inspect_ai.model import (
@@ -359,28 +361,39 @@ def test_summary_text_never_loses_summary_content() -> None:
     guarantee that matters is one-directional: an unrecognised shape costs wasted
     context, never a section of the summary.
     """
-    fragments = [
-        "",
-        "the file has <analysis> and <summary> tags",
-        'the user said "</analysis>" here',
-        "<analysis>their block</analysis>",
-        "<details><summary>FAQ</summary>",
-        "<analysis>\nWalk it.\n</analysis>\n<summary>\n[describe]\n</summary>",
-        "</summary>",
-    ]
-    for in_analysis in fragments:
-        for between in fragments:
-            for in_body in fragments:
+
+    def fragments(tag: str) -> list[str]:
+        # every marker distinct, so a fragment losing one of its own lines can't
+        # be masked by an identical marker surviving elsewhere
+        return [
+            "",
+            f"prose naming <analysis> and <summary> K{tag}a",
+            f'the user quoted "</analysis>" K{tag}b',
+            f"<analysis>K{tag}c</analysis>",
+            f"<details><summary>K{tag}d</summary>",
+            f"<analysis>\nK{tag}e\n</analysis>\n<summary>\nK{tag}f\n</summary>",
+            f"</summary> K{tag}g",
+        ]
+
+    # the model may or may not write its own analysis first; both shapes matter,
+    # since a completion that opens straight into <summary> puts every tag-shaped
+    # fragment inside the summary, where none of it may be cut
+    for leading in ("<analysis>MY REASONING</analysis>\n", ""):
+        for between in fragments("B"):
+            for in_body in fragments("C"):
                 completion = (
-                    f"<analysis>MY REASONING {in_analysis}</analysis>\n"
-                    f"{between}<summary>\n"
-                    f"1. Primary Request and Intent: KEEP-HEAD\n"
+                    f"{leading}{between}<summary>\n"
+                    f"1. Primary Request and Intent: KHEAD\n"
                     f"{in_body}\n"
-                    f"9. Optional Next Step: KEEP-TAIL\n</summary>"
+                    f"9. Optional Next Step: KTAIL\n</summary>"
                 )
                 result = summary_module._summary_text(completion)
-                assert "KEEP-HEAD" in result, f"lost head: {between!r} / {in_body!r}"
-                assert "KEEP-TAIL" in result, f"lost tail: {between!r} / {in_body!r}"
+                expected = re.findall(r"KC[a-g]", in_body) + ["KHEAD", "KTAIL"]
+                missing = [marker for marker in expected if marker not in result]
+                assert not missing, (
+                    f"lost {missing} from the summary; "
+                    f"leading={bool(leading)} between={between!r} body={in_body!r}"
+                )
 
 
 async def test_summary_keeps_head_when_body_reproduces_a_template() -> None:

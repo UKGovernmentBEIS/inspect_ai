@@ -297,6 +297,12 @@ def _summary_text(completion: str) -> str:
     if open_at == -1:
         return completion
 
+    # an analysis opening after the summary already began is quoted content: the
+    # model's own reasoning comes first, so nothing here is reasoning to remove
+    summary_at = completion.find(_SUMMARY_OPEN)
+    if summary_at != -1 and summary_at < open_at:
+        return completion
+
     boundary = _ANALYSIS_BOUNDARY.search(completion, open_at)
     if boundary is None:
         return completion
