@@ -1,0 +1,224 @@
+"""Tests for aggregation and the unattended publication boundary."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+import publish_ci_findings as publisher
+import pytest
+from collect_ci_data import parse_summary
+from publish_ci_findings import publish, validate_findings
+from summarize_ci_data import render, stats, summarize
+
+
+@pytest.fixture
+def snapshot() -> dict[str, Any]:
+    return {
+        "generated_at": "2026-09-09T12:00:00Z",
+        "repo": "UKGovernmentBEIS/inspect_ai",
+        "runs": [
+            {
+                "id": index,
+                "name": "Build",
+                "conclusion": conclusion,
+                "run_started_at": f"2026-09-09T0{index}:00:00Z",
+                "wall_seconds": seconds + 5,
+                "jobs": [
+                    {
+                        "name": "test (3.11)",
+                        "conclusion": conclusion,
+                        "exec_seconds": seconds,
+                        "wait_from_run_start_seconds": 5,
+                        "steps": [{"name": "pytest", "seconds": seconds}],
+                    }
+                ],
+            }
+            for index, (conclusion, seconds) in enumerate(
+                [("success", 10), ("success", 30), ("cancelled", 80)]
+            )
+        ],
+        "pytest_summaries": {
+            "0/test (3.11)": {"passed": 100, "skipped": 20, "seconds": 10}
+        },
+        "pytest_durations": {
+            "0/test (3.11)": [
+                {"test": "tests/a.py::test_a", "phase": "setup", "seconds": 2},
+                {"test": "tests/a.py::test_a", "phase": "call", "seconds": 3},
+            ]
+        },
+    }
+
+
+def test_summary_preserves_samples_and_separates_cancelled(
+    snapshot: dict[str, Any],
+) -> None:
+    result = summarize(snapshot)
+    assert result["workflow_wall_seconds"]["Build"] == {"n": 2, "median": 25, "p90": 33}
+    assert result["runner_minutes"] == 2
+    assert result["cancelled_runner_minutes"] == 1.33
+    assert (
+        result["slow_tests_seconds"]["test (3.11) / tests/a.py::test_a"]["median"] == 5
+    )
+    assert result["suites"]["test (3.11)"]["passed"]["median"] == 100
+    assert "not push-to-green" in render(result)
+
+
+def test_empty_samples_are_not_zero(snapshot: dict[str, Any]) -> None:
+    assert stats([]) is None
+    snapshot["pytest_durations"] = {}
+    snapshot["pytest_summaries"] = {}
+    result = summarize(snapshot)
+    assert result["suites"] == {}
+    assert result["slow_tests_seconds"] == {}
+    snapshot["runs"] = []
+    with pytest.raises(ValueError, match="empty"):
+        summarize(snapshot)
+
+
+def test_pytest_counts_keep_skips_and_warnings_separate() -> None:
+    assert parse_summary("== 12 passed, 3 skipped, 2 warnings in 4.50s ==") == {
+        "passed": 12,
+        "skipped": 3,
+        "warning": 2,
+        "seconds": 4.5,
+    }
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {},
+        [{"key": "bad/key", "title": "a", "body": "b"}],
+        [{"key": "good", "title": "a", "body": "@auto"}],
+        [{"key": "good", "title": "a", "body": "b", "existing_issue": True}],
+    ],
+)
+def test_invalid_findings_fail_before_publication(value: Any) -> None:
+    with pytest.raises(ValueError):
+        validate_findings(value)
+
+
+def test_dry_run_never_calls_gh(
+    tmp_path: Path, snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "summary.json").write_text(json.dumps(summarize(snapshot)))
+    (tmp_path / "report.md").write_text("Measured evidence")
+    (tmp_path / "findings.json").write_text(
+        '[{"key":"slow-job","title":"Slow job","body":"Evidence"}]'
+    )
+    monkeypatch.setattr(sys, "argv", ["publish", "--directory", str(tmp_path)])
+
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("Dry-run called GitHub")
+
+    monkeypatch.setattr(publisher, "gh", fail)
+    monkeypatch.setattr(publisher, "api", fail)
+    publisher.main()
+
+
+def test_publication_retry_does_not_repeat_trigger(
+    snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stored: list[dict[str, Any]] = []
+    posted: dict[int, list[dict[str, Any]]] = {}
+
+    def fake_issues(search: str) -> list[dict[str, Any]]:
+        return stored
+
+    def fake_comments(number: int) -> list[dict[str, Any]]:
+        return posted.get(number, [])
+
+    def fake_api(path: str, fields: dict[str, str]) -> dict[str, Any]:
+        if path == "issues":
+            number = len(stored) + 1
+            issue = {
+                **fields,
+                "number": number,
+                "html_url": f"https://github.com/{publisher.REPO}/issues/{number}",
+                "state": "open",
+                "labels": [],
+            }
+            stored.append(issue)
+            return issue
+        number = int(path.split("/")[1])
+        posted.setdefault(number, []).append(fields)
+        return fields
+
+    def fake_gh(*args: str) -> Any:
+        return stored[int(args[-1].split("/")[-1]) - 1]
+
+    monkeypatch.setattr(publisher, "issues", fake_issues)
+    monkeypatch.setattr(publisher, "comments", fake_comments)
+    monkeypatch.setattr(publisher, "api", fake_api)
+    monkeypatch.setattr(publisher, "gh", fake_gh)
+    findings = validate_findings(
+        [{"key": "slow-job", "title": "Slow job", "body": "Measured evidence"}]
+    )
+    for _ in range(2):
+        publish(
+            findings,
+            summarize(snapshot),
+            "Report",
+            "https://github.com/meridianlabs-ai/actions/actions/runs/123",
+        )
+    assert len(stored) == 2
+    assert posted[1] == [{"body": "@auto"}]
+    assert len(posted[2]) == 1
+
+
+def test_raw_output_in_checkout_rejected_before_network() -> None:
+    script = Path(__file__).with_name("collect_ci_data.py")
+    result = subprocess.run(
+        [sys.executable, str(script), "--out", str(script.parent / "raw.json")],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert "outside the repository" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "state,labels", [("closed", []), ("open", [{"name": "deferred"}])]
+)
+def test_closed_and_deferred_findings_are_not_retriggered(
+    state: str,
+    labels: list[dict[str, str]],
+    snapshot: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        publisher,
+        "gh",
+        lambda *args: {
+            "number": 7,
+            "html_url": "https://github.com/meridianlabs-ai/inspect_ai/issues/7",
+            "state": state,
+            "labels": labels,
+        },
+    )
+    monkeypatch.setattr(publisher, "tracking_issue", lambda: {"number": 8})
+    monkeypatch.setattr(
+        publisher, "comments", lambda number: [{"body": "<!-- ci-perf-summary:123 -->"}]
+    )
+
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("Closed or deferred finding was written")
+
+    monkeypatch.setattr(publisher, "api", fail)
+    publish(
+        [
+            {
+                "key": "slow-job",
+                "title": "Slow job",
+                "body": "Evidence",
+                "existing_issue": 7,
+            }
+        ],
+        summarize(snapshot),
+        "Report",
+        "https://github.com/meridianlabs-ai/actions/actions/runs/123",
+    )

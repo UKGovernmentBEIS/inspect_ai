@@ -22,6 +22,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from summarize_ci_data import summarize
+
 
 def gh_api(path: str) -> Any:
     result = subprocess.run(
@@ -203,7 +205,11 @@ def mine_test_logs(repo: str, runs: list[dict[str, Any]], max_runs: int) -> Test
                 continue
             try:
                 log = gh_api_text(f"repos/{repo}/actions/jobs/{job['id']}/logs")
-            except subprocess.CalledProcessError:
+            except subprocess.CalledProcessError as error:
+                print(
+                    f"WARNING: unavailable test log {job['id']}: {error.stderr}",
+                    file=sys.stderr,
+                )
                 continue  # logs expire after 90 days / may 404
             key = f"{run['id']}/{job['name']}"
             if parsed := parse_durations(log):
@@ -224,7 +230,14 @@ def main() -> None:
         help="how many recent Build runs to mine for pytest --durations (0 to skip)",
     )
     parser.add_argument("--out", type=Path, required=True, help="snapshot JSON path")
+    parser.add_argument("--summary-out", type=Path, help="compact aggregate JSON path")
     args = parser.parse_args()
+    if args.out.resolve().is_relative_to(Path(__file__).resolve().parents[4]):
+        parser.error(
+            "Raw snapshots must be written outside the repository, e.g. under /tmp"
+        )
+    if args.limit <= 0 or args.durations_runs < 0:
+        parser.error("--limit must be positive and --durations-runs nonnegative")
 
     raw_runs = fetch_runs(args.repo, args.limit)
     print(f"fetched {len(raw_runs)} runs; fetching jobs...", file=sys.stderr)
@@ -265,6 +278,11 @@ def main() -> None:
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(snapshot, indent=1))
+    if args.summary_out:
+        args.summary_out.parent.mkdir(parents=True, exist_ok=True)
+        args.summary_out.write_text(
+            json.dumps(summarize(snapshot), separators=(",", ":")) + "\n"
+        )
     print(f"wrote {args.out}", file=sys.stderr)
 
 
