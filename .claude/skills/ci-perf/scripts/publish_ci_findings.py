@@ -219,7 +219,10 @@ def publish(
                     api(f"issues/{number}/labels", {"labels": ["auto"]})
                 api(
                     f"issues/{number}/comments",
-                    {"body": f"<!-- ci-perf-trigger:{finding['key']} -->"},
+                    {
+                        "body": f"<!-- ci-perf-trigger:{finding['key']} -->\n"
+                        f"Applied the `auto` label. Run: {run_url}"
+                    },
                 )
 
         findings_complete = True

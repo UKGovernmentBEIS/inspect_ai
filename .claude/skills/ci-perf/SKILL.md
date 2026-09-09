@@ -20,9 +20,9 @@ issues or PRs. The recurring workflow lives in `meridianlabs-ai/actions` as
 - Write a readable report and proposed findings. This skill does not implement
   fixes, commit, push, or create PRs. Do not probe the known permission blockers.
 - The publisher posts findings to fork issues and applies the `auto` label once
-  per issue. Marvin cannot trigger itself with a comment; its label event is
-  accepted by the fork automation. A marker prevents repeat labeling. Reuse
-  existing issues. An empty findings list is a valid result.
+  per issue; the fork automation starts on that label event, and a marker
+  comment prevents repeat labeling. Reuse existing issues. An empty findings
+  list is a valid result.
 - Never propose trimming the Python version matrix. Required-check names,
   coverage changes, topology, concurrency, and retry policy need a maintainer
   decision. Say so in the issue. Workflow edits and node/pnpm work need a human
@@ -126,7 +126,8 @@ open PRs for the problem. Match meaning, not just titles. If a PR already fixes
 it, report its status and omit the finding. Use the same key across runs. Key
 deduplication finds only publisher-created issue bodies; for a reused human or
 Marvin issue, supply `existing_issue` on every run. Do not include automation
-mentions in titles or bodies; the publisher applies the trigger label. For no actionable findings, write `[]`, not an absent file.
+mentions in titles or bodies; the publisher applies the trigger label. For no
+actionable findings, write `[]`, not an absent file.
 
 Validate locally with:
 

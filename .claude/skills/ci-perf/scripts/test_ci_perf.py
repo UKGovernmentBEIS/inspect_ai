@@ -173,7 +173,9 @@ def test_publication_retry_does_not_repeat_trigger(
             "https://github.com/meridianlabs-ai/actions/actions/runs/123",
         )
     assert len(stored) == 2
-    assert posted[1] == [{"body": "<!-- ci-perf-trigger:slow-job -->"}]
+    assert [
+        c["body"].startswith("<!-- ci-perf-trigger:slow-job -->") for c in posted[1]
+    ] == [True]
     assert labeled == [1]
     stored[0]["labels"] = []
     assert len(posted[2]) == 1
@@ -184,7 +186,7 @@ def test_publication_retry_does_not_repeat_trigger(
         "https://github.com/meridianlabs-ai/actions/actions/runs/123",
         run_attempt=2,
     )
-    assert posted[1].count({"body": "<!-- ci-perf-trigger:slow-job -->"}) == 1
+    assert sum(c["body"].startswith("<!-- ci-perf-trigger:") for c in posted[1]) == 1
     assert labeled == [1]
     assert len(posted[2]) == 2
     assert "<!-- ci-perf-summary:123:2 -->" in posted[2][-1]["body"]
@@ -291,7 +293,7 @@ def test_existing_issue_identity_and_empty_body(
         )
         assert len(writes) == 3
         assert writes[-2] == {"labels": ["auto"]}
-        assert writes[-1] == {"body": "<!-- ci-perf-trigger:slow-job -->"}
+        assert writes[-1]["body"].startswith("<!-- ci-perf-trigger:slow-job -->")
     else:
         with pytest.raises(ValueError, match="title does not match"):
             publish(
