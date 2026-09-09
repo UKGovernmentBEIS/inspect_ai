@@ -79,7 +79,7 @@ from ._layout.sample_checkpoints_dir import (
     checkpoint_file_id,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
-    scan_latest_committed_checkpoint,
+    scan_committed_checkpoints,
 )
 from ._layout.schemas import Checkpoint, ResticConfig
 from ._layout.staging_dir import (
@@ -95,6 +95,7 @@ from ._resume_copy import copy_payload_files
 from ._snapshot import (
     SandboxSnapshotSession,
     SnapshotContext,
+    committed_snapshots_for,
     create_strategy,
     strategy_config_name,
     strategy_storage_subpath,
@@ -269,20 +270,22 @@ async def hydrate(
     host_restic = await resolve_restic()
     host_repo = host_repo_dir(sample_root)
 
-    # On resume, find the latest committed checkpoint (checkpoint files
-    # are the source of truth — see ``Checkpoint`` design notes). Any
-    # strategy snapshot tagged ``ckpt-NNNNN`` with N > its id is an
-    # orphan from an interrupted fire that completed its capture but
-    # never wrote its checkpoint file; ``_hydrate_host`` /
+    # On resume, find the committed checkpoints (checkpoint files are the
+    # source of truth — see ``Checkpoint`` design notes). A host snapshot
+    # tagged ``ckpt-NNNNN`` with N > the latest id is an orphan from an
+    # interrupted fire that completed its capture but never wrote its
+    # checkpoint file; a sandbox snapshot is an orphan unless some
+    # committed checkpoint records it. ``_hydrate_host`` /
     # ``_hydrate_sandbox`` drop those below so restore materializes the
     # committed snapshot.
+    committed_checkpoints: list[Checkpoint] = []
     latest_checkpoint: Checkpoint | None = None
     latest_committed_id: int | None = None
     if resume_checkpoint:
-        latest_checkpoint = await scan_latest_committed_checkpoint(sample_root)
-        # resume detection parsed a committed checkpoint in this very dir
-        # (or the destination this staging dir was just pulled from)
-        assert latest_checkpoint is not None
+        committed_checkpoints = await scan_committed_checkpoints(sample_root)
+        # Resume detection parsed a committed checkpoint in this directory.
+        assert committed_checkpoints
+        latest_checkpoint = committed_checkpoints[-1]
         latest_committed_id = latest_checkpoint.checkpoint_id
 
     # Phase 2: host + sandboxes in parallel. Host work runs alongside
@@ -347,6 +350,7 @@ async def hydrate(
                 storage_subpath=storage_subpath,
                 secret=restic_config.restic_password,
                 resuming=resume_checkpoint is not None,
+                max_snapshot_bytes=config.max_sandbox_snapshot_bytes,
             ),
             paths=paths,
         )
@@ -370,8 +374,7 @@ async def hydrate(
             _hydrate_sandboxes,
             resume_checkpoint,
             sandbox_sessions,
-            latest_committed_id,
-            latest_checkpoint,
+            committed_checkpoints,
             action,
         )
     assert host_result is not None  # task group ran _run_host to completion
@@ -457,8 +460,7 @@ async def _hydrate_host(
 async def _hydrate_sandboxes(
     resume: ResumeCheckpoint | None,
     sandbox_sessions: dict[str, SandboxSnapshotSession],
-    latest_committed_id: int | None,
-    latest_checkpoint: Checkpoint | None,
+    committed_checkpoints: list[Checkpoint],
     action: str,
 ) -> None:
     if not sandbox_sessions:
@@ -470,8 +472,7 @@ async def _hydrate_sandboxes(
                 name=name,
                 session=session,
                 resume=resume,
-                latest_committed_id=latest_committed_id,
-                latest_checkpoint=latest_checkpoint,
+                committed_checkpoints=committed_checkpoints,
                 action=action,
             )
             for name, session in sandbox_sessions.items()
@@ -484,18 +485,19 @@ async def _hydrate_sandbox(
     name: str,
     session: SandboxSnapshotSession,
     resume: ResumeCheckpoint | None,
-    latest_committed_id: int | None,
-    latest_checkpoint: Checkpoint | None,
+    committed_checkpoints: list[Checkpoint],
     action: str,
 ) -> None:
     """Provision (and on resume, restore) one sandbox via its strategy.
 
     Call order per the Protocol contract: ``setup`` on both paths, then
-    on resume ``discard_orphans`` (drop captures from fires that never
-    committed) → ``restore`` (materialize the latest committed snapshot
-    into the fresh sandbox). The strategy's storage area is already in
-    the sample root: the startup copy replicated it verbatim from the
-    retried attempt (see ``_resume_copy``).
+    on resume ``discard_orphans`` (keep exactly the snapshots some
+    committed checkpoint records for this sandbox) → ``restore``
+    (materialize the latest committed snapshot into the fresh sandbox).
+    Orphan discard is skipped, and ``restore`` gets ``ref=None``, only
+    when no committed checkpoint records a snapshot for this sandbox.
+    The retry startup copy already replicated the storage area into
+    this attempt (see ``_resume_copy``).
     """
     env = sandbox(name)
     strategy, ctx, _ = session
@@ -504,9 +506,10 @@ async def _hydrate_sandbox(
     if resume is None:
         return
 
-    if latest_committed_id is not None:
-        await strategy.discard_orphans(latest_committed_id, ctx)
-    ref = latest_checkpoint.sandboxes.get(name) if latest_checkpoint else None
+    committed = committed_snapshots_for(committed_checkpoints, name)
+    if committed:
+        await strategy.discard_orphans(committed, ctx)
+    ref = committed[-1].details if committed else None
     with trace_action(logger, action, f"sandbox {name} restore"):
         await strategy.restore(env, ref, ctx)
 
