@@ -39,24 +39,32 @@ async def compose_up(
 
     # are there healthchecks in the service definitions? if so then peg our timeout
     # at the maximum total wait time. otherwise, pick a reasonable default
-    healthcheck_time = services_healthcheck_time(services)
-    if healthcheck_time > 0:
-        timeout: int = healthcheck_time
+    healthcheck_timeout = services_healthcheck_time(services)
+    if healthcheck_timeout > 0:
         trace_message(
-            logger, TRACE_DOCKER, f"Docker services healthcheck timeout: {timeout}"
+            logger,
+            TRACE_DOCKER,
+            f"Docker services healthcheck timeout: {healthcheck_timeout}",
         )
     else:
-        timeout = COMPOSE_WAIT
+        healthcheck_timeout = COMPOSE_WAIT
 
-    # align global wait timeout to maximum healthcheck timeout
-    up_command.extend(["--wait-timeout", str(timeout + 1)])
+    # Compose creates and starts services before applying --wait-timeout. Reserve
+    # up to COMPOSE_WAIT seconds for startup, then give Docker its full healthcheck
+    # window.
+    wait_timeout = healthcheck_timeout + 1
+    up_command.extend(["--wait-timeout", str(wait_timeout)])
 
     # Start the environment. Note that we don't check the result because docker will
     # return a non-zero exit code for services that exit (even successfully) when
     # passing the --wait flag (see https://github.com/docker/compose/issues/10596).
     # In practice, we will catch any errors when calling compose_check_running()
     # immediately after we call compose_up().
-    result = await compose_command(up_command, project=project, timeout=timeout)
+    result = await compose_command(
+        up_command,
+        project=project,
+        timeout=COMPOSE_WAIT + wait_timeout,
+    )
     return result
 
 
