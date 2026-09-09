@@ -3,6 +3,7 @@ from typing import NamedTuple
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.registry import registry_log_name
 from inspect_ai.approval import (
     Approval,
     ApprovalDecision,
@@ -13,7 +14,11 @@ from inspect_ai.approval import (
     auto_approver,
     read_approval_policies,
 )
-from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
+from inspect_ai.approval._policy import (
+    ApprovalPolicyConfig,
+    ApproverPolicyConfig,
+    approval_policies_from_config,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.log._log import EvalLog
@@ -233,6 +238,22 @@ def test_read_approval_policies_file_uri():
         "*",
         ["foo*", "add*"],
     ]
+
+
+def test_approval_policies_from_config_percent_encoded_file_uri(tmp_path: Path):
+    # Path.as_uri() percent-encodes the space in the directory name
+    policy_dir = tmp_path / "my policies"
+    policy_dir.mkdir()
+    policy_file = policy_dir / "approve.yaml"
+    policy_file.write_text(
+        'approvers:\n  - name: auto\n    tools: "*"\n    decision: approve\n'
+    )
+
+    policies = approval_policies_from_config(policy_file.as_uri())
+
+    assert len(policies) == 1
+    assert policies[0].tools == "*"
+    assert registry_log_name(policies[0].approver) == "auto"
 
 
 def test_approve_config_reject():

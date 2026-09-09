@@ -32,6 +32,11 @@ The asymmetry mirrors `TaskSource`:
   `emit_sample_end`, alongside the `TaskSource.sample_complete` firing site in
   `task_run_sample`) and may **return follow-up samples**, which are routed
   onto the task's `SampleEnqueuer` — the same buffer `enqueue_sample` feeds.
+  It fires *after* the (shielded) completion block, so user callback code is
+  never uncancellable; a sample cancelled individually by the operator is
+  delivered (the task runs on, and a source waiting on it would otherwise
+  stall), but a sample cancelled by the task's own unwind (abort/retry cancel,
+  ^C) is not — the scope is cancelled and no follow-up could run.
 
 `SampleSource.from_samples(initial_samples, *, next_samples=None,
 sample_complete=None)` builds a source from a seed + callbacks without
