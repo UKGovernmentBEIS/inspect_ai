@@ -96,6 +96,36 @@ def test_anthropic_oauth_beta_preserved_with_effort() -> None:
             os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 
 
+def test_anthropic_credential_precedence(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit api_key must take precedence over ambient ANTHROPIC_AUTH_TOKEN."""
+    # 1. Explicit api_key wins even if ANTHROPIC_AUTH_TOKEN and ANTHROPIC_API_KEY are set
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "ambient-token")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "ambient-key")
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="explicit-key")
+    assert getattr(api.client, "api_key", None) == "explicit-key"
+    assert getattr(api.client, "auth_token", None) is None
+
+    # 2. When no explicit api_key is supplied, ANTHROPIC_AUTH_TOKEN takes precedence over ANTHROPIC_API_KEY
+    api_token = AnthropicAPI(model_name="claude-sonnet-4-6")
+    assert getattr(api_token.client, "auth_token", None) == "ambient-token"
+    assert getattr(api_token.client, "api_key", None) is None
+
+    # 3. When neither explicit api_key nor ANTHROPIC_AUTH_TOKEN is present, ANTHROPIC_API_KEY is used
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    api_env_key = AnthropicAPI(model_name="claude-sonnet-4-6")
+    assert getattr(api_env_key.client, "api_key", None) == "ambient-key"
+    assert getattr(api_env_key.client, "auth_token", None) is None
+
+    # 4. Credential rotation / override via self.api_key takes precedence over ambient ANTHROPIC_AUTH_TOKEN
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "ambient-token")
+    api_hook = AnthropicAPI(model_name="claude-sonnet-4-6")
+    assert getattr(api_hook.client, "auth_token", None) == "ambient-token"
+    api_hook.api_key = "rotated-key"
+    api_hook.initialize()
+    assert getattr(api_hook.client, "api_key", None) == "rotated-key"
+    assert getattr(api_hook.client, "auth_token", None) is None
+
+
 def test_anthropic_extra_headers_not_mutated_across_calls() -> None:
     """Ensure per-call extra_headers are stable across repeated use."""
     api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
