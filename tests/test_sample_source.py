@@ -1001,6 +1001,81 @@ def test_sample_source_task_retry_reuses_completed_followup() -> None:
     assert flaky_runs["n"] == 2
 
 
+def test_sample_source_task_retry_drops_prior_records_outside_the_realized_plan() -> (
+    None
+):
+    # a dynamic feed has no upfront plan, so its retry attempt is seeded with
+    # every prior record. When the feed's realized set shrinks — here the
+    # reused seed's re-fired sample_complete yields one follow-up instead of
+    # two — the seeded record for the sample the retry never produced must
+    # not stand in its success log beside a total_samples and metrics that
+    # exclude it: a natural success drops it, and the log describes the
+    # attempt's own plan
+    completions = {"n": 0}
+    runs: list[str] = []
+
+    @solver
+    def fail_s3_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(str(state.sample_id))
+            if state.sample_id == 3 and runs.count("3") == 1:
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.id != 1:
+                return None
+            completions["n"] += 1
+            followups = [Sample(id=2, input="s2", target="ok")]
+            if completions["n"] == 1:
+                followups.append(Sample(id=3, input="s3", target="ok"))
+            return followups
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="s1", target="ok")]
+
+    @task
+    def shrinking_source_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[fail_s3_once()],
+            name="shrinking_source_task",
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, logs = eval_set(
+            tasks=[shrinking_source_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            retry_cleanup=False,
+        )
+        assert ok, "eval-set did not succeed after task retry"
+        final = read_eval_log(logs[0].location)
+        all_logs = sorted(
+            (read_eval_log(str(path)) for path in Path(log_dir).glob("*.eval")),
+            key=lambda log: log.eval.created,
+        )
+
+    # the reused seed re-fired sample_complete on the retry (shrinking the
+    # feed); samples 1 and 2 were reused rather than re-run, and 3 never ran
+    assert completions["n"] == 2
+    assert sorted(runs) == ["1", "2", "3"], runs
+    assert final.status == "success"
+    assert _sample_inputs(final) == ["s1", "s2"]
+    assert final.results is not None and final.results.total_samples == 2
+    # the errored attempt's log still carries every prior record (it is the
+    # seed for the retry); only the success log is pruned to its plan
+    assert [log.status for log in all_logs] == ["error", "success"]
+    assert _sample_inputs(all_logs[0]) == ["s1", "s2", "s3"]
+
+
 def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:
     # the reuse path reports the reused run terminal (counted `completed`)
     # *before* notifying the source, so a raising `sample_complete` tears the

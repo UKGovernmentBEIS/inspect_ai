@@ -1116,6 +1116,73 @@ async def test_task_logger_seeded_records_surface_as_the_sweep_resolves_them(
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize(
+    "status,prune_unplanned,rerun,expected_ids",
+    [
+        # a natural success drops the seeded records nothing resolved
+        ("success", True, True, {1, 2}),
+        # ... also when the attempt wrote nothing of its own (every sample
+        # reused): the prune must survive compaction even though nothing has
+        # rewritten the zip's on-disk central directory since it
+        ("success", True, False, {1}),
+        # a graceful resolution (score/error/drain) keeps them for the next pass
+        ("success", False, True, {1, 2, 3, 4}),
+        # a non-success log is the next attempt's seed: everything stays
+        ("error", True, True, {1, 2, 3, 4}),
+    ],
+)
+async def test_task_logger_finish_prunes_unresolved_seeded_records_on_natural_success(
+    recorder_type: type,
+    status: str,
+    prune_unplanned: bool,
+    rerun: bool,
+    expected_ids: set[int],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a dynamic feed seeds with no plan (keep=None), so prior records for
+    # samples the feed does not produce this attempt are never consulted.
+    # Sample 1 is reused and sample 2 re-run (when `rerun`); the rest are
+    # never resolved. Compaction is forced (any dead byte) so the success
+    # path always rewrites the zip from its live set
+    import inspect_ai.log._recorders.eval as eval_module
+
+    monkeypatch.setattr(eval_module, "COMPACT_DEAD_BYTES_FRACTION", 0.0)
+    recorder = recorder_type(str(tmp_path))
+    prior = await _write_prior_log(recorder, _prior_samples())
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=None)
+    await logger.log_start(EvalPlan())
+
+    clean = await logger.read_prior_sample(1, 1)
+    assert clean is not None
+    logger.note_reused_sample(clean)
+    if rerun:
+        await logger.complete_sample(
+            EvalSample(id=2, epoch=1, input="q2", target="a", output=ModelOutput()),
+            flush=False,
+        )
+
+    await logger.log_finish(
+        cast(Any, status),
+        EvalStats(),
+        None,
+        None,
+        _error("boom") if status == "error" else None,
+        prune_unplanned=prune_unplanned,
+    )
+
+    log = await read_eval_log_async(logger.location)
+    assert log.status == status
+    assert log.samples is not None
+    assert {s.id for s in log.samples} == expected_ids
+    assert {
+        s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+    } == expected_ids
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 async def test_task_logger_read_sample_exclude_fields_keeps_required_fields(
     recorder_type: type, tmp_path: Path
 ) -> None:

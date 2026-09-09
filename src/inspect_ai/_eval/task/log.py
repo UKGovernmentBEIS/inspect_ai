@@ -49,6 +49,7 @@ from inspect_ai.log._log import (
 )
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.recorder import SampleRecordKey
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import (
     GenerateConfig,
@@ -148,14 +149,14 @@ def _is_high_throughput(sample_count: int) -> bool:
     return sample_count >= 1000
 
 
-def _seeded_key(id: str | int, epoch: int) -> tuple[str, int]:
+def _seeded_key(id: str | int, epoch: int) -> SampleRecordKey:
     """The ``_seeded_pending`` key for a sample: its id in string form.
 
     The recorder names a sample's record by ``f"{id}_epoch_{epoch}"``, so an
     int-id sample answers to its string id too; the pending set must match
     the same way or a control request's string id bypasses the guard.
     """
-    return (str(id), epoch)
+    return SampleRecordKey(str(id), epoch)
 
 
 class TaskLogger:
@@ -326,7 +327,7 @@ class TaskLogger:
         # _seeded_key (id as str): the control channel supplies string ids,
         # and the recorder resolves them against a sample's string form, so
         # a dataset-typed int key would let "2" read the withheld record 2.
-        self._seeded_pending: set[tuple[str, int]] = set()
+        self._seeded_pending: set[SampleRecordKey] = set()
 
         # sample buffer db
         self._buffer_db: SampleBufferDatabase | None = None
@@ -1050,7 +1051,22 @@ class TaskLogger:
         results: EvalResults | None = None,
         reductions: list[EvalSampleReductions] | None = None,
         error: EvalError | None = None,
+        prune_unplanned: bool = False,
     ) -> EvalLog:
+        """Finish this attempt's log.
+
+        ``prune_unplanned`` (a natural success only — the attempt realized
+        its whole plan, nothing was abandoned) drops the seeded prior records
+        no sample of this attempt resolved (still in ``_seeded_pending``).
+        A static plan pruned its unplanned keys at the seed and consulted
+        every planned one, so the set is empty; for a dynamic feed, seeded
+        with every prior record, it is exactly the keys the feed did not
+        produce this time — records of samples outside this attempt's plan,
+        which would otherwise stand in a success log beside a
+        ``total_samples`` and metrics that exclude them. A graceful
+        resolution (score/error/drain) abandoned queued samples whose seeded
+        records the next pass reuses, so it never prunes.
+        """
         # quiesce the stale-flush timer first — _stop_stale_flush_timer waits
         # for any in-flight timer flush to complete, so it can't race the teardown
         await self._stop_stale_flush_timer()
@@ -1063,6 +1079,9 @@ class TaskLogger:
         # makes any flush that acquires the lock afterward a no-op rather than
         # touching the torn-down recorder.
         async with self._flush_lock:
+            if prune_unplanned and status == "success" and self._seeded_pending:
+                await self.recorder.log_prune(self.eval, set(self._seeded_pending))
+
             # finish and get log
             log = await self.recorder.log_finish(
                 self.eval, status, stats, results, reductions, error, self.header_only

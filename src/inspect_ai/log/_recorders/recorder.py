@@ -1,6 +1,6 @@
 import abc
 from collections.abc import Sequence
-from typing import IO, TYPE_CHECKING
+from typing import IO, TYPE_CHECKING, NamedTuple
 
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.error import EvalError
@@ -21,6 +21,21 @@ from inspect_ai.log._recorders.streaming import materialize_streaming_sample
 
 if TYPE_CHECKING:
     from inspect_ai.log._recorders.buffer.history import SampleHistory
+
+
+class SampleRecordKey(NamedTuple):
+    """The ``(str(sample_id), epoch)`` key a recorder names a sample's record by.
+
+    Always the string form of the dataset id: the ``.eval`` recorder's member
+    for a sample is ``samples/{id}_epoch_{epoch}.json``, so an int-id sample
+    answers to its string id, and the control channel routes on strings. A
+    NamedTuple rather than a bare ``tuple[str, int]`` so this key space stays
+    nominally distinct from the dataset-typed ``(id, epoch)`` keys (which a
+    bare tuple is silently assignable to).
+    """
+
+    sample_id: str
+    epoch: int
 
 
 class Recorder(abc.ABC):
@@ -156,6 +171,18 @@ class Recorder(abc.ABC):
 
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...
+
+    async def log_prune(self, eval: EvalSpec, keys: set[SampleRecordKey]) -> None:
+        """Drop seeded sample records the attempt never resolved.
+
+        Called just before a natural success's ``log_finish`` with the keys
+        of prior records ``log_seed`` carried in that no sample
+        of this attempt consulted: a dynamic feed (seeded with every prior
+        record, having no upfront plan) whose realized set no longer
+        includes them. Dropping them keeps the finished log's samples to
+        this attempt's plan. The base implementation is a no-op, as for
+        :meth:`log_discard`; the built-in recorders override it.
+        """
 
     async def log_discard(
         self, eval: EvalSpec, *, keep_destination: bool = False

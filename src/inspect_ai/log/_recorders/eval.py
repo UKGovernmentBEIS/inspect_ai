@@ -76,6 +76,7 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .file import FileRecorder, write_local_snapshot
+from .recorder import SampleRecordKey
 
 logger = getLogger(__name__)
 
@@ -257,6 +258,11 @@ class EvalRecorder(FileRecorder):
         # shortly, carrying the journal entry with it).
         if log.destination_written:
             await log.flush(fsync=False)
+
+    @override
+    async def log_prune(self, eval: EvalSpec, keys: set[SampleRecordKey]) -> None:
+        log = self.data[self._log_file_key(eval)]
+        await log.prune_samples(keys)
 
     @override
     async def log_discard(
@@ -927,12 +933,17 @@ def _parse_sample_bytes(data: bytes) -> EvalSample:
     return rebind_sample_timelines(resolve_sample_events_data(sample))
 
 
-def _compact_zip(src_file: BinaryIO) -> BinaryIO:
+def _compact_zip(src_file: BinaryIO, live: frozenset[str]) -> BinaryIO:
     """Copy the live members of a closed zip temp file into a fresh temp file.
 
-    Live means the last member under each name (the readers' rule); pruned
-    and superseded members are left behind. Blocking (decompress +
-    recompress of every member) — run in a worker thread.
+    Live means the last member under each name in ``live`` (the readers'
+    rule); pruned and superseded members are left behind. ``live`` is the
+    writer's in-memory central directory rather than the file's: a prune
+    since the last write (``prune_samples`` with nothing buffered after it)
+    is not on disk yet — ``ZipFile.close`` rewrites the directory only
+    after a write — so the closed file's directory may still list pruned
+    members. Blocking (decompress + recompress of every member) — run in a
+    worker thread.
     """
     src_file.seek(0)
     out: BinaryIO = tempfile.TemporaryFile()
@@ -941,7 +952,7 @@ def _compact_zip(src_file: BinaryIO) -> BinaryIO:
             ZipFile(src_file, "r") as src,
             ZipFile(out, "w", **zipfile_compress_kwargs) as dst,
         ):
-            _copy_live_members(src, dst)
+            _copy_live_members(src, dst, exclude=frozenset(src.namelist()) - live)
     except BaseException:
         out.close()
         raise
@@ -1521,6 +1532,34 @@ class ZipLogFile:
         for info in pruned:
             self._zip.NameToInfo.pop(info.filename, None)
 
+    async def prune_samples(self, keys: set[SampleRecordKey]) -> None:
+        """Drop the sample members and summaries for ``keys``.
+
+        The finish-time counterpart of :meth:`_prune_prior_members` for
+        seeded records no sample of this attempt resolved (see
+        ``Recorder.log_prune``): the members leave the in-memory central
+        directory (their bytes stay until :meth:`compact` reclaims them) and
+        the summaries leave ``_summaries``, which ``log_finish`` writes as
+        ``summaries.json`` — the consolidated listing a finished log's
+        readers prefer over the journal. The directory reaches disk with
+        the next write (``log_finish`` always writes); :meth:`compact` takes
+        its live set from memory for the same reason.
+        """
+        async with self._lock:
+            assert self._zip is not None
+            names = {_sample_filename(key.sample_id, key.epoch) for key in keys}
+            self._zip.filelist = [
+                info for info in self._zip.filelist if info.filename not in names
+            ]
+            for name in names:
+                self._zip.NameToInfo.pop(name, None)
+            self._local_sample_names -= names
+            self._summaries = [
+                s
+                for s in self._summaries
+                if SampleRecordKey(str(s.id), s.epoch) not in keys
+            ]
+
     def _rejournal_config_updates(self) -> None:
         """Re-append the config updates recorded so far as journal members 1..n.
 
@@ -1559,11 +1598,12 @@ class ZipLogFile:
             assert self._zip is not None
             if not self._should_compact():
                 return
+            live = frozenset(self._zip.NameToInfo)
             self._zip.close()
             self._zip = None
             try:
                 compacted = await anyio.to_thread.run_sync(
-                    _compact_zip, self._temp_file
+                    _compact_zip, self._temp_file, live
                 )
             except Exception as ex:
                 logger.warning(f"Unable to compact eval log {self._file}: {ex}")

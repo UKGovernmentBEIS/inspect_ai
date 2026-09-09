@@ -879,6 +879,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             error=error,
             record_logged_samples=record_logged_samples,
             resolved_unlogged_samples=resolved_unlogged_samples,
+            # a natural success realized its whole plan (the graceful
+            # resolutions above abandoned queued samples, whose seeded prior
+            # records the next pass reuses): seeded records nothing in this
+            # attempt consulted belong to samples outside its plan — a
+            # dynamic feed that no longer produces them — and leave the log
+            # (see TaskLogger.log_finish)
+            prune_unplanned=status == "success" and not record_logged_samples,
         )
 
     # handle sample errors (raise as required). use total_samples (sliced
@@ -3746,6 +3753,7 @@ async def _finish_task_log(
     error: EvalError | None = None,
     record_logged_samples: bool = False,
     resolved_unlogged_samples: int | None = None,
+    prune_unplanned: bool = False,
 ) -> EvalLog:
     """Finish the task log.
 
@@ -3772,4 +3780,6 @@ async def _finish_task_log(
             if resolved_unlogged_samples is None
             else resolved_unlogged_samples
         )
-    return await logger.log_finish(status, stats, results, reductions, error)
+    return await logger.log_finish(
+        status, stats, results, reductions, error, prune_unplanned=prune_unplanned
+    )

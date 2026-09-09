@@ -37,6 +37,7 @@ from .._log import (
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3
 from .file import FileRecorder, write_local_snapshot
+from .recorder import SampleRecordKey
 
 logger = getLogger(__name__)
 
@@ -227,6 +228,23 @@ class JSONRecorder(FileRecorder):
 
         # return the log
         return log.data
+
+    @override
+    async def log_prune(self, eval: EvalSpec, keys: set[SampleRecordKey]) -> None:
+        log = self.data[self._log_file_key(eval)]
+
+        def pruned(id: str | int, epoch: int) -> bool:
+            return SampleRecordKey(str(id), epoch) in keys
+
+        log.data.samples = [
+            s for s in (log.data.samples or []) if not pruned(s.id, s.epoch)
+        ]
+        log.summaries = [s for s in log.summaries if not pruned(s.id, s.epoch)]
+        log.samples_by_key = {
+            key: sample
+            for key, sample in log.samples_by_key.items()
+            if not pruned(key[0], key[1])
+        }
 
     @override
     async def log_discard(

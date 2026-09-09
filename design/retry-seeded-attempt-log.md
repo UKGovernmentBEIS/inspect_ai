@@ -198,7 +198,9 @@ and `_journal/config_updates/*` (otherwise an in-progress read of the new log
 would return the prior attempt's finished header and eval_id — readers prefer
 `header.json` when present), and sample entries for keys outside this
 attempt's plan (a `sample_id`/`limit` subset or reduced epoch count; a
-dynamic-feed task has no upfront plan and keeps everything). The prior's
+dynamic-feed task has no upfront plan and keeps everything, pruning the
+records it never consults at a natural success instead — see trade-off 5).
+The prior's
 journal summary files (`_journal/summaries/N.json`) are pruned too and
 replaced by a single fresh journal member holding the kept summaries.
 Member-level pruning cannot do this for them: a flush batches every sample
@@ -694,13 +696,23 @@ finished.
 
 Dynamically fed tasks seed with no plan (`keep=None`); a seeded key the
 feed never re-injects is never resolved, so it stays out of the live
-listing until the eval finishes (it remains in the log — see trade-off 5).
+listing until the eval finishes. At a natural success — the attempt
+realized its whole plan, nothing abandoned — `TaskLogger.log_finish`
+(`prune_unplanned`) hands the still-pending keys to `Recorder.log_prune`,
+which drops their members and summaries before the finish is written: the
+success log describes this attempt's plan, not the prior's. A graceful
+resolution (score/error/drain) abandoned queued samples whose seeded records
+the next pass reuses, and a non-success log is the next attempt's seed, so
+neither prunes (see trade-off 5).
 
 ### Compaction at successful finish
 
 In `EvalRecorder.log_finish` when `status == "success"` and dead bytes
 exceed `COMPACT_DEAD_BYTES_FRACTION` (10%) of the member area: rewrite the
-temp zip keeping only the referenced members, in a worker thread (local
+temp zip keeping only the referenced members — referenced per the writer's
+in-memory central directory, since `ZipFile.close` rewrites the on-disk one
+only after a write and a finish-time prune with nothing buffered behind it
+would otherwise be undone by the copy — in a worker thread (local
 file, CPU-bound), using the decompress+recompress loop from
 `_rewrite_eval_zip_with_new_header` (`zipfile` has no documented raw-copy
 surface). Then write `summaries.json`/`reductions.json`/`header.json` and
@@ -843,10 +855,16 @@ warning names the prior log and the error.
 4. **The first flush is the size of the prior log.** Today the settle flush
    is the same size, so this is a timing change, not a cost change; and
    every later flush already rewrites the whole file.
-5. **Unplanned prior entries in a dynamic-feed retry linger** until
-   compaction: with no upfront plan there is nothing to prune against.
-   Harmless (never re-injected keys are never consulted) and cleaned at the
-   successful finish.
+5. **Unplanned prior entries in a dynamic-feed retry linger until the
+   finish.** With no upfront plan there is nothing to prune against at the
+   seed, so the attempt carries every prior record; the ones the feed never
+   re-injects stay out of the live listing (never consulted) and are
+   dropped at a natural successful finish (`Recorder.log_prune`, keyed by
+   what is still in `_seeded_pending`), so the success log holds only this
+   attempt's plan. They remain in a non-success log (the next attempt's
+   seed) and in a graceful resolution's success log (its abandoned samples
+   re-run in the next pass, reusing them). Compaction, which only reclaims
+   unreferenced bytes, does not remove live members on its own.
 6. **A `log_finish` failure after earlier flushes leaves a `started` log as
    the task's newest.** The retry's source is that partial destination (the
    prior set plus this attempt's flushed completions, so no completed
