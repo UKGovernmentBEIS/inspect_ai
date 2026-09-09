@@ -609,26 +609,30 @@ class AnthropicAPI(ModelAPI):
             )
         else:
             base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
-            # Support OAuth Bearer auth via ANTHROPIC_AUTH_TOKEN. When set,
-            # create the client with auth_token= instead of api_key= (the SDK
-            # rejects passing both).
-            auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
-            if auth_token:
-                default_headers = self._oauth_default_headers(model_args)
-                return AsyncAnthropic(
-                    base_url=base_url,
-                    auth_token=auth_token,
-                    default_headers=default_headers,
-                    **model_args,
-                )
-            # resolve api_key
-            if not self.api_key:
-                self.api_key = os.environ.get(ANTHROPIC_API_KEY, None)
-            if self.api_key is None:
+            # An explicit api_key (constructor argument or credential hook)
+            # takes precedence over ambient environment credentials. Keep an
+            # environment-derived key in a local so it isn't mistaken for an
+            # explicit one when the client is re-created.
+            api_key = self.api_key
+            if not api_key:
+                # Support OAuth Bearer auth via ANTHROPIC_AUTH_TOKEN. When set,
+                # create the client with auth_token= instead of api_key= (the
+                # SDK rejects passing both).
+                auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+                if auth_token:
+                    default_headers = self._oauth_default_headers(model_args)
+                    return AsyncAnthropic(
+                        base_url=base_url,
+                        auth_token=auth_token,
+                        default_headers=default_headers,
+                        **model_args,
+                    )
+                api_key = os.environ.get(ANTHROPIC_API_KEY, None)
+            if api_key is None:
                 raise environment_prerequisite_error("Anthropic", ANTHROPIC_API_KEY)
             return AsyncAnthropic(
                 base_url=base_url,
-                api_key=self.api_key,
+                api_key=api_key,
                 **model_args,
             )
 
@@ -653,7 +657,7 @@ class AnthropicAPI(ModelAPI):
             await super().refresh_credentials()
             return
         super().initialize()
-        self.client.api_key = self.api_key
+        self.client.api_key = self.api_key or os.environ.get(ANTHROPIC_API_KEY, None)
 
     @override
     async def aclose(self) -> None:
