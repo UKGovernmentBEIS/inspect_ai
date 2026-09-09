@@ -2894,7 +2894,7 @@ class _StubStrategy:
     async def restore(self, env: object, ref: object, ctx: object) -> None:
         pass
 
-    async def discard_orphans(self, latest_committed_id: int, ctx: object) -> None:
+    async def discard_orphans(self, committed: object, ctx: object) -> None:
         pass
 
 
