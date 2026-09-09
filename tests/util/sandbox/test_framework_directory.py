@@ -1377,6 +1377,23 @@ async def test_write_never_replaces_an_existing_entry(
     assert sorted(p.name for p in target.iterdir()) == ["f"]
 
 
+async def test_write_refuses_a_directory_at_the_target_name(
+    local: LocalSandboxEnvironment, parent: Path
+) -> None:
+    """Without ``ln -T`` the link would land inside the directory and succeed."""
+    target = parent / "fw"
+    await ensure_framework_directory(local, str(target), user=None)
+    planted = target / "f"
+    planted.mkdir()
+    with pytest.raises(RuntimeError, match=f"Cannot write {target}/f"):
+        await write_file_in_framework_directory(
+            local, str(target), "f", "content\n", user=None, file_mode=0o600
+        )
+    assert planted.is_dir()
+    assert list(planted.iterdir()) == []
+    assert sorted(p.name for p in target.iterdir()) == ["f"]
+
+
 async def test_write_clears_a_leftover_temporary_file_and_refuses_a_planted_one(
     local: LocalSandboxEnvironment, parent: Path
 ) -> None:

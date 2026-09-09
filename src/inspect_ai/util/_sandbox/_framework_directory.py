@@ -826,9 +826,10 @@ def framework_file_mode(mode: int) -> str:
 
 # Writes stdin to a temporary name ($1.tmp) in the verified directory, sets its mode
 # to $2 (the helper's `umask 077` would otherwise leave it private to the owner),
-# and publishes it as $1 with `ln`, which fails rather than replacing an existing
-# entry (`mv` would replace one; `ln` also fails on a filesystem without hard
-# links, which then surfaces as a write error). The temporary name is cleared
+# and publishes it as $1 with `ln -T`, which fails rather than replacing an existing
+# entry (`mv` would replace one; without `-T` a directory at $1 would receive the
+# link inside it; `ln` also fails on a filesystem without hard links, which then
+# surfaces as a write error). The temporary name is cleared
 # first so a retry after an interrupted write is not blocked by the leftover, and
 # `set -C` refuses to clobber a regular file (or a symlink to one) that appears at
 # that name in between; it is not a full symlink guard (dash writes through a
@@ -836,7 +837,7 @@ def framework_file_mode(mode: int) -> str:
 # here. The temporary name is removed whether or not `ln` succeeded.
 _WRITE_ENTRY = (
     'rm -f -- "$1.tmp" && set -C && cat > "$1.tmp" && chmod -- "$2" "$1.tmp" || exit; '
-    'ln -- "$1.tmp" "$1"; rc=$?; rm -f -- "$1.tmp"; exit $rc'
+    'ln -T -- "$1.tmp" "$1"; rc=$?; rm -f -- "$1.tmp"; exit $rc'
 )
 
 
