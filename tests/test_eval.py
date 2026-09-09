@@ -25,6 +25,7 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 
 def test_eval_epochs_sample_count():
@@ -812,6 +813,67 @@ def _write_prior_eval_log(log_dir: Path) -> Any:
     log = eval(task, model="mockllm/model", log_dir=str(log_dir))[0]
     assert log.status == "success" and log.location
     return log
+
+
+def test_unseeded_retry_bounds_concurrent_prior_lookups(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unseeded retry attempt's prior-log lookups stay bounded.
+
+    With sample logging off nothing is seeded, so the reuse sweep falls back
+    to reading the prior log per planned sample. Every planned sample's
+    run_sample starts at once, so without a bound a large remote retry opens
+    one body read per sample concurrently (61 for 61 prior records).
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai.log._file import read_eval_log_sample_async as original_read
+
+    monkeypatch.setattr(task_run_module, "PRIOR_LOOKUP_CONCURRENCY", 2)
+    reads = {"in_flight": 0, "max_in_flight": 0, "total": 0}
+
+    async def slow_read(*args: Any, **kwargs: Any) -> Any:
+        reads["in_flight"] += 1
+        reads["total"] += 1
+        reads["max_in_flight"] = max(reads["max_in_flight"], reads["in_flight"])
+        try:
+            await anyio.sleep(0.02)
+            return await original_read(*args, **kwargs)
+        finally:
+            reads["in_flight"] -= 1
+
+    monkeypatch.setattr(task_run_module, "read_eval_log_sample_async", slow_read)
+
+    runs: list[int] = []
+
+    @solver(name=f"unseeded_lookup_solver_{id(runs)}")
+    def fail_last_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(int(str(state.sample_id)))
+            if state.sample_id == 8 and runs.count(8) == 1:
+                raise RuntimeError("first run fails")
+            return state
+
+        return solve
+
+    unseeded_task = Task(
+        dataset=[Sample(id=i, input="x", target="y") for i in range(1, 9)],
+        solver=[fail_last_once()],
+        name="unseeded_lookup_task",
+    )
+    logs = eval(
+        unseeded_task,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=1,
+        retry_on_error=0,
+        log_samples=False,
+        max_samples=8,
+    )
+    assert len(logs) == 1 and logs[0].status == "success"
+    # the retry looked every planned sample up in the prior log ...
+    assert reads["total"] == 8
+    # ... at most PRIOR_LOOKUP_CONCURRENCY at a time
+    assert reads["max_in_flight"] <= 2, reads
 
 
 def test_retry_sample_source_seed_set_only_when_eligible(tmp_path: Path) -> None:

@@ -315,6 +315,11 @@ class EvalSampleSource(NamedTuple):
 # possibly remote checkpoint store).
 CHECKPOINT_PROBE_CONCURRENCY = 25
 
+# how many prior-sample lookups an *unseeded* retry attempt's reuse sweep runs
+# at once (see run_sample's fallback branch): each is a remote read of the
+# prior log, and every planned sample's run_sample starts at once
+PRIOR_LOOKUP_CONCURRENCY = 25
+
 # Units allocated for sample progress - the total units
 # represents the total units of progress for an individual sample
 # the remainder are increments of progress within a sample (and
@@ -970,6 +975,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # planned sample's run_sample starts at once, and on a remote checkpoint
     # store the unbounded fan-out would exhaust the shared connection pool
     checkpoint_probe_limit = anyio.Semaphore(CHECKPOINT_PROBE_CONCURRENCY)
+    prior_lookup_limit = anyio.Semaphore(PRIOR_LOOKUP_CONCURRENCY)
 
     # optionally page dataset to disk if it exceeds the memory budget
     sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
@@ -1365,9 +1371,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 await logger.read_prior_sample(sample_id, epoch),
                             )
                         else:
-                            previous_sample = await sample_source.lookup(
-                                sample_id, epoch
-                            )
+                            # an unseeded attempt (sample logging off, or the
+                            # prior log gone): the lookup reads the prior log
+                            # per sample, so bound the concurrent reads as the
+                            # seeded path's read_prior_sample bounds its own —
+                            # unbounded, a large remote retry opens one body
+                            # read per planned sample at once
+                            async with prior_lookup_limit:
+                                previous_sample = await sample_source.lookup(
+                                    sample_id, epoch
+                                )
 
                     if isinstance(previous_sample, EvalSample):
                         reporter.progress()

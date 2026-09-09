@@ -651,7 +651,13 @@ complete prior set.
   its `_finish_task_log` call) are deleted: no remote body read happens in
   the sweep, nothing is written through during it, and an unreached errored
   key's prior record is already in the seeded zip, which is exactly what
-  carry-forward re-logged. The one remaining per-sample remote step in the
+  carry-forward re-logged. The exception is an *unseeded* attempt (sample
+  logging off, or a prior log that vanished), whose sweep still looks each
+  planned sample up in the prior log through `lookup`: those remote reads
+  stay bounded by `PRIOR_LOOKUP_CONCURRENCY` (25, the throttle's old
+  value), since every planned sample's `run_sample` starts at once and a
+  large remote retry would otherwise open one body read per sample. The
+  one remaining per-sample remote step in the seeded
   sweep is the checkpoint resume probe (and the delete for a fresh run) that
   every non-clean prior takes against this attempt's checkpoint dir, bounded
   by `checkpoint_probe_limit` (`CHECKPOINT_PROBE_CONCURRENCY`); on a remote
