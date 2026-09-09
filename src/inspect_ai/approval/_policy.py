@@ -163,15 +163,13 @@ def approval_policies_from_config(
 
     # resolve config if its a string
     if isinstance(policy_config, str):
-        # read_approval_policies() already normalizes file:// URIs this way;
-        # without it, percent-encoded paths (e.g. from Path.as_uri()) never
-        # reach the file because exists() sees the raw encoded URI (#5258).
-        policy_config = local_path(policy_config)
-        if exists(policy_config):
-            policy_config = read_policy_config(policy_config)
-        elif registry_lookup("approver", policy_config):
+        # decode file:// URIs; fsspec's exists() does not percent-decode
+        policy_path = local_path(policy_config)
+        if exists(policy_path):
+            policy_config = read_policy_config(policy_path)
+        elif registry_lookup("approver", policy_path):
             policy_config = ApprovalPolicyConfig(
-                approvers=[ApproverPolicyConfig(name=policy_config, tools="*")]
+                approvers=[ApproverPolicyConfig(name=policy_path, tools="*")]
             )
         else:
             raise ValueError(f"Invalid approval policy: {policy_config}")

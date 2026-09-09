@@ -3,6 +3,7 @@ from typing import NamedTuple
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.registry import registry_log_name
 from inspect_ai.approval import (
     Approval,
     ApprovalDecision,
@@ -240,10 +241,7 @@ def test_read_approval_policies_file_uri():
 
 
 def test_approval_policies_from_config_percent_encoded_file_uri(tmp_path: Path):
-    # eval()/Task()/--approval funnel here, and the funnel used to reject any
-    # file:// URI whose path was percent-encoded (e.g. directories with a
-    # space, as Path.as_uri() produces), while read_approval_policies accepted
-    # the same URI (#5258).
+    # Path.as_uri() percent-encodes the space in the directory name
     policy_dir = tmp_path / "my policies"
     policy_dir.mkdir()
     policy_file = policy_dir / "approve.yaml"
@@ -254,6 +252,8 @@ def test_approval_policies_from_config_percent_encoded_file_uri(tmp_path: Path):
     policies = approval_policies_from_config(policy_file.as_uri())
 
     assert len(policies) == 1
+    assert policies[0].tools == "*"
+    assert registry_log_name(policies[0].approver) == "auto"
 
 
 def test_approve_config_reject():
