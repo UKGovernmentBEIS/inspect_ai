@@ -108,6 +108,8 @@ If a sample is retried, the original error(s) that induced the retries will be r
 
 Some evaluations are designed so that an error during the agent run is itself a meaningful (often failing) outcome — for example, a tool-using agent that crashes after producing partial state, or a benchmark where “the model errored” should count as a scoreable result rather than as missing data.
 
+This page covers the run-level options for tolerating errors. For the complementary authoring decision, namely what a scorer should return for a given failure (a [Score](./reference/inspect_ai.scorer.html.md#score), a `raise`, or `Score.unscored()`), see [Scoring Policy](./scoring-policy.html.md).
+
 The `score_on_error` option causes errored samples to be scored anyway (using whatever [TaskState](./reference/inspect_ai.solver.html.md#taskstate) was reached before the error), and prevents `fail_on_error` from crashing the eval mid-run:
 
 ``` bash

@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,13 +12,10 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
+code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: 1.5em;}
-div.column{flex: auto;}
-@media screen {
-div.columns{gap: min(4vw, 1.5em);}
-div.column{overflow-x: auto;}
-}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -72,7 +69,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
 <link href="./metrics.html" rel="next">
-<link href="./custom-scorers.html" rel="prev">
+<link href="./scoring-policy.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -80,10 +77,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -407,6 +404,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./custom-scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Custom Scorers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scoring-policy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scoring Policy</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -916,6 +919,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Because the grader sees dataset- and model-controlled text (the question, the submission, and any per-sample criterion), the built-in graders take two precautions against a model steering its own grade.</p>
 <p>Grade extraction binds to the last grade. The default <code>grade_pattern</code> (<code>(?is).*(?&lt;!\w)GRADE(?!\w)[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*:[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*([CPI])</code>) matches the last <code>GRADE: X</code> in the grader’s output, tolerating common zero-width formatting characters around the separator. The instructions tell the grader to end with its grade, so an earlier <code>GRADE: C</code> (echoed in chain-of-thought, or injected via the submission) does not win, and prose such as <code>downgrade:</code> is not treated as a verdict. If you customise <code>grade_pattern</code>, keep this behaviour in mind.</p>
 <p>Structural delimiters are neutralized. The default templates wrap content in <code>[BEGIN DATA]</code> / <code>[END DATA]</code> markers. Before formatting the prompt, Inspect rewrites any <code>[BEGIN DATA]</code> / <code>[END DATA]</code> markers that appear in the model-controlled <code>answer</code>, the <code>question</code>, the <code>criterion</code>, and any <code>metadata</code> values (for example to <code>[END-DATA]</code>) so a model cannot inject a fake delimiter and smuggle grading instructions into the prompt. The <code>instructions</code> you provide are author-controlled and left untouched.</p>
+<p>The built-in scorers make one grading request per grader. An unparsable verdict produces <code>Score.unscored(reason="grader_failed")</code> without retrying the verdict. The score retains the grader output and has a <code>NaN</code> value, which metrics exclude. See <a href="./scoring-policy.html#interpreting-coverage">Scoring Policy</a> for how epoch reduction affects coverage counts.</p>
 </section>
 <section id="reproducible-grading" class="level2">
 <h2 class="anchored" data-anchor-id="reproducible-grading">Reproducible Grading</h2>
@@ -1453,8 +1457,8 @@ document.addEventListener("DOMContentLoaded", function () {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./custom-scorers.html" class="pagination-link" aria-label="Custom Scorers">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Custom Scorers</span>
+      <a href="./scoring-policy.html" class="pagination-link" aria-label="Scoring Policy">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Scoring Policy</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">

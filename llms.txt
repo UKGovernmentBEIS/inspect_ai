@@ -34,6 +34,7 @@
 
 - [Standard Scorers](https://inspect.aisi.org.uk/standard-scorers.html.md): The built-in scorers that ship with Inspect (text matching, multiple choice, model grading, math, and perplexity), the metrics they report, and where to go next.
 - [Custom Scorers](https://inspect.aisi.org.uk/custom-scorers.html.md): Write your own scorers using the Score, Value, and Target types, call models from scorers, and access the sandbox.
+- [Scoring Policy](https://inspect.aisi.org.uk/scoring-policy.html.md): How scorer outcomes, scoring failures, and epoch reduction affect Inspect's metrics.
 - [Model Grading](https://inspect.aisi.org.uk/model-graded.html.md): Use another model to grade outputs with model_graded_qa() and model_graded_fact(). Customise templates, instructions, grader models, multi-model voting, and chat history.
 - [Scoring Metrics](https://inspect.aisi.org.uk/metrics.html.md): Built-in scoring metrics, metric grouping, clustered standard errors, custom metrics, and reducing epochs.
 - [Multiple Scorers](https://inspect.aisi.org.uk/multiple-scorers.html.md): Use several scorers together, emit multiple scores from one scorer, attach complex metrics, reduce multiple scores, and access the sandbox.

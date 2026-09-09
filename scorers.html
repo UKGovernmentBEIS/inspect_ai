@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,13 +12,10 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
+code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: 1.5em;}
-div.column{flex: auto;}
-@media screen {
-div.columns{gap: min(4vw, 1.5em);}
-div.column{overflow-x: auto;}
-}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -80,10 +77,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -411,6 +408,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./scoring-policy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scoring Policy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./model-graded.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Model Grading</span></a>
   </div>
@@ -717,6 +720,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#when-the-output-doesnt-match" id="toc-when-the-output-doesnt-match" class="nav-link" data-scroll-target="#when-the-output-doesnt-match">When the output doesn’t match</a></li>
   <li><a href="#metrics" id="toc-metrics" class="nav-link" data-scroll-target="#metrics">Metrics</a></li>
   <li><a href="#going-further" id="toc-going-further" class="nav-link" data-scroll-target="#going-further">Going Further</a></li>
   </ul>
@@ -768,7 +772,7 @@ Check whether the <code>target</code> appears at a known position: <code>begin</
 </dd>
 <dt><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span></dt>
 <dd>
-Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. With multiple capture groups, set <code>match_all=True</code> to require every captured value to match the target (the default matches any one group); if the pattern contains no capture groups, the full match is compared against the target. Returns an <code>INCORRECT</code> score with <code>reason="invalid_response_format"</code> when the pattern does not match.
+Extract an answer using a regular expression and compare it with the target. Uses the captured values when capture groups are present, or the full match otherwise. For example, <code>pattern(r"\d+")</code> extracts <code>42</code> from <code>The answer is 42</code>. With multiple groups, set <code>match_all=True</code> to require every captured value to match the target (the default matches any one group). Returns <code>INCORRECT</code> (with <code>reason="invalid_response_format"</code>) when the pattern does not match.
 </dd>
 <dt><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#answer">answer()</a></span></dt>
 <dd>
@@ -792,11 +796,11 @@ Compute the F1 score (the harmonic mean of precision and recall) over token over
 </dd>
 <dt><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#choice">choice()</a></span></dt>
 <dd>
-Score multiple-choice questions produced by the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#multiple_choice">multiple_choice()</a></span> solver. Unshuffles any choices the solver shuffled before scoring, and supports multiple correct answers via a comma-separated <code>target</code> (e.g.&nbsp;<code>"A,B"</code>).
+Score multiple-choice questions produced by the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#multiple_choice">multiple_choice()</a></span> solver. Unshuffles any choices the solver shuffled before scoring, and supports multiple correct answers via a comma-separated <code>target</code> (e.g.&nbsp;<code>"A,B"</code>). Raises a scoring error if the sample has no choices.
 </dd>
 <dt><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#math">math()</a></span></dt>
 <dd>
-Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both <code>\boxed{}</code> LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; an invalid or over-budget target is unscored rather than counted against the model. Requires the optional math dependencies (install with <code>pip install inspect-ai[math]</code>).
+Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both <code>\boxed{}</code> LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; a sample with no usable reference answer raises a scoring error. Requires the optional math dependencies (install with <code>pip install inspect-ai[math]</code>).
 </dd>
 <dt><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#perplexity">perplexity()</a></span></dt>
 <dd>
@@ -808,6 +812,11 @@ Compute NLL of target-completion tokens only, given a prompt context, for benchm
 </dd>
 </dl>
 </div>
+</section>
+<section id="when-the-output-doesnt-match" class="level2">
+<h2 class="anchored" data-anchor-id="when-the-output-doesnt-match">When the output doesn’t match</h2>
+<p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#includes">includes()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#match">match()</a></span>, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#exact">exact()</a></span> return <code>INCORRECT</code> for a non-matching response. <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#answer">answer()</a></span> return <code>INCORRECT</code> when the extracted answer is wrong or the required pattern is absent. An absent pattern also sets <code>reason="invalid_response_format"</code>.</p>
+<p>These incorrect scores contribute <code>0.0</code> to the default metrics. See <a href="./scoring-policy.html">Scoring Policy</a> for how scores, unscored results, and errors affect metrics and coverage.</p>
 </section>
 <section id="metrics" class="level2">
 <h2 class="anchored" data-anchor-id="metrics">Metrics</h2>

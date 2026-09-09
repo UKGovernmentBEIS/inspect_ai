@@ -787,7 +787,7 @@ For more detail on the different methods of configuration, see [Configuration](.
 |  |  |
 |----|----|
 | `--model` | Model used to evaluate tasks. |
-| `--model-base-url` | Base URL for for model API |
+| `--model-base-url` | Base URL for model API |
 | `--model-config` | Model specific arguments (JSON or YAML file) |
 | `-M` | Model specific arguments (`key=value`). |
 | `--model-spec` | Model with its own generation config, model args, and base url (inline JSON or YAML, same fields as `--model-role`). Repeat for several models. Cannot be combined with the four options above, nor with the `model` field of `--run-config`. See [Multiple Models](./models.html.md#multiple-models). |
@@ -817,7 +817,7 @@ For more detail on the different methods of configuration, see [Configuration](.
 | `--effort` | Values: `low`, `medium`, `high`, `xhigh`, or `max`. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency (Claude 4.5, 4.6, 4.7 only, `max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7). |
 | `--verbosity` | Values `low`, `medium`, or `high`. Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models). |
 | `--reasoning-effort` | Values: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). |
-| `--reasoning-mode` | Values: `standard` or `pro`. Reasoning mode. “pro” performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6 models only (“standard” is the default; GPT-6 does not support “pro”). |
+| `--reasoning-mode` | Values: `standard` or `pro`. Reasoning mode. “pro” performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only (“standard” is the default). |
 | `--reasoning-tokens` | Maximum number of tokens to use for reasoning. Anthropic Claude models only. |
 | `--reasoning-history` | Values: `none`, `all`, `last`, or `auto`. Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider) |
 | `--response-format` | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. |
@@ -1032,7 +1032,7 @@ You can view and navigate between a history of all evals in the log directory us
 
 ## Live View
 
-Inspect View provides a live view into the status of your evaluation task. The main shows shows what samples have completed (along with incremental metric calculations) and the sample view (described below) let’s you follow sample transcripts and message history as events occur.
+Inspect View provides a live view into the status of your evaluation task. The main view shows which samples have completed (along with incremental metric calculations) and the sample view (described below) lets you follow sample transcripts and message history as events occur.
 
 If you are running VS Code, you can click the **View Log** link within the task progress screen to access a live view of your task:
 
@@ -3018,7 +3018,7 @@ Check whether the `target` appears anywhere in the model output (a substring mat
 Check whether the `target` appears at a known position: `begin`, `end` (the default), or `any`. With `location="exact"` the whole output must equal the target. Ignores case and white-space by default. Pass `numeric=True` to compare numbers rather than text; currency symbols (`$`, `€`, `£`), thousands separators (`,`), and formatting markers (`*`, `_`) are stripped first.
 
 [pattern()](./reference/inspect_ai.scorer.html.md#pattern)  
-Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. With multiple capture groups, set `match_all=True` to require every captured value to match the target (the default matches any one group); if the pattern contains no capture groups, the full match is compared against the target. Returns an `INCORRECT` score with `reason="invalid_response_format"` when the pattern does not match.
+Extract an answer using a regular expression and compare it with the target. Uses the captured values when capture groups are present, or the full match otherwise. For example, `pattern(r"\d+")` extracts `42` from `The answer is 42`. With multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match.
 
 [answer()](./reference/inspect_ai.scorer.html.md#answer)  
 For prompts that instruct the model to end with `ANSWER: X`. Extracts the letter, word, or remainder of the line that follows.
@@ -3036,16 +3036,22 @@ Normalize the answer and target(s) and require the whole output to match one or 
 Compute the F1 score (the harmonic mean of precision and recall) over token overlap, for short free-text answers such as extractive QA. Accepts an `answer_fn` to extract the answer from the completion and a `stop_words` list to exclude from tokenization. Reports `mean` and `stderr` metrics.
 
 [choice()](./reference/inspect_ai.scorer.html.md#choice)  
-Score multiple-choice questions produced by the [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) solver. Unshuffles any choices the solver shuffled before scoring, and supports multiple correct answers via a comma-separated `target` (e.g. `"A,B"`).
+Score multiple-choice questions produced by the [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) solver. Unshuffles any choices the solver shuffled before scoring, and supports multiple correct answers via a comma-separated `target` (e.g. `"A,B"`). Raises a scoring error if the sample has no choices.
 
 [math()](./reference/inspect_ai.scorer.html.md#math)  
-Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both `\boxed{}` LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; an invalid or over-budget target is unscored rather than counted against the model. Requires the optional math dependencies (install with `pip install inspect-ai[math]`).
+Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both `\boxed{}` LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; a sample with no usable reference answer raises a scoring error. Requires the optional math dependencies (install with `pip install inspect-ai[math]`).
 
 [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity)  
 Compute per-token negative log-likelihood (NLL) from prompt log probabilities, for full-text perplexity benchmarks (WikiText, C4). Requires `prompt_logprobs` in [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig). See [Perplexity](./perplexity.html.md).
 
 [target_perplexity()](./reference/inspect_ai.scorer.html.md#target_perplexity)  
 Compute NLL of target-completion tokens only, given a prompt context, for benchmarks like ARC-C, MMLU, and HumanEval where only trailing target tokens are scored. See [Perplexity](./perplexity.html.md).
+
+## When the output doesn’t match
+
+[includes()](./reference/inspect_ai.scorer.html.md#includes), [match()](./reference/inspect_ai.scorer.html.md#match), and [exact()](./reference/inspect_ai.scorer.html.md#exact) return `INCORRECT` for a non-matching response. [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` when the extracted answer is wrong or the required pattern is absent. An absent pattern also sets `reason="invalid_response_format"`.
+
+These incorrect scores contribute `0.0` to the default metrics. See [Scoring Policy](./scoring-policy.html.md) for how scores, unscored results, and errors affect metrics and coverage.
 
 ## Metrics
 
@@ -3092,7 +3098,7 @@ Inspect has support for a wide variety of language model APIs and can be extende
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
-\
+  
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
@@ -3524,7 +3530,7 @@ Inspect has support for a wide variety of language model APIs and can be extende
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
-\
+  
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
@@ -6465,10 +6471,11 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | openai/gpt-5.6-luna                  | medium          |
 | openai/gpt-5.6-sol                   | medium          |
 | openai/gpt-5.6-terra                 | medium          |
+| openai/gpt-6-astra                   | medium          |
 
 ## Reasoning Mode
 
-OpenAI GPT-5.6 models support [pro mode](https://developers.openai.com/api/docs/guides/reasoning), which performs more model work for greater reliability on difficult tasks, at higher latency and token usage (billed at standard token rates). Enable it with the `reasoning_mode` option:
+OpenAI GPT-5.6+ models support [pro mode](https://developers.openai.com/api/docs/guides/reasoning), which performs more model work for greater reliability on difficult tasks, at higher latency and token usage (billed at standard token rates). Enable it with the `reasoning_mode` option:
 
 ``` bash
 inspect eval math.py --model openai/gpt-5.6 --reasoning-mode pro
@@ -6484,7 +6491,7 @@ Reasoning mode is independent of `reasoning_effort` — effort controls how much
 
 Since pro mode requests can run for several minutes, Inspect enables [background processing](./providers.html.md#openai) by default when `reasoning_mode="pro"` (as it does for the `gpt-5-pro` model line); pass `-M background=false` to override.
 
-Inspect passes `reasoning_mode` through to the API for any OpenAI model: models that can’t honor it (those prior to GPT-5.6 other than the `-pro` model line, and GPT-6 Astra which runs in standard mode only) reject the request with an error naming the parameter.
+Inspect passes `reasoning_mode` through to the API for any OpenAI model: models that can’t honor it (those prior to GPT-5.6, other than the `-pro` model line which accepts the redundant `"pro"`) reject the request with an error naming the parameter.
 
 ## Reasoning Content
 
@@ -6501,7 +6508,7 @@ The following reasoning options are available from the CLI and within [GenerateC
 | Option | Description |
 |----|----|
 | `reasoning_effort` | Constrains effort on reasoning. Accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. See [Reasoning Effort](#reasoning-effort) for per-provider mapping. Supported by all reasoning models — Inspect automatically bridges effort to a token budget for legacy Claude (3.7–4.5) and Gemini 2.5. Default is provider-defined. |
-| `reasoning_mode` | **OpenAI GPT-5.6 only.** Accepts `standard`, `pro`. Pro mode performs more model work for greater reliability at higher latency and token usage, and enables background processing by default. See [Reasoning Mode](#reasoning-mode). |
+| `reasoning_mode` | **OpenAI GPT-5.6+ only.** Accepts `standard`, `pro`. Pro mode performs more model work for greater reliability at higher latency and token usage, and enables background processing by default. See [Reasoning Mode](#reasoning-mode). |
 | `reasoning_tokens` | **Deprecated.** Prefer `reasoning_effort`. Explicit token budget for reasoning. Both Anthropic (`budget_tokens`) and Google (`thinking_budget`) have deprecated this control in favour of effort-based reasoning. On Anthropic Claude 4.7+ and Claude 5 it is unsupported (those models removed the token-budget control) and raises an error — use `reasoning_effort` instead, which works across all Claude versions. |
 | `reasoning_summary` | **OpenAI only.** Provide a summary of reasoning steps. Accepts `none`, `concise`, `detailed`, `auto`. Use `auto` to access the most detailed summarizer available. Some OpenAI accounts require [organization verification](https://help.openai.com/en/articles/10910291-api-organization-verification). |
 | `reasoning_history` | How much prior reasoning to replay in conversation history. Accepts `none`, `all`, `last`, `auto`. Use `last` to keep reasoning from dominating the context window. Defaults to `auto`. |
@@ -6835,6 +6842,7 @@ Scoring turns the raw `output` a model produces for each sample into a [Score](.
 |----|----|
 | [Standard Scorers](./standard-scorers.html.md) | The built-in scorers (text matching, multiple choice, math, model grading, perplexity) and how to choose among them. |
 | [Custom Scorers](./custom-scorers.html.md) | Write your own scorers using the [Score](./reference/inspect_ai.scorer.html.md#score), [Value](./reference/inspect_ai.scorer.html.md#value), and [Target](./reference/inspect_ai.scorer.html.md#target) types, including scorers that call models or inspect a sandbox. |
+| [Scoring Policy](./scoring-policy.html.md) | Route a sample-ending failure to the right outcome (score it, `raise`, or `Score.unscored()`) so metrics reflect the model, not the run machinery. |
 | [Model Grading](./model-graded.html.md) | Use another model to grade open-ended answers; customise templates, instructions, grader models, and chat history. |
 | [Scoring Metrics](./metrics.html.md) | Built-in metrics, grouping, clustered standard errors, custom metrics, and reducing epochs. |
 | [Multiple Scorers](./multiple-scorers.html.md) | Use several scorers together, emit multiple scores from one scorer, and reduce multiple scores into one. |
@@ -6876,7 +6884,7 @@ Check whether the `target` appears anywhere in the model output (a substring mat
 Check whether the `target` appears at a known position: `begin`, `end` (the default), or `any`. With `location="exact"` the whole output must equal the target. Ignores case and white-space by default. Pass `numeric=True` to compare numbers rather than text; currency symbols (`$`, `€`, `£`), thousands separators (`,`), and formatting markers (`*`, `_`) are stripped first.
 
 [pattern()](./reference/inspect_ai.scorer.html.md#pattern)  
-Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. With multiple capture groups, set `match_all=True` to require every captured value to match the target (the default matches any one group); if the pattern contains no capture groups, the full match is compared against the target. Returns an `INCORRECT` score with `reason="invalid_response_format"` when the pattern does not match.
+Extract an answer using a regular expression and compare it with the target. Uses the captured values when capture groups are present, or the full match otherwise. For example, `pattern(r"\d+")` extracts `42` from `The answer is 42`. With multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match.
 
 [answer()](./reference/inspect_ai.scorer.html.md#answer)  
 For prompts that instruct the model to end with `ANSWER: X`. Extracts the letter, word, or remainder of the line that follows.
@@ -6894,16 +6902,22 @@ Normalize the answer and target(s) and require the whole output to match one or 
 Compute the F1 score (the harmonic mean of precision and recall) over token overlap, for short free-text answers such as extractive QA. Accepts an `answer_fn` to extract the answer from the completion and a `stop_words` list to exclude from tokenization. Reports `mean` and `stderr` metrics.
 
 [choice()](./reference/inspect_ai.scorer.html.md#choice)  
-Score multiple-choice questions produced by the [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) solver. Unshuffles any choices the solver shuffled before scoring, and supports multiple correct answers via a comma-separated `target` (e.g. `"A,B"`).
+Score multiple-choice questions produced by the [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) solver. Unshuffles any choices the solver shuffled before scoring, and supports multiple correct answers via a comma-separated `target` (e.g. `"A,B"`). Raises a scoring error if the sample has no choices.
 
 [math()](./reference/inspect_ai.scorer.html.md#math)  
-Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both `\boxed{}` LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; an invalid or over-budget target is unscored rather than counted against the model. Requires the optional math dependencies (install with `pip install inspect-ai[math]`).
+Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both `\boxed{}` LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; a sample with no usable reference answer raises a scoring error. Requires the optional math dependencies (install with `pip install inspect-ai[math]`).
 
 [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity)  
 Compute per-token negative log-likelihood (NLL) from prompt log probabilities, for full-text perplexity benchmarks (WikiText, C4). Requires `prompt_logprobs` in [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig). See [Perplexity](./perplexity.html.md).
 
 [target_perplexity()](./reference/inspect_ai.scorer.html.md#target_perplexity)  
 Compute NLL of target-completion tokens only, given a prompt context, for benchmarks like ARC-C, MMLU, and HumanEval where only trailing target tokens are scored. See [Perplexity](./perplexity.html.md).
+
+## When the output doesn’t match
+
+[includes()](./reference/inspect_ai.scorer.html.md#includes), [match()](./reference/inspect_ai.scorer.html.md#match), and [exact()](./reference/inspect_ai.scorer.html.md#exact) return `INCORRECT` for a non-matching response. [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` when the extracted answer is wrong or the required pattern is absent. An absent pattern also sets `reason="invalid_response_format"`.
+
+These incorrect scores contribute `0.0` to the default metrics. See [Scoring Policy](./scoring-policy.html.md) for how scores, unscored results, and errors affect metrics and coverage.
 
 ## Metrics
 
@@ -7020,6 +7034,7 @@ The components of [Score](./reference/inspect_ai.scorer.html.md#score) include:
 | `value` | [Value](./reference/inspect_ai.scorer.html.md#value) | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value). |
 | `answer` | `str` | Text extracted from model output for comparison (optional). |
 | `explanation` | `str` | Explanation of score, e.g. full model output or grader model output (optional). |
+| `reason` | `ScoreReason \| str` | Standard outcome label or custom string (optional). |
 | `metadata` | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional). |
 
 For example, the following are all valid [Score](./reference/inspect_ai.scorer.html.md#score) objects:
@@ -7051,17 +7066,23 @@ If you are extracting an answer from within a completion (e.g. looking for text
 
 ### Unscored Samples
 
-When a scorer cannot produce a value for a sample (e.g. an external grader returned no result, the model refused, or an error occurred) but you still want to record context, use `Score.unscored()`:
+Return `None` when a sample is outside the scorer’s scope. For example, a code-test scorer in a mixed dataset can return `None` for essay questions. This creates no score entry and does not increase `unscored_samples`.
+
+Use `Score.unscored()` when a judgment is expected but could not be obtained, such as an unparsable grader verdict:
 
 ``` python
 return Score.unscored(
-    reason="timeout",
+    reason="grader_failed",
     answer=extracted,
-    explanation="grader returned no result",
+    explanation="Grader did not return a parseable verdict.",
 )
 ```
 
-Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers. The optional `reason` field records a machine-readable failure mode — use a standard `ScoreReason` value (e.g. `"grader_failed"`, `"invalid_response_format"`) where one fits, or any custom string.
+This creates a score with a `NaN` value and preserves the supplied reason, answer, and explanation. Metrics exclude the value. Coverage counts are calculated after epoch reduction: the default mean reducer ignores unscored epochs, while other reducers can handle them differently. See [Interpreting coverage](./scoring-policy.html.md#interpreting-coverage).
+
+The optional `reason` accepts standard `ScoreReason` labels or custom strings. Use a reason that describes the outcome and an explanation with the details needed to understand it.
+
+Return a scored verdict for an incorrect answer or a failure to follow the task’s required format. Raise an exception for execution failures or invalid scorer inputs so Inspect can apply the run’s error-handling settings. See [Scoring Policy](./scoring-policy.html.md) for how these outcomes affect results.
 
 ## Score Value
 
@@ -7081,7 +7102,13 @@ Next, we’ll take a look at the source code for a couple of the built in scorer
 
 ## Models in Scorers
 
-You’ll often want to use models in the implementation of scorers. Use the [get_model()](./reference/inspect_ai.model.html.md#get_model) function to get either the currently evaluated model or another model interface. For example:
+You’ll often want to use models in the implementation of scorers. The best way of doing this is to specify the grader model using [model roles](./models.html.md#model-roles), allowing them to be chosen at runtime. By default, model-graded scorers look for the `"grader"` model role:
+
+``` python
+grader_model = get_model(role="grader")
+```
+
+You can also use the [get_model()](./reference/inspect_ai.model.html.md#get_model) function to get either the currently evaluated model or another model interface. For example:
 
 ``` python
 # use the model being evaluated for grading
@@ -7187,8 +7214,8 @@ def model_graded_qa(
                 explanation=result.completion,
             )
         else:
-            return Score(
-                value=INCORRECT,
+            return Score.unscored(
+                reason="grader_failed",
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
             )
@@ -7196,11 +7223,149 @@ def model_graded_qa(
     return score
 ```
 
+If the grade cannot be parsed, this scorer records an unscored result with the grader output as its explanation. See [Unscored Samples](#unscored-samples) for choosing score outcomes.
+
 Note that the call to `model_grader.generate()` is done with `await`. This is critical to ensure that the scorer participates correctly in the scheduling of generation work.
 
 Note also we use the `input_text` property of the [TaskState](./reference/inspect_ai.solver.html.md#taskstate) to access a string version of the original user input to substitute it into the grading template. Using the `input_text` has two benefits: (1) It is guaranteed to cover the original input from the dataset (rather than a transformed prompt in `messages`); and (2) It normalises the input to a string (as it could have been a message list).
 
 For the full set of customisation options on the built-in graders, see [Model Grading](./model-graded.html.md).
+
+
+# Scoring Policy – Inspect
+
+## Overview
+
+A scorer’s job is to turn what a model did on a sample into a verdict about the model’s capability on the task, which Inspect then aggregates into the metrics that summarise the evaluation. The model under test (MUT) produces an answer, the scorer judges it correct or incorrect, and that verdict counts.
+
+The model can fail with a wrong answer or output that doesn’t follow the requested format. The *run machinery* can also break (an API error, a dead container, a bug in the scoring code), and where a grader model or other measurement instrument is involved, the *instrument itself* can fail to produce a reading. A grader model is part of the measurement instrument; its output determines whether the evaluated response receives a verdict.
+
+These outcomes affect the metric denominator differently. The [worked example](#the-three-outcomes) below shows how Inspect aggregates them.
+
+## The three outcomes
+
+A scorer has three ways to record what happened on a sample, and each routes to different downstream handling:
+
+- **Return a [Score](./reference/inspect_ai.scorer.html.md#score)** with a verdict on the model. It counts in the denominator of the resultant metrics.
+- **Raise an error** when scoring fails. The exception is recorded in `sample.error`, and the failing scorer produces no score. The run’s [`retry_on_error`](./handling-errors.html.md#sample-retries) and [`fail_on_error`](./handling-errors.html.md#failure-threshold) settings control sample retries and the failure threshold.
+- **Return `Score.unscored()`** when the scorer could not render a verdict. This creates a score with a `NaN` value, preserving any reason and explanation. The value is excluded from metrics, with unscored counts calculated after epoch reduction.
+
+A scorer can also return `None`, leaving no score entry and adding nothing to `unscored_samples`. See [Custom Scorers](./custom-scorers.html.md#unscored-samples) for how scorers handle samples outside their scope.
+
+Using `accuracy` as an example, a run with one correct answer, one incorrect answer, one scoring error, and one unparsable grader verdict will report an accuracy of **0.5**, provided the run continues after the error. This example uses a single scorer and one epoch per sample:
+
+| Sample | Scorer outcome           | Value | Counts in denominator? |
+|--------|--------------------------|-------|------------------------|
+| 1      | `Score(value=CORRECT)`   | `1.0` | yes                    |
+| 2      | `Score(value=INCORRECT)` | `0.0` | yes                    |
+| 3      | `raise`                  | n/a   | no (errored)           |
+| 4      | `Score.unscored()`       | `NaN` | no (unscored)          |
+
+Only samples 1 and 2 are scored, so `accuracy = 1 / 2 = 0.5`, with `scored_samples = 2` and `unscored_samples = 1`; the errored sample is recorded separately via `sample.error`.
+
+With multiple scorers, scores are retained as each scorer completes. If one scorer succeeds before another raises, the earlier score survives alongside `sample.error` and contributes to its scorer’s metrics if the run continues.
+
+The [`score_on_error`](./handling-errors.html.md#scoring-errored-samples) run option enables scoring after errors raised during *solving*: it runs the scorer on whatever partial state was reached and counts the result. If sample 3 had errored mid-solve and its partial state scored `INCORRECT`, it would enter the denominator and accuracy would read `1 / 3`. The solver error remains recorded in `sample.error`.
+
+## Interpreting an outcome
+
+The score value, reason, explanation, and sample error describe what happened during scoring:
+
+| Recorded outcome | Meaning |
+|----|----|
+| Scored verdict | The scorer assigned a value to the evaluated response |
+| Scoring error | Scoring encountered an execution failure or invalid inputs |
+| Unscored result | The scorer did not obtain a verdict |
+
+The sections below work through each outcome and the details recorded by Inspect.
+
+### Verdicts on the model
+
+An incorrect answer stays in the denominator. This includes output that doesn’t follow the requested format: [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` with `reason="invalid_response_format"` when the expected answer pattern is absent. Use extraction rules that match the answer format requested in the task.
+
+Inspect provides two labels for incorrect or missing answers. Both map to `0.0` by default and both stay in the denominator:
+
+- **`INCORRECT`**: the model produced an answer that is wrong or unusable (including a format or instruction-following failure).
+- **`NOANSWER`**: the model produced nothing to grade, such as an empty completion or a detected refusal. Detection and labeling depend on the scorer.
+
+> **NOTE:**
+>
+> The default `mean` epoch reducer converts `NOANSWER` to `0.0` before metrics run, erasing the label. Metrics that distinguish `NOANSWER` from `INCORRECT` need scores that retain those labels; see [Reducing Epochs](./metrics.html.md#reducing-epochs).
+
+### Malfunctions
+
+An exception during scoring is recorded as a sample error. Failures can be transient or require a change to the code, inputs, or environment:
+
+- **Transient**: an API error, a network interruption, a container that died. A retry may succeed, and `retry_on_error` enables sample retries.
+- **A defect**: a bug in the solver or scorer, a broken environment, a missing or unusable reference answer. For example, [choice()](./reference/inspect_ai.scorer.html.md#choice) raises an error for a sample without choices, and [math()](./reference/inspect_ai.scorer.html.md#math) raises an error when none of the reference answers can be parsed.
+
+Exceptions route the sample to Inspect’s error-handling machinery. The error details are recorded in `sample.error`. See [Handling Errors](./handling-errors.html.md) for `retry_on_error`, `fail_on_error`, and `score_on_error`.
+
+### Unscoreable samples
+
+A scorer can complete without obtaining a verdict. For example, a grader model may return output from which the scorer cannot extract a grade. The built-in model graders record this as `Score.unscored(reason="grader_failed")`.
+
+`Score.unscored()` produces a [Score](./reference/inspect_ai.scorer.html.md#score) whose `value` is `NaN`, which Inspect excludes from metric computation. The score entry retains its reason and explanation, including the grader output for built-in model graders. See [Unscored Samples](./custom-scorers.html.md#unscored-samples) for the API details and [Interpreting coverage](#interpreting-coverage) for counts after epoch reduction.
+
+### Attribution: whose output failed?
+
+The source of an unparsable response determines how the scorer handles it:
+
+- **The model’s output**: extraction scorers such as [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` when the required answer pattern is absent.
+- **The grader’s output**: built-in model graders return an unscored result when the verdict cannot be parsed.
+
+The score’s `reason` and `explanation` identify the failure. For example, `invalid_response_format` on a pattern score describes the evaluated response, while `grader_failed` on a model-graded score describes the grading attempt.
+
+## Model-graded scorers
+
+When a model grades the model under test, the grader is the *measurement instrument*. Inspect’s built-in model graders make one grading request per grader. An unparsable verdict produces `Score.unscored(reason="grader_failed")`; there is no automatic verdict retry.
+
+The grading instructions specify the expected verdict format, and `grade_pattern` controls how the scorer extracts it. When customising the instructions, use a grade pattern that matches that format. See [Model Grading](./model-graded.html.md) for configuration and [Reproducible Grading](./model-graded.html.md#reproducible-grading) for generation settings.
+
+Grader API requests follow the model’s retry policy. An API exception that propagates to the scorer becomes a scoring error. The evaluation’s `retry_on_error` setting can rerun the whole sample, including the evaluated model’s generation. An unscored result completes scoring normally and does not trigger a sample retry.
+
+## Recording the reason
+
+Score entries can contain a human-readable `explanation` and a machine-readable `reason`. Reasons are available in logs and analysis dataframes (as `score_<name>_reason` columns).
+
+`reason` is a dedicated field on [Score](./reference/inspect_ai.scorer.html.md#score) (typed `ScoreReason | str | None`), stored independently of metadata. It is optional: a missing reason does not establish that scoring succeeded. Epoch reduction can discard reasons when they differ across epochs; the original reasons remain in the individual epoch scores.
+
+`ScoreReason` is a standard, IDE-discoverable vocabulary that makes failures groupable across evals, but the field also accepts any custom string:
+
+| Reason | Actor | Meaning |
+|----|----|----|
+| `invalid_response_format` | model under test | output unparsable / violates the requested format |
+| `refusal` | model under test | detected refusal to answer |
+| `no_response` | model under test | empty completion |
+| `grader_failed` | grader | grader could not provide a usable verdict |
+| `scoring_failed` | scorer | scorer could not provide a result |
+
+The vocabulary distinguishes failures by actor: model-under-test failures use `invalid_response_format`, `refusal`, or `no_response`; grader failures use `grader_failed`; and other scorer failures use `scoring_failed`. The explanation or scorer-specific metadata can contain finer-grained details.
+
+## Run settings
+
+The scorer determines the sample’s outcome; the run configuration determines how Inspect handles sample errors.
+
+- `fail_on_error` controls the failure threshold. The default (`True`) aborts the run on the first error. A numeric value sets a tolerance, and `False` allows the run to continue regardless of sample errors.
+- `retry_on_error` enables retries for sample errors. Each retry can rerun solving and scoring.
+- `score_on_error` enables scoring on partial state after a solver error.
+
+See [Handling Errors](./handling-errors.html.md) for configuration details.
+
+## Interpreting coverage
+
+The counts are recorded on each [EvalScore](./reference/inspect_ai.log.html.md#evalscore) as `scored_samples` and `unscored_samples`; errored samples are visible per-sample via `sample.error`. These counts describe the inputs to the metrics, after epoch reduction where applicable.
+
+With the default mean reducer, a sample with one correct epoch and one unscored epoch reduces to `1.0`, giving `scored_samples=1` and `unscored_samples=0`. Other reducers can handle unscored values differently; see [Reducing Epochs](./metrics.html.md#reducing-epochs).
+
+Individual epoch scores retain the original unscored results. A missing score entry, including a scorer returning `None`, does not add to the unscored count. With multiple scorers, each scorer’s metric results have their own counts.
+
+## See also
+
+- [Custom Scorers](./custom-scorers.html.md): writing scorers and the [Score](./reference/inspect_ai.scorer.html.md#score), [Value](./reference/inspect_ai.scorer.html.md#value), and [Target](./reference/inspect_ai.scorer.html.md#target) types.
+- [Model Grading](./model-graded.html.md): built-in model-graded scorers and how to customise them.
+- [Scoring Metrics](./metrics.html.md): metrics, epoch reducers, and custom metrics.
+- [Handling Errors](./handling-errors.html.md): `retry_on_error`, `fail_on_error`, and `score_on_error` at the run level.
 
 
 # Model Grading – Inspect
@@ -7374,6 +7539,8 @@ Because the grader sees dataset- and model-controlled text (the question, the su
 Grade extraction binds to the last grade. The default `grade_pattern` (`(?is).*(?<!\w)GRADE(?!\w)[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*:[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*([CPI])`) matches the last `GRADE: X` in the grader’s output, tolerating common zero-width formatting characters around the separator. The instructions tell the grader to end with its grade, so an earlier `GRADE: C` (echoed in chain-of-thought, or injected via the submission) does not win, and prose such as `downgrade:` is not treated as a verdict. If you customise `grade_pattern`, keep this behaviour in mind.
 
 Structural delimiters are neutralized. The default templates wrap content in `[BEGIN DATA]` / `[END DATA]` markers. Before formatting the prompt, Inspect rewrites any `[BEGIN DATA]` / `[END DATA]` markers that appear in the model-controlled `answer`, the `question`, the `criterion`, and any `metadata` values (for example to `[END-DATA]`) so a model cannot inject a fake delimiter and smuggle grading instructions into the prompt. The `instructions` you provide are author-controlled and left untouched.
+
+The built-in scorers make one grading request per grader. An unparsable verdict produces `Score.unscored(reason="grader_failed")` without retrying the verdict. The score retains the grader output and has a `NaN` value, which metrics exclude. See [Scoring Policy](./scoring-policy.html.md#interpreting-coverage) for how epoch reduction affects coverage counts.
 
 ## Reproducible Grading
 
@@ -9296,6 +9463,7 @@ Note that time and token intervals effectively checkpoint at `≥ N` because fir
 | `sandbox_paths` | Per-sandbox-name capture configuration: a list of absolute paths inside the sandbox to capture, or a [SandboxSnapshotConfig](./reference/inspect_ai.util.html.md#sandboxsnapshotconfig) that also selects the [snapshot strategy](#snapshot-strategies). Defaults to the sandbox user’s home directory, captured with the default strategy (incremental restic) — a bare path list carries no strategy selection of its own. |
 | `checkpoints_location` | Override the parent directory under which the per-eval checkpoint directory lands (defaults to a sibling of the eval log file). |
 | `max_consecutive_failures` | If set, fail the sample after N consecutive failed checkpoint attempts. Defaults to `None` (unlimited tolerance). Specify `0` to make any single failure fatal. |
+| `max_sandbox_snapshot_bytes` | Upper bound on the data one sandbox snapshot may transfer out of the sandbox per checkpoint (the restic strategy’s per-checkpoint delta, which is the full captured tree on the first checkpoint; or the archive strategy’s complete compressed archive). A snapshot exceeding it fails that checkpoint attempt. Unshipped restic data accumulates, so later attempts can keep failing; an archive attempt can recover if the archive shrinks below the cap. Repeated failures count toward `max_consecutive_failures`. Defaults to 4 GiB per transfer; this is not a total repository storage budget. |
 | `retention` | `"delete"` or `"retain"`. `"delete"` (default) removes the checkpoint directory on successful eval completion; `"retain"` keeps it. |
 
 A full Python example: {.caption-top .table}
@@ -9636,7 +9804,7 @@ In some cases you may want agents to initiate intervention. You can do this by p
 
 ### Ask User Tool
 
-The `ask_user()` tool enables models to request structured information from users. It uses the the [ACP Elicitation](https://agentclientprotocol.com/rfds/elicitation) standard, which provides for a variety of field types (text, boolean, enum, etc.)
+The `ask_user()` tool enables models to request structured information from users. It uses the [ACP Elicitation](https://agentclientprotocol.com/rfds/elicitation) standard, which provides for a variety of field types (text, boolean, enum, etc.)
 
 For example, here we add `ask_user()` to a [react()](./reference/inspect_ai.agent.html.md#react) agent:
 
@@ -10571,7 +10739,7 @@ background(worker)
 
 The above code demonstrates a couple of important characteristics of a sample background worker:
 
-1.  Background workers typically operate in a loop, often polling a a sandbox or other endpoint for activity. In a loop like this it’s important to sleep at regular intervals so your background work doesn’t monopolise CPU resources.
+1.  Background workers typically operate in a loop, often polling a sandbox or other endpoint for activity. In a loop like this it’s important to sleep at regular intervals so your background work doesn’t monopolise CPU resources.
 
 2.  When the sample ends, background workers are cancelled (which results in a cancelled error being raised in the worker). Therefore, if you need to do cleanup in your worker it should occur in a `finally` block.
 
@@ -11428,7 +11596,7 @@ Note that a separate bash process is created within the sandbox for each instanc
 
 ### Configuration
 
-Bash sessions require the use of a [Sandbox Environment](./sandboxing.html.md) for the execution of untrusted code.
+Bash sessions require the use of a [Sandbox Environment](./sandboxing.html.md) for the execution of untrusted code. Like [bash()](./reference/inspect_ai.tool.html.md#bash), the session runs as the sandbox’s default user unless a `user` is specified.
 
 ### Task Setup
 
@@ -11462,7 +11630,7 @@ The [text_editor()](./reference/inspect_ai.tool.html.md#text_editor) tool enable
 
 ### Configuration
 
-The text editor tools requires the use of a [Sandbox Environment](./sandboxing.html.md).
+The text editor tools requires the use of a [Sandbox Environment](./sandboxing.html.md). Like [bash()](./reference/inspect_ai.tool.html.md#bash), it runs as the sandbox’s default user unless a `user` is specified.
 
 ### Task Setup
 
@@ -12049,11 +12217,11 @@ The schema for the [memory()](./reference/inspect_ai.tool.html.md#memory) tool i
 
 The [think()](./reference/inspect_ai.tool.html.md#think) tool provides models with the ability to include an additional thinking step as part of getting to its final answer.
 
-Note that the [think()](./reference/inspect_ai.tool.html.md#think) tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios.
+Note that the [think()](./reference/inspect_ai.tool.html.md#think) tool is not a substitute for reasoning and extended thinking, but rather an alternate way of letting models express thinking that is better suited to some tool use scenarios.
 
 ### Usage
 
-You should read the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) in its entirely to understand where and where not to use the think tool. In summary, good contexts for the think tool include:
+You should read the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) in its entirety to understand where and where not to use the think tool. In summary, good contexts for the think tool include:
 
 1.  Tool output analysis. When models need to carefully process the output of previous tool calls before acting and might need to backtrack in its approach;
 2.  Policy-heavy environments. When models need to follow detailed guidelines and verify compliance; and
@@ -12725,7 +12893,7 @@ async def exec_remote(
     ...
 ```
 
-The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai.util.html.md#execremotestreamingoptions) and [ExecRemoteAwaitableOptions](./reference/inspect_ai.util.html.md#execremoteawaitableoptions)) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised.
+The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai.util.html.md#execremotestreamingoptions) and [ExecRemoteAwaitableOptions](./reference/inspect_ai.util.html.md#execremoteawaitableoptions)) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised. When `user` is omitted, the command runs as the sandbox’s default user (the user `sandbox().exec()` runs as).
 
 ### write_file()
 
@@ -13182,7 +13350,7 @@ async def exec_remote(
     ...
 ```
 
-The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai.util.html.md#execremotestreamingoptions) and [ExecRemoteAwaitableOptions](./reference/inspect_ai.util.html.md#execremoteawaitableoptions)) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised.
+The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai.util.html.md#execremotestreamingoptions) and [ExecRemoteAwaitableOptions](./reference/inspect_ai.util.html.md#execremoteawaitableoptions)) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised. When `user` is omitted, the command runs as the sandbox’s default user (the user `sandbox().exec()` runs as).
 
 ### write_file()
 
@@ -13656,7 +13824,7 @@ This example provides the model with the built-in [web browser](./tools-standard
 
 Whenever you enable approval mode, all tool calls must be handled in some fashion (otherwise they are rejected). However, approving every tool call can be quite tedious, and not all tool calls are necessarily worthy of human oversight.
 
-You can chain to together the `human` and `auto` approvers in an *approval policy* to only approve selected tool calls. For example, here we create a policy that asks for human approval of only interactive web browser tool calls:
+You can chain together the `human` and `auto` approvers in an *approval policy* to only approve selected tool calls. For example, here we create a policy that asks for human approval of only interactive web browser tool calls:
 
 ``` yaml
 approvers:
@@ -14737,6 +14905,8 @@ If a sample is retried, the original error(s) that induced the retries will be r
 
 Some evaluations are designed so that an error during the agent run is itself a meaningful (often failing) outcome — for example, a tool-using agent that crashes after producing partial state, or a benchmark where “the model errored” should count as a scoreable result rather than as missing data.
 
+This page covers the run-level options for tolerating errors. For the complementary authoring decision, namely what a scorer should return for a given failure (a [Score](./reference/inspect_ai.scorer.html.md#score), a `raise`, or `Score.unscored()`), see [Scoring Policy](./scoring-policy.html.md).
+
 The `score_on_error` option causes errored samples to be scored anyway (using whatever [TaskState](./reference/inspect_ai.solver.html.md#taskstate) was reached before the error), and prevents `fail_on_error` from crashing the eval mid-run:
 
 ``` bash
@@ -15477,7 +15647,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl process pause` | Pause a whole running eval or eval-set (`--now` also holds in-flight samples). |
 | `inspect ctl process resume` | Resume a paused eval or eval-set. |
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `store` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, `task drain` stops new samples while in-flight ones finish naturally, `sample requeue` re-runs an errored or cancelled sample (all idempotently, with `--dry-run` support), and `task score` / `sample score` score a running task’s samples (or one sample) without ending them (each in-flight sample is briefly held while its work-so-far is scored).
+e its work-so-far is scored).
 
 The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 

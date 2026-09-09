@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,13 +12,10 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
+code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: 1.5em;}
-div.column{flex: auto;}
-@media screen {
-div.columns{gap: min(4vw, 1.5em);}
-div.column{overflow-x: auto;}
-}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -45,10 +42,10 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -372,6 +369,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="./custom-scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Custom Scorers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scoring-policy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scoring Policy</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -723,22 +726,26 @@ ul.task-list li input[type="checkbox"] {
 <td>Write your own scorers using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#value">Value</a></span>, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#target">Target</a></span> types, including scorers that call models or inspect a sandbox.</td>
 </tr>
 <tr class="odd">
+<td><a href="./scoring-policy.html">Scoring Policy</a></td>
+<td>Route a sample-ending failure to the right outcome (score it, <code>raise</code>, or <code>Score.unscored()</code>) so metrics reflect the model, not the run machinery.</td>
+</tr>
+<tr class="even">
 <td><a href="./model-graded.html">Model Grading</a></td>
 <td>Use another model to grade open-ended answers; customise templates, instructions, grader models, and chat history.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><a href="./metrics.html">Scoring Metrics</a></td>
 <td>Built-in metrics, grouping, clustered standard errors, custom metrics, and reducing epochs.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><a href="./multiple-scorers.html">Multiple Scorers</a></td>
 <td>Use several scorers together, emit multiple scores from one scorer, and reduce multiple scores into one.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><a href="./scoring-workflow.html">Scoring Workflow</a></td>
 <td>Defer scoring with <code>--no-score</code>, re-score logs with <code>inspect score</code>, and edit scores.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><a href="./perplexity.html">Perplexity</a></td>
 <td>Score how well a model predicts text using prompt log probabilities.</td>
 </tr>

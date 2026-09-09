@@ -6,6 +6,7 @@ Scoring turns the raw `output` a model produces for each sample into a [Score](.
 |----|----|
 | [Standard Scorers](./standard-scorers.html.md) | The built-in scorers (text matching, multiple choice, math, model grading, perplexity) and how to choose among them. |
 | [Custom Scorers](./custom-scorers.html.md) | Write your own scorers using the [Score](./reference/inspect_ai.scorer.html.md#score), [Value](./reference/inspect_ai.scorer.html.md#value), and [Target](./reference/inspect_ai.scorer.html.md#target) types, including scorers that call models or inspect a sandbox. |
+| [Scoring Policy](./scoring-policy.html.md) | Route a sample-ending failure to the right outcome (score it, `raise`, or `Score.unscored()`) so metrics reflect the model, not the run machinery. |
 | [Model Grading](./model-graded.html.md) | Use another model to grade open-ended answers; customise templates, instructions, grader models, and chat history. |
 | [Scoring Metrics](./metrics.html.md) | Built-in metrics, grouping, clustered standard errors, custom metrics, and reducing epochs. |
 | [Multiple Scorers](./multiple-scorers.html.md) | Use several scorers together, emit multiple scores from one scorer, and reduce multiple scores into one. |

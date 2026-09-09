@@ -505,6 +505,7 @@
   "is_dockerfile": "inspect_ai.util.qmd#is_dockerfile",
   "ComposeConfig": "inspect_ai.util.qmd#composeconfig",
   "ComposeService": "inspect_ai.util.qmd#composeservice",
+  "ComposeVolumeMount": "inspect_ai.util.qmd#composevolumemount",
   "ComposeBuild": "inspect_ai.util.qmd#composebuild",
   "ComposeHealthcheck": "inspect_ai.util.qmd#composehealthcheck",
   "ViewerConfig": "inspect_ai.viewer.qmd#viewerconfig",

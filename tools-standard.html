@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,13 +12,10 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
+code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: 1.5em;}
-div.column{flex: auto;}
-@media screen {
-div.columns{gap: min(4vw, 1.5em);}
-div.column{overflow-x: auto;}
-}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -80,10 +77,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
 <link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
 <link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
@@ -410,6 +407,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./custom-scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Custom Scorers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scoring-policy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scoring Policy</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1099,7 +1102,7 @@ Note
 <p>Note that a separate bash process is created within the sandbox for each instance of the bash session tool. See the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash_session">bash_session()</a></span> reference docs for details on customizing this behavior.</p>
 <section id="configuration-1" class="level3">
 <h3 class="anchored" data-anchor-id="configuration-1">Configuration</h3>
-<p>Bash sessions require the use of a <a href="./sandboxing.html">Sandbox Environment</a> for the execution of untrusted code.</p>
+<p>Bash sessions require the use of a <a href="./sandboxing.html">Sandbox Environment</a> for the execution of untrusted code. Like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span>, the session runs as the sandbox’s default user unless a <code>user</code> is specified.</p>
 </section>
 <section id="task-setup" class="level3">
 <h3 class="anchored" data-anchor-id="task-setup">Task Setup</h3>
@@ -1129,7 +1132,7 @@ Note
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> tool enables viewing, creating and editing text files. The tool supports editing files within a protected <a href="./sandboxing.html">Sandbox Environment</a> so tasks that use the text editor should have a sandbox defined and configured as described below.</p>
 <section id="configuration-2" class="level3">
 <h3 class="anchored" data-anchor-id="configuration-2">Configuration</h3>
-<p>The text editor tools requires the use of a <a href="./sandboxing.html">Sandbox Environment</a>.</p>
+<p>The text editor tools requires the use of a <a href="./sandboxing.html">Sandbox Environment</a>. Like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span>, it runs as the sandbox’s default user unless a <code>user</code> is specified.</p>
 </section>
 <section id="task-setup-1" class="level3">
 <h3 class="anchored" data-anchor-id="task-setup-1">Task Setup</h3>
@@ -1728,10 +1731,10 @@ Warning
 <section id="sec-think" class="level2">
 <h2 class="anchored" data-anchor-id="sec-think">Think</h2>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#think">think()</a></span> tool provides models with the ability to include an additional thinking step as part of getting to its final answer.</p>
-<p>Note that the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#think">think()</a></span> tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios.</p>
+<p>Note that the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#think">think()</a></span> tool is not a substitute for reasoning and extended thinking, but rather an alternate way of letting models express thinking that is better suited to some tool use scenarios.</p>
 <section id="usage" class="level3">
 <h3 class="anchored" data-anchor-id="usage">Usage</h3>
-<p>You should read the original <a href="https://www.anthropic.com/engineering/claude-think-tool">think tool article</a> in its entirely to understand where and where not to use the think tool. In summary, good contexts for the think tool include:</p>
+<p>You should read the original <a href="https://www.anthropic.com/engineering/claude-think-tool">think tool article</a> in its entirety to understand where and where not to use the think tool. In summary, good contexts for the think tool include:</p>
 <ol type="1">
 <li>Tool output analysis. When models need to carefully process the output of previous tool calls before acting and might need to backtrack in its approach;</li>
 <li>Policy-heavy environments. When models need to follow detailed guidelines and verify compliance; and</li>

@@ -216,7 +216,7 @@ Note that a separate bash process is created within the sandbox for each instanc
 
 ### Configuration
 
-Bash sessions require the use of a [Sandbox Environment](./sandboxing.html.md) for the execution of untrusted code.
+Bash sessions require the use of a [Sandbox Environment](./sandboxing.html.md) for the execution of untrusted code. Like [bash()](./reference/inspect_ai.tool.html.md#bash), the session runs as the sandbox’s default user unless a `user` is specified.
 
 ### Task Setup
 
@@ -250,7 +250,7 @@ The [text_editor()](./reference/inspect_ai.tool.html.md#text_editor) tool enable
 
 ### Configuration
 
-The text editor tools requires the use of a [Sandbox Environment](./sandboxing.html.md).
+The text editor tools requires the use of a [Sandbox Environment](./sandboxing.html.md). Like [bash()](./reference/inspect_ai.tool.html.md#bash), it runs as the sandbox’s default user unless a `user` is specified.
 
 ### Task Setup
 
@@ -837,11 +837,11 @@ The schema for the [memory()](./reference/inspect_ai.tool.html.md#memory) tool i
 
 The [think()](./reference/inspect_ai.tool.html.md#think) tool provides models with the ability to include an additional thinking step as part of getting to its final answer.
 
-Note that the [think()](./reference/inspect_ai.tool.html.md#think) tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios.
+Note that the [think()](./reference/inspect_ai.tool.html.md#think) tool is not a substitute for reasoning and extended thinking, but rather an alternate way of letting models express thinking that is better suited to some tool use scenarios.
 
 ### Usage
 
-You should read the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) in its entirely to understand where and where not to use the think tool. In summary, good contexts for the think tool include:
+You should read the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) in its entirety to understand where and where not to use the think tool. In summary, good contexts for the think tool include:
 
 1.  Tool output analysis. When models need to carefully process the output of previous tool calls before acting and might need to backtrack in its approach;
 2.  Policy-heavy environments. When models need to follow detailed guidelines and verify compliance; and

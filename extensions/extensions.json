@@ -209,12 +209,34 @@
     ]
   },
   {
+    "id": "hermes-rubric",
+    "name": "Hermes Rubric",
+    "url": "https://github.com/hermes-labs-ai/hermes-rubric/blob/v1.2.1/docs/ADAPTERS.md#inspect-ai-scorer",
+    "desc": "Rubric-based scorer that preserves assessment details in Inspect score metadata and can report assessment failures as unscored.",
+    "author": "Hermes Labs",
+    "author_url": "https://hermes-labs.ai",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
     "id": "proofbundle",
     "name": "proofbundle",
     "url": "https://github.com/b7n0de/proofbundle",
     "desc": "Signed, offline-verifiable receipts for eval runs \u2014 Ed25519 over an RFC 6962 Merkle root. Binds what a run claimed and when; it does not attest that the evaluation itself was honest.",
     "author": "b7n0de",
     "author_url": "https://b7n0de.com",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "corrlog-for-inspect",
+    "name": "Corrlog for Inspect",
+    "url": "https://github.com/SaInT8888888888/corrlog",
+    "desc": "Emits signed Agent Correction Records on INCORRECT eval scores via Inspect hooks \u2014 Ed25519, hash-chained, key-pinned receipts evidencing caught agent failures, verifiable offline.",
+    "author": "SaInT8888888888",
+    "author_url": "https://github.com/SaInT8888888888",
     "categories": [
       "Analysis"
     ]

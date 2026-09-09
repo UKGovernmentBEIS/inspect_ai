@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Batch Mode – Inspect</title>
+<title>Scoring Policy – Inspect</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -23,41 +23,6 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-/* CSS for syntax highlighting */
-html { -webkit-text-size-adjust: 100%; }
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-  { counter-reset: source-line 0; }
-pre.numberSource code > span
-  { position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-  { content: counter(source-line);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-  }
-pre.numberSource { margin-left: 3em;  padding-left: 4px; }
-div.sourceCode
-  {   }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-}
 </style>
 
 
@@ -68,8 +33,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./scoring.html" rel="next">
-<link href="./structured.html" rel="prev">
+<link href="./model-graded.html" rel="next">
+<link href="./custom-scorers.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -226,7 +191,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./models-batch.html">Batch Mode</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./scoring.html">Scoring</a></li><li class="breadcrumb-item"><a href="./scoring-policy.html">Scoring Policy</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -316,13 +281,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
  <span class="menu-text">Models</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./models.html" class="sidebar-item-text sidebar-link">
@@ -379,7 +344,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models-batch.html" class="sidebar-item-text sidebar-link active">
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Batch Mode</span></a>
   </div>
 </li>
@@ -389,11 +354,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="sidebar-item-container"> 
             <a href="./scoring.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scoring</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./standard-scorers.html" class="sidebar-item-text sidebar-link">
@@ -408,7 +373,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./scoring-policy.html" class="sidebar-item-text sidebar-link">
+  <a href="./scoring-policy.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Scoring Policy</span></a>
   </div>
 </li>
@@ -720,19 +685,28 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#enabling-batch-mode" id="toc-enabling-batch-mode" class="nav-link" data-scroll-target="#enabling-batch-mode">Enabling Batch Mode</a></li>
-  <li><a href="#batch-configuration" id="toc-batch-configuration" class="nav-link" data-scroll-target="#batch-configuration">Batch Configuration</a></li>
-  <li><a href="#batch-processing-flow" id="toc-batch-processing-flow" class="nav-link" data-scroll-target="#batch-processing-flow">Batch Processing Flow</a></li>
-  <li><a href="#details-and-limitations" id="toc-details-and-limitations" class="nav-link" data-scroll-target="#details-and-limitations">Details and Limitations</a></li>
+  <li><a href="#the-three-outcomes" id="toc-the-three-outcomes" class="nav-link" data-scroll-target="#the-three-outcomes">The three outcomes</a></li>
+  <li><a href="#interpreting-an-outcome" id="toc-interpreting-an-outcome" class="nav-link" data-scroll-target="#interpreting-an-outcome">Interpreting an outcome</a>
+  <ul class="collapse">
+  <li><a href="#verdicts-on-the-model" id="toc-verdicts-on-the-model" class="nav-link" data-scroll-target="#verdicts-on-the-model">Verdicts on the model</a></li>
+  <li><a href="#malfunctions" id="toc-malfunctions" class="nav-link" data-scroll-target="#malfunctions">Malfunctions</a></li>
+  <li><a href="#unscoreable-samples" id="toc-unscoreable-samples" class="nav-link" data-scroll-target="#unscoreable-samples">Unscoreable samples</a></li>
+  <li><a href="#attribution-whose-output-failed" id="toc-attribution-whose-output-failed" class="nav-link" data-scroll-target="#attribution-whose-output-failed">Attribution: whose output failed?</a></li>
+  </ul></li>
+  <li><a href="#model-graded-scorers" id="toc-model-graded-scorers" class="nav-link" data-scroll-target="#model-graded-scorers">Model-graded scorers</a></li>
+  <li><a href="#recording-the-reason" id="toc-recording-the-reason" class="nav-link" data-scroll-target="#recording-the-reason">Recording the reason</a></li>
+  <li><a href="#run-settings" id="toc-run-settings" class="nav-link" data-scroll-target="#run-settings">Run settings</a></li>
+  <li><a href="#interpreting-coverage" id="toc-interpreting-coverage" class="nav-link" data-scroll-target="#interpreting-coverage">Interpreting coverage</a></li>
+  <li><a href="#see-also" id="toc-see-also" class="nav-link" data-scroll-target="#see-also">See also</a></li>
   </ul>
 </nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./models-batch.html">Batch Mode</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./scoring.html">Scoring</a></li><li class="breadcrumb-item"><a href="./scoring-policy.html">Scoring Policy</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Batch Mode</h1>
+<h1 class="title">Scoring Policy</h1>
 </div>
 
 
@@ -751,118 +725,222 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Inspect supports calling the batch processing APIs for <a href="https://platform.openai.com/docs/guides/batch">OpenAI</a>, <a href="https://docs.anthropic.com/en/docs/build-with-claude/batch-processing">Anthropic</a>, <a href="https://ai.google.dev/gemini-api/docs/batch-mode">Google</a>, <a href="https://docs.x.ai/developers/advanced-api-usage/batch-api">xAI</a>, and <a href="https://docs.together.ai/docs/batch-inference">Together AI</a> models. Batch processing has lower token costs (typically 50% of normal costs) and higher rate limits, but also substantially longer processing times—batched generations typically complete within an hour but can take much longer (up to 24 hours).</p>
-<p>When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider’s batch API rather than making individual API calls.</p>
-<div class="callout callout-style-default callout-important callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Important
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>When considering whether to use batch processing for an evaluation, you should assess whether your usage pattern is a good fit for batch APIs. Generally evaluations that have a small number of sequential generations (e.g.&nbsp;a QA eval with a model scorer) are a good fit, as these will often complete in a small number of batches without taking many hours.</p>
-<p>On the other hand, evaluations with a large and/or variable number of generations (e.g.&nbsp;agentic tasks) can often take many hours or days due to both the large number of batches that must be waited on and the path dependency created between requests in a batch.</p>
-</div>
-</div>
+<p>A scorer’s job is to turn what a model did on a sample into a verdict about the model’s capability on the task, which Inspect then aggregates into the metrics that summarise the evaluation. The model under test (MUT) produces an answer, the scorer judges it correct or incorrect, and that verdict counts.</p>
+<p>The model can fail with a wrong answer or output that doesn’t follow the requested format. The <em>run machinery</em> can also break (an API error, a dead container, a bug in the scoring code), and where a grader model or other measurement instrument is involved, the <em>instrument itself</em> can fail to produce a reading. A grader model is part of the measurement instrument; its output determines whether the evaluated response receives a verdict.</p>
+<p>These outcomes affect the metric denominator differently. The <a href="#the-three-outcomes">worked example</a> below shows how Inspect aggregates them.</p>
 </section>
-<section id="enabling-batch-mode" class="level2">
-<h2 class="anchored" data-anchor-id="enabling-batch-mode">Enabling Batch Mode</h2>
-<p>Pass the <code>--batch</code> CLI option or <code>batch=True</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> in order to enable batch processing for providers that support it. The <code>--batch</code> option supports several formats:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Enable batching with default configuration</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o <span class="at">--batch</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Specify a batch size (e.g. 1000 requests per batch)</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o <span class="at">--batch</span> 1000</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Pass a YAML or JSON config file with batch configuration</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o <span class="at">--batch</span> batch.yml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Or from Python:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>, batch<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>, batch<span class="op">=</span><span class="dv">1000</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>If a provider does not support batch processing the <code>batch</code> option is ignored for that provider.</p>
-</section>
-<section id="batch-configuration" class="level2">
-<h2 class="anchored" data-anchor-id="batch-configuration">Batch Configuration</h2>
-<p>For more advanced batch processing configuration, you can specify a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#batchconfig">BatchConfig</a></span> object in Python or pass a YAML/JSON config file via the <code>--batch</code> option. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> BatchConfig</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>, </span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    batch<span class="op">=</span>BatchConfig(size<span class="op">=</span><span class="dv">200</span>, send_delay<span class="op">=</span><span class="dv">60</span>)</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Available <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#batchconfig">BatchConfig</a></span> options include:</p>
+<section id="the-three-outcomes" class="level2">
+<h2 class="anchored" data-anchor-id="the-three-outcomes">The three outcomes</h2>
+<p>A scorer has three ways to record what happened on a sample, and each routes to different downstream handling:</p>
+<ul>
+<li><strong>Return a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span></strong> with a verdict on the model. It counts in the denominator of the resultant metrics.</li>
+<li><strong>Raise an error</strong> when scoring fails. The exception is recorded in <code>sample.error</code>, and the failing scorer produces no score. The run’s <a href="./handling-errors.html#sample-retries"><code>retry_on_error</code></a> and <a href="./handling-errors.html#failure-threshold"><code>fail_on_error</code></a> settings control sample retries and the failure threshold.</li>
+<li><strong>Return <code>Score.unscored()</code></strong> when the scorer could not render a verdict. This creates a score with a <code>NaN</code> value, preserving any reason and explanation. The value is excluded from metrics, with unscored counts calculated after epoch reduction.</li>
+</ul>
+<p>A scorer can also return <code>None</code>, leaving no score entry and adding nothing to <code>unscored_samples</code>. See <a href="./custom-scorers.html#unscored-samples">Custom Scorers</a> for how scorers handle samples outside their scope.</p>
+<p>Using <code>accuracy</code> as an example, a run with one correct answer, one incorrect answer, one scoring error, and one unparsable grader verdict will report an accuracy of <strong>0.5</strong>, provided the run continues after the error. This example uses a single scorer and one epoch per sample:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 30%">
-<col style="width: 70%">
+<col style="width: 15%">
+<col style="width: 35%">
+<col style="width: 15%">
+<col style="width: 35%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Option</th>
-<th>Description</th>
+<th>Sample</th>
+<th>Scorer outcome</th>
+<th>Value</th>
+<th>Counts in denominator?</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>size</code></td>
-<td>Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits.</td>
+<td>1</td>
+<td><code>Score(value=CORRECT)</code></td>
+<td><code>1.0</code></td>
+<td>yes</td>
 </tr>
 <tr class="even">
-<td><code>send_delay</code></td>
-<td>Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low.</td>
+<td>2</td>
+<td><code>Score(value=INCORRECT)</code></td>
+<td><code>0.0</code></td>
+<td>yes</td>
 </tr>
 <tr class="odd">
-<td><code>tick</code></td>
-<td>Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds.</td>
+<td>3</td>
+<td><code>raise</code></td>
+<td>n/a</td>
+<td>no (errored)</td>
 </tr>
 <tr class="even">
-<td><code>max_batches</code></td>
-<td>Maximum number of batches to have in flight at once for a provider (defaults to 100).</td>
+<td>4</td>
+<td><code>Score.unscored()</code></td>
+<td><code>NaN</code></td>
+<td>no (unscored)</td>
 </tr>
 </tbody>
 </table>
+<p>Only samples 1 and 2 are scored, so <code>accuracy = 1 / 2 = 0.5</code>, with <code>scored_samples = 2</code> and <code>unscored_samples = 1</code>; the errored sample is recorded separately via <code>sample.error</code>.</p>
+<p>With multiple scorers, scores are retained as each scorer completes. If one scorer succeeds before another raises, the earlier score survives alongside <code>sample.error</code> and contributes to its scorer’s metrics if the run continues.</p>
+<p>The <a href="./handling-errors.html#scoring-errored-samples"><code>score_on_error</code></a> run option enables scoring after errors raised during <em>solving</em>: it runs the scorer on whatever partial state was reached and counts the result. If sample 3 had errored mid-solve and its partial state scored <code>INCORRECT</code>, it would enter the denominator and accuracy would read <code>1 / 3</code>. The solver error remains recorded in <code>sample.error</code>.</p>
 </section>
-<section id="batch-processing-flow" class="level2">
-<h2 class="anchored" data-anchor-id="batch-processing-flow">Batch Processing Flow</h2>
-<p>When batch processing is enabled, the following steps are taken when handling generation requests:</p>
-<ol type="1">
-<li><p><strong>Request Queuing</strong>: Individual model requests are queued rather than sent immediately</p></li>
-<li><p><strong>Batch Formation</strong>: Requests are grouped into batches based on size limits and timeouts.</p></li>
-<li><p><strong>Batch Submission</strong>: Complete batches are submitted to the provider’s batch API.</p></li>
-<li><p><strong>Status Monitoring</strong>: Inspect periodically checks batch completion status.</p></li>
-<li><p><strong>Result Distribution</strong>: When batches complete, results are distributed back to the original requests</p></li>
-</ol>
-<p>These steps are transparent to the caller, however do have implications for total evaluation time as discussed above.</p>
-</section>
-<section id="details-and-limitations" class="level2">
-<h2 class="anchored" data-anchor-id="details-and-limitations">Details and Limitations</h2>
-<p>See the following documentation for additional provider-specific details on batch processing, including token costs, rate limits, and limitations:</p>
+<section id="interpreting-an-outcome" class="level2">
+<h2 class="anchored" data-anchor-id="interpreting-an-outcome">Interpreting an outcome</h2>
+<p>The score value, reason, explanation, and sample error describe what happened during scoring:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 35%">
+<col style="width: 65%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Recorded outcome</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Scored verdict</td>
+<td>The scorer assigned a value to the evaluated response</td>
+</tr>
+<tr class="even">
+<td>Scoring error</td>
+<td>Scoring encountered an execution failure or invalid inputs</td>
+</tr>
+<tr class="odd">
+<td>Unscored result</td>
+<td>The scorer did not obtain a verdict</td>
+</tr>
+</tbody>
+</table>
+<p>The sections below work through each outcome and the details recorded by Inspect.</p>
+<section id="verdicts-on-the-model" class="level3">
+<h3 class="anchored" data-anchor-id="verdicts-on-the-model">Verdicts on the model</h3>
+<p>An incorrect answer stays in the denominator. This includes output that doesn’t follow the requested format: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#answer">answer()</a></span> return <code>INCORRECT</code> with <code>reason="invalid_response_format"</code> when the expected answer pattern is absent. Use extraction rules that match the answer format requested in the task.</p>
+<p>Inspect provides two labels for incorrect or missing answers. Both map to <code>0.0</code> by default and both stay in the denominator:</p>
 <ul>
-<li><p><a href="https://platform.openai.com/docs/guides/batch">Open AI Batch Processing</a></p></li>
-<li><p><a href="https://docs.anthropic.com/en/docs/build-with-claude/batch-processing">Anthropic Batch Processing</a></p></li>
-<li><p><a href="https://ai.google.dev/gemini-api/docs/batch-mode">Google Batch Mode</a><a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p></li>
-<li><p><a href="https://docs.x.ai/developers/advanced-api-usage/batch-api">xAI Batch API</a></p></li>
-<li><p><a href="https://docs.together.ai/docs/batch-inference">Together AI Batch Inference</a></p></li>
+<li><strong><code>INCORRECT</code></strong>: the model produced an answer that is wrong or unusable (including a format or instruction-following failure).</li>
+<li><strong><code>NOANSWER</code></strong>: the model produced nothing to grade, such as an empty completion or a detected refusal. Detection and labeling depend on the scorer.</li>
 </ul>
-<p>In general, you should keep the following limitations in mind when using batch processing:</p>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The default <code>mean</code> epoch reducer converts <code>NOANSWER</code> to <code>0.0</code> before metrics run, erasing the label. Metrics that distinguish <code>NOANSWER</code> from <code>INCORRECT</code> need scores that retain those labels; see <a href="./metrics.html#reducing-epochs">Reducing Epochs</a>.</p>
+</div>
+</div>
+</div>
+</section>
+<section id="malfunctions" class="level3">
+<h3 class="anchored" data-anchor-id="malfunctions">Malfunctions</h3>
+<p>An exception during scoring is recorded as a sample error. Failures can be transient or require a change to the code, inputs, or environment:</p>
 <ul>
-<li><p>Batches may take up to 24 hours to complete.</p></li>
-<li><p>Evaluations with many turns will wait for many batches (each potentially taking many hours), and samples will generally take longer as requests need to additionally wait on the other requests in their batch before proceeding to the next turn.</p></li>
-<li><p>If you are using sandboxes then your machine’s resources may place an upper limit on the number of concurrent samples you have (correlated to the number of CPU cores, which will reduce batch sizes.</p></li>
+<li><strong>Transient</strong>: an API error, a network interruption, a container that died. A retry may succeed, and <code>retry_on_error</code> enables sample retries.</li>
+<li><strong>A defect</strong>: a bug in the solver or scorer, a broken environment, a missing or unusable reference answer. For example, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#choice">choice()</a></span> raises an error for a sample without choices, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#math">math()</a></span> raises an error when none of the reference answers can be parsed.</li>
+</ul>
+<p>Exceptions route the sample to Inspect’s error-handling machinery. The error details are recorded in <code>sample.error</code>. See <a href="./handling-errors.html">Handling Errors</a> for <code>retry_on_error</code>, <code>fail_on_error</code>, and <code>score_on_error</code>.</p>
+</section>
+<section id="unscoreable-samples" class="level3">
+<h3 class="anchored" data-anchor-id="unscoreable-samples">Unscoreable samples</h3>
+<p>A scorer can complete without obtaining a verdict. For example, a grader model may return output from which the scorer cannot extract a grade. The built-in model graders record this as <code>Score.unscored(reason="grader_failed")</code>.</p>
+<p><code>Score.unscored()</code> produces a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span> whose <code>value</code> is <code>NaN</code>, which Inspect excludes from metric computation. The score entry retains its reason and explanation, including the grader output for built-in model graders. See <a href="./custom-scorers.html#unscored-samples">Unscored Samples</a> for the API details and <a href="#interpreting-coverage">Interpreting coverage</a> for counts after epoch reduction.</p>
+</section>
+<section id="attribution-whose-output-failed" class="level3">
+<h3 class="anchored" data-anchor-id="attribution-whose-output-failed">Attribution: whose output failed?</h3>
+<p>The source of an unparsable response determines how the scorer handles it:</p>
+<ul>
+<li><strong>The model’s output</strong>: extraction scorers such as <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#answer">answer()</a></span> return <code>INCORRECT</code> when the required answer pattern is absent.</li>
+<li><strong>The grader’s output</strong>: built-in model graders return an unscored result when the verdict cannot be parsed.</li>
+</ul>
+<p>The score’s <code>reason</code> and <code>explanation</code> identify the failure. For example, <code>invalid_response_format</code> on a pattern score describes the evaluated response, while <code>grader_failed</code> on a model-graded score describes the grading attempt.</p>
+</section>
+</section>
+<section id="model-graded-scorers" class="level2">
+<h2 class="anchored" data-anchor-id="model-graded-scorers">Model-graded scorers</h2>
+<p>When a model grades the model under test, the grader is the <em>measurement instrument</em>. Inspect’s built-in model graders make one grading request per grader. An unparsable verdict produces <code>Score.unscored(reason="grader_failed")</code>; there is no automatic verdict retry.</p>
+<p>The grading instructions specify the expected verdict format, and <code>grade_pattern</code> controls how the scorer extracts it. When customising the instructions, use a grade pattern that matches that format. See <a href="./model-graded.html">Model Grading</a> for configuration and <a href="./model-graded.html#reproducible-grading">Reproducible Grading</a> for generation settings.</p>
+<p>Grader API requests follow the model’s retry policy. An API exception that propagates to the scorer becomes a scoring error. The evaluation’s <code>retry_on_error</code> setting can rerun the whole sample, including the evaluated model’s generation. An unscored result completes scoring normally and does not trigger a sample retry.</p>
+</section>
+<section id="recording-the-reason" class="level2">
+<h2 class="anchored" data-anchor-id="recording-the-reason">Recording the reason</h2>
+<p>Score entries can contain a human-readable <code>explanation</code> and a machine-readable <code>reason</code>. Reasons are available in logs and analysis dataframes (as <code>score_&lt;name&gt;_reason</code> columns).</p>
+<p><code>reason</code> is a dedicated field on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span> (typed <code>ScoreReason | str | None</code>), stored independently of metadata. It is optional: a missing reason does not establish that scoring succeeded. Epoch reduction can discard reasons when they differ across epochs; the original reasons remain in the individual epoch scores.</p>
+<p><code>ScoreReason</code> is a standard, IDE-discoverable vocabulary that makes failures groupable across evals, but the field also accepts any custom string:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 30%">
+<col style="width: 20%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Reason</th>
+<th>Actor</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>invalid_response_format</code></td>
+<td>model under test</td>
+<td>output unparsable / violates the requested format</td>
+</tr>
+<tr class="even">
+<td><code>refusal</code></td>
+<td>model under test</td>
+<td>detected refusal to answer</td>
+</tr>
+<tr class="odd">
+<td><code>no_response</code></td>
+<td>model under test</td>
+<td>empty completion</td>
+</tr>
+<tr class="even">
+<td><code>grader_failed</code></td>
+<td>grader</td>
+<td>grader could not provide a usable verdict</td>
+</tr>
+<tr class="odd">
+<td><code>scoring_failed</code></td>
+<td>scorer</td>
+<td>scorer could not provide a result</td>
+</tr>
+</tbody>
+</table>
+<p>The vocabulary distinguishes failures by actor: model-under-test failures use <code>invalid_response_format</code>, <code>refusal</code>, or <code>no_response</code>; grader failures use <code>grader_failed</code>; and other scorer failures use <code>scoring_failed</code>. The explanation or scorer-specific metadata can contain finer-grained details.</p>
+</section>
+<section id="run-settings" class="level2">
+<h2 class="anchored" data-anchor-id="run-settings">Run settings</h2>
+<p>The scorer determines the sample’s outcome; the run configuration determines how Inspect handles sample errors.</p>
+<ul>
+<li><code>fail_on_error</code> controls the failure threshold. The default (<code>True</code>) aborts the run on the first error. A numeric value sets a tolerance, and <code>False</code> allows the run to continue regardless of sample errors.</li>
+<li><code>retry_on_error</code> enables retries for sample errors. Each retry can rerun solving and scoring.</li>
+<li><code>score_on_error</code> enables scoring on partial state after a solver error.</li>
+</ul>
+<p>See <a href="./handling-errors.html">Handling Errors</a> for configuration details.</p>
+</section>
+<section id="interpreting-coverage" class="level2">
+<h2 class="anchored" data-anchor-id="interpreting-coverage">Interpreting coverage</h2>
+<p>The counts are recorded on each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalscore">EvalScore</a></span> as <code>scored_samples</code> and <code>unscored_samples</code>; errored samples are visible per-sample via <code>sample.error</code>. These counts describe the inputs to the metrics, after epoch reduction where applicable.</p>
+<p>With the default mean reducer, a sample with one correct epoch and one unscored epoch reduces to <code>1.0</code>, giving <code>scored_samples=1</code> and <code>unscored_samples=0</code>. Other reducers can handle unscored values differently; see <a href="./metrics.html#reducing-epochs">Reducing Epochs</a>.</p>
+<p>Individual epoch scores retain the original unscored results. A missing score entry, including a scorer returning <code>None</code>, does not add to the unscored count. With multiple scorers, each scorer’s metric results have their own counts.</p>
+</section>
+<section id="see-also" class="level2">
+<h2 class="anchored" data-anchor-id="see-also">See also</h2>
+<ul>
+<li><a href="./custom-scorers.html">Custom Scorers</a>: writing scorers and the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#value">Value</a></span>, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#target">Target</a></span> types.</li>
+<li><a href="./model-graded.html">Model Grading</a>: built-in model-graded scorers and how to customise them.</li>
+<li><a href="./metrics.html">Scoring Metrics</a>: metrics, epoch reducers, and custom metrics.</li>
+<li><a href="./handling-errors.html">Handling Errors</a>: <code>retry_on_error</code>, <code>fail_on_error</code>, and <code>score_on_error</code> at the run level.</li>
 </ul>
 
 
 </section>
 
-
-<div id="quarto-appendix" class="default"><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
-
-<ol>
-<li id="fn1"><p>Web search and thinking are not currently supported by Google’s batch mode<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-</ol>
-</section></div></main> <!-- /main -->
+</main> <!-- /main -->
 <div id="copy-page-btn" class="btn-group" style="display:none;">
   <button type="button" class="btn btn-sm btn-light" id="copy-page-action" title="Copy page as Markdown">
     <i class="bi bi-clipboard"></i> Copy page
@@ -1377,13 +1455,13 @@ document.addEventListener("DOMContentLoaded", function () {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./structured.html" class="pagination-link" aria-label="Structured Output">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Structured Output</span>
+      <a href="./custom-scorers.html" class="pagination-link" aria-label="Custom Scorers">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Custom Scorers</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./scoring.html" class="pagination-link" aria-label="Scoring">
-        <span class="nav-page-text">Scoring</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./model-graded.html" class="pagination-link" aria-label="Model Grading">
+        <span class="nav-page-text">Model Grading</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
