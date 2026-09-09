@@ -13,7 +13,7 @@ from anyio.abc import ByteReceiveStream
 
 import inspect_ai.util._subprocess as _subprocess_mod
 from inspect_ai.util import subprocess
-from inspect_ai.util._subprocess import _log_stream
+from inspect_ai.util._subprocess import _log_stream, run_subprocess
 from inspect_ai.util._subprocess import logger as _subprocess_logger
 
 
@@ -70,6 +70,31 @@ async def test_subprocess_stdin_child_exits_without_reading():
     assert result.success is False
     assert result.returncode == 3
     assert result.stderr.strip() == "gave up"
+
+
+@pytest.mark.anyio
+async def test_run_subprocess_reports_whether_stdin_was_written():
+    """`run_subprocess()` tells a caller that the child left its stdin unread.
+
+    `subprocess()` deliberately hides this (the child's result is the answer),
+    but the Docker compose retry needs the signal, so it is exposed alongside
+    the same result.
+    """
+    unread = await run_subprocess(
+        ["python3", "-c", "import sys; sys.exit(3)"], input=_LARGE_IO
+    )
+    assert unread.stdin_written is False
+    assert unread.result.returncode == 3
+
+    read = await run_subprocess(
+        ["python3", "-c", "import sys; sys.stdin.buffer.read()"], input=_LARGE_IO
+    )
+    assert read.stdin_written is True
+    assert read.result.success is True
+
+    no_input = await run_subprocess(["python3", "-c", "import sys; sys.exit(3)"])
+    assert no_input.stdin_written is True
+    assert no_input.result.returncode == 3
 
 
 @pytest.mark.anyio

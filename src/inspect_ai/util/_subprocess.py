@@ -4,6 +4,7 @@ import io
 import os
 import shlex
 from collections import deque
+from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
 from logging import getLogger
@@ -47,6 +48,24 @@ class ExecResult(Generic[T]):
 
     stderr: T
     """Contents of stderr."""
+
+
+@dataclass(frozen=True)
+class SubprocessRun(Generic[T]):
+    """Result of `run_subprocess()`: the `ExecResult` plus stdin delivery status."""
+
+    result: ExecResult[T]
+    """The command's result, as `subprocess()` would return it."""
+
+    stdin_written: bool
+    """Whether `input` was fully written to the child's stdin.
+
+    Trivially `True` when no input was given. `False` means the child exited
+    (or closed its stdin) before the write finished; `result` still carries the
+    child's exit status and output. Input smaller than the OS pipe buffer is
+    accepted by the kernel whether or not the child reads it, so `True` does
+    not imply the child consumed it.
+    """
 
 
 @overload
@@ -121,6 +140,82 @@ async def subprocess(
     Raises:
        TimeoutError: If the specified `timeout` expires.
     """
+    run = await run_subprocess(
+        args,
+        text,
+        input=input,
+        cwd=cwd,
+        env=env,
+        capture_output=capture_output,
+        output_limit=output_limit,
+        timeout=timeout,
+        concurrency=concurrency,
+    )
+    return run.result
+
+
+@overload
+async def run_subprocess(
+    args: str | list[str],
+    text: Literal[True] = True,
+    input: str | bytes | memoryview | None = None,
+    cwd: str | Path | None = None,
+    env: dict[str, str] | None = None,
+    capture_output: bool = True,
+    output_limit: int | None = None,
+    timeout: int | None = None,
+    concurrency: bool = True,
+) -> SubprocessRun[str]: ...
+
+
+@overload
+async def run_subprocess(
+    args: str | list[str],
+    text: Literal[False],
+    input: str | bytes | memoryview | None = None,
+    cwd: str | Path | None = None,
+    env: dict[str, str] | None = None,
+    capture_output: bool = True,
+    output_limit: int | None = None,
+    timeout: int | None = None,
+    concurrency: bool = True,
+) -> SubprocessRun[bytes]: ...
+
+
+@overload
+async def run_subprocess(
+    args: str | list[str],
+    text: bool,
+    input: str | bytes | memoryview | None = None,
+    cwd: str | Path | None = None,
+    env: dict[str, str] | None = None,
+    capture_output: bool = True,
+    output_limit: int | None = None,
+    timeout: int | None = None,
+    concurrency: bool = True,
+) -> SubprocessRun[str] | SubprocessRun[bytes]: ...
+
+
+async def run_subprocess(
+    args: str | list[str],
+    text: bool = True,
+    input: str | bytes | memoryview | None = None,
+    cwd: str | Path | None = None,
+    env: dict[str, str] | None = None,
+    capture_output: bool = True,
+    output_limit: int | None = None,
+    timeout: int | None = None,
+    concurrency: bool = True,
+) -> SubprocessRun[str] | SubprocessRun[bytes]:
+    """`subprocess()` that also reports whether `input` reached the child.
+
+    A child that exits before reading its stdin is not an error for
+    `subprocess()` (its `ExecResult` says what happened), but some callers
+    need to know that it happened: the Docker compose CLI does this when
+    dockerd fails the exec attach under load, and such a command should be
+    retried rather than have its result believed. Same arguments, raises and
+    semantics as `subprocess()`; see there.
+    """
     # resolve input
     input = (
         input.encode()
@@ -130,7 +225,7 @@ async def subprocess(
         else None
     )
 
-    async def run_command() -> Union[ExecResult[str], ExecResult[bytes]]:
+    async def run_command() -> SubprocessRun[str] | SubprocessRun[bytes]:
         redirect_output_to_logger = (
             not capture_output
             and os.environ.get("INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER") is not None
@@ -149,32 +244,48 @@ async def subprocess(
             else:
                 consume = functools.partial(_read_stream, output_limit=output_limit)
 
+            stdin_written = True
+
+            async def write_stdin() -> bytes:
+                nonlocal stdin_written
+                stdin_written = await _write_stdin(process.stdin, input)
+                return bytes()
+
             # Feed stdin alongside the readers rather than before them: a child
             # that fills its stdout pipe before reading stdin would otherwise
             # block us on the write while we block it on the read.
-            stdout, stderr, _ = await tg_collect(
-                [
-                    functools.partial(consume, process.stdout),
-                    functools.partial(consume, process.stderr),
-                    functools.partial(_write_stdin, process.stdin, input),
-                ]
-            )
+            io_tasks: list[Callable[[], Awaitable[bytes]]] = [
+                functools.partial(consume, process.stdout),
+                functools.partial(consume, process.stderr),
+                write_stdin,
+            ]
+            stdout, stderr, _ = await tg_collect(io_tasks)
 
             returncode = await process.wait()
             success = returncode == 0
             if text:
-                return ExecResult[str](
-                    success=success,
-                    returncode=returncode,
-                    stdout=stdout.decode(errors="replace") if capture_output else "",
-                    stderr=stderr.decode(errors="replace") if capture_output else "",
+                return SubprocessRun(
+                    result=ExecResult[str](
+                        success=success,
+                        returncode=returncode,
+                        stdout=stdout.decode(errors="replace")
+                        if capture_output
+                        else "",
+                        stderr=stderr.decode(errors="replace")
+                        if capture_output
+                        else "",
+                    ),
+                    stdin_written=stdin_written,
                 )
             else:
-                return ExecResult[bytes](
-                    success=success,
-                    returncode=returncode,
-                    stdout=stdout if capture_output else bytes(),
-                    stderr=stderr if capture_output else bytes(),
+                return SubprocessRun(
+                    result=ExecResult[bytes](
+                        success=success,
+                        returncode=returncode,
+                        stdout=stdout if capture_output else bytes(),
+                        stderr=stderr if capture_output else bytes(),
+                    ),
+                    stdin_written=stdin_written,
                 )
         # Handle cancellation before aclose() is called to avoid deadlock.
         except anyio.get_cancelled_exc_class():
@@ -208,7 +319,7 @@ async def subprocess(
                     _warn_lost_subprocess(process, "aclose")
 
     # wrapper for run command that implements timeout
-    async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
+    async def run_command_timeout() -> SubprocessRun[str] | SubprocessRun[bytes]:
         # wrap in timeout handler if requested
         if timeout is not None:
             with anyio.fail_after(timeout):
@@ -310,7 +421,7 @@ async def gracefully_terminate_cancelled_subprocess(process: Process) -> None:
             pass
 
 
-async def _write_stdin(stream: ByteSendStream | None, input: bytes | None) -> bytes:
+async def _write_stdin(stream: ByteSendStream | None, input: bytes | None) -> bool:
     """Write `input` to the child's stdin and close it.
 
     A child that exits or closes its stdin before consuming the input makes the
@@ -321,15 +432,15 @@ async def _write_stdin(stream: ByteSendStream | None, input: bytes | None) -> by
     is timing-dependent, so tolerating it here is what makes such commands
     behave deterministically.
 
-    Returns empty bytes so it can be collected alongside the stream readers.
+    Returns whether the input was fully written (`True` when there was none).
     """
     if stream is not None and input:
         try:
             await stream.send(input)
             await stream.aclose()
         except (BrokenResourceError, ClosedResourceError):
-            pass
-    return bytes()
+            return False
+    return True
 
 
 async def drain_stream(stream: ByteReceiveStream | None) -> None:
