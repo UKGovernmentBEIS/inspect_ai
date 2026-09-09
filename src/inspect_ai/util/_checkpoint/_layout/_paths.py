@@ -105,12 +105,16 @@ def sample_dir_segment(sample_id: int | str) -> str:
     of some other id.
 
     Both the write path (``ensure_sample_checkpoints_dir``) and the
-    resume lookup (``has_sample_checkpoint`` / ``sample_checkpoints_dir``)
-    derive the dir name here, so they agree by construction.
+    resume lookup (``resolve_resume_checkpoint`` via
+    ``sample_checkpoints_dir``) derive the dir name here, so they agree
+    by construction.
     """
     text = str(sample_id)
     if _is_passthrough_segment(text):
         return text
+    # `surrogatepass` only here: a lone surrogate never passes through (the
+    # filesystem could not encode it as a name), but it still needs a
+    # deterministic hash.
     encoded = text.encode("utf-8", "surrogatepass")
     digest = hashlib.sha256(encoded).hexdigest()
     # The prefix exists only for readability: `safe_filename` keeps a
@@ -123,7 +127,12 @@ def sample_dir_segment(sample_id: int | str) -> str:
 def _is_passthrough_segment(text: str) -> bool:
     if _HASH_JOINER in text:
         return False
-    if len(text.encode("utf-8", "surrogatepass")) > _MAX_PASSTHROUGH_BYTES:
+    try:
+        encoded = text.encode("utf-8")
+    except UnicodeEncodeError:
+        # A lone surrogate: `mkdir` would fail to encode it as a file name.
+        return False
+    if len(encoded) > _MAX_PASSTHROUGH_BYTES:
         return False
     try:
         contained_component(text)

@@ -127,6 +127,103 @@ def test_sample_complete_receives_owning_task() -> None:
     assert sorted(name for name, _ in seen) == ["a", "b"]
 
 
+def test_sample_complete_fires_for_per_sample_cancel() -> None:
+    """A per-sample `cancel` interrupt still notifies the TaskSource.
+
+    The task keeps running after an operator cancels one sample, so the
+    source hears about it (as cancelled) like any other completing sample.
+    """
+    from inspect_ai.log._samples import sample_active
+
+    completed: list[str] = []
+
+    @solver(name="task_source_self_cancel_solver")
+    def self_cancel_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "a":
+                active = sample_active()
+                assert active is not None
+                active.interrupt("cancel")
+                await anyio.sleep(10)
+            return state
+
+        return solve
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(id="a", input="x"), Sample(id="b", input="x")],
+                    solver=self_cancel_solver(),
+                    name="per_sample_cancel",
+                )
+            ]
+
+        async def sample_complete(self, sample: EvalSample, task: Task) -> None:
+            completed.append(str(sample.id))
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    logs = eval(tasks=_Src(), model="mockllm/model", display="none")
+    assert logs[0].status == "success"
+    assert sorted(completed) == ["a", "b"]
+
+
+def test_sample_complete_skipped_for_task_cancel() -> None:
+    """A task-level cancel does not notify the TaskSource for the unwound sample.
+
+    The sample completion block is shielded while a cancellation is being
+    resolved, so delivering the sample there would run user callback code
+    uncancellable (a callback that blocks would hang ^C). The task's unwind
+    also means any follow-up tasks could never run under it; the source still
+    sees the sample in the log handed to `task_complete`.
+    """
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import get_eval_states
+
+    completed: list[str] = []
+    tasks_completed: list[str] = []
+
+    @solver(name="task_source_task_cancel_solver")
+    def task_cancel_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            result = ctl_cancel_task(get_eval_states()[0].task_id, action="cancel")
+            assert result is not None and result["ok"] is True
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(id="a", input="x")],
+                    solver=task_cancel_solver(),
+                    name="task_cancel",
+                )
+            ]
+
+        async def sample_complete(self, sample: EvalSample, task: Task) -> None:
+            completed.append(str(sample.id))
+
+        async def task_complete(self, log: EvalLog) -> None:
+            tasks_completed.append(log.eval.task)
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    logs = eval(tasks=_Src(), model="mockllm/model", display="none")
+    log = logs[0]
+    assert log.status == "error"
+    assert log.error is not None and "cancelled by user" in log.error.message
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].error is not None
+    assert completed == []
+    assert tasks_completed == ["task_cancel"]
+
+
 def test_task_source_factory_seed_and_callbacks() -> None:
     # task_source() builds a TaskSource from a seed + callbacks (no subclass).
     # next_tasks closes over shared state to produce two more generations.

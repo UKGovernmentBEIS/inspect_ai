@@ -195,3 +195,19 @@ def test_sample_dir_segment_huge_id_is_bounded() -> None:
     segment = sample_dir_segment(huge)
     assert len(segment) == 64 + 1 + 12
     assert segment == "y" * 64 + "~" + _hashed(huge)
+
+
+def test_sample_dir_segment_lone_surrogate_is_hashed() -> None:
+    """An id the filesystem cannot encode as a name never passes through.
+
+    A lone surrogate is one path component by the character checks, but
+    ``mkdir`` would fail to UTF-8 encode it; it takes the hashed form,
+    which is plain ASCII.
+    """
+    sample_id = "task\udcff"
+    segment = sample_dir_segment(sample_id)
+    assert segment != sample_id
+    segment.encode("utf-8")  # encodable: the dir can be created
+    expected = hashlib.sha256(sample_id.encode("utf-8", "surrogatepass")).hexdigest()
+    assert segment == f"task~{expected[:12]}"
+    assert sample_dir_segment(sample_id) == segment
