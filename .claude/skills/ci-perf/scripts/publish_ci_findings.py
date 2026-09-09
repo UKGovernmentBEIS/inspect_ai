@@ -141,7 +141,11 @@ def validate_report(summary: dict[str, Any], report: str) -> None:
 
 
 def publish(
-    findings: list[dict[str, Any]], summary: dict[str, Any], report: str, run_url: str
+    findings: list[dict[str, Any]],
+    summary: dict[str, Any],
+    report: str,
+    run_url: str,
+    run_attempt: int = 1,
 ) -> list[str]:
     """Publish each finding once per run and trigger an issue at most once.
 
@@ -154,7 +158,9 @@ def publish(
     if match is None:
         raise ValueError("Expected an actions-repo workflow run URL")
     validate_report(summary, report)
-    run_id = match.group(1)
+    if run_attempt <= 0:
+        raise ValueError("Run attempt must be positive")
+    run_id = f"{match.group(1)}:{run_attempt}"
     summary_body = f"<!-- ci-perf-summary:{run_id} -->\n{run_url}\n\n{report}\n\n```json\n{json.dumps(summary, separators=(',', ':'))}\n```"
     if len(summary_body.encode()) > 60000:
         raise ValueError(
@@ -235,6 +241,7 @@ def main() -> None:
     parser.add_argument("--read-history", action="store_true")
     parser.add_argument("--publish", action="store_true")
     parser.add_argument("--run-url")
+    parser.add_argument("--run-attempt", type=int, default=1)
     args = parser.parse_args()
     if args.read_history:
         if args.publish:
@@ -253,7 +260,7 @@ def main() -> None:
     if args.publish:
         if not args.run_url:
             parser.error("--publish requires --run-url")
-        urls = publish(findings, summary, report, args.run_url)
+        urls = publish(findings, summary, report, args.run_url, args.run_attempt)
         (args.directory / "published.json").write_text(json.dumps(urls))
     else:
         print(f"Dry-run: validated {len(findings)} findings; no GitHub writes")

@@ -18,9 +18,10 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, NamedTuple
+from urllib.parse import urlencode
 
 from summarize_ci_data import summarize
 
@@ -61,23 +62,58 @@ def seconds_between(start: str | None, end: str | None) -> float | None:
     return (e - s).total_seconds() if s and e else None
 
 
-def fetch_runs(repo: str, limit: int) -> list[dict[str, Any]]:
-    by_id: dict[int, dict[str, Any]] = {}
-    page = 1
-    while len(by_id) < limit:
-        batch = gh_api(
-            f"repos/{repo}/actions/runs"
-            f"?event=pull_request&status=completed&per_page=100&page={page}"
-        )["workflow_runs"]
-        if not batch:
-            break
-        by_id.update({run["id"]: run for run in batch})
-        page += 1
-    runs = sorted(by_id.values(), key=lambda r: r["run_started_at"], reverse=True)[
-        :limit
-    ]
-    warn_on_time_gap(runs)
-    return runs
+def fetch_runs(repo: str, limit: int, days: int = 7) -> list[dict[str, Any]]:
+    """Collect a bounded recent window, retrying stale or repeated API pages.
+
+    The unfiltered endpoint has served weeks-old cached pages during live runs.
+    Fix the created-at range for all pages and validate every returned record
+    against it. Do not publish a partial mix of current and stale pages.
+    """
+    until = datetime.now(timezone.utc).replace(microsecond=0)
+    since = until - timedelta(days=days)
+    for attempt in range(3):
+        by_id: dict[int, dict[str, Any]] = {}
+        page = 1
+        stale = False
+        while len(by_id) < limit:
+            query = urlencode(
+                {
+                    "event": "pull_request",
+                    "status": "completed",
+                    "per_page": 100,
+                    "page": page,
+                    "created": f"{since.isoformat()}..{until.isoformat()}",
+                }
+            )
+            batch = gh_api(f"repos/{repo}/actions/runs?{query}")["workflow_runs"]
+            if not batch:
+                break
+            for run in batch:
+                created = parse_ts(run["created_at"])
+                if created is None or not since <= created <= until:
+                    stale = True
+                    break
+            if stale:
+                break
+            previous_count = len(by_id)
+            by_id.update({run["id"]: run for run in batch})
+            if len(by_id) == previous_count:
+                stale = True
+                break
+            page += 1
+        if not stale:
+            runs = sorted(
+                by_id.values(), key=lambda r: r["run_started_at"], reverse=True
+            )[:limit]
+            warn_on_time_gap(runs)
+            return runs
+        print(
+            f"WARNING: stale or repeated CI page; retry {attempt + 1}/3",
+            file=sys.stderr,
+        )
+    raise RuntimeError(
+        "GitHub returned stale or repeated CI pages on all three collection attempts"
+    )
 
 
 def warn_on_time_gap(runs: list[dict[str, Any]]) -> None:
@@ -224,6 +260,9 @@ def main() -> None:
     parser.add_argument("--repo", default="UKGovernmentBEIS/inspect_ai")
     parser.add_argument("--limit", type=int, default=200, help="max runs to fetch")
     parser.add_argument(
+        "--days", type=int, default=7, help="maximum run creation age in days"
+    )
+    parser.add_argument(
         "--durations-runs",
         type=int,
         default=10,
@@ -236,10 +275,12 @@ def main() -> None:
         parser.error(
             "Raw snapshots must be written outside the repository, e.g. under /tmp"
         )
-    if args.limit <= 0 or args.durations_runs < 0:
-        parser.error("--limit must be positive and --durations-runs nonnegative")
+    if args.limit <= 0 or args.days <= 0 or args.durations_runs < 0:
+        parser.error(
+            "--limit and --days must be positive; --durations-runs must be nonnegative"
+        )
 
-    raw_runs = fetch_runs(args.repo, args.limit)
+    raw_runs = fetch_runs(args.repo, args.limit, args.days)
     print(f"fetched {len(raw_runs)} runs; fetching jobs...", file=sys.stderr)
 
     runs = [

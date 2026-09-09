@@ -43,17 +43,25 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
     steps: dict[str, list[float]] = defaultdict(list)
     conclusions: dict[str, int] = defaultdict(int)
     runner_seconds = 0.0
+    unavailable_jobs = 0
+    unavailable_cancelled_jobs = 0
     cancelled_seconds = 0.0
     for run in runs:
         conclusions[run["conclusion"]] += 1
         if run["conclusion"] == "success" and run["wall_seconds"] is not None:
             workflows[run["name"]].append(run["wall_seconds"])
         for job in run["jobs"]:
+            if job["conclusion"] == "skipped":
+                continue
             seconds = job["exec_seconds"]
-            if seconds is not None:
-                runner_seconds += seconds
+            if seconds is None or seconds < 0:
+                unavailable_jobs += 1
                 if run["conclusion"] == "cancelled":
-                    cancelled_seconds += seconds
+                    unavailable_cancelled_jobs += 1
+                continue
+            runner_seconds += seconds
+            if run["conclusion"] == "cancelled":
+                cancelled_seconds += seconds
             if job["conclusion"] != "success":
                 continue
             key = f"{run['name']} / {job['name']}"
@@ -86,8 +94,11 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
         "repo": snapshot["repo"],
         "window": {"start": starts[0], "end": starts[-1], "runs": len(runs)},
         "conclusions": dict(conclusions),
-        "runner_minutes": round(runner_seconds / 60, 2),
-        "cancelled_runner_minutes": round(cancelled_seconds / 60, 2),
+        "runner_minutes": None if unavailable_jobs else round(runner_seconds / 60, 2),
+        "unavailable_job_timings": unavailable_jobs,
+        "cancelled_runner_minutes": None
+        if unavailable_cancelled_jobs
+        else round(cancelled_seconds / 60, 2),
         "workflow_wall_seconds": {
             key: stats(value) for key, value in sorted(workflows.items())
         },
@@ -123,7 +134,7 @@ def render(summary: dict[str, Any]) -> str:
         "",
         f"Source: {summary['repo']}. Collected: {summary['generated_at']}.",
         f"Window: {summary['window']['start']} to {summary['window']['end']}, {summary['window']['runs']} runs.",
-        f"Runner minutes: {summary['runner_minutes']}. Cancelled-run runner minutes: {summary['cancelled_runner_minutes']}.",
+        f"Runner minutes: {summary['runner_minutes']}. Cancelled-run runner minutes: {summary['cancelled_runner_minutes']}. Missing or invalid job timings: {summary['unavailable_job_timings']}. None means unavailable, not zero.",
         "",
         "Successful runs and jobs only for timings. Workflow wall is run start to updated_at, not push-to-green. Job wait includes dependencies. Pytest counts are per outcome, not a count of unique tests across matrix jobs. Slow-test totals include only printed phases.",
     ]

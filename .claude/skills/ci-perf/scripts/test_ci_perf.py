@@ -169,6 +169,16 @@ def test_publication_retry_does_not_repeat_trigger(
     assert len(stored) == 2
     assert posted[1] == [{"body": "@auto"}]
     assert len(posted[2]) == 1
+    publish(
+        findings,
+        summarize(snapshot),
+        "Report",
+        "https://github.com/meridianlabs-ai/actions/actions/runs/123",
+        run_attempt=2,
+    )
+    assert posted[1].count({"body": "@auto"}) == 1
+    assert len(posted[2]) == 2
+    assert "<!-- ci-perf-summary:123:2 -->" in posted[2][-1]["body"]
 
 
 def test_raw_output_in_checkout_rejected_before_network() -> None:
@@ -205,7 +215,9 @@ def test_closed_and_deferred_findings_are_not_retriggered(
     monkeypatch.setattr(publisher, "issues", lambda: [])
     monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 8})
     monkeypatch.setattr(
-        publisher, "comments", lambda number: [{"body": "<!-- ci-perf-summary:123 -->"}]
+        publisher,
+        "comments",
+        lambda number: [{"body": "<!-- ci-perf-summary:123:1 -->"}],
     )
 
     def fail(*args: Any, **kwargs: Any) -> Any:
@@ -239,7 +251,7 @@ def test_existing_issue_identity_and_empty_body(
         "comments",
         lambda number: []
         if number == 1
-        else [{"body": "<!-- ci-perf-summary:123 -->"}],
+        else [{"body": "<!-- ci-perf-summary:123:1 -->"}],
     )
     monkeypatch.setattr(
         publisher,
@@ -411,5 +423,79 @@ def test_failed_finding_still_records_measurements(
             "https://github.com/meridianlabs-ai/actions/actions/runs/123",
         )
     assert len(writes) == 1
-    assert "<!-- ci-perf-summary:123 -->" in writes[0]["body"]
+    assert "<!-- ci-perf-summary:123:1 -->" in writes[0]["body"]
     assert "Finding publication failed" in writes[0]["body"]
+
+
+def test_skipped_jobs_cannot_make_compute_negative(snapshot: dict[str, Any]) -> None:
+    snapshot["runs"][0]["jobs"].append(
+        {"name": "skipped job", "conclusion": "skipped", "exec_seconds": -15113}
+    )
+    assert summarize(snapshot)["runner_minutes"] == 2
+    snapshot["runs"][0]["jobs"][-1]["conclusion"] = "failure"
+    result = summarize(snapshot)
+    assert result["runner_minutes"] is None
+    assert result["unavailable_job_timings"] == 1
+
+
+def test_collection_retries_out_of_window_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    from urllib.parse import parse_qs, urlparse
+
+    import collect_ci_data as collector
+
+    calls = 0
+
+    def fake_api(path: str) -> Any:
+        nonlocal calls
+        calls += 1
+        query = parse_qs(urlparse(path).query)
+        until = query["created"][0].split("..")[1]
+        created = "2000-01-01T00:00:00Z" if calls == 1 else until
+        return {
+            "workflow_runs": [
+                {"id": 1, "created_at": created, "run_started_at": created}
+            ]
+        }
+
+    monkeypatch.setattr(collector, "gh_api", fake_api)
+    assert collector.fetch_runs("owner/repo", 1)[0]["id"] == 1
+    assert calls == 2
+
+
+def test_collection_fails_after_three_stale_pages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import collect_ci_data as collector
+
+    calls = 0
+
+    def fake_api(path: str) -> Any:
+        nonlocal calls
+        calls += 1
+        return {"workflow_runs": [{"id": 1, "created_at": "2000-01-01T00:00:00Z"}]}
+
+    monkeypatch.setattr(collector, "gh_api", fake_api)
+    with pytest.raises(RuntimeError, match="all three"):
+        collector.fetch_runs("owner/repo", 1)
+    assert calls == 3
+
+
+def test_collection_repeated_page_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    from urllib.parse import parse_qs, urlparse
+
+    import collect_ci_data as collector
+
+    calls = 0
+
+    def fake_api(path: str) -> Any:
+        nonlocal calls
+        calls += 1
+        until = parse_qs(urlparse(path).query)["created"][0].split("..")[1]
+        return {
+            "workflow_runs": [{"id": 1, "created_at": until, "run_started_at": until}]
+        }
+
+    monkeypatch.setattr(collector, "gh_api", fake_api)
+    with pytest.raises(RuntimeError, match="all three"):
+        collector.fetch_runs("owner/repo", 2)
+    assert calls == 6
