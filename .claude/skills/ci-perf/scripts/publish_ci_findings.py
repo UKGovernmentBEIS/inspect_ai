@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -51,16 +52,27 @@ def comments(number: int) -> list[dict[str, Any]]:
     return [comment for page in pages for comment in page]
 
 
+def canonical_issue(matches: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Reuse the earliest marker owner, even if a later copy remains open.
+
+    Closing a finding must not retrigger implementation on a duplicate copy.
+    Warn on copied markers so maintainers can remove them without losing history.
+    """
+    if len(matches) > 1:
+        print(
+            f"WARNING: duplicate CI issue markers on {[item['number'] for item in matches]}; using the earliest issue",
+            file=sys.stderr,
+        )
+    return min(matches, key=lambda item: item["number"]) if matches else None
+
+
 def tracking_issue(known: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
     matches = [
         issue
         for issue in (issues() if known is None else known)
-        if issue["title"] == TRACKING_TITLE
-        and TRACKING_MARKER in (issue.get("body") or "")
+        if TRACKING_MARKER in (issue.get("body") or "")
     ]
-    if len(matches) > 1:
-        raise ValueError("Multiple CI trend tracking issues found")
-    return matches[0] if matches else None
+    return canonical_issue(matches)
 
 
 def read_history() -> list[dict[str, Any]]:
@@ -155,10 +167,9 @@ def publish(
         number = finding.get("existing_issue")
         if number is None:
             matches = [issue for issue in known if marker in (issue.get("body") or "")]
-            if len(matches) > 1:
-                raise ValueError(f"Duplicate finding key: {finding['key']}")
-            if matches:
-                number = matches[0]["number"]
+            matched = canonical_issue(matches)
+            if matched:
+                number = matched["number"]
         evidence_marker = f"<!-- ci-perf-evidence:{run_id}:{finding['key']} -->"
         body = f"{marker}\n{evidence_marker}\n{finding['body']}\n\nEvidence: {run_url}"
         if number is None:

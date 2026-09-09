@@ -329,3 +329,38 @@ def test_raw_output_in_another_checkout_rejected(tmp_path: Path) -> None:
     )
     assert result.returncode == 2
     assert "outside the repository" in result.stderr
+
+
+def test_tracking_identity_survives_rename_and_duplicate(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    original = {
+        "number": 1,
+        "title": "Renamed",
+        "state": "closed",
+        "body": publisher.TRACKING_MARKER,
+    }
+    duplicate = {
+        "number": 2,
+        "title": publisher.TRACKING_TITLE,
+        "state": "open",
+        "body": publisher.TRACKING_MARKER,
+    }
+    assert publisher.tracking_issue([duplicate, original]) is original
+    assert "duplicate CI issue markers" in capsys.readouterr().err
+
+
+def test_bad_run_url_fails_before_github(
+    snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("Invalid run URL reached GitHub")
+
+    monkeypatch.setattr(subprocess, "run", fail)
+    with pytest.raises(ValueError, match="actions-repo"):
+        publish(
+            [],
+            summarize(snapshot),
+            "Report",
+            "https://github.com/other/repo/actions/runs/123",
+        )
