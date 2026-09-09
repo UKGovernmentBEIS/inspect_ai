@@ -35,10 +35,10 @@ For an interactive run, create an output directory outside the repository:
 
 ```bash
 export CI_PERF_OUTPUT_DIR="$(mktemp -d /tmp/ci-perf.XXXXXX)"
-python .claude/skills/ci-perf/scripts/collect_ci_data.py \
+python .agents/skills/ci-perf/scripts/collect_ci_data.py \
   --out "$CI_PERF_OUTPUT_DIR/raw.json" \
   --summary-out "$CI_PERF_OUTPUT_DIR/summary.json"
-python .claude/skills/ci-perf/scripts/publish_ci_findings.py \
+python .agents/skills/ci-perf/scripts/publish_ci_findings.py \
   --directory "$CI_PERF_OUTPUT_DIR" --read-history
 ```
 
@@ -137,7 +137,7 @@ actionable findings, write `[]`, not an absent file.
 Validate locally with:
 
 ```bash
-python .claude/skills/ci-perf/scripts/publish_ci_findings.py \
+python .agents/skills/ci-perf/scripts/publish_ci_findings.py \
   --directory "$CI_PERF_OUTPUT_DIR"
 ```
 
