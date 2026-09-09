@@ -29,6 +29,8 @@
 - Bugfix: MockLLM callable `custom_outputs` now populate default token usage when the returned `ModelOutput` omits `usage`, matching iterable/generator behavior.
 - Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.
 - Eval Log: Reading zstd-compressed `.eval` files no longer fails with `AttributeError: ... '_needs_input'` on Python builds that include CPython's gh-156002 zipfile change.
+- Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
+- Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
 
 ## 0.3.263 (03 September 2026)
 
