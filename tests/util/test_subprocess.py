@@ -49,6 +49,53 @@ async def test_subprocess_binary():
     assert result.stdout.decode().strip() == input.decode()
 
 
+# Well past any OS pipe buffer (64KiB on Linux), so a write to a child that
+# never reads its stdin cannot complete before the child exits, and a child
+# writing this much to stdout blocks until the parent drains it.
+_LARGE_IO = b"x" * (1 << 20)
+
+
+@pytest.mark.anyio
+async def test_subprocess_stdin_child_exits_without_reading():
+    """A child that exits before reading stdin yields its ExecResult, not an error.
+
+    The write hits a closed pipe (EPIPE/ECONNRESET) once the child is gone; the
+    caller must still see the child's exit status and stderr rather than a
+    BrokenResourceError.
+    """
+    result = await subprocess(
+        ["python3", "-c", "import sys; print('gave up', file=sys.stderr); sys.exit(3)"],
+        input=_LARGE_IO,
+    )
+    assert result.success is False
+    assert result.returncode == 3
+    assert result.stderr.strip() == "gave up"
+
+
+@pytest.mark.anyio
+async def test_subprocess_stdin_written_while_output_is_drained():
+    """The stdin write runs alongside the stdout read, so neither side deadlocks.
+
+    The child fills its stdout pipe before it reads stdin; if the parent only
+    started draining stdout after the stdin write completed, both would block
+    on each other forever.
+    """
+    script = (
+        "import sys\n"
+        f"sys.stdout.buffer.write(b'y' * {len(_LARGE_IO)})\n"
+        "sys.stdout.flush()\n"
+        "data = sys.stdin.buffer.read()\n"
+        "print(len(data), file=sys.stderr)\n"
+    )
+    with anyio.fail_after(30):
+        result = await subprocess(
+            ["python3", "-c", script], input=_LARGE_IO, text=False
+        )
+    assert result.success is True
+    assert result.stdout == b"y" * len(_LARGE_IO)
+    assert result.stderr.strip() == str(len(_LARGE_IO)).encode()
+
+
 @pytest.mark.anyio
 async def test_subprocess_cwd():
     parent_dir = Path(os.getcwd()).parent.as_posix()

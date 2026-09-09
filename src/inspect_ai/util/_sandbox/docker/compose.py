@@ -1,12 +1,12 @@
 import contextlib
 import json
 import os
+import re
 import shlex
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, cast
 
-import anyio
 import yaml
 from pydantic import BaseModel
 
@@ -403,33 +403,61 @@ async def compose_command(
     # commands hanging at a rate of ~ 1/1000, so we retry up to twice (tweaking the
     # retry time down) to make the odds of hanging vanishingly small.
     # under the same conditions we have also seen the compose CLI process exit
-    # immediately when dockerd fails the exec attach ("error attaching stdout
-    # stream: write unix /run/docker.sock->@: broken pipe"); the subsequent
-    # write of `input` to the dead subprocess's stdin then raises
-    # anyio.BrokenResourceError. retry that too.
+    # immediately when dockerd fails the exec attach; retry that too.
 
     if timeout is not None:
         MAX_RETRIES = 2
         retries = 0
         while True:
+            command_timeout = max(
+                timeout if retries == 0 else (min(timeout, 60) // retries), 1
+            )
             try:
-                command_timeout = max(
-                    timeout if retries == 0 else (min(timeout, 60) // retries), 1
-                )
-                return await run_command(command_timeout)
-            except (TimeoutError, anyio.BrokenResourceError) as e:
+                result = await run_command(command_timeout)
+            except TimeoutError as e:
                 retries += 1
                 if timeout_retry and (retries <= MAX_RETRIES):
                     logger.info(
-                        f"Retrying docker compose command after "
-                        f"{type(e).__name__}: {shlex.join(compose_command)}"
+                        f"Retrying docker compose command after timeout: "
+                        f"{shlex.join(compose_command)}"
                     )
-                elif isinstance(e, TimeoutError):
-                    raise TimeoutError(
-                        f"Docker compose command '{command}' timed out after {timeout} seconds"
-                    ) from e
-                else:
-                    raise
+                    continue
+                raise TimeoutError(
+                    f"Docker compose command '{command}' timed out after {timeout} seconds"
+                ) from e
+            if not _dockerd_attach_failed(result):
+                return result
+            retries += 1
+            if timeout_retry and (retries <= MAX_RETRIES):
+                logger.info(
+                    f"Retrying docker compose command after dockerd attach failure: "
+                    f"{shlex.join(compose_command)}"
+                )
+                continue
+            logger.warning(
+                f"Docker compose command failed with a dockerd attach failure "
+                f"{retries} time(s): {shlex.join(compose_command)}"
+            )
+            return result
 
     else:
         return await run_command(timeout)
+
+
+_DOCKERD_ATTACH_FAILED = re.compile(r"^error attaching std(out|err) stream", re.M)
+
+
+def _dockerd_attach_failed(result: ExecResult[str]) -> bool:
+    """Whether the compose CLI died because dockerd failed to attach its streams.
+
+    Under load dockerd intermittently rejects the exec attach ("error attaching
+    stdout stream: write unix /run/docker.sock->@: broken pipe") and the CLI
+    exits at once (status 1) without running the command, so retrying is safe.
+    Before `subprocess()` tolerated a child exiting before its stdin was
+    written, this surfaced as `anyio.BrokenResourceError` (retried by
+    exception type); it now arrives as the CLI's own failed result. The match
+    is anchored to a whole line and to the CLI's exit status so that a
+    command's own (model-producible) stderr is unlikely to trigger a re-run.
+    Undetectable when stderr is not captured (`capture_output=False`).
+    """
+    return result.returncode == 1 and bool(_DOCKERD_ATTACH_FAILED.search(result.stderr))

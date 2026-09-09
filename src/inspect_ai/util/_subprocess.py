@@ -12,8 +12,13 @@ from subprocess import DEVNULL, PIPE
 from typing import Generic, Literal, TypeVar, Union, overload
 
 import anyio
-from anyio import ClosedResourceError, create_task_group, open_process
-from anyio.abc import ByteReceiveStream, Process
+from anyio import (
+    BrokenResourceError,
+    ClosedResourceError,
+    create_task_group,
+    open_process,
+)
+from anyio.abc import ByteReceiveStream, ByteSendStream, Process
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.cpu import effective_cpu_count
@@ -139,20 +144,19 @@ async def subprocess(
             env={**os.environ, **(env or {})},
         )
         try:
-            # write to stdin (convert input to bytes)
-            if process.stdin and input:
-                await process.stdin.send(input)
-                await process.stdin.aclose()
-
             if redirect_output_to_logger:
                 consume = _log_stream
             else:
                 consume = functools.partial(_read_stream, output_limit=output_limit)
 
-            stdout, stderr = await tg_collect(
+            # Feed stdin alongside the readers rather than before them: a child
+            # that fills its stdout pipe before reading stdin would otherwise
+            # block us on the write while we block it on the read.
+            stdout, stderr, _ = await tg_collect(
                 [
                     functools.partial(consume, process.stdout),
                     functools.partial(consume, process.stderr),
+                    functools.partial(_write_stdin, process.stdin, input),
                 ]
             )
 
@@ -304,6 +308,28 @@ async def gracefully_terminate_cancelled_subprocess(process: Process) -> None:
         # The process may have already exited, in which case we can ignore the error.
         except ProcessLookupError:
             pass
+
+
+async def _write_stdin(stream: ByteSendStream | None, input: bytes | None) -> bytes:
+    """Write `input` to the child's stdin and close it.
+
+    A child that exits or closes its stdin before consuming the input makes the
+    write fail (EPIPE/ECONNRESET, surfaced by anyio as `BrokenResourceError`).
+    That is the child's business, not a launch failure: its exit status and
+    stderr describe what happened, so the caller should still get an
+    `ExecResult` rather than an exception. Whether the write or the exit wins
+    is timing-dependent, so tolerating it here is what makes such commands
+    behave deterministically.
+
+    Returns empty bytes so it can be collected alongside the stream readers.
+    """
+    if stream is not None and input:
+        try:
+            await stream.send(input)
+            await stream.aclose()
+        except (BrokenResourceError, ClosedResourceError):
+            pass
+    return bytes()
 
 
 async def drain_stream(stream: ByteReceiveStream | None) -> None:
