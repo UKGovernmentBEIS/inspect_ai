@@ -159,8 +159,20 @@ def sandbox_file_detector(file: str, on_path: bool = False) -> Detector:
     """
 
     async def detect_on_path(sandbox: SandboxEnvironment) -> bool:
+        # The question is whether the *image's* PATH offers `file` (a tool the
+        # image installed for the agent, often under /usr/local/bin), so `which`
+        # must search that PATH; only `which` itself is resolved through the
+        # pinned one, by absolute path. No `pinned_env`: it would replace the
+        # inherited PATH before the shell could save it.
         try:
-            return (await privileged_exec(sandbox, ["which", file], user=None)).success
+            result = await sandbox.exec(
+                pinned_shell_command(
+                    "which_bin=$(command -v which) || exit 127\n"
+                    f'PATH=${IMAGE_PATH_VARIABLE} exec "$which_bin" "$1"',
+                    file,
+                )
+            )
+            return result.success
         except SandboxUnavailableError:
             # Treat an unavailable sandbox as no match so discovery can continue
             # with the remaining sandboxes. Suppress only SandboxUnavailableError;

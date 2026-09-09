@@ -35,6 +35,11 @@ from inspect_ai.util._sandbox._privileged import (
     privileged_exec,
     privileged_shell,
 )
+from inspect_ai.util._sandbox.context import (
+    sandbox_default_context_var,
+    sandbox_file_detector,
+    setup_sandbox_environment,
+)
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
@@ -208,7 +213,7 @@ class _ImageEnvSandbox(SandboxEnvironment):
         return await self.inner.exec(cmd, input, cwd, merged, None, timeout)
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
-        raise NotImplementedError
+        await self.inner.write_file(file, contents)
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
@@ -310,6 +315,60 @@ async def test_privileged_exec_reports_a_utility_missing_from_system_dirs(
     assert not result.success
     assert result.returncode == 127
     assert "not found" in result.stderr
+    assert forged.ran() == []
+
+
+def _image_tool(tmp_path: Path, name: str) -> Path:
+    """A real, harmless tool that exists only in an image-PATH directory."""
+    bindir = tmp_path / "image-bin"
+    bindir.mkdir()
+    tool = bindir / name
+    tool.write_text("#!/bin/sh\nexit 0\n")
+    tool.chmod(0o755)
+    return bindir
+
+
+@pytest.mark.parametrize("honours_env", [True, False], ids=["env", "no-env"])
+async def test_on_path_detector_searches_the_image_path_with_a_pinned_which(
+    local: LocalSandboxEnvironment, tmp_path: Path, honours_env: bool
+) -> None:
+    """The on-path detector searches the image's PATH with a pinned ``which``.
+
+    ``sandbox_with(..., on_path=True)`` asks what the image offers (tools often
+    live in /usr/local/bin), so the search must use the image's PATH, while the
+    ``which`` doing the search must not itself come from there.
+    """
+    image_bin = _image_tool(tmp_path, "frobnicate")
+    forged = ForgedImage(tmp_path, ["which", "sh"])
+    image_path = f"{forged.bindir}:{image_bin}:{os.environ['PATH']}"
+    sandbox = _ImageEnvSandbox(local, {"PATH": image_path}, honours_env=honours_env)
+
+    assert await sandbox_file_detector("frobnicate", on_path=True)(sandbox)
+    assert not await sandbox_file_detector("no-such-tool-xyz", on_path=True)(sandbox)
+    assert forged.ran() == []
+
+
+async def test_setup_script_keeps_the_image_path_behind_a_pinned_launcher(
+    local: LocalSandboxEnvironment, tmp_path: Path
+) -> None:
+    """The setup script sees the image PATH; its launcher and cleanup do not.
+
+    The task author's script runs with the image's own PATH, while the
+    ``env``, ``chmod`` and ``rm`` that launch and clean it up are pinned.
+    """
+    forged = ForgedImage(tmp_path, ["env", "chmod", "rm", "sh"])
+    image_path = f"{forged.bindir}:{os.environ['PATH']}"
+    sandbox = _ImageEnvSandbox(local, {"PATH": image_path}, honours_env=True)
+    seen = tmp_path / "seen-path"
+    setup = f'#!/bin/sh\nprintf %s "$PATH" > "{seen}"\n'.encode()
+
+    token = sandbox_default_context_var.set("default")
+    try:
+        await setup_sandbox_environment(setup, {"default": sandbox})
+    finally:
+        sandbox_default_context_var.reset(token)
+
+    assert seen.read_text() == image_path
     assert forged.ran() == []
 
 
