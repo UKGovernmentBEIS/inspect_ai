@@ -69,8 +69,8 @@ class SandboxAgentBridge(AgentBridge):
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
-        self._terminate_requested = anyio.Event()
-        self._terminate_reason: str | None = None
+        self._failure_requested = anyio.Event()
+        self._failure: Exception | None = None
 
     port: int
     """Model proxy server port."""
@@ -159,22 +159,36 @@ class SandboxAgentBridge(AgentBridge):
         with bridge_approval_scope(self.approval):
             return have_tool_approval()
 
-    def request_terminate(self, reason: str) -> NoReturn:
-        """Terminate the sample from a bridged generation.
+    def request_fail(self, error: Exception) -> None:
+        """Fail the sample with `error` from a bridged generation.
 
         A sandbox bridge's generations run in the sandbox service task, where
         `_handle_request` turns exceptions into RPC error responses rather than
-        letting them propagate (only `LimitExceededError` is special-cased). So the
-        base implementation's raise would never reach the sample runner.
+        letting them propagate (only `LimitExceededError` is special-cased). So
+        raising from a generation would never reach the sample runner.
 
-        Instead, signal the monitor task in `sandbox_agent_bridge`'s task group,
-        which raises on the agent's side and tears the sample down. The raise below
-        still unwinds the current RPC, so the sandboxed agent gets an error response
-        rather than blocking on a reply that will never come.
+        Instead, store the error and signal the monitor task in
+        `sandbox_agent_bridge`'s task group, which raises it on the agent's side
+        and tears the sample down. This does not raise itself: the caller decides
+        how the current RPC unwinds (`request_terminate` raises, and the model
+        service returns a provider error payload so the sandboxed agent gets a
+        reply rather than blocking on one that will never come). The first error
+        requested wins; later requests are ignored.
         """
-        self._terminate_reason = reason
-        self._terminate_requested.set()
-        raise TerminateSampleError(reason)
+        if self._failure is None:
+            self._failure = error
+        self._failure_requested.set()
+
+    def request_terminate(self, reason: str) -> NoReturn:
+        """Terminate the sample from a bridged generation.
+
+        Signals the sample failure via `request_fail` (see there for why a plain
+        raise would not reach the sample runner) and raises so the current RPC
+        unwinds with an error response.
+        """
+        error = TerminateSampleError(reason)
+        self.request_fail(error)
+        raise error
 
 
 class _ToolExecutionGrant(NamedTuple):

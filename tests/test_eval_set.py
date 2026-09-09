@@ -1019,6 +1019,7 @@ _GENERATE_CONFIG_IDENTITY_FIELDS = {
     "internal_tools",
     "max_tool_output",
     "fallback_models",
+    "fail_on_refusal",
     "verbosity",
     "effort",
     "reasoning_effort",

@@ -110,17 +110,33 @@ def test_cache_key_neutralized_fields_preserve_existing_keys():
     )
 
 
+def test_cache_key_excludes_fail_on_refusal():
+    # fail_on_refusal never reaches the provider (and refusals are never
+    # cached), so turning it on for an existing run must keep hitting the cache
+    base_key = _key_for(GenerateConfig())
+    assert _key_for(GenerateConfig(fail_on_refusal=True)) == base_key
+    assert _key_for(GenerateConfig(fail_on_refusal=False)) == base_key
+
+
+# Fields inert for the cache key (they never change what the provider returns)
+# that nonetheless change sample *outcomes*, and so stay in eval-set task
+# identity. The two classifications agree everywhere else.
+_CACHE_NEUTRAL_OUTCOME_FIELDS = {"fail_on_refusal"}
+
+
 def test_cache_key_neutral_fields_match_task_identity():
     """The cache key and task identity must agree on which config fields are inert.
 
-    Both answer the same question — can this field change what the provider
-    returns — so a field classified for one and not the other is a bug in
-    whichever list was missed. `attempt_timeout` and `cache_prompt` were part
-    of the cache key for exactly that reason.
+    Both answer nearly the same question — can this field change what the
+    provider returns — so a field classified for one and not the other is a
+    bug in whichever list was missed. `attempt_timeout` and `cache_prompt` were
+    part of the cache key for exactly that reason. The one sanctioned
+    difference is `_CACHE_NEUTRAL_OUTCOME_FIELDS`: fields the provider never
+    sees but that decide what happens to the sample.
     """
     assert (
         _CACHE_KEY_DROPPED_FIELDS | _CACHE_KEY_NEUTRALIZED_FIELDS
-    ) == GENERATE_CONFIG_FIELDS_TO_EXCLUDE, (
+    ) - _CACHE_NEUTRAL_OUTCOME_FIELDS == GENERATE_CONFIG_FIELDS_TO_EXCLUDE, (
         "The cache key's inert GenerateConfig fields have drifted from "
         "GENERATE_CONFIG_FIELDS_TO_EXCLUDE (inspect_ai._eval.evalset).\n"
         "  → A field added to GenerateConfig and classified at the same time "

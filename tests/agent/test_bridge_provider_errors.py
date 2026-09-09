@@ -15,14 +15,16 @@ import pytest
 
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge._errors import (
     PROVIDER_ERROR_KEY,
     provider_error_payload,
 )
 from inspect_ai.agent._bridge.sandbox import service as bridge_service
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
-from inspect_ai.model import GenerateConfig, get_model
-from inspect_ai.model._model import ModelAPI, ModelGenerateError
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+from inspect_ai.model import GenerateConfig, ModelOutput, get_model
+from inspect_ai.model._model import ModelAPI, ModelGenerateError, ModelRefusalError
 from inspect_ai.model._registry import modelapi
 from inspect_ai.util._limit import LimitExceededError
 
@@ -107,11 +109,22 @@ def test_provider_error_payload_bare_exception() -> None:
 # ---------- _forward_provider_errors (service.py) ----------
 
 
+def _bridge() -> SandboxAgentBridge:
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+    )
+
+
 async def test_forward_provider_errors_passes_success_through() -> None:
     async def ok(json_data: dict[str, Any]) -> dict[str, Any]:
         return {"id": "x", "choices": []}
 
-    wrapped = _forward_provider_errors(ok)
+    wrapped = _forward_provider_errors(ok, _bridge())
     assert await wrapped({}) == {"id": "x", "choices": []}
 
 
@@ -121,7 +134,7 @@ async def test_forward_provider_errors_returns_marker_on_exception() -> None:
             "debug", status_code=503, provider_message="overloaded"
         )
 
-    wrapped = _forward_provider_errors(boom)
+    wrapped = _forward_provider_errors(boom, _bridge())
     result = await wrapped({})
     assert result == {PROVIDER_ERROR_KEY: {"status": 503, "message": "overloaded"}}
 
@@ -138,7 +151,7 @@ async def test_forward_provider_errors_warns_on_non_provider_error(
     async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("our own translation bug")
 
-    result = await _forward_provider_errors(boom)({})
+    result = await _forward_provider_errors(boom, _bridge())({})
     assert result == {
         PROVIDER_ERROR_KEY: {"status": None, "message": "our own translation bug"}
     }
@@ -157,7 +170,7 @@ async def test_forward_provider_errors_no_warn_on_provider_error(
     async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
         raise ModelGenerateError("debug", status_code=503, provider_message="x")
 
-    result = await _forward_provider_errors(boom)({})
+    result = await _forward_provider_errors(boom, _bridge())({})
     assert result == {PROVIDER_ERROR_KEY: {"status": 503, "message": "x"}}
     assert warnings == []
 
@@ -174,7 +187,40 @@ async def test_forward_provider_errors_reraises_limit_exceeded_error() -> None:
         raise LimitExceededError("message", value=2, limit=1)
 
     with pytest.raises(LimitExceededError):
-        await _forward_provider_errors(boom)({})
+        await _forward_provider_errors(boom, _bridge())({})
+
+
+async def test_forward_provider_errors_signals_refusal_to_bridge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fail_on_refusal error ends the sample via the bridge, not via a raise.
+
+    The sandbox service dispatcher would swallow a re-raise into an RPC error, so
+    the wrapper hands the error to `bridge.request_fail` (raised on the agent's
+    side by the bridge's monitor task) and still answers the scaffold with a
+    provider error payload. It is not logged as a non-provider error, since the
+    sample error is the report.
+    """
+    warnings: list[tuple[Any, Any]] = []
+    monkeypatch.setattr(
+        bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
+    )
+    refusal = ModelRefusalError(
+        ModelOutput.from_content(
+            model="mockllm/model", content="No.", stop_reason="content_filter"
+        ),
+        "mockllm/model",
+    )
+
+    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+        raise refusal
+
+    bridge = _bridge()
+    result = await _forward_provider_errors(boom, bridge)({})
+    assert result == {PROVIDER_ERROR_KEY: {"status": None, "message": str(refusal)}}
+    assert bridge._failure_requested.is_set()
+    assert bridge._failure is refusal
+    assert warnings == []
 
 
 # ---------- _model.py wrap path (end to end) ----------

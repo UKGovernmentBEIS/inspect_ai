@@ -20,7 +20,7 @@ from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
 from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 from inspect_ai.agent._bridge.responses import inspect_responses_api_request
-from inspect_ai.agent._bridge.sandbox.bridge import _monitor_terminate
+from inspect_ai.agent._bridge.sandbox.bridge import _monitor_failure
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
 from inspect_ai.agent._bridge.sandbox.types import (
     _MAX_TOOL_EXECUTION_GRANTS,
@@ -496,12 +496,13 @@ def test_sandbox_bridge_terminate_signals_the_monitor() -> None:
         model=None,
     )
 
-    assert not bridge._terminate_requested.is_set()
+    assert not bridge._failure_requested.is_set()
     with pytest.raises(TerminateSampleError):
         bridge.request_terminate("approver said stop")
 
-    assert bridge._terminate_requested.is_set()
-    assert bridge._terminate_reason == "approver said stop"
+    assert bridge._failure_requested.is_set()
+    assert isinstance(bridge._failure, TerminateSampleError)
+    assert bridge._failure.reason == "approver said stop"
 
 
 async def test_sandbox_terminate_monitor_raises_for_the_task_group() -> None:
@@ -519,11 +520,10 @@ async def test_sandbox_terminate_monitor_raises_for_the_task_group() -> None:
         port=13131,
         model=None,
     )
-    bridge._terminate_reason = "approver said stop"
-    bridge._terminate_requested.set()
+    bridge.request_fail(TerminateSampleError("approver said stop"))
 
     with pytest.raises(TerminateSampleError, match="approver said stop"):
-        await _monitor_terminate(bridge)
+        await _monitor_failure(bridge)
 
 
 # ---------------------------------------------------------------------------

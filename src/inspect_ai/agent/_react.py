@@ -20,7 +20,7 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model, ModelRefusalError, get_model
 from inspect_ai.model._trim import partition_messages, trim_messages
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._mcp.connection import mcp_connection
@@ -612,6 +612,10 @@ async def _handle_overflow(
             ):
                 state.messages.append(c_message)
             return state, True
+        except ModelRefusalError:
+            # a refused summary generation under fail_on_refusal fails the
+            # sample like any other refusal rather than degrading to overflow
+            raise
         except Exception as ex:
             # Falling back from configured compaction to the lossy overflow
             # filter is a real degradation — surface to operator stderr.
@@ -713,11 +717,18 @@ def _model_generate(
 
         attempts = 0
         while True:
-            # generate
-            output = await get_model(model).generate(input_messages, tools)
+            # generate (with fail_on_refusal set a refusal raises rather than
+            # returning; it still gets its retries, and the last one propagates)
+            try:
+                output = await get_model(model).generate(input_messages, tools)
+            except ModelRefusalError:
+                if retry_refusals is not None and attempts < retry_refusals:
+                    attempts += 1
+                    continue
+                raise
 
             # if it's a refusal see if we should retry
-            if output.stop_reason == "content_filter":
+            if not output.empty and output.stop_reason == "content_filter":
                 if retry_refusals is not None and attempts < retry_refusals:
                     attempts += 1
                     continue

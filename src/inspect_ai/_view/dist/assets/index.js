@@ -20266,6 +20266,23 @@ var printObject = (val, size = 50) => {
 	const allItems = [...headItems, ...tailItems];
 	return envelope[0] + allItems.join(separator) + envelope[1];
 };
+/**
+* Own-property read of a string-keyed record. Plain indexing walks the
+* prototype chain, so a key taken from untrusted data (a log's uuid, score
+* name, attachment id, ...) that happens to be `constructor`, `toString` or
+* `__proto__` resolves to a builtin instead of "absent"; this returns
+* `undefined` for any key the record does not own.
+*/ var getOwn = (record, key) => record !== void 0 && Object.hasOwn(record, key) ? record[key] : void 0;
+/**
+* Record with a null prototype built from a Map. `Object.fromEntries` alone
+* only makes *present* keys own properties; an absent prototype-named key
+* would still resolve through Object.prototype at read sites, and a present
+* `__proto__` key could not be assigned onto a plain object at all.
+*/ var nullProtoRecord = (entries) => {
+	const record = Object.fromEntries(entries);
+	Object.setPrototypeOf(record, null);
+	return record;
+};
 //#endregion
 //#region ../../packages/util/src/path.ts
 /**
@@ -20592,6 +20609,7 @@ var GENERATE_CONFIG_KEYS = {
 	effort: true,
 	extra_body: true,
 	extra_headers: true,
+	fail_on_refusal: true,
 	fallback_models: true,
 	frequency_penalty: true,
 	internal_tools: true,
@@ -20798,12 +20816,12 @@ var kModelNameSeparator = ", ";
 * treat "no roles" and "absent" uniformly.
 */ var modelRoleNames = (modelRoles) => {
 	if (!modelRoles) return void 0;
-	const roles = {};
+	const roles = /* @__PURE__ */ new Map();
 	for (const [role, value] of Object.entries(modelRoles)) {
 		const names = modelRoleModelNames(value);
-		if (names) roles[role] = names;
+		if (names) roles.set(role, names);
 	}
-	return Object.keys(roles).length > 0 ? roles : void 0;
+	return roles.size > 0 ? nullProtoRecord(roles) : void 0;
 };
 //#endregion
 //#region ../../packages/inspect-common/src/utils/time.ts
@@ -26499,7 +26517,7 @@ function debounce$2(func, wait, options) {
 	return debouncedFn;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
 var QueryClientContext = import_react.createContext(void 0);
 var useQueryClient = (queryClient) => {
 	const client = import_react.useContext(QueryClientContext);
@@ -26520,7 +26538,7 @@ var QueryClientProvider = ({ client, children }) => {
 	});
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
 var defaultTimeoutProvider = {
 	setTimeout: (callback, delay) => setTimeout(callback, delay),
 	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
@@ -26569,11 +26587,11 @@ function systemSetTimeoutZero(callback) {
 	setTimeout(callback, 0);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/utils.js
 /** @deprecated
 * use `environmentManager.isServer()` instead.
 */
-var isServer = typeof window === "undefined" || "Deno" in globalThis;
+var isServer$1 = typeof window === "undefined" || "Deno" in globalThis;
 function noop() {}
 function functionalUpdate$1(updater, input) {
 	return typeof updater === "function" ? updater(input) : updater;
@@ -26584,11 +26602,8 @@ function isValidTimeout(value) {
 function timeUntilStale(updatedAt, staleTime) {
 	return Math.max(updatedAt + (staleTime || 0) - Date.now(), 0);
 }
-function resolveStaleTime(staleTime, query) {
-	return typeof staleTime === "function" ? staleTime(query) : staleTime;
-}
-function resolveQueryBoolean(option, query) {
-	return typeof option === "function" ? option(query) : option;
+function resolveQueryValue(value, query) {
+	return typeof value === "function" ? value(query) : value;
 }
 function matchQuery(filters, query) {
 	const { type = "all", exact, fetchStatus, predicate, queryKey, stale } = filters;
@@ -26748,29 +26763,14 @@ function addConsumeAwareSignal(object, getSignal, onCancelled) {
 	return object;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+var isServerFn = () => isServer$1;
 /**
-* Manages environment detection used by TanStack Query internals.
+* Returns whether the current runtime should be treated as a server environment.
 */
-var environmentManager = (() => {
-	let isServerFn = () => isServer;
-	return {
-		/**
-		* Returns whether the current runtime should be treated as a server environment.
-		*/
-		isServer() {
-			return isServerFn();
-		},
-		/**
-		* Overrides the server check globally.
-		*/
-		setIsServer(isServerValue) {
-			isServerFn = isServerValue;
-		}
-	};
-})();
+var isServer = () => isServerFn();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/subscribable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/subscribable.js
 var Subscribable = class {
 	constructor() {
 		this.listeners = /* @__PURE__ */ new Set();
@@ -26791,7 +26791,7 @@ var Subscribable = class {
 	onUnsubscribe() {}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/focusManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/focusManager.js
 var FocusManager = class extends Subscribable {
 	#focused;
 	#cleanup;
@@ -26844,7 +26844,7 @@ var FocusManager = class extends Subscribable {
 };
 var focusManager = new FocusManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/notifyManager.js
 var defaultScheduler = systemSetTimeoutZero;
 function createNotifyManager() {
 	let queue = [];
@@ -26917,7 +26917,7 @@ function createNotifyManager() {
 }
 var notifyManager = createNotifyManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/onlineManager.js
 var OnlineManager = class extends Subscribable {
 	#online = true;
 	#cleanup;
@@ -26965,7 +26965,7 @@ var OnlineManager = class extends Subscribable {
 };
 var onlineManager = new OnlineManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/retryer.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/retryer.js
 function defaultRetryDelay(failureCount) {
 	return Math.min(1e3 * 2 ** failureCount, 3e4);
 }
@@ -27043,7 +27043,7 @@ function createRetryer(config) {
 		}
 		Promise.resolve(promiseOrValue).then(resolve).catch((error) => {
 			if (isResolved()) return;
-			const retry = config.retry ?? (environmentManager.isServer() ? 0 : 3);
+			const retry = config.retry ?? (isServer() ? 0 : 3);
 			const retryDelay = config.retryDelay ?? defaultRetryDelay;
 			const delay = typeof retryDelay === "function" ? retryDelay(failureCount, error) : retryDelay;
 			const shouldRetry = retry === true || typeof retry === "number" && failureCount < retry || typeof retry === "function" && retry(failureCount, error);
@@ -27080,7 +27080,7 @@ function createRetryer(config) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/removable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/removable.js
 var Removable = class {
 	#gcTimeout;
 	destroy() {
@@ -27093,7 +27093,7 @@ var Removable = class {
 		}, this.gcTime);
 	}
 	updateGcTime(newGcTime) {
-		this.gcTime = Math.max(this.gcTime || 0, newGcTime ?? (environmentManager.isServer() ? Infinity : 3e5));
+		this.gcTime = Math.max(this.gcTime || 0, newGcTime ?? (isServer() ? Infinity : 3e5));
 	}
 	clearGcTimeout() {
 		if (this.#gcTimeout !== void 0) {
@@ -27103,7 +27103,7 @@ var Removable = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
 function infiniteQueryBehavior(pages) {
 	return { onFetch: (context, query) => {
 		const options = context.options;
@@ -27196,7 +27196,7 @@ function hasPreviousPage(options, data) {
 	return getPreviousPageParam(options, data) != null;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/query.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/query.js
 var Query = class extends Removable {
 	#queryType;
 	#initialState;
@@ -27280,7 +27280,7 @@ var Query = class extends Removable {
 		this.setState(this.resetState);
 	}
 	isActive() {
-		return this.observers.some((observer) => resolveQueryBoolean(observer.options.enabled, this) !== false);
+		return this.observers.some((observer) => resolveQueryValue(observer.options.enabled, this) !== false);
 	}
 	isDisabled() {
 		if (this.getObserversCount() > 0) return !this.isActive();
@@ -27290,7 +27290,7 @@ var Query = class extends Removable {
 		return this.state.dataUpdateCount + this.state.errorUpdateCount > 0;
 	}
 	isStatic() {
-		if (this.getObserversCount() > 0) return this.observers.some((observer) => resolveStaleTime(observer.options.staleTime, this) === "static");
+		if (this.getObserversCount() > 0) return this.observers.some((observer) => resolveQueryValue(observer.options.staleTime, this) === "static");
 		return false;
 	}
 	isStale() {
@@ -27328,7 +27328,7 @@ var Query = class extends Removable {
 			this.observers.splice(index, 1);
 			if (!this.observers.length) {
 				if (this.#retryer) {
-					if (this.#abortSignalConsumed || this.#isInitialPausedFetch()) this.#retryer.cancel({ revert: true });
+					if (this.#abortSignalConsumed || this.state.fetchStatus === "paused" && this.state.status === "pending") this.#retryer.cancel({ revert: true });
 					else this.#retryer.cancelRetry();
 				}
 				this.scheduleGc();
@@ -27342,9 +27342,6 @@ var Query = class extends Removable {
 	}
 	getObserversCount() {
 		return this.observers.length;
-	}
-	#isInitialPausedFetch() {
-		return this.state.fetchStatus === "paused" && this.state.status === "pending";
 	}
 	invalidate() {
 		if (!this.state.isInvalidated) this.#dispatch({ type: "invalidate" });
@@ -27572,7 +27569,7 @@ function getDefaultState$1(options) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/queryObserver.js
 var QueryObserver = class extends Subscribable {
 	#client;
 	#currentQuery = void 0;
@@ -27626,7 +27623,7 @@ var QueryObserver = class extends Subscribable {
 		const prevOptions = this.options;
 		const prevQuery = this.#currentQuery;
 		this.options = this.#client.defaultQueryOptions(options);
-		if (this.options.enabled !== void 0 && typeof this.options.enabled !== "boolean" && typeof this.options.enabled !== "function" && typeof resolveQueryBoolean(this.options.enabled, this.#currentQuery) !== "boolean") throw new Error("Expected enabled to be a boolean or a callback that returns a boolean");
+		if (this.options.enabled !== void 0 && typeof this.options.enabled !== "boolean" && typeof this.options.enabled !== "function" && typeof resolveQueryValue(this.options.enabled, this.#currentQuery) !== "boolean") throw new Error("Expected enabled to be a boolean or a callback that returns a boolean");
 		this.#updateQuery();
 		this.#currentQuery.setOptions(this.options);
 		if (prevOptions._defaulted && !shallowEqualObjects(this.options, prevOptions)) this.#client.getQueryCache().notify({
@@ -27637,14 +27634,14 @@ var QueryObserver = class extends Subscribable {
 		const mounted = this.hasListeners();
 		if (mounted && shouldFetchOptionally(this.#currentQuery, prevQuery, this.options, prevOptions)) this.#executeFetch();
 		this.updateResult();
-		if (mounted && (this.#currentQuery !== prevQuery || resolveQueryBoolean(this.options.enabled, this.#currentQuery) !== resolveQueryBoolean(prevOptions.enabled, this.#currentQuery) || resolveStaleTime(this.options.staleTime, this.#currentQuery) !== resolveStaleTime(prevOptions.staleTime, this.#currentQuery))) this.#updateStaleTimeout();
+		if (mounted && (this.#currentQuery !== prevQuery || resolveQueryValue(this.options.enabled, this.#currentQuery) !== resolveQueryValue(prevOptions.enabled, this.#currentQuery) || resolveQueryValue(this.options.staleTime, this.#currentQuery) !== resolveQueryValue(prevOptions.staleTime, this.#currentQuery))) this.#updateStaleTimeout();
 		const nextRefetchInterval = this.#computeRefetchInterval();
-		if (mounted && (this.#currentQuery !== prevQuery || resolveQueryBoolean(this.options.enabled, this.#currentQuery) !== resolveQueryBoolean(prevOptions.enabled, this.#currentQuery) || nextRefetchInterval !== this.#currentRefetchInterval)) this.#updateRefetchInterval(nextRefetchInterval);
+		if (mounted && (this.#currentQuery !== prevQuery || resolveQueryValue(this.options.enabled, this.#currentQuery) !== resolveQueryValue(prevOptions.enabled, this.#currentQuery) || nextRefetchInterval !== this.#currentRefetchInterval)) this.#updateRefetchInterval(nextRefetchInterval);
 	}
 	getOptimisticResult(options) {
 		const query = this.#client.getQueryCache().build(this.#client, options);
 		const result = this.createResult(query, options);
-		if (shouldAssignObserverCurrentProperties(this, result)) {
+		if (!shallowEqualObjects(this.getCurrentResult(), result)) {
 			this.#currentResult = result;
 			this.#currentResultOptions = this.options;
 			this.#currentResultState = this.#currentQuery.state;
@@ -27707,10 +27704,13 @@ var QueryObserver = class extends Subscribable {
 		if (!fetchOptions?.throwOnError) promise = promise.catch(noop);
 		return promise;
 	}
+	#shouldScheduleTimer(timeout) {
+		return !isServer() && resolveQueryValue(this.options.enabled, this.#currentQuery) !== false && isValidTimeout(timeout);
+	}
 	#updateStaleTimeout() {
 		this.#clearStaleTimeout();
-		const staleTime = resolveStaleTime(this.options.staleTime, this.#currentQuery);
-		if (environmentManager.isServer() || this.#currentResult.isStale || !isValidTimeout(staleTime)) return;
+		const staleTime = resolveQueryValue(this.options.staleTime, this.#currentQuery);
+		if (this.#currentResult.isStale || !this.#shouldScheduleTimer(staleTime)) return;
 		const timeout = timeUntilStale(this.#currentResult.dataUpdatedAt, staleTime) + 1;
 		this.#staleTimeoutId = timeoutManager.setTimeout(() => {
 			if (!this.#currentResult.isStale) this.updateResult();
@@ -27722,7 +27722,7 @@ var QueryObserver = class extends Subscribable {
 	#updateRefetchInterval(nextInterval) {
 		this.#clearRefetchInterval();
 		this.#currentRefetchInterval = nextInterval;
-		if (environmentManager.isServer() || resolveQueryBoolean(this.options.enabled, this.#currentQuery) === false || !isValidTimeout(this.#currentRefetchInterval) || this.#currentRefetchInterval === 0) return;
+		if (this.#currentRefetchInterval === 0 || !this.#shouldScheduleTimer(this.#currentRefetchInterval)) return;
 		this.#refetchIntervalId = timeoutManager.setInterval(() => {
 			if (this.options.refetchIntervalInBackground || focusManager.isFocused()) this.#executeFetch();
 		}, this.#currentRefetchInterval);
@@ -27828,7 +27828,7 @@ var QueryObserver = class extends Subscribable {
 			isRefetchError: isError && hasData,
 			isStale: isStale(query, options),
 			refetch: this.refetch,
-			isEnabled: resolveQueryBoolean(options.enabled, query) !== false
+			isEnabled: resolveQueryValue(options.enabled, query) !== false
 		};
 	}
 	updateResult() {
@@ -27851,7 +27851,16 @@ var QueryObserver = class extends Subscribable {
 				return this.#currentResult[typedKey] !== prevResult[typedKey] && includedProps.has(typedKey);
 			});
 		};
-		this.#notify({ listeners: shouldNotifyListeners() });
+		const notifyListeners = shouldNotifyListeners();
+		notifyManager.batch(() => {
+			if (notifyListeners) this.listeners.forEach((listener) => {
+				listener(this.#currentResult);
+			});
+			this.#client.getQueryCache().notify({
+				query: this.#currentQuery,
+				type: "observerResultsUpdated"
+			});
+		});
 	}
 	#updateQuery() {
 		const query = this.#client.getQueryCache().build(this.#client, this.options);
@@ -27868,43 +27877,28 @@ var QueryObserver = class extends Subscribable {
 		this.updateResult();
 		if (this.hasListeners()) this.#updateTimers();
 	}
-	#notify(notifyOptions) {
-		notifyManager.batch(() => {
-			if (notifyOptions.listeners) this.listeners.forEach((listener) => {
-				listener(this.#currentResult);
-			});
-			this.#client.getQueryCache().notify({
-				query: this.#currentQuery,
-				type: "observerResultsUpdated"
-			});
-		});
-	}
 };
 function shouldLoadOnMount(query, options) {
-	return resolveQueryBoolean(options.enabled, query) !== false && query.state.data === void 0 && !(query.state.status === "error" && resolveQueryBoolean(options.retryOnMount, query) === false);
+	return resolveQueryValue(options.enabled, query) !== false && query.state.data === void 0 && !(query.state.status === "error" && resolveQueryValue(options.retryOnMount, query) === false);
 }
 function shouldFetchOnMount(query, options) {
 	return shouldLoadOnMount(query, options) || query.state.data !== void 0 && shouldFetchOn(query, options, options.refetchOnMount);
 }
 function shouldFetchOn(query, options, field) {
-	if (resolveQueryBoolean(options.enabled, query) !== false && resolveStaleTime(options.staleTime, query) !== "static") {
+	if (resolveQueryValue(options.enabled, query) !== false && resolveQueryValue(options.staleTime, query) !== "static") {
 		const value = typeof field === "function" ? field(query) : field;
 		return value === "always" || value !== false && isStale(query, options);
 	}
 	return false;
 }
 function shouldFetchOptionally(query, prevQuery, options, prevOptions) {
-	return (query !== prevQuery || resolveQueryBoolean(prevOptions.enabled, query) === false) && (!options.suspense || query.state.status !== "error") && isStale(query, options);
+	return (query !== prevQuery || resolveQueryValue(prevOptions.enabled, query) === false) && (!options.suspense || query.state.status !== "error") && isStale(query, options);
 }
 function isStale(query, options) {
-	return resolveQueryBoolean(options.enabled, query) !== false && query.isStaleByTime(resolveStaleTime(options.staleTime, query));
-}
-function shouldAssignObserverCurrentProperties(observer, optimisticResult) {
-	if (!shallowEqualObjects(observer.getCurrentResult(), optimisticResult)) return true;
-	return false;
+	return resolveQueryValue(options.enabled, query) !== false && query.isStaleByTime(resolveQueryValue(options.staleTime, query));
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
 var InfiniteQueryObserver = class extends QueryObserver {
 	constructor(client, options) {
 		super(client, options);
@@ -27959,7 +27953,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/mutation.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/mutation.js
 var Mutation = class extends Removable {
 	#client;
 	#observers;
@@ -28176,7 +28170,7 @@ function getDefaultState() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/mutationCache.js
 var MutationCache = class extends Subscribable {
 	#mutations;
 	#scopes;
@@ -28283,7 +28277,7 @@ function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
 var MutationObserver$1 = class extends Subscribable {
 	#client;
 	#currentResult = void 0;
@@ -28393,7 +28387,7 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/queryCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/queryCache.js
 var QueryCache = class extends Subscribable {
 	#queries;
 	constructor(config = {}) {
@@ -28485,7 +28479,7 @@ var QueryCache = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.3/node_modules/@tanstack/query-core/build/modern/queryClient.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/queryClient.js
 var QueryClient = class {
 	#queryCache;
 	#mutationCache;
@@ -28558,7 +28552,7 @@ var QueryClient = class {
 		const query = this.#queryCache.build(this, defaultedOptions);
 		const cachedData = query.state.data;
 		if (cachedData === void 0) return this.fetchQuery(options);
-		if (options.revalidateIfStale && query.isStaleByTime(resolveStaleTime(defaultedOptions.staleTime, query))) this.prefetchQuery(defaultedOptions);
+		if (options.revalidateIfStale && query.isStaleByTime(resolveQueryValue(defaultedOptions.staleTime, query))) this.prefetchQuery(defaultedOptions);
 		return Promise.resolve(cachedData);
 	}
 	getQueriesData(filters) {
@@ -28641,7 +28635,7 @@ var QueryClient = class {
 		const defaultedOptions = this.defaultQueryOptions(options);
 		if (defaultedOptions.retry === void 0) defaultedOptions.retry = false;
 		const query = this.#queryCache.build(this, defaultedOptions);
-		const queryData = query.isStaleByTime(resolveStaleTime(defaultedOptions.staleTime, query)) ? await query.fetch(defaultedOptions) : query.state.data;
+		const queryData = query.isStaleByTime(resolveQueryValue(defaultedOptions.staleTime, query)) ? await query.fetch(defaultedOptions) : query.state.data;
 		const select = defaultedOptions.select;
 		if (select) return select(queryData);
 		return queryData;
@@ -28653,7 +28647,7 @@ var QueryClient = class {
 		const defaultedOptions = this.defaultQueryOptions(options);
 		if (defaultedOptions.retry === void 0) defaultedOptions.retry = false;
 		const query = this.#queryCache.build(this, defaultedOptions);
-		return query.isStaleByTime(resolveStaleTime(defaultedOptions.staleTime, query)) ? query.fetch(defaultedOptions) : Promise.resolve(query.state.data);
+		return query.isStaleByTime(resolveQueryValue(defaultedOptions.staleTime, query)) ? query.fetch(defaultedOptions) : Promise.resolve(query.state.data);
 	}
 	/**
 	* @deprecated Use queryClient.query(options) instead. You can swallow errors with `.catch(noop)`. This method will be removed in the next major version.
@@ -28759,12 +28753,12 @@ var QueryClient = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
 function createValue() {
 	let isReset = false;
 	return {
@@ -28782,7 +28776,7 @@ function createValue() {
 var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
 var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
 	const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
 	if (options.suspense || throwOnError) {
@@ -28798,7 +28792,7 @@ var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/suspense.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/suspense.js
 var ensureSuspenseTimers = (defaultedOptions) => {
 	if (defaultedOptions.suspense) {
 		const MIN_SUSPENSE_TIME_MS = 1e3;
@@ -28813,7 +28807,7 @@ var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observ
 	errorResetBoundary.clearReset();
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
 function useBaseQuery(options, Observer, queryClient) {
 	const isRestoring = useIsRestoring();
 	const errorResetBoundary = useQueryErrorResetBoundary();
@@ -28847,12 +28841,12 @@ function useBaseQuery(options, Observer, queryClient) {
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useMutation.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useMutation.js
 function useMutation(options, queryClient) {
 	const client = useQueryClient(queryClient);
 	const [observer] = import_react.useState(() => new MutationObserver$1(client, options));
@@ -28871,7 +28865,7 @@ function useMutation(options, queryClient) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.3_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
 function useInfiniteQuery(options, queryClient) {
 	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
@@ -29077,9 +29071,9 @@ var asArray$2 = (v) => isReadonlyArray(v) ? v : [v];
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/url.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/url.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -29094,9 +29088,9 @@ function normalizeProtocolRelativeUrl(url, protocol) {
 	return protocol + url.replace(/\\/g, "/");
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/history.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/history.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -29150,7 +29144,7 @@ function warning$1(cond, message) {
 		if (typeof console !== "undefined") console.warn(message);
 		try {
 			throw new Error(message);
-		} catch (e) {}
+		} catch {}
 	}
 }
 function createKey() {
@@ -29332,7 +29326,7 @@ function createBrowserURLImpl(windowImpl, to, isAbsolute = false) {
 	return new URL(href, base);
 }
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -29660,13 +29654,13 @@ function matchPathImpl(pattern, pathname, matcher, compiledParams) {
 	let match = pathname.match(matcher);
 	if (!match) return null;
 	let matchedPathname = match[0];
-	let pathnameBase = matchedPathname.replace(/(.)\/+$/, "$1");
+	let pathnameBase = removeTrailingSlash(matchedPathname, 1);
 	let captureGroups = match.slice(1);
 	return {
 		params: compiledParams.reduce((memo, { paramName, isOptional }, index) => {
 			if (paramName === "*") {
 				let splatValue = captureGroups[index] || "";
-				pathnameBase = matchedPathname.slice(0, matchedPathname.length - splatValue.length).replace(/(.)\/+$/, "$1");
+				pathnameBase = removeTrailingSlash(matchedPathname.slice(0, matchedPathname.length - splatValue.length), 1);
 			}
 			const value = captureGroups[index];
 			if (isOptional && !value) memo[paramName] = void 0;
@@ -29735,7 +29729,7 @@ function resolvePath(to, fromPathname = "/") {
 	let pathname;
 	if (toPathname) {
 		toPathname = removeDoubleSlashes(toPathname);
-		if (toPathname.startsWith("/")) pathname = resolvePathname(toPathname.substring(1), "/");
+		if (toPathname.startsWith("/") || toPathname.startsWith("\\")) pathname = resolvePathname(toPathname.substring(1), "/");
 		else pathname = resolvePathname(toPathname, fromPathname);
 	} else pathname = fromPathname;
 	return {
@@ -29796,7 +29790,11 @@ function resolveTo(toArg, routePathnames, locationPathname, isPathRelative = fal
 }
 var removeDoubleSlashes = (path) => path.replace(/[\\/]{2,}/g, "/");
 var joinPaths = (paths) => removeDoubleSlashes(paths.join("/"));
-var removeTrailingSlash = (path) => path.replace(/\/+$/, "");
+function removeTrailingSlash(path, minLength = 0) {
+	let end = path.length;
+	while (end > minLength && path.charCodeAt(end - 1) === 47) end--;
+	return end === path.length ? path : path.slice(0, end);
+}
 var normalizePathname = (pathname) => removeTrailingSlash(pathname).replace(/^\/*/, "/");
 var normalizeSearch = (search) => !search || search === "?" ? "" : search.startsWith("?") ? search : "?" + search;
 var normalizeHash = (hash) => !hash || hash === "#" ? "" : hash.startsWith("#") ? hash : "#" + hash;
@@ -29892,7 +29890,7 @@ function parseToInfo(_to, basename) {
 		let path = stripBasename(targetUrl.pathname, basename);
 		if (targetUrl.origin === currentUrl.origin && path != null) to = path + targetUrl.search + targetUrl.hash;
 		else isExternal = true;
-	} catch (e) {
+	} catch {
 		warning$1(false, `<Link to="${to}"> contains an invalid URL which will probably break when clicked - please update to a valid URL path.`);
 	}
 	return {
@@ -29902,9 +29900,9 @@ function parseToInfo(_to, basename) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/instrumentation.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/instrumentation.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -30161,9 +30159,53 @@ function getReadonlyContext(context) {
 	return { get: (ctx) => context.get(ctx) };
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/router.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/navigation.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+var DEFAULT_NAVIGATION_URL = new URL("http://localhost");
+function getNavigatorCurrentUrl(navigator) {
+	if (navigator.createURL) return navigator.createURL("/");
+	try {
+		return new URL(navigator.createHref("/"), DEFAULT_NAVIGATION_URL);
+	} catch {
+		return DEFAULT_NAVIGATION_URL;
+	}
+}
+function isSameOrigin(a, b) {
+	return a.origin === b.origin && (a.origin !== "null" || a.protocol === b.protocol && a.host === b.host);
+}
+function isExplicitUrl(destination, target) {
+	if (destination.startsWith("//")) return true;
+	let protocol = target.protocol.toLowerCase();
+	if (!destination.toLowerCase().startsWith(protocol)) return false;
+	return target.host === "" || destination.slice(protocol.length).startsWith("//");
+}
+function validateNavigationTarget(original, resolved, currentUrl, externalPolicy) {
+	let originalUrl = null;
+	try {
+		originalUrl = original == null ? null : new URL(original, currentUrl);
+	} catch {}
+	let resolvedUrl = new URL(resolved, currentUrl);
+	let originalIsExternal = originalUrl != null && !isSameOrigin(originalUrl, currentUrl);
+	let resolvedIsExternal = !isSameOrigin(resolvedUrl, currentUrl);
+	if (externalPolicy === "reject") {
+		if (originalIsExternal || resolvedIsExternal) throw new Error("External navigation is not allowed");
+	} else if (resolvedIsExternal) {
+		if (originalUrl == null || !isExplicitUrl(original, originalUrl) || !isSameOrigin(originalUrl, resolvedUrl)) throw new Error("External navigation is not allowed");
+	}
+}
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/router/router.js
+/**
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -30571,21 +30613,27 @@ function createRouter(init) {
 		let instrumentationNavigateMetaReceiver = consumeInstrumentationClientResultMetaReceiver(router);
 		let { path, submission, error } = normalizeNavigateOptions(false, normalizeTo(state.location, state.matches, basename, to, opts?.fromRouteId, opts?.relative), opts);
 		let maskPath;
-		if (opts?.mask) maskPath = {
-			pathname: "",
-			search: "",
-			hash: "",
-			...typeof opts.mask === "string" ? parsePath$1(opts.mask) : {
+		if (opts?.mask) {
+			let partialPath = typeof opts.mask === "string" ? parsePath$1(opts.mask) : {
 				...state.location.mask,
 				...opts.mask
-			}
-		};
+			};
+			maskPath = {
+				pathname: partialPath.pathname ?? "",
+				search: partialPath.search ?? "",
+				hash: partialPath.hash ?? ""
+			};
+			if (PROTOCOL_RELATIVE_URL_REGEX.test(maskPath.pathname)) throw new Error("External navigation is not allowed");
+			else if (maskPath.pathname.startsWith("\\")) maskPath.pathname = maskPath.pathname.replace(/^\\+/, "/");
+			validateNavigationTarget(typeof opts.mask === "string" ? opts.mask : createPath(opts.mask), createPath(maskPath), init.history.createURL("/"), "reject");
+		}
 		let currentLocation = state.location;
 		let nextLocation = createLocation(currentLocation, path, opts && opts.state, void 0, maskPath);
 		nextLocation = {
 			...nextLocation,
 			...init.history.encodeLocation(nextLocation)
 		};
+		validateNavigationTarget(to == null ? init.history.createHref(state.location) : typeof to === "string" ? to : createPath(to), init.history.createHref(nextLocation.mask || nextLocation), init.history.createURL("/"), "reject");
 		let userReplace = opts && opts.replace != null ? opts.replace : void 0;
 		let historyAction = "PUSH";
 		if (userReplace === true) historyAction = "REPLACE";
@@ -31042,7 +31090,10 @@ function createRouter(init) {
 		let abortPendingFetchRevalidations = () => revalidatingFetchers.forEach((rf) => abortFetcher(rf.key));
 		abortController.signal.addEventListener("abort", abortPendingFetchRevalidations);
 		let { loaderResults, fetcherResults } = await callLoadersAndMaybeResolveData(dsMatches, revalidatingFetchers, revalidationRequest, nextLocation, scopedContext);
-		if (abortController.signal.aborted) return;
+		if (abortController.signal.aborted) {
+			if (fetchReloadIds.get(key) === loadId) fetchReloadIds.delete(key);
+			return;
+		}
 		abortController.signal.removeEventListener("abort", abortPendingFetchRevalidations);
 		fetchReloadIds.delete(key);
 		fetchControllers.delete(key);
@@ -31164,7 +31215,10 @@ function createRouter(init) {
 		if (redirect.response.headers.has("X-Remix-Revalidate")) isRevalidationRequired = true;
 		let location = redirect.response.headers.get("Location");
 		invariant$1(location, "Expected a Location header on the redirect Response");
-		location = normalizeRedirectLocation(location, new URL(request.url), basename, init.history);
+		let originalLocation = location;
+		let currentUrl = new URL(request.url);
+		location = normalizeRedirectLocation(location, currentUrl, basename, init.history);
+		validateNavigationTarget(originalLocation, location, currentUrl, "allow-explicit");
 		let redirectLocation = createLocation(state.location, location, { _isRedirect: true });
 		if (isBrowser) {
 			let isDocumentReload = false;
@@ -31516,6 +31570,7 @@ function createRouter(init) {
 		fetch,
 		revalidate,
 		createHref: (to) => init.history.createHref(to),
+		createURL: (to) => init.history.createURL(to),
 		encodeLocation: (to) => init.history.encodeLocation(to),
 		getFetcher,
 		resetFetcher,
@@ -31617,7 +31672,7 @@ function normalizeNavigateOptions(isFetcher, path, opts) {
 						text: void 0
 					}
 				};
-			} catch (e) {
+			} catch {
 				return getInvalidBodyError();
 			}
 		}
@@ -31640,7 +31695,7 @@ function normalizeNavigateOptions(isFetcher, path, opts) {
 	} else try {
 		searchParams = new URLSearchParams(opts.body);
 		formData = convertSearchParamsToFormData(searchParams);
-	} catch (e) {
+	} catch {
 		return getInvalidBodyError();
 	}
 	let submission = {
@@ -32135,7 +32190,7 @@ async function callDataStrategyImpl(dataStrategyImpl, request, path, matches, fe
 	});
 	try {
 		await Promise.all(matches.flatMap((m) => [m._lazyPromises?.handler, m._lazyPromises?.route]));
-	} catch (e) {}
+	} catch {}
 	return results;
 }
 async function callLoaderOrAction({ request, path, pattern, match, lazyHandlerPromise, lazyRoutePromise, handlerOverride, scopedContext }) {
@@ -32318,7 +32373,7 @@ function normalizeRedirectLocation(location, currentUrl, basename, historyInstan
 	}
 	try {
 		if (hasInvalidProtocol(historyInstance.createURL(location).toString())) throw new Error("Invalid redirect location");
-	} catch (e) {}
+	} catch {}
 	return location;
 }
 function createClientSideRequest(history, location, signal, submission) {
@@ -32665,7 +32720,7 @@ function restoreAppliedTransitions(_window, transitions) {
 			let json = JSON.parse(sessionPositions);
 			for (let [k, v] of Object.entries(json || {})) if (v && Array.isArray(v)) transitions.set(k, new Set(v || []));
 		}
-	} catch (e) {}
+	} catch {}
 }
 function persistAppliedTransitions(_window, transitions) {
 	if (transitions.size > 0) {
@@ -32686,13 +32741,13 @@ function createDeferred() {
 			res(val);
 			try {
 				await promise;
-			} catch (e) {}
+			} catch {}
 		};
 		reject = async (error) => {
 			rej(error);
 			try {
 				await promise;
-			} catch (e) {}
+			} catch {}
 		};
 	});
 	return {
@@ -32702,9 +32757,9 @@ function createDeferred() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/context.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/context.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -32740,9 +32795,9 @@ RouteContext.displayName = "Route";
 var RouteErrorContext = import_react.createContext(null);
 RouteErrorContext.displayName = "RouteError";
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/errors.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/errors.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -32767,9 +32822,9 @@ function decodeRouteErrorResponseDigest(digest) {
 	} catch {}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/hooks.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/hooks.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -33027,6 +33082,7 @@ function useNavigateUnstable() {
 		}
 		let path = resolveTo(to, JSON.parse(routePathnamesJson), locationPathname, options.relative === "path");
 		if (dataRouterContext == null && basename !== "/") path.pathname = path.pathname === "/" ? basename : joinPaths([basename, path.pathname]);
+		validateNavigationTarget(typeof to === "string" ? to : createPath(to), navigator.createHref(path), getNavigatorCurrentUrl(navigator), "reject");
 		(!!options.replace ? navigator.replace : navigator.push)(path, options.state, options);
 	}, [
 		basename,
@@ -33291,7 +33347,7 @@ var RenderErrorBoundary = class extends import_react.Component {
 };
 var errorRedirectHandledMap = /* @__PURE__ */ new WeakMap();
 function RSCErrorHandler({ children, error }) {
-	let { basename } = import_react.useContext(NavigationContext);
+	let { basename, navigator } = import_react.useContext(NavigationContext);
 	if (typeof error === "object" && error && "digest" in error && typeof error.digest === "string") {
 		let redirect = decodeRedirectErrorDigest(error.digest);
 		if (redirect) {
@@ -33299,6 +33355,7 @@ function RSCErrorHandler({ children, error }) {
 			if (existingRedirect) throw existingRedirect;
 			let parsed = parseToInfo(redirect.location, basename);
 			let target = parsed.absoluteURL || parsed.to;
+			validateNavigationTarget(redirect.location, target, getNavigatorCurrentUrl(navigator), "allow-explicit");
 			if (hasInvalidProtocol(target)) throw new Error("Invalid redirect location");
 			if (isBrowser$1 && !errorRedirectHandledMap.get(error)) if (parsed.isExternal || redirect.reloadDocument) window.location.href = target;
 			else {
@@ -33566,9 +33623,9 @@ function warningOnce(key, cond, message) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -33585,9 +33642,9 @@ function warnOnce(condition, message) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/components.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/components.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -33792,6 +33849,7 @@ function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, use
 	let navigator = import_react.useMemo(() => {
 		return {
 			createHref: router.createHref,
+			createURL: router.createURL,
 			encodeLocation: router.encodeLocation,
 			go: (n) => router.navigate(n),
 			push: (to, state, opts) => router.navigate(to, {
@@ -33874,12 +33932,13 @@ function DataRoutes({ routes, manifest, future, state, isStatic, onError }) {
 */
 function Navigate({ to, replace, state, relative }) {
 	invariant$1(useInRouterContext(), `<Navigate> may be used only in the context of a <Router> component.`);
-	let { static: isStatic } = import_react.useContext(NavigationContext);
+	let { static: isStatic, navigator } = import_react.useContext(NavigationContext);
 	warning$1(!isStatic, "<Navigate> must not be used on the initial render in a <StaticRouter>. This is a no-op, but you should modify your code so the <Navigate> is only ever rendered in response to some user interaction or state change.");
 	let { matches } = import_react.useContext(RouteContext);
 	let { pathname: locationPathname } = useLocation();
 	let navigate = useNavigate();
 	let path = resolveTo(to, getResolveToMatches(matches), locationPathname, relative === "path");
+	validateNavigationTarget(typeof to === "string" ? to : createPath(to), navigator.createHref(path), getNavigatorCurrentUrl(navigator), "reject");
 	let jsonPath = JSON.stringify(path);
 	import_react.useEffect(() => {
 		navigate(JSON.parse(jsonPath), {
@@ -33992,9 +34051,9 @@ function Router({ basename: basenameProp = "/", children = null, location: locat
 }
 import_react.Component;
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/dom.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/dom.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34068,7 +34127,7 @@ function isFormDataSubmitterSupported() {
 	if (_formDataSupportsSubmitter === null) try {
 		new FormData(document.createElement("form"), 0);
 		_formDataSupportsSubmitter = false;
-	} catch (e) {
+	} catch {
 		_formDataSupportsSubmitter = true;
 	}
 	return _formDataSupportsSubmitter;
@@ -34133,9 +34192,9 @@ function getFormSubmissionInfo(target, basename) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34148,9 +34207,9 @@ function invariant(value, message) {
 	if (value === false || value === null || typeof value === "undefined") throw new Error(message);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34171,9 +34230,9 @@ function escapeHtml$1(html) {
 	return html.replace(ESCAPE_REGEX, (match) => ESCAPE_LOOKUP[match]);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34189,9 +34248,9 @@ function singleFetchUrl(reqUrl, extension) {
 	return url;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34219,9 +34278,9 @@ async function loadRouteModule(route, routeModulesCache) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/links.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/links.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34320,9 +34379,9 @@ function dedupeLinkDescriptors(descriptors, preloads) {
 	}, []);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/components.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/ssr/components.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34579,9 +34638,9 @@ function mergeRefs(...refs) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/lib.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom/lib.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34592,8 +34651,8 @@ function mergeRefs(...refs) {
 */
 var isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
 try {
-	if (isBrowser) window.__reactRouterVersion = "8.3.0";
-} catch (e) {}
+	if (isBrowser) window.__reactRouterVersion = "8";
+} catch {}
 /**
 * Create a new {@link DataRouter| data router} that manages the application
 * path via the URL [`hash`](https://developer.mozilla.org/en-US/docs/Web/API/URL/hash).
@@ -34653,7 +34712,7 @@ function deserializeErrors(errors) {
 				let error = new ErrorConstructor(val.message);
 				error.stack = "";
 				serialized[key] = error;
-			} catch (e) {}
+			} catch {}
 		}
 		if (serialized[key] == null) {
 			let error = new Error(val.message);
@@ -35245,6 +35304,7 @@ function useSubmit() {
 		if (options.navigate === false) await routerFetch(options.fetcherKey || getUniqueFetcherId(), currentRouteId, options.action || action, {
 			defaultShouldRevalidate: options.defaultShouldRevalidate,
 			preventScrollReset: options.preventScrollReset,
+			relative: options.relative,
 			formData,
 			body,
 			formMethod: options.method || method,
@@ -35254,6 +35314,7 @@ function useSubmit() {
 		else await routerNavigate(options.action || action, {
 			defaultShouldRevalidate: options.defaultShouldRevalidate,
 			preventScrollReset: options.preventScrollReset,
+			relative: options.relative,
 			formData,
 			body,
 			formMethod: options.method || method,
@@ -35377,6 +35438,9 @@ function useScrollRestoration({ getKey, storageKey } = {}) {
 			window.history.scrollRestoration = "auto";
 		};
 	}, []);
+	usePageShow(import_react.useCallback((event) => {
+		if (event.persisted) window.history.scrollRestoration = "manual";
+	}, []));
 	usePageHide(import_react.useCallback(() => {
 		if (navigation.state === "idle") {
 			let key = getScrollRestorationKey(location, matches, basename, getKey);
@@ -35401,7 +35465,7 @@ function useScrollRestoration({ getKey, storageKey } = {}) {
 			try {
 				let sessionPositions = sessionStorage.getItem(storageKey || SCROLL_RESTORATION_STORAGE_KEY);
 				if (sessionPositions) savedScrollPositions = JSON.parse(sessionPositions);
-			} catch (e) {}
+			} catch {}
 		}, [storageKey]);
 		import_react.useLayoutEffect(() => {
 			let disableScrollRestoration = router?.enableScrollRestoration(savedScrollPositions, () => window.scrollY, getKey ? (location, matches) => getScrollRestorationKey(location, matches, basename, getKey) : void 0);
@@ -35444,6 +35508,16 @@ function usePageHide(callback, options) {
 		window.addEventListener("pagehide", callback, opts);
 		return () => {
 			window.removeEventListener("pagehide", callback, opts);
+		};
+	}, [callback, capture]);
+}
+function usePageShow(callback, options) {
+	let { capture } = options || {};
+	import_react.useEffect(() => {
+		let opts = capture != null ? { capture } : void 0;
+		window.addEventListener("pageshow", callback, opts);
+		return () => {
+			window.removeEventListener("pageshow", callback, opts);
 		};
 	}, [callback, capture]);
 }
@@ -54123,8 +54197,8 @@ var punycode = {
 	"toUnicode": toUnicode
 };
 //#endregion
-//#region ../../node_modules/.pnpm/markdown-it@15.0.0/node_modules/markdown-it/dist/markdown-it.mjs
-/*! markdown-it 15.0.0 https://github.com/markdown-it/markdown-it @license MIT */
+//#region ../../node_modules/.pnpm/markdown-it@15.0.1/node_modules/markdown-it/dist/markdown-it.mjs
+/*! markdown-it 15.0.1 https://github.com/markdown-it/markdown-it @license MIT */
 var __defProp = Object.defineProperty;
 var __exportAll = (all, no_symbols) => {
 	let target = {};
@@ -54685,13 +54759,25 @@ var Token = class {
 */
 var Ruler = class {
 	constructor() {
-		_defineProperty(this, "__rules__", []);
-		_defineProperty(this, "__cache__", null);
+		_defineProperty(
+			this,
+			/** @internal */
+			"__rules__",
+			[]
+		);
+		_defineProperty(
+			this,
+			/** @internal */
+			"__cache__",
+			null
+		);
 	}
+	/** @internal */
 	__find__(name) {
 		for (let i = 0; i < this.__rules__.length; i++) if (this.__rules__[i].name === name) return i;
 		return -1;
 	}
+	/** @internal */
 	__compile__() {
 		const chains = /* @__PURE__ */ new Set();
 		this.__rules__.forEach((rule) => {
@@ -54716,11 +54802,6 @@ var Ruler = class {
 	* Replace rule by name with new function & options. Throws error if name not
 	* found.
 	*
-	* @param name Rule name to replace.
-	* @param fn New rule function.
-	* @param options Rule options. `alt` is an array with names of "alternate"
-	* chains.
-	*
 	* @example Replace existing typographer replacement rule with new one
 	* ```javascript
 	* import MarkdownIt from 'markdown-it'
@@ -54741,12 +54822,6 @@ var Ruler = class {
 	/**
 	* Add new rule to chain before one with given name. See also
 	* {@link Ruler.after}, {@link Ruler.push}.
-	*
-	* @param beforeName New rule will be added before this one.
-	* @param ruleName Name of added rule.
-	* @param fn Rule function.
-	* @param options Rule options. `alt` is an array with names of "alternate"
-	* chains.
 	*
 	* @example
 	* ```javascript
@@ -54773,12 +54848,6 @@ var Ruler = class {
 	* Add new rule to chain after one with given name. See also
 	* {@link Ruler.before}, {@link Ruler.push}.
 	*
-	* @param afterName New rule will be added after this one.
-	* @param ruleName Name of added rule.
-	* @param fn Rule function.
-	* @param options Rule options. `alt` is an array with names of "alternate"
-	* chains.
-	*
 	* @example
 	* ```javascript
 	* import MarkdownIt from 'markdown-it'
@@ -54803,11 +54872,6 @@ var Ruler = class {
 	/**
 	* Push new rule to the end of chain. See also
 	* {@link Ruler.before}, {@link Ruler.after}.
-	*
-	* @param ruleName Name of added rule.
-	* @param fn Rule function.
-	* @param options Rule options. `alt` is an array with names of "alternate"
-	* chains.
 	*
 	* @example
 	* ```javascript
@@ -54834,9 +54898,7 @@ var Ruler = class {
 	*
 	* See also {@link Ruler.disable}, {@link Ruler.enableOnly}.
 	*
-	* @param list List of rule names to enable.
-	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
-	* @returns List of found rule names (if no exception happened).
+	* Returns list of found rule names (if no exception happened).
 	*/
 	enable(list, ignoreInvalid = false) {
 		if (!Array.isArray(list)) list = [list];
@@ -54858,9 +54920,6 @@ var Ruler = class {
 	* not found - throw Error. Errors can be disabled by second param.
 	*
 	* See also {@link Ruler.disable}, {@link Ruler.enable}.
-	*
-	* @param list List of rule names to enable (whitelist).
-	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
 	*/
 	enableOnly(list, ignoreInvalid = false) {
 		if (!Array.isArray(list)) list = [list];
@@ -54875,9 +54934,7 @@ var Ruler = class {
 	*
 	* See also {@link Ruler.enable}, {@link Ruler.enableOnly}.
 	*
-	* @param list List of rule names to disable.
-	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
-	* @returns List of found rule names (if no exception happened).
+	* Returns list of found rule names (if no exception happened).
 	*/
 	disable(list, ignoreInvalid = false) {
 		if (!Array.isArray(list)) list = [list];
@@ -55015,10 +55072,6 @@ var Renderer = class {
 	/**
 	* Default token renderer. Can be overriden by custom function
 	* in {@link Renderer.rules}.
-	*
-	* @param tokens List of tokens.
-	* @param idx Token index to render.
-	* @param options Params of parser instance.
 	*/
 	renderToken(tokens, idx, options) {
 		const token = tokens[idx];
@@ -55048,10 +55101,6 @@ var Renderer = class {
 	}
 	/**
 	* The same as {@link Renderer.render}, but for single token of `inline` type.
-	*
-	* @param tokens List on block tokens to render.
-	* @param options Params of parser instance.
-	* @param env Additional data from parsed input (references, for example).
 	*/
 	renderInline(tokens, options, env) {
 		let result = "";
@@ -55067,10 +55116,6 @@ var Renderer = class {
 	* Special kludge for image `alt` attributes to conform CommonMark spec.
 	* Don't try to use it! Spec requires to show `alt` content with stripped markup,
 	* instead of simple escaping.
-	*
-	* @param tokens List on block tokens to render.
-	* @param options Params of parser instance.
-	* @param env Additional data from parsed input (references, for example).
 	*/
 	renderInlineAsText(tokens, options, env) {
 		let result = "";
@@ -55094,10 +55139,6 @@ var Renderer = class {
 	/**
 	* Takes token stream and generates HTML. Probably, you will never need to call
 	* this method directly.
-	*
-	* @param tokens List on block tokens to render.
-	* @param options Params of parser instance.
-	* @param env Additional data from parsed input (references, for example).
 	*/
 	render(tokens, options, env) {
 		let result = "";
@@ -55122,11 +55163,11 @@ var StateCore = class {
 		this.md = md;
 	}
 };
-var NEWLINES_RE = /\r\n?|\n/g;
+var UNNORMALIZED_NEWLINE_RE = /\r\n?/g;
 var NULL_RE = /\0/g;
 function normalize(state) {
 	let str;
-	str = state.src.replace(NEWLINES_RE, "\n");
+	str = state.src.replace(UNNORMALIZED_NEWLINE_RE, "\n");
 	str = str.replace(NULL_RE, "�");
 	state.src = str;
 }
@@ -55168,7 +55209,8 @@ function linkify$1(state) {
 	if (!state.md.options.linkify) return;
 	for (let j = 0, l = blockTokens.length; j < l; j++) {
 		if (blockTokens[j].type !== "inline" || !state.md.linkify.test(blockTokens[j].content)) continue;
-		let tokens = blockTokens[j].children;
+		const tokens = blockTokens[j].children;
+		const replacements = [];
 		let htmlLinkLevel = 0;
 		for (let i = tokens.length - 1; i >= 0; i--) {
 			const currentToken = tokens[i];
@@ -55227,8 +55269,27 @@ function linkify$1(state) {
 					token.level = level;
 					nodes.push(token);
 				}
-				blockTokens[j].children = tokens = arrayReplaceAt(tokens, i, nodes);
+				replacements.push({
+					index: i,
+					nodes
+				});
 			}
+		}
+		if (replacements.length > 0) {
+			let newTokensLength = tokens.length;
+			for (const replacement of replacements) newTokensLength += replacement.nodes.length - 1;
+			const newTokens = new Array(newTokensLength);
+			let replacementIndex = 0;
+			let newTokenIndex = 0;
+			replacements.reverse();
+			for (let i = 0; i < tokens.length; i++) {
+				const replacement = replacements[replacementIndex];
+				if ((replacement === null || replacement === void 0 ? void 0 : replacement.index) === i) {
+					for (const node of replacement.nodes) newTokens[newTokenIndex++] = node;
+					replacementIndex++;
+				} else newTokens[newTokenIndex++] = tokens[i];
+			}
+			blockTokens[j].children = newTokens;
 		}
 	}
 }
@@ -56668,7 +56729,12 @@ function text$3(state, silent) {
 	state.pos = pos;
 	return true;
 }
-var SCHEME_RE = /(?:^|[^a-z0-9.+-])([a-z][a-z0-9.+-]*)$/i;
+function isAsciiAlpha(code) {
+	return code >= 65 && code <= 90 || code >= 97 && code <= 122;
+}
+function isSchemeChar(code) {
+	return code >= 65 && code <= 90 || code >= 97 && code <= 122 || code >= 48 && code <= 57 || code === 43 || code === 45 || code === 46;
+}
 function linkify(state, silent) {
 	if (!state.md.options.linkify) return false;
 	if (state.linkLevel > 0) return false;
@@ -56678,20 +56744,22 @@ function linkify(state, silent) {
 	if (state.src.charCodeAt(pos) !== 58) return false;
 	if (state.src.charCodeAt(pos + 1) !== 47) return false;
 	if (state.src.charCodeAt(pos + 2) !== 47) return false;
-	const match = state.pending.match(SCHEME_RE);
-	if (!match) return false;
-	const proto = match[1];
-	const link = state.md.linkify.matchAtStart(state.src.slice(pos - proto.length));
+	const protoMin = pos - Math.min(10, state.pending.length, pos);
+	let protoStart = pos;
+	while (protoStart > protoMin && isSchemeChar(state.src.charCodeAt(protoStart - 1))) protoStart--;
+	if (protoStart === pos || !isAsciiAlpha(state.src.charCodeAt(protoStart))) return false;
+	const protoLength = pos - protoStart;
+	const link = state.md.linkify.matchAtStart(state.src.slice(protoStart));
 	if (!link) return false;
 	let url = link.url;
-	if (url.length <= proto.length) return false;
+	if (url.length <= protoLength) return false;
 	let urlEnd = url.length;
 	while (urlEnd > 0 && url.charCodeAt(urlEnd - 1) === 42) urlEnd--;
 	if (urlEnd !== url.length) url = url.slice(0, urlEnd);
 	const fullUrl = state.md.normalizeLink(url);
 	if (!state.md.validateLink(fullUrl)) return false;
 	if (!silent) {
-		state.pending = state.pending.slice(0, -proto.length);
+		state.pending = state.pending.slice(0, -protoLength);
 		const token_o = state.push("link_open", "a", 1);
 		token_o.attrs = [["href", fullUrl]];
 		token_o.markup = "linkify";
@@ -56702,7 +56770,7 @@ function linkify(state, silent) {
 		token_c.markup = "linkify";
 		token_c.info = "auto";
 	}
-	state.pos += url.length - proto.length;
+	state.pos += url.length - protoLength;
 	return true;
 }
 function newline(state, silent) {
@@ -56777,40 +56845,51 @@ function escape(state, silent) {
 	state.pos = pos + 1;
 	return true;
 }
+function buildLastRuns(src) {
+	const lastRuns = {};
+	let pos = 0;
+	while ((pos = src.indexOf("`", pos)) !== -1) {
+		const start = pos;
+		while (src.charCodeAt(++pos) === 96);
+		lastRuns[pos - start] = start;
+	}
+	return lastRuns;
+}
 function backtick(state, silent) {
-	let pos = state.pos;
-	if (state.src.charCodeAt(pos) !== 96) return false;
-	const start = pos;
-	pos++;
+	var _state$backticks$open;
+	const start = state.pos;
+	if (state.src.charCodeAt(start) !== 96) return false;
 	const max = state.posMax;
+	let pos = start + 1;
 	while (pos < max && state.src.charCodeAt(pos) === 96) pos++;
 	const marker = state.src.slice(start, pos);
 	const openerLength = marker.length;
-	if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start) {
-		if (!silent) state.pending += marker;
-		state.pos += openerLength;
-		return true;
+	if (!state.backticksScanned) {
+		state.backticks = buildLastRuns(state.src);
+		state.backticksScanned = true;
 	}
-	let matchEnd = pos;
-	let matchStart;
-	while ((matchStart = state.src.indexOf("`", matchEnd)) !== -1) {
-		matchEnd = matchStart + 1;
-		while (matchEnd < max && state.src.charCodeAt(matchEnd) === 96) matchEnd++;
-		const closerLength = matchEnd - matchStart;
-		if (closerLength === openerLength) {
-			if (!silent) {
-				const token = state.push("code_inline", "code", 0);
-				token.markup = marker;
-				token.content = state.src.slice(pos, matchStart).replace(/\n/g, " ").replace(/^ (.+) $/, "$1");
+	if (((_state$backticks$open = state.backticks[openerLength]) !== null && _state$backticks$open !== void 0 ? _state$backticks$open : -1) >= pos) {
+		let matchEnd = pos;
+		let matchStart;
+		while ((matchStart = state.src.indexOf("`", matchEnd)) !== -1 && matchStart < max) {
+			matchEnd = matchStart + 1;
+			while (state.src.charCodeAt(matchEnd) === 96) matchEnd++;
+			if (matchEnd > max) break;
+			if (matchEnd - matchStart === openerLength) {
+				if (!silent) {
+					const token = state.push("code_inline", "code", 0);
+					token.markup = marker;
+					let content = state.src.slice(pos, matchStart).replace(/\n/g, " ");
+					if (content.startsWith(" ") && content.endsWith(" ") && /[^ ]/.test(content)) content = content.slice(1, -1);
+					token.content = content;
+				}
+				state.pos = matchEnd;
+				return true;
 			}
-			state.pos = matchEnd;
-			return true;
 		}
-		state.backticks[closerLength] = matchStart;
 	}
-	state.backticksScanned = true;
 	if (!silent) state.pending += marker;
-	state.pos += openerLength;
+	state.pos = pos;
 	return true;
 }
 function strikethrough_tokenize(state, silent) {
@@ -57563,7 +57642,12 @@ var MarkdownIt = class {
 				parsed.hostname = punycode.toASCII(parsed.hostname);
 			} catch (er) {}
 		}
-		return encode$1(format$1(parsed));
+		if (parsed.auth) parsed.auth = encode$1(parsed.auth);
+		if (parsed.hostname) parsed.hostname = encode$1(parsed.hostname);
+		if (parsed.pathname) parsed.pathname = encode$1(parsed.pathname);
+		if (parsed.search) parsed.search = encode$1(parsed.search);
+		if (parsed.hash) parsed.hash = encode$1(parsed.hash);
+		return format$1(parsed);
 	}
 	/**
 	* Function used to decode link url to a human-readable format`
@@ -57731,9 +57815,6 @@ var MarkdownIt = class {
 	* containing rules with given names. If rule not found, and `ignoreInvalid`
 	* not set - throws exception.
 	*
-	* @param list Rule name or list of rule names to enable.
-	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
-	*
 	* @example
 	* ```javascript
 	* import MarkdownIt from 'markdown-it'
@@ -57760,9 +57841,6 @@ var MarkdownIt = class {
 	}
 	/**
 	* The same as {@link MarkdownIt.enable}, but turn specified rules off.
-	*
-	* @param list Rule name or list of rule names to disable.
-	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
 	*/
 	disable(list, ignoreInvalid = false) {
 		let result = [];
@@ -57808,9 +57886,6 @@ var MarkdownIt = class {
 	* metadata like reference info, needed for the renderer. It also can be used to
 	* inject data in specific cases. Usually, you will be ok to pass `{}`,
 	* and then pass updated object to renderer.
-	*
-	* @param src Source string.
-	* @param env Environment sandbox.
 	*/
 	parse(src, env) {
 		if (typeof src !== "string") throw new Error("Input data should be a String");
@@ -57824,9 +57899,6 @@ var MarkdownIt = class {
 	* `env` can be used to inject additional metadata (`{}` by default).
 	* But you will not need it with high probability. See also comment
 	* in {@link MarkdownIt.parse}.
-	*
-	* @param src Source string.
-	* @param env Environment sandbox.
 	*/
 	render(src, env = {}) {
 		return this.renderer.render(this.parse(src, env), this.options, env);
@@ -57835,9 +57907,6 @@ var MarkdownIt = class {
 	* The same as {@link MarkdownIt.parse} but skip all block rules. It returns
 	* the block tokens list with the single `inline` element, containing parsed
 	* inline tokens in `children` property. Also updates `env` object.
-	*
-	* @param src Source string.
-	* @param env Environment sandbox.
 	*/
 	parseInline(src, env) {
 		const state = new this.core.State(src, this, env);
@@ -57848,9 +57917,6 @@ var MarkdownIt = class {
 	/**
 	* Similar to {@link MarkdownIt.render} but for single paragraph content.
 	* Result will NOT be wrapped into `<p>` tags.
-	*
-	* @param src Source string.
-	* @param env Environment sandbox.
 	*/
 	renderInline(src, env = {}) {
 		return this.renderer.render(this.parseInline(src, env), this.options, env);
@@ -57954,7 +58020,7 @@ var getMarkdownInstance = async (renderer, contentHasMath) => {
 	mdInstanceCache[cacheKey] = md;
 	return md;
 };
-var escapeHtmlCharacters$1 = (content) => {
+var escapeHtmlCharacters = (content) => {
 	if (!content) return content;
 	return content.replace(/[<>&'"]/g, (c) => {
 		switch (c) {
@@ -58041,7 +58107,7 @@ function unescapeCodeHtmlEntities(str) {
 	});
 }
 var renderFullPipelineMarkdown = async (markdown, renderer) => {
-	const preparedForMarkdown = restoreBackslashesForLatex(protectMarkdown(preRenderText(escapeHtmlCharacters$1(protectBackslashesInLatex(markdown)))));
+	const preparedForMarkdown = restoreBackslashesForLatex(protectMarkdown(preRenderText(escapeHtmlCharacters(protectBackslashesInLatex(markdown)))));
 	let html = preparedForMarkdown;
 	try {
 		html = (await getMarkdownInstance(renderer, hasMathContent(markdown))).render(preparedForMarkdown);
@@ -58057,7 +58123,7 @@ var renderTextOnlyMarkdown = async (markdown) => {
 	} catch (ex) {
 		console.log("Unable to markdown render content");
 		console.error(ex);
-		return escapeHtmlCharacters$1(markdown).replace(/\n/g, "<br/>");
+		return escapeHtmlCharacters(markdown).replace(/\n/g, "<br/>");
 	}
 };
 var markdownRenderers = {
@@ -60445,6 +60511,93 @@ function createDOMPurify() {
 }
 var purify$1 = createDOMPurify();
 //#endregion
+//#region ../../packages/react/src/components/mathjaxStyles.ts
+var MATHJAX_STYLES = `
+:scope {
+  display: contents;
+}
+:scope mjx-container[jax="SVG"] {
+  direction: ltr;
+  position: relative;
+}
+:scope mjx-container[jax="SVG"] > svg {
+  /* WebKit ignores overflow-clip-margin and clips at the SVG box. */
+  overflow: clip;
+  overflow-clip-margin: 1em;
+  min-height: 1px;
+  min-width: 1px;
+}
+:scope mjx-container[jax="SVG"] > svg a {
+  fill: blue;
+  stroke: blue;
+}
+:scope mjx-assistive-mml {
+  top: 0px;
+  left: 0px;
+  clip: rect(1px, 1px, 1px, 1px) !important;
+  user-select: text !important;
+  position: absolute !important;
+  padding: 1px 0px 0px !important;
+  border: 0px !important;
+  display: block !important;
+  width: auto !important;
+  overflow: hidden !important;
+}
+:scope mjx-assistive-mml[display="block"] {
+  width: 100% !important;
+}
+:scope mjx-container[jax="SVG"][display="true"] {
+  display: block;
+  text-align: center;
+  margin: 1em 0px;
+}
+:scope mjx-container[jax="SVG"][display="true"][width="full"] {
+  display: flex;
+}
+:scope mjx-container[jax="SVG"][justify="left"] {
+  text-align: left;
+}
+:scope mjx-container[jax="SVG"][justify="right"] {
+  text-align: right;
+}
+:scope g[data-mml-node="merror"] > g {
+  fill: red;
+  stroke: red;
+}
+:scope g[data-mml-node="merror"] > rect[data-background] {
+  fill: yellow;
+  stroke: none;
+}
+:scope g[data-mml-node="mtable"] > line[data-line], :scope svg[data-table] > g > line[data-line] {
+  stroke-width: 70px;
+  fill: none;
+}
+:scope g[data-mml-node="mtable"] > rect[data-frame], :scope svg[data-table] > g > rect[data-frame] {
+  stroke-width: 70px;
+  fill: none;
+}
+:scope g[data-mml-node="mtable"] > .mjx-dashed, :scope svg[data-table] > g > .mjx-dashed {
+  stroke-dasharray: 140;
+}
+:scope g[data-mml-node="mtable"] > .mjx-dotted, :scope svg[data-table] > g > .mjx-dotted {
+  stroke-linecap: round;
+  stroke-dasharray: 0, 140;
+}
+:scope g[data-mml-node="mtable"] > g > svg {
+  overflow: visible;
+}
+:scope g[data-mml-node="maction"][data-toggle] {
+  cursor: pointer;
+}
+:scope mjx-container[jax="SVG"] path[data-c], :scope mjx-container[jax="SVG"] use[data-c] {
+  stroke-width: 3;
+}
+:scope g[data-mml-node="xypic"] path {
+  stroke-width: inherit;
+}
+`;
+var mathJaxStyles = (scopeId) => MATHJAX_STYLES.replaceAll(":scope", `#${scopeId}`).trim();
+//#endregion
 //#region ../../packages/react/src/components/renderedHtmlSanitizer.ts
 var FORBIDDEN_TAGS = [
 	"animate",
@@ -60476,9 +60629,6 @@ var FORBIDDEN_TAGS = [
 var MATHJAX_TAGS = [
 	"mjx-assistive-mml",
 	"mjx-container",
-	"mjx-status",
-	"mjx-tip",
-	"mjx-tool",
 	"style"
 ];
 var MATHJAX_ATTRS = [
@@ -60499,7 +60649,24 @@ var URL_ATTRIBUTES = /* @__PURE__ */ new Set([
 	"src",
 	"xlink:href"
 ]);
-var SAFE_STYLE_PROPERTIES = /* @__PURE__ */ new Set([
+var BOX_LONGHANDS = [
+	"overflow-x",
+	"overflow-y",
+	...[
+		"top",
+		"right",
+		"bottom",
+		"left"
+	].flatMap((edge) => [
+		`margin-${edge}`,
+		`padding-${edge}`,
+		`border-${edge}-color`,
+		`border-${edge}-style`,
+		`border-${edge}-width`
+	])
+];
+var INLINE_STYLE_PROPERTIES = /* @__PURE__ */ new Set([
+	...BOX_LONGHANDS,
 	"-khtml-user-select",
 	"-moz-user-select",
 	"-ms-user-select",
@@ -60507,8 +60674,6 @@ var SAFE_STYLE_PROPERTIES = /* @__PURE__ */ new Set([
 	"-webkit-user-select",
 	"background-color",
 	"border",
-	"bottom",
-	"box-shadow",
 	"clip",
 	"color",
 	"direction",
@@ -60517,33 +60682,42 @@ var SAFE_STYLE_PROPERTIES = /* @__PURE__ */ new Set([
 	"font-family",
 	"font-size",
 	"height",
-	"left",
 	"line-height",
 	"margin",
 	"min-height",
 	"min-width",
 	"overflow",
 	"padding",
-	"position",
-	"right",
 	"stroke",
 	"stroke-dasharray",
 	"stroke-linecap",
 	"stroke-width",
 	"text-align",
-	"top",
 	"user-select",
 	"vertical-align",
 	"width"
 ]);
+var SAFE_CSS_FUNCTIONS = /* @__PURE__ */ new Set([
+	"hsl",
+	"hsla",
+	"rect",
+	"rgb",
+	"rgba"
+]);
 var UNSAFE_CSS_PATTERN = /@import|behavior\s*:|binding\s*:|expression\s*\(|javascript\s*:|vbscript\s*:|url\s*\(/i;
+var RAW_CSS_REJECT_PATTERN = /[\\@<]/;
+var MATHJAX_WRAPPER_ID = /^mjx-[a-f0-9]+$/i;
 var PURIFY_CONFIG = {
 	ADD_ATTR: [...MATHJAX_ATTRS, "target"],
 	ADD_DATA_URI_TAGS: ["img"],
 	ADD_TAGS: MATHJAX_TAGS,
 	ALLOW_DATA_ATTR: true,
 	ALLOW_UNKNOWN_PROTOCOLS: false,
-	FORBID_ATTR: ["srcdoc", "srcset"],
+	FORBID_ATTR: [
+		"overflow",
+		"srcdoc",
+		"srcset"
+	],
 	FORBID_TAGS: FORBIDDEN_TAGS,
 	USE_PROFILES: {
 		html: true,
@@ -60553,16 +60727,6 @@ var PURIFY_CONFIG = {
 };
 var purify;
 var hooksInstalled = false;
-var escapeHtmlCharacters = (content) => content.replace(/[<>&'"]/g, (c) => {
-	switch (c) {
-		case "<": return "&lt;";
-		case ">": return "&gt;";
-		case "&": return "&amp;";
-		case "'": return "&apos;";
-		case "\"": return "&quot;";
-		default: return c;
-	}
-});
 var sanitizeRenderedHtml = (html) => {
 	if (!html) return html;
 	const purifier = getPurify();
@@ -60579,10 +60743,18 @@ var installHooks = (purify) => {
 	if (hooksInstalled) return;
 	hooksInstalled = true;
 	purify.addHook("uponSanitizeElement", (node, hookEvent) => {
-		if (hookEvent.tagName === "style" && node instanceof Element && !isAllowedMathJaxStyleElement(node)) node.remove();
+		if (hookEvent.tagName !== "style" || !(node instanceof Element)) return;
+		const css = sanitizeMathJaxStyleElement(node);
+		if (css) node.textContent = css;
+		else node.remove();
 	});
 	purify.addHook("uponSanitizeAttribute", (node, hookEvent) => {
 		if (hookEvent.attrName === "style") {
+			if (node.tagName.toLowerCase() === "mjx-assistive-mml") {
+				hookEvent.keepAttr = false;
+				node.removeAttribute("style");
+				return;
+			}
 			sanitizeStyleAttributeHook(node, hookEvent);
 			return;
 		}
@@ -60639,30 +60811,39 @@ var isSafeUrlAttribute = (value) => {
 	return !/^(?:javascript|vbscript):/i.test(normalized);
 };
 var sanitizeStyleAttribute = (style) => {
-	if (!style || UNSAFE_CSS_PATTERN.test(style)) return "";
+	if (!style || UNSAFE_CSS_PATTERN.test(style) || RAW_CSS_REJECT_PATTERN.test(style)) return "";
 	const scratch = document.createElement("span");
 	scratch.setAttribute("style", style);
-	const safeDeclarations = [];
-	for (const property of Array.from(scratch.style)) {
-		const normalizedProperty = property.toLowerCase();
-		const value = scratch.style.getPropertyValue(property);
-		if (SAFE_STYLE_PROPERTIES.has(normalizedProperty) && value && !UNSAFE_CSS_PATTERN.test(value)) {
-			const priority = scratch.style.getPropertyPriority(property);
-			safeDeclarations.push(`${normalizedProperty}: ${value}${priority ? ` !${priority}` : ""};`);
-		}
-	}
-	return safeDeclarations.join(" ");
+	return safeDeclarations(scratch.style).join(" ");
 };
-var isAllowedMathJaxStyleElement = (element) => {
+var safeDeclarations = (style) => {
+	const declarations = [];
+	for (const property of Array.from(style)) {
+		const normalizedProperty = property.toLowerCase();
+		const value = style.getPropertyValue(property);
+		if (!INLINE_STYLE_PROPERTIES.has(normalizedProperty) || !value || !isSafeStyleValue(normalizedProperty, value)) continue;
+		const priority = style.getPropertyPriority(property);
+		declarations.push(`${normalizedProperty}: ${value}${priority ? ` !${priority}` : ""};`);
+	}
+	return declarations;
+};
+var isSafeStyleValue = (property, value) => {
+	if (UNSAFE_CSS_PATTERN.test(value) || RAW_CSS_REJECT_PATTERN.test(value)) return false;
+	for (const call of value.matchAll(/([-\w]*)\s*\(/g)) if (!SAFE_CSS_FUNCTIONS.has((call[1] ?? "").toLowerCase())) return false;
+	if (property.startsWith("overflow") && /\bvisible\b/.test(value)) return false;
+	if (property.startsWith("margin") && /(?:^|\s)-/.test(value)) return false;
+	return true;
+};
+var sanitizeMathJaxStyleElement = (element) => {
 	const parent = element.parentElement;
-	const parentId = parent?.getAttribute("id") || "";
-	const css = element.textContent || "";
-	return parent?.tagName.toLowerCase() === "span" && /^mjx-[a-f0-9]+$/i.test(parentId) && css.includes(`#${parentId}`) && !UNSAFE_CSS_PATTERN.test(css);
+	const scopeId = parent?.getAttribute("id") ?? "";
+	if (parent?.tagName.toLowerCase() !== "span" || !MATHJAX_WRAPPER_ID.test(scopeId)) return "";
+	return mathJaxStyles(scopeId);
 };
 //#endregion
 //#region ../../packages/react/src/components/MarkdownDiv.tsx
 var sanitizeMarkdown = (md) => {
-	return escapeHtmlCharacters$1(md).replace(/\n/g, "<br/>");
+	return escapeHtmlCharacters(md).replace(/\n/g, "<br/>");
 };
 var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 	const $ = (0, import_compiler_runtime.c)(25);
@@ -65985,7 +66166,9 @@ var popoverKey = (ref) => `markdown-ref-popover-${ref.id}`;
 		return bracketMatch.replace(/\b[ME]\d+\b/g, (ordinal) => {
 			const ref = refByOrdinal.get(ordinal);
 			if (!ref) return ordinal;
-			return `<a href="${ref.citeUrl || "javascript:void(0)"}" class="${citeClass}" data-ref-id="${ref.id}">${ordinal}</a>`;
+			const href = ref.citeUrl ? ` href="${escapeHtmlCharacters(ref.citeUrl)}"` : "";
+			const id = escapeHtmlCharacters(ref.id);
+			return `<a${href} class="${escapeHtmlCharacters(citeClass)}" data-ref-id="${id}">${ordinal}</a>`;
 		});
 	});
 }
@@ -68022,8 +68205,12 @@ var statsEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/events/${STATS_J
 	}
 	return starts.sort((a, b) => a - b);
 };
-/** Bounds-checked index (an out-of-range index is a coding error). */ var at = (items, i) => {
-	const item = items[i];
+/**
+* Bounds-checked index (an out-of-range index is a coding error). Only an
+* own integer position counts: a key that resolves through the array's
+* prototype ("__proto__", "constructor") must not pass as an element.
+*/ var at = (items, i) => {
+	const item = Number.isInteger(i) && i >= 0 && i < items.length && Object.hasOwn(items, i) ? items[i] : void 0;
 	if (item === void 0) throw new Error(`Index ${i} out of range (length ${items.length})`);
 	return item;
 };
@@ -68215,7 +68402,12 @@ var decoder$1 = new TextDecoder();
 * stacks, and filter visibility — all answered from span extents and
 * counters with zero event reads (sticky headers and depth seeding for the
 * decode walk).
-*/ var SkeletonIndex = class {
+*/ var parentIndex = (parent, i) => {
+	if (parent === void 0) return;
+	if (typeof parent !== "number" || !Number.isInteger(parent) || parent < 0 || parent >= i) throw new Error(`Skeleton span ${i} has an invalid parent ${JSON.stringify(parent)}`);
+	return parent;
+};
+var SkeletonIndex = class {
 	skeleton;
 	spans;
 	childrenOf;
@@ -68229,8 +68421,9 @@ var decoder$1 = new TextDecoder();
 		this.roots = [];
 		this.spans.forEach((span, i) => {
 			this.byBegin.set(span.begin, i);
-			if (span.parent === void 0) this.roots.push(i);
-			else at(this.childrenOf, span.parent).push(i);
+			const parent = parentIndex(span.parent, i);
+			if (parent === void 0) this.roots.push(i);
+			else at(this.childrenOf, parent).push(i);
 		});
 		this.spanIds = new Set(this.spans.map((span) => span.id));
 	}
@@ -69056,8 +69249,8 @@ var resolveString = (value, attachments, onFailedResolve) => {
 	const ref = value.startsWith(CONTENT_PROTOCOL$1) ? value.replace(CONTENT_PROTOCOL$1, ATTACHMENT_PROTOCOL$1) : value;
 	if (!ref.startsWith(ATTACHMENT_PROTOCOL$1)) return value;
 	const attachmentId = ref.slice(13);
-	const attachment = attachments[attachmentId];
-	if (attachment === void 0) {
+	const attachment = getOwn(attachments, attachmentId);
+	if (typeof attachment !== "string") {
 		onFailedResolve?.(attachmentId);
 		return value;
 	}
@@ -69092,6 +69285,7 @@ var resolveValue = (value, attachments, onFailedResolve) => {
 * their content, leaving the value's shape untouched. TypeScript can't
 * express "same type, strings substituted", so the walk works in `unknown`
 * and this is where the shape is handed back.
+* Attachment values are untrusted; only own string entries resolve.
 */ var resolveAttachments = (value, attachments, onFailedResolve) => resolveValue(value, attachments, onFailedResolve);
 //#endregion
 //#region src/log_data/sampleFetch.ts
@@ -73037,6 +73231,57 @@ var ContentRenderersContext = /*#__PURE__*/ (0, import_react.createContext)(null
 var useContentRenderers = () => {
 	return (0, import_react.useContext)(ContentRenderersContext);
 };
+//#endregion
+//#region ../../packages/inspect-components/src/content/ExternalLink.tsx
+/**
+* Renders a log-supplied URL as a new-tab link when it is an absolute http(s)
+* URL, and as inert text otherwise. Log content is the only source of these
+* hrefs, and the markdown and media paths already refuse every other scheme
+* (file:, blob:, custom protocol handlers); this keeps the React-rendered
+* anchors on the same policy.
+*/ var ExternalLink = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(11);
+	const { href, className, title, children } = t0;
+	let t1;
+	if ($[0] !== href) {
+		t1 = parseAbsoluteHttpUrl(href);
+		$[0] = href;
+		$[1] = t1;
+	} else t1 = $[1];
+	const safeHref = t1;
+	if (safeHref === void 0) {
+		let t2;
+		if ($[2] !== children || $[3] !== className || $[4] !== title) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className,
+				title,
+				children
+			});
+			$[2] = children;
+			$[3] = className;
+			$[4] = title;
+			$[5] = t2;
+		} else t2 = $[5];
+		return t2;
+	}
+	let t2;
+	if ($[6] !== children || $[7] !== className || $[8] !== safeHref || $[9] !== title) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+			href: safeHref,
+			target: "_blank",
+			rel: "noopener noreferrer",
+			className,
+			title,
+			children
+		});
+		$[6] = children;
+		$[7] = className;
+		$[8] = safeHref;
+		$[9] = title;
+		$[10] = t2;
+	} else t2 = $[10];
+	return t2;
+};
 var MetaDataGrid_module_default = {
 	grid: "_grid_17hbv_5",
 	rows: "_rows_17hbv_14",
@@ -73399,18 +73644,18 @@ var Buckets = {
 						" ",
 						entry.value.query
 					]
-				}));
-				entry.value.results.forEach((result) => {
-					results.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+				}, "query"));
+				entry.value.results.forEach((result, index) => {
+					results.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 						href: result.url,
 						children: result.url
-					}) }));
+					}) }, `url-${index}`));
 					results.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 						className: clsx("text-size-smaller", RenderedContent_module_default.summary),
 						children: result.summary
-					}));
+					}, `summary-${index}`));
 				});
-				return { rendered: results };
+				return { rendered: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_react.Fragment, { children: results }) };
 			}
 		},
 		web_browser: {
@@ -73970,10 +74215,8 @@ var WebSearchResults$1 = (t0) => {
 function _temp$90(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
-		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 			href: result.url,
-			target: "_blank",
-			rel: "noopener noreferrer",
 			title: result.url + (result.page_age ? `\n(Age: ${result.page_age})` : ""),
 			children: result.title
 		})
@@ -74271,8 +74514,8 @@ var JsonMessageContent = (t0) => {
 	return t2;
 };
 var MessageCitations_module_default = {
-	citations: "_citations_1ggvf_1",
-	citationLink: "_citationLink_1ggvf_9"
+	citations: "_citations_1gzkd_1",
+	citationLink: "_citationLink_1gzkd_9"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/MessageCitations.tsx
@@ -74337,10 +74580,8 @@ var UrlCitation = (t0) => {
 	const t3 = citation.cited_text && typeof citation.cited_text === "string" ? `${citation.cited_text}\n${citation.url}` : citation.url;
 	let t4;
 	if ($[1] !== children || $[2] !== citation.url || $[3] !== t3) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 			href: t1,
-			target: "_blank",
-			rel: "noopener noreferrer",
 			className: t2,
 			title: t3,
 			children
@@ -75146,10 +75387,9 @@ var maybeListTools = (content) => {
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
 function _temp$88(result, index) {
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
-		target: "_blank",
-		rel: "noopener noreferrer",
+		title: result.url,
 		children: result.title
 	}) }, index);
 }
@@ -76941,7 +77181,7 @@ var MessageLabel_module_default = {
 		const baseNumber = startNumber ?? index + 1;
 		let t2;
 		if ($[19] !== labelValues) {
-			t2 = (blockId, blockNumber) => labelValues && blockId ? labelValues[blockId] : String(blockNumber);
+			t2 = (blockId, blockNumber) => labelValues && blockId ? getOwn(labelValues, blockId) : String(blockNumber);
 			$[19] = labelValues;
 			$[20] = t2;
 		} else t2 = $[20];
@@ -80012,27 +80252,37 @@ var createAppSlice = (set, get, _store) => {
 				});
 			},
 			getPropertyValue: (bagName, key, defaultValue) => {
-				const bag = get().app.propertyBags[bagName] || {};
-				return key in bag ? bag[key] : defaultValue;
+				const bag = getOwn(get().app.propertyBags, bagName);
+				return bag !== void 0 && Object.hasOwn(bag, key) ? bag[key] : defaultValue;
 			},
 			setPropertyValue: (bagName, key, value) => {
 				set((state) => {
-					if (!state.app.propertyBags[bagName]) state.app.propertyBags[bagName] = {};
-					state.app.propertyBags[bagName][key] = value;
+					const bags = state.app.propertyBags;
+					const bag = getOwn(bags, bagName);
+					if (bag !== void 0 && key !== "__proto__") {
+						bag[key] = value;
+						return;
+					}
+					const next = {
+						...bag,
+						[key]: value
+					};
+					if (bagName === "__proto__") state.app.propertyBags = {
+						...bags,
+						[bagName]: next
+					};
+					else bags[bagName] = next;
 				});
 			},
 			removePropertyValue: (bagName, key) => {
 				set((state) => {
-					if (state.app.propertyBags[bagName]) {
-						const { [key]: _, ...rest } = state.app.propertyBags[bagName];
-						state.app.propertyBags[bagName] = rest;
-					}
+					const bag = getOwn(state.app.propertyBags, bagName);
+					if (bag !== void 0) delete bag[key];
 				});
 			},
 			removeAllProperties: (bagName) => {
 				set((state) => {
-					const { [bagName]: _, ...rest } = state.app.propertyBags;
-					state.app.propertyBags = rest;
+					delete state.app.propertyBags[bagName];
 				});
 			},
 			removeBagsByPrefix: (bagNamePrefix) => {
@@ -80042,20 +80292,14 @@ var createAppSlice = (set, get, _store) => {
 			},
 			removeByPrefix: (bagName, prefix) => {
 				set((state) => {
-					const bag = state.app.propertyBags[bagName];
+					const bag = getOwn(state.app.propertyBags, bagName);
 					if (!bag) return;
 					let changed = false;
-					const next = { ...bag };
-					for (const key of Object.keys(next)) if (key.startsWith(prefix)) {
-						delete next[key];
+					for (const key of Object.keys(bag)) if (key.startsWith(prefix)) {
+						delete bag[key];
 						changed = true;
 					}
-					if (changed) {
-						if (Object.keys(next).length === 0) {
-							const { [bagName]: _, ...rest } = state.app.propertyBags;
-							state.app.propertyBags = rest;
-						} else state.app.propertyBags[bagName] = next;
-					}
+					if (changed && Object.keys(bag).length === 0) delete state.app.propertyBags[bagName];
 				});
 			},
 			setUrlHash: (urlHash) => {
@@ -86097,9 +86341,9 @@ var require_clipboard = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	});
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
+//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
 /**
-* react-router v8.3.0
+* react-router v8.3.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -86430,7 +86674,7 @@ var inspectStateHooks = {
 	])),
 	useSetValue: () => useStore((state) => state.appActions.setPropertyValue),
 	useRemoveValue: () => useStore((state) => state.appActions.removePropertyValue),
-	useEntries: (id) => useStore((0, import_react.useCallback)((state) => state.app.propertyBags[id], [id])),
+	useEntries: (id) => useStore((0, import_react.useCallback)((state) => getOwn(state.app.propertyBags, id), [id])),
 	useRemoveAll: () => useStore((state) => state.appActions.removeAllProperties),
 	useRemoveByPrefix: () => useStore((state) => state.appActions.removeByPrefix)
 };
@@ -106697,11 +106941,6 @@ function _temp2$42(c_1) {
 //#endregion
 //#region ../../packages/inspect-components/src/usage/connectionHistory.ts
 var kAdaptiveDefaultMax = 100;
-var nullProtoRecord = (entries) => {
-	const record = Object.fromEntries(entries);
-	Object.setPrototypeOf(record, null);
-	return record;
-};
 var connectionWindow = (history, startedAt, completedAt) => {
 	if (!history || history.length === 0) return void 0;
 	let first = Infinity;
@@ -108390,46 +108629,43 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 //#endregion
 //#region ../../packages/inspect-components/src/usage/configsForUsage.ts
 var mergeDefined = (target, source) => {
-	for (const [k, v] of Object.entries(source)) if (v !== null && v !== void 0) target[k] = v;
-	return target;
+	for (const [k, v] of Object.entries(source)) if (v !== null && v !== void 0) target.set(k, v);
+};
+var addTo = (acc, key, dict) => {
+	if (!key || !dict) return;
+	const target = acc.get(key) ?? /* @__PURE__ */ new Map();
+	mergeDefined(target, dict);
+	acc.set(key, target);
 };
 var finalize = (acc) => {
-	const out = {};
-	for (const [k, v] of Object.entries(acc)) if (Object.keys(v).length > 0) out[k] = v;
-	return Object.keys(out).length > 0 ? out : void 0;
+	const out = /* @__PURE__ */ new Map();
+	for (const [k, v] of acc) if (v.size > 0) out.set(k, nullProtoRecord(v));
+	return out.size > 0 ? nullProtoRecord(out) : void 0;
 };
 var buildConfigsByModel = (evalSpec) => {
 	if (!evalSpec) return void 0;
-	const acc = {};
-	const add = (modelId, cfg) => {
-		if (!modelId || !cfg) return;
-		acc[modelId] = mergeDefined(acc[modelId] ?? {}, cfg);
-	};
-	add(evalSpec.model, evalSpec.model_generate_config);
-	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) add(rc.model, rc.config);
+	const acc = /* @__PURE__ */ new Map();
+	addTo(acc, evalSpec.model, evalSpec.model_generate_config);
+	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) addTo(acc, rc.model, rc.config);
 	return finalize(acc);
 };
 var buildConfigsByRole = (evalSpec) => {
 	if (!evalSpec?.model_roles) return void 0;
-	const acc = {};
-	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) if (rc.config) acc[role] = mergeDefined(acc[role] ?? {}, rc.config);
+	const acc = /* @__PURE__ */ new Map();
+	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) addTo(acc, role, rc.config);
 	return finalize(acc);
 };
 var buildArgsByModel = (evalSpec) => {
 	if (!evalSpec) return void 0;
-	const acc = {};
-	const add = (modelId, args) => {
-		if (!modelId || !args) return;
-		acc[modelId] = mergeDefined(acc[modelId] ?? {}, args);
-	};
-	add(evalSpec.model, evalSpec.model_args);
-	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) add(rc.model, rc.args);
+	const acc = /* @__PURE__ */ new Map();
+	addTo(acc, evalSpec.model, evalSpec.model_args);
+	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) addTo(acc, rc.model, rc.args);
 	return finalize(acc);
 };
 var buildArgsByRole = (evalSpec) => {
 	if (!evalSpec?.model_roles) return void 0;
-	const acc = {};
-	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) if (rc.args) acc[role] = mergeDefined(acc[role] ?? {}, rc.args);
+	const acc = /* @__PURE__ */ new Map();
+	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) addTo(acc, role, rc.args);
 	return finalize(acc);
 };
 //#endregion
@@ -112242,9 +112478,21 @@ var StateEventView_module_default = {
 	return changeList.join(", ");
 };
 var isPathContainer = (value) => typeof value === "object" && value !== null;
-var getChild = (container, key) => Array.isArray(container) ? container[Number(key)] : container[key];
+var getChild = (container, key) => {
+	if (Array.isArray(container)) {
+		const index = Number(key);
+		return Object.hasOwn(container, index) ? container[index] : void 0;
+	}
+	return Object.hasOwn(container, key) ? container[key] : void 0;
+};
 var setChild = (container, key, value) => {
 	if (Array.isArray(container)) container[Number(key)] = value;
+	else if (key === "__proto__") Object.defineProperty(container, key, {
+		value,
+		enumerable: true,
+		writable: true,
+		configurable: true
+	});
 	else container[key] = value;
 };
 var asArray$1 = (value) => Array.isArray(value) ? value : void 0;
@@ -114446,8 +114694,9 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 	} : void 0;
 	const toolLabels = (0, import_react.useMemo)(() => {
 		const messageLabels = context?.messageLabels;
+		const toolLabelMap = context?.toolLabels;
 		if (!messageLabels) return { show: false };
-		const label = (event.message_id ? messageLabels[event.message_id] : void 0) ?? context.toolLabels?.[event.id];
+		const label = (event.message_id ? getOwn(messageLabels, event.message_id) : void 0) ?? getOwn(toolLabelMap, event.id);
 		return { messageLabels: label ? { [event.id]: label } : {} };
 	}, [
 		context?.messageLabels,
@@ -115292,7 +115541,7 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 			const context = contextMap.get(item.id);
 			const isLast = index === eventNodes.length - 1;
 			const renderedNode = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventLabelContext.Provider, {
-				value: eventLabels?.[item.id],
+				value: getOwn(eventLabels, item.id),
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedEventNode, {
 					node: item,
 					next,
@@ -118329,14 +118578,13 @@ function useTimelineConfig(t0) {
 	return rootItems;
 }
 /**
-* Merge orphaned events into a host timeline's root, preserving time order.
+* Keep orphaned events visible without distorting server-authored timelines.
 *
 * When server-provided timelines don't reference every event (e.g. scorer
-* events), the unreferenced events are collected, wrapped in their minimal
-* parent span tree, and inserted into the host timeline's root content in
-* chronological order. The host is the first timeline whose root is not a
-* branch tree, falling back to the first timeline.
-*/ function attachOrphanedEvents(timelines, events) {
+* events), a single timeline receives the orphan set in chronological order.
+* With multiple timelines, the full built timeline is appended as an Overall
+* view so no authored timeline receives another timeline's events.
+*/ function attachOrphanedEvents(timelines, events, builtTimeline) {
 	if (timelines.length === 0 || events.length === 0) return timelines;
 	const referencedUuids = /* @__PURE__ */ new Set();
 	const referencedSpanIds = /* @__PURE__ */ new Set();
@@ -118352,6 +118600,11 @@ function useTimelineConfig(t0) {
 		if (uuid && !referencedUuids.has(uuid)) orphanEvents.push(event);
 	}
 	if (orphanEvents.length === 0) return timelines;
+	if (timelines.length > 1) return [...timelines, {
+		name: "Overall",
+		description: "Full sample transcript",
+		root: builtTimeline.root
+	}];
 	const orphanContent = buildOrphanContent(orphanEvents, buildSpanLookup(events), referencedSpanIds);
 	if (orphanContent.length === 0) return timelines;
 	const hostIndex = Math.max(0, timelines.findIndex((tl) => tl.root.branches.length === 0));
@@ -118377,7 +118630,7 @@ function useTimelineConfig(t0) {
 	} : tl);
 }
 function useTimelinesArray(events, serverTimelines, options) {
-	const $ = (0, import_compiler_runtime.c)(14);
+	const $ = (0, import_compiler_runtime.c)(15);
 	const showEmptyBranches = options?.showEmptyBranches ?? false;
 	let t0;
 	if ($[0] !== events) {
@@ -118395,28 +118648,29 @@ function useTimelinesArray(events, serverTimelines, options) {
 	} else t1 = $[4];
 	const convertedTimelines = t1;
 	let t2;
-	if ($[5] !== convertedTimelines || $[6] !== events) {
-		t2 = convertedTimelines ? attachOrphanedEvents(convertedTimelines, events) : null;
-		$[5] = convertedTimelines;
-		$[6] = events;
-		$[7] = t2;
-	} else t2 = $[7];
+	if ($[5] !== builtTimeline || $[6] !== convertedTimelines || $[7] !== events) {
+		t2 = convertedTimelines ? attachOrphanedEvents(convertedTimelines, events, builtTimeline) : null;
+		$[5] = builtTimeline;
+		$[6] = convertedTimelines;
+		$[7] = events;
+		$[8] = t2;
+	} else t2 = $[8];
 	const withOrphans = t2;
 	let t3;
-	if ($[8] !== builtTimeline || $[9] !== withOrphans) {
+	if ($[9] !== builtTimeline || $[10] !== withOrphans) {
 		t3 = withOrphans ?? [builtTimeline];
-		$[8] = builtTimeline;
-		$[9] = withOrphans;
-		$[10] = t3;
-	} else t3 = $[10];
+		$[9] = builtTimeline;
+		$[10] = withOrphans;
+		$[11] = t3;
+	} else t3 = $[11];
 	const resolved = t3;
 	let t4;
-	if ($[11] !== resolved || $[12] !== showEmptyBranches) {
+	if ($[12] !== resolved || $[13] !== showEmptyBranches) {
 		t4 = showEmptyBranches ? resolved : resolved.map(filterEmptyBranches);
-		$[11] = resolved;
-		$[12] = showEmptyBranches;
-		$[13] = t4;
-	} else t4 = $[13];
+		$[12] = resolved;
+		$[13] = showEmptyBranches;
+		$[14] = t4;
+	} else t4 = $[14];
 	return t4;
 }
 //#endregion
@@ -118433,7 +118687,7 @@ function useTimelinesArray(events, serverTimelines, options) {
 var emptySourceSpans = /* @__PURE__ */ new Map();
 var emptyHighlightedKeys = /* @__PURE__ */ new Map();
 function useTranscriptTimeline(options) {
-	const $ = (0, import_compiler_runtime.c)(96);
+	const $ = (0, import_compiler_runtime.c)(101);
 	const { events: rawEvents, markerConfig: t0, timelineOptions, serverTimelines, timelineProps, activeTimelineProps } = options;
 	const markerConfig = t0 === void 0 ? defaultMarkerConfig : t0;
 	let t1;
@@ -118454,30 +118708,47 @@ function useTranscriptTimeline(options) {
 		$[3] = t2;
 	} else t2 = $[3];
 	const timelines = useTimelinesArray(events, serverTimelines, t2);
-	const { active: activeTimeline, activeIndex: activeTimelineIndex, setActive: setActiveTimeline } = useActiveTimeline(timelines, activeTimelineProps);
-	const baseTimeline = activeTimeline;
+	const { active: activeTimeline, activeIndex: activeTimelineIndex, setActive: setActiveTimelineIndex } = useActiveTimeline(timelines, activeTimelineProps);
+	const onSelectTimeline = timelineProps?.onSelect;
 	let t3;
-	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = [];
-		$[4] = t3;
-	} else t3 = $[4];
-	const [viewStack, setViewStack] = (0, import_react.useState)(t3);
+	if ($[4] !== activeTimelineIndex || $[5] !== onSelectTimeline || $[6] !== setActiveTimelineIndex || $[7] !== timelines.length) {
+		t3 = (index, options_0) => {
+			if (index < 0 || index >= timelines.length) return;
+			if (index === activeTimelineIndex) return;
+			if (options_0) onSelectTimeline?.(null, options_0);
+			else onSelectTimeline?.(null);
+			setActiveTimelineIndex(index);
+		};
+		$[4] = activeTimelineIndex;
+		$[5] = onSelectTimeline;
+		$[6] = setActiveTimelineIndex;
+		$[7] = timelines.length;
+		$[8] = t3;
+	} else t3 = $[8];
+	const setActiveTimeline = t3;
+	const baseTimeline = activeTimeline;
+	let t4;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t4 = [];
+		$[9] = t4;
+	} else t4 = $[9];
+	const [viewStack, setViewStack] = (0, import_react.useState)(t4);
 	const [stackBase, setStackBase] = (0, import_react.useState)(baseTimeline);
 	if (stackBase !== baseTimeline) {
 		setStackBase(baseTimeline);
 		setViewStack([]);
 	}
-	let t4;
-	if ($[5] !== baseTimeline || $[6] !== viewStack) {
-		t4 = viewStack.at(-1)?.timeline ?? baseTimeline;
-		$[5] = baseTimeline;
-		$[6] = viewStack;
-		$[7] = t4;
-	} else t4 = $[7];
-	const timeline = t4;
 	let t5;
-	if ($[8] !== baseTimeline.root || $[9] !== timelineProps) {
-		t5 = (branch, label) => {
+	if ($[10] !== baseTimeline || $[11] !== viewStack) {
+		t5 = viewStack.at(-1)?.timeline ?? baseTimeline;
+		$[10] = baseTimeline;
+		$[11] = viewStack;
+		$[12] = t5;
+	} else t5 = $[12];
+	const timeline = t5;
+	let t6;
+	if ($[13] !== baseTimeline.root || $[14] !== timelineProps) {
+		t6 = (branch, label) => {
 			setViewStack((s) => [...s, {
 				label,
 				timeline: spliceToTimeline(baseTimeline.root, branch),
@@ -118485,75 +118756,75 @@ function useTranscriptTimeline(options) {
 			}]);
 			timelineProps?.onSelect(null);
 		};
-		$[8] = baseTimeline.root;
-		$[9] = timelineProps;
-		$[10] = t5;
-	} else t5 = $[10];
-	const pushView = t5;
-	let t6;
-	if ($[11] !== timelineProps || $[12] !== viewStack) {
-		t6 = () => {
+		$[13] = baseTimeline.root;
+		$[14] = timelineProps;
+		$[15] = t6;
+	} else t6 = $[15];
+	const pushView = t6;
+	let t7;
+	if ($[16] !== timelineProps || $[17] !== viewStack) {
+		t7 = () => {
 			const top = viewStack.at(-1);
 			if (!top) return;
 			setViewStack(_temp$48);
 			timelineProps?.onSelect(top.priorSelected);
 		};
-		$[11] = timelineProps;
-		$[12] = viewStack;
-		$[13] = t6;
-	} else t6 = $[13];
-	const popView = t6;
+		$[16] = timelineProps;
+		$[17] = viewStack;
+		$[18] = t7;
+	} else t7 = $[18];
+	const popView = t7;
 	const state = useTimeline(timeline, timelineOptions, timelineProps);
-	let t7;
-	if ($[14] !== state.rows) {
-		t7 = state.rows.filter(_temp2$35);
-		$[14] = state.rows;
-		$[15] = t7;
-	} else t7 = $[15];
-	const visibleRows = t7;
 	let t8;
-	if ($[16] !== state.node) {
-		t8 = computeTimeMapping(state.node);
-		$[16] = state.node;
-		$[17] = t8;
-	} else t8 = $[17];
-	const timeMapping = t8;
+	if ($[19] !== state.rows) {
+		t8 = state.rows.filter(_temp2$35);
+		$[19] = state.rows;
+		$[20] = t8;
+	} else t8 = $[20];
+	const visibleRows = t8;
 	let t9;
-	if ($[18] !== timeline.root) {
-		t9 = computeTimeMapping(timeline.root);
-		$[18] = timeline.root;
-		$[19] = t9;
-	} else t9 = $[19];
-	const rootTimeMapping = t9;
+	if ($[21] !== state.node) {
+		t9 = computeTimeMapping(state.node);
+		$[21] = state.node;
+		$[22] = t9;
+	} else t9 = $[22];
+	const timeMapping = t9;
 	let t10;
+	if ($[23] !== timeline.root) {
+		t10 = computeTimeMapping(timeline.root);
+		$[23] = timeline.root;
+		$[24] = t10;
+	} else t10 = $[24];
+	const rootTimeMapping = t10;
+	let t11;
 	bb0: {
 		if (!forkRelative || !showBranches) {
-			t10 = void 0;
+			t11 = void 0;
 			break bb0;
 		}
-		let t11;
-		if ($[20] !== timeMapping || $[21] !== visibleRows) {
-			t11 = computeBranchMappings(visibleRows, timeMapping);
-			$[20] = timeMapping;
-			$[21] = visibleRows;
-			$[22] = t11;
-		} else t11 = $[22];
-		t10 = t11;
+		let t12;
+		if ($[25] !== timeMapping || $[26] !== visibleRows) {
+			t12 = computeBranchMappings(visibleRows, timeMapping);
+			$[25] = timeMapping;
+			$[26] = visibleRows;
+			$[27] = t12;
+		} else t12 = $[27];
+		t11 = t12;
 	}
-	const branchMappings = t10;
-	let t11;
-	if ($[23] !== branchMappings || $[24] !== markerConfig.depth || $[25] !== markerConfig.kinds || $[26] !== timeMapping || $[27] !== visibleRows) {
-		t11 = computeRowLayouts(visibleRows, timeMapping, markerConfig.depth, markerConfig.kinds, branchMappings);
-		$[23] = branchMappings;
-		$[24] = markerConfig.depth;
-		$[25] = markerConfig.kinds;
-		$[26] = timeMapping;
-		$[27] = visibleRows;
-		$[28] = t11;
-	} else t11 = $[28];
-	const layouts = t11;
+	const branchMappings = t11;
 	let t12;
-	if ($[29] !== events || $[30] !== includeUtility || $[31] !== showBranches || $[32] !== state.rows || $[33] !== state.selected) {
+	if ($[28] !== branchMappings || $[29] !== markerConfig.depth || $[30] !== markerConfig.kinds || $[31] !== timeMapping || $[32] !== visibleRows) {
+		t12 = computeRowLayouts(visibleRows, timeMapping, markerConfig.depth, markerConfig.kinds, branchMappings);
+		$[28] = branchMappings;
+		$[29] = markerConfig.depth;
+		$[30] = markerConfig.kinds;
+		$[31] = timeMapping;
+		$[32] = visibleRows;
+		$[33] = t12;
+	} else t12 = $[33];
+	const layouts = t12;
+	let t13;
+	if ($[34] !== events || $[35] !== includeUtility || $[36] !== showBranches || $[37] !== state.rows || $[38] !== state.selected) {
 		bb1: {
 			let selection = state.selected;
 			let spans = getSelectedSpans(state.rows, selection);
@@ -118563,24 +118834,24 @@ function useTranscriptTimeline(options) {
 			}
 			const parsed = parseSelection(selection);
 			if (spans.length === 0) {
-				let t13;
-				if ($[35] !== events) {
-					t13 = {
+				let t14;
+				if ($[40] !== events) {
+					t14 = {
 						selectedEvents: events,
 						sourceSpans: emptySourceSpans,
 						branchScrollTarget: null
 					};
-					$[35] = events;
-					$[36] = t13;
-				} else t13 = $[36];
-				t12 = t13;
+					$[40] = events;
+					$[41] = t14;
+				} else t14 = $[41];
+				t13 = t14;
 				break bb1;
 			}
 			const rowKey = parsed?.rowKey ?? "";
 			const row_0 = state.rows.find((r) => r.key === rowKey);
 			if (spans.length === 1 && (row_0?.branch || (spans[0]?.branches.length ?? 0) > 0)) {
 				const collected = collectPathWithNavigators(state.rows, rowKey, events);
-				t12 = {
+				t13 = {
 					selectedEvents: collected.events,
 					sourceSpans: collected.sourceSpans,
 					branchScrollTarget: null
@@ -118593,37 +118864,37 @@ function useTranscriptTimeline(options) {
 				showBranches,
 				branchPrefix: getBranchPrefix(state.rows, selection)
 			});
-			let t13;
-			if ($[37] !== collected_0.events || $[38] !== collected_0.sourceSpans) {
-				t13 = {
+			let t14;
+			if ($[42] !== collected_0.events || $[43] !== collected_0.sourceSpans) {
+				t14 = {
 					selectedEvents: collected_0.events,
 					sourceSpans: collected_0.sourceSpans,
 					branchScrollTarget: null
 				};
-				$[37] = collected_0.events;
-				$[38] = collected_0.sourceSpans;
-				$[39] = t13;
-			} else t13 = $[39];
-			t12 = t13;
+				$[42] = collected_0.events;
+				$[43] = collected_0.sourceSpans;
+				$[44] = t14;
+			} else t14 = $[44];
+			t13 = t14;
 		}
-		$[29] = events;
-		$[30] = includeUtility;
-		$[31] = showBranches;
-		$[32] = state.rows;
-		$[33] = state.selected;
-		$[34] = t12;
-	} else t12 = $[34];
-	const { selectedEvents, sourceSpans, branchScrollTarget } = t12;
-	let t13;
-	if ($[40] !== state.rows || $[41] !== state.selected) {
-		t13 = computeMinimapSelection(state.rows, state.selected);
-		$[40] = state.rows;
-		$[41] = state.selected;
-		$[42] = t13;
-	} else t13 = $[42];
-	const minimapSelection = t13;
+		$[34] = events;
+		$[35] = includeUtility;
+		$[36] = showBranches;
+		$[37] = state.rows;
+		$[38] = state.selected;
+		$[39] = t13;
+	} else t13 = $[39];
+	const { selectedEvents, sourceSpans, branchScrollTarget } = t13;
+	let t14;
+	if ($[45] !== state.rows || $[46] !== state.selected) {
+		t14 = computeMinimapSelection(state.rows, state.selected);
+		$[45] = state.rows;
+		$[46] = state.selected;
+		$[47] = t14;
+	} else t14 = $[47];
+	const minimapSelection = t14;
 	let counts;
-	if ($[43] !== state.rows) {
+	if ($[48] !== state.rows) {
 		counts = /* @__PURE__ */ new Map();
 		for (const row_1 of state.rows) {
 			const firstSpan = row_1.spans[0];
@@ -118634,16 +118905,16 @@ function useTranscriptTimeline(options) {
 				if (compactionCount > 0) counts.set(row_1.key, compactionCount + 1);
 			}
 		}
-		$[43] = state.rows;
-		$[44] = counts;
-	} else counts = $[44];
+		$[48] = state.rows;
+		$[49] = counts;
+	} else counts = $[49];
 	const regionCounts = counts;
-	let t14;
-	if ($[45] !== layouts || $[46] !== state.rows || $[47] !== state.selected) {
+	let t15;
+	if ($[50] !== layouts || $[51] !== state.rows || $[52] !== state.selected) {
 		bb2: {
 			const rowKey_0 = parseSelection(state.selected)?.rowKey ?? "";
 			if (!state.rows.find((r_0) => r_0.key === rowKey_0)?.branch) {
-				t14 = emptyHighlightedKeys;
+				t15 = emptyHighlightedKeys;
 				break bb2;
 			}
 			const layoutByKey = /* @__PURE__ */ new Map();
@@ -118659,141 +118930,141 @@ function useTranscriptTimeline(options) {
 				keys.set(parentKey, forkMarker?.left ?? 100);
 				childKey = parentKey;
 			}
-			t14 = keys;
+			t15 = keys;
 		}
-		$[45] = layouts;
-		$[46] = state.rows;
-		$[47] = state.selected;
-		$[48] = t14;
-	} else t14 = $[48];
-	const highlightedKeys = t14;
-	let t15;
-	if ($[49] !== timeline.root.branches || $[50] !== timeline.root.content) {
-		t15 = timeline.root.content.length > 0 && (timeline.root.content.some(_temp3$29) || timeline.root.branches.length > 0);
-		$[49] = timeline.root.branches;
-		$[50] = timeline.root.content;
-		$[51] = t15;
-	} else t15 = $[51];
-	const hasTimeline = t15;
+		$[50] = layouts;
+		$[51] = state.rows;
+		$[52] = state.selected;
+		$[53] = t15;
+	} else t15 = $[53];
+	const highlightedKeys = t15;
 	let t16;
-	if ($[52] !== visibleRows) {
-		t16 = visibleRows.some(_temp4$24);
-		$[52] = visibleRows;
-		$[53] = t16;
-	} else t16 = $[53];
-	const hasAgentTimeline = t16;
+	if ($[54] !== timeline.root.branches || $[55] !== timeline.root.content) {
+		t16 = timeline.root.content.length > 0 && (timeline.root.content.some(_temp3$29) || timeline.root.branches.length > 0);
+		$[54] = timeline.root.branches;
+		$[55] = timeline.root.content;
+		$[56] = t16;
+	} else t16 = $[56];
+	const hasTimeline = t16;
 	let t17;
+	if ($[57] !== visibleRows) {
+		t17 = visibleRows.some(_temp4$24);
+		$[57] = visibleRows;
+		$[58] = t17;
+	} else t17 = $[58];
+	const hasAgentTimeline = t17;
+	let t18;
 	bb3: {
 		if (!state.selected) {
-			t17 = timeline.root.name;
+			t18 = timeline.root.name;
 			break bb3;
 		}
-		let t18;
-		if ($[54] !== state.selected) {
-			t18 = parseSelection(state.selected);
-			$[54] = state.selected;
-			$[55] = t18;
-		} else t18 = $[55];
-		const rowKey_1 = t18?.rowKey ?? state.selected;
 		let t19;
-		if ($[56] !== rowKey_1 || $[57] !== state.rows) {
-			let t20;
-			if ($[59] !== rowKey_1) {
-				t20 = (r_1) => r_1.key === rowKey_1;
-				$[59] = rowKey_1;
-				$[60] = t20;
-			} else t20 = $[60];
-			t19 = state.rows.find(t20);
-			$[56] = rowKey_1;
-			$[57] = state.rows;
-			$[58] = t19;
-		} else t19 = $[58];
-		t17 = t19?.name ?? timeline.root.name;
+		if ($[59] !== state.selected) {
+			t19 = parseSelection(state.selected);
+			$[59] = state.selected;
+			$[60] = t19;
+		} else t19 = $[60];
+		const rowKey_1 = t19?.rowKey ?? state.selected;
+		let t20;
+		if ($[61] !== rowKey_1 || $[62] !== state.rows) {
+			let t21;
+			if ($[64] !== rowKey_1) {
+				t21 = (r_1) => r_1.key === rowKey_1;
+				$[64] = rowKey_1;
+				$[65] = t21;
+			} else t21 = $[65];
+			t20 = state.rows.find(t21);
+			$[61] = rowKey_1;
+			$[62] = state.rows;
+			$[63] = t20;
+		} else t20 = $[63];
+		t18 = t20?.name ?? timeline.root.name;
 	}
-	const selectedRowName = t17;
-	let t18;
-	if ($[61] !== highlightedKeys || $[62] !== layouts || $[63] !== regionCounts || $[64] !== timeMapping) {
-		t18 = {
+	const selectedRowName = t18;
+	let t19;
+	if ($[66] !== highlightedKeys || $[67] !== layouts || $[68] !== regionCounts || $[69] !== timeMapping) {
+		t19 = {
 			layouts,
 			regionCounts,
 			highlightedKeys,
 			timeMapping
 		};
-		$[61] = highlightedKeys;
-		$[62] = layouts;
-		$[63] = regionCounts;
-		$[64] = timeMapping;
-		$[65] = t18;
-	} else t18 = $[65];
-	const swimlanes = t18;
-	let t19;
-	if ($[66] !== minimapSelection || $[67] !== rootTimeMapping) {
-		t19 = {
+		$[66] = highlightedKeys;
+		$[67] = layouts;
+		$[68] = regionCounts;
+		$[69] = timeMapping;
+		$[70] = t19;
+	} else t19 = $[70];
+	const swimlanes = t19;
+	let t20;
+	if ($[71] !== minimapSelection || $[72] !== rootTimeMapping) {
+		t20 = {
 			mapping: rootTimeMapping,
 			selection: minimapSelection
 		};
-		$[66] = minimapSelection;
-		$[67] = rootTimeMapping;
-		$[68] = t19;
-	} else t19 = $[68];
-	const minimap = t19;
-	let t20;
-	if ($[69] !== activeTimelineIndex || $[70] !== setActiveTimeline || $[71] !== timelines) {
-		t20 = {
+		$[71] = minimapSelection;
+		$[72] = rootTimeMapping;
+		$[73] = t20;
+	} else t20 = $[73];
+	const minimap = t20;
+	let t21;
+	if ($[74] !== activeTimelineIndex || $[75] !== setActiveTimeline || $[76] !== timelines) {
+		t21 = {
 			timelines,
 			activeIndex: activeTimelineIndex,
 			setActive: setActiveTimeline
 		};
-		$[69] = activeTimelineIndex;
-		$[70] = setActiveTimeline;
-		$[71] = timelines;
-		$[72] = t20;
-	} else t20 = $[72];
-	const multiTimeline = t20;
-	let t21;
-	if ($[73] !== pushView || $[74] !== state.rows) {
-		t21 = (rowKey_2, label_0) => {
+		$[74] = activeTimelineIndex;
+		$[75] = setActiveTimeline;
+		$[76] = timelines;
+		$[77] = t21;
+	} else t21 = $[77];
+	const multiTimeline = t21;
+	let t22;
+	if ($[78] !== pushView || $[79] !== state.rows) {
+		t22 = (rowKey_2, label_0) => {
 			const span_0 = state.rows.find((r_2) => r_2.key === rowKey_2)?.spans[0];
 			if (span_0 && "agent" in span_0) pushView(span_0.agent, label_0);
 		};
-		$[73] = pushView;
-		$[74] = state.rows;
-		$[75] = t21;
-	} else t21 = $[75];
-	const pushViewByRowKey = t21;
-	let t22;
-	if ($[76] !== popView || $[77] !== pushView || $[78] !== pushViewByRowKey || $[79] !== viewStack) {
-		t22 = {
+		$[78] = pushView;
+		$[79] = state.rows;
+		$[80] = t22;
+	} else t22 = $[80];
+	const pushViewByRowKey = t22;
+	let t23;
+	if ($[81] !== popView || $[82] !== pushView || $[83] !== pushViewByRowKey || $[84] !== viewStack) {
+		t23 = {
 			stack: viewStack,
 			push: pushView,
 			pushByRowKey: pushViewByRowKey,
 			pop: popView
 		};
-		$[76] = popView;
-		$[77] = pushView;
-		$[78] = pushViewByRowKey;
-		$[79] = viewStack;
-		$[80] = t22;
-	} else t22 = $[80];
-	const views = t22;
-	let t23;
-	if ($[81] !== branchScrollTarget || $[82] !== selectedEvents || $[83] !== selectedRowName || $[84] !== sourceSpans) {
-		t23 = {
+		$[81] = popView;
+		$[82] = pushView;
+		$[83] = pushViewByRowKey;
+		$[84] = viewStack;
+		$[85] = t23;
+	} else t23 = $[85];
+	const views = t23;
+	let t24;
+	if ($[86] !== branchScrollTarget || $[87] !== selectedEvents || $[88] !== selectedRowName || $[89] !== sourceSpans) {
+		t24 = {
 			events: selectedEvents,
 			sourceSpans,
 			branchScrollTarget,
 			rowName: selectedRowName
 		};
-		$[81] = branchScrollTarget;
-		$[82] = selectedEvents;
-		$[83] = selectedRowName;
-		$[84] = sourceSpans;
-		$[85] = t23;
-	} else t23 = $[85];
-	const selection_0 = t23;
-	let t24;
-	if ($[86] !== hasAgentTimeline || $[87] !== hasTimeline || $[88] !== minimap || $[89] !== multiTimeline || $[90] !== selection_0 || $[91] !== state || $[92] !== swimlanes || $[93] !== timeline || $[94] !== views) {
-		t24 = {
+		$[86] = branchScrollTarget;
+		$[87] = selectedEvents;
+		$[88] = selectedRowName;
+		$[89] = sourceSpans;
+		$[90] = t24;
+	} else t24 = $[90];
+	const selection_0 = t24;
+	let t25;
+	if ($[91] !== hasAgentTimeline || $[92] !== hasTimeline || $[93] !== minimap || $[94] !== multiTimeline || $[95] !== selection_0 || $[96] !== state || $[97] !== swimlanes || $[98] !== timeline || $[99] !== views) {
+		t25 = {
 			timeline,
 			state,
 			hasTimeline,
@@ -118804,18 +119075,18 @@ function useTranscriptTimeline(options) {
 			views,
 			selection: selection_0
 		};
-		$[86] = hasAgentTimeline;
-		$[87] = hasTimeline;
-		$[88] = minimap;
-		$[89] = multiTimeline;
-		$[90] = selection_0;
-		$[91] = state;
-		$[92] = swimlanes;
-		$[93] = timeline;
-		$[94] = views;
-		$[95] = t24;
-	} else t24 = $[95];
-	return t24;
+		$[91] = hasAgentTimeline;
+		$[92] = hasTimeline;
+		$[93] = minimap;
+		$[94] = multiTimeline;
+		$[95] = selection_0;
+		$[96] = state;
+		$[97] = swimlanes;
+		$[98] = timeline;
+		$[99] = views;
+		$[100] = t25;
+	} else t25 = $[100];
+	return t25;
 }
 function _temp4$24(row_3) {
 	if (row_3.depth < 1) return false;
@@ -121567,7 +121838,7 @@ function _temp$44() {}
 			if (deepLinkTimelineIndex < 0) return;
 			prevDeepLinkRef.current = key;
 			if (deepLinkTimelineIndex === activeTimelineIndex) return;
-			setActiveTimeline(deepLinkTimelineIndex);
+			setActiveTimeline(deepLinkTimelineIndex, { preserveDeepLink: true });
 		};
 		t9 = [
 			initialEventId,
@@ -121683,7 +121954,8 @@ function _temp$44() {}
 /**
 * Derivation of gutter label maps (message labels, tool labels) from the
 * event stream. Pure functions over Event[]; no React.
-*/ /**
+*/
+/**
 * Derive tool-event labels from message labels.
 *
 * A tool event inherits the label of the tool message it produced — matched
@@ -121693,11 +121965,11 @@ function _temp$44() {}
 	if (!messageLabels) return void 0;
 	const toolLabels = {};
 	for (const event of events) if (event.event === "tool") {
-		const label = event.message_id ? messageLabels[event.message_id] : void 0;
+		const label = event.message_id ? getOwn(messageLabels, event.message_id) : void 0;
 		if (label) toolLabels[event.id] = label;
 	} else if (event.event === "model") for (const message of event.input) {
 		if (message.role !== "tool" || !message.id) continue;
-		const label = messageLabels[message.id];
+		const label = getOwn(messageLabels, message.id);
 		if (label && message.tool_call_id) toolLabels[message.tool_call_id] = label;
 	}
 	return Object.keys(toolLabels).length > 0 ? toolLabels : void 0;
@@ -125699,18 +125971,25 @@ var SampleRetriedErrors = (t0) => {
 //#endregion
 //#region src/utils/evalModel.ts
 /**
-* Resolve the model display string for an EvalSpec.
+* Format the primary model first, then the named roles.
 *
-* - If `model_roles` is populated, formats it as `role: model[; role: model]…`
-*   (`;` between roles, since a list-valued role already uses `,` between its
-*   models).
-* - Otherwise falls back to `eval.model`, ignoring the placeholder `none/none`.
-* - Returns `undefined` if neither source has anything meaningful.
+* Separate entries with `;` since list-valued roles already use `,`.
+* Omits the `none/none` placeholder and returns `undefined` if both are empty.
 */ var formatModelText = (evalSpec) => {
-	if (!evalSpec) return void 0;
-	const roles = evalSpec.model_roles;
-	if (roles && Object.keys(roles).length > 0) return Object.entries(roles).map(([role, data]) => `${role}: ${modelRoleModelNames(data)}`).join("; ");
-	if (evalSpec.model && evalSpec.model !== "none/none") return evalSpec.model;
+	const { model, roles } = modelDisplayParts(evalSpec);
+	return [model, roles].filter(Boolean).join("; ") || void 0;
+};
+/** Format the primary model followed by parenthesized roles for a title. */ var formatModelTitle = (evalSpec) => {
+	const { model, roles } = modelDisplayParts(evalSpec);
+	return [model, roles ? `(${roles})` : void 0].filter(Boolean).join(" ") || void 0;
+};
+var modelDisplayParts = (evalSpec) => {
+	const model = evalSpec?.model;
+	const roles = Object.entries(evalSpec?.model_roles ?? {}).map(([role, data]) => `${role}: ${modelRoleModelNames(data)}`).join("; ");
+	return {
+		model: model && model !== "none/none" ? model : void 0,
+		roles: roles || void 0
+	};
 };
 //#endregion
 //#region src/utils/markdown.ts
@@ -130778,26 +131057,30 @@ var TranscriptPreview = (t0) => {
 * Event previews render the event inline via a transcript view; message
 * previews render the message inline via a chat view. Messages can live
 * inside ModelEvent input/output, so those are harvested here too.
+*
+* A Map, not a plain object: ids are log-authored, and a reference id such
+* as "constructor" must resolve only to a message or event that really
+* carries that id.
 */ function buildScanReferencePreviews(events) {
-	if (!events || events.length === 0) return {};
-	const table = {};
+	const table = /* @__PURE__ */ new Map();
+	if (!events || events.length === 0) return table;
 	const addMessage = (msg) => {
-		if (!msg?.id || table[msg.id]) return;
+		if (!msg?.id || table.has(msg.id)) return;
 		const captured = msg;
-		table[msg.id] = () => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
+		table.set(msg.id, () => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
 			id: `ref-preview-${captured.id}`,
 			messages: [captured],
 			labels: { show: false },
 			tools: { collapseToolMessages: false }
-		});
+		}));
 	};
 	for (const event of events) {
-		if (event.uuid && !table[event.uuid]) {
+		if (event.uuid && !table.has(event.uuid)) {
 			const captured = event;
-			table[event.uuid] = () => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptPreview, {
+			table.set(event.uuid, () => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptPreview, {
 				id: `ref-preview-${captured.uuid}`,
 				events: [captured]
-			});
+			}));
 		}
 		if (event.event === "model") {
 			for (const msg of event.input) addMessage(msg);
@@ -130813,7 +131096,7 @@ function buildScoreMarkdownRefs(metadata, makeUrl, previewTable) {
 		id: ref.id,
 		cite: ref.cite,
 		citeUrl: makeUrl(ref.id, ref.type),
-		citePreview: previewTable?.[ref.id]
+		citePreview: previewTable?.get(ref.id)
 	}));
 }
 /**
@@ -135897,7 +136180,7 @@ var SolversDetailView = (t0) => {
 //#endregion
 //#region src/app/plan/PlanDetailView.tsx
 var PlanDetailView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(25);
+	const $ = (0, import_compiler_runtime.c)(22);
 	const { evaluation, plan, scores } = t0;
 	if (!evaluation) return null;
 	const steps = plan?.steps;
@@ -135929,49 +136212,41 @@ var PlanDetailView = (t0) => {
 			taskColumns.push(t2);
 		}
 		if (scores) {
-			let t2;
+			let scorers;
 			if ($[8] !== scores) {
-				t2 = scores.reduce(_temp$27, {});
-				$[8] = scores;
-				$[9] = t2;
-			} else t2 = $[9];
-			const scorers = t2;
-			if (Object.keys(scorers).length > 0) {
-				const label = Object.keys(scorers).length === 1 ? "Scorer" : "Scorers";
-				let t3;
-				if ($[10] !== scorers) {
-					t3 = Object.keys(scorers);
-					$[10] = scorers;
-					$[11] = t3;
-				} else t3 = $[11];
-				let t4;
-				if ($[12] !== scorers || $[13] !== t3) {
-					t4 = t3.map((key) => {
-						const scorer = scorers[key];
-						if (scorer === void 0) return null;
-						return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScorerDetailView, {
-							name: key,
-							scores: scorer.scores,
-							params: scorer.params
-						}, key);
+				scorers = /* @__PURE__ */ new Map();
+				for (const score of scores) {
+					const existing = scorers.get(score.scorer);
+					if (existing === void 0) scorers.set(score.scorer, {
+						scores: [score.name],
+						params: score.params
 					});
-					$[12] = scorers;
-					$[13] = t3;
-					$[14] = t4;
-				} else t4 = $[14];
-				const scorerPanels = t4;
-				let t5;
-				if ($[15] !== label || $[16] !== scorerPanels) {
-					t5 = {
+					else existing.scores.push(score.name);
+				}
+				$[8] = scores;
+				$[9] = scorers;
+			} else scorers = $[9];
+			if (scorers.size > 0) {
+				const label = scorers.size === 1 ? "Scorer" : "Scorers";
+				let t2;
+				if ($[10] !== scorers) {
+					t2 = [...scorers].map(_temp$27);
+					$[10] = scorers;
+					$[11] = t2;
+				} else t2 = $[11];
+				const scorerPanels = t2;
+				let t3;
+				if ($[12] !== label || $[13] !== scorerPanels) {
+					t3 = {
 						title: label,
 						className: PlanDetailView_module_default.floatingCol,
 						contents: scorerPanels
 					};
-					$[15] = label;
-					$[16] = scorerPanels;
-					$[17] = t5;
-				} else t5 = $[17];
-				taskColumns.push(t5);
+					$[12] = label;
+					$[13] = scorerPanels;
+					$[14] = t3;
+				} else t3 = $[14];
+				taskColumns.push(t3);
 			}
 		}
 		$[0] = evaluation.dataset;
@@ -135981,19 +136256,19 @@ var PlanDetailView = (t0) => {
 	} else taskColumns = $[3];
 	const t1 = `repeat(${taskColumns.length}, fit-content(50%))`;
 	let t2;
-	if ($[18] !== t1) {
+	if ($[15] !== t1) {
 		t2 = { gridTemplateColumns: t1 };
-		$[18] = t1;
-		$[19] = t2;
-	} else t2 = $[19];
+		$[15] = t1;
+		$[16] = t2;
+	} else t2 = $[16];
 	let t3;
-	if ($[20] !== taskColumns) {
+	if ($[17] !== taskColumns) {
 		t3 = taskColumns.map(_temp2$22);
-		$[20] = taskColumns;
-		$[21] = t3;
-	} else t3 = $[21];
+		$[17] = taskColumns;
+		$[18] = t3;
+	} else t3 = $[18];
 	let t4;
-	if ($[22] !== t2 || $[23] !== t3) {
+	if ($[19] !== t2 || $[20] !== t3) {
 		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: PlanDetailView_module_default.container,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
@@ -136002,10 +136277,10 @@ var PlanDetailView = (t0) => {
 				children: t3
 			})
 		});
-		$[22] = t2;
-		$[23] = t3;
-		$[24] = t4;
-	} else t4 = $[24];
+		$[19] = t2;
+		$[20] = t3;
+		$[21] = t4;
+	} else t4 = $[21];
 	return t4;
 };
 var PlanColumn = (t0) => {
@@ -136044,14 +136319,13 @@ var PlanColumn = (t0) => {
 	} else t4 = $[8];
 	return t4;
 };
-function _temp$27(accum, score) {
-	const existing = accum[score.scorer];
-	if (existing === void 0) accum[score.scorer] = {
-		scores: [score.name],
-		params: score.params
-	};
-	else existing.scores.push(score.name);
-	return accum;
+function _temp$27(t0) {
+	const [key, scorer] = t0;
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScorerDetailView, {
+		name: key,
+		scores: scorer.scores,
+		params: scorer.params
+	}, key);
 }
 function _temp2$22(col) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PlanColumn, {
@@ -138780,11 +139054,11 @@ var StringInput = class {
 };
 new NodeProp({ perNode: true });
 //#endregion
-//#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.3/node_modules/@marijn/find-cluster-break/src/index.js
+//#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.4/node_modules/@marijn/find-cluster-break/src/index.js
 var rangeFrom = [];
 var rangeTo = [];
 (() => {
-	let numbers = "lc,34,7n,7,7b,19,,,,2,,2,,,20,b,1c,l,g,,2t,7,2,6,2,2,,4,z,,u,r,2j,b,1m,9,9,,o,4,,9,,3,,5,17,3,3b,f,,w,1j,,,,4,8,4,,3,7,a,2,t,,1m,,,,2,4,8,,9,,a,2,q,,2,2,1l,,4,2,4,2,2,3,3,,u,2,3,,b,2,1l,,4,5,,2,4,,k,2,m,6,,,1m,,,2,,4,8,,7,3,a,2,u,,1n,,,,c,,9,,14,,3,,1l,3,5,3,,4,7,2,b,2,t,,1m,,2,,2,,3,,5,2,7,2,b,2,s,2,1l,2,,,2,4,8,,9,,a,2,t,,20,,4,,2,3,,,8,,29,,2,7,c,8,2q,,2,9,b,6,22,2,r,,,,,,1j,e,,5,,2,5,b,,10,9,,2u,4,,6,,2,2,2,p,2,4,3,g,4,d,,2,2,6,,f,,jj,3,qa,3,t,3,t,2,u,2,1s,2,,7,8,,2,b,9,,19,3,3b,2,y,,3a,3,4,2,9,,6,3,63,2,2,,1m,,,7,,,,,2,8,6,a,2,,1c,h,1r,4,1c,7,,,5,,14,9,c,2,w,4,2,2,,3,1k,,,2,3,,,3,1m,8,2,2,48,3,,d,,7,4,,6,,3,2,5i,1m,,5,ek,,5f,x,2da,3,3x,,2o,w,fe,6,2x,2,n9w,4,,a,w,2,28,2,7k,,3,,4,,p,2,5,,47,2,q,i,d,,12,8,p,b,1a,3,1c,,2,4,2,2,13,,1v,6,2,2,2,2,c,,8,,1b,,1f,,,3,2,2,5,2,,,16,2,8,,6m,,2,,4,,fn4,,kh,g,g,g,a6,2,gt,,6a,,45,5,1ae,3,,2,5,4,14,3,4,,4l,2,fx,4,ar,2,49,b,4w,,1i,f,1k,3,1d,4,2,2,1x,3,10,5,,8,1q,,c,2,1g,9,a,4,2,,2n,3,2,,,2,6,,4g,,3,8,l,2,1l,2,,,,,m,,e,7,3,5,5f,8,2,3,,,n,,29,,2,6,,,2,,,2,,2,6j,,2,4,6,2,,2,r,2,2d,8,2,,,2,2y,,,,2,6,,,2t,3,2,4,,5,77,9,,2,6t,,a,2,,,4,,40,4,2,2,4,,w,a,14,6,2,4,8,,9,6,2,3,1a,d,,2,ba,7,,6,,,2a,m,2,7,,2,,2,3e,6,3,,,2,,7,,,20,2,3,,,,9n,2,f0b,5,1n,7,t4,,1r,4,29,,f5k,2,43q,,,3,4,5,8,8,2,7,u,4,44,3,1iz,1j,4,1e,8,,e,,m,5,,f,11s,7,,h,2,7,,2,,5,79,7,c5,4,15s,7,31,7,240,5,gx7k,2o,3k,6o".split(",").map((s) => s ? parseInt(s, 36) : 1);
+	let numbers = "lc,34,7n,7,7b,19,,,,2,,2,,,20,b,1c,l,g,,2t,7,2,6,2,2,,4,z,,u,r,2j,b,1m,9,9,,o,4,,9,,3,,5,17,3,1n,9,16,o,,x,1i,3,,i,,7,a,2,t,3,1k,,,7,2,2,2,3,9,,a,2,q,,2,3,1k,,,5,4,2,2,3,3,,u,2,3,,b,3,1k,,,8,,3,,3,k,2,m,6,,3,1k,,,7,2,2,2,3,7,3,a,2,u,,1n,5,3,3,,4,9,,14,5,1j,,,7,,3,,4,7,2,b,2,t,3,1k,,,7,,3,,4,7,2,b,2,f,,c,4,1j,2,,7,,3,,4,9,,a,2,t,3,1y,,4,6,,,,8,i,2,1p,,,8,c,8,2q,,,a,b,7,21,2,r,,,,,,4,2,1d,k,,2,5,b,,10,9,,2u,b,,6,n,4,4,3,g,4,d,,,3,6,,f,,jj,3,qa,4,s,3,t,2,u,2,1s,w,9,,19,3,,,39,2,y,,3a,c,4,c,63,5,1l,a,,,,,2,o,2,,1c,1a,2,c,k,5,1b,h,12,9,c,3,u,d,1k,e,1c,k,48,3,,l,4,,6,,2,3,5i,1s,ek,,5f,x,2da,3,3x,,2o,w,fe,6,2x,2,n9w,4,,a,w,2,28,2,7k,,3,,4,,n,5,4,,2b,2,1e,i,q,i,d,,12,8,p,d,18,4,1b,e,10,,1v,e,c,,8,2,1a,,1f,,,3,2,2,5,2,,,15,5,5,2,6k,8,,2,fn4,,kh,g,g,g,a6,2,gt,,6a,,45,5,1ae,3,,2,5,4,14,3,4,,4l,2,fx,4,1t,5,8t,2,25,6,1y,b,1d,4,3e,3,1h,f,15,,2,2,a,4,19,b,7,,1p,3,10,e,g,2,18,,c,3,1c,e,8,4,,2,2k,c,6,,2,,4d,c,l,4,1j,2,,7,2,2,2,3,9,,a,2,2,7,3,5,1v,9,,,2,,,4,,5,,,e,2,2a,i,n,,29,k,6j,7,2,9,r,2,2a,h,2y,d,2t,3,2,a,74,f,6t,6,,2,2,4,,,,2,3x,7,2,7,3,,s,a,14,7,,4,8,,9,b,1a,g,5i,8,5j,8,,8,2a,m,,e,3e,6,3,,,2,,7,,,1u,5,,2,,5,9n,4,9,2,,,1c,7,3,5,n,,44l,,6,f,8ug,i,1xc,5,1n,7,t4,,,1j,7,4,29,,b,2,f57,2,3mp,1a,2,n,f2,5,3,6,8,8,2,7,u,4,44,3,1iz,1j,4,1e,8,,e,,m,5,,f,11s,7,,h,2,7,,2,,5,2s,,4g,7,af,,1p,4,e4,4,72,2,6r,,2,,7,2,5,,d6,7,31,7,240,5".split(",").map((s) => s ? parseInt(s, 36) : 1);
 	for (let i = 0, n = 0; i < numbers.length; i++) (i % 2 ? rangeTo : rangeFrom).push(n = n + numbers[i]);
 })();
 function isExtendingChar(code) {
@@ -138851,7 +139125,7 @@ function codePointSize$1(code) {
 	return code < 65536 ? 1 : 2;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+state@6.7.1/node_modules/@codemirror/state/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+state@6.7.2/node_modules/@codemirror/state/dist/index.js
 /**
 The data structure for documents. @nonabstract
 */
@@ -141557,7 +141831,7 @@ var Chunk = class Chunk {
 		this.maxPoint = maxPoint;
 	}
 	get length() {
-		return this.to[this.to.length - 1];
+		return last(this.to);
 	}
 	findIndex(pos, side, end, startAt = 0) {
 		let arr = end ? this.to : this.from;
@@ -141573,9 +141847,9 @@ var Chunk = class Chunk {
 	between(offset, from, to, f) {
 		for (let i = this.findIndex(from, -1e9, true), e = this.findIndex(to, 1e9, false, i); i < e; i++) if (f(this.from[i] + offset, this.to[i] + offset, this.value[i]) === false) return false;
 	}
-	map(offset, changes) {
+	map(offset, changes, basePos, baseSide, spill) {
 		let value = [], from = [], to = [], newPos = -1, maxPoint = -1;
-		for (let i = 0; i < this.value.length; i++) {
+		iter: for (let i = 0; i < this.value.length; i++) {
 			let val = this.value[i], curFrom = this.from[i] + offset, curTo = this.to[i] + offset, newFrom, newTo;
 			if (curFrom == curTo) {
 				let mapped = changes.mapPos(curFrom, val.startSide, val.mapMode);
@@ -141593,9 +141867,23 @@ var Chunk = class Chunk {
 			if ((newTo - newFrom || val.endSide - val.startSide) < 0) continue;
 			if (newPos < 0) newPos = newFrom;
 			if (val.point) maxPoint = Math.max(maxPoint, newTo - newFrom);
-			value.push(val);
-			from.push(newFrom - newPos);
-			to.push(newTo - newPos);
+			if ((newFrom - basePos || val.startSide - baseSide) >= 0) {
+				value.push(val);
+				from.push(newFrom - newPos);
+				to.push(newTo - newPos);
+				basePos = newTo;
+				baseSide = val.endSide;
+			} else {
+				if (newFrom == newTo) {
+					for (let i = value.length - 1; i > 0; i--) if ((newFrom - to[i - 1] || val.startSide - value[i - 1].endSide) <= 0) {
+						value.splice(i, 0, val);
+						from.splice(i, 0, newFrom);
+						to.splice(i, 0, newTo);
+						continue iter;
+					}
+				}
+				spill(newFrom, newTo, val);
+			}
 		}
 		return {
 			mapped: value.length ? new Chunk(from, to, value, maxPoint) : null,
@@ -141684,6 +141972,11 @@ var RangeSet = class RangeSet {
 	map(changes) {
 		if (changes.empty || this.isEmpty) return this;
 		let chunks = [], chunkPos = [], maxPoint = -1;
+		let spilled;
+		let spill = (from, to, value) => {
+			if (!spilled) spilled = new RangeSetBuilder();
+			spilled.add(from, to, value);
+		};
 		for (let i = 0; i < this.chunk.length; i++) {
 			let start = this.chunkPos[i], chunk = this.chunk[i];
 			let touch = changes.touchesRange(start, start + chunk.length);
@@ -141692,7 +141985,8 @@ var RangeSet = class RangeSet {
 				chunks.push(chunk);
 				chunkPos.push(changes.mapPos(start));
 			} else if (touch === true) {
-				let { mapped, pos } = chunk.map(start, changes);
+				let [prevPos, prevSide] = !chunks.length ? [-1, -1] : [last(chunkPos) + last(chunks).length, last(last(chunks).value).endSide];
+				let { mapped, pos } = chunk.map(start, changes, prevPos, prevSide, spill);
 				if (mapped) {
 					maxPoint = Math.max(maxPoint, mapped.maxPoint);
 					chunks.push(mapped);
@@ -141701,6 +141995,7 @@ var RangeSet = class RangeSet {
 			}
 		}
 		let next = this.nextLayer.map(changes);
+		if (spilled) next = spilled.finishInner(next);
 		return chunks.length == 0 ? next : new RangeSet(chunkPos, chunks, next || RangeSet.empty, maxPoint);
 	}
 	/**
@@ -141812,7 +142107,7 @@ var RangeSet = class RangeSet {
 	*/
 	static join(sets) {
 		if (!sets.length) return RangeSet.empty;
-		let result = sets[sets.length - 1];
+		let result = last(sets);
 		for (let i = sets.length - 2; i >= 0; i--) for (let layer = sets[i]; layer != RangeSet.empty; layer = layer.nextLayer) result = new RangeSet(layer.chunkPos, layer.chunk, result, Math.max(layer.maxPoint, result.maxPoint));
 		return result;
 	}
@@ -141821,6 +142116,9 @@ var RangeSet = class RangeSet {
 The empty set of ranges.
 */
 RangeSet.empty = /*@__PURE__*/ new RangeSet([], [], null, -1);
+function last(arr) {
+	return arr[arr.length - 1];
+}
 function lazySort(ranges) {
 	if (ranges.length > 1) for (let prev = ranges[0], i = 1; i < ranges.length; i++) {
 		let cur = ranges[i];
@@ -142447,7 +142745,7 @@ function add(elt, child) {
 	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.9/node_modules/@codemirror/view/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+view@6.43.10/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -147882,7 +148180,7 @@ var ViewState = class {
 		return height >= this.viewportLines[0].top && height <= this.viewportLines[this.viewportLines.length - 1].bottom && this.viewportLines.find((l) => l.top <= height && l.bottom >= height) || scaleBlock(this.heightMap.lineAt(this.scaler.fromDOM(height), QueryType.ByHeight, this.heightOracle, 0, 0), this.scaler);
 	}
 	getScrollOffset() {
-		return (this.scrollParent == this.view.scrollDOM ? this.scrollParent.scrollTop : (this.scrollParent ? this.scrollParent.getBoundingClientRect().top : 0) - this.view.contentDOM.getBoundingClientRect().top) * this.scaleY;
+		return this.scrollParent == this.view.scrollDOM ? this.scrollParent.scrollTop * this.scaleY : (this.scrollParent ? this.scrollParent.getBoundingClientRect().top : 0) - this.view.contentDOM.getBoundingClientRect().top;
 	}
 	scrollAnchorAt(scrollOffset) {
 		let block = this.lineBlockAtHeight(scrollOffset + 8);
@@ -148234,8 +148532,9 @@ var baseTheme$1$1 = /*@__PURE__*/ buildTheme("." + baseThemeID, {
 		userSelect: "none"
 	},
 	".cm-highlightSpace": {
-		backgroundImage: "radial-gradient(circle at 50% 55%, #aaa 20%, transparent 5%)",
-		backgroundPosition: "center"
+		background: "radial-gradient(circle at 50% 55%, #aaa 20%, transparent 0) no-repeat",
+		backgroundSize: ".4em",
+		backgroundPosition: "calc(min(50%, 0px)) center"
 	},
 	".cm-highlightTab": {
 		backgroundImage: `url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="20"><path stroke="%23888" stroke-width="1" fill="none" d="M1 10H196L190 5M190 15L196 10M197 4L197 16"/></svg>')`,
@@ -149127,7 +149426,7 @@ var EditorView = class EditorView {
 		if (flush) this.observer.forceFlush();
 		let updated = null;
 		let scroll = this.viewState.scrollParent, scrollOffset = this.viewState.getScrollOffset();
-		let { scrollAnchorPos, scrollAnchorHeight } = this.viewState;
+		let { scrollAnchorPos, scrollAnchorHeight, scaleY: scrollScale } = this.viewState;
 		if (Math.abs(scrollOffset - this.viewState.scrollOffset) > 1) scrollAnchorHeight = -1;
 		this.viewState.scrollAnchorHeight = -1;
 		try {
@@ -149135,12 +149434,13 @@ var EditorView = class EditorView {
 				if (scrollAnchorHeight < 0) {
 					if (isScrolledToBottom(scroll || this.win)) {
 						scrollAnchorPos = -1;
-						scrollAnchorHeight = this.viewState.heightMap.height;
+						scrollAnchorHeight = this.viewState.heightMap.height / this.viewState.scaleY;
 					} else {
 						let block = this.viewState.scrollAnchorAt(scrollOffset);
 						scrollAnchorPos = block.from;
 						scrollAnchorHeight = block.top;
 					}
+					scrollScale = this.viewState.scaleY;
 				}
 				this.updateState = 1;
 				let changed = this.viewState.measure();
@@ -149186,7 +149486,7 @@ var EditorView = class EditorView {
 							scrollAnchorHeight = -1;
 							continue;
 						} else {
-							let diff = ((scrollAnchorPos < 0 ? this.viewState.heightMap.height : this.viewState.lineBlockAt(scrollAnchorPos).top) - scrollAnchorHeight) / this.scaleY;
+							let diff = (scrollAnchorPos < 0 ? this.viewState.heightMap.height : this.viewState.lineBlockAt(scrollAnchorPos).top) / this.viewState.scaleY - scrollAnchorHeight / scrollScale;
 							if ((diff > 1 || diff < -1) && !(browser.ios && this.inputState.lastIOSMomentumScroll > Date.now() - 100) && (scroll == this.scrollDOM || this.hasFocus || Math.max(this.inputState.lastWheelEvent, this.inputState.lastTouchTime) > Date.now() - 100)) {
 								scrollOffset = scrollOffset + diff;
 								if (!scroll) this.win.scrollBy(0, diff);
@@ -155107,9 +155407,9 @@ var targetText = (row) => {
 			minSize: w - 4
 		};
 	};
-	const labelFor = (name) => scoreLabels?.[name] ?? name;
+	const labelFor = (name) => getOwn(scoreLabels, name) ?? name;
 	const cellStyleFor = (name, bounds) => {
-		const wire = scoreColorScales?.[name];
+		const wire = getOwn(scoreColorScales, name);
 		if (!wire) return void 0;
 		const resolved = resolveScale(wire, bounds);
 		if (!resolved) return void 0;
@@ -155164,19 +155464,23 @@ var targetText = (row) => {
 			};
 		});
 	}
-	const types = {};
-	const ranges = {};
+	const types = /* @__PURE__ */ new Map();
+	const ranges = /* @__PURE__ */ new Map();
 	for (const sample of samples ?? []) {
 		if (!sample.scores) continue;
 		for (const [name, score] of Object.entries(sample.scores)) {
-			if (!types[name]) types[name] = /* @__PURE__ */ new Set();
-			types[name].add(typeof score.value);
+			let nameTypes = types.get(name);
+			if (!nameTypes) {
+				nameTypes = /* @__PURE__ */ new Set();
+				types.set(name, nameTypes);
+			}
+			nameTypes.add(typeof score.value);
 			if (typeof score.value === "number" && Number.isFinite(score.value)) {
-				const r = ranges[name];
-				if (!r) ranges[name] = {
+				const r = ranges.get(name);
+				if (!r) ranges.set(name, {
 					min: score.value,
 					max: score.value
-				};
+				});
 				else {
 					if (score.value < r.min) r.min = score.value;
 					if (score.value > r.max) r.max = score.value;
@@ -155184,10 +155488,10 @@ var targetText = (row) => {
 			}
 		}
 	}
-	return Object.keys(types).sort((a, b) => a.localeCompare(b)).map((name) => {
-		const nameTypes = types[name];
+	return [...types.keys()].sort((a, b) => a.localeCompare(b)).map((name) => {
+		const nameTypes = types.get(name);
 		const isUniformNumber = nameTypes?.size === 1 && nameTypes.has("number");
-		const valueToStyle = cellStyleFor(name, ranges[name] ?? {});
+		const valueToStyle = cellStyleFor(name, ranges.get(name) ?? {});
 		return {
 			id: rawScoreFieldKey(name),
 			header: labelFor(name),
@@ -166162,7 +166466,7 @@ var CollapsedTitleBar = (t0) => {
 	const totalMetrics = t1;
 	let t2;
 	if ($[5] !== evalSpec) {
-		t2 = formatModelText(evalSpec);
+		t2 = formatModelTitle(evalSpec);
 		$[5] = evalSpec;
 		$[6] = t2;
 	} else t2 = $[6];
@@ -166199,15 +166503,11 @@ var CollapsedTitleBar = (t0) => {
 	} else t8 = $[12];
 	let t9;
 	if ($[13] !== modelText) {
-		t9 = modelText ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+		t9 = modelText ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			id: "task-model-collapsed",
 			className: clsx("task-model", "text-truncate", "text-size-small", CollapsedTitleBar_module_default.model),
 			title: modelText,
-			children: [
-				"(",
-				modelText,
-				")"
-			]
+			children: modelText
 		}) : null;
 		$[13] = modelText;
 		$[14] = t9;
@@ -170244,97 +170544,82 @@ var componentIcons = {
 * Renders the application content. Mounted below the config gate so it can
 * read the resolved app config.
 */ var AppContent = () => {
-	const $ = (0, import_compiler_runtime.c)(14);
-	let t0;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t0 = getApi();
-		$[0] = t0;
-	} else t0 = $[0];
-	const api = t0;
+	const $ = (0, import_compiler_runtime.c)(12);
 	const rehydrated = useStore(_temp5);
-	const logDir = useLogDir();
 	const setInitialState = useStore(_temp6);
-	let t1;
-	if ($[1] !== logDir || $[2] !== rehydrated || $[3] !== setInitialState) {
-		t1 = (e) => {
+	let t0;
+	if ($[0] !== rehydrated || $[1] !== setInitialState) {
+		t0 = (e) => {
 			bb6: switch (e.data.type) {
 				case "updateState":
 					if (e.data.url) {
-						const decodedUrl_0 = decodeURIComponent(e.data.url);
-						setLogRoot(resolveEmbeddedLogDir(decodedUrl_0));
-						if (!rehydrated) setInitialState(isUri(decodedUrl_0) ? basename(decodedUrl_0) : decodedUrl_0, e.data.sample_id, e.data.sample_epoch);
+						const decodedUrl = decodeURIComponent(e.data.url);
+						setLogRoot(resolveEmbeddedLogDir(decodedUrl));
+						if (!rehydrated) setInitialState(isUri(decodedUrl) ? basename(decodedUrl) : decodedUrl, e.data.sample_id, e.data.sample_epoch);
 					}
 					break bb6;
-				case "backgroundUpdate": {
-					const decodedUrl = decodeURIComponent(e.data.url);
-					const log_dir = e.data.log_dir;
-					if (!document.hasFocus()) {
-						if (log_dir === logDir) selectLogFile(decodedUrl);
-						else api.open_log_file(e.data.url, e.data.log_dir);
-					} else imperativeLogData.invalidateLogListing();
-				}
+				case "backgroundUpdate": imperativeLogData.invalidateLogListing();
 			}
 		};
-		$[1] = logDir;
-		$[2] = rehydrated;
-		$[3] = setInitialState;
-		$[4] = t1;
-	} else t1 = $[4];
-	const onMessage = t1;
+		$[0] = rehydrated;
+		$[1] = setInitialState;
+		$[2] = t0;
+	} else t0 = $[2];
+	const onMessage = t0;
+	let t1;
 	let t2;
-	let t3;
-	if ($[5] !== onMessage) {
-		t2 = () => {
+	if ($[3] !== onMessage) {
+		t1 = () => {
 			window.addEventListener("message", onMessage);
 			return () => {
 				window.removeEventListener("message", onMessage);
 			};
 		};
-		t3 = [onMessage];
-		$[5] = onMessage;
-		$[6] = t2;
-		$[7] = t3;
+		t2 = [onMessage];
+		$[3] = onMessage;
+		$[4] = t1;
+		$[5] = t2;
 	} else {
-		t2 = $[6];
-		t3 = $[7];
+		t1 = $[4];
+		t2 = $[5];
 	}
-	(0, import_react.useEffect)(t2, t3);
+	(0, import_react.useEffect)(t1, t2);
 	const embeddedDispatched = (0, import_react.useRef)(false);
+	let t3;
 	let t4;
-	let t5;
-	if ($[8] !== onMessage) {
-		t4 = () => {
+	if ($[6] !== onMessage) {
+		t3 = () => {
 			if (embeddedDispatched.current) return;
 			embeddedDispatched.current = true;
 			const embedded = readEmbeddedStartupState();
 			if (embedded) onMessage({ data: embedded });
 		};
-		t5 = [onMessage];
-		$[8] = onMessage;
-		$[9] = t4;
-		$[10] = t5;
+		t4 = [onMessage];
+		$[6] = onMessage;
+		$[7] = t3;
+		$[8] = t4;
 	} else {
-		t4 = $[9];
-		t5 = $[10];
+		t3 = $[7];
+		t4 = $[8];
 	}
-	(0, import_react.useEffect)(t4, t5);
+	(0, import_react.useEffect)(t3, t4);
 	useMountEffect(_temp7);
+	let t5;
 	let t6;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
+		$[9] = t5;
+		$[10] = t6;
+	} else {
+		t5 = $[9];
+		t6 = $[10];
+	}
 	let t7;
 	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
-		$[11] = t6;
-		$[12] = t7;
-	} else {
-		t6 = $[11];
-		t7 = $[12];
-	}
-	let t8;
-	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+			t5,
 			t6,
-			t7,
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentIconProvider, {
 				icons: componentIcons,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentStateProvider, {
@@ -170343,9 +170628,9 @@ var componentIcons = {
 				})
 			})
 		] });
-		$[13] = t8;
-	} else t8 = $[13];
-	return t8;
+		$[11] = t7;
+	} else t7 = $[11];
+	return t7;
 };
 var App = () => {
 	const $ = (0, import_compiler_runtime.c)(1);
