@@ -364,3 +364,52 @@ def test_bad_run_url_fails_before_github(
             "Report",
             "https://github.com/other/repo/actions/runs/123",
         )
+
+
+def test_history_recovers_summary_after_unclosed_report_fence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = 'Intro\n\n```json\n{"example":true}\n'
+    body = (
+        "<!-- ci-perf-summary:1 -->\nrun\n"
+        + report
+        + '\n\n```json\n{"schema_version":1}\n```'
+    )
+    monkeypatch.setattr(publisher, "tracking_issue", lambda: {"number": 1})
+    monkeypatch.setattr(publisher, "comments", lambda number: [{"body": body}])
+    assert publisher.read_history() == [{"schema_version": 1}]
+
+
+def test_failed_finding_still_records_measurements(
+    snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writes: list[dict[str, str]] = []
+    monkeypatch.setattr(publisher, "issues", lambda: [])
+    monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 2})
+    monkeypatch.setattr(publisher, "comments", lambda number: [])
+    monkeypatch.setattr(
+        publisher, "gh", lambda *args: {"number": 1, "title": "Wrong issue"}
+    )
+
+    def fake_api(path: str, fields: dict[str, str]) -> None:
+        assert path == "issues/2/comments"
+        writes.append(fields)
+
+    monkeypatch.setattr(publisher, "api", fake_api)
+    with pytest.raises(ValueError, match="title does not match"):
+        publish(
+            [
+                {
+                    "key": "slow-job",
+                    "title": "Slow job",
+                    "body": "Evidence",
+                    "existing_issue": 1,
+                }
+            ],
+            summarize(snapshot),
+            "Report",
+            "https://github.com/meridianlabs-ai/actions/actions/runs/123",
+        )
+    assert len(writes) == 1
+    assert "<!-- ci-perf-summary:123 -->" in writes[0]["body"]
+    assert "Finding publication failed" in writes[0]["body"]

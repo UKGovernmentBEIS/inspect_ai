@@ -85,10 +85,11 @@ def read_history() -> list[dict[str, Any]]:
         body = comment["body"]
         if not body.startswith("<!-- ci-perf-summary:"):
             continue
-        blocks = re.findall(r"```json\n(.*?)\n```", body, re.DOTALL)
-        if not blocks:
+        _, opening, tail = body.rpartition("\n```json\n")
+        payload, closing, _ = tail.partition("\n```")
+        if not opening or not closing:
             raise ValueError(f"Malformed trend summary: {comment['html_url']}")
-        summary = json.loads(blocks[-1])
+        summary = json.loads(payload)
         if summary.get("schema_version") != 1:
             raise ValueError(f"Unsupported trend schema: {comment['html_url']}")
         summaries.append(summary)
@@ -112,7 +113,7 @@ def validate_findings(value: Any) -> list[dict[str, Any]]:
             text = finding.get(field)
             if not isinstance(text, str) or not text.strip() or len(text) > maximum:
                 raise ValueError(f"Invalid finding {field}")
-            if "@auto" in text or "@review" in text:
+            if "@auto" in text or "@review" in text or "<!-- ci-perf-" in text:
                 raise ValueError(
                     "Automation mentions belong only in the publisher's trigger comment"
                 )
@@ -133,7 +134,7 @@ def validate_report(summary: dict[str, Any], report: str) -> None:
     if summary.get("schema_version") != 1 or not report.strip():
         raise ValueError("Missing report or unsupported summary schema")
     payload = json.dumps(summary, separators=(",", ":")) + report
-    if "@auto" in payload or "@review" in payload:
+    if "@auto" in payload or "@review" in payload or "<!-- ci-perf-" in report:
         raise ValueError("Trend comments must not trigger automation")
     if len(report.encode()) > 12000 or len(payload.encode()) > 58000:
         raise ValueError("Report exceeds 12 KB or report plus summary exceeds 58 KB")
@@ -162,59 +163,69 @@ def publish(
     known = issues()
     tracking = tracking_issue(known)
     urls = []
-    for finding in findings:
-        marker = f"<!-- ci-perf-finding:{finding['key']} -->"
-        number = finding.get("existing_issue")
-        if number is None:
-            matches = [issue for issue in known if marker in (issue.get("body") or "")]
-            matched = canonical_issue(matches)
-            if matched:
-                number = matched["number"]
-        evidence_marker = f"<!-- ci-perf-evidence:{run_id}:{finding['key']} -->"
-        body = f"{marker}\n{evidence_marker}\n{finding['body']}\n\nEvidence: {run_url}"
-        if number is None:
-            issue = api("issues", {"title": finding["title"], "body": body})
-            number = issue["number"]
-        else:
-            issue = gh("api", f"repos/{REPO}/issues/{number}")
-            if "pull_request" in issue:
-                raise ValueError(f"#{number} is a PR, not an issue")
-            if finding.get("existing_issue") and issue["title"] != finding["title"]:
-                raise ValueError(
-                    f"#{number} title does not match the observed existing issue"
-                )
-        urls.append(issue["html_url"])
-        if issue["state"] != "open" or any(
-            label["name"] == "deferred" for label in issue.get("labels", [])
-        ):
-            continue
-        existing = comments(number)
-        if evidence_marker not in (issue.get("body") or "") and not any(
-            evidence_marker in comment["body"] for comment in existing
-        ):
-            api(f"issues/{number}/comments", {"body": body})
-        if not any("@auto" in comment["body"] for comment in existing):
-            api(f"issues/{number}/comments", {"body": "@auto"})
+    findings_complete = False
+    try:
+        for finding in findings:
+            marker = f"<!-- ci-perf-finding:{finding['key']} -->"
+            number = finding.get("existing_issue")
+            if number is None:
+                matches = [
+                    issue for issue in known if marker in (issue.get("body") or "")
+                ]
+                matched = canonical_issue(matches)
+                if matched:
+                    number = matched["number"]
+            evidence_marker = f"<!-- ci-perf-evidence:{run_id}:{finding['key']} -->"
+            body = (
+                f"{marker}\n{evidence_marker}\n{finding['body']}\n\nEvidence: {run_url}"
+            )
+            if number is None:
+                issue = api("issues", {"title": finding["title"], "body": body})
+                number = issue["number"]
+            else:
+                issue = gh("api", f"repos/{REPO}/issues/{number}")
+                if "pull_request" in issue:
+                    raise ValueError(f"#{number} is a PR, not an issue")
+                if finding.get("existing_issue") and issue["title"] != finding["title"]:
+                    raise ValueError(
+                        f"#{number} title does not match the observed existing issue"
+                    )
+            urls.append(issue["html_url"])
+            if issue["state"] != "open" or any(
+                label["name"] == "deferred" for label in issue.get("labels", [])
+            ):
+                continue
+            existing = comments(number)
+            if evidence_marker not in (issue.get("body") or "") and not any(
+                evidence_marker in comment["body"] for comment in existing
+            ):
+                api(f"issues/{number}/comments", {"body": body})
+            if not any("@auto" in comment["body"] for comment in existing):
+                api(f"issues/{number}/comments", {"body": "@auto"})
 
-    if tracking is None:
-        tracking = api(
-            "issues",
-            {
-                "title": TRACKING_TITLE,
-                "body": f"{TRACKING_MARKER}\nCompact CI trend summaries. Raw snapshots expire after 90 days in Actions artifacts. Findings have separate implementation issues.",
-            },
-        )
-    number = tracking["number"]
-    if not any(
-        f"<!-- ci-perf-summary:{run_id} -->" in comment["body"]
-        for comment in comments(number)
-    ):
-        links = (
-            "\n\nFinding issues:\n" + "\n".join(urls)
-            if urls
-            else "\n\nNo new actionable findings."
-        )
-        api(f"issues/{number}/comments", {"body": summary_body + links})
+        findings_complete = True
+    finally:
+        if tracking is None:
+            tracking = api(
+                "issues",
+                {
+                    "title": TRACKING_TITLE,
+                    "body": f"{TRACKING_MARKER}\nCompact CI trend summaries. Raw snapshots expire after 90 days in Actions artifacts. Findings have separate implementation issues.",
+                },
+            )
+        number = tracking["number"]
+        if not any(
+            f"<!-- ci-perf-summary:{run_id} -->" in comment["body"]
+            for comment in comments(number)
+        ):
+            links = (
+                "\n\nFinding issues:\n" + "\n".join(urls)
+                if urls
+                else "\n\nNo finding issues published."
+            )
+            if not findings_complete:
+                links += "\n\nFinding publication failed; see the workflow run for the error."
+            api(f"issues/{number}/comments", {"body": summary_body + links})
     return urls
 
 
