@@ -18,15 +18,16 @@ class RecordingCheckpointer:
     """Minimal in-memory `Checkpointer` for tests.
 
     Records the callbacks registered via `track()` so a test can fire a
-    snapshot on demand (`cp.callbacks[key]()`), and optionally seeds
-    `restored` state to simulate a resume. All lifecycle methods are inert,
-    so it exercises agent/handler wiring without the real checkpointer's
-    restic/transcript machinery.
+    snapshot on demand (`cp.callbacks[key]()`), counts ticks, and optionally
+    seeds `restored` state to simulate a resume. All other lifecycle methods
+    are inert, so it exercises agent/handler wiring without the real
+    checkpointer's restic/transcript machinery.
     """
 
     def __init__(self, restored: dict[str, object] | None = None) -> None:
         self._restored = restored or {}
         self.callbacks: dict[str, Callable[[], object]] = {}
+        self.ticks = 0
 
     @property
     def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
@@ -39,7 +40,7 @@ class RecordingCheckpointer:
         return None
 
     async def tick(self) -> None:
-        return None
+        self.ticks += 1
 
     async def checkpoint(self) -> None:
         return None

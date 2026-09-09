@@ -1,6 +1,6 @@
 from enum import IntEnum
 from functools import lru_cache
-from typing import TYPE_CHECKING, NamedTuple, NoReturn, Sequence, Set
+from typing import TYPE_CHECKING, Callable, NamedTuple, NoReturn, Sequence, Set
 
 from shortuuid import uuid
 
@@ -33,6 +33,9 @@ if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
 
 
+StateFilter = Callable[[Sequence[ChatMessage]], bool]
+
+
 class AgentBridge:
     """Agent bridge."""
 
@@ -50,6 +53,7 @@ class AgentBridge:
         checkpointer: Checkpointer | None = None,
         allow_remote_mcp: bool = True,
         allow_remote_media: bool = False,
+        state_filter: StateFilter | None = None,
     ) -> None:
         # Capabilities a client-declared request may reach for. Media defaults
         # closed so new bridge subclasses cannot accidentally grant host I/O.
@@ -101,6 +105,7 @@ class AgentBridge:
         self.model_event_sink = model_event_sink
         self.forward_generation_config = forward_generation_config
         self.approval = approval
+        self.state_filter = state_filter
         self._compaction = compaction
         self._compact: Compact | None = None
         self._last_message_count = 0
@@ -127,6 +132,14 @@ class AgentBridge:
     """Filter for bridge model generation.
 
     A filter may substitute for the default model generation by returning a ModelOutput or return None to allow default processing to continue.
+    """
+
+    state_filter: StateFilter | None
+    """Optional predicate that selects requests whose generations update state.
+
+    Requests rejected by the predicate still generate responses, emit model
+    events, and tick the checkpointer, but leave tracked conversation state
+    unchanged. Exceptions from the predicate propagate to the request handler.
     """
 
     model: str | None
@@ -267,6 +280,10 @@ class AgentBridge:
         We need to distinguish the "main" thread of generation from side /
         sub-agent model calls (e.g. claude code does bash path detection with a
         side call; opencode names the session with a title-generation call).
+        An optional state filter determines which requests contribute to the
+        canonical agent state. Rejected requests still complete normally but
+        leave the tracked conversation unchanged.
+
         Message counts alone can't do this: a side call that is longer than the
         main conversation (opencode's title call fires before the main loop's
         first call and carries an extra preamble message) would permanently
@@ -299,17 +316,18 @@ class AgentBridge:
           has more messages than the previous generation (or, when both
           threads descend, than the tracked thread — so a parked side call
           can't lower the bar for a stray descending one-shot).
-        - A new thread that isn't adopted is remembered as a candidate; a
-          thread displaced by a new adoption remains one too. If the next call
-          extends the candidate, it is a live agent loop and is promoted. This
-          recovers tracking after history compaction (scaffold-side compaction
-          replaces the conversation with a summary, so the post-compaction loop
-          neither extends the tracked thread nor descends from the initial
-          input) and after a one-shot side call temporarily displaces a main
-          loop. Promotion is unconditional, so a multi-call sub-agent loop
-          transiently takes over; the displaced main loop can reclaim tracking
-          on its next extension.
+        - A new thread that isn't adopted is remembered as a candidate. If the
+          next call extends the candidate, it is a live agent loop and is
+          promoted. This recovers tracking after history compaction
+          (scaffold-side compaction replaces the conversation with a summary,
+          so the post-compaction loop neither extends the tracked thread nor
+          descends from the initial input). Promotion is unconditional, so a
+          multi-call sub-agent loop transiently takes over.
         """
+        if self.state_filter is not None and not self.state_filter(input):
+            await self._cp.tick()
+            return
+
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
 
@@ -322,13 +340,7 @@ class AgentBridge:
         elif self._candidate_fps is not None and _extends(self._candidate_fps, fps):
             # the candidate got continued so it is a live agent loop (e.g. the
             # post-compaction conversation): promote it over the tracked thread
-            self._adopt_thread(
-                messages,
-                output,
-                fps,
-                calls=2,
-                displaced=self._tracked_fps,
-            )
+            self._adopt_thread(messages, output, fps, calls=2)
         else:
             descends = self._descends_from_initial(messages, fps)
             if (
@@ -345,13 +357,7 @@ class AgentBridge:
                 # that nothing extends). a short stray descending one-shot
                 # still can't displace an established weaker-anchored thread
                 # (flapping guard).
-                self._adopt_thread(
-                    messages,
-                    output,
-                    fps,
-                    calls=1,
-                    displaced=self._tracked_fps,
-                )
+                self._adopt_thread(messages, output, fps, calls=1)
             elif descends == self._tracked_descends and len(messages) > (
                 len(self._tracked_fps) if descends else self._last_message_count
             ):
@@ -362,13 +368,7 @@ class AgentBridge:
                 # rewrites message text every call (breaking fingerprint
                 # continuity and descent) recovers from compaction only
                 # through it.
-                self._adopt_thread(
-                    messages,
-                    output,
-                    fps,
-                    calls=1,
-                    displaced=self._tracked_fps,
-                )
+                self._adopt_thread(messages, output, fps, calls=1)
             else:
                 self._candidate_fps = fps
 
@@ -383,23 +383,14 @@ class AgentBridge:
         output: ModelOutput,
         fps: list["_MessageFingerprint"],
         calls: int,
-        *,
-        displaced: list["_MessageFingerprint"] | None = None,
     ) -> None:
-        """Make `messages` the tracked main thread (see `_track_state`).
-
-        `calls` is the number of bridge calls attributed to the thread; a
-        stronger-descending thread may displace a weaker-anchored one-shot
-        (`calls == 1`) thread regardless of length. `displaced` retains the
-        prior tracked thread as a continuation candidate when switching
-        threads.
-        """
+        """Make `messages` the tracked main thread (see `_track_state`)."""
         self.state.messages = messages
         self.state.output = output
         self._tracked_fps = fps
         self._tracked_calls = calls
         self._tracked_descends = self._descends_from_initial(messages, fps)
-        self._candidate_fps = displaced
+        self._candidate_fps = None
 
     def _descends_from_initial(
         self, messages: list[ChatMessage], fps: list["_MessageFingerprint"]
