@@ -39,8 +39,10 @@ Use :func:`privileged_exec` for an argv and :func:`privileged_shell` for a scrip
 Use them for any command that runs as ``root`` or as the sandbox default user on
 the framework's behalf; the agent's own commands (tool calls) are not in scope and
 keep the image's ``PATH`` so the agent's environment behaves as the image intends.
-A guard test (``tests/util/sandbox/test_privileged.py``) fails on any ``exec``
-call in ``src`` that passes a literal argv outside the agent-facing tools.
+Use :func:`image_path_lookup` for the one question that is *about* the image's
+``PATH``: whether it offers a given program (``python3``, an installed tool). A
+guard test (``tests/util/sandbox/test_privileged.py``) fails on any ``exec`` call
+in ``src`` that passes a literal argv outside the agent-facing tools.
 """
 
 from inspect_ai.util._subprocess import ExecResult
@@ -65,10 +67,10 @@ directory of shims (the framework-directory script bakes it in at import).
 IMAGE_PATH_VARIABLE = "inspect_image_path"
 """Shell variable holding the ``PATH`` the shell inherited, saved before the pin.
 
-For the rare script that must hand a task-author program the image's own ``PATH``
-after resolving its launcher through the pinned one (the sample setup script).
-Only meaningful when the provider was not also given :func:`pinned_env`, which
-would already have replaced the inherited value.
+For the rare script that must hand a program the image's own ``PATH`` after
+resolving its launcher through the pinned one (the sample setup script,
+:func:`image_path_lookup`). Only meaningful when the provider was not also given
+:func:`pinned_env`, which would already have replaced the inherited value.
 """
 
 
@@ -198,5 +200,47 @@ async def privileged_shell(
         user=user,
         timeout=timeout,
         timeout_retry=timeout_retry,
+        concurrency=concurrency,
+    )
+
+
+async def image_path_lookup(
+    sandbox: SandboxEnvironment,
+    name: str,
+    *,
+    user: str | None,
+    concurrency: bool = True,
+) -> ExecResult[str]:
+    """Look ``name`` up on the *image's* ``PATH`` with a ``which`` resolved via :data:`SYSTEM_PATH`.
+
+    For the questions that are about what the image offers the sandbox user (does
+    it ship ``python3``; is ``inspect-tool-support`` installed), whose answer often
+    lives in ``/usr/local/bin`` or a venv/conda directory that :data:`SYSTEM_PATH`
+    deliberately excludes. Only ``which`` itself is pinned; it searches the ``PATH``
+    the shell inherited. The provider is deliberately not given :func:`pinned_env`,
+    which would replace that value before the shell could save it.
+
+    Args:
+        sandbox: Sandbox to run in.
+        name: Program name to look up.
+        user: User to run as (as for ``sandbox.exec``); ``None`` is the sandbox
+            default user.
+        concurrency: As for ``sandbox.exec``.
+
+    Returns:
+        ``which``'s result: success when ``name`` is on the image's ``PATH``, with
+        its location on stdout. Exit status 127 when ``which`` itself is missing
+        from the system directories.
+
+    Raises:
+        Everything ``sandbox.exec`` raises.
+    """
+    return await sandbox.exec(
+        pinned_shell_command(
+            "which_bin=$(command -v which) || exit 127\n"
+            f'PATH=${IMAGE_PATH_VARIABLE} exec "$which_bin" "$1"',
+            name,
+        ),
+        user=user,
         concurrency=concurrency,
     )

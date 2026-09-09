@@ -21,6 +21,7 @@ import pytest
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_docker
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._sandbox._framework_directory import (
     ensure_framework_directory,
     exec_in_framework_directory,
@@ -29,6 +30,7 @@ from inspect_ai.util._sandbox._privileged import (
     IMAGE_PATH_VARIABLE,
     SHELL_PATH,
     SYSTEM_PATH,
+    image_path_lookup,
     pinned_command,
     pinned_env,
     pinned_shell_command,
@@ -46,6 +48,7 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentConfigType,
 )
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
+from inspect_ai.util._sandbox.service import validate_sandbox_python
 from inspect_ai.util._subprocess import ExecResult
 
 OK = ExecResult(success=True, returncode=0, stdout="", stderr="")
@@ -348,6 +351,54 @@ async def test_on_path_detector_searches_the_image_path_with_a_pinned_which(
     assert forged.ran() == []
 
 
+@pytest.mark.parametrize("honours_env", [True, False], ids=["env", "no-env"])
+async def test_sandbox_service_python_check_searches_the_image_path(
+    local: LocalSandboxEnvironment, tmp_path: Path, honours_env: bool
+) -> None:
+    """``sandbox_service`` accepts an image whose only ``python3`` is on the image PATH.
+
+    Slim, conda and venv images ship no ``/usr/bin/python3``; the interpreter the
+    agent runs the service client with is the one the image's PATH offers, so
+    that is the PATH the prerequisite check must search (with a pinned ``which``).
+    An image PATH without ``python3`` fails the check even though the host's
+    system directories have one.
+    """
+    image_bin = _image_tool(tmp_path, "python3")
+    forged = ForgedImage(tmp_path, ["which", "sh"])
+
+    with_python = _ImageEnvSandbox(
+        local, {"PATH": f"{forged.bindir}:{image_bin}"}, honours_env=honours_env
+    )
+    await validate_sandbox_python("test service", with_python, user=None)
+
+    without_python = _ImageEnvSandbox(
+        local, {"PATH": str(forged.bindir)}, honours_env=honours_env
+    )
+    with pytest.raises(PrerequisiteError, match="requires that Python"):
+        await validate_sandbox_python("test service", without_python, user=None)
+
+    assert forged.ran() == []
+
+
+async def test_image_path_lookup_reports_the_location_and_forwards_user(
+    local: LocalSandboxEnvironment, tmp_path: Path
+) -> None:
+    image_bin = _image_tool(tmp_path, "frobnicate")
+    sandbox = _ImageEnvSandbox(local, {"PATH": str(image_bin)}, honours_env=True)
+
+    result = await image_path_lookup(sandbox, "frobnicate", user=None)
+    assert result.success
+    assert Path(result.stdout.strip()) == image_bin / "frobnicate"
+
+    canned = CannedSandbox.returning(OK)
+    await image_path_lookup(canned, "python3", user="agent", concurrency=False)
+    [(cmd, user)] = canned.exec_calls
+    assert cmd[:2] == [SHELL_PATH, "-c"]
+    assert cmd[-1] == "python3"
+    assert user == "agent"
+    assert canned.envs == [None], "the image PATH must reach the shell unreplaced"
+
+
 async def test_setup_script_keeps_the_image_path_behind_a_pinned_launcher(
     local: LocalSandboxEnvironment, tmp_path: Path
 ) -> None:
@@ -380,11 +431,17 @@ _SRC = Path(__file__).resolve().parents[3] / "src" / "inspect_ai"
 
 _LITERAL_ARGV_ALLOWED = {
     # Agent-facing tools: the command is the agent's own, runs with the agent's
-    # authority, and must see the image's PATH as the agent would.
+    # authority, and must see the image's PATH as the agent would. (`_grep` and
+    # `_list_files` bind their argv to a name first, which the detector does not
+    # follow; they are listed so this set documents the whole exemption.)
     "tool/_tools/_execute.py",
+    "tool/_tools/_grep.py",
+    "tool/_tools/_list_files.py",
     "tool/_tools/_read_file.py",
-    # The deprecated dedicated web-browser image: a single-purpose container with
-    # no agent boundary, whose `python3` lives in /usr/local/bin.
+    # Dedicated single-purpose images with no agent boundary, whose `python3`
+    # lives in /usr/local/bin: the computer tool (argv bound to a name, as above)
+    # and the deprecated web-browser image.
+    "tool/_tools/_computer/_common.py",
     "tool/_tools/_web_browser/_back_compat.py",
     # The provider conformance checks exercise a provider's own resolution of
     # `sh` and of root commands on purpose; they are not framework operations.

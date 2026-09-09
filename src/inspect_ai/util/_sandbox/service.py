@@ -19,7 +19,7 @@ from inspect_ai._util._async import coro_log_exceptions
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult
 
-from ._privileged import privileged_exec, privileged_shell
+from ._privileged import image_path_lookup, privileged_exec, privileged_shell
 from .environment import SandboxEnvironment
 from .limits import OutputLimitExceededError, override_max_exec_output_size
 
@@ -818,10 +818,10 @@ def sandbox_service_script(name: str) -> str:
 async def validate_sandbox_python(
     service_name: str, sandbox: SandboxEnvironment, user: str | None = None
 ) -> None:
-    # validate python in sandbox
-    result = await privileged_exec(
-        sandbox, ["which", "python3"], user=user, concurrency=False
-    )
+    # The client script runs under whatever `python3` the image's PATH offers
+    # the sandbox user (slim, conda and venv images ship none in /usr/bin), so
+    # that PATH is the one to search.
+    result = await image_path_lookup(sandbox, "python3", user=user, concurrency=False)
     if not result.success:
         raise PrerequisiteError(
             f"The {service_name} requires that Python be installed in the sandbox."
