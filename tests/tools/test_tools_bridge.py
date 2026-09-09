@@ -21,7 +21,6 @@ from inspect_ai.solver import Solver, solver
 from inspect_ai.tool import tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.util import sandbox
-from inspect_ai.util._sandbox.environment import SandboxEnvironmentType
 
 # =============================================================================
 # Shared test tools with stateful call tracking
@@ -97,7 +96,7 @@ def image_content_returning_tool(call_log: list[dict]):
 # =============================================================================
 
 
-NONROOT_SANDBOX: SandboxEnvironmentType = (
+NONROOT_SANDBOX = (
     "docker",
     str(Path(__file__).parent / "test_sandbox_compose.yaml"),
 )
@@ -193,10 +192,7 @@ async def call_mcp_tools_list(config: MCPServerConfigHTTP) -> dict:
 # lives in the root-owned tools tree) when the sandbox default user is not root.
 @pytest.mark.parametrize(
     "sandbox",
-    [
-        "docker",
-        ("docker", str(Path(__file__).parent / "test_sandbox_compose.yaml")),
-    ],
+    ["docker", NONROOT_SANDBOX],
 )
 @skip_if_no_docker
 @pytest.mark.slow
