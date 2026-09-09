@@ -24,6 +24,7 @@ from inspect_ai.util._checkpoint._host_egress import (
 )
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint._resume_copy import (
+    _SAMPLE_FILE_COPY_CONCURRENCY,
     copy_payload_files,
     copy_resume_payloads,
 )
@@ -60,10 +61,11 @@ def _checkpoint_bytes(checkpoint_id: int) -> bytes:
 async def test_copy_payload_files_downloads_from_s3(
     tmp_path: Path, mock_s3: None
 ) -> None:
-    """The whole sample dir lands in staging."""
+    """The whole sample dir lands, including more checkpoints than the fan-out."""
     src = f"{S3_BUCKET}/old-eval.checkpoints/s__0"
     new = tmp_path / "staging"
     new.mkdir()
+    checkpoint_ids = range(1, 2 * _SAMPLE_FILE_COPY_CONCURRENCY + 2)
 
     async with AsyncFilesystem() as fs:
         await _put(fs, f"{src}/restic/host/config", b"cfg")
@@ -81,8 +83,8 @@ async def test_copy_payload_files_downloads_from_s3(
             f"{src}/restic/snapshot-strategies.json",
             b'{"strategies":{"default":"archive"}}',
         )
-        await _put(fs, f"{src}/ckpt-00001.json", b'{"checkpoint_id":1}')
-        await _put(fs, f"{src}/ckpt-00002.json", b'{"checkpoint_id":2}')
+        for n in checkpoint_ids:
+            await _put(fs, f"{src}/ckpt-{n:05d}.json", _checkpoint_bytes(n))
 
         written = await copy_payload_files(src, str(new))
 
@@ -94,9 +96,7 @@ async def test_copy_payload_files_downloads_from_s3(
         "sandboxes/bulk/archive/ckpt-00001.tar.gz",
         "restic/restic-config.json",
         "restic/snapshot-strategies.json",
-        "ckpt-00002.json",
-        "ckpt-00001.json",
-    }
+    } | {f"ckpt-{n:05d}.json" for n in checkpoint_ids}
     assert (
         new / "restic" / "host" / "data" / "ab" / "cdef"
     ).read_bytes() == b"pack-data"
@@ -106,7 +106,8 @@ async def test_copy_payload_files_downloads_from_s3(
     assert (
         new / "restic" / "snapshot-strategies.json"
     ).read_bytes() == b'{"strategies":{"default":"archive"}}'
-    assert (new / "ckpt-00002.json").read_bytes() == b'{"checkpoint_id":2}'
+    for n in checkpoint_ids:
+        assert (new / f"ckpt-{n:05d}.json").read_bytes() == _checkpoint_bytes(n)
 
 
 async def test_copy_payload_files_noop_when_source_missing(
