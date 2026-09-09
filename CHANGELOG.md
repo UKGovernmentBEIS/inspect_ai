@@ -22,6 +22,7 @@
 - Sandbox tools: Fixed a race during injection that let a non-root sandbox user replace the tools archive before root unpacked it.
 - Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
 - Inspect View: Requests for unreadable log headers now return 403 instead of 500.
+- Scoring: `choice()` now raises an error for samples without answer options instead of silently scoring them incorrect.
 
 ## 0.3.263 (03 September 2026)
 
