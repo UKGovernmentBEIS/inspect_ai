@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scoring: `choice()` now records `reason="no_response"` for an empty completion and `reason="invalid_response_format"` when the completion selects no answer, so both are distinguishable from a wrong letter; score values are unchanged. (#5323)
 - Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
 - Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
 - Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.

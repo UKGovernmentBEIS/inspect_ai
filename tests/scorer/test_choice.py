@@ -145,6 +145,73 @@ async def test_score_no_choices_does_not_raise(target: str):
     assert result.explanation == "No"
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("output", ["", "   \n"])
+async def test_score_empty_completion_records_no_response(output: str):
+    # nothing came back at all: still INCORRECT (no number moves), but tagged
+    # so it can be told apart from a wrong letter downstream (#5323)
+    scorer = choice()
+    state = simple_task_state(model_output=output, choices=["choice 1", "choice 2"])
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == INCORRECT
+    assert result.answer == ""
+    assert result.reason == "no_response"
+
+
+@pytest.mark.anyio
+async def test_score_unparseable_completion_records_invalid_response_format():
+    # prose with no ANSWER line: the multiple_choice solver marks no choice,
+    # which is a format violation by the model under test, not a wrong answer
+    scorer = choice()
+    state = simple_task_state(
+        model_output="I think it is the second one.",
+        choices=["choice 1", "choice 2"],
+    )
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == INCORRECT
+    assert result.answer == ""
+    assert result.explanation == "I think it is the second one."
+    assert result.reason == "invalid_response_format"
+
+
+@pytest.mark.anyio
+async def test_score_unparseable_completion_keeps_shuffled_explanation():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="no idea",
+        choices=["choice 1", "choice 2"],
+    )
+    state.choices.shuffle(Random(42))
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
+    assert "Choices were shuffled" in (result.explanation or "")
+
+
+@pytest.mark.anyio
+async def test_score_wrong_letter_has_no_reason():
+    # a parseable but wrong selection is a plain verdict with no reason tag
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: B",
+        choices=["choice 1", "choice 2"],
+    )
+    state.choices.mark_choice(0, False)
+    state.choices.mark_choice(1, True)
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == INCORRECT
+    assert result.answer == "B"
+    assert result.reason is None
+
+
 def test_answer_index_rejects_separators():
     # answer_index() should never silently return garbage indices for
     # separator characters -- it should raise so callers know to filter.
