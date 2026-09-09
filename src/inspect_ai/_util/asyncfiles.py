@@ -24,6 +24,7 @@ from typing import (
     Iterator,
     Literal,
     NamedTuple,
+    Protocol,
     TypeVar,
     cast,
     overload,
@@ -221,9 +222,21 @@ class _SyncS3ETagCapture(_S3ETagCapture):
         return self._capture(self._client.complete_multipart_upload(**kwargs))
 
 
+class _AsyncUploadSource(Protocol):
+    """What aioboto3's ``upload_fileobj`` requires of its source.
+
+    It calls only ``read`` and awaits the result when it is awaitable, so a
+    plain ``BinaryIO`` and an adapter returning worker-thread awaitables
+    (``_ThreadedReadSource``) both qualify. aioboto3 ships no type
+    information, so this is the one place the contract is checked.
+    """
+
+    def read(self, size: int = -1, /) -> bytes | Awaitable[bytes]: ...
+
+
 async def _s3_upload_fileobj_async(
     client: Any,
-    source: BinaryIO,
+    source: _AsyncUploadSource,
     bucket: str,
     key: str,
     config: TransferConfig | None = None,
@@ -244,7 +257,9 @@ async def _s3_upload_fileobj_async(
     capture = _AsyncS3ETagCapture(client)
     await upload_fileobj(
         capture,
-        source,
+        # aioboto3 annotates Fileobj as BinaryIO but only calls read() and
+        # awaits an awaitable result; _AsyncUploadSource is the real contract.
+        cast(BinaryIO, source),
         bucket,
         key,
         Config=config,  # type: ignore[arg-type]
@@ -537,17 +552,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     source.seek(start)
                 if current_async_backend() == "asyncio":
                     client = await self.s3_client_async()
-                    threaded = _ThreadedReadSource(source)
-                    try:
+                    with _ThreadedReadSource(source) as threaded:
                         return await _s3_upload_fileobj_async(
-                            client,
-                            cast(BinaryIO, threaded),
-                            bucket,
-                            key,
-                            _s3_transfer_config(),
+                            client, threaded, bucket, key, _s3_transfer_config()
                         )
-                    finally:
-                        threaded.release()
                 else:
                     return await anyio.to_thread.run_sync(
                         s3_write_file_streaming,
@@ -1085,8 +1093,8 @@ class _ThreadedReadSource:
     a raw asyncio task, and a native cancellation of it returns before the
     thread finishes (anyio's shield only covers anyio-delivered cancellation).
     The lock makes each read's "still wanted?" check and the read itself
-    atomic, and ``release()``, called unconditionally after the upload, waits
-    for any in-progress read and refuses later ones.
+    atomic, and leaving the ``with`` block (``release()``) waits for any
+    in-progress read and refuses later ones.
     """
 
     def __init__(self, source: BinaryIO) -> None:
@@ -1094,7 +1102,7 @@ class _ThreadedReadSource:
         self._lock = threading.Lock()
         self._released = False
 
-    def read(self, size: int = -1) -> Awaitable[bytes]:
+    def read(self, size: int = -1, /) -> Awaitable[bytes]:
         return anyio.to_thread.run_sync(self._read, size)
 
     def _read(self, size: int) -> bytes:
@@ -1106,6 +1114,12 @@ class _ThreadedReadSource:
                 # instead of treating the withdrawn source as EOF.
                 raise RuntimeError("read of a source that has been released")
             return self._source.read(size)
+
+    def __enter__(self) -> "_ThreadedReadSource":
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.release()
 
     def release(self) -> None:
         """Hand the source back to the caller.
