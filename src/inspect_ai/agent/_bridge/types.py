@@ -299,16 +299,16 @@ class AgentBridge:
           has more messages than the previous generation (or, when both
           threads descend, than the tracked thread — so a parked side call
           can't lower the bar for a stray descending one-shot).
-        - A new thread that isn't adopted is remembered as a candidate; if the
-          next call extends it, it's a live agent loop and is promoted. This is
-          what recovers tracking after history compaction (scaffold-side
-          compaction replaces the conversation with a summary, so the
-          post-compaction loop neither extends the tracked thread nor descends
-          from the initial input). Promotion is unconditional, so a multi-call
-          sub-agent loop transiently takes over tracking this way — the main
-          loop reclaims it on resumption, by extension when it makes several
-          further calls (candidate promotion) or by the longer-descending-call
-          displacement above when it makes only one.
+        - A new thread that isn't adopted is remembered as a candidate; a
+          thread displaced by a new adoption remains one too. If the next call
+          extends the candidate, it is a live agent loop and is promoted. This
+          recovers tracking after history compaction (scaffold-side compaction
+          replaces the conversation with a summary, so the post-compaction loop
+          neither extends the tracked thread nor descends from the initial
+          input) and after a one-shot side call temporarily displaces a main
+          loop. Promotion is unconditional, so a multi-call sub-agent loop
+          transiently takes over; the displaced main loop can reclaim tracking
+          on its next extension.
         """
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
@@ -322,7 +322,13 @@ class AgentBridge:
         elif self._candidate_fps is not None and _extends(self._candidate_fps, fps):
             # the candidate got continued so it is a live agent loop (e.g. the
             # post-compaction conversation): promote it over the tracked thread
-            self._adopt_thread(messages, output, fps, calls=2)
+            self._adopt_thread(
+                messages,
+                output,
+                fps,
+                calls=2,
+                displaced=self._tracked_fps,
+            )
         else:
             descends = self._descends_from_initial(messages, fps)
             if (
@@ -339,7 +345,13 @@ class AgentBridge:
                 # that nothing extends). a short stray descending one-shot
                 # still can't displace an established weaker-anchored thread
                 # (flapping guard).
-                self._adopt_thread(messages, output, fps, calls=1)
+                self._adopt_thread(
+                    messages,
+                    output,
+                    fps,
+                    calls=1,
+                    displaced=self._tracked_fps,
+                )
             elif descends == self._tracked_descends and len(messages) > (
                 len(self._tracked_fps) if descends else self._last_message_count
             ):
@@ -350,7 +362,13 @@ class AgentBridge:
                 # rewrites message text every call (breaking fingerprint
                 # continuity and descent) recovers from compaction only
                 # through it.
-                self._adopt_thread(messages, output, fps, calls=1)
+                self._adopt_thread(
+                    messages,
+                    output,
+                    fps,
+                    calls=1,
+                    displaced=self._tracked_fps,
+                )
             else:
                 self._candidate_fps = fps
 
@@ -365,19 +383,23 @@ class AgentBridge:
         output: ModelOutput,
         fps: list["_MessageFingerprint"],
         calls: int,
+        *,
+        displaced: list["_MessageFingerprint"] | None = None,
     ) -> None:
         """Make `messages` the tracked main thread (see `_track_state`).
 
         `calls` is the number of bridge calls attributed to the thread; a
         stronger-descending thread may displace a weaker-anchored one-shot
-        (`calls == 1`) thread regardless of length.
+        (`calls == 1`) thread regardless of length. `displaced` retains the
+        prior tracked thread as a continuation candidate when switching
+        threads.
         """
         self.state.messages = messages
         self.state.output = output
         self._tracked_fps = fps
         self._tracked_calls = calls
         self._tracked_descends = self._descends_from_initial(messages, fps)
-        self._candidate_fps = None
+        self._candidate_fps = displaced
 
     def _descends_from_initial(
         self, messages: list[ChatMessage], fps: list["_MessageFingerprint"]

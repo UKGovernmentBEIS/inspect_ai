@@ -57,6 +57,14 @@ def title_generation_input() -> list[ChatMessage]:
     ]
 
 
+def exact_title_generation_input() -> list[ChatMessage]:
+    """A one-shot title request that copies the task prompt verbatim."""
+    return [
+        ChatMessageSystem(content="You are a title generator ..."),
+        ChatMessageUser(content=TASK),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Reproduction of meridianlabs-ai/inspect_ai#140
 # ---------------------------------------------------------------------------
@@ -577,6 +585,148 @@ async def test_title_call_then_multi_turn_main_loop() -> None:
 
     assert bridge.state.output.completion == "Castle"
     assert len(bridge.state.messages) == len(turn3) + 1
+
+
+async def test_contained_main_recovers_after_exact_one_shot_displacement() -> None:
+    """Continuing a displaced main call promotes its preserved candidate."""
+    bridge = task_bridge()
+    decorated_task = f"## Task\n\n{TASK}\n\nRespond concisely."
+    main1: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content=decorated_task),
+    ]
+
+    main1_output = await track(bridge, main1, "I will look into that.")
+
+    # This exact prompt copy temporarily wins over the decorated main call.
+    await track(bridge, exact_title_generation_input(), "Doctor Who Series 9 setting")
+
+    main2 = main1 + [
+        main1_output.message,
+        ChatMessageTool(content="search results"),
+    ]
+    await track(bridge, main2, "Castle")
+
+    expected_messages = [
+        TASK_SYSTEM.text,
+        decorated_task,
+        "I will look into that.",
+        "search results",
+        "Castle",
+    ]
+    assert bridge.state.output.completion == "Castle"
+    assert [message.text for message in bridge.state.messages] == expected_messages
+
+    # A trailing one-shot must not steal the recovered, multi-call main loop.
+    await track(bridge, exact_title_generation_input(), "Doctor Who Series 9")
+    assert bridge.state.output.completion == "Castle"
+    assert [message.text for message in bridge.state.messages] == expected_messages
+
+
+async def test_contained_main_recovers_when_exact_one_shot_arrives_first() -> None:
+    """The reverse call order retains ordinary candidate-promotion recovery."""
+    bridge = task_bridge()
+    decorated_task = f"## Task\n\n{TASK}\n\nRespond concisely."
+    main1: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content=decorated_task),
+    ]
+
+    await track(bridge, exact_title_generation_input(), "Doctor Who Series 9 setting")
+    main1_output = await track(bridge, main1, "I will look into that.")
+
+    main2 = main1 + [
+        main1_output.message,
+        ChatMessageTool(content="search results"),
+    ]
+    await track(bridge, main2, "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert [message.text for message in bridge.state.messages] == [
+        TASK_SYSTEM.text,
+        decorated_task,
+        "I will look into that.",
+        "search results",
+        "Castle",
+    ]
+
+
+async def test_contained_main_recovers_after_promoted_sub_agent_loop() -> None:
+    """A promoted sub-agent keeps the displaced main loop as a candidate."""
+    bridge = task_bridge()
+    decorated_task = f"## Task\n\n{TASK}\n\nRespond concisely."
+    main1: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content=decorated_task),
+    ]
+    main1_output = await track(bridge, main1, "I will look into that.")
+
+    sub1: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a subtask agent ..."),
+        ChatMessageUser(content="Research Doctor Who series 9 filming locations."),
+    ]
+    sub1_output = await track(bridge, sub1, "researching")
+    sub2 = sub1 + [
+        sub1_output.message,
+        ChatMessageTool(content="search results"),
+    ]
+    await track(bridge, sub2, "Cardiff Castle")
+
+    main2 = main1 + [
+        main1_output.message,
+        ChatMessageTool(content="subtask: Cardiff Castle"),
+    ]
+    await track(bridge, main2, "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert [message.text for message in bridge.state.messages] == [
+        TASK_SYSTEM.text,
+        decorated_task,
+        "I will look into that.",
+        "subtask: Cardiff Castle",
+        "Castle",
+    ]
+
+
+async def test_main_recovers_after_legacy_length_displacement() -> None:
+    """A legacy-length side-call displacement preserves the main candidate.
+
+    With no descent anchor, the one-shot's six messages displace the primary's
+    three by previous-call length. Its five-message continuation is shorter
+    than that side call, so candidate promotion is its only recovery path.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+    main1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    main1_output = await track(bridge, main1, "I will look into that.")
+
+    # With no initial input every thread descends as None, so this six-message
+    # one-shot takes the legacy previous-call length path.
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Create a title."),
+            ChatMessageUser(content="Return only the title."),
+            ChatMessageUser(content="Do not use punctuation."),
+            ChatMessageUser(content="Keep it concise."),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    main2 = main1 + [
+        main1_output.message,
+        ChatMessageTool(content="search results"),
+    ]
+    await track(bridge, main2, "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert [message.text for message in bridge.state.messages] == [
+        TASK_SYSTEM.text,
+        TASK,
+        "I will look into that.",
+        "search results",
+        "Castle",
+    ]
 
 
 # ---------------------------------------------------------------------------
