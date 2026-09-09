@@ -157,7 +157,7 @@ async def run_bridge(
     if approval is not None:
         bridge.approval = approval
 
-    output, _ = await bridge_generate(
+    output = await bridge_generate(
         bridge, model, list(messages), [], None, GenerateConfig()
     )
     return BridgeRun(output, inputs)
@@ -914,10 +914,9 @@ async def test_track_state_is_unaffected_by_the_round_trip() -> None:
         input=messages,
     )
 
-    # the caller's list is what the dialect impl hands to _track_state
+    # Synthetic rejection messages must not enter the scaffold's conversation.
     assert [(m.role, m.text) for m in messages] == [("user", TASK)]
 
-    await bridge._track_state(messages, run.output)
     assert [m.text for m in bridge.state.messages] == [TASK, run.output.message.text]
 
 

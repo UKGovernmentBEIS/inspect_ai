@@ -28,6 +28,7 @@ from inspect_ai.util._sandbox.exec_remote import (
 )
 
 from ..._agent import AgentState
+from ..types import StateFilter
 from ..util import resolve_bridge_code_execution, resolve_bridge_web_search
 from .service import MODEL_SERVICE, run_model_service
 from .types import SandboxAgentBridge
@@ -60,6 +61,7 @@ async def sandbox_agent_bridge(
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
     checkpointer: Checkpointer | None = None,
+    state_filter: StateFilter | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -132,6 +134,10 @@ async def sandbox_agent_bridge(
             state (messages, output, compaction prefix) for checkpoint backup
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
+        state_filter: Optional predicate that selects client requests whose
+            generations update the yielded state's messages and output.
+            Rejected requests still receive normal model responses and model
+            events, and still tick the checkpointer.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -174,6 +180,7 @@ async def sandbox_agent_bridge(
                 forward_generation_config=forward_generation_config,
                 approval=approval,
                 checkpointer=checkpointer,
+                state_filter=state_filter,
                 allow_remote_mcp=allow_remote_mcp,
             )
 

@@ -19,7 +19,7 @@ from pydantic_core import to_json
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, StateFilter
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter, ModelEventSink, get_model
@@ -101,6 +101,7 @@ async def agent_bridge(
     state: AgentState | None = None,
     *,
     filter: GenerateFilter | None = None,
+    state_filter: StateFilter | None = None,
     retry_refusals: int | None = None,
     compaction: CompactionStrategy | None = None,
     web_search: WebSearchProviders | bool | None = None,
@@ -125,6 +126,8 @@ async def agent_bridge(
        state: Initial state for agent bridge. Used as a basis for yielding
           an updated state based on traffic over the bridge.
        filter: Filter for bridge model generation.
+       state_filter: Predicate selecting requests that update canonical state.
+          Excluded requests still generate responses and emit model events.
        retry_refusals: Should refusals be retried? (pass number of times to retry)
        compaction: Compact the conversation when it it is close to overflowing
           the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
@@ -187,6 +190,7 @@ async def agent_bridge(
         approval=approval,
         allow_remote_mcp=allow_remote_mcp,
         allow_remote_media=True,
+        state_filter=state_filter,
     )
 
     # set the patch config for this context and child coroutines

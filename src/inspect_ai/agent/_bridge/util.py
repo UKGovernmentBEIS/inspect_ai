@@ -484,8 +484,8 @@ async def bridge_generate(
     tools: Sequence[ToolInfo | Tool],
     tool_choice: ToolChoice | None,
     config: GenerateConfig,
-) -> tuple[ModelOutput, ChatMessageUser | None]:
-    """Generate model output through the agent bridge.
+) -> ModelOutput:
+    """Generate model output and track eligible requests through the agent bridge.
 
     If a filter is configured, it will be called on each attempt (including retries).
     The filter can either return a ModelOutput directly or modify the generation inputs.
@@ -504,8 +504,12 @@ async def bridge_generate(
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
 
+    # Select once from the scaffold's request, before compaction can append a
+    # synthetic summary or incorporate this input into the canonical history.
+    state_eligible = bridge.state_filter is None or bridge.state_filter(input)
+
     # get compaction function and run compaction once before retry loop
-    compact = bridge.compaction(tools, model)
+    compact = bridge.compaction(tools, model) if state_eligible else None
     if compact is not None:
         input_messages, c_message = await compact.compact_input(input)
     else:
@@ -588,7 +592,13 @@ async def bridge_generate(
             bridge.register_tool_execution_grants(
                 reviewed.output.message.tool_calls or []
             )
-            return reviewed.output, c_message
+            if state_eligible:
+                if c_message is not None:
+                    input.append(c_message)
+                await bridge._track_state(input, reviewed.output)
+            else:
+                await bridge._cp.tick()
+            return reviewed.output
 
         rejections += 1
         if rejections >= MAX_CONSECUTIVE_REJECTIONS:

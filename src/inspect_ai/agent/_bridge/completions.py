@@ -90,16 +90,8 @@ async def inspect_completions_api_request(
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
 
-    # if there is a bridge filter give it a shot first
-    output, c_message = await bridge_generate(
-        bridge, model, messages, tools, tool_choice, config
-    )
-    if c_message is not None:
-        messages.append(c_message)
-
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
+    # generate via bridge
+    output = await bridge_generate(bridge, model, messages, tools, tool_choice, config)
     # inspect completion to openai completion
     return ChatCompletion(
         id=uuid(),

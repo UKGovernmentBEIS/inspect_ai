@@ -39,6 +39,38 @@ from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util._json import json_schema
 
 
+async def test_in_process_state_filter_preserves_task_answer() -> None:
+    state = AgentState(messages=[])
+    model = get_model(
+        "mockllm/model",
+        memoize=False,
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", "Task answer"),
+            ModelOutput.from_content("mockllm/model", "Auxiliary title"),
+        ],
+    )
+    async with agent_bridge(
+        state, state_filter=lambda messages: messages[-1].text == "Main task"
+    ) as bridge:
+        bridge.model_aliases["inspect"] = model
+        async with AsyncOpenAI(api_key="inspect") as client:
+            main = await client.chat.completions.create(
+                model="inspect", messages=[{"role": "user", "content": "Main task"}]
+            )
+            auxiliary = await client.chat.completions.create(
+                model="inspect",
+                messages=[
+                    {"role": "user", "content": "Main task"},
+                    {"role": "assistant", "content": "Task answer"},
+                    {"role": "user", "content": "Generate a title"},
+                ],
+            )
+    assert main.choices[0].message.content == "Task answer"
+    assert auxiliary.choices[0].message.content == "Auxiliary title"
+    assert [message.text for message in state.messages] == ["Main task", "Task answer"]
+    assert state.output.completion == "Task answer"
+
+
 @agent
 def completions_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
