@@ -45,7 +45,7 @@ self-contained.
 Run the bundled collector (venv active; `gh` must be authenticated):
 
 ```bash
-python .claude/skills/ci-perf/scripts/collect_ci_data.py \
+python .agents/skills/ci-perf/scripts/collect_ci_data.py \
   --out design/ci-perf/history/$(date +%F).json
 ```
 
