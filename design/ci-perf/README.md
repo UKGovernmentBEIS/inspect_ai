@@ -51,5 +51,5 @@ outputs and artifacts.
 
 Analysis and publication run in one job. Their separation is between tokens:
 analysis uses the read-only workflow token, and publication uses the fork write
-token on the same runner. The first live publication uses the schedule; manual
-post-merge verification uses dry-run.
+token on the same runner. Publication runs on the schedule; manual dispatch is
+for dry-run verification.

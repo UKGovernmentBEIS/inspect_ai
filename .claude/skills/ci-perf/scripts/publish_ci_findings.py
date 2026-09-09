@@ -190,7 +190,7 @@ def publish(
                     number = matched["number"]
             evidence_marker = f"<!-- ci-perf-evidence:{run_id}:{finding['key']} -->"
             human_note = (
-                "\n\nRequires human implementation; automatic kickoff omitted."
+                "\n\nNeeds a human to implement. No `auto` label applied."
                 if finding.get("human_implementation", False)
                 else ""
             )

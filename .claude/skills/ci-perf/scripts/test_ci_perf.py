@@ -648,7 +648,7 @@ def test_reused_issue_evidence_cadence_and_human_handoff(
     monkeypatch.setattr(
         publisher,
         "comments",
-        lambda number: posted
+        lambda number: list(posted)
         if number == 1
         else [
             {"body": "<!-- ci-perf-summary:123:1 -->"},
@@ -686,13 +686,16 @@ def test_reused_issue_evidence_cadence_and_human_handoff(
             }
         ]
     )
-    for run_id in [123, 124, 124]:
+    results = [
         publish(
             findings,
             summarize(snapshot),
             "Report",
             f"https://github.com/meridianlabs-ai/actions/actions/runs/{run_id}",
         )
+        for run_id in [123, 124, 124]
+    ]
+    assert results == [["https://github.com/meridianlabs-ai/inspect_ai/issues/1"]] * 3
     evidence = [item["body"] for item in posted if "ci-perf-evidence:" in item["body"]]
     assert len(evidence) == 2
     assert "Full measured evidence" in evidence[0]
@@ -702,8 +705,11 @@ def test_reused_issue_evidence_cadence_and_human_handoff(
         in evidence[1]
     )
     assert labels == ([] if human else [{"name": "auto"}])
+    assert sum("ci-perf-trigger:" in item["body"] for item in posted) == (
+        0 if human else 1
+    )
     if human:
-        assert all("Requires human implementation" in body for body in evidence)
+        assert all("Needs a human to implement" in body for body in evidence)
         assert len(posted) == 2
 
 
