@@ -470,7 +470,7 @@ def openai_assistant_content(
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
                 if c.internal is not None:
-                    content = f"{content}\n<{content_internal_tag(c.internal)}>\n"
+                    content = f"{content}\n{content_internal_tag(c.internal)}\n"
 
     return content, extra_body
 
