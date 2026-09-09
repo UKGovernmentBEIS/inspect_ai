@@ -123,7 +123,12 @@ class AgentBridge:
         self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
-        self._operator_keys: set[str] = set()
+        self._operator_keys = self._cp.track(
+            "bridge_operator_keys",
+            lambda: self._operator_keys,
+            set(),
+            value_type=set[str],
+        )
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
@@ -137,9 +142,12 @@ class AgentBridge:
     state_filter: StateFilter | None
     """Optional predicate that selects requests whose generations update state.
 
+    The predicate sees the translated request, including restored operator
+    provenance, before generation or compaction.
     Requests rejected by the predicate still generate responses, emit model
-    events, and tick the checkpointer, but leave tracked conversation state
-    unchanged. Exceptions from the predicate propagate to the request handler.
+    events, and tick the checkpointer, but bypass canonical compaction and leave
+    tracked conversation state unchanged. Predicate exceptions propagate before
+    generation begins.
     """
 
     model: str | None
@@ -280,9 +288,8 @@ class AgentBridge:
         We need to distinguish the "main" thread of generation from side /
         sub-agent model calls (e.g. claude code does bash path detection with a
         side call; opencode names the session with a title-generation call).
-        An optional state filter determines which requests contribute to the
-        canonical agent state. Rejected requests still complete normally but
-        leave the tracked conversation unchanged.
+        The shared generation path applies the optional state filter before
+        calling this method.
 
         Message counts alone can't do this: a side call that is longer than the
         main conversation (opencode's title call fires before the main loop's
@@ -324,10 +331,6 @@ class AgentBridge:
           descends from the initial input). Promotion is unconditional, so a
           multi-call sub-agent loop transiently takes over.
         """
-        if self.state_filter is not None and not self.state_filter(input):
-            await self._cp.tick()
-            return
-
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
 

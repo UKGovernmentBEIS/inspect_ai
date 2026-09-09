@@ -27,6 +27,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._compaction import CompactionSummary
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 
@@ -1674,6 +1675,87 @@ async def test_state_filter_preserves_main_state_and_excluded_request_accounting
     assert checkpointer.ticks == 4
 
 
+@pytest.mark.parametrize("include", [True, False])
+async def test_state_filter_preserves_operator_provenance(include: bool) -> None:
+    """Selection sees restored provenance; excluded events retain it too."""
+    events = RecordingModelEvents()
+
+    def state_filter(messages: Sequence[ChatMessage]) -> bool:
+        return include and any(message.source == "operator" for message in messages)
+
+    task = ChatMessageUser(content=TASK)
+    bridge = AgentBridge(
+        AgentState(messages=[task]),
+        model_aliases={BRIDGE_MODEL: scenario_model(["Castle"])},
+        model_event_sink=events,
+        state_filter=state_filter,
+    )
+    bridge.note_operator_message(ChatMessageUser(content="Please continue."))
+    await inspect_completions_api_request(
+        {
+            "model": BRIDGE_MODEL,
+            "messages": [
+                {"role": "user", "content": TASK},
+                {"role": "assistant", "content": "Checking."},
+                {"role": "user", "content": "Please continue."},
+            ],
+        },
+        None,
+        bridge,
+    )
+
+    if include:
+        assert bridge.state.output.completion == "Castle"
+        assert bridge.state.messages[-2].source == "operator"
+    else:
+        assert bridge.state.messages == [task]
+        assert bridge.state.output.completion == ""
+    assert [
+        message.source
+        for message in events.completed[0].input
+        if isinstance(message, ChatMessageUser)
+    ] == [None, "operator"]
+
+
+async def test_excluded_operator_provenance_survives_checkpoint_resume() -> None:
+    """An excluded turn's provenance is retained when the CLI replays it."""
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        model_aliases={BRIDGE_MODEL: scenario_model(["Side response"])},
+        checkpointer=checkpointer,
+        state_filter=lambda _messages: False,
+    )
+    bridge.note_operator_message(ChatMessageUser(content="Please continue."))
+    messages = [
+        {"role": "user", "content": TASK},
+        {"role": "assistant", "content": "Checking."},
+        {"role": "user", "content": "Please continue."},
+    ]
+    await inspect_completions_api_request(
+        {"model": BRIDGE_MODEL, "messages": messages}, None, bridge
+    )
+
+    resumed = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        model_aliases={BRIDGE_MODEL: scenario_model(["Castle"])},
+        checkpointer=RecordingCheckpointer(
+            restored={
+                key: callback() for key, callback in checkpointer.callbacks.items()
+            }
+        ),
+        state_filter=lambda request: any(
+            message.source == "operator" for message in request
+        ),
+    )
+    await inspect_completions_api_request(
+        {"model": BRIDGE_MODEL, "messages": messages}, None, resumed
+    )
+
+    assert resumed.state.output.completion == "Castle"
+    assert resumed.state.messages[-2].source == "operator"
+
+
 async def test_state_filter_exception_propagates_from_completion_handler() -> None:
     """A filter failure is not converted into untracked request state."""
 
@@ -1865,15 +1947,91 @@ async def test_state_filter_error_on_main_extension_preserves_state() -> None:
     assert bridge._tracked_descends == tracked_descends
     assert bridge._last_message_count == last_message_count
     assert bridge._candidate_fps == candidate_fps
-    assert len(events.pending) == len(events.completed) == 2
+    assert len(events.pending) == len(events.completed) == 1
     assert [event.output.completion for event in events.completed] == [
         "Castle",
-        "Ignored continuation",
     ]
     assert all(event.output.usage is not None for event in events.completed)
     assert [
         event.output.usage.total_tokens if event.output.usage is not None else None
         for event in events.completed
-    ] == [1, 1]
-    # The exception occurs before `_track_state` reaches its ordinary tick.
+    ] == [1]
+    # A predicate failure stops the request before generation and checkpointing.
     assert checkpointer.ticks == 1
+
+
+async def test_state_filter_excludes_requests_from_compaction_history() -> None:
+    events = RecordingModelEvents()
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        model_aliases={
+            BRIDGE_MODEL: scenario_model(["Castle", "Title", "Final answer"])
+        },
+        model_event_sink=events,
+        compaction=CompactionSummary(threshold=1_000_000, memory=False),
+        state_filter=lambda messages: messages[-1].text != "Generate a title",
+    )
+    main = [{"role": "user", "content": TASK}]
+    continuation = main + [
+        {"role": "assistant", "content": "Castle"},
+        {"role": "user", "content": "Continue"},
+    ]
+    for messages in [
+        main,
+        [{"role": "user", "content": "Generate a title"}],
+        continuation,
+    ]:
+        await inspect_completions_api_request(
+            {"model": BRIDGE_MODEL, "messages": messages}, None, bridge
+        )
+
+    assert [message.text for message in events.completed[1].input] == [
+        "Generate a title"
+    ]
+    assert [message.text for message in events.completed[2].input] == [
+        TASK,
+        "Castle",
+        "Continue",
+    ]
+    assert bridge.state.output.completion == "Final answer"
+    assert [message.text for message in bridge.state.messages] == [
+        TASK,
+        "Castle",
+        "Continue",
+        "Final answer",
+    ]
+
+
+async def test_state_filter_selects_request_before_summary_is_appended() -> None:
+    continuation = "Continue with this evidence: " + "castle " * 1000
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        model_aliases={BRIDGE_MODEL: scenario_model(["Castle", "Final answer"])},
+        compaction=CompactionSummary(
+            threshold=500,
+            memory=False,
+            model=scenario_model(["The castle has been found."]),
+        ),
+        state_filter=lambda messages: messages[-1].text in (TASK, continuation),
+    )
+    main = [{"role": "user", "content": TASK}]
+    for messages in [
+        main,
+        main
+        + [
+            {"role": "assistant", "content": "Castle"},
+            {"role": "user", "content": continuation},
+        ],
+    ]:
+        await inspect_completions_api_request(
+            {"model": BRIDGE_MODEL, "messages": messages}, None, bridge
+        )
+
+    assert bridge.state.output.completion == "Final answer"
+    summaries = [
+        message
+        for message in bridge.state.messages
+        if (message.metadata or {}).get("summary")
+    ]
+    assert len(summaries) == 1
+    assert "The castle has been found." in summaries[0].text
