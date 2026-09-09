@@ -315,6 +315,41 @@ def test_local_path_windows_drive() -> None:
     assert local_path("file:///C:/logs/eval%20run.eval") == "C:\\logs\\eval run.eval"
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive-path form")
+def test_local_path_windows_drive_in_authority() -> None:
+    """`file://D:/...` is how the local filesystem names files on Windows.
+
+    urlparse puts the drive in netloc, so converting the path alone gave
+    `\\logs\\x.eval`, which resolves against the current drive (#5322).
+    """
+    assert local_path("file://D:/logs/eval%20run.eval") == "D:\\logs\\eval run.eval"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows UNC form")
+def test_local_path_windows_unc_host() -> None:
+    assert local_path("file://server/share/x.eval") == "\\\\server\\share\\x.eval"
+
+
+def test_local_path_localhost_authority() -> None:
+    assert local_path("file://localhost/tmp/x.eval") == local_path("file:///tmp/x.eval")
+
+
+def test_local_path_resolves_filesystem_ls_names(tmp_path: Path) -> None:
+    """A name reported by filesystem().ls() must name the file on any drive.
+
+    `read_eval_log()` feeds `list_eval_logs()` names through `local_path`;
+    a result relative to the current drive is a FileNotFoundError whenever
+    the log dir and the working directory differ (#5322).
+    """
+    target = tmp_path / "eval run.eval"
+    target.write_text("x")
+    names = [info.name for info in filesystem(str(tmp_path)).ls(str(tmp_path))]
+    assert len(names) == 1
+    resolved = Path(local_path(names[0]))
+    assert resolved.is_absolute()
+    assert resolved.resolve() == target.resolve()
+
+
 async def test_cleanup_s3_sessions_no_instances() -> None:
     """cleanup_s3_sessions is a no-op when there are no cached instances."""
     with patch("s3fs.S3FileSystem") as mock_s3fs:
