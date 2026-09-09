@@ -50,6 +50,7 @@ from collections.abc import Sequence
 from logging import getLogger
 from pathlib import Path
 
+from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._copy import DD_FULLBLOCK_PROBE, DEFAULT_COPY_CHUNK_SIZE, copy_out
@@ -115,7 +116,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             "elif command -v gzip >/dev/null 2>&1; then echo gzip; "
             'else echo "missing required tool: zstd or gzip" >&2; exit 1; fi'
         )
-        result = await env.exec(["sh", "-c", script], user="root")
+        result = await privileged_shell(env, script, user="root")
         if not result.success:
             raise RuntimeError(
                 f"archive snapshot setup failed for sandbox "
@@ -217,7 +218,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             f"wc -c < {archive}\n"
             f"sha256sum {archive}\n"
         )
-        result = await env.exec(["sh", "-c", script], user="root")
+        result = await privileged_shell(env, script, user="root")
         if not result.success:
             raise RuntimeError(
                 f"archive snapshot failed for sandbox {ctx.sandbox_name!r}: "
@@ -290,13 +291,10 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
 
         staging = f"{self._staging_root}/restore"
         staged = f"{staging}/{archive_name}"
-        init = await env.exec(
-            [
-                "sh",
-                "-c",
-                f"set -e; install -d -m 0700 {self._sandbox_dir}; "
-                f"rm -rf {self._staging_root}; mkdir -p {staging}",
-            ],
+        init = await privileged_shell(
+            env,
+            f"set -e; install -d -m 0700 {self._sandbox_dir}; "
+            f"rm -rf {self._staging_root}; mkdir -p {staging}",
             user="root",
         )
         if not init.success:
@@ -318,8 +316,8 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                     break
                 digest.update(data)
                 redirect = ">" if first else ">>"
-                result = await env.exec(
-                    ["sh", "-c", f"cat {redirect} {staged}"], input=data, user="root"
+                result = await privileged_shell(
+                    env, f"cat {redirect} {staged}", input=data, user="root"
                 )
                 if not result.success:
                     raise RuntimeError(
@@ -346,7 +344,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             f"{extract}\n"
             f"rm -rf {self._staging_root}\n"
         )
-        result = await env.exec(["sh", "-c", script], user="root")
+        result = await privileged_shell(env, script, user="root")
         if not result.success:
             raise RuntimeError(
                 f"archive snapshot restore failed for sandbox "
@@ -401,8 +399,8 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         always-excluded ``sandbox_dir`` so it is never captured.
         """
         try:
-            result = await env.exec(
-                ["sh", "-c", f"rm -rf {self._staging_root}"], user="root"
+            result = await privileged_shell(
+                env, f"rm -rf {self._staging_root}", user="root"
             )
         except Exception as exc:
             logger.warning(
