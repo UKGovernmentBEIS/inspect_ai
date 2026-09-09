@@ -28,6 +28,7 @@
 - Human Agent: The `task` shell hook is now appended to the login user's `.bashrc` as that user, so a `.bashrc` that user cannot write (e.g. root-owned) or that is a symlink fails installation instead of being written by the sandbox default user (root in most images).
 - Bugfix: MockLLM callable `custom_outputs` now populate default token usage when the returned `ModelOutput` omits `usage`, matching iterable/generator behavior.
 - Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.
+- Eval Log: Reading zstd-compressed `.eval` files no longer fails with `AttributeError: ... '_needs_input'` on Python builds that include CPython's gh-156002 zipfile change.
 
 ## 0.3.263 (03 September 2026)
 
