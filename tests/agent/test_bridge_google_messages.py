@@ -23,11 +23,15 @@ from pathlib import Path
 import pytest
 
 from inspect_ai.agent._bridge._errors import BridgePolicyError
-from inspect_ai.agent._bridge.google_api_impl import messages_from_google_contents
+from inspect_ai.agent._bridge.google_api_impl import (
+    gemini_response_from_output,
+    messages_from_google_contents,
+)
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
+from inspect_ai.model._model_output import Logprob, Logprobs, ModelOutput, TopLogprob
 
 _FIXTURE = json.loads(
     (
@@ -92,3 +96,57 @@ def test_google_bridge_rejects_file_data_parts(role: str) -> None:
 
     with pytest.raises(BridgePolicyError, match="send the bytes as inlineData"):
         messages_from_google_contents(contents, None)
+
+
+def test_google_response_preserves_token_logprobs() -> None:
+    output = ModelOutput.from_content("mockllm/model", "Hello 世界")
+    output.choices[0].logprobs = Logprobs(
+        content=[
+            Logprob(
+                token="Hello",
+                logprob=-0.3,
+                top_logprobs=[
+                    TopLogprob(token="Hi", logprob=-0.1),
+                    TopLogprob(token="Hello", logprob=-0.3),
+                ],
+            ),
+            Logprob(token=" 世界", logprob=-0.9, top_logprobs=[]),
+            Logprob(token="", logprob=0.0),
+        ]
+    )
+
+    candidate = gemini_response_from_output(output, "model")["candidates"][0]
+
+    assert candidate["logprobsResult"] == {
+        "chosenCandidates": [
+            {"token": "Hello", "logProbability": -0.3},
+            {"token": " 世界", "logProbability": -0.9},
+            {"token": "", "logProbability": 0.0},
+        ],
+        "topCandidates": [
+            {
+                "candidates": [
+                    {"token": "Hi", "logProbability": -0.1},
+                    {"token": "Hello", "logProbability": -0.3},
+                ]
+            },
+            {"candidates": []},
+            {"candidates": []},
+        ],
+    }
+    assert candidate["avgLogprobs"] == pytest.approx(-0.4)
+
+
+@pytest.mark.parametrize("logprobs", [None, Logprobs(content=[])])
+def test_google_response_without_logprobs_is_unchanged(
+    logprobs: Logprobs | None,
+) -> None:
+    output = ModelOutput.from_content("mockllm/model", "Hello")
+    expected = gemini_response_from_output(output, "model")
+    output.choices[0].logprobs = logprobs
+
+    response = gemini_response_from_output(output, "model")
+
+    assert response == expected
+    assert "logprobsResult" not in response["candidates"][0]
+    assert "avgLogprobs" not in response["candidates"][0]
