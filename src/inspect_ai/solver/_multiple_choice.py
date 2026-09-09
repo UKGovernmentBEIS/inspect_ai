@@ -98,7 +98,7 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     )
     completion = re.sub(r"\*\*\s*([A-Za-z\d][A-Za-z\d ,]*?)\s*\*\*", r"\1", completion)
     completion = re.sub(
-        r"(?i)(^|[:,])(\s*)\(([A-Za-z\d])\)(?=\s*(?:,|\.|\Z))",
+        r"(?i)(^|[:,])(\s*)\(([A-Za-z\d])\)(?=\s*(?:,|\.|\n|\Z))",
         r"\1\2\3",
         completion,
     )

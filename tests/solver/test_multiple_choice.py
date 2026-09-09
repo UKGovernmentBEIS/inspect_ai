@@ -548,6 +548,7 @@ async def test_single_choice_trailing_comma():
         "ANSWER: $B$",
         "ANSWER: **B**",
         "ANSWER: (B)",
+        "ANSWER: (B)\n\nExplanation: Paris is the answer.",
         "ANSWER: $B$.",
         "ANSWER: **B**.",
     ],
