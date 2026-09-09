@@ -834,7 +834,9 @@ def framework_file_mode(mode: int) -> str:
 # `set -C` refuses to clobber a regular file (or a symlink to one) that appears at
 # that name in between; it is not a full symlink guard (dash writes through a
 # symlink to a non-regular target), but only the directory owner can create entries
-# here. The temporary name is removed whether or not `ln` succeeded.
+# here. The fixed temporary name assumes one writer per directory at a time, which
+# holds for the callers (one installer per sandbox). The temporary name is removed
+# whether or not `ln` succeeded.
 _WRITE_ENTRY = (
     'rm -f -- "$1.tmp" && set -C && cat > "$1.tmp" && chmod -- "$2" "$1.tmp" || exit; '
     'ln -T -- "$1.tmp" "$1"; rc=$?; rm -f -- "$1.tmp"; exit $rc'

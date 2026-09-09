@@ -213,6 +213,8 @@ fi
 if [ -f "$name" ] && grep -qxF -- "$marker" "$name"; then
     exit 0
 fi
+# Not atomic: an append that fails after the marker line leaves a retry believing
+# the block is present. Accepted; the block is a few KB and completes or fails whole.
 cat >> "$name"
 """
 

@@ -665,6 +665,35 @@ async def test_bashrc_append_refuses_to_run_as_a_different_uid_than_the_login_us
     assert own_after == own_before
 
 
+async def test_bashrc_append_refuses_the_wrong_uid_with_the_shipped_script(
+    tmp_path: Path,
+) -> None:
+    """The unmodified script, with the real ``getent``, refuses a uid mismatch.
+
+    ``LocalSandboxEnvironment`` ignores ``user`` and runs as the test process, which
+    is exactly the provider behavior the check exists for. The shim tests above
+    replace the script's ``PATH`` line; this one runs the shipped text.
+    """
+    if sys.platform != "linux":
+        pytest.skip("runs the append script through the local sandbox on Linux")
+    if os.getuid() == 0:
+        pytest.skip("login user root matches the running uid")
+    own_bashrc = Path.home() / BASHRC
+    own_before = own_bashrc.read_text() if own_bashrc.is_file() else None
+    local = LocalSandboxEnvironment()
+    try:
+        with pytest.warns(UserWarning, match="'user' parameter is ignored"):
+            with pytest.raises(
+                RuntimeError,
+                match=f"refusing to append as uid {os.getuid()}: login user root is uid 0",
+            ):
+                await append_bashrc(local, "root", "payload\n")
+    finally:
+        local.directory.cleanup()
+    own_after = own_bashrc.read_text() if own_bashrc.is_file() else None
+    assert own_after == own_before
+
+
 async def test_bashrc_append_names_a_missing_getent_for_a_login_user(
     home_sandbox: tuple[_HomeSandbox, Path],
 ) -> None:
