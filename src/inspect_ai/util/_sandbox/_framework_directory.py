@@ -16,15 +16,11 @@ The contract for a private framework directory is:
   group/others or is sticky, so no other principal can rename or unlink the
   directory out from under a verified path.
 
-A second policy, ``shared=True``, covers the one kind of framework directory that is
-not private: a sticky, world-writable parent in which several users each keep a
-private framework directory (``/var/tmp/sandbox-services``, where sandbox services
-running as different users live side by side). Such a directory must be a real
-directory with mode exactly ``1777``, owned by root or by the uid the command runs
-as, in a parent satisfying the same rule as above. Root ownership is what lets
-users share it: the owner of a sticky directory can still rename or unlink entries
-other users created in it, so a parent owned by one non-root user serves only that
-user's directories and is refused for anyone else.
+``shared=True`` selects the one other policy: a sticky ``1777`` directory in which
+several users each keep a private framework directory (``/var/tmp/sandbox-services``).
+It must be owned by root or by the uid the command runs as, because the owner of a
+sticky directory can rename entries other users created in it; every other check is
+the same.
 
 The contract stops at the immediate parent. Ancestors above it are not checked,
 so callers must choose paths whose ancestors are root-owned and not writable by
@@ -96,14 +92,12 @@ _CREATE_FAILED_EXIT = 7
 _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 
 # Arguments: $1 = expected uid (empty = no expectation), $2 = create flag (1/0),
-# $3 = repair-mode flag (1/0), $4 = shared flag (1 = sticky 1777 directory owned by
-# root or the current uid, 0 = private 0700 directory owned by the current uid),
-# $5 = parent path, $6 = leaf name, $7.. = command to exec with the verified
-# directory as cwd (optional). POSIX sh only (dash/BusyBox):
+# $3 = repair-mode flag (1/0), $4 = shared flag (1/0), $5 = parent path, $6 = leaf
+# name, $7.. = command to exec with the verified directory as cwd (optional). POSIX
+# sh only (dash/BusyBox):
 # no arrays, no [[ ]], no local. `stat -c %u/%a` is common to GNU coreutils and
 # BusyBox. `umask 077` closes the window in BusyBox's non-atomic `mkdir -m`
-# (mkdir(0777) then chmod) for a private directory, and also applies to whatever
-# the wrapped command creates:
+# (mkdir(0777) then chmod) and also applies to whatever the wrapped command creates:
 # a non-root `tar` extracts entries at 0700/0600 instead of the archive's modes
 # (root's `tar` preserves them). Inside a 0700 directory used by one uid this changes
 # nothing observable. Tool output is captured with stderr discarded so a warning
@@ -194,7 +188,6 @@ now=$(pwd -P)
 dstat=$(stat -c '%u %a' . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c '%u %a' . 2>&1 >/dev/null)"
 uid=${dstat% *}
 mode=${dstat#* }
-# A shared directory may also be root's: that is what lets other users share it.
 accept="uid $me"
 if [ "$shared" = 1 ] && [ "$me" != 0 ]; then accept="uid $me or 0"; fi
 if [ "$uid" != "$me" ] && { [ "$shared" != 1 ] || [ "$uid" != 0 ]; }; then
@@ -217,9 +210,8 @@ if [ "$mode" != "$want_mode" ]; then
     fi
 fi
 if [ "$shared" = 1 ] && [ "$created" = 0 ] && [ "$mode" != "$want_mode" ]; then
-    # Both BusyBox and GNU `mkdir -m 1777` set the mode in a second step after the
-    # mkdir, so a wrong mode on a directory we did not create may be a concurrent
-    # creator's work in progress: look once more before refusing it.
+    # `mkdir -m 1777` sets the mode in a second step (BusyBox and GNU alike), so a
+    # concurrent creator may still be mid-way: look once more before refusing.
     sleep 1
     mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
 fi
@@ -385,8 +377,7 @@ async def _run_verified(
     if concurrency:
         result = await sandbox.exec(argv, user=user, input=input, timeout=timeout)
     else:
-        # Passed only when set, so a provider whose exec() predates the parameter
-        # keeps working at the default.
+        # Only passed when set: some providers' exec() predates the parameter.
         result = await sandbox.exec(
             argv, user=user, input=input, timeout=timeout, concurrency=False
         )
@@ -464,13 +455,10 @@ async def ensure_framework_directory(
             protected anything. Leave it off for a privileged owner such as root:
             a root-owned directory in an unexpected mode may hold content other
             users placed there, and must be refused.
-        shared: Apply the shared-parent policy described in the module docstring
-            (a sticky ``1777`` directory owned by root or the command's uid)
-            instead of the private one. Cannot be combined with ``repair_mode``.
+        shared: Use the shared-parent policy (see the module docstring) instead of
+            the private one; cannot be combined with ``repair_mode``.
         timeout: Optional timeout for the sandbox command.
-        concurrency: Whether the sandbox command counts against the sandbox's
-            concurrency limit (as for ``sandbox.exec``). Pass ``False`` from code
-            that must keep running while sandboxed processes hold exec slots.
+        concurrency: As for ``sandbox.exec``.
 
     Raises:
         FrameworkDirectoryError: The entry violates the contract or could not be
