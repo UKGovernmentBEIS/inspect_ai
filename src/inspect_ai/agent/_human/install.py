@@ -15,7 +15,8 @@ nothing here trusts a pathname the sandbox user could have planted:
 - ``task.py`` is published through the helper's atomic write, so it only ever
   exists complete, in its final mode, and never over an existing entry.
 - The ``.bashrc`` append runs as the login user with the content on stdin, refuses
-  a ``.bashrc`` that is not a regular file, and is idempotent, so a failed
+  to run as any other uid (a provider that ignores ``user``), refuses a
+  ``.bashrc`` that is not a regular file, and is idempotent, so a failed
   installation can be retried without duplicating the block. Because it carries
   only that user's authority, a ``.bashrc`` the user cannot write (one left
   root-owned by an image build) fails the installation instead of being written
@@ -163,8 +164,12 @@ async def _task_py_installed(sb: SandboxEnvironment, owner: str | None) -> bool:
 # write into whichever home the command happens to run in (root's, if the provider
 # ignored ``user``). Only the uid lookup falls back to HOME, for images without
 # getent; a named login on such an image is an error that says getent is missing,
-# not that the account is. PATH is pinned to the base system directories for the
-# same reason the framework-directory helper pins it: this may run as root.
+# not that the account is. A named login must also own the uid the script runs as:
+# a provider that ignores or downgrades ``user`` would otherwise append as the
+# default user (root in most images) through a ``.bashrc`` the login user cannot
+# write, so a mismatch is an error naming both uids. PATH is pinned to the base
+# system directories for the same reason the framework-directory helper pins it:
+# this may run as root.
 _BASHRC_APPEND_SCRIPT = """
 set -u
 unset CDPATH
@@ -174,10 +179,18 @@ name=$1 login=$2 marker=$3
 uid=$(id -u) || { echo "cannot determine the current uid" >&2; exit 2; }
 home=
 if command -v getent >/dev/null 2>&1; then
-    home=$(getent passwd "${login:-$uid}" 2>/dev/null | cut -d: -f6)
-    if [ -z "$home" ] && [ -n "$login" ]; then
-        echo "unknown user $login: no such account in the passwd database" >&2
-        exit 2
+    entry=$(getent passwd "${login:-$uid}" 2>/dev/null)
+    home=$(printf '%s\n' "$entry" | cut -d: -f6)
+    if [ -n "$login" ]; then
+        if [ -z "$home" ]; then
+            echo "unknown user $login: no such account in the passwd database" >&2
+            exit 2
+        fi
+        login_uid=$(printf '%s\n' "$entry" | cut -d: -f3)
+        if [ "$login_uid" != "$uid" ]; then
+            echo "refusing to append as uid $uid: login user $login is uid $login_uid" >&2
+            exit 2
+        fi
     fi
 elif [ -n "$login" ]; then
     echo "cannot look up the home directory of $login: getent not found" >&2

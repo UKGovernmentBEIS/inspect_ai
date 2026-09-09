@@ -510,6 +510,9 @@ def test_installer_source_runs_nothing_outside_the_helper_and_bashrc_scripts() -
 
 UNKNOWN_USER = "nosuchuser"
 """A login name the ``getent`` shim below reports as absent from passwd."""
+OTHER_UID_USER = "otheruid"
+"""A login name the ``getent`` shim below reports with a uid other than the test's."""
+OTHER_UID = 4242
 
 
 class _HomeSandbox(SandboxEnvironment):
@@ -534,7 +537,8 @@ class _HomeSandbox(SandboxEnvironment):
         (self.bindir / "getent").write_text(
             f'#!/bin/sh\necho "$2" >> "{self.getent_lookups}"\n'
             f'[ "$2" = "{UNKNOWN_USER}" ] && exit 2\n'
-            f'echo "user:x:1000:1000::{home}:/bin/sh"\n'
+            f'[ "$2" = "{OTHER_UID_USER}" ] && uid={OTHER_UID} || uid={os.getuid()}\n'
+            f'echo "user:x:$uid:$uid::{home}:/bin/sh"\n'
         )
         (self.bindir / "getent").chmod(0o700)
         self.env: dict[str, str] | None = None
@@ -633,6 +637,29 @@ async def test_bashrc_append_refuses_a_login_user_missing_from_passwd(
     with pytest.raises(RuntimeError, match=f"unknown user {UNKNOWN_USER}"):
         await append_bashrc(sandbox, UNKNOWN_USER, "payload\n")
     assert sandbox.getent_lookups.read_text() == f"{UNKNOWN_USER}\n"
+    assert list(home.iterdir()) == []
+    own_after = own_bashrc.read_text() if own_bashrc.is_file() else None
+    assert own_after == own_before
+
+
+async def test_bashrc_append_refuses_to_run_as_a_different_uid_than_the_login_user(
+    home_sandbox: tuple[_HomeSandbox, Path],
+) -> None:
+    """A named user whose uid is not the one the script runs as is an error.
+
+    A provider that ignores or downgrades ``user`` would otherwise append as the
+    default user (root in most images) through a ``.bashrc`` the login user owns.
+    """
+    sandbox, home = home_sandbox
+    own_bashrc = Path.home() / BASHRC
+    own_before = own_bashrc.read_text() if own_bashrc.is_file() else None
+    with pytest.raises(
+        RuntimeError,
+        match=f"refusing to append as uid {os.getuid()}: login user {OTHER_UID_USER} "
+        f"is uid {OTHER_UID}",
+    ):
+        await append_bashrc(sandbox, OTHER_UID_USER, "payload\n")
+    assert sandbox.getent_lookups.read_text() == f"{OTHER_UID_USER}\n"
     assert list(home.iterdir()) == []
     own_after = own_bashrc.read_text() if own_bashrc.is_file() else None
     assert own_after == own_before
