@@ -1,3 +1,4 @@
+import math
 import re
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -61,11 +62,10 @@ def parse_retry_after(headers: Mapping[str, str]) -> float | None:
     When several reset-window headers are present (e.g. requests and tokens
     both reported), the *largest* is used: a 429 may have been triggered by
     any one dimension, but without parsing the response body we don't know
-    which — so the conservative cooldown is the longest reset. As a cooldown
-    floor this is safe (debounces the controller's next cut without affecting
-    request scheduling).
+    which, so the longest reported reset is the conservative choice.
 
-    Returns None when no header is present or values are unparseable / negative.
+    Returns None when no header is present or values are unparseable, non-finite,
+    or negative.
     """
     # case-insensitive lookup
     lower = {k.lower(): v for k, v in headers.items()}
@@ -104,12 +104,19 @@ def parse_retry_after_from_exception(ex: BaseException) -> float | None:
         return None
 
 
+def _positive_seconds(seconds: float) -> float | None:
+    # `inf > 0` is True, so `Retry-After: inf` — or a value that overflows to
+    # inf, like `1e400` — passes a bare positivity check and then poisons any
+    # arithmetic it feeds.
+    return seconds if seconds > 0 and math.isfinite(seconds) else None
+
+
 def _parse_retry_after_value(value: str) -> float | None:
     """Parse a single header value into seconds-from-now.
 
     Accepts delta-seconds, OpenAI-style duration strings (`"1m30s"`),
     HTTP-date (RFC 9110), and ISO 8601 timestamps. Returns None for
-    unparseable input or non-positive durations.
+    unparseable input or non-finite/non-positive durations.
     """
     value = value.strip()
     if not value:
@@ -118,7 +125,7 @@ def _parse_retry_after_value(value: str) -> float | None:
     # delta-seconds (most common)
     try:
         seconds = float(value)
-        return seconds if seconds > 0 else None
+        return _positive_seconds(seconds)
     except ValueError:
         pass
 
@@ -127,22 +134,22 @@ def _parse_retry_after_value(value: str) -> float | None:
     matches = _DURATION_RE.findall(compact)
     if matches and "".join(a + u for a, u in matches) == compact:
         total = sum(float(a) * _DURATION_UNITS[u] for a, u in matches)
-        return total if total > 0 else None
+        return _positive_seconds(total)
 
     # HTTP-date (RFC 9110, e.g. "Wed, 21 Oct 2026 07:28:00 GMT").
     # parsedate_to_datetime can return a *naive* datetime for malformed dates
     # (e.g. ones missing the GMT offset). Coerce to UTC so we can subtract —
     # RFC 9110 mandates HTTP-dates are GMT, and a wrong assumption here just
-    # gives us a less-accurate cooldown rather than a TypeError.
+    # gives us a less-accurate delay rather than a TypeError.
     try:
         dt = parsedate_to_datetime(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         dt = None
     if dt is not None:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         seconds = (dt - datetime.now(timezone.utc)).total_seconds()
-        return seconds if seconds > 0 else None
+        return _positive_seconds(seconds)
 
     # ISO 8601 / RFC 3339 timestamp
     try:
@@ -152,7 +159,7 @@ def _parse_retry_after_value(value: str) -> float | None:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         seconds = (dt - datetime.now(timezone.utc)).total_seconds()
-        return seconds if seconds > 0 else None
+        return _positive_seconds(seconds)
     except ValueError:
         pass
 

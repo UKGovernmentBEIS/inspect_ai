@@ -73,6 +73,42 @@ def sample_id_filter(
     return SampleIdMatcher(matches, patterns)
 
 
+def resolve_task_sample_ids(
+    task: str, sample_id: str | int | list[str] | list[int] | list[str | int] | None
+) -> str | int | list[str] | list[int] | list[str | int] | None:
+    def collect_for_task(sample: str | int) -> str | int | None:
+        if isinstance(sample, str):
+            scoped = sample.split(":", maxsplit=1)
+            if len(scoped) > 1:
+                if scoped[0].lower() == task.lower():
+                    return scoped[1]
+                else:
+                    return None
+            else:
+                return sample
+        else:
+            return sample
+
+    if sample_id is not None:
+        if isinstance(sample_id, list):
+            ids: list[int | str] = []
+            for id in sample_id:
+                collect = collect_for_task(id)
+                if collect is not None:
+                    ids.append(collect)
+            return ids
+
+        else:
+            collect = collect_for_task(sample_id)
+            if collect is not None:
+                return collect
+            else:
+                return []
+
+    else:
+        return sample_id
+
+
 def sample_limit_count(limit: int | tuple[int, int] | None) -> int | None:
     """Number of samples a `limit` option selects (the size of its slice)."""
     if limit is None:

@@ -127,13 +127,15 @@ async def test_acp_server_raises_clearly_under_trio_backend(monkeypatch) -> None
     reason="AF_UNIX sockets not available on this Windows build.",
 )
 async def test_unix_default_socket_path(short_data_dir: Path) -> None:
-    """``transport=True`` binds AF_UNIX at <data>/acp/<eval_id>.sock.
+    """``transport=True`` binds AF_UNIX at <data>/acp/<pid>.sock.
 
-    Both the socket file and the discovery JSON exist while the context
-    is open; both are removed on exit.
+    Keyed on the pid rather than the 36-character eval id, which put the
+    default within a few bytes of the 104-byte ``sun_path`` limit. Both the
+    socket file and the discovery JSON exist while the context is open;
+    both are removed on exit.
     """
     eval_id = "evt-abc"
-    expected_socket = (short_data_dir / "acp" / f"{eval_id}.sock").resolve()
+    expected_socket = (short_data_dir / "acp" / f"{os.getpid()}.sock").resolve()
     async with acp_server(eval_id=eval_id, transport=True) as server:
         assert server is not None
         assert server.socket_path == expected_socket
@@ -187,6 +189,26 @@ async def test_unix_bind_refuses_to_clobber_non_socket(
             pass
     assert target.exists()
     assert target.read_text() == "precious user data"
+
+
+@skip_if_trio
+@pytest.mark.skipif(
+    sys.platform == "win32" and not hasattr(asyncio, "start_unix_server"),
+    reason="AF_UNIX sockets not available on this Windows build.",
+)
+async def test_unix_bind_over_sun_path_limit_raises(short_data_dir: Path) -> None:
+    """A socket path too long for ``sun_path`` fails the bind rather than the file.
+
+    The failure the *default* path used to be a few bytes away from, which is
+    why it is keyed on the pid (see ``test_unix_default_socket_path``): an
+    address nothing can bind is not a degraded human channel, it is none, and
+    a selection-mode worker has no other.
+    """
+    too_long = short_data_dir / ("d" * 120) / "x.sock"
+    with pytest.raises(OSError):
+        async with acp_server(eval_id="evt-long", transport=str(too_long)):
+            pass
+    assert not too_long.exists()
 
 
 # ---------------------------------------------------------------------------

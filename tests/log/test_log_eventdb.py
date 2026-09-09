@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import Any, Generator, Iterator, cast
 
 import pytest
+from test_helpers.transcript import make_model_event
 
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
@@ -22,6 +24,7 @@ from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._model_call import ModelCall
 
 
 @pytest.fixture
@@ -848,3 +851,133 @@ def test_open_connection_closes_conn_on_non_operational_error(
 
     # the half-open connection was closed before the error propagated
     assert closed
+
+
+def test_event_attachments_shipped_once(
+    db: SampleBufferDatabase,
+    sample: EvalSampleSummary,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Re-logging an event must not re-ship identical attachment content.
+
+    Updates re-log the event on every notification. The long payload lives in
+    the event's output rather than the call request: call-request messages
+    are already deduped by the call-pool prefix cache before this filter
+    ever runs (a same-content retry there produces no new attachment
+    content), so a payload placed there wouldn't exercise the filter. An
+    unchanged ``ModelEvent.output`` has no such cache -- it's re-walked from
+    scratch by ``_condense_model_event``'s trailing full-event walk on every
+    call, which is the path this filter guards.
+    """
+    db.start_sample(sample)
+
+    shipped: list[dict[str, str]] = []
+    original = SampleBufferDatabase._insert_attachments
+
+    def recording(
+        self: SampleBufferDatabase,
+        conn: sqlite3.Connection,
+        id: int | str,
+        epoch: int,
+        attachments: dict[str, str],
+    ) -> None:
+        shipped.append(dict(attachments))
+        return original(self, conn, id, epoch, attachments)
+
+    monkeypatch.setattr(SampleBufferDatabase, "_insert_attachments", recording)
+
+    event = make_model_event(
+        [ChatMessageUser(content="q")], uuid="e1", content="z" * 150
+    )
+    db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+    db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+
+    total_pairs = sum(len(s) for s in shipped)
+    unique_hashes = {h for s in shipped for h in s}
+    assert total_pairs == len(unique_hashes), (
+        f"duplicate attachment content shipped: {total_pairs} pairs, "
+        f"{len(unique_hashes)} unique hashes"
+    )
+    # content still stored and resolvable
+    with db._get_connection() as conn:
+        stored = list(db._get_attachments(conn, sample.id, 1))
+    assert any(a.content.startswith("z") for a in stored)
+
+
+def test_removed_sample_reinserts_attachments(
+    db: SampleBufferDatabase, sample: EvalSampleSummary
+) -> None:
+    """A retry's attachment content must survive a stale seen-mark.
+
+    Sample retry removes then re-logs the same (id, epoch).
+    """
+
+    def log_payload_event(uuid: str) -> None:
+        event = make_model_event([ChatMessageUser(content="q")], uuid=uuid, content="a")
+        event.call = ModelCall.create(
+            {"messages": [{"role": "user", "content": "w" * 150}]}, None
+        )
+        db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+
+    db.start_sample(sample)
+    log_payload_event("e1")
+    db.remove_samples([(sample.id, 1)])
+
+    db.start_sample(sample)
+    log_payload_event("e2")
+    with db._get_connection() as conn:
+        stored = list(db._get_attachments(conn, sample.id, 1))
+    assert any(a.content.startswith("w") for a in stored), (
+        "retry's attachment content was skipped by a stale seen-mark"
+    )
+
+
+def test_failed_batch_does_not_mark_attachments_seen(
+    db: SampleBufferDatabase,
+    sample: EvalSampleSummary,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rolled-back log_events batch must not leave attachment hashes marked seen.
+
+    Buffer-write errors are swallowed upstream, and the retried batch would
+    silently skip the content while events reference attachment://hash.
+    """
+    db.start_sample(sample)
+    event = make_model_event([ChatMessageUser(content="q")], uuid="e1", content="a")
+    event.call = ModelCall.create(
+        {"messages": [{"role": "user", "content": "v" * 150}]}, None
+    )
+
+    original = to_json_str_safe
+
+    def failing(value: Any) -> str:
+        assert db._pending_seen_hashes, (
+            "failure injected before attachments were staged - test is vacuous"
+        )
+        raise RuntimeError("injected serialization failure")
+
+    monkeypatch.setattr(database_module, "to_json_str_safe", failing)
+    with pytest.raises(RuntimeError):
+        db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+    monkeypatch.setattr(database_module, "to_json_str_safe", original)
+
+    # retry the batch: content must be inserted (not filtered by a
+    # seen-mark from the rolled-back attempt)
+    db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+    with db._get_connection() as conn:
+        stored = list(db._get_attachments(conn, sample.id, 1))
+    assert any(a.content.startswith("v") for a in stored)
+
+
+def test_completed_samples_release_seen_hash_state(
+    db: SampleBufferDatabase, sample: EvalSampleSummary
+) -> None:
+    """Per-sample seen-hash state must not accumulate across completed samples."""
+    db.start_sample(sample)
+    event = make_model_event(
+        [ChatMessageUser(content="q")], uuid="e1", content="z" * 150
+    )
+    db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+    assert db._inserted_attachment_hashes
+    db.complete_sample(sample, sample_metadata=None)
+    assert (str(sample.id), 1) not in db._inserted_attachment_hashes

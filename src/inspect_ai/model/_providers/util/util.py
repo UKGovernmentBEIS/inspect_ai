@@ -1,6 +1,7 @@
 import os
+import re
 from logging import getLogger
-from typing import Tuple
+from typing import Any, Tuple
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._chat_message import (
@@ -10,8 +11,28 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 
 logger = getLogger(__name__)
+
+
+def sample_cache_affinity_key() -> str | None:
+    """The running sample's id, for a provider's prompt cache affinity key.
+
+    Several providers accept a caller-supplied id -- a header or a request
+    field, named differently by each -- which they use to route requests
+    sharing a prefix to the same replica, so a later turn can hit the cache an
+    earlier one populated. A sample is Inspect's unit of conversation: every
+    turn of its agent loop shares a growing prefix, so pinning them together
+    is what makes the cache hit.
+
+    Returns None outside a running sample, where there is no conversation to
+    key on and requests should be load balanced as before.
+    """
+    from inspect_ai.log._samples import sample_active
+
+    active = sample_active()
+    return active.sample_uuid if active is not None else None
 
 
 def model_base_url(base_url: str | None, env_vars: str | list[str]) -> str | None:
@@ -80,3 +101,78 @@ def resolve_api_key(api_key_env_vars: list[str]) -> str | None:
         if api_key:
             return api_key
     return None
+
+
+def normalize_stream_arg(value: Any, arg_name: str = "stream") -> bool | None:
+    """Normalize a `stream`/`streaming` model arg to a bool or None ("auto").
+
+    `-M` model args are YAML-parsed, so `true`/`false` arrive as bools but
+    `auto` arrives as the string "auto" — it must map to the auto sentinel
+    (None), not a truthy explicit setting. String bool spellings ("True",
+    "false") are accepted for non-YAML callers. Anything else raises so a
+    typo can't silently force streaming on or off.
+
+    Args:
+        value: The raw model arg value.
+        arg_name: The model arg's name, for error messages.
+
+    Returns:
+        True/False for an explicit setting, None for auto/unset.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered == "auto":
+            return None
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+    raise ValueError(
+        f"Unrecognized value for the {arg_name} model arg: {value!r} "
+        '(expected true, false, or "auto")'
+    )
+
+
+# point releases match (5-1, 5.1, 5-2, ...) but not the base release (-5 or
+# -5-0), 1M-context style suffixes (-5-1m), or date suffixes (-5-20260901)
+_CLAUDE_FABLE_5_POINT_RELEASE = re.compile(
+    r"claude-(?:fable|mythos)-5[-.](?!0(?![0-9A-Za-z]))\d{1,2}(?![0-9A-Za-z])"
+)
+
+
+def is_claude_fable_5_1_model(model_name: str) -> bool:
+    """Fable/Mythos 5.1 or a later point release of those codenames.
+
+    Both models reject forced tool choice; only Fable 5.1 additionally binds
+    thinking blocks to their originating conversation prefix ("Claude Mythos
+    5.1 doesn't run this check"). The 5.1 behaviors are assumed to persist in
+    later point releases.
+    """
+    return _CLAUDE_FABLE_5_POINT_RELEASE.search(model_name) is not None
+
+
+def is_forced_tool_choice(tool_choice: ToolChoice) -> bool:
+    """A tool choice that requires a tool call ("any" or a specific tool)."""
+    return tool_choice == "any" or isinstance(tool_choice, ToolFunction)
+
+
+def forced_tool_choice_degraded_metadata(tool_choice: ToolChoice) -> dict[str, Any]:
+    """ModelOutput metadata recording a forced tool choice degraded to auto.
+
+    A degraded forced tool choice changes request semantics (the model may
+    answer with plain text instead of the required tool call), so providers
+    record it per-request in the output metadata — an auditable fact in the
+    eval log, not just a log warning.
+    """
+    return {
+        "tool_choice_degraded": {
+            "requested": {"type": "tool", "name": tool_choice.name}
+            if isinstance(tool_choice, ToolFunction)
+            else {"type": "any"},
+            "used": {"type": "auto"},
+        }
+    }

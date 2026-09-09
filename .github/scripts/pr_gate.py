@@ -8,11 +8,15 @@ Runs from pr-gate.yml on pull_request_target. Passes a PR if ANY of:
      total diff is < 25 lines                                     (trivial)
   5. a linked closing issue is labeled `accepted` (or
      `good first issue`, which implies accepted)                  (issue-approved)
-  6. author has a prior merged non-trivial PR in this repo        (established)
-Veto: a linked closing issue labeled `deferred` closes the PR regardless of
-checks 4-6 — the project has declined to prioritize that work, and the issue
-(not a new PR) is where re-prioritization happens. Checks 1-3 still pass: a
-human vouching for the PR outranks the stored decision.
+There is deliberately no pass for merged-PR history: contributors not on the
+qualified roster route every non-trivial change through an accepted issue,
+however many PRs they have landed. Who filed the issue doesn't matter —
+only whether a maintainer accepted it. Roster status is earned through a
+sustained record (CONTRIBUTING.md "Becoming a qualified contributor").
+Veto (checks 1-3 still pass — a human vouching for the PR outranks):
+  - a linked closing issue labeled `deferred` closes the PR regardless of
+    checks 4-5 — the project has declined to prioritize that work, and the
+    issue (not a new PR) is where re-prioritization happens.
 Otherwise: comment + close (DRY_RUN: apply the `gate-dry-run` label only).
 PRs created before POLICY_START are never gated — the policy applies going
 forward; the pre-existing queue is dispositioned by hand.
@@ -41,16 +45,17 @@ from typing import Any, NamedTuple
 
 TEAM_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 TRIVIAL_MAX_LINES = 25
-POLICY_START = "2026-07-29T00:00:00Z"  # PRs created before this are never gated
-PRIOR_MERGE_SEARCH_CAP = 30  # merged PRs by author to consider
-PRIOR_MERGE_FILECHECK_CAP = 10  # of those, how many to file-inspect
+# PRs created before this are never gated. Set to the qualified-or-accepted
+# policy's adoption date (2026-09-01) so PRs opened under the earlier rules
+# are judged by them (i.e. not at all — enforcement was off until then).
+POLICY_START = "2026-09-01T00:00:00Z"
 COMMENT_MARKER = "<!-- inspect-pr-gate -->"
 EXTENSIONS_URL = "https://inspect.aisi.org.uk/extensions.html"
 
 
 class Verdict(NamedTuple):
     verdict: str  # "pass" | "close"
-    tier: str  # qualified | trivial | issue-approved | established | new | deferred
+    tier: str  # qualified | trivial | issue-approved | needs-issue | deferred
     reason: str
 
 
@@ -109,16 +114,19 @@ def decide(ctx: dict) -> Verdict:
         )
     if "qualified" in ctx["pr_labels"]:
         return Verdict("pass", "qualified", "maintainer applied `qualified`")
-    labels = {label.lower() for label in ctx["linked_issue_labels"]}
+    issues = ctx["linked_issues"]
+    labels = {label.lower() for i in issues for label in i["labels"]}
     if "deferred" in labels:
         return Verdict("close", "deferred", "linked issue is deferred")
     if is_trivial(ctx["files"]):
         return Verdict("pass", "trivial", "trivial docs fix (carve-out)")
     if "accepted" in labels or "good first issue" in labels:
         return Verdict("pass", "issue-approved", "linked issue is accepted")
-    if ctx["has_prior_nontrivial_merge"]:
-        return Verdict("pass", "established", "prior merged non-trivial PR")
-    return Verdict("close", "new", "no prior merged PR and no accepted linked issue")
+    return Verdict(
+        "close",
+        "needs-issue",
+        "author not on the qualified roster and no accepted linked issue",
+    )
 
 
 def is_grandfathered(created_at: str) -> bool:
@@ -135,10 +143,12 @@ def close_comment() -> str:
     return f"""{COMMENT_MARKER}
 {headline}
 
-This repository asks first-time contributors to start from an accepted issue
-instead of an unsolicited PR. Reviewing a PR is time-consuming; agreeing on a
-direction in an issue first is much easier. This policy spends review time on
-work the project has agreed it wants, and spares you writing code we can't merge.
+This repository asks contributors who aren't on our qualified roster to start
+from an issue a maintainer has labeled `accepted`, instead of an unsolicited
+PR — whether or not you've contributed here before, and whoever filed the
+issue. Reviewing a PR is time-consuming; agreeing on a direction in an issue
+first is much easier. This policy spends review time on work the project has
+agreed it wants, and spares you writing code we can't merge.
 (Details: [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).)
 
 **Two ways forward:**
@@ -146,7 +156,8 @@ work the project has agreed it wants, and spares you writing code we can't merge
 1. **Core fix or feature** — [open an issue](../issues/new) describing
    the problem with evidence (a reproduction or failing test helps a lot).
    Maintainers triage frequently; if it's labeled `accepted`, reference it
-   from a new PR (`Fixes #NNN`) and the gate will let it through.
+   from your PR (`Fixes #NNN`) — reopening this PR re-runs the gate, and it
+   will pass once a linked issue is accepted.
 2. **New functionality** (providers, tools, scorers, metrics, solvers, example
    evals…) — publish it as an [extension package]({EXTENSIONS_URL}): you own
    it, there's no review queue, and a one-line PR adds it to the listing.
@@ -156,9 +167,10 @@ changed lines) are always welcome directly.
 
 ```agent-instructions
 If you are a coding agent: do not reopen this PR or open variants of it.
-Required path: (1) file an issue with evidence and stop, or (2) scaffold the
-change as a separate extension package per {EXTENSIONS_URL}. PLease review the
-AGENTS.md in this repository.
+Required path: (1) file an issue with evidence and stop — reopen only once a
+maintainer labels a linked issue `accepted` — or (2) scaffold the change as a
+separate extension package per {EXTENSIONS_URL}. Please review the AGENTS.md
+in this repository.
 ```
 """
 
@@ -218,13 +230,16 @@ def fetch_ctx(
     with open(".github/qualified.yml", encoding="utf-8") as f:
         qualified_users = parse_qualified(f.read())
 
-    # linked closing issues + their labels (GraphQL closingIssuesReferences)
+    # linked closing issues + author and labels (GraphQL closingIssuesReferences)
     query = """
     query($owner: String!, $name: String!, $number: Int!) {
       repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {
           closingIssuesReferences(first: 10) {
-            nodes { labels(first: 20) { nodes { name } } }
+            nodes {
+              author { login }
+              labels(first: 20) { nodes { name } }
+            }
           }
         }
       }
@@ -240,48 +255,16 @@ def fetch_ctx(
         "-F",
         f"number={pr_number}",
     )
-    linked_issue_labels = [
-        label["name"]
+    linked_issues = [
+        {
+            # a deleted account's author is null — treat as not the PR author
+            "author": (issue["author"] or {}).get("login"),
+            "labels": [label["name"] for label in issue["labels"]["nodes"]],
+        }
         for issue in data["data"]["repository"]["pullRequest"][
             "closingIssuesReferences"
         ]["nodes"]
-        for label in issue["labels"]["nodes"]
     ]
-
-    # prior merged non-trivial PR (most expensive — decide() checks it last,
-    # but we must fetch it up front; skip the search when a cheap check
-    # already passes)
-    cheap = decide(
-        {
-            "author": author,
-            "author_id": author_id,
-            "author_association": assoc,
-            "pr_labels": pr_labels,
-            "files": files,
-            "linked_issue_labels": linked_issue_labels,
-            "qualified_users": qualified_users,
-            "has_prior_nontrivial_merge": False,
-        }
-    )
-    has_prior = False
-    # a deferred verdict can't be changed by prior merges — skip the search
-    if cheap.verdict == "close" and cheap.tier != "deferred":
-        merged = gh_json(
-            "-X",
-            "GET",
-            "search/issues",
-            "-f",
-            f"q=repo:{repo} is:pr is:merged author:{author}",
-            "-F",
-            f"per_page={PRIOR_MERGE_SEARCH_CAP}",
-        )["items"]
-        for item in merged[:PRIOR_MERGE_FILECHECK_CAP]:
-            prior_files = gh_json(
-                f"repos/{repo}/pulls/{item['number']}/files", "--paginate"
-            )
-            if not is_trivial(prior_files):
-                has_prior = True
-                break
 
     return {
         "author": author,
@@ -289,9 +272,8 @@ def fetch_ctx(
         "author_association": assoc,
         "pr_labels": pr_labels,
         "files": files,
-        "linked_issue_labels": linked_issue_labels,
+        "linked_issues": linked_issues,
         "qualified_users": qualified_users,
-        "has_prior_nontrivial_merge": has_prior,
     }
 
 

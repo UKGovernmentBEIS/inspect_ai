@@ -42,6 +42,15 @@ from .subagent import Subagent
 
 logger = getLogger(__name__)
 
+SUBAGENT_RESULT_MAX_OUTPUT = 0
+"""Output limit for tools that hand a subagent's result back to the parent.
+
+A subagent's report *is* the payload of the delegation, so clipping it at
+``max_tool_output`` (16KB by default) throws away the very thing the parent
+dispatched for. ``0`` disables truncation. Shared with the background
+lifecycle tools, which echo the same results.
+"""
+
 # ---------------------------------------------------------------------------
 # Background dispatch registry
 # ---------------------------------------------------------------------------
@@ -370,7 +379,11 @@ def agent_tool(
     if background_enabled and single_name is not None:
         only = single_name
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
         def agent() -> Tool:
             """Delegate a task to a specialized subagent."""
 
@@ -388,7 +401,11 @@ def agent_tool(
 
     elif background_enabled:
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
         def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
@@ -408,7 +425,11 @@ def agent_tool(
     elif single_name is not None:
         only = single_name
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
         def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
@@ -425,7 +446,11 @@ def agent_tool(
 
     else:
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
         def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 

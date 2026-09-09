@@ -96,9 +96,6 @@ dependencies = [
     "aiohttp",
     "httpx",
     "jsonrpcserver",
-    # mcp_server_session.py uses mcp 1.x-only APIs (JSONRPCMessage.model_validate_json
-    # and .root); keep below 2.x until that code is ported to the 2.x API
-    "mcp>=1.10.0,<2",
     "packaging",
     "pydantic",
     "returns",
@@ -127,6 +124,9 @@ dev = [
     "anthropic",
     "openai",
     "google-genai",
+    # Test-only: wire-parity tests round-trip the host's mcp models through the
+    # vendored JSON-RPC models (the shipped binary does not bundle mcp).
+    "mcp",
 ]
 
 dist = ["twine", "build"]

@@ -14,7 +14,15 @@ mypy:
 	mypy --exclude tests/test_package src tests
 
 .PHONY: check
-check: ruff mypy
+check: ruff mypy suppressions-check
+
+.PHONY: suppressions-check
+suppressions-check:
+	python3 .github/scripts/check_suppressions.py
+
+.PHONY: suppressions-update
+suppressions-update:
+	python3 .github/scripts/check_suppressions.py --update
 
 .PHONY: test
 test:

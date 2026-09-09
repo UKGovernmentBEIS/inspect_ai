@@ -4,12 +4,25 @@ import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
+from inspect_ai._eval.task.sandbox import read_sandboxenv_file, resolve_sample_files
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._dataset import MemoryDataset
 from inspect_ai.solver._solver import Solver, solver
 from inspect_ai.util._sandbox.context import sandbox
 
 FILES_DIR = Path(__file__).parent / "test_sandbox_files"
+
+
+def test_resolve_sample_files_empty_string_is_literal_content() -> None:
+    # "" must be treated as empty file contents, not as a path (fsspec
+    # resolves "" to the cwd, which would copy the entire working
+    # directory into the sandbox)
+    files = {"submission/report.md": ""}
+    assert resolve_sample_files(files) == files
+
+
+async def test_read_sandboxenv_file_empty_string_is_literal_content() -> None:
+    assert await read_sandboxenv_file("") == b""
 
 
 @skip_if_no_docker

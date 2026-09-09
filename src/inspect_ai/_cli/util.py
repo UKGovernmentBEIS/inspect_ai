@@ -1,12 +1,13 @@
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import click
 import yaml
 from pydantic import ValidationError
 
-from inspect_ai._util.config import resolve_args
+from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai._util.flag_values import int_bool_or_str_value, int_or_bool_value
+from inspect_ai.model import GenerateConfig, Model, ModelRoles, get_model
 from inspect_ai.util._limit import TokenLimit, parse_token_limit
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -22,36 +23,22 @@ def int_or_bool_flag_callback(
         - Specified with no value -> true_value
         - Specified with "true"/"false" -> true_value or false_value respectively
         - Specified with an integer -> that integer
+
+        The last three are `int_or_bool_value`, so that reading this option from
+        the environment variable it is bound to reaches the same value. Only the
+        first is a question the command line alone can answer.
         """
-        # 1. If this parameter was never given on the command line,
-        #    then we return 0.
         source = ctx.get_parameter_source(param.name) if param.name else ""
         if source == click.core.ParameterSource.DEFAULT:
             # Means the user did NOT specify the flag at all
             return false_value
 
-        # 2. The user did specify the flag. If value is None,
-        #    that means they used the flag with no argument, e.g. --my-flag
-        if value is None:
-            return true_value
-
-        # 3. If there is a value, try to parse booleans or an integer.
-        lower_val = value.lower()
-        true_vals = {"true", "yes"}
-        if is_one_true:
-            true_vals.add("1")
-        if lower_val in true_vals:
-            return true_value
-        elif lower_val in ("false", "no", "0"):
-            return false_value
-        else:
-            # 4. Otherwise, assume it is an integer
-            try:
-                return int(value)
-            except ValueError:
-                raise click.BadParameter(
-                    f"Expected 'true', 'false', or an integer for --{param.name}. Got: {value}"
-                )
+        try:
+            return int_or_bool_value(value, true_value, false_value, is_one_true)
+        except ValueError:
+            raise click.BadParameter(
+                f"Expected 'true', 'false', or an integer for --{param.name}. Got: {value}"
+            ) from None
 
     return callback
 
@@ -168,31 +155,16 @@ def int_bool_or_str_flag_callback(
         - Specified with "true"/"false" -> true_value or false_value respectively
         - Specified with an integer -> that integer
         - Specified with any other string -> that string
+
+        All but the first are `int_bool_or_str_value`, shared with the reader
+        that takes these options from their environment variables.
         """
-        # 1. If this parameter was never given on the command line,
-        #    then we return false_value.
         source = ctx.get_parameter_source(param.name) if param.name else ""
         if source == click.core.ParameterSource.DEFAULT:
             # Means the user did NOT specify the flag at all
             return false_value
 
-        # 2. The user did specify the flag. If value is None,
-        #    that means they used the flag with no argument, e.g. --my-flag
-        if value is None:
-            return true_value
-
-        # 3. If there is a value, try to parse booleans first.
-        lower_val = value.lower()
-        if lower_val in ("true", "yes", "1"):
-            return true_value
-        elif lower_val in ("false", "no", "0"):
-            return false_value
-        else:
-            # 4. Try to parse as an integer
-            try:
-                return int(value)
-            except ValueError:
-                return str(value)
+        return int_bool_or_str_value(value, true_value, false_value)
 
     return callback
 
@@ -211,36 +183,21 @@ def parse_cli_config(
     return cli_config
 
 
-def parse_cli_args(
-    args: tuple[str, ...] | list[str] | None, force_str: bool = False
-) -> dict[str, Any]:
-    params: dict[str, Any] = dict()
-    if args:
-        for arg in list(args):
-            parts = arg.split("=")
-            if len(parts) > 1:
-                key = parts[0].replace("-", "_")
-                value = yaml.safe_load("=".join(parts[1:]))
-                if isinstance(value, str):
-                    value = value.split(",")
-                    value = value if len(value) > 1 else value[0]
-                params[key] = str(value) if force_str else value
-    return params
-
-
 def parse_model_role_cli_args(
     model_roles: tuple[str, ...] | None,
-) -> dict[str, str | Model]:
+) -> ModelRoles:
     """Parse model roles from CLI args. Supports key-value, YAML, and JSON formats.
 
     Args:
         model_roles: Tuple of strings to parse as model roles.
 
     Returns:
-        Dictionary of role names to model names or model instances.
+        Dictionary of role names to model names or model instances (or lists
+        thereof for roles with multiple models).
 
     Examples:
         ("grader=mockllm/model",) -> {'grader': 'mockllm/model'}
+        ("grader=mockllm/model_a,mockllm/model_b",) -> {'grader': ['mockllm/model_a', 'mockllm/model_b']}
         ("grader={model: mockllm/model, temperature: 0.5}",) -> {'grader': <Model>}
         ('grader={"model": "mockllm/model", "temperature": 0.5}',) -> {'grader': <Model>}
     """
@@ -250,7 +207,8 @@ def parse_model_role_cli_args(
         raise ValueError(
             "Could not parse model role arguments. Should be key-value pairs or valid YAML/JSON."
         ) from e
-    for role_name, params in parsed_args.items():
+
+    def resolve_role_value(role_name: str, params: Any) -> str | Model:
         # if value is a dict, create a model instance
         if isinstance(params, dict):
             model_name = params.pop("model", None)
@@ -267,11 +225,24 @@ def parse_model_role_cli_args(
             # otherwise roles sharing the same model/config/args collapse onto one
             # cached object and per-role usage is misattributed (see #4450). This
             # mirrors the string-role path in resolve_model_roles().
-            parsed_args[role_name] = get_model(
-                model_name, config=config, memoize=False, **model_args
-            )
+            return get_model(model_name, config=config, memoize=False, **model_args)
         # else assume it is just a model name and leave it as a string
-    return parsed_args
+        return cast(str, params)
+
+    # concrete dict type (ModelRoles is a read-only Mapping alias)
+    resolved_args: dict[str, str | Model | list[str | Model]] = {}
+    for role_name, params in parsed_args.items():
+        # comma-separated model names (or a YAML list) yield a list of models
+        if isinstance(params, list):
+            # strip whitespace and drop empty tokens (e.g. a trailing comma),
+            # mirroring how --model treats comma-separated names
+            items = [p.strip() if isinstance(p, str) else p for p in params]
+            resolved_args[role_name] = [
+                resolve_role_value(role_name, param) for param in items if param != ""
+            ]
+        else:
+            resolved_args[role_name] = resolve_role_value(role_name, params)
+    return resolved_args
 
 
 def parse_model_spec_cli_args(

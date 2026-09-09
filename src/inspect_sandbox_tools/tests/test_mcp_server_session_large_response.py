@@ -24,41 +24,24 @@ import pytest
 from inspect_sandbox_tools._remote_tools._mcp import (
     mcp_server_session as session_module,
 )
+from inspect_sandbox_tools._remote_tools._mcp.jsonrpc_types import (
+    JSONRPCError,
+    JSONRPCRequest,
+    JSONRPCResponse,
+    StdioServerParameters,
+)
 from inspect_sandbox_tools._remote_tools._mcp.mcp_server_session import (
     MCPServerSession,
 )
-from mcp import JSONRPCError, JSONRPCRequest, JSONRPCResponse
 
-
-class _FakeStdin:
-    def write(self, data: bytes) -> None:
-        pass
-
-    async def drain(self) -> None:
-        pass
-
-
-class _FakeProcess:
-    def __init__(self, stdout: asyncio.StreamReader) -> None:
-        self.stdout = stdout
-        self.stdin = _FakeStdin()
-        self.pid: int | None = None
-
-    def terminate(self) -> None:
-        pass
-
-    async def wait(self) -> int:
-        return 0
-
-    def kill(self) -> None:
-        pass
+from .mcp_session_fakes import FakeProcess
 
 
 async def test_large_response_resolves_under_default_limit() -> None:
     # ~1 MiB single-line response: above the old 64KB default (which hung), well
     # under the new 256 MiB default. Must resolve normally.
     reader = asyncio.StreamReader(limit=100 * 1024 * 1024)
-    session = MCPServerSession(_FakeProcess(reader), "utf-8", "strict")
+    session = MCPServerSession(FakeProcess(reader), "utf-8", "strict")
     try:
         payload = (
             '{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"'
@@ -84,7 +67,7 @@ async def test_oversized_line_fails_fast_instead_of_hanging() -> None:
     # Small reader limit + an over-limit line with no newline: the pending request
     # must be failed promptly rather than hang until the client timeout.
     reader = asyncio.StreamReader(limit=4096)
-    session = MCPServerSession(_FakeProcess(reader), "utf-8", "strict")
+    session = MCPServerSession(FakeProcess(reader), "utf-8", "strict")
     try:
 
         async def feed() -> None:
@@ -110,7 +93,7 @@ async def test_send_request_after_reader_death_fails_fast() -> None:
     # After the reader dies on an oversized line, a SUBSEQUENT request must fail
     # fast rather than hang — the session must not be silently poisoned.
     reader = asyncio.StreamReader(limit=4096)
-    session = MCPServerSession(_FakeProcess(reader), "utf-8", "strict")
+    session = MCPServerSession(FakeProcess(reader), "utf-8", "strict")
     try:
         reader.feed_data(b'{"jsonrpc":"2.0","id":1,"result":"' + b"A" * 8192)
         # wait for the reader to observe the oversized line and exit; it swallows
@@ -128,7 +111,7 @@ async def test_terminate_resolves_inflight_request_instead_of_hanging() -> None:
     # A request parked on `await future` when terminate() cancels the reader must
     # be resolved (with an error) rather than left hanging until the client timeout.
     reader = asyncio.StreamReader(limit=100 * 1024 * 1024)
-    session = MCPServerSession(_FakeProcess(reader), "utf-8", "strict")
+    session = MCPServerSession(FakeProcess(reader), "utf-8", "strict")
 
     # never feed a response, so send_request parks on `await future`
     request = JSONRPCRequest(jsonrpc="2.0", id=1, method="tools/call", params={})
@@ -152,23 +135,20 @@ async def test_create_wires_readline_limit_into_subprocess(
     # create_subprocess_exec. The large-response fix is moot if this kwarg is
     # dropped, and the reader-level tests above (which build their own
     # StreamReader) would not catch that regression.
-    from inspect_sandbox_tools._remote_tools._mcp import mcp_server_session
-    from mcp import StdioServerParameters
-
     captured: dict[str, object] = {}
 
     async def fake_create_subprocess_exec(
         *args: object, **kwargs: object
-    ) -> _FakeProcess:
+    ) -> FakeProcess:
         captured["limit"] = kwargs.get("limit")
         captured["start_new_session"] = kwargs.get("start_new_session")
-        return _FakeProcess(asyncio.StreamReader())
+        return FakeProcess(asyncio.StreamReader())
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
 
     session = await MCPServerSession.create(StdioServerParameters(command="true"))
     try:
-        assert captured["limit"] == mcp_server_session._READLINE_LIMIT
+        assert captured["limit"] == session_module._READLINE_LIMIT
         assert captured["start_new_session"] is True
     finally:
         await session.terminate()
@@ -177,7 +157,7 @@ async def test_create_wires_readline_limit_into_subprocess(
 async def test_retired_session_shutdown_uses_only_captured_processes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    process = _FakeProcess(asyncio.StreamReader())
+    process = FakeProcess(asyncio.StreamReader())
     process.pid = 99
     session = MCPServerSession(process, "utf-8", "strict")
     captured_child = MagicMock(pid=100)

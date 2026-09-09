@@ -1,7 +1,8 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field, field_serializer
+from pydantic import Field, PrivateAttr, field_serializer
 
 from inspect_ai._util.dateutil import UtcDatetime, datetime_to_iso_format_safe
 from inspect_ai.model._chat_message import ChatMessage
@@ -49,6 +50,36 @@ CANCEL_ERRORS: frozenset[str] = frozenset(
 """All cancel sentinels. Use ``event.error in CANCEL_ERRORS`` in
 renderers / consumers that should treat every cancel cause the same
 way (e.g. suppressing display of an interrupted generation)."""
+
+
+@dataclass
+class ModelEventProgress:
+    """In-flight progress on a pending model call.
+
+    Written per stream chunk by the model layer's stream observer
+    (`inspect_ai.model._stream`) and read by pollers of the pending event
+    (control channel, TUI). Ephemeral by design: it describes an attempt
+    still in flight, so it lives in a `PrivateAttr` (never serialized —
+    adding it to the event schema would leak a monitoring artifact into
+    eval logs and the type-generation pipeline) and is discarded with the
+    attempt. See design/ctl/generate-progress.md (layer 2).
+    """
+
+    last_progress_at: float | None = None
+    """Unix timestamp of the last observed stream progress."""
+
+    output_tokens: int | None = None
+    """Cumulative output tokens streamed so far (`None` when the provider
+    reports no usage mid-stream — counts are never estimated)."""
+
+
+def model_event_progress(event: "ModelEvent") -> ModelEventProgress | None:
+    """In-flight progress record for a pending model event (if any).
+
+    `None` when the event is not pending, or when no provider stream has
+    reported progress (non-streamed calls, providers not yet instrumented).
+    """
+    return event._progress if event.pending else None
 
 
 class ModelEvent(BaseEvent):
@@ -104,6 +135,10 @@ class ModelEvent(BaseEvent):
 
     working_time: float | None = Field(default=None)
     """working time for model call that succeeded (i.e. was not retried)."""
+
+    _progress: ModelEventProgress | None = PrivateAttr(default=None)
+    """In-flight stream progress while pending (see :class:`ModelEventProgress`);
+    access via :func:`model_event_progress`."""
 
     @field_serializer("completed")
     def serialize_completed(self, dt: datetime | None) -> str | None:

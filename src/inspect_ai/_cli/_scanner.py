@@ -6,11 +6,11 @@ from typing import Any
 import click
 
 from inspect_ai._cli.util import (
-    parse_cli_args,
     parse_cli_config,
     parse_model_role_cli_args,
 )
 from inspect_ai._eval.task.scan import Scanners
+from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.registry import registry_lookup
 
 

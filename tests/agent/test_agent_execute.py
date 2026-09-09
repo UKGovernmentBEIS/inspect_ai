@@ -187,6 +187,18 @@ def test_agent_as_tool():
     check_agent_as_tool(as_tool)
 
 
+def test_agent_as_tool_result_not_truncated():
+    # the agent's report is the payload the caller asked for, so it is exempt
+    # from max_tool_output (0 disables truncation)
+    assert ToolDef(as_tool(web_surfer())).max_output == 0
+
+
+def test_agent_as_tool_max_output_overridable():
+    # callers who do want a cap can ask for one
+    assert ToolDef(as_tool(web_surfer(), max_output=2048)).max_output == 2048
+    assert ToolDef(as_tool(web_surfer(), max_output=None)).max_output is None
+
+
 def test_agent_as_tool_curry():
     check_agent_as_tool_curry(as_tool)
 

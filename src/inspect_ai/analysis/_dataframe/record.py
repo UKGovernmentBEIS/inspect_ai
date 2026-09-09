@@ -91,7 +91,9 @@ def import_record(
         try:
             result[name] = _resolve_value(value, column.type)
         except ValueError as ex:
-            error = ColumnError(name, path=column.path, error=ex, log=log)
+            error = ColumnError(
+                name, path=str(column.path) if column.path else None, error=ex, log=log
+            )
             if strict:
                 raise ValueError(str(error))
             else:
@@ -104,7 +106,7 @@ def import_record(
         ex = ValueError(
             f"field not of type {required_type}" if required_type else "field not found"
         )
-        error = ColumnError(name, path=path, error=ex, log=log)
+        error = ColumnError(name, path=str(path) if path else None, error=ex, log=log)
         if strict:
             raise ValueError(str(error))
         else:
@@ -270,7 +272,7 @@ def _resolve_value(
 
     # give up
     raise ValueError(
-        f"Cannot coerce {value} from type {type(value).__name__}) to {type_.__name__}"
+        f"Cannot coerce {value} from type {type(value).__name__} to {type_.__name__}"
     )
 
 

@@ -1,9 +1,12 @@
 import contextvars
-from typing import Sequence
+import dataclasses
+import json
+from typing import Any, NoReturn, Sequence
 from unittest.mock import patch
 
+import numpy as np
 import pytest
-from test_helpers.transcript import FakeTranscriptHistoryProvider
+from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
 
 from inspect_ai._util.constants import DEFAULT_LOG_MODEL_API_CALLS
 from inspect_ai.dataset._dataset import Sample
@@ -11,6 +14,12 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.log._condense import (
+    WalkContext,
+    attachment_refs_from_object,
+    events_attachment_fn,
+    walk_model_call,
+)
 from inspect_ai.log._transcript import (
     Transcript,
     transcript,
@@ -20,6 +29,8 @@ from inspect_ai.model import GenerateConfig
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+
+ATTACHABLE = "x" * 150  # > events_attachment_fn's 100-char attachment threshold
 
 
 def _model_event_with_call(model: str = "mockllm/model") -> ModelEvent:
@@ -685,6 +696,20 @@ def test_bounded_transcript_evicts_unreferenced_attachments() -> None:
     assert transcript.attachments
 
 
+def test_shared_attachment_survives_eviction_of_one_referencing_event() -> None:
+    """Eviction of one referencing event must not strip a shared attachment.
+
+    Prefix reuse makes refcounts exceed 1; content still needed by
+    other resident events must survive.
+    """
+    tr = Transcript(bounded=True, resident_tail=2, log_model_api=True)
+    payload = "shared payload content " * 10
+    for i in range(4):
+        tr._event(_model_event_with_call_payload(f"event-{i}", payload))
+    for event in tr._events:
+        assert not attachment_refs_from_object(event) - set(tr.attachments)
+
+
 def test_bounded_transcript_update_rebuilds_attachment_refs() -> None:
     transcript = Transcript(bounded=True, resident_tail=1, log_model_api=True)
     event = _model_event_with_call_payload("event-1", "first payload" * 100)
@@ -917,3 +942,473 @@ def test_history_events_from_with_pinned_event_and_no_provider_raises() -> None:
         transcript.history.events_from(6)
     # the trailing window itself is fine
     assert _data(transcript.history.events_from(7)) == [7, 8, 9]
+
+
+def test_bounded_transcript_prunes_message_refs_cache_on_eviction() -> None:
+    tr = Transcript(bounded=True, resident_tail=1, log_model_api=True)
+    shared = ChatMessageUser(content="shared question")
+    first = _model_event_with_call_payload("event-1", "first payload" * 100)
+    first.input = [shared]
+    second = _model_event_with_call_payload("event-2", "second payload" * 100)
+
+    tr._event(first)
+    assert shared.id is not None
+    assert shared.id in tr._message_refs_cache
+
+    tr._event(second)  # resident_tail=1 evicts event-1
+
+    assert shared.id not in tr._message_refs_cache
+    assert shared.id not in tr._message_refs_counter.counts
+
+
+def test_restored_events_populate_memo_and_prune_on_eviction() -> None:
+    """Resume shape end-to-end.
+
+    Condensed restored events enter via _extend_restored_events, their
+    refs resolve, and eviction releases them.
+    """
+    tr = Transcript(bounded=True, resident_tail=1, log_model_api=True)
+    condensed = ChatMessageUser(content="attachment://restored-ref")
+    restored = make_model_event([condensed], uuid="restored-1")
+    tr._extend_restored_events([restored], {"restored-ref": "restored content"})
+    assert condensed.id in tr._message_refs_cache
+    assert tr.attachments.get("restored-ref") == "restored content"
+    tr._event(InfoEvent(uuid="filler-1", data="x"))
+    tr._event(InfoEvent(uuid="filler-2", data="y"))  # evicts restored-1
+    assert condensed.id not in tr._message_refs_cache
+
+
+def test_message_refs_cache_distinguishes_same_id_variants() -> None:
+    # resume shape: agent-state message (raw, no refs) and restored-event
+    # message (condensed, refs) legitimately share one msg.id
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    raw = ChatMessageUser(content="long raw content " * 20)
+    condensed = raw.model_copy(update={"content": "attachment://abc123"})
+    assert raw.id == condensed.id
+
+    ev_condensed = _model_event_with_call_payload("event-1", ATTACHABLE)
+    ev_condensed.input = [condensed]
+    ev_raw = _model_event_with_call_payload("event-2", ATTACHABLE)
+    ev_raw.input = [raw]
+    tr._event(ev_condensed)
+    tr._event(ev_raw)
+
+    assert raw.id is not None
+    bucket = tr._message_refs_cache[raw.id]
+    assert len(bucket) == 2
+    refsets = {cached_refs for _, cached_refs in bucket}
+    assert frozenset() in refsets
+    assert frozenset({"abc123"}) in refsets
+    # and the condensed variant's ref was refcounted
+    assert tr._attachment_refs_counter.counts.get("abc123", 0) >= 1
+
+
+def test_message_refs_cache_does_not_grow_for_equal_clones() -> None:
+    # resolve_tool_model_input model_copies every message per generate; an
+    # ==-equal clone must reuse the cached entry, not append a new one
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    original = ChatMessageUser(content="question")
+    e1 = _model_event_with_call_payload("event-1", ATTACHABLE)
+    e1.input = [original]
+    tr._event(e1)
+
+    clone = original.model_copy()
+    assert clone is not original
+    e2 = _model_event_with_call_payload("event-2", ATTACHABLE)
+    e2.input = [clone]
+    tr._event(e2)
+
+    assert original.id is not None
+    assert len(tr._message_refs_cache[original.id]) == 1
+
+
+class _NonBoolEq:
+    """Metadata value whose `__eq__` result isn't bool-coercible.
+
+    Covers the non-ValueError half of the family (torch raises RuntimeError
+    where numpy and pandas raise ValueError), so the guard can't be narrowed
+    to `except ValueError` without this failing.
+    """
+
+    def __eq__(self, other: object) -> Any:
+        return self
+
+    def __bool__(self) -> bool:
+        raise RuntimeError("truth value is ambiguous")
+
+    def __hash__(self) -> int:
+        return 0
+
+
+@pytest.mark.parametrize("value", [np.array([1, 2, 3]), _NonBoolEq()])
+def test_message_refs_memo_tolerates_incomparable_metadata(value: object) -> None:
+    # a deep-copying solver/agent yields a clone sharing the id but not the
+    # metadata objects, so the memo's == arm actually runs
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    msg = ChatMessageUser(content="attachment://deadbeef", metadata={"v": value})
+    tr._event(make_model_event([msg], uuid="event-1"))
+    tr._event(make_model_event([msg.model_copy(deep=True)], uuid="event-2"))
+
+    # both events' refs counted (the crash aborted _set_attachment_refs after
+    # _events.append, leaving the second event's refs uncounted)
+    assert tr._attachment_refs_counter.counts["deadbeef"] == 2
+
+
+def test_message_refs_cache_bucket_is_bounded() -> None:
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    base = ChatMessageUser(content="variant 0 " * 20)
+    assert base.id is not None
+    event = _model_event_with_call_payload("event-1", ATTACHABLE)
+    event.input = [base]
+    tr._event(event)
+    for i in range(1, 10):
+        # id-preserving content rewrite (third-party pattern)
+        event.input = [base.model_copy(update={"content": f"variant {i} " * 20})]
+        tr._event_updated(event)
+    from inspect_ai.log._transcript import _MESSAGE_REFS_BUCKET_LIMIT
+
+    assert len(tr._message_refs_cache[base.id]) <= _MESSAGE_REFS_BUCKET_LIMIT
+
+
+def test_message_refs_cache_staleness_on_in_place_mutation_is_accepted() -> None:
+    """In-place content mutation without an id refresh returns stale refs.
+
+    By design (identity hit). Both directions are pinned, but only the first
+    is reachable: a mutation that *drops* a ref leaves it counted
+    (over-retention). A mutation that *adds* one would go uncounted and lose
+    the content, but no first-party mutator can produce it — refs are minted
+    only inside walk_chat_message, which copies, and the one in-place
+    rewrite that could introduce arbitrary content (``model_input``
+    handlers) refreshes the id.
+    """
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    dropped = ChatMessageUser(content="attachment://stale")
+    event = _model_event_with_call_payload("event-1", ATTACHABLE)
+    event.input = [dropped]
+    tr._event(event)
+    assert "stale" in tr._attachment_refs_counter.counts
+    dropped.content = "no refs any more"  # in-place, id unchanged
+    tr._event_updated(event)
+    assert "stale" in tr._attachment_refs_counter.counts  # over-retained
+
+    added = ChatMessageUser(content="original content " * 10)
+    other = _model_event_with_call_payload("event-2", ATTACHABLE)
+    other.input = [added]
+    tr._event(other)
+    added.content = "attachment://ghost"  # no first-party mutator does this
+    tr._event_updated(other)
+    assert (
+        "ghost" not in tr._attachment_refs_counter.counts
+    )  # stale memo: ref not counted
+
+
+def test_event_message_ids_shrink_on_update() -> None:
+    """An event whose input loses a message must release that id's refcount."""
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    keep = ChatMessageUser(content="keep")
+    drop = ChatMessageUser(content="drop")
+    event = _model_event_with_call_payload("event-1", ATTACHABLE)
+    event.input = [keep, drop]
+    tr._event(event)
+    assert drop.id in tr._message_refs_counter.counts
+    event.input = [keep]
+    tr._event_updated(event)
+    assert drop.id not in tr._message_refs_counter.counts
+    assert drop.id not in tr._message_refs_cache
+
+
+def test_message_refs_memo_bypassed_for_id_none() -> None:
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    msg = ChatMessageUser(content="no id here")
+    msg.id = None
+    event = _model_event_with_call_payload("event-1", ATTACHABLE)
+    event.input = [msg]
+    tr._event(event)
+    assert tr._message_refs_cache == {} or None not in tr._message_refs_cache
+
+
+def test_set_attachment_refs_does_not_model_dump(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Assert the live-scan refs path never falls back to model_dump.
+
+    The cycle-termination tests already pin the resulting behavioral
+    difference end-to-end.
+    """
+    from inspect_ai.event._base import BaseEvent
+
+    def raising(self: BaseEvent, *args: object, **kwargs: object) -> NoReturn:
+        raise AssertionError("must not call model_dump on the live-scan path")
+
+    monkeypatch.setattr(BaseEvent, "model_dump", raising)
+
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    msg = ChatMessageUser(content="attachment://in-msg")
+    event = ModelEvent(
+        model="m",
+        input=[msg],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("m", "attachment://out-msg"),
+        call=ModelCall.create(
+            {"messages": [{"role": "user", "content": "attachment://call-req"}]},
+            {"content": "attachment://call-resp"},
+        ),
+    )
+
+    event_refs = tr._attachment_refs(event)
+    assert event_refs.refs == {"in-msg", "out-msg", "call-req", "call-resp"}
+    assert msg.id in event_refs.message_ids
+
+    tr._set_attachment_refs(event)
+    assert set(tr._attachment_refs_counter.counts) == event_refs.refs
+    assert set(tr._message_refs_counter.counts) == event_refs.message_ids
+
+
+def test_condense_model_call_empty_messages_does_not_poison_cache() -> None:
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    payload = "poison probe content " * 10
+    tr._condense_model_call(
+        ModelCall.create(
+            {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
+        )
+    )
+    assert len(tr._call_walk_cache._slots) == 1
+    for _ in range(10):
+        tr._condense_model_call(ModelCall.create({"model": "m", "messages": []}, None))
+    # empty requests must not occupy (or evict) lineage slots
+    assert len(tr._call_walk_cache._slots) == 1
+
+
+def _call_with_message_ids(ids: list[int]) -> ModelCall:
+    return ModelCall.create(
+        {
+            "model": "m",
+            "messages": [{"role": "user", "content": f"{ATTACHABLE} {i}"} for i in ids],
+        },
+        None,
+    )
+
+
+def test_condense_model_call_repeated_prefix_request_reuses_its_slot() -> None:
+    """CallWalkCache copy of the CallPoolIndex tie-break regression."""
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    call = _call_with_message_ids
+
+    long_a, short, long_b = [0, 1, 2, 3], [0, 1], [0, 1, 2, 9]
+    tr._condense_model_call(call(long_a))
+    tr._condense_model_call(call(short))  # partial: sibling slot
+    tr._condense_model_call(call(long_b))  # partial: sibling slot
+    for _ in range(10):
+        tr._condense_model_call(call(short))
+
+    # the short stream keeps one slot; both long lineages survive
+    slots = tr._call_walk_cache._slots
+    assert sorted(len(s.messages) for s in slots) == [2, 4, 4]
+
+
+def test_condense_model_call_extending_request_replaces_the_lineage_it_consumes() -> (
+    None
+):
+    """CallWalkCache copy of the same tie under newest-first scanning.
+
+    The repeat above exits early on an exact match, so it no longer
+    distinguishes ``>=`` from the fully-consumed tie-break. A request that
+    extends past every candidate reaches no early exit, and ``>=`` then
+    takes the older partial lineage and forks a sibling.
+    """
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    call = _call_with_message_ids
+
+    tr._condense_model_call(call([0, 1, 2, 3]))  # older, longer: partial match
+    tr._condense_model_call(call([0, 1]))  # newer: consumed fully below
+    tr._condense_model_call(call([0, 1, 9]))
+
+    slots = tr._call_walk_cache._slots
+    assert sorted(len(s.messages) for s in slots) == [3, 4]
+
+
+def test_condense_model_call_abandoned_lineage_bytes_are_released() -> None:
+    """CallWalkCache copy of the CallPoolIndex byte-retention test.
+
+    Two lineages, both well under the slot cap, so random eviction never
+    fires: only staleness eviction can release the abandoned one. Asserted
+    in both directions so it cannot pass by dropping everything.
+    """
+    from inspect_ai.log._condense import _CALL_WALK_MAX_IDLE
+
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    sentinel = "SENTINEL" + "x" * 200_000
+    live = "LIVE" + "y" * 150
+
+    def payload_call(payload: str) -> ModelCall:
+        return ModelCall.create(
+            {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
+        )
+
+    tr._condense_model_call(payload_call(sentinel))  # abandoned after this call
+    for _ in range(_CALL_WALK_MAX_IDLE + 2):
+        tr._condense_model_call(payload_call(live))
+
+    retained = json.dumps(
+        [dataclasses.asdict(slot) for slot in tr._call_walk_cache._slots]
+    )
+    assert sentinel not in retained
+    assert live in retained
+    assert len(retained) < len(sentinel)
+
+
+def test_condense_model_call_matches_fresh_walk() -> None:
+    """Differential oracle across a multi-lineage sequence.
+
+    Divergence, interleave, shrink, and a second message key -- the cached
+    walk must match a from-scratch walk at every step (accumulated state IS
+    the point; not parametrized).
+    """
+    payload = "long payload " * 20
+
+    def make_call(stream: str, n: int, response: bool) -> ModelCall:
+        msgs = [
+            {"role": "user", "content": f"{stream} {payload} {i}"} for i in range(n)
+        ]
+        return ModelCall.create(
+            {"model": "m", "messages": msgs},
+            {"id": "r", "content": payload} if response else None,
+        )
+
+    cached_tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    fresh_attachments: dict[str, str] = {}
+    seq = [
+        ("a", 1, False),
+        ("a", 2, True),
+        ("b", 1, False),
+        ("b", 2, False),
+        ("a", 3, True),
+        ("a", 1, True),
+        ("b", 3, True),
+        ("c", 4, False),
+    ]
+    for stream, n, resp in seq:
+        cached = cached_tr._condense_model_call(make_call(stream, n, resp))
+        fresh = walk_model_call(
+            make_call(stream, n, resp),
+            events_attachment_fn(fresh_attachments),
+            WalkContext(message_cache={}, only_core=False),
+        )
+        assert cached.model_dump() == fresh.model_dump()
+    assert cached_tr.attachments == fresh_attachments
+
+
+def test_condense_model_call_prefix_breaks_on_json_distinct_values() -> None:
+    """_strict_eq, not ==: 0 vs False is python-equal but serializes differently."""
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    payload = "distinct value content " * 10
+    tr._condense_model_call(
+        ModelCall.create(
+            {"model": "m", "messages": [{"content": payload, "n": 0}]}, None
+        )
+    )
+    walked = tr._condense_model_call(
+        ModelCall.create(
+            {"model": "m", "messages": [{"content": payload, "n": False}]}, None
+        )
+    )
+    messages = walked.request["messages"]
+    assert isinstance(messages, list) and isinstance(messages[0], dict)
+    assert messages[0]["n"] is False
+
+
+def test_condense_model_call_reasserts_pruned_attachments() -> None:
+    tr = Transcript(bounded=True, resident_tail=1, log_model_api=True)
+    payload = "shared long prefix content " * 10
+    first = _model_event_with_call_payload("event-1", payload)
+    tr._event(first)
+    assert len(tr.attachments) == 1
+    ref = next(iter(tr.attachments))
+
+    # unrelated event evicts event-1 -> refcount hits zero -> content pruned
+    tr._event(InfoEvent(uuid="event-2", data="filler"))
+    assert tr.attachments == {}
+
+    # a later kept call re-sends the same request prefix: the cached walk
+    # must re-assert the pruned content, else the resident event references
+    # a missing attachment (silent content loss in the final log)
+    second = _model_event_with_call_payload("event-3", payload)
+    tr._event(second)
+    assert ref in tr.attachments
+    assert tr.attachments[ref].startswith("shared long prefix")
+
+
+def test_condense_model_call_no_message_key_falls_back() -> None:
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    call = ModelCall.create({"model": "m", "prompt": ATTACHABLE}, None)
+    walked = tr._condense_model_call(call)
+    prompt = walked.request["prompt"]
+    assert isinstance(prompt, str) and prompt.startswith("attachment://")
+    assert tr._call_walk_cache._slots == []  # fallback never populates the cache
+
+
+def test_condense_model_call_distinct_message_keys_use_distinct_lineages() -> None:
+    """Distinct message keys must use distinct lineages.
+
+    A Gemini-style 'contents' stream and an OpenAI-style 'messages' stream
+    in one sample must not cross-match slots.
+    """
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    msg = {"role": "user", "content": ATTACHABLE}
+    tr._condense_model_call(
+        ModelCall.create({"model": "m", "messages": [dict(msg)]}, None)
+    )
+    tr._condense_model_call(
+        ModelCall.create({"model": "g", "contents": [dict(msg)]}, None)
+    )
+    assert sorted(s.key for s in tr._call_walk_cache._slots) == ["contents", "messages"]
+
+
+def test_condense_model_call_snapshots_immune_to_mutation() -> None:
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    payload = "mutable content " * 10
+    call = ModelCall.create(
+        {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
+    )
+    walked = tr._condense_model_call(call)
+
+    # mutate BOTH the caller's request and the emitted walked structure
+    # (playback shaping mutates already-logged requests in place)
+    messages = call.request["messages"]
+    assert isinstance(messages, list) and isinstance(messages[0], dict)
+    messages[0]["content"] = "changed " * 30
+    walked_messages = walked.request["messages"]
+    assert isinstance(walked_messages, list) and isinstance(walked_messages[0], dict)
+    walked_messages[0]["content"] = "vandalized"
+
+    # a genuine re-send of the original content must still prefix-match and
+    # produce the original walked output
+    resend = ModelCall.create(
+        {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
+    )
+    walked2 = tr._condense_model_call(resend)
+    messages2 = walked2.request["messages"]
+    assert isinstance(messages2, list) and isinstance(messages2[0], dict)
+    content2 = messages2[0]["content"]
+    assert isinstance(content2, str) and content2.startswith("attachment://")
+    assert tr.attachments[content2.removeprefix("attachment://")] == payload
+
+
+def test_call_walk_cache_only_core_passthrough() -> None:
+    """Pin the only_core early return.
+
+    It leaves the call untouched, as in walk_model_call, and must not
+    populate the walk cache or attachments.
+    """
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    call = ModelCall.create(
+        {"model": "m", "messages": [{"role": "user", "content": ATTACHABLE}]}, None
+    )
+    walked = tr._call_walk_cache.condense(
+        call, tr.attachments, WalkContext(message_cache={}, only_core=True)
+    )
+    assert walked is call  # untouched, by identity
+    assert tr.attachments == {}  # no attachments created
+    assert tr._call_walk_cache._slots == []

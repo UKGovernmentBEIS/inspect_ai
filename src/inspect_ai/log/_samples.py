@@ -58,7 +58,7 @@ from inspect_ai.util._checkpoint.checkpointer import CheckpointerSetup, ResumeCh
 from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._sandbox import SandboxConnection
+from inspect_ai.util._sandbox import SandboxConnection, SandboxEnvironment
 from inspect_ai.util._sandbox.context import sandbox_connections
 
 from ..event._model import ModelEvent
@@ -69,6 +69,39 @@ logger = getLogger(__name__)
 
 SampleCancelAction = Literal["score", "error", "cancel"]
 """How a cancelled sample resolves (see :meth:`ActiveSample.interrupt`)."""
+
+
+class PendingInteraction(NamedTuple):
+    """One in-flight wait on a person, mirrored onto the running sample.
+
+    The same shape of problem as :class:`ActiveSampleRetryWait` and a worse
+    case of it: while a sample waits for a human approval there is *no*
+    pending event in its transcript — ``call_tool`` records the tool's event
+    only once the approval resolves — so without this record the sample reads
+    as silently idle for as long as the wait lasts, which for a human decision
+    can be overnight. Appended by :meth:`ActiveSample.awaiting_human` from the
+    ACP routing shims, removed when the wait resolves.
+    """
+
+    kind: Literal["approval", "question"]
+    """What is being waited for."""
+
+    subject: str
+    """The tool function an approval is gating; empty for a question.
+
+    The one part of a request that is safe to relay onward: a function name is
+    structural, where the call's arguments and an ``ask_user`` prompt are
+    model-generated text. A question has no structural subject at all — the
+    prompt *is* the request — so it carries none.
+    """
+
+    started_at: float
+    """When the wait began (unix ts).
+
+    Its own stamp rather than the sample's start, because *how long somebody
+    has been holding this* is the figure that decides whether to go and find
+    them, and the two diverge by however long the sample worked first.
+    """
 
 
 class ActiveSampleRetryWait(NamedTuple):
@@ -96,6 +129,11 @@ class ActiveSampleRetryWait(NamedTuple):
 
     deadline: float
     """When the wait elapses and the next attempt begins (unix ts)."""
+
+    qualified_model: str | None = None
+    """Qualified `provider/model` name, for the throughput registry's
+    active-waits scan (`model` above is the bare display name and stays
+    what the ctl activity view shows)."""
 
 
 class ActiveSample:
@@ -172,6 +210,14 @@ class ActiveSample:
         self.fallback_models: list[str] = []
         self.transcript = transcript
         self.sandboxes = sandboxes
+        # The sample's live sandbox *environments* (the context-bound dict the
+        # sample's own coroutine works against), published by the runner after
+        # sandbox init. `sandboxes` above carries connection info for the
+        # VS Code surface; this carries the environments themselves so the
+        # interim-scoring pass can bind them into its scoring context and let
+        # sandbox-inspecting scorers work (design/ctl/interim-scoring.md).
+        # Empty when the sample has no sandbox.
+        self.sandbox_environments: dict[str, "SandboxEnvironment"] = {}
         self.checkpointer = checkpointer
         self.eval_set_id = eval_set_id
         self.run_id = run_id
@@ -191,6 +237,11 @@ class ActiveSample:
         self.retry_wait: ActiveSampleRetryWait | None = None
         self._interrupt_action: SampleCancelAction | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
+        # One-shot terminal signal (see `terminal` / `wait_terminal`).
+        # Created lazily on first wait — anyio.Event() needs a running async
+        # context — and set by whichever terminal transition fires first
+        # (complete / interrupt / limit_exceeded, all on the eval's loop).
+        self._terminal_event: anyio.Event | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
         self.event_done: anyio.Event | None = None
@@ -199,18 +250,15 @@ class ActiveSample:
         # The Inspect TUI reads this to decide whether to render the
         # Interrupt button and to dispatch session/cancel + session/prompt.
         self.acp_transport: "AcpTransport | None" = None
-        # Pending human-in-the-loop interaction counts. Incremented by
-        # the ACP routing shims (approval/_human/acp.py, input/acp.py)
-        # on entry to their park-on-attach wait, decremented in
-        # `finally`. Stored as counters (not a single Literal slot)
-        # because `parallel=True` tool calls run concurrently within
-        # one sample (see `_call_tools.py`); two approvals can be
-        # in-flight at once, and a single-slot save/restore would clear
-        # the picker indicator while the second wait is still pending.
-        # The `pending_interaction` property below derives the
-        # picker-visible state from these counters.
-        self._pending_approvals: int = 0
-        self._pending_questions: int = 0
+        # In-flight human-in-the-loop waits, appended by the ACP routing
+        # shims (approval/_human/acp.py, input/acp.py) through
+        # `awaiting_human` below. A list (not a single slot) because
+        # `parallel=True` tool calls run concurrently within one sample
+        # (see `_call_tools.py`); two approvals can be in-flight at once,
+        # and a save/restore would clear the picker indicator while the
+        # second wait is still pending. The `pending_interaction` and
+        # `pending_interactions` properties derive from it.
+        self._pending_interactions: list[PendingInteraction] = []
         # In-flight tool/model tracking observer for this sample.
         # Defaults to a no-op singleton; an intervention producer (the
         # ACP transport today, future supervisors) installs itself here
@@ -254,10 +302,55 @@ class ActiveSample:
 
     def complete(self) -> None:
         self.completed = datetime.now(timezone.utc).timestamp()
+        self._fire_terminal()
+
+    @property
+    def terminal(self) -> bool:
+        """Whether the sample has reached a terminal transition.
+
+        True once the sample completed, an interrupt was stamped, or a limit
+        fired — the point after which an observer (the interim-scoring pass)
+        must stop touching its live state.
+        """
+        return (
+            self.completed is not None
+            or self._interrupt_action is not None
+            or self._limit_exceeded_error is not None
+        )
+
+    async def wait_terminal(self) -> None:
+        """Park until the sample reaches a terminal transition.
+
+        The push counterpart to polling :attr:`terminal` — the terminal
+        transitions all run on the eval's single event loop, so the flag
+        check and the wait have no gap between them, and terminality is
+        monotonic (never un-set), so one one-shot event suffices.
+        """
+        while not self.terminal:
+            if self._terminal_event is None:
+                self._terminal_event = anyio.Event()
+            await self._terminal_event.wait()
+
+    def _fire_terminal(self) -> None:
+        if self._terminal_event is not None:
+            self._terminal_event.set()
+
+    @property
+    def pending_interactions(self) -> tuple[PendingInteraction, ...]:
+        """Every wait on a person currently in flight, oldest first.
+
+        Empty when the sample is working. Reported over the control channel,
+        which is the only way an external runner can tell "working" from
+        "stopped on you": while a sample waits for an approval there is no
+        pending event in its transcript at all — the tool's event is recorded
+        *after* the approval resolves — so the wait is invisible rather than
+        merely unlabelled.
+        """
+        return tuple(self._pending_interactions)
 
     @property
     def pending_interaction(self) -> Literal["approval", "question"] | None:
-        """Picker-visible pending state, derived from the counters.
+        """Picker-visible pending state.
 
         Approval wins over question when both are in flight — approvals
         gate tool execution, so they're the more urgent signal. The
@@ -265,11 +358,40 @@ class ActiveSample:
         ``parallel=True`` tool calls (which can fire multiple approvals
         for one sample) don't clear the indicator early.
         """
-        if self._pending_approvals > 0:
+        kinds = {pending.kind for pending in self._pending_interactions}
+        if "approval" in kinds:
             return "approval"
-        if self._pending_questions > 0:
+        if "question" in kinds:
             return "question"
         return None
+
+    @contextlib.contextmanager
+    def awaiting_human(
+        self, kind: Literal["approval", "question"], subject: str = ""
+    ) -> Iterator[None]:
+        """Record that this sample is parked on a person for the duration.
+
+        Args:
+            kind: What is being waited for.
+            subject: The tool function an approval is gating. Left empty for a
+                question, whose prompt is model-generated text rather than
+                anything structural — see :class:`PendingInteraction`.
+        """
+        pending = PendingInteraction(
+            kind=kind,
+            subject=subject,
+            started_at=datetime.now(timezone.utc).timestamp(),
+        )
+        self._pending_interactions.append(pending)
+        try:
+            yield
+        finally:
+            # by identity rather than by value: two concurrent approvals of the
+            # same tool differ only in their timestamp, and removing "one of
+            # them" must still remove exactly one
+            self._pending_interactions[:] = [
+                other for other in self._pending_interactions if other is not pending
+            ]
 
     @property
     def running_time(self) -> float:
@@ -292,6 +414,7 @@ class ActiveSample:
         scoring, not counted as an error).
         """
         self._interrupt_action = action
+        self._fire_terminal()
         if self.tg is None:
             raise RuntimeError(
                 "Attempted to interrupt sample without enclosing task group."
@@ -301,6 +424,7 @@ class ActiveSample:
 
     def limit_exceeded(self, error: LimitExceededError) -> None:
         self._limit_exceeded_error = error
+        self._fire_terminal()
         if self.tg is None:
             raise RuntimeError(
                 "Attempted to interrupt sample for limit without enclosing task group."
@@ -461,6 +585,33 @@ async def active_sample(
 
 def sample_active() -> ActiveSample | None:
     return _sample_active.get(None)
+
+
+@contextlib.contextmanager
+def awaiting_human(
+    kind: Literal["approval", "question"], subject: str = ""
+) -> Iterator[None]:
+    """Record on the active sample that it is waiting on a person.
+
+    Wrapped around the *dispatch* of a human request rather than around any
+    one surface that serves it — an approval is a wait whether it is answered
+    in an editor over ACP, in the Textual panel, or at the console, and a
+    record that only one of the three kept would report an attended run as
+    idle for as long as somebody was looking at the prompt.
+
+    A no-op outside a sample (a scorer, a bare `ask_user` in a script), which
+    is why callers can wrap unconditionally.
+
+    Args:
+        kind: What is being waited for.
+        subject: The tool function an approval is gating; empty for a question.
+    """
+    sample = sample_active()
+    if sample is None:
+        yield
+        return
+    with sample.awaiting_human(kind, subject):
+        yield
 
 
 def set_active_sample_token_limit(token_limit: int | None) -> None:
@@ -647,7 +798,12 @@ _active_retry_wait: ContextVar["ActiveSampleRetryWait | None"] = ContextVar(
 )
 
 
-def report_active_sample_retry_wait(model: str, attempt: int, wait_time: float) -> None:
+def report_active_sample_retry_wait(
+    model: str,
+    attempt: int,
+    wait_time: float,
+    qualified_model: str | None = None,
+) -> None:
     """Record that the active sample's model call is waiting to retry.
 
     Called from the model retry loop's before-sleep callback (once per
@@ -658,15 +814,21 @@ def report_active_sample_retry_wait(model: str, attempt: int, wait_time: float) 
     (design/ctl/generate-progress.md).
 
     Args:
-        model: Model whose call is waiting to retry.
+        model: Model whose call is waiting to retry (bare display name).
         attempt: Number of the attempt that just failed (1-based).
         wait_time: Seconds until the next attempt begins.
+        qualified_model: Qualified ``provider/model`` name for the
+            throughput registry's active-waits scan.
     """
     active = sample_active()
     if active is not None:
         now = datetime.now(timezone.utc).timestamp()
         record = ActiveSampleRetryWait(
-            model=model, attempt=attempt, started_at=now, deadline=now + wait_time
+            model=model,
+            attempt=attempt,
+            started_at=now,
+            deadline=now + wait_time,
+            qualified_model=qualified_model,
         )
         _active_retry_wait.set(record)
         active.retry_wait = record

@@ -3,6 +3,7 @@ from rich.text import Text
 
 from inspect_ai._util.retry import http_retries_count
 from inspect_ai.log._refusal import refusal_count
+from inspect_ai.model._throughput import throughput_footer_rate
 from inspect_ai.util._concurrency import concurrency_status_display
 from inspect_ai.util._throttle import throttle
 
@@ -36,11 +37,21 @@ def task_counters(counters: dict[str, str]) -> str:
 
 
 def task_http_retries() -> dict[str, str]:
-    return {"HTTP retries": f"{http_retries_count():,}"}
+    counters = {"HTTP retries": f"{http_retries_count():,}"}
+    # aggregate effective output rate, shown only once retries have occurred
+    # this run (throughput_footer_rate returns None while the run is quiet)
+    out_tok_rate = throughput_footer_rate()
+    if out_tok_rate is not None:
+        counters["out tok/s"] = f"{out_tok_rate:,.0f}"
+    return counters
 
 
 def task_http_retries_str() -> str:
-    return f"HTTP retries: {http_retries_count():,}"
+    retries = f"HTTP retries: {http_retries_count():,}"
+    out_tok_rate = throughput_footer_rate()
+    if out_tok_rate is not None:
+        retries = f"{retries}  out tok/s: {out_tok_rate:,.0f}"
+    return retries
 
 
 def task_refusals_str() -> str:

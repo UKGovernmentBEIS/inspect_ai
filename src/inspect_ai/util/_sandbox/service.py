@@ -1,5 +1,6 @@
 import json
 import re
+from contextlib import AsyncExitStack
 from logging import getLogger
 from pathlib import PurePosixPath
 from textwrap import dedent
@@ -37,6 +38,13 @@ ERROR = "error"
 RESULT = "result"
 
 POLLING_INTERVAL = 0.1
+
+# Grace period given to in-flight request handlers to finish writing their
+# responses after until() becomes true, before the remainder are cancelled.
+# Long enough that ordinary handlers (including the one whose response made
+# until() true) always finish; bounded so a handler stuck in user/model code
+# can't hold the service open indefinitely.
+NORMAL_EXIT_DRAIN_TIMEOUT = 30.0
 
 SERVICE_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 FILENAME_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
@@ -168,17 +176,38 @@ async def sandbox_service(
     # function to handle requests catching errors and logging a warning
     # (catch broadly so an unexpected error reading the request queue can't
     # escape and tear down the polling loop)
-    async def safe_handle_requests() -> None:
+    async def safe_handle_requests(
+        task_group: anyio.abc.TaskGroup | None = None,
+    ) -> None:
         try:
-            await service.handle_requests()
+            await service.handle_requests(task_group)
         except Exception as ex:
             logger.warning(f"Error waiting for sandbox rpc: {ex}")
 
     # wait for and process methods
     if handle_requests:
-        while not until():
-            await anyio.sleep(polling_interval)
-            await safe_handle_requests()
+        # requests run on a task group that outlives each poll, so a slow
+        # request can't stop the queue being served (model generation retries
+        # indefinitely by default, so one rate-limited request would otherwise
+        # strand every request behind it). On normal exit (until() becomes
+        # true) stop polling and give already-dispatched handlers a bounded
+        # grace period to drain -- long enough that the handler whose
+        # response made until() true (and ordinary in-flight handlers)
+        # finish writing their responses, so their sandbox callers (which
+        # just poll the response file with no timeout) aren't left blocked
+        # forever. Anything still running once the grace period elapses is
+        # cancelled, so a handler stuck in user/model code can't hold the
+        # service open indefinitely. External teardown (this coroutine
+        # itself being cancelled) still cancels the group immediately via
+        # ordinary cancel-scope propagation.
+        async with anyio.create_task_group() as tg:
+            while not until():
+                await anyio.sleep(polling_interval)
+                await safe_handle_requests(tg)
+            with anyio.move_on_after(NORMAL_EXIT_DRAIN_TIMEOUT):
+                while service._in_flight:
+                    await anyio.sleep(polling_interval)
+            tg.cancel_scope.cancel()
         return None
     else:
         return safe_handle_requests
@@ -261,6 +290,7 @@ class SandboxService:
         self._requests_dir: str = ""
         self._responses_dir: str = ""
         self._client_script: str = ""
+        self._in_flight: set[str] = set()
 
     def add_method(self, name: str, method: SandboxServiceMethod) -> None:
         """Add a method to the service.
@@ -296,8 +326,21 @@ class SandboxService:
         if self._started:
             self._started.set()
 
-    async def handle_requests(self) -> None:
-        """Handle all pending service requests."""
+    async def handle_requests(
+        self, task_group: "anyio.abc.TaskGroup | None" = None
+    ) -> None:
+        """Serve pending service requests.
+
+        Args:
+            task_group: If provided, requests dispatched during this call run
+                on `task_group` rather than one scoped to this call, so they
+                keep running -- and this call does not wait for them -- after
+                it returns. This lets a caller poll for new requests without
+                waiting on ones already in flight; `task_group` must outlive
+                every request dispatched on it. Without it, `handle_requests()`
+                waits for every request it dispatched to complete before
+                returning.
+        """
         # NUL-delimited so hostile filenames (e.g. containing newlines) can't
         # forge extra entries in the listing
         result = await self._exec(
@@ -318,20 +361,36 @@ class SandboxService:
         if result.success:
             request_files = [file for file in result.stdout.split("\0") if file]
             if request_files:
-                async with anyio.create_task_group() as tg:
+                async with AsyncExitStack() as stack:
+                    tg: anyio.abc.TaskGroup
+                    if task_group is not None:
+                        tg = task_group
+                    else:
+                        tg = await stack.enter_async_context(anyio.create_task_group())
                     for file in request_files:
-                        tg.start_soon(
-                            coro_log_exceptions,
-                            logger,
-                            "handling sandbox service request",
-                            self._handle_request,
-                            file,
-                        )
+                        # a request stays queued until it is answered, so skip
+                        # the ones already running rather than serving twice
+                        request_id = PurePosixPath(file).name.removesuffix(".json")
+                        if request_id in self._in_flight:
+                            continue
+                        self._in_flight.add(request_id)
+                        tg.start_soon(self._handle_request_tracked, file, request_id)
         else:
             logger.warning(
                 f"Error listing requests for sandbox service '{self._name}': "
                 f"{result.stderr}"
             )
+
+    async def _handle_request_tracked(self, request_file: str, request_id: str) -> None:
+        try:
+            await coro_log_exceptions(
+                logger,
+                "handling sandbox service request",
+                self._handle_request,
+                request_file,
+            )
+        finally:
+            self._in_flight.discard(request_id)
 
     async def _handle_request(self, request_file: str) -> None:
         request_path = PurePosixPath(request_file)

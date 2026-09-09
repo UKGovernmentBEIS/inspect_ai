@@ -1011,8 +1011,13 @@ class TestBatcher:
 
             assert len(results) == 3
 
-            # Should timeout properly despite close timing values
-            assert 0.005 < elapsed < 0.05  # Should be close to send_delay timing
+            # Should timeout properly despite close timing values. The lower
+            # bound is the real check (the batch is under `size`, so it can only
+            # be sent once `send_delay` elapses); the upper bound is deliberately
+            # generous because the nominal path is ~31ms under trio and a loaded
+            # CI runner can stretch each 9ms tick several-fold. It still catches
+            # a regression to the 15s DEFAULT_SEND_DELAY/DEFAULT_BATCH_TICK.
+            assert 0.005 < elapsed < 1.0
 
         await self._run_with_task_group(test_logic)
 

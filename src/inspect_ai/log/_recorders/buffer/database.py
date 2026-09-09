@@ -16,6 +16,7 @@ from typing import (
     Iterable,
     Iterator,
     Literal,
+    TypeAlias,
     TypeVar,
 )
 
@@ -87,6 +88,9 @@ from .types import (
 
 logger = getLogger(__name__)
 SYNC_CLEANUP_TIMEOUT = 30
+
+SampleKey: TypeAlias = tuple[str, int]
+"""In-memory key for one sample: ``(str(sample_id), epoch)``."""
 
 if TYPE_CHECKING:
     from .types import TranscriptEventSink
@@ -253,6 +257,18 @@ class SampleBufferDatabase(SampleBuffer):
         # Prevent late ModelEvents from restarting indices at 0 after completion.
         self._completed_samples: set[tuple[str, int]] = set()
 
+        # Attachment content already shipped per sample (see
+        # _insert_unseen_attachments and _staged_attachment_marks). str(id):
+        # SQLite TEXT affinity collides 5/'5' in the UNIQUE constraint, so the
+        # in-memory key must too. No lock: all writers run on the event-loop
+        # thread (see the _get_connection invariants above). Skipping a shipped
+        # hash is sound only because a live sample's attachment rows outlive
+        # its marks: nothing deletes them short of _remove_samples_now, which
+        # drops this entry with them (and complete_sample drops the entry
+        # alone, which only re-ships).
+        self._inserted_attachment_hashes: dict[SampleKey, set[str]] = {}
+        self._pending_seen_hashes: list[tuple[SampleKey, str]] | None = None
+
         self._sample_read_leases: dict[tuple[str, int], int] = {}
         self._pending_sample_removals: set[tuple[str, int]] = set()
         self._cleanup_pending = False
@@ -303,41 +319,61 @@ class SampleBufferDatabase(SampleBuffer):
                     if call_index is not None:
                         call_index.restore(call_mark)
 
-        with self._get_connection(
-            write=True, on_rollback=restore_index_snapshots
-        ) as conn:
-            # collect the values for all events
-            values: list[str | int] = []
-            for event in events:
-                if isinstance(event.event, ModelEvent):
-                    key = (str(event.id), event.epoch)
-                    if key not in index_snapshots:
-                        msg_index = self._msg_indices.get(key)
-                        call_index = self._call_indices.get(key)
-                        index_snapshots[key] = (
-                            None if msg_index is None else msg_index.mark(),
-                            None if call_index is None else call_index.mark(),
+        with self._staged_attachment_marks():
+            with self._get_connection(
+                write=True, on_rollback=restore_index_snapshots
+            ) as conn:
+                # collect the values for all events
+                values: list[str | int] = []
+                for event in events:
+                    if isinstance(event.event, ModelEvent):
+                        key = (str(event.id), event.epoch)
+                        if key not in index_snapshots:
+                            msg_index = self._msg_indices.get(key)
+                            call_index = self._call_indices.get(key)
+                            index_snapshots[key] = (
+                                None if msg_index is None else msg_index.mark(),
+                                None if call_index is None else call_index.mark(),
+                            )
+
+                    event = self._condense_event(conn, event)
+                    values.extend(
+                        (
+                            event.event.uuid or uuid(),
+                            str(event.id),
+                            event.epoch,
+                            to_json_str_safe(event.event),
                         )
-
-                event = self._condense_event(conn, event)
-                values.extend(
-                    (
-                        event.event.uuid or uuid(),
-                        str(event.id),
-                        event.epoch,
-                        to_json_str_safe(event.event),
                     )
-                )
 
-            # dynamically create the SQL query
-            placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
-            sql = f"""
-            INSERT INTO events (event_id, sample_id, sample_epoch, data)
-            VALUES {placeholders}
-            """
+                # dynamically create the SQL query
+                placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
+                sql = f"""
+                INSERT INTO events (event_id, sample_id, sample_epoch, data)
+                VALUES {placeholders}
+                """
 
-            # Insert all rows
-            conn.execute(sql, values)
+                # Insert all rows
+                conn.execute(sql, values)
+
+    @contextmanager
+    def _staged_attachment_marks(self) -> Iterator[None]:
+        """Stage attachment seen-marks, applying them only on a clean exit.
+
+        ``_insert_unseen_attachments`` records what it shipped here rather
+        than marking it seen directly. The marks are applied only if the block
+        completes — i.e. the enclosing transaction committed. A rolled-back
+        batch must leave no marks: buffer-write errors are swallowed upstream,
+        and a stale mark would make the retry silently skip real content.
+        """
+        staged: list[tuple[SampleKey, str]] = []
+        self._pending_seen_hashes = staged
+        try:
+            yield
+        finally:
+            self._pending_seen_hashes = None
+        for key, attachment_hash in staged:
+            self._inserted_attachment_hashes.setdefault(key, set()).add(attachment_hash)
 
     def complete_sample(
         self,
@@ -380,6 +416,7 @@ class SampleBufferDatabase(SampleBuffer):
             self._msg_indices.pop(key, None)
             self._call_indices.pop(key, None)
             self._completed_samples.add(key)
+            self._inserted_attachment_hashes.pop(key, None)
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         with self._get_connection(write=True) as conn:
@@ -416,6 +453,7 @@ class SampleBufferDatabase(SampleBuffer):
             self._msg_indices.pop(key, None)
             self._call_indices.pop(key, None)
             self._completed_samples.discard(key)
+            self._inserted_attachment_hashes.pop(key, None)
 
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
@@ -1569,7 +1607,7 @@ class SampleBufferDatabase(SampleBuffer):
         )[0]
 
         # insert attachments
-        self._insert_attachments(conn, event.id, event.epoch, attachments)
+        self._insert_unseen_attachments(conn, event.id, event.epoch, attachments)
         return event
 
     def _condense_model_event(
@@ -1624,7 +1662,7 @@ class SampleBufferDatabase(SampleBuffer):
 
         # walk the remainder (input now [], call request without messages)
         condensed_event = walk_events([condensed], content_fn, context)[0]
-        self._insert_attachments(conn, event.id, event.epoch, attachments)
+        self._insert_unseen_attachments(conn, event.id, event.epoch, attachments)
         return SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
 
     def _resolve_event_attachments(
@@ -1673,6 +1711,34 @@ class SampleBufferDatabase(SampleBuffer):
             """,
             parameters,
         )
+
+    def _insert_unseen_attachments(
+        self, conn: Connection, id: int | str, epoch: int, attachments: dict[str, str]
+    ) -> None:
+        """Insert attachments whose content this sample hasn't shipped yet.
+
+        Purely an optimization over ``INSERT OR IGNORE`` (which already
+        collapses duplicates — but only after the full duplicate content has
+        crossed into SQLite, which event updates re-trigger every turn). Only
+        the ``log_events`` path uses this, because the filtering is only sound
+        when the seen-marks it produces are staged until commit (see
+        :meth:`_staged_attachment_marks`) — a caller that filtered without
+        staging would let a rolled-back batch's marks make the retry skip real
+        content. The ``start_sample``/``complete_sample`` sample condense path
+        keeps plain ``_insert_attachments`` (no rollback hook there, and it
+        runs once per sample).
+        """
+        key = (str(id), epoch)
+        seen = self._inserted_attachment_hashes.get(key)
+        if seen:
+            attachments = {
+                h: content for h, content in attachments.items() if h not in seen
+            }
+        if not attachments:
+            return
+        self._insert_attachments(conn, id, epoch, attachments)
+        if self._pending_seen_hashes is not None:
+            self._pending_seen_hashes.extend((key, h) for h in attachments)
 
     def _insert_message_pool_entry(
         self,
@@ -1769,7 +1835,7 @@ def sync_to_filestore(
     # sample queries accordingly
     if len(manifest.segments) > 0:
         last_segment = manifest.segments[-1]
-        last_segment_id = last_segment.id
+        last_segment_id = last_segment["id"]
     else:
         last_segment_id = 0
 
@@ -1782,7 +1848,7 @@ def sync_to_filestore(
     last_message_pool_id = 0
     last_call_pool_id = 0
     segment_files: list[SegmentFile] = []
-    segment_by_id = {seg.id: seg for seg in manifest.segments}
+    segment_by_id = {seg["id"]: seg for seg in manifest.segments}
     for manifest_sample in manifest.samples:
         metadata_hash = db._get_sample_metadata_hash(
             manifest_sample.summary.id, manifest_sample.summary.epoch
@@ -1817,12 +1883,16 @@ def sync_to_filestore(
         for sample_segment in manifest_sample.segments:
             seg = sample_segment_cursor(sample_segment, segment_by_id)
             if seg is not None:
-                after_event_id = max(after_event_id, seg.last_event_id)
-                after_attachment_id = max(after_attachment_id, seg.last_attachment_id)
-                after_message_pool_id = max(
-                    after_message_pool_id, seg.last_message_pool_id
+                after_event_id = max(after_event_id, seg["last_event_id"])
+                after_attachment_id = max(
+                    after_attachment_id, seg["last_attachment_id"]
                 )
-                after_call_pool_id = max(after_call_pool_id, seg.last_call_pool_id)
+                after_message_pool_id = max(
+                    after_message_pool_id, seg.get("last_message_pool_id", 0)
+                )
+                after_call_pool_id = max(
+                    after_call_pool_id, seg.get("last_call_pool_id", 0)
+                )
 
         # get sample data
         sample_data = db.get_sample_data(

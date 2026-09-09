@@ -157,7 +157,7 @@ def _create_filestore_fixture(
     # Write manifest
     summary = _make_summary(id=sample_id, epoch=epoch, completed=completed)
     manifest = Manifest(
-        samples=[SampleManifest(summary=summary, segments=[s.id for s in segments])],
+        samples=[SampleManifest(summary=summary, segments=[s["id"] for s in segments])],
         segments=segments,
     )
     manifest_path = os.path.join(buffer_dir, "manifest.json")
@@ -355,13 +355,14 @@ def _write_crashed_eval(
     path: str,
     task: str = "test_task",
     sandbox: SandboxEnvironmentSpec | None = None,
+    sample_ids: list[str] | None = None,
 ) -> None:
     """Write a minimal crashed .eval file (no header.json)."""
     eval_spec = EvalSpec(
         created=datetime.now(timezone.utc).isoformat(),
         task=task,
         model="mockllm/model",
-        dataset=EvalDataset(name="test", samples=1),
+        dataset=EvalDataset(name="test", samples=1, sample_ids=sample_ids),
         config=EvalConfig(),
         sandbox=sandbox,
     )
@@ -401,6 +402,43 @@ async def test_recover_from_filestore_end_to_end() -> None:
             read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             assert len(read_log.samples) == 1
+
+
+async def test_recover_from_filestore_incomplete_action_error_finalizes() -> None:
+    """Streaming (filestore) recovery honors incomplete_action='error'.
+
+    The single expected sample (recorded by its string id) is in progress;
+    resolving it as an error leaves every expected sample final, so the
+    recovered log finalizes with status 'success'.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path, _ = _create_filestore_fixture(
+                temp_dir, num_segments=3, completed=False
+            )
+            _write_crashed_eval(eval_path, sample_ids=["sample1"])
+            db_dir = os.path.join(temp_dir, "empty_db_dir")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+            )
+
+            assert log.status == "success"
+            assert log.error is None
+            assert log.results is not None
+            assert log.results.total_samples == 1
+
+            read_log = await read_eval_log_async(output_path)
+            assert read_log.status == "success"
+            assert read_log.samples is not None
+            resolved = read_log.samples[0]
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
 
 
 async def test_recover_from_filestore_with_missing_segment() -> None:
@@ -1142,7 +1180,9 @@ async def test_streaming_recovery_handles_many_attachments() -> None:
             summary = _make_summary(id="sample1", epoch=1, completed=True)
             manifest = Manifest(
                 samples=[
-                    SampleManifest(summary=summary, segments=[s.id for s in segments])
+                    SampleManifest(
+                        summary=summary, segments=[s["id"] for s in segments]
+                    )
                 ],
                 segments=segments,
             )

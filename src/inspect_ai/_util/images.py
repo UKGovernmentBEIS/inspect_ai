@@ -12,6 +12,7 @@ import httpcore
 import httpx
 
 from .file import file as open_file
+from .http_defaults import connect_timeout, default_async_client
 from .url import (
     data_uri_mime_type,
     data_uri_to_base64,
@@ -124,7 +125,12 @@ async def file_as_data(file: str, mime_type: str | None = None) -> tuple[bytes, 
 
         # handle url or file
         if is_http_url(file):
-            async with httpx.AsyncClient(follow_redirects=True) as client:
+            # Fetched on the eval loop alongside model requests, so it needs
+            # the same connect deadline — but not the 600s request budget a
+            # provider call gets; 30s matches the web-search tool clients.
+            async with default_async_client(
+                timeout=httpx.Timeout(30.0, connect=connect_timeout())
+            ) as client:
                 response = await client.get(file)
                 response.raise_for_status()
                 file_bytes = response.content

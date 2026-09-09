@@ -1,7 +1,10 @@
 import concurrent.futures
 import re
 import subprocess
+import sys
 import time
+from argparse import Namespace
+from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -9,6 +12,38 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.agent._human.agent import human_cli
+from inspect_ai.agent._human.commands import submit
+from inspect_ai.agent._human.commands.submit import QuitCommand, SubmitCommand
+
+
+@pytest.mark.parametrize(
+    ("command", "args", "expected_calls"),
+    [
+        (QuitCommand(False), Namespace(), []),
+        (
+            SubmitCommand(False),
+            Namespace(answer=None),
+            [("validate", {"answer": None})],
+        ),
+    ],
+)
+def test_session_end_commands_decline_on_eof(
+    command: QuitCommand | SubmitCommand,
+    args: Namespace,
+    expected_calls: list[tuple[str, dict[str, object]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def call_human_agent(method: str, **params: object) -> None:
+        calls.append((method, params))
+
+    monkeypatch.setattr(submit, "call_human_agent", call_human_agent)
+    monkeypatch.setattr(sys, "stdin", StringIO())
+
+    command.cli(args)
+
+    assert calls == expected_calls
 
 
 @pytest.mark.slow

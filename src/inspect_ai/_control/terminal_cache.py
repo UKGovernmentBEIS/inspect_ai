@@ -18,12 +18,13 @@ Staleness is bounded by construction:
   entry alive forever) re-resolves at least once per TTL, and a served
   source is never more than ``ttl`` seconds old.
 - The one way a terminal source is superseded is a retry — a fresh attempt
-  under the same ``(eval_id, sample_id, epoch)``. The events / messages
-  readers call :func:`invalidate_terminal_sources` whenever they resolve a
+  under the same ``(eval_id, sample_id, epoch)``. Every per-sample reader
+  resolves through :func:`resolve_sample_source`, which calls
+  :func:`invalidate_terminal_sources` whenever it resolves a
   *running* source for the key, dropping it from *every* registered cache —
-  so a poll on either endpoint that observes the retry in flight drops the
+  so a poll on any endpoint that observes the retry in flight drops the
   prior attempt's entry immediately rather than waiting out the TTL, for
-  both endpoints (not just the one that observed it). (A retry that starts
+  every endpoint (not just the one that observed it). (A retry that starts
   *and* terminates between polls can still serve the prior attempt for up
   to one TTL; the attempt nonce in the events cursor means a client's
   cursor simply restarts rather than misreading offsets.)
@@ -71,8 +72,9 @@ An events entry holds a sample's full parsed event list, so the cap bounds
 memory at "a handful of samples being watched at once" — the actual shape of
 control-channel traffic — rather than one entry per sample ever read."""
 
-# Every live cache (the events / messages module singletons), so the teardown
-# boundary can clear them without importing their host modules. Weak so that
+# Every live cache (the per-sample read modules' singletons — events,
+# messages, store, ...), so the teardown boundary can clear them without
+# importing their host modules. Weak so that
 # transient instances (e.g. test-constructed replacements) don't accumulate
 # for the life of the process.
 _caches: "weakref.WeakSet[TerminalSourceCache[Any]]" = weakref.WeakSet()
@@ -159,13 +161,39 @@ class TerminalSourceCache(Generic[T]):
         self._entries.clear()
 
 
+async def resolve_sample_source(
+    key: SourceKey,
+    *,
+    running: "Callable[[], T | None]",
+    cache: TerminalSourceCache[T],
+    resolve_terminal: "Callable[[], Awaitable[T | None]]",
+) -> T | None:
+    """The source for a per-sample read: live if running, else cached terminal.
+
+    The one shared rule across the per-sample readers (events / messages /
+    store) lives here so a new reader can't forget it: resolving a *running*
+    source means a retry attempt is in flight, which supersedes any cached
+    terminal source for the key in *every* projection of the sample — so it
+    is dropped from every registered cache (see
+    :func:`invalidate_terminal_sources`), and the attempt's own terminal
+    source is resolved fresh once it finishes. Otherwise the terminal source
+    is served through ``cache`` (see :meth:`TerminalSourceCache
+    .get_or_resolve` for what a cached ``None`` would break).
+    """
+    source = running()
+    if source is not None:
+        invalidate_terminal_sources(key)
+        return source
+    return await cache.get_or_resolve(key, resolve_terminal)
+
+
 def invalidate_terminal_sources(key: SourceKey) -> None:
     """Drop ``key`` from every terminal-source cache.
 
-    Called by the events / messages readers when they resolve a *running*
-    source for the key: the retry supersedes the prior attempt's terminal
-    source in every projection of it, so the invalidation must reach both
-    caches — a per-cache invalidate would leave the other endpoint serving
+    Called by any per-sample reader when it resolves a *running* source for
+    the key: the retry supersedes the prior attempt's terminal source in
+    every projection of it, so the invalidation must reach every registered
+    cache — a per-cache invalidate would leave the other endpoints serving
     the prior attempt for up to one TTL after the retry was observed.
     """
     for cache in _caches:
