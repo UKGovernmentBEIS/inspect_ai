@@ -18,6 +18,7 @@ import pytest
 from pydantic import JsonValue
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_docker
+from typing_extensions import override
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import (
@@ -632,6 +633,48 @@ async def test_failed_task_py_write_is_reported() -> None:
 def test_generated_task_py_is_valid_python() -> None:
     """What the installer publishes for a real command list must at least parse."""
     ast.parse(human_agent_commands(REAL_COMMANDS))
+
+
+def test_generated_task_py_executes_handler_decorated_with_override(
+    tmp_path: Path,
+) -> None:
+    class OverrideCommand(HumanAgentCommand):
+        @property
+        def name(self) -> str:
+            return "override"
+
+        @property
+        def description(self) -> str:
+            return "A command whose handler uses a type-only decorator."
+
+        @override
+        def cli(self, args: Namespace) -> None:
+            """The generated handler documentation contains @override."""
+            # @override
+            message = "handler literal @override"
+            del args
+            print(message)
+
+    task_py = human_agent_commands([OverrideCommand()])
+    (tmp_path / "human_agent.py").write_text(
+        "def call_human_agent(*args, **kwargs):\n    return None\n",
+        encoding="utf-8",
+    )
+    task_py_path = tmp_path / "task.py"
+    task_py_path.write_text(task_py, encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(task_py_path), "override"],
+        cwd=tmp_path,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "handler literal @override\n"
+    assert "The generated handler documentation contains @override." in task_py
+    assert "# @override\n" in task_py
 
 
 def test_installer_source_runs_nothing_outside_the_helper_and_bashrc_scripts() -> None:
