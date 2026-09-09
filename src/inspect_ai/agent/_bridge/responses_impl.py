@@ -311,7 +311,7 @@ async def inspect_responses_api_request_impl(
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
 
-    # if there is a bridge filter give it a shot first
+    # generate via bridge
     output = await bridge_generate(bridge, model, messages, tools, tool_choice, config)
 
     debug_log("INSPECT OUTPUT", output.message)

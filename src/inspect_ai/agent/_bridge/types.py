@@ -1,6 +1,14 @@
 from enum import IntEnum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Callable, NamedTuple, NoReturn, Sequence, Set
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    NamedTuple,
+    NoReturn,
+    Sequence,
+    Set,
+    TypeAlias,
+)
 
 from shortuuid import uuid
 
@@ -33,7 +41,14 @@ if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
 
 
-StateFilter = Callable[[Sequence[ChatMessage]], bool]
+StateFilter: TypeAlias = Callable[[Sequence[ChatMessage]], bool]
+"""Predicate over the translated request messages for one generation request.
+
+Evaluated once per request, after operator-provenance restoration and before
+generation or compaction. Returning `False` excludes the request from
+`AgentBridge.state` and from canonical compaction history; the request still
+generates, still emits events and usage, and still ticks the checkpointer.
+"""
 
 
 class AgentBridge:

@@ -5,7 +5,7 @@ can remain outside the canonical conversation.
 """
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, NamedTuple
 
 import pytest
 from test_helpers.checkpoint import RecordingCheckpointer
@@ -14,7 +14,7 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, _Descent, _MessageFingerprint
 from inspect_ai.agent._bridge.util import (
     default_code_execution_providers,
     internal_web_search_providers,
@@ -1549,6 +1549,80 @@ async def test_anthropic_handler_tracks_main_thread_end_to_end() -> None:
     ]
 
 
+# ---------------------------------------------------------------------------
+# State filters
+# ---------------------------------------------------------------------------
+
+
+class BridgeTrackingSnapshot(NamedTuple):
+    """Snapshot of `AgentBridge`'s private thread-tracking attributes."""
+
+    tracked_fps: list[_MessageFingerprint] | None
+    tracked_calls: int
+    tracked_descends: _Descent | None
+    last_message_count: int
+    candidate_fps: list[_MessageFingerprint] | None
+
+
+def snapshot_tracking(bridge: AgentBridge) -> BridgeTrackingSnapshot:
+    """Capture `bridge`'s private thread-tracking attributes."""
+    return BridgeTrackingSnapshot(
+        tracked_fps=bridge._tracked_fps,
+        tracked_calls=bridge._tracked_calls,
+        tracked_descends=bridge._tracked_descends,
+        last_message_count=bridge._last_message_count,
+        candidate_fps=bridge._candidate_fps,
+    )
+
+
+def assert_tracking_unchanged(
+    bridge: AgentBridge, before: BridgeTrackingSnapshot
+) -> None:
+    """Assert an excluded request left `bridge`'s thread-tracking state untouched."""
+    assert bridge._tracked_fps == before.tracked_fps
+    assert bridge._tracked_calls == before.tracked_calls
+    assert bridge._tracked_descends == before.tracked_descends
+    assert bridge._last_message_count == before.last_message_count
+    assert bridge._candidate_fps == before.candidate_fps
+
+
+def assert_request_accounting(
+    events: RecordingModelEvents,
+    checkpointer: RecordingCheckpointer,
+    *,
+    completions: list[str],
+    ticks: int,
+    responses: Sequence[Any] | None = None,
+    check_event_ids: bool = False,
+) -> None:
+    """Assert one pending/completed event pair with usage per completion.
+
+    When `responses` is given, also assert each response carries a unique,
+    non-empty id and usage matching `completions`. When `check_event_ids`
+    is set, assert the same uniqueness for the underlying event uuids.
+    """
+    assert len(events.pending) == len(events.completed) == len(completions)
+    assert [event.output.completion for event in events.completed] == completions
+    assert all(event.output.usage is not None for event in events.completed)
+    assert [
+        event.output.usage.total_tokens if event.output.usage is not None else None
+        for event in events.completed
+    ] == [1] * len(completions)
+    if check_event_ids:
+        event_ids = [event.uuid for event in events.completed]
+        assert all(event_ids)
+        assert len(set(event_ids)) == len(completions)
+    if responses is not None:
+        response_ids = [response.id for response in responses]
+        assert all(response_ids)
+        assert len(set(response_ids)) == len(responses)
+        assert [
+            response.usage.total_tokens if response.usage is not None else None
+            for response in responses
+        ] == [1] * len(responses)
+    assert checkpointer.ticks == ticks
+
+
 @pytest.mark.parametrize("main_first", [True, False])
 async def test_state_filter_preserves_main_state_and_excluded_request_accounting(
     main_first: bool,
@@ -1623,20 +1697,12 @@ async def test_state_filter_preserves_main_state_and_excluded_request_accounting
         TASK,
         "Castle",
     ]
-    tracked_fps = bridge._tracked_fps
-    tracked_calls = bridge._tracked_calls
-    tracked_descends = bridge._tracked_descends
-    last_message_count = bridge._last_message_count
-    candidate_fps = bridge._candidate_fps
+    tracking = snapshot_tracking(bridge)
 
     await request(unrelated)
 
     assert bridge.state.output.completion == "Castle"
-    assert bridge._tracked_fps == tracked_fps
-    assert bridge._tracked_calls == tracked_calls
-    assert bridge._tracked_descends == tracked_descends
-    assert bridge._last_message_count == last_message_count
-    assert bridge._candidate_fps == candidate_fps
+    assert_tracking_unchanged(bridge, tracking)
 
     await request(
         main
@@ -1655,24 +1721,14 @@ async def test_state_filter_preserves_main_state_and_excluded_request_accounting
         "Castle after search",
     ]
     assert all(message.id is not None for message in bridge.state.messages[:-1])
-    assert len(events.pending) == len(events.completed) == 4
-    assert [event.output.completion for event in events.completed] == completions
-    assert all(event.output.usage is not None for event in events.completed)
-    assert [
-        event.output.usage.total_tokens if event.output.usage is not None else None
-        for event in events.completed
-    ] == [1, 1, 1, 1]
-    response_ids = [response.id for response in responses]
-    assert all(response_ids)
-    assert len(set(response_ids)) == 4
-    event_ids = [event.uuid for event in events.completed]
-    assert all(event_ids)
-    assert len(set(event_ids)) == 4
-    assert [
-        response.usage.total_tokens if response.usage is not None else None
-        for response in responses
-    ] == [1, 1, 1, 1]
-    assert checkpointer.ticks == 4
+    assert_request_accounting(
+        events,
+        checkpointer,
+        completions=completions,
+        ticks=4,
+        responses=responses,
+        check_event_ids=True,
+    )
 
 
 @pytest.mark.parametrize("include", [True, False])
@@ -1739,11 +1795,7 @@ async def test_excluded_operator_provenance_survives_checkpoint_resume() -> None
     resumed = AgentBridge(
         AgentState(messages=[ChatMessageUser(content=TASK)]),
         model_aliases={BRIDGE_MODEL: scenario_model(["Castle"])},
-        checkpointer=RecordingCheckpointer(
-            restored={
-                key: callback() for key, callback in checkpointer.callbacks.items()
-            }
-        ),
+        checkpointer=RecordingCheckpointer(restored=checkpointer.snapshot()),
         state_filter=lambda request: any(
             message.source == "operator" for message in request
         ),
@@ -1841,11 +1893,7 @@ async def test_state_filter_rejects_exact_main_extension_without_state_mutation(
         {"role": "user", "content": TASK},
     ]
     first_response = await request(main)
-    tracked_fps = bridge._tracked_fps
-    tracked_calls = bridge._tracked_calls
-    tracked_descends = bridge._tracked_descends
-    last_message_count = bridge._last_message_count
-    candidate_fps = bridge._candidate_fps
+    tracking = snapshot_tracking(bridge)
 
     continuation_response = await request(
         main
@@ -1863,29 +1911,14 @@ async def test_state_filter_rejects_exact_main_extension_without_state_mutation(
         TASK,
         "Castle",
     ]
-    assert bridge._tracked_fps == tracked_fps
-    assert bridge._tracked_calls == tracked_calls
-    assert bridge._tracked_descends == tracked_descends
-    assert bridge._last_message_count == last_message_count
-    assert bridge._candidate_fps == candidate_fps
-    assert len(events.pending) == len(events.completed) == 2
-    assert [event.output.completion for event in events.completed] == [
-        "Castle",
-        "Ignored continuation",
-    ]
-    assert all(event.output.usage is not None for event in events.completed)
-    assert [
-        event.output.usage.total_tokens if event.output.usage is not None else None
-        for event in events.completed
-    ] == [1, 1]
-    assert first_response.id
-    assert continuation_response.id
-    assert first_response.id != continuation_response.id
-    assert [
-        response.usage.total_tokens if response.usage is not None else None
-        for response in [first_response, continuation_response]
-    ] == [1, 1]
-    assert checkpointer.ticks == 2
+    assert_tracking_unchanged(bridge, tracking)
+    assert_request_accounting(
+        events,
+        checkpointer,
+        completions=["Castle", "Ignored continuation"],
+        ticks=2,
+        responses=[first_response, continuation_response],
+    )
 
 
 async def test_state_filter_error_on_main_extension_preserves_state() -> None:
@@ -1915,11 +1948,7 @@ async def test_state_filter_error_on_main_extension_preserves_state() -> None:
     first_response = await inspect_completions_api_request(
         {"model": BRIDGE_MODEL, "messages": main}, None, bridge
     )
-    tracked_fps = bridge._tracked_fps
-    tracked_calls = bridge._tracked_calls
-    tracked_descends = bridge._tracked_descends
-    last_message_count = bridge._last_message_count
-    candidate_fps = bridge._candidate_fps
+    tracking = snapshot_tracking(bridge)
 
     with pytest.raises(RuntimeError, match="state filter rejected main continuation"):
         await inspect_completions_api_request(
@@ -1942,22 +1971,14 @@ async def test_state_filter_error_on_main_extension_preserves_state() -> None:
         TASK,
         "Castle",
     ]
-    assert bridge._tracked_fps == tracked_fps
-    assert bridge._tracked_calls == tracked_calls
-    assert bridge._tracked_descends == tracked_descends
-    assert bridge._last_message_count == last_message_count
-    assert bridge._candidate_fps == candidate_fps
-    assert len(events.pending) == len(events.completed) == 1
-    assert [event.output.completion for event in events.completed] == [
-        "Castle",
-    ]
-    assert all(event.output.usage is not None for event in events.completed)
-    assert [
-        event.output.usage.total_tokens if event.output.usage is not None else None
-        for event in events.completed
-    ] == [1]
+    assert_tracking_unchanged(bridge, tracking)
     # A predicate failure stops the request before generation and checkpointing.
-    assert checkpointer.ticks == 1
+    assert_request_accounting(
+        events,
+        checkpointer,
+        completions=["Castle"],
+        ticks=1,
+    )
 
 
 async def test_state_filter_excludes_requests_from_compaction_history() -> None:
