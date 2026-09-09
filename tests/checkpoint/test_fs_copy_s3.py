@@ -311,6 +311,35 @@ async def test_copy_payload_files_refuses_key_escaping_sample_dir(
 
 
 @pytest.mark.parametrize(
+    "excluded_key",
+    ["context/../../escape", "context//journal", "context/../x__1/ckpt-00001.json"],
+)
+async def test_copy_payload_files_ignores_hostile_key_under_excluded_dir(
+    tmp_path: Path, mock_s3: None, excluded_key: str
+) -> None:
+    """A hostile key beneath the excluded `context/` dir is dropped, not fatal.
+
+    Containment only guards paths that are joined onto the destination;
+    `context/` is never copied, so an odd key under it must not fail the
+    retry over an entry the copy would not have touched.
+    """
+    src = f"{S3_BUCKET}/{tmp_path.name}.checkpoints/s__0"
+    dest = tmp_path / "eval.checkpoints" / "s__0"
+    dest.mkdir(parents=True)
+
+    async with AsyncFilesystem() as fs:
+        await _put(fs, f"{src}/restic/host/config", b"cfg")
+        await _put(fs, f"{src}/context/state.json", b"{}")
+        await _put(fs, f"{src}/{excluded_key}", b"evil")
+        written = await copy_payload_files(src, str(dest))
+
+    assert written == ["restic/host/config"]
+    assert (dest / "restic" / "host" / "config").read_bytes() == b"cfg"
+    assert not (dest / "context").exists()
+    _assert_nothing_outside(dest)
+
+
+@pytest.mark.parametrize(
     "hostile_dir,match",
     [
         # `<eval>/../x__1/...`: a "sample dir" named `..`.

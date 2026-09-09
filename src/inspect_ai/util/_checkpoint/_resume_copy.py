@@ -175,17 +175,24 @@ async def copy_payload_files(source_dir: str, destination_dir: str) -> list[str]
 
 
 async def _list_payload(source_dir: str) -> list[str]:
-    """Files under ``source_dir``, relative to it, minus the excluded top-level dirs."""
+    """Files under ``source_dir``, relative to it, minus the excluded top-level dirs.
+
+    Exclusion runs before containment: an excluded dir's entries are never
+    joined onto the destination, so an odd key beneath ``context/`` must not
+    fail the retry over a path the copy would not have touched.
+    """
     async_fs = get_async_filesystem()
     try:
         uris = [uri async for uri in async_fs.iter_files(source_dir, recursive=True)]
     except FileNotFoundError:
         uris = []
-    return [
+    rels = [
         rel
         for rel in _relativize(source_dir, uris)
         if rel.split("/", 1)[0] not in _EXCLUDED_TOP_LEVEL
     ]
+    _check_contained(source_dir, rels)
+    return rels
 
 
 def _normalize_s3_uri(uri: str) -> str:
@@ -204,11 +211,8 @@ def _relativize(base: str, uris: Iterable[str]) -> list[str]:
     prefix. (S3 is handled without touching fsspec's s3fs, which is
     unavailable under the trio backend.)
 
-    Every relative path is joined onto the destination sample dir, and
-    the listing is untrusted: an object-store key may carry ``..``
-    segments or a doubled slash (an absolute remainder would make the
-    join discard its root). A path that is not contained raises rather
-    than being copied anywhere.
+    The results are verbatim remainders, not yet checked for containment:
+    ``_check_contained`` runs on the subset that is actually copied.
     """
     normalize: Callable[[str], str] = (
         _normalize_s3_uri
@@ -218,7 +222,18 @@ def _relativize(base: str, uris: Iterable[str]) -> list[str]:
     prefix = normalize(base).rstrip("/") + "/"
     stripped = [normalize(uri) for uri in uris]
     assert all(path.startswith(prefix) for path in stripped), (stripped, prefix)
-    rels = [path[len(prefix) :] for path in stripped]
+    return [path[len(prefix) :] for path in stripped]
+
+
+def _check_contained(base: str, rels: Iterable[str]) -> None:
+    """Raise unless every path in ``rels`` stays inside the dir it is joined onto.
+
+    Every relative path is joined onto the destination sample dir, and
+    the listing is untrusted: an object-store key may carry ``..``
+    segments or a doubled slash (an absolute remainder would make the
+    join discard its root). A path that is not contained raises rather
+    than being copied anywhere.
+    """
     for rel in rels:
         try:
             contained_relative(rel)
@@ -226,7 +241,6 @@ def _relativize(base: str, uris: Iterable[str]) -> list[str]:
             raise ValueError(
                 f"resume copy: entry {rel!r} under {base} cannot be copied: {exc}"
             ) from exc
-    return rels
 
 
 async def _copy_payload_data(
