@@ -53,9 +53,15 @@ def ensure_json_rpc_response_chunk_dir() -> None:
     # owned - and replaced - by a sandbox user. Inspect and modify it through a
     # descriptor: a path-based check leaves a window to swap in a symlink, and
     # chmod on a path follows it. O_DIRECTORY|O_NOFOLLOW also subsumes the
-    # is-it-really-a-directory check.
+    # is-it-really-a-directory check. Another identity's 1733 root has no read
+    # bit for us, so fall back to O_PATH, which needs no permission and still
+    # supports fstat (only the owner or root chmods, and they can open O_RDONLY).
+    flags = os.O_DIRECTORY | os.O_NOFOLLOW
     try:
-        dir_fd = os.open(_CHUNK_DIR, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            dir_fd = os.open(_CHUNK_DIR, os.O_RDONLY | flags)
+        except PermissionError:
+            dir_fd = os.open(_CHUNK_DIR, os.O_PATH | flags)
     except OSError as ex:
         raise RuntimeError(
             f"JSON-RPC response chunk path is not a directory: {_CHUNK_DIR}"
