@@ -78,6 +78,14 @@ class SampleSource:
         ``enqueue_sample`` with them): they start as soon as there is free
         capacity. Return ``None`` (the default) to add nothing.
 
+        Fires for every sample the task logs, including one cancelled
+        individually by an operator (its ``error`` is then the cancellation,
+        with no scores), but not for samples cancelled by the task itself
+        unwinding (a task-level cancel or ^C), where any follow-ups could
+        never run. A cancelled sample's ``error.message`` is the cancellation
+        exception's repr (it starts with ``CancelledError(`` or
+        ``Cancelled(``), which is how to tell it from a genuine error.
+
         On a task retry this is also called for samples reused from the prior
         attempt, so a completion-driven source regenerates its follow-ups
         (returned samples whose ids match the prior attempt are themselves
