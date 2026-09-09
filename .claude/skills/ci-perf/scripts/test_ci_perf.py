@@ -115,7 +115,7 @@ def test_dry_run_never_calls_gh(
     def fail(*args: Any, **kwargs: Any) -> Any:
         pytest.fail("Dry-run called GitHub")
 
-    monkeypatch.setattr(publisher.subprocess, "run", fail)
+    monkeypatch.setattr(subprocess, "run", fail)
     monkeypatch.setattr(publisher, "gh", fail)
     monkeypatch.setattr(publisher, "api", fail)
     publisher.main()
