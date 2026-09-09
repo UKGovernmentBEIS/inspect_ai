@@ -126,6 +126,7 @@ def test_publication_retry_does_not_repeat_trigger(
 ) -> None:
     stored: list[dict[str, Any]] = []
     posted: dict[int, list[dict[str, Any]]] = {}
+    labeled: list[int] = []
 
     def fake_issues() -> list[dict[str, Any]]:
         return stored
@@ -133,7 +134,7 @@ def test_publication_retry_does_not_repeat_trigger(
     def fake_comments(number: int) -> list[dict[str, Any]]:
         return posted.get(number, [])
 
-    def fake_api(path: str, fields: dict[str, str]) -> dict[str, Any]:
+    def fake_api(path: str, fields: dict[str, Any]) -> dict[str, Any]:
         if path == "issues":
             number = len(stored) + 1
             issue = {
@@ -146,6 +147,11 @@ def test_publication_retry_does_not_repeat_trigger(
             stored.append(issue)
             return issue
         number = int(path.split("/")[1])
+        if path.endswith("/labels"):
+            assert fields == {"labels": ["auto"]}
+            stored[number - 1]["labels"] = [{"name": "auto"}]
+            labeled.append(number)
+            return fields
         posted.setdefault(number, []).append(fields)
         return fields
 
@@ -167,7 +173,9 @@ def test_publication_retry_does_not_repeat_trigger(
             "https://github.com/meridianlabs-ai/actions/actions/runs/123",
         )
     assert len(stored) == 2
-    assert posted[1] == [{"body": "@auto"}]
+    assert posted[1] == [{"body": "<!-- ci-perf-trigger:slow-job -->"}]
+    assert labeled == [1]
+    stored[0]["labels"] = []
     assert len(posted[2]) == 1
     publish(
         findings,
@@ -176,7 +184,8 @@ def test_publication_retry_does_not_repeat_trigger(
         "https://github.com/meridianlabs-ai/actions/actions/runs/123",
         run_attempt=2,
     )
-    assert posted[1].count({"body": "@auto"}) == 1
+    assert posted[1].count({"body": "<!-- ci-perf-trigger:slow-job -->"}) == 1
+    assert labeled == [1]
     assert len(posted[2]) == 2
     assert "<!-- ci-perf-summary:123:2 -->" in posted[2][-1]["body"]
 
@@ -243,7 +252,7 @@ def test_closed_and_deferred_findings_are_not_retriggered(
 def test_existing_issue_identity_and_empty_body(
     title: str, snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    writes: list[dict[str, str]] = []
+    writes: list[dict[str, Any]] = []
     monkeypatch.setattr(publisher, "issues", lambda: [])
     monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 2})
     monkeypatch.setattr(
@@ -280,8 +289,9 @@ def test_existing_issue_identity_and_empty_body(
             "Report",
             "https://github.com/meridianlabs-ai/actions/actions/runs/123",
         )
-        assert len(writes) == 2
-        assert writes[-1] == {"body": "@auto"}
+        assert len(writes) == 3
+        assert writes[-2] == {"labels": ["auto"]}
+        assert writes[-1] == {"body": "<!-- ci-perf-trigger:slow-job -->"}
     else:
         with pytest.raises(ValueError, match="title does not match"):
             publish(
@@ -323,7 +333,7 @@ def test_history_uses_final_json_block(monkeypatch: pytest.MonkeyPatch) -> None:
     assert publisher.read_history() == [{"schema_version": 1}]
 
 
-@pytest.mark.parametrize("report", ["@auto", "@review", "x" * 12001])
+@pytest.mark.parametrize("report", ["@auto", "@review", "x" * 40001])
 def test_unsafe_or_oversized_trend_comment_is_rejected(
     report: str, snapshot: dict[str, Any]
 ) -> None:
@@ -395,7 +405,7 @@ def test_history_recovers_summary_after_unclosed_report_fence(
 def test_failed_finding_still_records_measurements(
     snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    writes: list[dict[str, str]] = []
+    writes: list[dict[str, Any]] = []
     monkeypatch.setattr(publisher, "issues", lambda: [])
     monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 2})
     monkeypatch.setattr(publisher, "comments", lambda number: [])
@@ -403,7 +413,7 @@ def test_failed_finding_still_records_measurements(
         publisher, "gh", lambda *args: {"number": 1, "title": "Wrong issue"}
     )
 
-    def fake_api(path: str, fields: dict[str, str]) -> None:
+    def fake_api(path: str, fields: dict[str, Any]) -> None:
         assert path == "issues/2/comments"
         writes.append(fields)
 
@@ -544,3 +554,82 @@ def test_collector_preserves_step_status() -> None:
     record = job_record(run, job)
     assert record["steps"][0]["conclusion"] == "skipped"
     assert record["steps"][0]["seconds"] == -60
+
+
+def test_slow_steps_rank_by_reported_p90(snapshot: dict[str, Any]) -> None:
+    template = snapshot["runs"][0]
+    snapshot["runs"] = [
+        {
+            **template,
+            "jobs": [
+                {
+                    **template["jobs"][0],
+                    "steps": [{"name": "spiky", "seconds": seconds}]
+                    + [
+                        {"name": f"steady-{index}", "seconds": 15}
+                        for index in range(15)
+                    ],
+                }
+            ],
+        }
+        for seconds in [10] * 9 + [90]
+    ]
+    steps = summarize(snapshot)["slow_steps_seconds"]
+    assert len(steps) == 15
+    assert next(iter(steps)).endswith("spiky")
+    assert next(iter(steps.values()))["p90"] == 18
+
+
+@pytest.mark.parametrize("already_labeled", [True, False])
+def test_trigger_label_retry(
+    snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch, already_labeled: bool
+) -> None:
+    writes: list[str] = []
+    monkeypatch.setattr(publisher, "issues", lambda: [])
+    monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 2})
+    monkeypatch.setattr(
+        publisher,
+        "comments",
+        lambda number: [{"body": "@auto"}]
+        if number == 1
+        else [{"body": "<!-- ci-perf-summary:123:1 -->"}],
+    )
+    monkeypatch.setattr(
+        publisher,
+        "gh",
+        lambda *args: {
+            "number": 1,
+            "title": "Slow job",
+            "html_url": "https://github.com/meridianlabs-ai/inspect_ai/issues/1",
+            "state": "open",
+            "body": "<!-- ci-perf-evidence:123:1:slow-job -->",
+            "labels": [{"name": "auto"}] if already_labeled else [],
+        },
+    )
+
+    def fake_api(path: str, fields: dict[str, Any]) -> None:
+        writes.append(path)
+        if path.endswith("/labels"):
+            raise RuntimeError("label request failed")
+
+    monkeypatch.setattr(publisher, "api", fake_api)
+    args = (
+        [
+            {
+                "key": "slow-job",
+                "title": "Slow job",
+                "body": "Evidence",
+                "existing_issue": 1,
+            }
+        ],
+        summarize(snapshot),
+        "Report",
+        "https://github.com/meridianlabs-ai/actions/actions/runs/123",
+    )
+    if already_labeled:
+        publish(*args)
+        assert writes == ["issues/1/comments"]
+    else:
+        with pytest.raises(RuntimeError, match="label request failed"):
+            publish(*args)
+        assert writes == ["issues/1/labels"]

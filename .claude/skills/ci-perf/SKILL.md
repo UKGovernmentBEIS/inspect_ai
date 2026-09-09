@@ -19,8 +19,10 @@ issues or PRs. The recurring workflow lives in `meridianlabs-ai/actions` as
   append to. Do not rewrite the archived report or PR ledger on each run.
 - Write a readable report and proposed findings. This skill does not implement
   fixes, commit, push, or create PRs. Do not probe the known permission blockers.
-- The publisher posts findings to fork issues and adds an `@auto` comment once
-  per issue. Reuse existing issues. An empty findings list is a valid result.
+- The publisher posts findings to fork issues and applies the `auto` label once
+  per issue. Marvin cannot trigger itself with a comment; its label event is
+  accepted by the fork automation. A marker prevents repeat labeling. Reuse
+  existing issues. An empty findings list is a valid result.
 - Never propose trimming the Python version matrix. Required-check names,
   coverage changes, topology, concurrency, and retry policy need a maintainer
   decision. Say so in the issue. Workflow edits and node/pnpm work need a human
@@ -90,7 +92,7 @@ Summaries do not preserve a dependency graph or support recalculating percentile
 
 ## Report and findings
 
-Write `$CI_PERF_OUTPUT_DIR/report.md`, under 12 KB, with:
+Write `$CI_PERF_OUTPUT_DIR/report.md`, under 40,000 UTF-8 bytes, with:
 
 - Collection window, sample counts, missing data, and the workflow run link.
 - Main bottleneck and median/p90 comparisons with the previous usable summary.
@@ -121,9 +123,10 @@ text, titles, or finding bodies; the publisher adds those markers.
 
 Omit `existing_issue` only after searching the fork's open and closed issues and
 open PRs for the problem. Match meaning, not just titles. If a PR already fixes
-it, report its status and omit the finding. Use the same key across runs. Do not
-include automation mentions in titles or bodies; the publisher adds the trigger
-comment. For no actionable findings, write `[]`, not an absent file.
+it, report its status and omit the finding. Use the same key across runs. Key
+deduplication finds only publisher-created issue bodies; for a reused human or
+Marvin issue, supply `existing_issue` on every run. Do not include automation
+mentions in titles or bodies; the publisher applies the trigger label. For no actionable findings, write `[]`, not an absent file.
 
 Validate locally with:
 

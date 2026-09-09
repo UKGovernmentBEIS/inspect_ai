@@ -98,6 +98,11 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
         for test, seconds in sample.items():
             tests[f"{job_name} / {test}"].append(seconds)
 
+    step_stats = {
+        key: value
+        for key, samples in steps.items()
+        if (value := stats(samples)) is not None
+    }
     starts = sorted(run["run_started_at"] for run in runs)
     return {
         "schema_version": 1,
@@ -129,11 +134,9 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
             ]
         },
         "slow_steps_seconds": {
-            key: stats(steps[key])
+            key: step_stats[key]
             for key in sorted(
-                steps,
-                key=lambda key: sorted(steps[key])[int((len(steps[key]) - 1) * 0.9)],
-                reverse=True,
+                step_stats, key=lambda key: step_stats[key]["p90"], reverse=True
             )[:15]
         },
     }

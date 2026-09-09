@@ -190,4 +190,3 @@ node_modules/
 !/.claude/skills/
 /benchmarks/
 # CI performance raw data belongs in Actions artifacts, never Git.
-design/ci-perf/history/

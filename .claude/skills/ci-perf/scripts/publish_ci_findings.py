@@ -22,7 +22,7 @@ def gh(*args: str) -> Any:
     return json.loads(result.stdout)
 
 
-def api(path: str, fields: dict[str, str]) -> Any:
+def api(path: str, fields: dict[str, Any]) -> Any:
     """Write issue data through the fork's REST endpoint."""
     result = subprocess.run(
         ["gh", "api", f"repos/{REPO}/{path}", "--method", "POST", "--input", "-"],
@@ -67,6 +67,10 @@ def canonical_issue(matches: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 
 def tracking_issue(known: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    """Reuse the earliest tracking issue, including when it is closed.
+
+    Closing the tracking issue does not stop summary collection or publication.
+    """
     matches = [
         issue
         for issue in (issues() if known is None else known)
@@ -115,7 +119,7 @@ def validate_findings(value: Any) -> list[dict[str, Any]]:
                 raise ValueError(f"Invalid finding {field}")
             if "@auto" in text or "@review" in text or "<!-- ci-perf-" in text:
                 raise ValueError(
-                    "Automation mentions belong only in the publisher's trigger comment"
+                    "Finding text must not contain automation mentions or publisher markers"
                 )
         if (
             not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", finding["key"])
@@ -136,8 +140,8 @@ def validate_report(summary: dict[str, Any], report: str) -> None:
     payload = json.dumps(summary, separators=(",", ":")) + report
     if "@auto" in payload or "@review" in payload or "<!-- ci-perf-" in report:
         raise ValueError("Trend comments must not trigger automation")
-    if len(report.encode()) > 12000 or len(payload.encode()) > 58000:
-        raise ValueError("Report exceeds 12 KB or report plus summary exceeds 58 KB")
+    if len(report.encode()) > 40000 or len(payload.encode()) > 58000:
+        raise ValueError("Report exceeds 40 KB or report plus summary exceeds 58 KB")
 
 
 def publish(
@@ -206,8 +210,17 @@ def publish(
                 evidence_marker in comment["body"] for comment in existing
             ):
                 api(f"issues/{number}/comments", {"body": body})
-            if not any("@auto" in comment["body"] for comment in existing):
-                api(f"issues/{number}/comments", {"body": "@auto"})
+            if not any(
+                "<!-- ci-perf-trigger:" in comment["body"] for comment in existing
+            ):
+                if not any(
+                    label["name"] == "auto" for label in issue.get("labels", [])
+                ):
+                    api(f"issues/{number}/labels", {"labels": ["auto"]})
+                api(
+                    f"issues/{number}/comments",
+                    {"body": f"<!-- ci-perf-trigger:{finding['key']} -->"},
+                )
 
         findings_complete = True
     finally:
