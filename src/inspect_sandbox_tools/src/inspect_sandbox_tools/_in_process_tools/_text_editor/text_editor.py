@@ -25,27 +25,29 @@ HistoryType = dict[Path, list[HistoryEntryType]]
 
 
 async def view(path_str: str, view_range: list[int] | None = None) -> str:
-    """View a file or directory, reporting I/O errors and listing timeouts as tool errors."""
     path = _validated_path(path_str, "view")
     if path.is_dir():
         path_str = str(path).rstrip("/") + "/"
 
         try:
-            result = await run(
+            _, stdout, stderr = await run(
                 ["find", path_str, "-maxdepth", "2", "-not", "-path", r"*/\.*"]
             )
+        except TimeoutError:
+            # TimeoutError is an OSError, but must retain its existing RPC failure.
+            raise
         except OSError as exc:
             raise ToolException(
                 f"Encountered error attempting to view {path}: {exc}"
             ) from exc
 
-        if result.stderr:
+        if stderr:
             raise ToolException(
-                f"Encountered error attempting to view {path}: '{result.stderr}'"
+                f"Encountered error attempting to view {path}: '{stderr}'"
             )
 
         stdout = "\n".join(
-            os.path.normpath(line) for line in result.stdout.strip().split("\n")
+            os.path.normpath(line) for line in stdout.strip().split("\n")
         )
         return f"Here are the files and directories up to 2 levels deep in {path}, excluding hidden items:\n{stdout}\n"
 
