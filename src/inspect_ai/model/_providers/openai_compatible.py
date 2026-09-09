@@ -48,6 +48,8 @@ from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIResponseError,
     is_gpt_5_model,
+    is_gpt_5_plus_model,
+    is_gpt_6_model,
     is_o_series_model,
     messages_to_openai,
     model_output_from_openai,
@@ -58,6 +60,7 @@ from .._openai import (
     openai_handle_bad_request,
     openai_handle_stream_error,
     openai_media_filter,
+    reasons_by_default_model,
     supports_native_max_reasoning_effort,
 )
 from .._stream import model_stream_requested
@@ -557,7 +560,10 @@ class ModelInfo(ResponsesModelInfo):
         return "gpt" in self.model_family
 
     def is_gpt_5_plus(self) -> bool:
-        return "gpt-5." in self.model_family
+        return is_gpt_5_plus_model(self.model_family)
+
+    def is_gpt_6(self) -> bool:
+        return is_gpt_6_model(self.model_family)
 
     def is_gpt_5(self) -> bool:
         return is_gpt_5_model(self.model_family)
@@ -567,6 +573,9 @@ class ModelInfo(ResponsesModelInfo):
 
     def supports_max_reasoning_effort(self) -> bool:
         return supports_native_max_reasoning_effort(self.model_family)
+
+    def reasons_by_default(self) -> bool:
+        return reasons_by_default_model(self.model_family) and not self.is_gpt_5_chat()
 
     def is_gpt_5_chat(self) -> bool:
         return self.is_gpt_5() and "-chat" in self.model_family

@@ -429,7 +429,7 @@ def scorer_for_metrics(
         if len(sample_scores_with_values) > 0:
             metric_value = call_metric(metric, sample_scores_with_values)
         else:
-            metric_value = float("Nan")
+            metric_value = empty_metric_value(metric)
         base_metric_name = registry_log_name(metric)
 
         # If the metric value is a dictionary, turn each of the entries
@@ -552,7 +552,7 @@ def scorers_from_metric_dict(
             if len(key_scores) > 0:
                 value = call_metric(target_metric, key_scores)
             else:
-                value = float("Nan")
+                value = empty_metric_value(target_metric)
 
             # convert the value to a float (either by expanding the dict or array)
             # or by casting to a float
@@ -610,6 +610,29 @@ def call_metric(metric: Metric, sample_scores: list[SampleScore]) -> Value:
     else:
         metric = cast(MetricProtocol, metric)
         return metric(sample_scores)
+
+
+def empty_metric_value(metric: Metric) -> Value:
+    """Value for a metric over zero scored samples (#5150).
+
+    The metric gets its own empty case first: a shaped metric (e.g. grouped)
+    reports its degenerate shape, while a metric that raises on empty input
+    or returns a non-Mapping scalar falls back to the legacy synthesized NaN.
+    An empty Mapping means "no shape to report" and falls back as well, so
+    the metric row stays visible the way it was on main.
+    """
+    try:
+        empty_value = call_metric(metric, [])
+    except Exception as e:
+        warn_once(
+            logger,
+            f"Metric {registry_log_name(metric)} raised on an empty sample set; "
+            f"reporting NaN instead. ({type(e).__name__})",
+        )
+        return float("Nan")
+    if isinstance(empty_value, Mapping) and len(empty_value) > 0:
+        return empty_value
+    return float("Nan")
 
 
 def is_metric_deprecated(metric: Metric) -> TypeGuard[MetricDeprecated]:

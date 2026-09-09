@@ -6,10 +6,12 @@ particular inspect_ai concept:
 - :mod:`.binary` — platform identifiers + binary acquisition (download/cache).
 - :mod:`.summary` — :class:`ResticBackupSummary` model (restic's JSON schema).
 - :mod:`.ops` — :func:`init_repo`, :func:`run_backup`,
-  :func:`restore_repo`, :func:`restic_env`, :func:`list_changed_files`.
+  :func:`restore_repo`, :func:`restic_env`, :func:`list_changed_files`,
+  and :class:`RestoredTreeError` (a snapshot to restore is untrusted input).
 """
 
 from .ops import (
+    RestoredTreeError,
     init_repo,
     list_changed_files,
     restic_env,
@@ -26,6 +28,7 @@ from .summary import ResticBackupSummary
 
 __all__ = [
     "Platform",
+    "RestoredTreeError",
     "ResticBackupSummary",
     "SUPPORTED_PLATFORMS",
     "cache_path",
