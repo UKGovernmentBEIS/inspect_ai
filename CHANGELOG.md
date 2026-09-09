@@ -30,6 +30,7 @@
 - Sandbox Tools: Binaries downloaded from S3 that fail SHA256 verification or lack a pinned digest are now rejected instead of run with a warning; `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` has been removed.
 - Sandbox tools: Fixed a race during injection that let a non-root sandbox user replace the tools archive before root unpacked it.
 - Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
+- Docker: Retained sandbox environments keep generated Compose configuration until exact project cleanup, including custom networks.
 - Inspect View: Requests for unreadable log headers now return 403 instead of 500.
 - Eval Set: Tasks that set a non-mean epochs reducer now reuse their completed log on subsequent `eval_set()` calls instead of being re-run every time.
 - Human Agent: Sandbox installation of the `task` CLI now refuses a pre-planted or non-root-owned `/opt/human_agent`, errors instead of silently skipping when it cannot be created, and no longer runs a staged install script.

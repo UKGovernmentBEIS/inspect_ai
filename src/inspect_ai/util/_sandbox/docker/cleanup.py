@@ -103,12 +103,21 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
                 print(
                     "\n"
                     "Cleanup all containers  : [blue]inspect sandbox cleanup docker[/blue]\n"
-                    "Cleanup single container: [blue]inspect sandbox cleanup docker <container-id>[/blue]",
+                    "Cleanup single environment: "
+                    "[blue]inspect sandbox cleanup docker <project-name>[/blue]",
                     "\n",
                 )
 
-        # remove auto-compose files
-        for file in auto_compose_files().copy():
+        # A retained project needs the exact generated config for a later targeted
+        # cleanup; it may declare networks the generic fallback cannot remove.
+        files_to_cleanup = auto_compose_files().copy()
+        if not cleanup:
+            files_to_cleanup.difference_update(
+                project.config
+                for project in shutdown_projects
+                if project.config is not None
+            )
+        for file in files_to_cleanup:
             safe_cleanup_auto_compose(file)
 
         _cleanup_completed.set(True)
