@@ -110,13 +110,22 @@ def test_yaml_file(tmp_path: Path) -> None:
         "trigger:\n  type: turn\n  every: 8\n"
         "sandbox_paths:\n  default: ['/workspace']\n"
         "max_consecutive_failures: 2\n"
+        "max_sandbox_snapshot_bytes: 123456\n"
         "retention: retain\n"
     )
     cfg = _parse(str(path))
     assert isinstance(cfg.trigger, TurnInterval) and cfg.trigger.every == 8
     assert cfg.sandbox_paths == {"default": ["/workspace"]}
     assert cfg.max_consecutive_failures == 2
+    assert cfg.max_sandbox_snapshot_bytes == 123456
     assert cfg.retention == "retain"
+
+
+def test_yaml_file_rejects_non_positive_snapshot_cap(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.yaml"
+    path.write_text("trigger: manual\nmax_sandbox_snapshot_bytes: 0\n")
+    with pytest.raises(ValueError, match="max_sandbox_snapshot_bytes"):
+        _parse(str(path))
 
 
 def test_yaml_file_omitted_fields_get_defaults(tmp_path: Path) -> None:
@@ -133,6 +142,7 @@ def test_yaml_file_omitted_fields_get_defaults(tmp_path: Path) -> None:
     assert cfg.sandbox_paths == {}
     assert cfg.retention == "delete"
     assert cfg.max_consecutive_failures is None
+    assert cfg.max_sandbox_snapshot_bytes is None
     assert cfg.checkpoints_location is None
 
 

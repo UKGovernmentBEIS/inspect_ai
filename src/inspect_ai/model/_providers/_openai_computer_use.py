@@ -1,4 +1,3 @@
-import re
 from collections.abc import Iterable
 
 from openai.types.responses import (
@@ -27,6 +26,7 @@ from openai.types.responses.response_input_item_param import ComputerCallOutput
 from inspect_ai._util.content import Content, ContentImage
 from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai.model._chat_message import ChatMessageTool
+from inspect_ai.model._openai import openai_gpt_version
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tools._computer import is_computer_tool_info
@@ -68,8 +68,6 @@ def tool_call_from_openai_computer_tool_call(
     )
 
 
-_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
-
 # GPT-family variants that don't advertise native computer-use support and
 # must fall back to the generic vision + function-tool path. See issue #3844
 # for the nano case; `instant` and `chat` variants are excluded for the same
@@ -94,12 +92,8 @@ def _supports_native_computer_use(model_name: str, is_latest: bool = False) -> b
     name = model_name.lower()
     if any(variant in name for variant in _COMPUTER_USE_EXCLUDED_VARIANTS):
         return False
-    match = _GPT_VERSION_RE.match(name)
-    if not match:
-        return False
-    major = int(match.group(1))
-    minor = int(match.group(2)) if match.group(2) else 0
-    return (major, minor) >= (5, 4)
+    version = openai_gpt_version(name)
+    return version is not None and version >= (5, 4)
 
 
 def computer_call_output(

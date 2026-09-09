@@ -1,6 +1,7 @@
 import functools
 import json
 import os
+import re
 from copy import copy
 from logging import getLogger
 from typing import Any, AsyncIterator, Literal, cast
@@ -34,6 +35,8 @@ from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import (
     AzureError,
     HttpResponseError,
+    IncompleteReadError,
+    ServiceRequestError,
     ServiceResponseError,
 )
 from typing_extensions import override
@@ -125,6 +128,20 @@ def _is_openai_model(name: str) -> bool:
         or name.startswith("o3")
         or name.startswith("o4")
     )
+
+
+class AzureAIStreamError(Exception):
+    """A chat-completions stream failed or ended before completing.
+
+    `azure-ai-inference` does no error-event handling: a non-`data:` SSE line
+    (e.g. an `event: error` frame) raises a bare `ValueError` from the update
+    iterator, and an OpenAI-style `data: {"error": ...}` frame is parsed and
+    then silently dropped, so the accumulator only sees a stream that ends
+    without a finish reason. Both are raised as this error and classified as
+    transient by `should_retry`: auto-streaming enabled by a display-only
+    `on_stream` callback must not turn a retried condition into a permanently
+    failed sample, nor into a successful but truncated output.
+    """
 
 
 class AzureAIAPI(ModelAPI):
@@ -326,6 +343,9 @@ class AzureAIAPI(ModelAPI):
         except AzureError as ex:
             model_call.set_error({"error": {"message": str(ex.message)}})
             return self.handle_azure_error(ex), model_call
+        except AzureAIStreamError as ex:
+            model_call.set_error({"error": {"message": str(ex)}})
+            raise
         finally:
             await client.close()
 
@@ -385,6 +405,11 @@ class AzureAIAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: Exception) -> bool | RetryDecision:
+        if isinstance(ex, AzureAIStreamError | IncompleteReadError):
+            # the stream failed after HTTP 200: an in-band error (see
+            # AzureAIStreamError) or the connection dropped mid-body
+            # (IncompleteReadError is an HttpResponseError with no status)
+            return RetryDecision.transient()
         if isinstance(ex, HttpResponseError) and ex.status_code is not None:
             if not is_retryable_http_status(ex.status_code):
                 return RetryDecision.no()
@@ -392,7 +417,9 @@ class AzureAIAPI(ModelAPI):
             if ex.status_code == 429:
                 return RetryDecision.rate_limit(retry_after=retry_after)
             return RetryDecision.transient(retry_after=retry_after)
-        if isinstance(ex, ServiceResponseError):
+        if isinstance(ex, ServiceResponseError | ServiceRequestError):
+            # connection-level failures (azure-core maps a server disconnect
+            # while streaming the body to ServiceRequestError)
             return RetryDecision.transient()
         return RetryDecision.no()
 
@@ -491,6 +518,50 @@ class _StreamChoice:
         return max(self.tool_calls)
 
 
+def _stream_read_failure(ex: ValueError) -> str | None:
+    """Describe an SDK read failure that means the stream failed, else None.
+
+    The SDK raises `ValueError` for anything it cannot parse; its "SSE event
+    not supported" rejection of an `event: error` line is how a server-sent
+    error event surfaces (the SDK stops before reading the event's data, so
+    the server's message is lost). Any other rejected line (an SSE comment,
+    `id:`, a non-error `event:` name, malformed JSON) is an endpoint the SDK
+    cannot read at all — a permanent condition that must not be retried as
+    transient.
+    """
+    message = str(ex)
+    if "SSE event not supported" in message and re.search(
+        r"\(line `b['\"]event:\s*error\b", message
+    ):
+        return f"server sent an error event ({message})"
+    return None
+
+
+async def _stream_updates(
+    updates: AsyncIterator[StreamingChatCompletionsUpdate],
+) -> AsyncIterator[StreamingChatCompletionsUpdate]:
+    """Iterate an update stream, raising SDK read failures as `AzureAIStreamError`.
+
+    Only failures raised by the iterator itself, and only those that indicate
+    a failed stream (see `_stream_read_failure`), are converted; the
+    accumulator's own errors propagate unchanged.
+    """
+    iterator = updates.__aiter__()
+    while True:
+        try:
+            update = await iterator.__anext__()
+        except StopAsyncIteration:
+            return
+        except ValueError as ex:
+            failure = _stream_read_failure(ex)
+            if failure is None:
+                raise
+            raise AzureAIStreamError(
+                f"Streaming response could not be read: {failure}"
+            ) from ex
+        yield update
+
+
 async def azureai_completion_from_stream(
     updates: AsyncIterator[StreamingChatCompletionsUpdate],
 ) -> ChatCompletions:
@@ -519,7 +590,7 @@ async def azureai_completion_from_stream(
     usage: dict[str, Any] | None = None
     choices: dict[int, _StreamChoice] = {}
 
-    async for update in updates:
+    async for update in _stream_updates(updates):
         completion_id = completion_id or update.get("id")
         created = created if created is not None else update.get("created")
         model = model or update.get("model")
@@ -576,8 +647,18 @@ async def azureai_completion_from_stream(
         if not reported and update_usage is None:
             report_model_stream_progress()
 
-    if completion_id is None and model is None:
-        raise RuntimeError("Streaming response ended without delivering any chunks.")
+    # an error frame the SDK dropped (see AzureAIStreamError) leaves a stream
+    # with no choices, or choices that never reached a finish reason — fail
+    # rather than return a successful, silently truncated completion
+    if not choices:
+        raise AzureAIStreamError(
+            "Streaming response ended without delivering any choices."
+        )
+    if any(choice.finish_reason is None for choice in choices.values()):
+        raise AzureAIStreamError(
+            "Streaming response ended without delivering a finish reason "
+            "(an in-band error frame may have been dropped by the SDK)."
+        )
 
     response: dict[str, Any] = {
         "id": completion_id or "",
