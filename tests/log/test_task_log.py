@@ -23,6 +23,7 @@ from inspect_ai._util.error import EvalError
 from inspect_ai._util.git import GitContext
 from inspect_ai._util.package import DirectUrl, VcsInfo
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalRevision
 from inspect_ai.log._file import (
     read_eval_log_async,
@@ -43,7 +44,8 @@ from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.recorder import Recorder
-from inspect_ai.model import ModelOutput, get_model
+from inspect_ai.model import GenerateConfig, ModelOutput, get_model
+from inspect_ai.model._chat_message import ChatMessageUser
 
 
 def _fake_dist(name: str, version: str = "1.0.0") -> types.SimpleNamespace:
@@ -1180,6 +1182,54 @@ async def test_task_logger_finish_prunes_unresolved_seeded_records_on_natural_su
     assert {
         s.id for s in await read_eval_log_sample_summaries_async(logger.location)
     } == expected_ids
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+async def test_task_logger_seeded_sample_reads_resolved(
+    recorder_type: type, tmp_path: Path
+) -> None:
+    # a seeded prior record is stored condensed (model-event inputs pooled in
+    # events_data). Both reads must serve it resolved — the sweep's, whose
+    # result reaches a SampleSource.sample_complete callback, and the control
+    # channel's — or the callback sees ModelEvent.input == [] for a reused
+    # sample whose original input carried a message
+    prior_sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="q1",
+        target="a",
+        output=ModelOutput(),
+        events=[
+            ModelEvent(
+                model="test",
+                input=[ChatMessageUser(content="hello")],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput.from_content("test", "response"),
+            )
+        ],
+    )
+    recorder = recorder_type(str(tmp_path))
+    prior = await _write_prior_log(recorder, [prior_sample])
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep={(1, 1)})
+    await logger.log_start(EvalPlan())
+
+    def input_texts(sample: EvalSample) -> list[str]:
+        assert sample.events_data is None
+        event = next(e for e in sample.events if isinstance(e, ModelEvent))
+        return [message.text for message in event.input]
+
+    reused = await logger.read_prior_sample(1, 1)
+    assert reused is not None
+    assert input_texts(reused) == ["hello"]
+
+    logger.note_reused_sample(reused)
+    served = await logger.read_sample(1, 1)
+    assert served is not None
+    assert input_texts(served) == ["hello"]
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])

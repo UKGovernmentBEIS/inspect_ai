@@ -172,7 +172,16 @@ class JSONRecorder(FileRecorder):
         log = self.data.get(self._log_file_key(eval))
         if log is None:
             return None
-        return log.samples_by_key.get((id, epoch))
+        sample = log.samples_by_key.get((id, epoch))
+        if sample is None:
+            return None
+        # a seeded prior record is stored condensed (log_seed re-logs
+        # condense_sample output) with its model-event inputs pooled in
+        # events_data; serve it resolved, as the .eval recorder's read and this
+        # recorder's log_finish do, so the reuse sweep's callbacks and the
+        # control channel see populated ModelEvent.input. A live completion is
+        # stored whole and passes through unchanged (no events_data to resolve)
+        return rebind_sample_timelines(resolve_sample_events_data(sample))
 
     @override
     async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
