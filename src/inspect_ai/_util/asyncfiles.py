@@ -6,6 +6,7 @@ import io
 import logging
 import os
 import shutil
+import threading
 import time
 import uuid
 from contextlib import AbstractAsyncContextManager, contextmanager, suppress
@@ -16,12 +17,14 @@ from types import TracebackType
 from typing import (
     Any,
     AsyncIterator,
+    Awaitable,
     BinaryIO,
     Callable,
     Coroutine,
     Iterator,
     Literal,
     NamedTuple,
+    Protocol,
     TypeVar,
     cast,
     overload,
@@ -219,9 +222,21 @@ class _SyncS3ETagCapture(_S3ETagCapture):
         return self._capture(self._client.complete_multipart_upload(**kwargs))
 
 
+class _AsyncUploadSource(Protocol):
+    """What aioboto3's ``upload_fileobj`` requires of its source.
+
+    It calls only ``read`` and awaits the result when it is awaitable, so a
+    plain ``BinaryIO`` and an adapter returning worker-thread awaitables
+    (``_ThreadedReadSource``) both qualify. aioboto3 ships no type
+    information, so this is the one place the contract is checked.
+    """
+
+    def read(self, size: int = -1, /) -> bytes | Awaitable[bytes]: ...
+
+
 async def _s3_upload_fileobj_async(
     client: Any,
-    source: BinaryIO,
+    source: _AsyncUploadSource,
     bucket: str,
     key: str,
     config: TransferConfig | None = None,
@@ -242,7 +257,9 @@ async def _s3_upload_fileobj_async(
     capture = _AsyncS3ETagCapture(client)
     await upload_fileobj(
         capture,
-        source,
+        # aioboto3 annotates Fileobj as BinaryIO but only calls read() and
+        # awaits an awaitable result; _AsyncUploadSource is the real contract.
+        cast(BinaryIO, source),
         bucket,
         key,
         Config=config,  # type: ignore[arg-type]
@@ -535,9 +552,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     source.seek(start)
                 if current_async_backend() == "asyncio":
                     client = await self.s3_client_async()
-                    return await _s3_upload_fileobj_async(
-                        client, source, bucket, key, _s3_transfer_config()
-                    )
+                    with _ThreadedReadSource(source) as threaded:
+                        return await _s3_upload_fileobj_async(
+                            client, threaded, bucket, key, _s3_transfer_config()
+                        )
                 else:
                     return await anyio.to_thread.run_sync(
                         s3_write_file_streaming,
@@ -1055,6 +1073,65 @@ class _CloseShieldedReader:
 
     def close(self) -> None:
         pass
+
+
+class _ThreadedReadSource:
+    """Adapt a sync binary stream so aioboto3 reads it off the event loop.
+
+    aioboto3's ``upload_fileobj`` calls ``read`` directly on the loop and
+    awaits the result only when it is awaitable, so a plain file handle
+    blocks the loop for every chunk read. Returning each read as a
+    worker-thread awaitable keeps the loop free. ``read`` is the only method
+    aioboto3 calls on the source (verified against aioboto3 15.5.0); the
+    retry ``seek`` in ``write_file_streaming`` runs on the unwrapped source
+    between attempts.
+
+    ``anyio.wrap_file`` is not enough here. Callers reuse the source right
+    after the upload (``EvalRecorder.flush()`` reopens its temp-file zip in a
+    ``finally``), so no worker-thread read may still be running once
+    ``write_file_streaming`` returns or raises. aioboto3's multipart reader is
+    a raw asyncio task, and a native cancellation of it returns before the
+    thread finishes (anyio's shield only covers anyio-delivered cancellation).
+    The lock makes each read's "still wanted?" check and the read itself
+    atomic, and leaving the ``with`` block (``release()``) waits for any
+    in-progress read and refuses later ones.
+    """
+
+    def __init__(self, source: BinaryIO) -> None:
+        self._source = source
+        self._lock = threading.Lock()
+        self._released = False
+
+    def read(self, size: int = -1, /) -> Awaitable[bytes]:
+        return anyio.to_thread.run_sync(self._read, size)
+
+    def _read(self, size: int) -> bytes:
+        with self._lock:
+            if self._released:
+                # Only reachable for a read whose future was already cancelled
+                # (anyio drops the result). Raise rather than return b"" so
+                # that, should an upload ever consume such a read, it aborts
+                # instead of treating the withdrawn source as EOF.
+                raise RuntimeError("read of a source that has been released")
+            return self._source.read(size)
+
+    def __enter__(self) -> "_ThreadedReadSource":
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.release()
+
+    def release(self) -> None:
+        """Hand the source back to the caller.
+
+        Blocks until an in-progress worker-thread read (if any) completes and
+        makes any read still queued behind it fail without touching the
+        source, so the caller can seek, reopen or close it safely. Uncontended
+        after a normal upload; after a cancellation it holds the loop for at
+        most one chunk read, no longer than the pre-adapter blocking read did.
+        """
+        with self._lock:
+            self._released = True
 
 
 def s3_write_file_streaming(

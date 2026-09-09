@@ -1,14 +1,18 @@
 import asyncio
 import functools
+import inspect
 import io
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any, cast
 
+import anyio
 import pytest
 from anyio import EndOfStream
 from botocore.exceptions import ClientError
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
@@ -423,6 +427,136 @@ async def test_write_file_streaming_s3(
         assert not small.closed
 
 
+class _ThreadRecordingBytesIO(io.BytesIO):
+    """BytesIO that records the thread each ``read`` runs on."""
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.read_threads: list[int] = []
+
+    def read(self, size: int | None = -1) -> bytes:
+        self.read_threads.append(threading.get_ident())
+        return super().read(size)
+
+
+@pytest.mark.parametrize(
+    "size",
+    [
+        pytest.param(1024, id="single-put"),
+        pytest.param(10 * 1024 * 1024, id="multipart"),
+    ],
+)
+async def test_write_file_streaming_s3_reads_source_off_event_loop(
+    mock_s3: None, size: int
+) -> None:
+    """S3 streaming uploads must never read the source on the event loop.
+
+    aioboto3 calls ``read`` on the loop and only awaits an awaitable result,
+    so a plain sync handle would block the loop for every chunk (8MB for the
+    single-PUT probe, 256KB reads for multipart). Both paths must hop to a
+    worker thread for the read. The asyncio variant is the one that guards
+    the adapter; under trio the whole upload already runs in a worker thread.
+    """
+    test_data = b"\xcd" * size
+    s3_path = f"{S3_BUCKET}/streaming_test/off_loop_{size}.bin"
+    loop_thread = threading.get_ident()
+
+    source = _ThreadRecordingBytesIO(test_data)
+    async with AsyncFilesystem() as fs:
+        await fs.write_file_streaming(s3_path, source)
+        assert await fs.read_file(s3_path) == test_data
+
+    assert source.read_threads, "source was never read"
+    assert loop_thread not in source.read_threads
+
+
+class _BlockingReadBytesIO(io.BytesIO):
+    """BytesIO whose ``read`` signals ``read_started`` then waits on ``unblock``."""
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.read_started = threading.Event()
+        self.unblock = threading.Event()
+        self.read_finished = False
+
+    def read(self, size: int | None = -1) -> bytes:
+        self.read_started.set()
+        self.unblock.wait()
+        data = super().read(size)
+        self.read_finished = True
+        return data
+
+
+class _RawTaskReadClient:
+    """Fake async client that reads the source inside a raw asyncio task.
+
+    Mirrors aioboto3's multipart ``file_reader``, which ``upload_fileobj``
+    runs via ``asyncio.ensure_future``: a cancellation reaches the read as a
+    native asyncio cancel rather than an anyio-delivered one. ``exited`` is
+    set once the upload has unwound (normally or by cancellation).
+    """
+
+    def __init__(self) -> None:
+        self.exited = threading.Event()
+
+    async def upload_fileobj(
+        self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
+    ) -> None:
+        try:
+            await asyncio.ensure_future(_fileobj_read(Fileobj))
+        finally:
+            self.exited.set()
+
+
+@skip_if_trio
+async def test_write_file_streaming_s3_cancel_waits_for_in_progress_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cancelled S3 upload must not return while a source read is in flight.
+
+    ``EvalRecorder.flush()`` reopens its temp-file zip right after the upload
+    (even on cancellation), so a worker-thread read left running would race
+    that reopen and corrupt the log.
+    """
+    client = _RawTaskReadClient()
+
+    async def s3_client_async(self: AsyncFilesystem) -> Any:
+        return client
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+
+    source = _BlockingReadBytesIO(b"contents")
+
+    # After cancellation the write's drain blocks the loop until the read
+    # finishes, so the read is unblocked from a thread, and only once the
+    # cancelled upload has unwound (so the read is still blocked when the
+    # cancellation lands).
+    def unblock_once_upload_exits() -> None:
+        client.exited.wait()
+        source.unblock.set()
+
+    unblocker = threading.Thread(target=unblock_once_upload_exits)
+    unblocker.start()
+    try:
+        async with AsyncFilesystem() as fs:
+            scope = anyio.CancelScope()
+
+            async def upload() -> None:
+                with scope:
+                    await fs.write_file_streaming("s3://bucket/path/log.eval", source)
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(upload)
+                await anyio.to_thread.run_sync(source.read_started.wait)
+                scope.cancel()
+        assert scope.cancelled_caught
+        assert source.read_finished
+    finally:
+        client.exited.set()
+        source.unblock.set()
+        unblocker.join()
+
+
 def test_write_file_streaming_s3_small_upload_leaves_source_open(
     mock_s3: None,
 ) -> None:
@@ -467,17 +601,27 @@ async def test_write_file_streaming_s3_sync_backend_source_reusable(
         assert await fs.read_file(s3_path) == test_data
 
 
+async def _fileobj_read(fileobj: Any) -> bytes:
+    """Read a source the way aioboto3's ``upload_fileobj`` does.
+
+    The async write path hands aioboto3 a source whose ``read`` returns an
+    awaitable (so the disk read runs off the event loop); aioboto3 awaits it
+    when it is. Fakes standing in for the aioboto3 client must do the same.
+    """
+    data = fileobj.read()
+    if inspect.isawaitable(data):
+        data = await data
+    return cast(bytes, data)
+
+
 class _RetryingUploadClient:
     def __init__(self, fail_times: int = 1) -> None:
         self.fail_times = fail_times
         self.calls = 0
         self.uploaded: list[bytes] = []
 
-    def upload_fileobj_sync(
-        self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
-    ) -> None:
+    def _record(self, data: bytes) -> None:
         self.calls += 1
-        data = Fileobj.read()
         if self.calls <= self.fail_times:
             raise ClientError(
                 cast(
@@ -491,10 +635,15 @@ class _RetryingUploadClient:
             )
         self.uploaded.append(data)
 
+    def upload_fileobj_sync(
+        self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
+    ) -> None:
+        self._record(Fileobj.read())
+
     async def upload_fileobj(
         self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
     ) -> None:
-        self.upload_fileobj_sync(Fileobj, Bucket, Key, **kwargs)
+        self._record(await _fileobj_read(Fileobj))
 
 
 class _FailingUploadClient:
@@ -502,11 +651,8 @@ class _FailingUploadClient:
         self.code = code
         self.calls = 0
 
-    def upload_fileobj_sync(
-        self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
-    ) -> None:
+    def _fail(self) -> None:
         self.calls += 1
-        Fileobj.read()
         raise ClientError(
             cast(
                 Any,
@@ -518,10 +664,17 @@ class _FailingUploadClient:
             "PutObject",
         )
 
+    def upload_fileobj_sync(
+        self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
+    ) -> None:
+        Fileobj.read()
+        self._fail()
+
     async def upload_fileobj(
         self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
     ) -> None:
-        self.upload_fileobj_sync(Fileobj, Bucket, Key, **kwargs)
+        await _fileobj_read(Fileobj)
+        self._fail()
 
 
 class _SyncUploadClient:
