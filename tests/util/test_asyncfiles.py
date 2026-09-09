@@ -1480,3 +1480,51 @@ def test_nest_asyncio_with_s3_requests(mock_s3: None) -> None:
             assert await outer_fs.read_file(file2) == data2
 
     asyncio.run(outer())
+
+
+async def test_s3_iter_files_skips_directory_marker_keys(mock_s3: None) -> None:
+    """Zero-byte ``prefix/`` marker keys are not files.
+
+    The S3 console's "Create folder" and some sync tools write them; a
+    recursive listing must not report them (their empty basename would
+    otherwise match ``*``, and a copy of the "file" would fail).
+    """
+    async with AsyncFilesystem() as fs:
+        await fs.write_file("s3://test-bucket/markers/a/", b"")
+        await fs.write_file("s3://test-bucket/markers/a/x.txt", b"x")
+        await fs.write_file("s3://test-bucket/markers/b/", b"")
+
+        listed = [
+            uri
+            async for uri in fs.iter_files("s3://test-bucket/markers", recursive=True)
+        ]
+        shallow = [uri async for uri in fs.iter_files("s3://test-bucket/markers/b")]
+
+    assert listed == ["s3://test-bucket/markers/a/x.txt"]
+    assert shallow == []
+
+
+async def test_get_file_replaces_read_only_local_file(
+    mock_s3: None, tmp_path: Path
+) -> None:
+    """A download over an existing read-only file replaces it.
+
+    restic writes repo files ``0400``; a resume that re-pulls a repo into
+    a reused staging dir must not fail opening them for writing.
+    """
+    target = tmp_path / "config"
+    target.write_bytes(b"old")
+    target.chmod(0o400)
+    async with AsyncFilesystem() as fs:
+        await fs.write_file("s3://test-bucket/get/config", b"new")
+        await fs.get_file("s3://test-bucket/get/config", str(target))
+
+    assert target.read_bytes() == b"new"
+    assert not list(tmp_path.glob("*.part"))
+
+
+async def test_copy_file_s3_to_s3(mock_s3: None) -> None:
+    async with AsyncFilesystem() as fs:
+        await fs.write_file("s3://test-bucket/copy/src", b"payload")
+        await fs.copy_file("s3://test-bucket/copy/src", "s3://test-bucket/copy/dst")
+        assert await fs.read_file("s3://test-bucket/copy/dst") == b"payload"
