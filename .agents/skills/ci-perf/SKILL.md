@@ -116,9 +116,10 @@ Write `$CI_PERF_OUTPUT_DIR/findings.json` as a JSON list, at most five items:
 ]
 ```
 
-Set `human_implementation` to true only when the only proposed change requires
-a human (for example workflow edits or node/pnpm work). The publisher records
-that need and omits the automation label. Otherwise set it to false.
+Set `human_implementation` to true only when the proposed change edits files
+under `.github/workflows/` or requires node or pnpm (builds, type generation,
+ts-mono). Python-only changes, including this skill's own scripts and tests,
+are false. The publisher records that need and omits the automation label.
 
 When reusing an issue, copy its current title exactly into `title`; the publisher
 checks it before adding evidence or a trigger. Do not put automation mentions
