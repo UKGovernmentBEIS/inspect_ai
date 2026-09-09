@@ -21,7 +21,11 @@ summaries retain the top 15 observed tests and steps. Runner minutes are
 measured job execution time, not GitHub's rounded billed minutes. Skipped jobs
 contribute no execution time; GitHub sometimes returns inverted timestamps for
 them. Missing or inverted execution times on non-skipped jobs make compute totals
-unavailable, with the count recorded in `unavailable_job_timings`.
+unavailable, with the count recorded in `unavailable_job_timings`. Missing or
+inverted workflow wall, job wait, and step observations are excluded from their
+distributions and counted in `excluded_timings`. The collector now retains step
+status so the summarizer can omit skipped steps; legacy raw files lack that
+status, and the baseline does not retain step distributions.
 
 `report.md` and `prs.md` are historical records. Their snapshot references name
 files removed in this migration. Those files remain available in Git history.

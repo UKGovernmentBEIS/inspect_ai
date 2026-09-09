@@ -46,10 +46,14 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
     unavailable_jobs = 0
     unavailable_cancelled_jobs = 0
     cancelled_seconds = 0.0
+    excluded = {"workflow_wall": 0, "job_wait": 0, "step": 0}
     for run in runs:
         conclusions[run["conclusion"]] += 1
-        if run["conclusion"] == "success" and run["wall_seconds"] is not None:
-            workflows[run["name"]].append(run["wall_seconds"])
+        if run["conclusion"] == "success":
+            if run["wall_seconds"] is None or run["wall_seconds"] < 0:
+                excluded["workflow_wall"] += 1
+            else:
+                workflows[run["name"]].append(run["wall_seconds"])
         for job in run["jobs"]:
             if job["conclusion"] == "skipped":
                 continue
@@ -65,11 +69,18 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
             if job["conclusion"] != "success":
                 continue
             key = f"{run['name']} / {job['name']}"
-            for field in ("exec_seconds", "wait_from_run_start_seconds"):
-                if job[field] is not None:
-                    jobs[key][field].append(job[field])
+            jobs[key]["exec_seconds"].append(seconds)
+            wait = job["wait_from_run_start_seconds"]
+            if wait is None or wait < 0:
+                excluded["job_wait"] += 1
+            else:
+                jobs[key]["wait_from_run_start_seconds"].append(wait)
             for step in job.get("steps", []):
-                if step["seconds"] is not None:
+                if step.get("conclusion") == "skipped":
+                    continue
+                if step["seconds"] is None or step["seconds"] < 0:
+                    excluded["step"] += 1
+                else:
                     steps[f"{key} / {step['name']}"].append(step["seconds"])
 
     suites: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
@@ -96,6 +107,7 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
         "conclusions": dict(conclusions),
         "runner_minutes": None if unavailable_jobs else round(runner_seconds / 60, 2),
         "unavailable_job_timings": unavailable_jobs,
+        "excluded_timings": excluded,
         "cancelled_runner_minutes": None
         if unavailable_cancelled_jobs
         else round(cancelled_seconds / 60, 2),
@@ -136,7 +148,8 @@ def render(summary: dict[str, Any]) -> str:
         f"Window: {summary['window']['start']} to {summary['window']['end']}, {summary['window']['runs']} runs.",
         f"Runner minutes: {summary['runner_minutes']}. Cancelled-run runner minutes: {summary['cancelled_runner_minutes']}. Missing or invalid job timings: {summary['unavailable_job_timings']}. None means unavailable, not zero.",
         "",
-        "Successful runs and jobs only for timings. Workflow wall is run start to updated_at, not push-to-green. Job wait includes dependencies. Pytest counts are per outcome, not a count of unique tests across matrix jobs. Slow-test totals include only printed phases.",
+        f"Excluded missing or inverted observations: workflow wall {summary['excluded_timings']['workflow_wall']}, job wait {summary['excluded_timings']['job_wait']}, steps {summary['excluded_timings']['step']}.",
+        "Successful runs and jobs only for timings. Workflow wall is run start to updated_at, not push-to-green. Job wait includes dependencies. Pytest counts are per outcome, not a count of unique tests across matrix jobs. Skipped steps are excluded when their status was collected. Slow-test totals include only printed phases.",
     ]
     for field, title in (
         ("workflow_wall_seconds", "Workflow wall seconds"),

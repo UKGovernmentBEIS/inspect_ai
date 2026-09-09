@@ -131,8 +131,8 @@ def warn_on_time_gap(runs: list[dict[str, Any]]) -> None:
         span = (starts[0] - starts[-1]).total_seconds() / 3600
         print(
             f"WARNING: {max(gaps):.0f}h gap inside the {span:.0f}h run window "
-            f"({starts[-1].isoformat()} .. {starts[0].isoformat()}) — the API "
-            "likely served a stale page; re-run the collector.",
+            f"({starts[-1].isoformat()} .. {starts[0].isoformat()}) — the window "
+            "may have missing observations or a quiet period; compare windows carefully.",
             file=sys.stderr,
         )
 
@@ -157,6 +157,7 @@ def job_record(run: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
         "steps": [
             {
                 "name": step["name"],
+                "conclusion": step.get("conclusion"),
                 "seconds": seconds_between(step["started_at"], step["completed_at"]),
             }
             for step in job.get("steps", [])

@@ -499,3 +499,48 @@ def test_collection_repeated_page_is_bounded(monkeypatch: pytest.MonkeyPatch) ->
     with pytest.raises(RuntimeError, match="all three"):
         collector.fetch_runs("owner/repo", 2)
     assert calls == 6
+
+
+def test_invalid_distribution_timings_are_counted_and_excluded(
+    snapshot: dict[str, Any],
+) -> None:
+    snapshot["runs"][0]["wall_seconds"] = -3
+    snapshot["runs"][0]["jobs"][0]["wait_from_run_start_seconds"] = -4
+    snapshot["runs"][0]["jobs"][0]["steps"][0].update(
+        conclusion="skipped", seconds=-999
+    )
+    snapshot["runs"][1]["jobs"][0]["steps"][0]["seconds"] = -8
+    result = summarize(snapshot)
+    assert result["excluded_timings"] == {"workflow_wall": 1, "job_wait": 1, "step": 1}
+    assert result["workflow_wall_seconds"]["Build"]["n"] == 1
+    assert result["jobs"]["Build / test (3.11)"]["wait_from_run_start_seconds"] == {
+        "n": 1,
+        "median": 5,
+        "p90": 5,
+    }
+    assert result["slow_steps_seconds"] == {}
+    assert "job wait 1" in render(result)
+
+
+def test_collector_preserves_step_status() -> None:
+    from collect_ci_data import job_record
+
+    run = {"run_started_at": "2026-09-09T00:00:00Z"}
+    job = {
+        "id": 1,
+        "name": "job",
+        "conclusion": "success",
+        "started_at": run["run_started_at"],
+        "completed_at": "2026-09-09T00:01:00Z",
+        "steps": [
+            {
+                "name": "conditional",
+                "conclusion": "skipped",
+                "started_at": "2026-09-09T00:01:00Z",
+                "completed_at": run["run_started_at"],
+            }
+        ],
+    }
+    record = job_record(run, job)
+    assert record["steps"][0]["conclusion"] == "skipped"
+    assert record["steps"][0]["seconds"] == -60
