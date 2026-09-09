@@ -26,7 +26,7 @@ from inspect_ai._eval.task import Epochs
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.run import plan_agent_name, resolve_plan
-from inspect_ai._eval.task.task import resolve_epochs
+from inspect_ai._eval.task.task import resolve_epochs, resolve_task_epochs
 from inspect_ai._eval.task.util import resolve_task_sample_ids, sample_id_filter
 from inspect_ai.dataset import Dataset
 from inspect_ai.model._model import ModelName
@@ -281,9 +281,7 @@ def build_eval_set_capture(
 
     capture_tasks: list[EvalSetCaptureTask] = []
     for task in resolved_tasks:
-        # effective epochs mirrors log_samples_complete (eval-set level wins)
-        task_epochs = eval_epochs or resolve_epochs(task.task.epochs or 1)
-        epoch_count = task_epochs.epochs if task_epochs else 1
+        epoch_count = resolve_task_epochs(task.task, eval_epochs).epochs
 
         args_full = getattr(task.task, TASK_ALL_PARAMS_ATTR, None)
 
