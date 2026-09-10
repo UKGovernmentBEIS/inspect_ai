@@ -4,7 +4,7 @@ import re
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, Tuple, Union, cast
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing_extensions import override
 
 if TYPE_CHECKING:
@@ -163,15 +163,31 @@ class ConverseReasoningText(BaseModel):
 class ConverseReasoningContent(BaseModel):
     """A Converse API reasoningContent block.
 
-    `reasoningText` carries plaintext reasoning; `redactedContent` carries an
-    opaque, provider-encrypted trace with no plaintext to surface (the only
-    shape returned by OpenAI's GPT-5.6 family on Bedrock). The API documents
-    the two as co-occurring rather than exclusive, so treat each as
-    independently optional.
+    `ReasoningContentBlock` is a tagged union: `reasoningText` carries
+    plaintext reasoning, `redactedContent` carries an opaque
+    provider-encrypted trace with no plaintext to surface (the only shape
+    OpenAI's GPT-5.6 family returns on Bedrock), and exactly one is set.
+    botocore enforces that on the way out -- setting both raises
+    `ParamValidationError` before the request is signed.
+
+    Both members are nonetheless optional here so that an unrecognised
+    response shape (a variant added to the union later) parses to an empty
+    block rather than raising; `model_output_from_response` records that as
+    redacted reasoning. A request must never carry an empty block, and
+    `converse_reasoning_content` returns None rather than building one.
     """
 
     reasoningText: ConverseReasoningText | None = None
     redactedContent: bytes | None = None
+
+    @model_validator(mode="after")
+    def validate_union(self) -> "ConverseReasoningContent":
+        if self.reasoningText is not None and self.redactedContent is not None:
+            raise ValueError(
+                "reasoningContent is a tagged union: set reasoningText or "
+                "redactedContent, not both"
+            )
+        return self
 
 
 class ConverseCachePoint(BaseModel):
@@ -885,8 +901,15 @@ class BedrockAPI(ModelAPI):
                     )
                     converse_response = ConverseResponse(**response)
 
+                # `redactedContent` is a blob, so an encrypted reasoning
+                # trace can be arbitrary bytes; recording it raw fails the
+                # log's utf-8 serialization. The bytes replay from
+                # ContentReasoning.internal, which is built from
+                # `converse_response` above, so placeholdering them here
+                # costs nothing (matches the request side).
                 model_call.set_response(
-                    response, self._http_hooks.end_request(request_id)
+                    replace_bytes_with_placeholder(response),
+                    self._http_hooks.end_request(request_id),
                 )
 
             except ClientError as ex:
@@ -1093,8 +1116,9 @@ async def converse_response_from_stream(
     accumulate by `contentBlockIndex` (tool-use input arrives as partial-JSON
     string fragments, parsed once the stream completes; redacted-reasoning
     deltas accumulate into the block's `redactedContent` so both paths yield
-    the same response model, while reasoning signatures are dropped, matching
-    it). Usage, metrics, and any guardrail trace arrive on the trailing
+    the same response model, and reasoning signatures are dropped, matching
+    it). Each block yields one `reasoningContent` union member, never both.
+    Usage, metrics, and any guardrail trace arrive on the trailing
     `metadata` event. Exception members of the event union never arrive here
     as events: botocore raises them from the iterator as `EventStreamError`
     (a `ClientError`) whose code is the member name — see
@@ -1218,20 +1242,21 @@ async def converse_response_from_stream(
                     )
                 )
             )
-        elif block.reasoning or block.redacted_content:
+        elif block.reasoning:
             content.append(
                 ConverseMessageContent(
                     reasoningContent=ConverseReasoningContent(
-                        reasoningText=(
-                            ConverseReasoningText(text="".join(block.reasoning))
-                            if block.reasoning
-                            else None
-                        ),
-                        redactedContent=(
-                            b"".join(block.redacted_content)
-                            if block.redacted_content
-                            else None
-                        ),
+                        reasoningText=ConverseReasoningText(
+                            text="".join(block.reasoning)
+                        )
+                    )
+                )
+            )
+        elif block.redacted_content:
+            content.append(
+                ConverseMessageContent(
+                    reasoningContent=ConverseReasoningContent(
+                        redactedContent=b"".join(block.redacted_content)
                     )
                 )
             )
@@ -1655,26 +1680,29 @@ def converse_reasoning_content(
 ) -> ConverseReasoningContent | None:
     """Rebuild the Converse reasoningContent block a ContentReasoning came from.
 
-    Plaintext reasoning replays as `reasoningText`; a redacted trace replays as
-    the `redactedContent` bytes stashed on `internal` at parse time (`internal`
+    Exactly one union member is set: a redacted trace replays as the
+    `redactedContent` bytes stashed on `internal` at parse time (`internal`
     being the same carrier the Google provider uses for Gemini's redacted
-    thinking). A block carrying both replays both.
+    thinking), and plaintext reasoning replays as `reasoningText`.
 
-    Returns None when there is no payload left to send. Models that emit
-    redacted reasoning reject an empty `reasoningText` outright ("This model
-    doesn't support the reasoningContent.reasoningText.text field for
-    assistant messages") but accept the block's absence, so omitting it is
-    the only option that keeps the conversation alive. Both halves are
-    therefore decided on their payload rather than on the `redacted` flag:
-    empty text and empty bytes each carry nothing to replay.
+    Returns None when there is no payload to send, which is the only safe
+    outcome -- botocore rejects an empty block ("Must set one of the following
+    keys for tagged union structure") and the models that emit redacted
+    reasoning reject a substitute empty `reasoningText` ("This model doesn't
+    support the reasoningContent.reasoningText.text field for assistant
+    messages"), while both accept the block's absence. Reachable when a
+    redacted block's bytes aren't recoverable (reasoning captured from another
+    provider, or read from a log written before they were preserved).
     """
-    redacted_content = redacted_content_bytes(reasoning) or None
-    text = None if reasoning.redacted else (reasoning.reasoning or None)
-    if text is None and redacted_content is None:
+    if reasoning.redacted:
+        redacted_content = redacted_content_bytes(reasoning) or None
+        if redacted_content is None:
+            return None
+        return ConverseReasoningContent(redactedContent=redacted_content)
+    if not reasoning.reasoning:
         return None
     return ConverseReasoningContent(
-        reasoningText=ConverseReasoningText(text=text) if text is not None else None,
-        redactedContent=redacted_content,
+        reasoningText=ConverseReasoningText(text=reasoning.reasoning)
     )
 
 

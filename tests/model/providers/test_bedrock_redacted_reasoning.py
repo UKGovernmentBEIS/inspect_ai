@@ -31,15 +31,24 @@ See https://github.com/UKGovernmentBEIS/inspect_ai/issues/5217.
 from __future__ import annotations
 
 import base64
-from typing import AsyncIterator
+import json
+from typing import Any, AsyncIterator
 
 import pytest
+from pydantic import ValidationError
+from test_helpers.utils import skip_if_trio
 
 pytest.importorskip("aiobotocore")
 pytest.importorskip("botocore")
 
+from botocore.exceptions import ParamValidationError  # noqa: E402
+
 from inspect_ai._util.content import ContentReasoning, ContentText  # noqa: E402
-from inspect_ai.model._chat_message import ChatMessageAssistant  # noqa: E402
+from inspect_ai.model._chat_message import (  # noqa: E402
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
+from inspect_ai.model._generate_config import GenerateConfig  # noqa: E402
 from inspect_ai.model._providers.bedrock import (  # noqa: E402
     REDACTED_CONTENT_KEY,
     ConverseMessage,
@@ -54,6 +63,7 @@ from inspect_ai.model._providers.bedrock import (  # noqa: E402
     converse_messages,
     converse_response_from_stream,
     model_output_from_response,
+    redacted_content_bytes,
 )
 from inspect_ai.tool._tool_call import ToolCall  # noqa: E402
 
@@ -124,33 +134,6 @@ def test_plaintext_reasoning_parses_unchanged() -> None:
     assert blocks[0].redacted is False
     assert blocks[0].reasoning == "thinking..."
     assert blocks[0].internal is None
-
-
-def test_reasoning_with_both_text_and_redacted_content() -> None:
-    """The API documents the two fields as co-occurring, not exclusive.
-
-    Neither half may be dropped: the text is the visible reasoning, the
-    bytes are needed for replay.
-    """
-    response = _response(
-        [
-            ConverseMessageContent(
-                reasoningContent=ConverseReasoningContent(
-                    reasoningText=ConverseReasoningText(text="visible part"),
-                    redactedContent=REDACTED_BYTES,
-                )
-            ),
-        ]
-    )
-
-    blocks = _reasoning_blocks(response)
-    assert len(blocks) == 1
-    assert blocks[0].reasoning == "visible part"
-    # plaintext is present, so the block as a whole isn't redacted
-    assert blocks[0].redacted is False
-    assert blocks[0].internal == {
-        REDACTED_CONTENT_KEY: base64.b64encode(REDACTED_BYTES).decode()
-    }
 
 
 def test_empty_reasoning_content_does_not_raise() -> None:
@@ -266,22 +249,18 @@ async def test_redacted_reasoning_with_unusable_bytes_is_dropped(
 
 
 async def test_empty_reasoning_text_is_never_replayed() -> None:
-    """An empty reasoningText.text must not reach the wire alongside bytes.
+    """An empty reasoningText.text must never reach the wire.
 
-    It is the exact field the redacted-reasoning models reject, so a block
-    whose plaintext half is empty replays only its bytes.
+    It is the exact field the redacted-reasoning models reject, and an
+    empty union block is invalid to botocore, so a non-redacted block with
+    no text is dropped instead.
     """
-    reasoning = ContentReasoning(
-        reasoning="",
-        redacted=False,
-        internal={REDACTED_CONTENT_KEY: base64.b64encode(REDACTED_BYTES).decode()},
+    blocks = await converse_contents(
+        [ContentReasoning(reasoning=""), ContentText(text="150")]
     )
 
-    blocks = await converse_contents([reasoning])
-
-    assert blocks[0].reasoningContent is not None
-    assert blocks[0].reasoningContent.reasoningText is None
-    assert blocks[0].reasoningContent.redactedContent == REDACTED_BYTES
+    assert [b.text for b in blocks] == ["150"]
+    assert all(b.reasoningContent is None for b in blocks)
 
 
 async def test_redacted_only_message_gets_no_content_placeholder() -> None:
@@ -314,22 +293,6 @@ async def test_dropped_block_with_tool_calls_keeps_message_non_empty() -> None:
     assert len(messages[0].content) > 0
     assert [c.toolUse.name for c in messages[0].content if c.toolUse] == ["ls"]
     assert all(c.reasoningContent is None for c in messages[0].content)
-
-
-async def test_both_halves_round_trip_together() -> None:
-    """A block carrying text and bytes replays both."""
-    reasoning = ContentReasoning(
-        reasoning="visible part",
-        redacted=False,
-        internal={REDACTED_CONTENT_KEY: base64.b64encode(REDACTED_BYTES).decode()},
-    )
-
-    blocks = await converse_contents([reasoning])
-
-    assert blocks[0].reasoningContent is not None
-    assert blocks[0].reasoningContent.reasoningText is not None
-    assert blocks[0].reasoningContent.reasoningText.text == "visible part"
-    assert blocks[0].reasoningContent.redactedContent == REDACTED_BYTES
 
 
 async def test_plaintext_reasoning_replay_unchanged() -> None:
@@ -376,9 +339,9 @@ async def test_plaintext_reasoning_still_emulated() -> None:
 async def test_emulated_think_tag_omits_the_redacted_carrier() -> None:
     """The bytes carrier must never reach the model as prompt text.
 
-    A block with both plaintext and redacted halves still emulates its
-    text, but `reasoning_to_think_tag` would otherwise base64 the carrier
-    into an `internal="..."` attribute the model then reads.
+    A non-redacted block still emulates its text, but
+    `reasoning_to_think_tag` would otherwise base64 whatever sits on
+    `internal` into an attribute the model then reads.
     """
     encoded = base64.b64encode(REDACTED_BYTES).decode()
     reasoning = ContentReasoning(
@@ -453,41 +416,6 @@ async def test_streamed_redacted_reasoning_matches_non_streaming() -> None:
     assert _reasoning_blocks(streamed) == _reasoning_blocks(non_streamed)
 
 
-async def test_streamed_block_carrying_both_halves() -> None:
-    """Plaintext and redacted deltas on one block keep both halves."""
-    events: list[dict[str, object]] = [
-        {"messageStart": {"role": "assistant"}},
-        {
-            "contentBlockDelta": {
-                "contentBlockIndex": 0,
-                "delta": {"reasoningContent": {"text": "visible part"}},
-            }
-        },
-        {
-            "contentBlockDelta": {
-                "contentBlockIndex": 0,
-                "delta": {"reasoningContent": {"redactedContent": REDACTED_BYTES}},
-            }
-        },
-        {"contentBlockStop": {"contentBlockIndex": 0}},
-        {"messageStop": {"stopReason": "end_turn"}},
-        {
-            "metadata": {
-                "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
-                "metrics": {"latencyMs": 1},
-            }
-        },
-    ]
-
-    response = await converse_response_from_stream(_stream(events))
-
-    reasoning_content = response.output.message.content[0].reasoningContent
-    assert reasoning_content is not None
-    assert reasoning_content.reasoningText is not None
-    assert reasoning_content.reasoningText.text == "visible part"
-    assert reasoning_content.redactedContent == REDACTED_BYTES
-
-
 async def test_streamed_redacted_reasoning_accumulates_across_deltas() -> None:
     """A blob split across deltas is joined in order."""
     events: list[dict[str, object]] = [
@@ -519,3 +447,237 @@ async def test_streamed_redacted_reasoning_accumulates_across_deltas() -> None:
     content = response.output.message.content
     assert content[0].reasoningContent is not None
     assert content[0].reasoningContent.redactedContent == b"rsn_first-second"
+
+
+# ------------------------------------------------------ the tagged union
+
+
+def test_setting_both_union_members_is_rejected() -> None:
+    """`ReasoningContentBlock` is a tagged union, so both is never valid.
+
+    botocore refuses it too ("Invalid number of parameters set for tagged
+    union structure"), but failing at construction keeps a bad request from
+    being assembled in the first place.
+    """
+    with pytest.raises(ValidationError, match="tagged union"):
+        ConverseReasoningContent(
+            reasoningText=ConverseReasoningText(text="t"),
+            redactedContent=REDACTED_BYTES,
+        )
+
+
+def _validate_against_service_model(request: dict[str, object]) -> None:
+    """Validate a Converse request against botocore's own service model.
+
+    Offline and credential-free: this is the same parameter validation
+    botocore runs before signing, so it catches a request shape the SDK
+    would reject without needing AWS access.
+    """
+    import botocore.session
+    from botocore.validate import validate_parameters
+
+    service = botocore.session.get_session().get_service_model("bedrock-runtime")
+    input_shape = service.operation_model("Converse").input_shape
+    assert input_shape is not None
+    validate_parameters(request, input_shape)
+
+
+@pytest.mark.parametrize(
+    "reasoning",
+    [
+        pytest.param(
+            ContentReasoning(
+                reasoning="",
+                redacted=True,
+                internal={
+                    REDACTED_CONTENT_KEY: base64.b64encode(REDACTED_BYTES).decode()
+                },
+            ),
+            id="redacted",
+        ),
+        pytest.param(ContentReasoning(reasoning="thinking..."), id="plaintext"),
+        pytest.param(
+            ContentReasoning(reasoning="", redacted=True), id="redacted-no-bytes"
+        ),
+    ],
+)
+async def test_replayed_request_passes_botocore_validation(
+    reasoning: ContentReasoning,
+) -> None:
+    """Every replayed reasoning shape must be one botocore accepts."""
+    message = ChatMessageAssistant(content=[reasoning, ContentText(text="150")])
+
+    _, messages = await converse_messages([message])
+
+    _validate_against_service_model(
+        {
+            "modelId": "us.openai.gpt-5.6-sol",
+            "messages": [m.model_dump(exclude_none=True) for m in messages],
+        }
+    )
+
+
+async def test_empty_reasoning_block_would_fail_validation() -> None:
+    """Guards the helper above: an empty union block is genuinely invalid.
+
+    Without this, `test_replayed_request_passes_botocore_validation` would
+    still pass if the replay path silently emitted empty blocks.
+    """
+    with pytest.raises(ParamValidationError, match="Must set one of"):
+        _validate_against_service_model(
+            {
+                "modelId": "m",
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [{"reasoningContent": {}}],
+                    }
+                ],
+            }
+        )
+
+
+# ------------------------------------------- full provider, binary blobs
+
+# `redactedContent` is a blob in the service model, so an encrypted trace is
+# not required to be ASCII (the GPT-5.6 family happens to return base64 text).
+# Arbitrary bytes must not break the model-call log.
+BINARY_REDACTED_BYTES = b"\x00\xff\xfersn_\x80\x81binary"
+
+
+class _FakeClient:
+    """Stands in for the aioboto3 bedrock-runtime client."""
+
+    def __init__(self, response: dict[str, Any], events: list[dict[str, Any]]):
+        self._response = response
+        self._events = events
+        self.converse_calls: list[dict[str, Any]] = []
+
+    async def converse(self, **kwargs: Any) -> dict[str, Any]:
+        self.converse_calls.append(kwargs)
+        return self._response
+
+    async def converse_stream(self, **kwargs: Any) -> dict[str, Any]:
+        self.converse_calls.append(kwargs)
+        return {"stream": _stream(self._events)}
+
+
+class _FakeSession:
+    def __init__(self, client: _FakeClient):
+        self._client = client
+
+    def client(self, **kwargs: Any) -> Any:
+        client = self._client
+
+        class _CM:
+            async def __aenter__(self) -> _FakeClient:
+                return client
+
+            async def __aexit__(self, *exc: Any) -> None:
+                return None
+
+        return _CM()
+
+
+def _binary_response() -> dict[str, Any]:
+    return {
+        "output": {
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {"reasoningContent": {"redactedContent": BINARY_REDACTED_BYTES}},
+                    {"text": "150"},
+                ],
+            }
+        },
+        "stopReason": "end_turn",
+        "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+        "metrics": {"latencyMs": 1},
+    }
+
+
+def _binary_stream_events() -> list[dict[str, Any]]:
+    return _stream_events(
+        {"reasoningContent": {"redactedContent": BINARY_REDACTED_BYTES}}
+    )
+
+
+def _make_api(streaming: bool | None) -> tuple[Any, _FakeClient]:
+    from inspect_ai.model._providers.bedrock import BedrockAPI
+
+    api = BedrockAPI(model_name="us.openai.gpt-5.6-sol", base_url=None)
+    client = _FakeClient(_binary_response(), _binary_stream_events())
+    api.session = _FakeSession(client)  # type: ignore[assignment]
+    api.streaming = streaming
+    return api, client
+
+
+@pytest.mark.parametrize("streaming", [False, True], ids=["non-streamed", "streamed"])
+@skip_if_trio
+async def test_generate_survives_binary_encrypted_reasoning(
+    streaming: bool,
+) -> None:
+    """A binary redactedContent blob must not break generate() or its log.
+
+    Recording the raw response runs it through utf-8 JSON serialization,
+    which a non-ASCII blob fails. Covers both the Converse and
+    ConverseStream paths.
+    """
+    api, _client = _make_api(streaming)
+
+    result = await api.generate(
+        input=[ChatMessageUser(content="Answer with just the number.")],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+    )
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert not isinstance(output, Exception), output
+
+    # the log must be JSON-serializable, with the blob placeholdered
+    json.dumps(model_call.response)
+    reasoning_block = model_call.response["output"]["message"]["content"][0]
+    assert reasoning_block["reasoningContent"]["redactedContent"] == "<bytes>"
+
+    # ...and the real bytes must still be available for replay
+    blocks = output.message.content
+    assert isinstance(blocks, list)
+    reasoning = [c for c in blocks if isinstance(c, ContentReasoning)]
+    assert len(reasoning) == 1
+    assert reasoning[0].redacted is True
+    assert redacted_content_bytes(reasoning[0]) == BINARY_REDACTED_BYTES
+
+
+@skip_if_trio
+async def test_binary_reasoning_replays_verbatim_through_the_provider() -> None:
+    """End to end: the blob generate() returned is what replay sends back."""
+    api, client = _make_api(streaming=False)
+
+    result = await api.generate(
+        input=[ChatMessageUser(content="Answer with just the number.")],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+    )
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert not isinstance(output, Exception), output
+
+    await api.generate(
+        input=[
+            ChatMessageUser(content="Answer with just the number."),
+            ChatMessageAssistant(content=output.message.content, model=output.model),
+            ChatMessageUser(content="Now double it."),
+        ],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+    )
+
+    replayed = client.converse_calls[-1]["messages"][1]["content"][0]
+    assert replayed["reasoningContent"]["redactedContent"] == BINARY_REDACTED_BYTES
+    assert "reasoningText" not in replayed["reasoningContent"]
+    _validate_against_service_model(
+        {"modelId": "m", "messages": client.converse_calls[-1]["messages"]}
+    )
