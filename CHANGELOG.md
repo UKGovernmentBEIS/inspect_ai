@@ -40,6 +40,7 @@
 - Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
 - Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
 - Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
+- Deep Agent: Background subagents now remain available while eval scorers run after the solver completes.
 
 ## 0.3.263 (03 September 2026)
 
