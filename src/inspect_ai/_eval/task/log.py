@@ -800,6 +800,10 @@ class TaskLogger:
         await self._finalize_sample(sample, flush=flush)
 
     async def _finalize_sample(self, sample: EvalSample, *, flush: bool) -> None:
+        # The recorder already holds this attempt's result. Resolve its seed
+        # before releasing the alias user or awaiting a flush, so another
+        # completion cannot prune the replacement as an unresolved seed.
+        self._seeded_pending.discard(_seeded_key(sample.id, sample.epoch))
         if self._prior_sample_keys is not None and self._prior_sample_users is not None:
             async with self._prior_seed_lock:
                 prior_key = self._prior_sample_keys.get(sample.id, sample.epoch)

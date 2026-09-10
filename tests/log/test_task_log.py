@@ -1393,6 +1393,80 @@ async def test_json_seed_preserves_history_for_shared_normalized_ids(
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("cancel_first", [False, True])
+async def test_shared_seed_pruning_preserves_overlapping_completions(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    cancel_first: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prior = await _write_prior_log(
+        JSONRecorder(str(tmp_path / "prior")),
+        [_prior_samples()[1].model_copy(update={"id": "001"})],
+    )
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger.flush_buffer = 1
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep={("001", 1), (1, 1)})
+    await logger.log_start(EvalPlan())
+    first_flushing = anyio.Event()
+    second_completed = anyio.Event()
+    first_scope = anyio.CancelScope()
+    flush_pending = logger._flush_pending_samples
+
+    async def pause_first_flush(*, stale_flush_generation: int | None = None) -> int:
+        if not first_flushing.is_set():
+            await recorder.flush(logger.eval)
+            first_flushing.set()
+            await second_completed.wait()
+        return await flush_pending(stale_flush_generation=stale_flush_generation)
+
+    async def complete_first() -> None:
+        with first_scope:
+            await logger.complete_sample(
+                EvalSample(id="001", epoch=1, input="first result", target="a"),
+                flush=True,
+            )
+
+    async def complete_second() -> None:
+        await first_flushing.wait()
+        await logger.complete_sample(
+            EvalSample(id=1, epoch=1, input="second result", target="a"), flush=True
+        )
+        if cancel_first:
+            first_scope.cancel()
+        second_completed.set()
+
+    monkeypatch.setattr(logger, "_flush_pending_samples", pause_first_flush)
+    async with anyio.create_task_group() as group:
+        group.start_soon(complete_first)
+        group.start_soon(complete_second)
+
+    assert first_scope.cancelled_caught == cancel_first
+    if not cancel_first:
+        assert logger.samples_completed == logger.samples_logged == 2
+    assert not logger.flush_pending
+    await logger.log_finish(
+        "cancelled" if cancel_first else "success",
+        EvalStats(),
+        prune_unplanned=not cancel_first,
+    )
+    final = await read_eval_log_async(logger.location)
+    assert final.samples is not None
+    assert {s.id: s.input for s in final.samples} == {
+        "001": "first result",
+        1: "second result",
+    }
+    assert all(s.error is None for s in final.samples)
+    assert {
+        s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+    } == {"001", 1}
+    assert not recorder.data
+    assert not recorder._seed_sources
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 async def test_dynamic_seed_restores_shared_alias_on_later_admission(
     recorder_type: type[EvalRecorder] | type[JSONRecorder], tmp_path: Path
 ) -> None:
