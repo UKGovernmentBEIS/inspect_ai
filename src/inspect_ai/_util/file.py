@@ -442,16 +442,28 @@ def to_uri(path_or_uri: str) -> str:
     return "file://" + quote_from_bytes(bytes(path_obj), safe="/:@")
 
 
+_WINDOWS_DRIVE_AUTHORITY = re.compile(r"[A-Za-z]:")
+
+
 def local_path(filename: str) -> str:
     """Convert a file:// URL to a local path, or return as-is.
 
     Percent-encoded characters are decoded (the inverse of `to_uri`, which
     encodes them), so paths with spaces or literal percent sequences round
-    trip. Known limitation (unchanged): a UNC-style `file://server/share`
-    URL drops its host component — only the path part is returned.
+    trip. The authority component is honoured: `file://D:/logs` (the form
+    the local filesystem reports on Windows) keeps its drive, and a
+    UNC-style `file://server/share` URL keeps its host.
     """
     if filename.startswith("file://"):
-        return url2pathname(urlparse(filename).path)
+        parsed = urlparse(filename)
+        # urlparse puts a Windows drive ("D:") or a UNC host in netloc and
+        # leaves only "/logs/..." in path; converting the path alone gives
+        # "\logs\...", which resolves against the current drive (#5322)
+        if _WINDOWS_DRIVE_AUTHORITY.fullmatch(parsed.netloc):
+            return url2pathname(parsed.netloc + parsed.path)
+        if parsed.netloc and parsed.netloc != "localhost":
+            return url2pathname("//" + parsed.netloc + parsed.path)
+        return url2pathname(parsed.path)
     return filename
 
 

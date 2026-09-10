@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: `file://` locations whose authority carries a Windows drive (`file://D:/logs/...`, the form the local filesystem reports) now resolve to `D:\logs\...` instead of `\logs\...`, so `read_eval_log()` and `read_eval_log_headers()` work when the log directory is on a different drive from the working directory; a UNC host is kept as well. (#5322)
 - Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
 - Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
 - Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.
