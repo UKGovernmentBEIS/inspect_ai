@@ -343,7 +343,9 @@ async def inspect_responses_api_request_impl(
                 tool, web_search, code_execution, bridge.allow_remote_mcp
             )
         )
-    tool_names = {tool.name for tool in tools if isinstance(tool, ToolInfo)}
+    tool_names: dict[str, tuple[str, str | None, ToolParams] | None] = {
+        tool.name: None for tool in tools if isinstance(tool, ToolInfo)
+    }
     if not is_openai:
         for tool in client_discovered_tools:
             tools.extend(
@@ -444,14 +446,25 @@ def _record_tool_namespace(
     tool_namespaces[exposed_name] = identity
 
 
-def _register_client_tool_name(tool_names: set[str], name: str) -> None:
-    """Register a tool exposed to a generic provider without silent shadowing."""
-    if name in tool_names:
+def _register_client_tool(
+    tool_names: dict[str, tuple[str, str | None, ToolParams] | None],
+    exposed_name: str,
+    name: str,
+    namespace: str | None,
+    parameters: ToolParams,
+) -> bool:
+    """Register a generic-provider tool, retaining duplicate discovery results."""
+    identity = (name, namespace, parameters)
+    existing = tool_names.get(exposed_name)
+    if existing == identity:
+        return False
+    if existing is not None or exposed_name in tool_names:
         raise RuntimeError(
             f"Ambiguous client tool catalog: discovered tool "
-            f"'{name}' conflicts with a tool that is already available."
+            f"'{exposed_name}' conflicts with a tool that is already available."
         )
-    tool_names.add(name)
+    tool_names[exposed_name] = identity
+    return True
 
 
 def _harvest_tool_namespaces(
@@ -648,10 +661,15 @@ def tool_from_responses_tool(
         # client-resolved tool discovery (e.g. codex-cli). Preserve the native
         # tool fields in options so the OpenAI Responses provider can re-emit the
         # ToolSearchToolParam verbatim; the scaffold resolves the calls locally.
+        parameters = (
+            ToolParams.model_validate(tool_param["parameters"])
+            if tool_param.get("execution") == "client"
+            else ToolParams()
+        )
         return ToolInfo(
             name=TOOL_SEARCH_NAME,
             description=tool_param.get("description") or TOOL_SEARCH_NAME,
-            parameters=ToolParams.model_validate(tool_param["parameters"]),
+            parameters=parameters,
             options={
                 TOOL_SEARCH_OPTIONS_MARKER: True,
                 "description": tool_param.get("description"),
@@ -722,7 +740,7 @@ def tools_from_client_tool_search_output(
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
     tool_namespaces: dict[str, tuple[str, str]],
-    tool_names: set[str],
+    tool_names: dict[str, tuple[str, str | None, ToolParams] | None],
 ) -> list[ToolInfo | Tool]:
     """Expose client-discovered tools to a non-OpenAI model API.
 
@@ -744,10 +762,17 @@ def tools_from_client_tool_search_output(
             code_execution_providers,
             allow_remote_mcp,
         )
+        unique_client_tools: list[ToolInfo | Tool] = []
         for client_tool in client_tools:
-            if isinstance(client_tool, ToolInfo):
-                _register_client_tool_name(tool_names, client_tool.name)
-        return client_tools
+            if not isinstance(client_tool, ToolInfo) or _register_client_tool(
+                tool_names,
+                client_tool.name,
+                client_tool.name,
+                None,
+                client_tool.parameters,
+            ):
+                unique_client_tools.append(client_tool)
+        return unique_client_tools
 
     namespace = tool_param["name"]
     flattened: list[ToolInfo | Tool] = []
@@ -769,7 +794,14 @@ def tools_from_client_tool_search_output(
             if isinstance(inner_tool, ToolInfo):
                 name = inner_tool.name
                 generic_name = f"{namespace}__{name}"
-                _register_client_tool_name(tool_names, generic_name)
+                if not _register_client_tool(
+                    tool_names,
+                    generic_name,
+                    name,
+                    namespace,
+                    inner_tool.parameters,
+                ):
+                    continue
                 inner_tool.name = generic_name
                 _record_tool_namespace(tool_namespaces, generic_name, name, namespace)
             flattened.append(inner_tool)
