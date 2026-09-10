@@ -300,13 +300,13 @@ async def inspect_responses_api_request_impl(
                 item_tools = item.get("tools")
                 client_discovery_output = True
             for declared in item_tools or []:
+                if client_discovery_output:
+                    client_discovered_tools.append(declared)
+                    continue
                 key = (declared.get("type"), declared.get("name"))
                 if key not in declared_tool_keys:
                     declared_tool_keys.add(key)
-                    if client_discovery_output:
-                        client_discovered_tools.append(declared)
-                    else:
-                        responses_tools.append(declared)
+                    responses_tools.append(declared)
 
     has_computer_use = any(
         _contains_computer_tool(tool) for tool in responses_tools
@@ -442,6 +442,16 @@ def _record_tool_namespace(
             f"'{existing[1]}::{existing[0]}' and '{namespace}::{name}'."
         )
     tool_namespaces[exposed_name] = identity
+
+
+def _register_client_tool_name(tool_names: set[str], name: str) -> None:
+    """Register a tool exposed to a generic provider without silent shadowing."""
+    if name in tool_names:
+        raise RuntimeError(
+            f"Ambiguous client tool catalog: discovered tool "
+            f"'{name}' conflicts with a tool that is already available."
+        )
+    tool_names.add(name)
 
 
 def _harvest_tool_namespaces(
@@ -641,6 +651,7 @@ def tool_from_responses_tool(
         return ToolInfo(
             name=TOOL_SEARCH_NAME,
             description=tool_param.get("description") or TOOL_SEARCH_NAME,
+            parameters=ToolParams.model_validate(tool_param["parameters"]),
             options={
                 TOOL_SEARCH_OPTIONS_MARKER: True,
                 "description": tool_param.get("description"),
@@ -727,12 +738,16 @@ def tools_from_client_tool_search_output(
             and tool_param.get("execution") != "client"
         ):
             return []
-        return tools_from_responses_tool(
+        client_tools = tools_from_responses_tool(
             tool_param,
             web_search_providers,
             code_execution_providers,
             allow_remote_mcp,
         )
+        for client_tool in client_tools:
+            if isinstance(client_tool, ToolInfo):
+                _register_client_tool_name(tool_names, client_tool.name)
+        return client_tools
 
     namespace = tool_param["name"]
     flattened: list[ToolInfo | Tool] = []
@@ -754,12 +769,7 @@ def tools_from_client_tool_search_output(
             if isinstance(inner_tool, ToolInfo):
                 name = inner_tool.name
                 generic_name = f"{namespace}__{name}"
-                if generic_name in tool_names:
-                    raise RuntimeError(
-                        f"Ambiguous client tool catalog: discovered tool "
-                        f"'{generic_name}' conflicts with a tool that is already available."
-                    )
-                tool_names.add(generic_name)
+                _register_client_tool_name(tool_names, generic_name)
                 inner_tool.name = generic_name
                 _record_tool_namespace(tool_namespaces, generic_name, name, namespace)
             flattened.append(inner_tool)

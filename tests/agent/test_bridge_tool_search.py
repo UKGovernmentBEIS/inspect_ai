@@ -47,6 +47,7 @@ from inspect_ai.model._openai_responses import (
     is_tool_search_tool_param,
     maybe_tool_search_tool,
 )
+from inspect_ai.model._providers.anthropic import AnthropicAPI
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -388,6 +389,79 @@ async def test_client_tool_search_call_allows_missing_call_id() -> None:
     assert response.output_text == "done"
 
 
+async def test_client_tool_search_accumulates_namespace_discoveries() -> None:
+    """Later results from one namespace add their newly discovered tools."""
+    requested_tool_search = _tool_search_tool_param()
+    first_discovery = _deferred_mcp_namespace()
+    second_discovery = _deferred_mcp_namespace()
+    first_discovery["tools"] = [first_discovery["tools"][0]]
+    second_discovery["tools"] = [second_discovery["tools"][1]]
+    expected_names = {
+        TOOL_SEARCH_NAME,
+        f"{first_discovery['name']}__browser",
+        f"{second_discovery['name']}__javascript_exec",
+    }
+
+    def custom_outputs(
+        _input: list[ChatMessage],
+        tools: list[ToolInfo],
+        _tool_choice: ToolChoice,
+        _config: GenerateConfig,
+    ) -> ModelOutput:
+        assert {tool.name for tool in tools} == expected_names
+        return ModelOutput.from_content("mockllm/model", "done")
+
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        model_aliases={
+            "inspect": get_model("mockllm/model", custom_outputs=custom_outputs)
+        },
+    )
+    response = await inspect_responses_api_request(
+        {
+            "model": "inspect",
+            "input": [
+                {"role": "user", "content": "Find browser tools."},
+                {
+                    "type": "tool_search_call",
+                    "id": "ts_1",
+                    "call_id": "tool_search_1",
+                    "arguments": {"query": "browser tools"},
+                    "execution": "client",
+                    "status": "completed",
+                },
+                {
+                    "type": "tool_search_output",
+                    "call_id": "tool_search_1",
+                    "tools": [first_discovery],
+                    "status": "completed",
+                },
+                {
+                    "type": "tool_search_call",
+                    "id": "ts_2",
+                    "call_id": "tool_search_2",
+                    "arguments": {"query": "browser tools"},
+                    "execution": "client",
+                    "status": "completed",
+                },
+                {
+                    "type": "tool_search_output",
+                    "call_id": "tool_search_2",
+                    "tools": [second_discovery],
+                    "status": "completed",
+                },
+            ],
+            "tools": [requested_tool_search],
+        },
+        None,
+        None,
+        None,
+        bridge,
+    )
+
+    assert response.output_text == "done"
+
+
 @pytest.mark.parametrize(
     "discovered_tools",
     [
@@ -481,6 +555,51 @@ async def test_client_tool_search_rejects_ambiguous_flattened_name() -> None:
         )
 
 
+@pytest.mark.parametrize("plain_first", [True, False], ids=["plain", "namespace"])
+async def test_client_discovery_rejects_plain_namespace_name_collisions(
+    plain_first: bool,
+) -> None:
+    """Plain and namespaced discovery entries cannot share a generic name."""
+    namespace_tool = _deferred_mcp_namespace()
+    plain_tool = _discoverable_function_tool()
+    plain_tool["name"] = f"{namespace_tool['name']}__browser"
+    discovered_tools = (
+        [plain_tool, namespace_tool] if plain_first else [namespace_tool, plain_tool]
+    )
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        model_aliases={"inspect": get_model("mockllm/model")},
+    )
+
+    with pytest.raises(RuntimeError, match="Ambiguous client tool catalog"):
+        await inspect_responses_api_request(
+            {
+                "model": "inspect",
+                "input": [
+                    {
+                        "type": "tool_search_call",
+                        "id": "ts_1",
+                        "call_id": "tool_search_1",
+                        "arguments": {"query": "browser tools"},
+                        "execution": "client",
+                        "status": "completed",
+                    },
+                    {
+                        "type": "tool_search_output",
+                        "call_id": "tool_search_1",
+                        "tools": discovered_tools,
+                        "status": "completed",
+                    },
+                ],
+                "tools": [_tool_search_tool_param()],
+            },
+            None,
+            None,
+            None,
+            bridge,
+        )
+
+
 def test_client_discovery_skips_custom_and_server_builtins() -> None:
     """Custom and server-resolved built-ins never reach generic providers."""
     tool_namespaces: dict[str, tuple[str, str]] = {}
@@ -534,6 +653,26 @@ def test_tool_from_responses_tool_tool_search() -> None:
     assert tool.options["execution"] == "client"
     assert tool.options["description"] == "Search for available tools"
     assert tool.options["parameters"] == _tool_search_tool_param()["parameters"]
+
+
+def test_client_tool_search_keeps_schema_for_generic_provider() -> None:
+    """Generic-provider serialization keeps the client discovery schema."""
+    tool = tool_from_responses_tool(
+        _tool_search_tool_param(),
+        WEB_SEARCH_PROVIDERS,
+        CODE_EXECUTION_PROVIDERS,
+        allow_remote_mcp=True,
+    )
+    assert isinstance(tool, ToolInfo)
+
+    params = AnthropicAPI(
+        model_name="claude-sonnet-4-6", api_key="test-key"
+    ).tool_params_for_tool_info(tool, GenerateConfig())
+
+    assert len(params) == 1
+    param = cast(dict[str, Any], params[0])
+    assert param["name"] == TOOL_SEARCH_NAME
+    assert param["input_schema"] == _tool_search_tool_param()["parameters"]
 
 
 # 2. ToolInfo -> native ToolSearchToolParam (and None for ordinary tools)
