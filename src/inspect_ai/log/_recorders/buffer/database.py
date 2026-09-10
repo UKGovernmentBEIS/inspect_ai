@@ -275,6 +275,12 @@ class SampleBufferDatabase(SampleBuffer):
         self._pending_sample_removals: set[tuple[str, int]] = set()
         self._cleanup_pending = False
         self._close_pending = False
+        # set under _lease_lock the moment a close or cleanup decides to
+        # proceed (no reader holds a lease): from then on lease admission is
+        # refused, so no read can start between that decision and the
+        # connections closing — which may now happen on a worker thread
+        # (aclose/acleanup) while the event loop keeps serving readers
+        self._closing = False
         self._lease_lock = threading.Lock()
 
         # create sync filestore if log_shared
@@ -540,6 +546,7 @@ class SampleBufferDatabase(SampleBuffer):
             if self._sample_read_leases:
                 self._close_pending = True
                 return
+            self._closing = True
 
         self._close_all_connections()
 
@@ -562,6 +569,7 @@ class SampleBufferDatabase(SampleBuffer):
             if self._sample_read_leases:
                 self._cleanup_pending = True
                 return False
+            self._closing = True
 
         self._delete_local_files()
         return True
@@ -1048,6 +1056,12 @@ class SampleBufferDatabase(SampleBuffer):
     ) -> Iterator[None]:
         key = (str(id), epoch)
         with self._lease_lock:
+            # atomic with a close's no-leases decision (see _closing): a read
+            # is admitted before that decision, deferring the close until it
+            # ends, or refused after it — never started against connections
+            # that a worker thread is about to close
+            if self._closing or self._closed:
+                raise RuntimeError("SampleBufferDatabase used after cleanup")
             self._sample_read_leases[key] = self._sample_read_leases.get(key, 0) + 1
         try:
             yield
@@ -1070,6 +1084,8 @@ class SampleBufferDatabase(SampleBuffer):
                     if self._close_pending and not self._sample_read_leases:
                         self._close_pending = False
                         close_ready = True
+                    if cleanup_ready or close_ready:
+                        self._closing = True
             if ready_remove:
                 self._remove_samples_now([key])
             if cleanup_ready:
@@ -1230,13 +1246,16 @@ class SampleBufferDatabase(SampleBuffer):
         Precondition: no other thread may be mid-operation on a tracked
         connection when this runs (closing a connection in use from another
         thread is undefined even with check_same_thread=False). This holds
-        because callers either (a) join the filestore sync worker first
-        (_close_sync_worker_for_cleanup, which aborts cleanup if the join times
-        out) and (b) run on the single event-loop thread that performs all other
-        DB access — so that thread is never mid-op while calling cleanup. The
-        _closed flag (set here, re-checked under the lock in _thread_connection)
-        closes the remaining "open racing with close" window. Offloading a DB
-        operation to another non-joined thread would break this precondition.
+        because callers (a) join the filestore sync worker first
+        (_close_sync_worker_for_cleanup, which aborts if the join times out)
+        and (b) decide to proceed only when no reader holds a lease, setting
+        _closing under _lease_lock in the same step so no leased read is
+        admitted afterwards — which matters now that aclose/acleanup run
+        this on a worker thread while the event loop keeps serving readers.
+        Non-leased operations reach the buffer only through TaskLogger, which
+        drops its reference before tearing down. The _closed flag (set here,
+        re-checked under the lock in _thread_connection) closes the remaining
+        "open racing with close" window.
         """
         with self._connections_lock:
             self._closed = True

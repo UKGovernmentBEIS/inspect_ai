@@ -2713,6 +2713,45 @@ async def test_buffer_acleanup_keeps_filestore_removal_off_worker_threads(
     assert not buffer_db.db_path.exists()
 
 
+@pytest.mark.parametrize("keep", [True, False])
+def test_buffer_reader_admission_is_refused_once_teardown_proceeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, keep: bool
+) -> None:
+    # a close or cleanup decides to proceed when no reader holds a lease, and
+    # may then close the connections from a worker thread while the event
+    # loop still serves readers. A reader arriving after that decision must
+    # be refused with the defined error, not admitted against connections
+    # about to close (an uncaught sqlite ProgrammingError under it)
+    buffer_db = SampleBufferDatabase(
+        location=str(tmp_path / "retry.eval"), create=True, db_dir=tmp_path / "db"
+    )
+    buffer_db.start_sample(EvalSampleSummary(id=1, epoch=1, input="q", target="a"))
+    outcomes: list[str] = []
+    close_connections = buffer_db._close_all_connections
+
+    def reader_arrives_then_close() -> None:
+        # the window between the no-leases decision and the connections closing
+        try:
+            buffer_db.sample_event_count(1, 1)
+            outcomes.append("admitted")
+        except RuntimeError as ex:
+            outcomes.append(str(ex))
+        close_connections()
+
+    monkeypatch.setattr(buffer_db, "_close_all_connections", reader_arrives_then_close)
+    if keep:
+        buffer_db.close()
+    else:
+        buffer_db.cleanup()
+
+    assert outcomes == ["SampleBufferDatabase used after cleanup"]
+    assert buffer_db._closed
+    with pytest.raises(RuntimeError, match="used after cleanup"):
+        buffer_db.sample_event_count(1, 1)
+    if keep:
+        buffer_db.cleanup()
+
+
 async def test_task_logger_discard_contains_recorder_failures() -> None:
     # discard's callers run inside the dispatcher task group: a storage error
     # from the destination removal must be logged, not raised — an escaping
