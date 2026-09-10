@@ -1280,6 +1280,54 @@ async def test_dynamic_seed_reads_prior_once_per_attempt(
     assert not source.keys and not source._samples and source._reader is None
 
 
+async def test_seed_source_loads_once_under_concurrent_first_callers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a byte-copy .eval seed loads no source up front, so the first adoptions
+    # can ask for it concurrently: all must share one loaded source, or the
+    # losers of the check-then-store race leak their readers (only the source
+    # stored last is closed with the attempt)
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.log._recorders.recorder import SeedSamples
+
+    recorder = JSONRecorder(str(tmp_path))
+    spec = _eval_spec()
+    await recorder.log_init(spec)
+    loads = 0
+    release = anyio.Event()
+    closed: list[AsyncFilesystem] = []
+    close = AsyncFilesystem.close
+
+    async def slow_load(self: SeedSamples, prior: Any) -> None:
+        nonlocal loads
+        loads += 1
+        await release.wait()
+
+    async def close_source(self: AsyncFilesystem) -> None:
+        closed.append(self)
+        await close(self)
+
+    monkeypatch.setattr(SeedSamples, "load", slow_load)
+    monkeypatch.setattr(AsyncFilesystem, "close", close_source)
+    sources: list[SeedSamples] = []
+
+    async def ask() -> None:
+        sources.append(await recorder.seed_source(spec, "prior.eval"))
+
+    async with anyio.create_task_group() as group:
+        for _ in range(3):
+            group.start_soon(ask)
+        await anyio.sleep(0.05)
+        release.set()
+
+    assert loads == 1
+    assert len(sources) == 3 and all(source is sources[0] for source in sources)
+    await recorder.close_seed_source(spec)
+    assert len(closed) == 1
+    assert not recorder._seed_sources
+    await recorder.log_discard(spec)
+
+
 @pytest.mark.parametrize("cancel", [False, True])
 async def test_seed_source_initial_read_failure_closes_filesystem(
     cancel: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

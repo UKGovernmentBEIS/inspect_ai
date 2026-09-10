@@ -173,21 +173,27 @@ def exclude_sample_fields(
 class Recorder(abc.ABC):
     def __init__(self) -> None:
         self._seed_sources: dict[str, SeedSamples] = {}
+        # guards the check-then-store across the load's await: without it two
+        # first callers (a byte-copy seed loads no source up front, so the
+        # first adoptions can race) each load a source and only the one
+        # stored last is ever closed
+        self._seed_source_lock = anyio.Lock()
 
     async def seed_source(
         self, eval: EvalSpec, prior: str | Sequence[EvalSample]
     ) -> SeedSamples:
-        """Return this attempt's prior source, loading it once before dispatch."""
-        source = self._seed_sources.get(eval.eval_id)
-        if source is None:
-            source = SeedSamples()
-            try:
-                await source.load(prior)
-            except BaseException:
-                await source.close()
-                raise
-            self._seed_sources[eval.eval_id] = source
-        return source
+        """Return this attempt's prior source, loading it once."""
+        async with self._seed_source_lock:
+            source = self._seed_sources.get(eval.eval_id)
+            if source is None:
+                source = SeedSamples()
+                try:
+                    await source.load(prior)
+                except BaseException:
+                    await source.close()
+                    raise
+                self._seed_sources[eval.eval_id] = source
+            return source
 
     async def close_seed_source(self, eval: EvalSpec) -> None:
         """Release this attempt's cached prior on finish, discard, or task exit."""
