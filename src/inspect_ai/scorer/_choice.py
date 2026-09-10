@@ -101,6 +101,24 @@ def choice() -> Scorer:
             i for i, choice in enumerate(choices) if choice.correct is True
         ]
 
+        # the model selected nothing although an answer was expected (an empty
+        # target means "none of the choices", which no selection satisfies):
+        # an instruction-following failure charged to the model under test
+        # (INCORRECT, as pattern() and math() score a missing answer), but one
+        # that must stay distinguishable from a wrong letter, so record which
+        # kind using the shared ScoreReason vocabulary
+        if not generated_selected_choices and target_positions:
+            return Score(
+                value=INCORRECT,
+                answer="",
+                explanation=explanation,
+                reason=(
+                    "no_response"
+                    if not state.output.completion.strip()
+                    else "invalid_response_format"
+                ),
+            )
+
         target_matches_choices = generated_selected_choices == sorted(target_positions)
 
         return Score(
