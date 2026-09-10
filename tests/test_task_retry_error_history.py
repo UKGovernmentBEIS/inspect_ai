@@ -12,10 +12,8 @@ must therefore carry the prior attempt's error in ``error_retries`` so that:
 
 import tempfile
 from pathlib import Path
-from typing import Literal
 
 import anyio
-import pytest
 
 from inspect_ai import Task, eval_set, task
 from inspect_ai._eval.task.run import _eval_retry_error_from_sample
@@ -26,7 +24,6 @@ from inspect_ai.log import (
     EvalSample,
     read_eval_log,
     read_eval_log_sample_summaries,
-    write_eval_log,
 )
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
 from inspect_ai.model import ContentImage
@@ -168,8 +165,6 @@ def test_task_retry_does_not_count_cancelled_siblings() -> None:
     genuine failure) while sample 2 reports ``retries == 0`` (it was only
     cancelled, never genuinely failed).
     """
-    import anyio
-
     attempts = {"n": 0}
 
     @solver
@@ -262,90 +257,3 @@ def test_task_retry_accumulates_across_attempts() -> None:
         assert summaries[1].retries == 1
         assert summaries[2].retries == 0
         assert summaries[3].retries == 2
-
-
-@pytest.mark.parametrize("log_format", ["eval", "json"])
-def test_eval_set_retry_preserves_shared_json_id_history(
-    log_format: Literal["eval", "json"],
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from inspect_ai._eval.task.log import TaskLogger
-
-    failing = True
-
-    @solver
-    def fail_prior() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            if failing:
-                raise RuntimeError("prior padded ID failure")
-            return state
-
-        return solve
-
-    task = Task(
-        dataset=[Sample(id=id, input="x") for id in (1, "001")],
-        solver=fail_prior(),
-        name="shared_json_id_history",
-    )
-    success, logs = eval_set(
-        task,
-        log_dir=str(tmp_path),
-        model="mockllm/model",
-        log_format="json",
-        retry_attempts=1,
-        retry_immediate=False,
-        retry_on_error=0,
-    )
-    assert not success
-    prior = read_eval_log(logs[0].location)
-    assert prior.samples is not None
-    # Model an incomplete prior that recorded the padded ID but never wrote
-    # the distinct integer ID from the same dataset.
-    prior.samples = [s for s in prior.samples if s.id == "001"]
-    assert len(prior.samples) == 1 and prior.samples[0].error is not None
-    write_eval_log(prior, location=prior.location)
-    failing = False
-    first_completed = anyio.Event()
-    complete = TaskLogger.complete_sample
-    read_prior = TaskLogger.read_prior_sample
-
-    async def complete_first(
-        logger: TaskLogger, sample: EvalSample, *, flush: bool
-    ) -> None:
-        await complete(logger, sample, flush=flush)
-        if sample.id == 1:
-            first_completed.set()
-
-    async def read_after_first(
-        logger: TaskLogger, id: str | int, epoch: int
-    ) -> EvalSample | None:
-        if id == "001":
-            await first_completed.wait()
-        return await read_prior(logger, id, epoch)
-
-    monkeypatch.setattr(TaskLogger, "complete_sample", complete_first)
-    monkeypatch.setattr(TaskLogger, "read_prior_sample", read_after_first)
-    success, logs = eval_set(
-        task,
-        log_dir=str(tmp_path),
-        model="mockllm/model",
-        log_format=log_format,
-        retry_attempts=1,
-        retry_immediate=False,
-        retry_on_error=0,
-        max_samples=2,
-    )
-    assert success and first_completed.is_set()
-    final = read_eval_log(logs[0].location)
-    assert final.samples is not None and {s.id for s in final.samples} == {1, "001"}
-    for sample in final.samples:
-        assert sample.error is None
-        assert sample.error_retries is not None and len(sample.error_retries) == 1
-        assert "prior padded ID failure" in sample.error_retries[0].message
-    assert {
-        s.id: s.retries for s in read_eval_log_sample_summaries(final.location)
-    } == {
-        1: 1,
-        "001": 1,
-    }

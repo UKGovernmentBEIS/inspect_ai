@@ -7,7 +7,7 @@ import anyio
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.error import EvalError
-from inspect_ai.dataset._util import SampleIdEpoch, SampleKeyLookup
+from inspect_ai.dataset._util import SampleIdEpoch
 from inspect_ai.log._config_update import ConfigUpdate
 from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._log import (
@@ -45,17 +45,15 @@ class SampleRecordKey(NamedTuple):
 class SeedSamples:
     """An attempt's prior log, indexed once for seeding.
 
-    Holds the prior's sample keys in source order and a :class:`SampleKeyLookup`
-    over them. A ``.eval`` prior keeps only a shared zip reader and reads
-    selected bodies in bounded batches; a ``.json`` or in-memory prior keeps
-    its bodies (its reader loads the whole file anyway). The recorder owns
-    this source and closes it on finish, discard, or task exit.
+    Holds the prior's sample keys in source order. A ``.eval`` prior keeps
+    only a shared zip reader and reads selected bodies in bounded batches; a
+    ``.json`` or in-memory prior keeps its bodies (its reader loads the whole
+    file anyway). The recorder owns this source and closes it on finish,
+    discard, or task exit.
     """
 
     def __init__(self) -> None:
         self.keys: list[SampleIdEpoch] = []
-        self.lookup = SampleKeyLookup()
-        self._by_record: dict[SampleRecordKey, SampleIdEpoch] = {}
         self._samples: dict[SampleIdEpoch, EvalSample] = {}
         self._fs = AsyncFilesystem()
         self._reader: AsyncZipReader | None = None
@@ -85,31 +83,20 @@ class SeedSamples:
                     self._samples.setdefault((sample.id, sample.epoch), sample)
                 keys = list(self._samples)
         self.keys = keys
-        self.lookup = SampleKeyLookup(keys)
-        self._by_record = {}
-        for key in keys:
-            self._by_record.setdefault(SampleRecordKey(str(key[0]), key[1]), key)
-
-    def key_for(self, id: str, epoch: int) -> SampleIdEpoch | None:
-        """The prior key a seeded record's string-form ``(id, epoch)`` came from."""
-        return self._by_record.get(SampleRecordKey(id, epoch))
 
     def select(self, keep: set[SampleIdEpoch] | None) -> list[SampleIdEpoch]:
-        """The prior keys ``keep`` resolves to, in source order (every key when None).
+        """The prior keys in ``keep``, in source order (every key when None).
 
-        Each planned key resolves through :attr:`lookup` (exact first, then
-        normalised), so a plan of ``1`` selects a prior stored as ``"001"``.
-        The record keeps the prior's id; ``TaskLogger.read_prior_sample``
-        adopts it under the planned id when the two differ.
+        Matched in string form, as the recorders name a sample's record
+        (``samples/{id}_epoch_{epoch}.json``): ``1`` and ``"1"`` are the same
+        key, ``"001"`` is another.
         """
         if keep is None:
             return list(self.keys)
-        selected = {
-            match
-            for id, epoch in keep
-            if (match := self.lookup.get(id, epoch)) is not None
-        }
-        return [key for key in self.keys if key in selected]
+        wanted = {SampleRecordKey(str(id), epoch) for id, epoch in keep}
+        return [
+            key for key in self.keys if SampleRecordKey(str(key[0]), key[1]) in wanted
+        ]
 
     async def read(self, keys: list[SampleIdEpoch]) -> list[EvalSample]:
         """Read a selected batch without retaining Eval bodies between calls."""
@@ -127,8 +114,6 @@ class SeedSamples:
         """Release cached bodies, index and filesystem clients, including on cancellation."""
         self._samples.clear()
         self.keys = []
-        self.lookup = SampleKeyLookup()
-        self._by_record = {}
         self._reader = None
         with anyio.CancelScope(shield=True):
             await self._fs.close()
@@ -174,9 +159,9 @@ class Recorder(abc.ABC):
     def __init__(self) -> None:
         self._seed_sources: dict[str, SeedSamples] = {}
         # guards the check-then-store across the load's await: without it two
-        # first callers (a byte-copy seed loads no source up front, so the
-        # first adoptions can race) each load a source and only the one
-        # stored last is ever closed
+        # first callers (a limited feed's concurrent admissions, after a
+        # byte-copy seed that loaded no source up front) each load a source
+        # and only the one stored last is ever closed
         self._seed_source_lock = anyio.Lock()
 
     async def seed_source(

@@ -21,7 +21,7 @@
 - Bedrock, Groq, Mistral, Azure AI: Transient errors delivered mid-stream (throttling, capacity, dropped connections) are now retried instead of failing the sample or returning a truncated output.
 - Agent bridge: Bridged OpenAI and Google requests with a malformed `tool_choice`/`toolConfig` now return a 400 naming the bad field instead of a status-less error, and a non-string tool name no longer poisons the sample transcript.
 - Eval Set: A retry attempt that itself errors or is interrupted no longer causes the next attempt to re-run (or, with `retry_cleanup`, lose) samples an earlier attempt completed.
-- Eval Set: Retries reuse completed samples and error history when a sample id's type changes between runs (e.g. `"001"` recorded by one run and `1` by the next), matching ids the way log readers do.
+- Eval Log: Reading a sample from a `.json` log by id now matches the id's string form exactly, as `.eval` logs always have (`1` finds `"1"`), instead of also matching zero-padded numeric forms such as `"001"`.
 - Eval Set: Dynamic retry logs honor sample limits and epoch restrictions before every write, physically excluding unselected transcripts inherited from earlier attempts.
 - Eval Set: Retrying all samples avoids recompressing prior log payloads when the archive contains no inherited dead bytes.
 - Eval Set: Retry startup failures and cancellations release retained sample data, temporary files, and storage connections while preserving any written sample progress.

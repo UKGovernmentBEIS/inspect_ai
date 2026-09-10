@@ -24,7 +24,6 @@ from inspect_ai._util.registry import (
     registry_params,
 )
 from inspect_ai.dataset import Dataset
-from inspect_ai.dataset._util import SampleKeyLookup
 from inspect_ai.event._event import Event
 from inspect_ai.log import (
     EvalConfig,
@@ -320,11 +319,7 @@ class TaskLogger:
         # attempt's sample records (see seed_from_prior); the limit bounds the
         # sweep's read-back of those records (see read_prior_sample)
         self._prior_seeded = False
-        self._prior: str | list[EvalSample] | None = None
         self._prior_read_limit = anyio.Semaphore(_PRIOR_READ_CONCURRENCY)
-        # the seeded records' keys (string-form ids), for read_prior_sample's
-        # exact-then-normalised resolution of a planned key
-        self._seeded_lookup = SampleKeyLookup()
         # seeded (id, epoch) keys the reuse sweep has not yet resolved: the
         # records sample_summaries withholds from the control channel (see
         # its docstring). A key leaves when the sweep accepts its record
@@ -405,8 +400,6 @@ class TaskLogger:
         self._discarded = False
         # the retry attempt re-enters task_run, which seeds its fresh log
         self._prior_seeded = False
-        self._prior = None
-        self._seeded_lookup = SampleKeyLookup()
         self._seeded_pending = set()
         # the retry attempt gets a fresh log, which must re-record the run's
         # full accumulated process-scoped updates in init() below
@@ -567,14 +560,8 @@ class TaskLogger:
             )
             return
         self._prior_seeded = True
-        self._prior = prior
         seeded = await self.recorder.sample_summaries(self.eval)
         self._seeded_pending = {_seeded_key(s.id, s.epoch) for s in seeded or []}
-        # built in log order (not from the set): a normalised match takes the
-        # first record in that order, as every log reader does
-        self._seeded_lookup = SampleKeyLookup(
-            _seeded_key(s.id, s.epoch) for s in seeded or []
-        )
 
     async def seed_added_samples(
         self, prior: "str | list[EvalSample]", keep: set[tuple[str | int, int]]
@@ -587,13 +574,14 @@ class TaskLogger:
         every admitted sample. Each record is withheld from live readers as
         it lands (``on_sample``), like the initial seed's.
         """
-
-        def seeded(id: str | int, epoch: int) -> None:
-            key = _seeded_key(id, epoch)
-            self._seeded_pending.add(key)
-            self._seeded_lookup.add(key)
-
-        await self.recorder.log_seed_samples(self.eval, prior, keep, on_sample=seeded)
+        await self.recorder.log_seed_samples(
+            self.eval,
+            prior,
+            keep,
+            on_sample=lambda id, epoch: self._seeded_pending.add(
+                _seeded_key(id, epoch)
+            ),
+        )
 
     async def read_prior_sample(self, id: str | int, epoch: int) -> EvalSample | None:
         """The seeded prior record for ``(id, epoch)``, read from the recorder, or None.
@@ -604,43 +592,13 @@ class TaskLogger:
         attempt start, so the reads are bounded by ``_prior_read_limit``:
         the recorder serializes them on its own lock, and without the bound
         every other lock user (a control-channel listing, a live completion)
-        would queue behind the whole sweep.
-
-        The key resolves as every reader's does (``SampleKeyLookup``): the
-        record under this id, else the one whose normalised id matches — a
-        prior stored as ``"001"`` for a plan of ``1``. A record found under a
-        different id is adopted: the prior's record (read from the seed
-        source, since the other id's own re-run may already have superseded
-        the recorder's copy) is re-logged under this attempt's id, so this
-        sample's reuse or re-run supersedes it by name and the control
-        channel finds it under the id the plan uses. The original stays a
-        pending seeded record until its own id is consulted or the natural
-        success prune drops it.
+        would queue behind the whole sweep. The key matches in string form,
+        as the recorder names a sample's record (``1`` and ``"1"`` are the
+        same record; ``"001"`` is another) — the rule the ``.eval`` reader
+        has always applied.
         """
         async with self._prior_read_limit:
-            match = self._seeded_lookup.get(str(id), epoch)
-            if match is None:
-                return None
-            if str(match[0]) == str(id):
-                return await self.recorder.buffered_sample(self.eval, id, epoch)
-            from inspect_ai.log._condense import condense_sample
-
-            assert self._prior is not None
-            source = await self.recorder.seed_source(self.eval, self._prior)
-            prior_key = source.key_for(str(match[0]), epoch)
-            if prior_key is None:
-                return None
-            (record,) = await source.read([prior_key])
-            adopted = record.model_copy(update={"id": id})
-            # pending before it is written, so a listing during the write
-            # withholds it like every other seeded record
-            key = _seeded_key(id, epoch)
-            self._seeded_pending.add(key)
-            self._seeded_lookup.add(key)
-            await self.recorder.log_sample(
-                self.eval, condense_sample(adopted), write_through=True
-            )
-            return adopted
+            return await self.recorder.buffered_sample(self.eval, id, epoch)
 
     def note_reused_sample(self, sample: EvalSample) -> None:
         """Record that the reuse sweep accepted a seeded prior sample as this attempt's result.
@@ -729,12 +687,6 @@ class TaskLogger:
                 # IndexError: no such sample in the log. FileNotFoundError: the
                 # destination log doesn't exist yet (before log_start's flush).
                 return None
-        # the on-disk read resolves ids as every reader does (exact, then
-        # normalised), but this attempt records a sample under its own id:
-        # a record under another id is another sample's (or a seeded record
-        # a planned id has yet to adopt), not this one
-        if str(sample.id) != str(id):
-            return None
         return sample
 
     def sample_events_provider(

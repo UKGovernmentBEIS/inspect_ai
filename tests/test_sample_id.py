@@ -127,9 +127,8 @@ def test_read_sample_distinguishes_numeric_string_id_from_int(
     tmp_path: Path, log_format: str
 ) -> None:
     # `Sample(id=1)` and `Sample(id="001")` have distinct string reprs (so
-    # `ensure_unique_ids` allows them) but `normalise_sample_id` maps both to
-    # the same zero-filled key. Reading by id must still resolve each exactly,
-    # falling back to the normalised match only for loose addressing ("1" -> 1).
+    # `ensure_unique_ids` allows them). Reading by id matches the string form
+    # exactly, as the .eval member name does: "1" -> 1, and "001" is its own.
     task = Task(
         dataset=[
             Sample(id=1, input="hi", target="ok"),

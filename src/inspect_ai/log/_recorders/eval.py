@@ -61,7 +61,6 @@ from inspect_ai._util.json import (
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
-from inspect_ai.dataset._util import SampleKeyLookup
 
 from .._condense import ATTACHMENT_PROTOCOL, condense_sample
 from .._config_update import ConfigUpdate
@@ -1539,10 +1538,10 @@ class ZipLogFile:
         exactly the kept samples (one member, built in a worker thread), and
         re-journals any config updates recorded since :meth:`init`.
 
-        ``keep`` restricts the seed to the prior records the attempt's
-        planned ``(id, epoch)`` keys resolve to (``SampleKeyLookup``: exact,
-        then normalised); ``None`` keeps every prior sample (a dynamically
-        fed task has no upfront plan).
+        ``keep`` restricts the seed to the attempt's planned ``(id, epoch)``
+        keys; ``None`` keeps every prior sample (a dynamically fed task has no
+        upfront plan). Matching is by generated member name, as the sample
+        readers match.
 
         Must run before :meth:`start`. The copy lands in a *fresh* temp file
         outside ``_lock`` (a multi-GB download must not stall the other lock
@@ -1568,17 +1567,12 @@ class ZipLogFile:
             await _copy_prior_log(prior_log, seeded)
             summaries = await anyio.to_thread.run_sync(_read_prior_summaries, seeded)
             if keep is not None:
-                # each planned key selects the prior record it resolves to
-                # (exact first, then normalised — the one rule every path
-                # uses); the record keeps the prior's member name, which
-                # TaskLogger.read_prior_sample adopts under the planned id
-                lookup = SampleKeyLookup((s.id, s.epoch) for s in summaries)
-                selected = {
-                    match
-                    for id, epoch in keep
-                    if (match := lookup.get(id, epoch)) is not None
-                }
-                summaries = [s for s in summaries if (s.id, s.epoch) in selected]
+                keep_names = {_sample_filename(id, epoch) for id, epoch in keep}
+                summaries = [
+                    s
+                    for s in summaries
+                    if _sample_filename(s.id, s.epoch) in keep_names
+                ]
                 kept_names = frozenset(
                     _sample_filename(s.id, s.epoch) for s in summaries
                 )
