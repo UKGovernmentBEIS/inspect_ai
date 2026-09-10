@@ -276,7 +276,11 @@ padded numeric IDs, without merging distinct exact IDs. A re-run under a
 different matched ID supersedes the original record only after every planned
 ID sharing that record has completed. An unknown dynamic plan retains it
 until natural success; a later limited admission restores a pruned alias
-from the cached source before dispatch. The recorder caches one prior source
+from the cached source before dispatch. JSON retry lookups use independent
+copies of the cached original bodies, restricted to admitted prior records,
+even after an exact-ID completion replaces that record in the destination.
+Thus a later alias still runs with the original error or invalidation instead
+of reusing another sample's new success. The recorder caches one prior source
 per attempt: JSON bodies and their exact-first index, or Eval keys and a
 shared ZIP reader. Admissions resolve only selected keys against that index
 and retain at most eight selected Eval bodies at once. Finish and discard

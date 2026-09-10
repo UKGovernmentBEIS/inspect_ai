@@ -49,7 +49,11 @@ from inspect_ai.log._log import (
 )
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
-from inspect_ai.log._recorders.recorder import SampleKeyLookup, SampleRecordKey
+from inspect_ai.log._recorders.recorder import (
+    SampleKeyLookup,
+    SampleRecordKey,
+    SeedSamples,
+)
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import (
     GenerateConfig,
@@ -319,6 +323,8 @@ class TaskLogger:
         # attempt's sample records (see seed_from_prior); the limit bounds the
         # sweep's read-back of those records (see read_prior_sample)
         self._prior_seeded = False
+        self._prior_sample_source: SeedSamples | None = None
+        self._prior_sample_records: set[SampleRecordKey] = set()
         self._prior_sample_keys: SampleKeyLookup | None = None
         self._prior_sample_users: dict[SampleRecordKey, set[SampleRecordKey]] | None = (
             None
@@ -403,6 +409,8 @@ class TaskLogger:
         self._finished = False
         # the retry attempt re-enters task_run, which seeds its fresh log
         self._prior_seeded = False
+        self._prior_sample_source = None
+        self._prior_sample_records = set()
         self._prior_sample_keys = None
         self._prior_sample_users = None
         self._seeded_pending = set()
@@ -572,6 +580,8 @@ class TaskLogger:
         self._seeded_pending = {_seeded_key(s.id, s.epoch) for s in seeded or []}
         if json_prior:
             assert source is not None
+            self._prior_sample_source = source
+            self._prior_sample_records = self._seeded_pending.copy()
             self._prior_sample_keys = source.json_keys
             if planned is not None:
                 self._prior_sample_users = {}
@@ -599,6 +609,11 @@ class TaskLogger:
                     _seeded_key(id, epoch)
                 ),
             )
+            if self._prior_sample_source is not None:
+                self._prior_sample_records.update(
+                    _seeded_key(key.sample_id, key.epoch)
+                    for key in self._prior_sample_source.select(keep)
+                )
 
     def _register_prior_sample_users(self, keep: set[tuple[str | int, int]]) -> None:
         """Retain a shared JSON seed until all admitted aliases have completed.
@@ -628,15 +643,24 @@ class TaskLogger:
         would queue behind the whole sweep.
         JSON sources retain the original reader's exact-first normalized ID
         lookup and source ordering even when this attempt writes Eval format
-        or admits samples later. The index contains only prior keys; the
-        recorder supplies the version currently present for that key.
+        or admits samples later. These reads copy the cached original body:
+        a completion under its exact ID must not replace the prior error or
+        invalidation seen by another ID sharing it, and callers must not
+        mutate the snapshot used by subsequent lookups. Only admitted prior
+        records are eligible, even though the cache contains the whole log.
         """
         async with self._prior_read_limit:
             if self._prior_sample_keys is not None:
                 key = self._prior_sample_keys.get(id, epoch)
-                if key is None:
+                if (
+                    key is None
+                    or _seeded_key(key.sample_id, key.epoch)
+                    not in self._prior_sample_records
+                ):
                     return None
-                id, epoch = key.sample_id, key.epoch
+                assert self._prior_sample_source is not None
+                samples = await self._prior_sample_source.read([key])
+                return samples[0].model_copy(deep=True)
             return await self.recorder.buffered_sample(self.eval, id, epoch)
 
     def note_reused_sample(self, sample: EvalSample) -> None:

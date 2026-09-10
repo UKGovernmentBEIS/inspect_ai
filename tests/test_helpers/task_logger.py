@@ -15,6 +15,8 @@ class TaskLoggerShim(TaskLogger):
         self._init_stale_flush_state()
         self._finished = False
         self._prior_seeded = False
+        self._prior_sample_source = None
+        self._prior_sample_records = set()
         self._prior_sample_keys = None
         self._prior_sample_users = None
         self._prior_read_limit = anyio.Semaphore(4)

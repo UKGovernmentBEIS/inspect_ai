@@ -1185,11 +1185,15 @@ async def test_dynamic_seed_alias_does_not_overwrite_current_attempt(
     await logger.complete_sample(fresh, flush=False)
     await logger.seed_added_samples(prior, keep={(2, 1)})
     assert not logger._seeded_pending
-    assert await logger.read_prior_sample(2, 1) == fresh
+    assert await logger.read_prior_sample(2, 1) == prior_sample
     assert await logger.read_sample("002", 1) == fresh
+    await logger.complete_sample(
+        EvalSample(id=2, epoch=1, input="admitted rerun", target="a"), flush=False
+    )
     await logger.log_finish("success", EvalStats(), prune_unplanned=True)
     final = await read_eval_log_async(logger.location)
-    assert final.samples == [fresh]
+    assert {s.id for s in final.samples or []} == {"002", 2}
+    assert next(s for s in final.samples or [] if s.id == "002") == fresh
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
@@ -1317,10 +1321,12 @@ async def test_seed_source_initial_read_failure_closes_filesystem(
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 @pytest.mark.parametrize("planned", [None, {(1, 1), ("001", 1)}, {(1, 1), ("01", 1)}])
 @pytest.mark.parametrize("finish_second", [False, True])
+@pytest.mark.parametrize("reverse_order", [False, True])
 async def test_json_seed_preserves_history_for_shared_normalized_ids(
     recorder_type: type[EvalRecorder] | type[JSONRecorder],
     planned: set[tuple[str | int, int]] | None,
     finish_second: bool,
+    reverse_order: bool,
     tmp_path: Path,
 ) -> None:
     from inspect_ai._eval.task.run import _seed_error_retries
@@ -1334,11 +1340,17 @@ async def test_json_seed_preserves_history_for_shared_normalized_ids(
     logger._location = await recorder.log_init(logger.eval)
     await logger.seed_from_prior(prior, keep=planned)
     await logger.log_start(EvalPlan())
-    first = await logger.read_prior_sample(1, 1)
+    first_id: str | int = 1
+    second_id: str | int = (
+        "01" if planned is not None and ("01", 1) in planned else "001"
+    )
+    if reverse_order:
+        first_id, second_id = second_id, first_id
+    first = await logger.read_prior_sample(first_id, 1)
     assert first is not None
     await logger.complete_sample(
         EvalSample(
-            id=1,
+            id=first_id,
             epoch=1,
             input="first",
             target="a",
@@ -1347,14 +1359,16 @@ async def test_json_seed_preserves_history_for_shared_normalized_ids(
         flush=False,
     )
     await recorder.flush(logger.eval)
-    second_id = "01" if planned is not None and ("01", 1) in planned else "001"
     second = await logger.read_prior_sample(second_id, 1)
     assert second is not None and second.error == prior_sample.error
     history = _seed_error_retries(second)
     assert len(history) == 1
-    assert await logger.read_sample(second_id, 1) is None
+    current = await logger.read_sample(first_id, 1)
+    assert current is not None and current.error is None and current.input == "first"
+    if first_id != prior_sample.id:
+        assert await logger.read_sample(second_id, 1) is None
     snapshot = await read_eval_log_async(logger.location)
-    assert {s.id for s in snapshot.samples or []} == {1, "001"}
+    assert {s.id for s in snapshot.samples or []} == {first_id, "001"}
     if finish_second:
         await logger.complete_sample(
             EvalSample(
@@ -1370,11 +1384,11 @@ async def test_json_seed_preserves_history_for_shared_normalized_ids(
     final = await read_eval_log_async(logger.location)
     assert final.samples is not None
     by_id = {s.id: s for s in final.samples}
-    assert set(by_id) == {1, second_id if finish_second else "001"}
-    assert len(by_id[1].error_retries or []) == 1
+    assert set(by_id) == {first_id, second_id if finish_second else "001"}
+    assert len(by_id[first_id].error_retries or []) == 1
     if finish_second:
         assert by_id[second_id].error_retries == history
-    else:
+    elif first_id != "001":
         assert by_id["001"].error == prior_sample.error
 
 
@@ -1400,6 +1414,30 @@ async def test_dynamic_seed_restores_shared_alias_on_later_admission(
     await logger.log_finish("cancelled", EvalStats())
     final = await read_eval_log_async(logger.location)
     assert {s.id for s in final.samples or []} == {1, "001"}
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+async def test_json_prior_lookup_does_not_mutate_shared_snapshot(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder], tmp_path: Path
+) -> None:
+    prior_sample = _prior_samples()[1].model_copy(
+        update={"id": "001", "metadata": {"nested": {"value": "original"}}}
+    )
+    prior = await _write_prior_log(
+        JSONRecorder(str(tmp_path / "prior")), [prior_sample]
+    )
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep={("001", 1), (1, 1)})
+    first = await logger.read_prior_sample("001", 1)
+    assert first is not None and first.error is not None
+    first.error.message = "changed by caller"
+    first.metadata["nested"]["value"] = "changed by caller"
+    second = await logger.read_prior_sample(1, 1)
+    assert second == prior_sample
+    await logger.discard()
+    assert not recorder._seed_sources
 
 
 async def test_dynamic_admission_cannot_race_shared_seed_pruning(

@@ -932,6 +932,91 @@ def test_sample_source_task_retry_regenerates_followups() -> None:
     assert "transient failure" in followup.error_retries[0].message
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("limit", [None, 2])
+@pytest.mark.parametrize("first_id,second_id", [("001", 1), (1, "001")])
+def test_sample_source_retry_runs_ids_sharing_a_prior_error(
+    log_format: Literal["eval", "json"],
+    limit: int | None,
+    first_id: str | int,
+    second_id: str | int,
+    tmp_path: Path,
+) -> None:
+    runs: list[str | int] = []
+    failing = True
+
+    @solver
+    def fail_prior_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(state.sample_id)
+            if failing:
+                raise RuntimeError("shared prior failure")
+            return state
+
+        return solve
+
+    class Source(SampleSource):
+        def __init__(self) -> None:
+            self.produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="001" if failing else first_id, input="first")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not failing and not self.produced:
+                self.produced = True
+                return [Sample(id=second_id, input="second")]
+            return None
+
+    @task
+    def shared_prior_task() -> Task:
+        return Task(dataset=Source(), solver=fail_prior_once())
+
+    log_dir = str(tmp_path / "logs")
+    ok, prior_logs = eval_set(
+        shared_prior_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format="json",
+        limit=limit,
+        retry_attempts=1,
+        retry_immediate=False,
+        retry_on_error=0,
+        fail_on_error=True,
+        display="none",
+    )
+    assert not ok
+    prior = read_eval_log(prior_logs[0].location)
+    assert prior.samples is not None and len(prior.samples) == 1
+    assert prior.samples[0].error is not None
+    assert prior.samples[0].id == "001"
+
+    failing = False
+    ok, logs = eval_set(
+        shared_prior_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=log_format,
+        limit=limit,
+        retry_attempts=1,
+        retry_immediate=False,
+        retry_on_error=0,
+        display="none",
+    )
+    assert ok
+    assert runs == ["001", first_id, second_id]
+    final = read_eval_log(logs[0].location)
+    assert final.status == "success"
+    assert final.results is not None
+    assert final.results.completed_samples == final.results.total_samples == 2
+    assert final.samples is not None
+    assert {sample.id for sample in final.samples} == {"001", 1}
+    for sample in final.samples:
+        assert sample.error is None
+        assert sample.error_retries is not None and len(sample.error_retries) == 1
+        assert sample.error_retries[0].message == prior.samples[0].error.message
+
+
 def test_sample_source_task_retry_reuses_completed_followup() -> None:
     # on a task retry, an injected follow-up that *completed* in the prior
     # attempt is reused via the prior-attempt lookup (never re-run) — the
