@@ -1618,12 +1618,13 @@ async def test_task_logger_seeded_read_excludes_before_materializing(
         return original_parse(data)
 
     monkeypatch.setattr(eval_module, "_parse_sample_data", parse_included_fields)
-    with patch.object(
-        eval_module.ObjectBuilder,
-        "event",
+    event_patch = patch(
+        "inspect_ai.log._recorders.eval.ObjectBuilder.event",
         autospec=True,
-        side_effect=eval_module.ObjectBuilder.event,
-    ) as build_event:
+    )
+    original_event, _ = event_patch.get_original()
+    with event_patch as build_event:
+        build_event.side_effect = original_event
         read = await logger.read_sample(
             "1", 1, exclude_fields={"attachments", "events", "id", "input"}
         )
