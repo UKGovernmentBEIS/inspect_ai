@@ -9,7 +9,7 @@ from inspect_ai import RunConfig, Task, eval, merge_run_config_params, read_run_
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import file
 from inspect_ai.dataset import Sample
-from inspect_ai.model import GenerateConfig, Model, ModelConfig, ModelRoles
+from inspect_ai.model import GenerateConfig, Model, ModelConfig, ModelRoles, get_model
 from inspect_ai.model._util import resolve_model_roles
 
 
@@ -172,17 +172,24 @@ def test_run_config_merge_public_api() -> None:
     assert overrides == {"task_args": {"b": None}, "score": True, "tags": []}
 
 
-def test_model_roles_accept_deferred_configs() -> None:
+def test_model_roles_accept_deferred_configs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert get_type_hints(eval)["model_roles"] == ModelRoles | None
-    config = ModelConfig(model="mockllm/grader", config=GenerateConfig(temperature=0.2))
+    # a provider get_model memoizes (mockllm never is), so a deferred config
+    # that resolved to the shared instance would show up here (#4450)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    config = ModelConfig(model="openai/gpt-4o", config=GenerateConfig(temperature=0.2))
     roles: ModelRoles = {"grader": config, "other": config, "panel": [config]}
     resolved = resolve_model_roles(roles)
     assert resolved is not None
     grader = resolved["grader"]
     assert isinstance(grader, Model)
     assert grader.config.temperature == 0.2
+    assert grader.role == "grader"
     assert resolved["grader"] is not resolved["other"]
     assert isinstance(resolved["panel"], Model)
+    shared = get_model("openai/gpt-4o")
+    assert shared is not grader
+    assert shared.role is None
 
 
 def test_run_config_deferred_models_eval_and_log(tmp_path: Path) -> None:
