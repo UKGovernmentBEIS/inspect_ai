@@ -143,16 +143,25 @@ class AgentBridge:
         self._operator_keys: set[str] = set()
         # Span emission for accumulated conversations. The emitter owns the
         # `span_id`/`ordinal`/`first_seen_call`/`resume_adopted` fields on
-        # `_Conversation`; the accumulator owns `key`/`messages`/`output`. A
-        # caller-supplied sink takes precedence and disables span emission:
-        # existing callers that pair accumulation with their own sink (the
-        # external conversation-span sink this emitter replaces) keep exactly
-        # their current behavior until they migrate. The release that stops
-        # flattening `state.messages` upgrades this to a hard error.
+        # `_Conversation`; the accumulator owns `key`/`messages`/`output`. It
+        # runs whenever conversations accumulate. A caller-supplied sink does
+        # not disable it -- the two compose: the sink keeps deciding when and
+        # under which span an event is written (sub-agent identity a native
+        # harness recovers from its own records), and the emitter attributes
+        # the events the sink wrote to their conversation's span. Disabling
+        # emission when a sink was present left every native-harness run
+        # (all four wrappers install one) span-less, carried by flattening
+        # alone.
         self._span_emitter: _ConversationSpanEmitter | None = None
-        if accumulate_conversations and model_event_sink is None:
-            self._span_emitter = _ConversationSpanEmitter(self)
-            self.model_event_sink = self._span_emitter
+        if accumulate_conversations:
+            self._span_emitter = _ConversationSpanEmitter(
+                self, writes_events=model_event_sink is None
+            )
+            self.model_event_sink = (
+                self._span_emitter
+                if model_event_sink is None
+                else _ComposedModelEventSink(self._span_emitter, model_event_sink)
+            )
         # Conversations restored from a checkpoint predate this process: the spans
         # that carried their events closed with the process that opened them, so the
         # next call continuing one mints a fresh span, marked by `resume_adopted`.
@@ -932,27 +941,43 @@ class _ConversationSpanEmitter:
     `resume_adopted` marks the discontinuity.
     """
 
-    def __init__(self, bridge: "AgentBridge") -> None:
+    def __init__(self, bridge: "AgentBridge", *, writes_events: bool = True) -> None:
         self._bridge = bridge
         self._span_ids: list[str] = []
         self._calls_seen = 0
         self._closed = False
+        # Standalone, the emitter is the transcript writer for bridged events.
+        # Composed with a caller sink (`_ComposedModelEventSink`), the sink
+        # writes and the emitter only records membership and re-parents.
+        self._writes_events = writes_events
 
     def on_pending(self, event: "ModelEvent") -> None:
         from inspect_ai.log._transcript import transcript
 
-        transcript()._event(event)
-        if not self._closed:
-            record = _call_record.get()
-            if record is None:
-                record = _CallRecord(parent_id=event.span_id, events=[])
-                _call_record.set(record)
-            record.events.append(event)
+        if self._writes_events:
+            transcript()._event(event)
+        self.record(event)
 
     def on_complete(self, event: "ModelEvent") -> None:
         from inspect_ai.log._transcript import transcript
 
-        transcript()._event_updated(event)
+        if self._writes_events:
+            transcript()._event_updated(event)
+
+    def record(self, event: "ModelEvent") -> None:
+        """Remember ``event`` as part of the handler task's bridged call.
+
+        The parent recorded here is the span the event was emitted under, read
+        before any sink has moved it: attribution runs later and a concurrent
+        handler may have rotated the ambient span in between.
+        """
+        if self._closed:
+            return
+        record = _call_record.get()
+        if record is None:
+            record = _CallRecord(parent_id=event.span_id, events=[])
+            _call_record.set(record)
+        record.events.append(event)
 
     def next_call_index(self) -> int:
         """The zero-based index of the bridged call being accumulated."""
@@ -969,6 +994,13 @@ class _ConversationSpanEmitter:
         which generate more than once before the call accumulates. A filtered
         call recorded no events; the conversation still gets its span so every
         accumulated conversation is represented in the transcript.
+
+        Composed with a caller sink, only events the sink has already written
+        are re-parented. An event the sink is still holding — a sub-agent call
+        awaiting the native identity that names its span — keeps the sink's
+        placement when the sink writes it: that identity is exact where the
+        prefix match is not, so it is adopted in place of the conversation
+        span, never alongside it as a second span for the same event.
         """
         from inspect_ai.log._transcript import transcript
 
@@ -982,6 +1014,8 @@ class _ConversationSpanEmitter:
             parent_known=record is not None,
         )
         for event in record.events if record is not None else []:
+            if not self._writes_events and not transcript()._is_resident(event):
+                continue
             event.span_id = span_id
             transcript()._event_updated(event)
 
@@ -1068,6 +1102,31 @@ class _ConversationSpanEmitter:
         )
         self._span_ids.append(span_id)
         return span_id
+
+
+class _ComposedModelEventSink:
+    """Route each bridged `ModelEvent` to both the span emitter and a caller sink.
+
+    The caller's sink is the writer: it decides when the event reaches the
+    transcript and under which span, exactly as it does without accumulation.
+    The emitter only records the event as part of the handler task's call, so
+    that `attribute_call` can move the events the sink wrote into their
+    conversation's span. Recording runs first so the emitter sees the span the
+    event was emitted under, before the sink has moved it.
+    """
+
+    def __init__(
+        self, emitter: _ConversationSpanEmitter, sink: "ModelEventSink"
+    ) -> None:
+        self._emitter = emitter
+        self._sink = sink
+
+    def on_pending(self, event: "ModelEvent") -> None:
+        self._emitter.record(event)
+        self._sink.on_pending(event)
+
+    def on_complete(self, event: "ModelEvent") -> None:
+        self._sink.on_complete(event)
 
 
 def _is_prefix(

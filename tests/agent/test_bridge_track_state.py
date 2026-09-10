@@ -2293,33 +2293,99 @@ async def test_a_root_conversations_begin_event_stays_at_root() -> None:
     assert event.span_id == begin.id
 
 
-async def test_a_caller_sink_takes_precedence_over_span_emission() -> None:
-    """Transitional precedence: a caller-supplied sink keeps its current behavior.
+async def test_a_caller_sink_composes_with_span_emission() -> None:
+    """A caller sink no longer disables span emission; the two compose.
 
-    Existing callers pair accumulation with their own sink today; the bridge
-    must not race them for emission ownership, so it emits no spans for such a
-    bridge. The flattening-removal release upgrades this to a hard error.
+    Every native harness installs a sink, so "sink disables emitter" left every
+    such run span-less. Composed: the sink writes the event where and when it
+    chooses, and the emitter re-parents what the sink wrote into the
+    conversation's span. One writer, so no duplicate event.
     """
     init_transcript(Transcript())
 
-    class _Sink:
-        def on_pending(self, event: ModelEvent) -> None: ...
+    class _WritingSink:
+        def __init__(self) -> None:
+            self.pending: list[ModelEvent] = []
+            self.completed: list[ModelEvent] = []
 
-        def on_complete(self, event: ModelEvent) -> None: ...
+        def on_pending(self, event: ModelEvent) -> None:
+            self.pending.append(event)
+            transcript()._event(event)
 
-    sink = _Sink()
+        def on_complete(self, event: ModelEvent) -> None:
+            self.completed.append(event)
+            transcript()._event_updated(event)
+
+    sink = _WritingSink()
     bridge = AgentBridge(
         AgentState(messages=[ChatMessageUser(content=TASK)]),
         accumulate_conversations=True,
         model_event_sink=sink,
     )
-    assert bridge.model_event_sink is sink
-    assert bridge._span_emitter is None
+    assert bridge._span_emitter is not None
+    assert bridge.model_event_sink is not sink
 
-    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "answer")
-    assert len(bridge._conversations) == 1
-    assert bridge._conversations[0].span_id is None
-    assert span_begins() == []
+    event, _ = await spanned_track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "answer"
+    )
+
+    # the sink saw both callbacks and did the one write
+    assert sink.pending == [event]
+    assert sink.completed == [event]
+    assert [e for e in transcript().events if isinstance(e, ModelEvent)] == [event]
+    # and the emitter still opened the conversation's span and placed the event in it
+    begins = span_begins()
+    assert [b.type for b in begins] == [BRIDGE_CONVERSATION_SPAN_TYPE]
+    assert event.span_id == begins[0].id
+    assert bridge._conversations[0].span_id == begins[0].id
+
+
+async def test_an_event_a_caller_sink_is_holding_keeps_the_sinks_placement() -> None:
+    """Sink-derived identity is adopted in place of the prefix match, not beside it.
+
+    A native harness holds a sub-agent's event until its own records name the
+    span that owns it. The emitter must not write that event for it, and must
+    not move it: when the sink finally writes it under the span it identified,
+    that is the event's one placement.
+    """
+    init_transcript(Transcript())
+
+    class _HoldingSink:
+        def __init__(self) -> None:
+            self.held: list[ModelEvent] = []
+
+        def on_pending(self, event: ModelEvent) -> None:
+            self.held.append(event)
+
+        def on_complete(self, event: ModelEvent) -> None: ...
+
+        def release(self) -> None:
+            for event in self.held:
+                event.span_id = "agent-task-1"
+                transcript()._event(event)
+            self.held.clear()
+
+    sink = _HoldingSink()
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+        model_event_sink=sink,
+    )
+
+    event, _ = await spanned_track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "answer"
+    )
+
+    # the conversation still got its span, but the held event was not written
+    # or moved by the emitter
+    assert len(span_begins()) == 1
+    assert [e for e in transcript().events if isinstance(e, ModelEvent)] == []
+    assert event.span_id != span_begins()[0].id
+
+    sink.release()
+    written = [e for e in transcript().events if isinstance(e, ModelEvent)]
+    assert written == [event]
+    assert event.span_id == "agent-task-1"
 
 
 async def test_an_absorbed_conversations_span_ends_at_absorption() -> None:
