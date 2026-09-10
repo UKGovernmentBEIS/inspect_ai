@@ -7,19 +7,28 @@ as the agent state. See meridianlabs-ai/inspect_ai#140 for the failure
 mode where a longer side call permanently displaced the real conversation.
 """
 
+import dataclasses
 from typing import Any
 
+import anyio
+from pydantic import TypeAdapter
 from test_helpers.checkpoint import RecordingCheckpointer
 
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import (
+    BRIDGE_CONVERSATION_SPAN_TYPE,
+    AgentBridge,
+    _ConversationSpanEmitter,
+)
 from inspect_ai.agent._bridge.util import (
     default_code_execution_providers,
     internal_web_search_providers,
 )
+from inspect_ai.event import InfoEvent, ModelEvent, SpanBeginEvent, SpanEndEvent
+from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -27,9 +36,11 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.tool import ToolCall
+from inspect_ai.util._span import span
 
 TASK = "In the year 2022, what castle did the Doctor spend 4.5 billion years in?"
 
@@ -1419,13 +1430,14 @@ def scenario_model(completions: list[str]) -> Model:
     )
 
 
-async def test_completions_handler_tracks_main_thread_end_to_end() -> None:
+async def test_completions_handler_tracks_main_thread_and_preserves_producer_id() -> (
+    None
+):
     """The opencode scenario through the real OpenAI completions handler.
 
-    Exercises message conversion, system-prompt handling and message-id
-    assignment together with `_track_state`: `apply_message_ids` gives every
-    request fresh ids, so thread continuity must survive the full request
-    path, not just hand-constructed messages.
+    The mock model returns `ModelOutput` only, without a provider response id.
+    A second scaffold request therefore must retain the first bridge-produced
+    assistant object rather than its synthetic request-history copy.
     """
     model = scenario_model(
         ["Doctor Who Series 9 setting", "let me look into that", "Castle"]
@@ -1458,6 +1470,11 @@ async def test_completions_handler_tracks_main_thread_end_to_end() -> None:
     reply = await request(main)
     assert reply == "let me look into that"
     assert bridge.state.output.completion == "let me look into that"
+    producer = bridge.state.messages[-1]
+    assert isinstance(producer, ChatMessageAssistant)
+    assert producer.source == "generate"
+    producer_id = producer.id
+    assert producer_id is not None
 
     # main loop: turn 2 (scaffold round-trips through its own store)
     main = main + [
@@ -1474,6 +1491,79 @@ async def test_completions_handler_tracks_main_thread_end_to_end() -> None:
         "please continue",
         "Castle",
     ]
+    assert bridge.state.messages[2] is producer
+    assert bridge.state.messages[2].id == producer_id
+
+
+async def test_tracked_extension_preserves_producer_metadata_after_serialization() -> (
+    None
+):
+    """A continued request retains the known output, not its inbound carrier."""
+    bridge = task_bridge()
+    first: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    producer_output = ModelOutput.from_content("mockllm/model", "working")
+    producer_output.message.id = "native-output"
+    producer_output.message.metadata = {"native_event_id": "event-1"}
+    await bridge._track_state(first, producer_output)
+
+    carrier = ChatMessageAssistant(
+        content="working",
+        id="synthetic-history",
+        metadata={"request_id": "request-2"},
+    )
+    continued: list[ChatMessage] = [
+        *first,
+        carrier,
+        ChatMessageUser(content="please continue"),
+    ]
+    await track(bridge, continued, "Castle")
+
+    assert bridge.state.messages[2] is producer_output.message
+    serialized = TypeAdapter(list[ChatMessage]).dump_json(bridge.state.messages)
+    restored = TypeAdapter(list[ChatMessage]).validate_json(serialized)
+    assert restored[2].id == "native-output"
+    assert restored[2].metadata == {"native_event_id": "event-1"}
+
+
+async def test_tracked_extension_does_not_preserve_identity_when_tool_args_rewrite() -> (
+    None
+):
+    """Matching text is not enough to carry an output's producer identity."""
+    bridge = task_bridge()
+    first: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    producer_output = ModelOutput.for_tool_call(
+        "mockllm/model",
+        "read_file",
+        {"path": "/workspace/original.txt"},
+        tool_call_id="tool-1",
+    )
+    producer_output.message.id = "native-output"
+    producer_output.message.metadata = {"native_event_id": "event-1"}
+    await bridge._track_state(first, producer_output)
+
+    rewritten_call = ToolCall(
+        id="tool-1",
+        function="read_file",
+        arguments={"path": "/workspace/rewritten.txt"},
+    )
+    carrier = ChatMessageAssistant(
+        content=producer_output.message.text,
+        id="synthetic-history",
+        tool_calls=[rewritten_call],
+    )
+    continued: list[ChatMessage] = [
+        *first,
+        carrier,
+        ChatMessageTool(
+            content="rewritten contents",
+            tool_call_id=rewritten_call.id,
+            function=rewritten_call.function,
+        ),
+    ]
+    await track(bridge, continued, "Castle")
+
+    assert bridge.state.messages[2] is carrier
+    assert bridge.state.messages[2].id == "synthetic-history"
 
 
 async def test_anthropic_handler_tracks_main_thread_end_to_end() -> None:
@@ -1554,8 +1644,10 @@ def cc_system(nonce: int) -> ChatMessageSystem:
     )
 
 
-async def test_accumulation_keeps_distinct_tool_call_histories() -> None:
-    """Tool calls and results distinguish otherwise text-identical histories."""
+async def test_accumulation_keeps_same_model_children_with_distinct_tool_histories() -> (
+    None
+):
+    """Tool calls distinguish same-model children with otherwise identical text."""
     bridge = accumulating_bridge()
 
     def lookup_history(query: str) -> list[ChatMessage]:
@@ -1567,7 +1659,9 @@ async def test_accumulation_keeps_distinct_tool_call_histories() -> None:
         return [
             TASK_SYSTEM,
             ChatMessageUser(content="Find the castle."),
-            ChatMessageAssistant(content="", tool_calls=[call]),
+            ChatMessageAssistant(
+                content="", model="mockllm/native-child", tool_calls=[call]
+            ),
             ChatMessageTool(
                 content="lookup result",
                 tool_call_id=call.id,
@@ -1590,6 +1684,36 @@ async def test_accumulation_keeps_distinct_tool_call_histories() -> None:
         for message in bridge.state.messages
         if isinstance(message, ChatMessageTool)
     ] == ["lookup-A", "lookup-B"]
+
+
+async def test_accumulation_preserves_producer_identity_across_system_rewrite() -> None:
+    """A continued native CLI conversation keeps its first producer object."""
+    bridge = accumulating_bridge()
+    first: list[ChatMessage] = [cc_system(1), ChatMessageUser(content=TASK)]
+    producer_output = ModelOutput.from_content("mockllm/model", "working")
+    producer_output.message.id = "native-output"
+    producer_output.message.metadata = {"native_event_id": "event-1"}
+    await bridge._track_state(first, producer_output)
+
+    carrier = ChatMessageAssistant(
+        content="working",
+        id="synthetic-history",
+        metadata={"request_id": "request-2"},
+    )
+    continued: list[ChatMessage] = [
+        cc_system(2),
+        ChatMessageUser(content=TASK),
+        carrier,
+        ChatMessageTool(content="tool result"),
+    ]
+    await track(bridge, continued, "Castle")
+
+    producer = next(
+        message for message in bridge.state.messages if message.text == "working"
+    )
+    assert producer is producer_output.message
+    assert producer.id == "native-output"
+    assert producer.metadata == {"native_event_id": "event-1"}
 
 
 async def test_every_conversation_is_kept_not_just_the_main_one() -> None:
@@ -1735,6 +1859,28 @@ async def test_accumulated_message_ids_are_unique_and_stable() -> None:
     assert later[: len(first)] == first
 
 
+async def test_flattening_keeps_producer_identity_when_carrier_id_collides() -> None:
+    """Deduplicating independent conversations must re-id the carrier, not output."""
+    bridge = accumulating_bridge()
+    await track(
+        bridge,
+        [ChatMessageUser(content="unrelated carrier", id="native-output")],
+        "side result",
+    )
+
+    producer_output = ModelOutput.from_content("mockllm/model", "main result")
+    producer_output.message.id = "native-output"
+    await bridge._track_state(
+        [ChatMessageUser(content="main conversation")], producer_output
+    )
+
+    assert bridge.state.messages[-1] is producer_output.message
+    assert producer_output.message.id == "native-output"
+    assert len({message.id for message in bridge.state.messages}) == len(
+        bridge.state.messages
+    )
+
+
 async def test_accumulated_conversations_keep_first_seen_order() -> None:
     """A call resuming an earlier conversation does not move it to the end."""
     bridge = accumulating_bridge()
@@ -1796,3 +1942,434 @@ async def test_accumulated_conversations_survive_a_resume() -> None:
     assert "session one answer" in texts
     assert texts.count("session two answer") == 1
     assert texts[-1] == "session two continues"
+
+
+async def test_compaction_rewrite_does_not_adopt_prior_producer_identity() -> None:
+    """A rewritten history is not a continuation just because it repeats text."""
+    bridge = task_bridge()
+    first: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    original_output = ModelOutput.from_content("mockllm/model", "working")
+    original_output.message.id = "native-output"
+    await bridge._track_state(first, original_output)
+
+    compacted: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content="Conversation summary"),
+    ]
+    compacted_output = ModelOutput.from_content("mockllm/model", "working")
+    compacted_output.message.id = "compacted-output"
+    await bridge._track_state(compacted, compacted_output)
+    continued: list[ChatMessage] = [
+        *compacted,
+        compacted_output.message,
+        ChatMessageUser(content="please continue"),
+    ]
+    await track(bridge, continued, "Castle")
+
+    assert bridge.state.messages[2] is compacted_output.message
+    assert bridge.state.messages[2].id == "compacted-output"
+
+
+# ---------------------------------------------------------------------------
+# accumulate_conversations: one transcript span per conversation
+# ---------------------------------------------------------------------------
+
+
+def pending_event(input: list[ChatMessage]) -> ModelEvent:
+    return ModelEvent(
+        model="mockllm/model",
+        input=list(input),
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", ""),
+        pending=True,
+    )
+
+
+async def spanned_track(
+    bridge: AgentBridge, input: list[ChatMessage], completion: str
+) -> tuple[ModelEvent, ModelOutput]:
+    """One bridged call through the span emitter: pending, complete, accumulate."""
+    emitter = bridge.model_event_sink
+    assert emitter is not None
+    event = pending_event(input)
+    emitter.on_pending(event)
+    emitter.on_complete(event)
+    output = await track(bridge, input, completion)
+    return event, output
+
+
+def span_begins() -> list[SpanBeginEvent]:
+    return [e for e in transcript().events if isinstance(e, SpanBeginEvent)]
+
+
+def span_ends() -> list[SpanEndEvent]:
+    return [e for e in transcript().events if isinstance(e, SpanEndEvent)]
+
+
+def span_infos() -> list[InfoEvent]:
+    return [
+        e
+        for e in transcript().events
+        if isinstance(e, InfoEvent) and e.source == "bridge_conversation"
+    ]
+
+
+async def test_each_accumulated_conversation_gets_its_own_span() -> None:
+    """Independent conversations land in distinct spans; a continuation rejoins its own."""
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+
+    one: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    event_one, out_one = await spanned_track(bridge, one, "first answer")
+    two: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content="Second question.")]
+    event_two, _ = await spanned_track(bridge, two, "second answer")
+    event_cont, _ = await spanned_track(
+        bridge,
+        [*one, out_one.message, ChatMessageUser(content="And the year?")],
+        "third answer",
+    )
+
+    begins = span_begins()
+    assert [b.type for b in begins] == [BRIDGE_CONVERSATION_SPAN_TYPE] * 2
+    assert [b.name for b in begins] == ["conversation 0", "conversation 1"]
+    assert event_one.span_id == begins[0].id
+    assert event_two.span_id == begins[1].id
+    assert event_cont.span_id == begins[0].id
+    # the store binds each conversation to the span its events landed in
+    assert [c.span_id for c in bridge._conversations] == [begins[0].id, begins[1].id]
+    assert [c.ordinal for c in bridge._conversations] == [0, 1]
+
+
+async def test_conversation_span_metadata_rides_in_an_info_event() -> None:
+    """Each span carries ordinal, first-seen call index, and the resume marker."""
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+
+    await spanned_track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "a")
+    await spanned_track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content="Another thread.")], "b"
+    )
+
+    infos = span_infos()
+    begins = span_begins()
+    assert [i.span_id for i in infos] == [b.id for b in begins]
+    assert [i.data for i in infos] == [
+        {
+            "conversation_ordinal": 0,
+            "first_seen_call_index": 0,
+            "resume_adopted": False,
+        },
+        {
+            "conversation_ordinal": 1,
+            "first_seen_call_index": 1,
+            "resume_adopted": False,
+        },
+    ]
+
+
+async def test_every_event_of_one_call_lands_in_its_conversations_span() -> None:
+    """An approval retry generates twice in one call; both events join one span."""
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+    sink = bridge.model_event_sink
+    assert sink is not None
+    history: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+
+    rejected = pending_event(history)
+    sink.on_pending(rejected)
+    retried = pending_event(
+        [*history, ChatMessageAssistant(content="rejected attempt")]
+    )
+    sink.on_pending(retried)
+
+    await track(bridge, history, "accepted answer")
+
+    assert rejected.span_id is not None
+    assert rejected.span_id == retried.span_id
+    assert len(span_begins()) == 1
+    assert bridge._conversations[0].span_id == rejected.span_id
+
+
+async def test_compacted_call_events_stay_in_their_conversations_span() -> None:
+    """Attribution is by call, not content: a transformed model input cannot orphan events."""
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+    sink = bridge.model_event_sink
+    assert sink is not None
+    history: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    _, out = await spanned_track(bridge, history, "first answer")
+
+    # compaction hands the model a rewritten history that shares no prefix with
+    # the request history the accumulator will see
+    compacted = pending_event(
+        [TASK_SYSTEM, ChatMessageUser(content="[summary of the conversation so far]")]
+    )
+    sink.on_pending(compacted)
+    await track(
+        bridge,
+        [*history, out.message, ChatMessageUser(content="Go on.")],
+        "post-compaction answer",
+    )
+
+    begins = span_begins()
+    assert len(begins) == 1
+    assert compacted.span_id == begins[0].id
+
+
+async def test_a_filtered_call_still_opens_its_conversations_span() -> None:
+    """A filter-supplied output generates no model event; the span exists anyway."""
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+
+    # no pending event: the filter answered without model.generate()
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "filtered answer")
+
+    begins = span_begins()
+    assert len(begins) == 1
+    assert bridge._conversations[0].span_id == begins[0].id
+    assert [i.span_id for i in span_infos()] == [begins[0].id]
+    assert not any(isinstance(e, ModelEvent) for e in transcript().events)
+
+
+async def test_system_only_conversations_keep_one_span() -> None:
+    """A system-only opening call and its continuation share a single span."""
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+
+    opening: list[ChatMessage] = [TASK_SYSTEM]
+    event_open, out = await spanned_track(bridge, opening, "system-only answer")
+    event_cont, _ = await spanned_track(
+        bridge,
+        [TASK_SYSTEM, out.message, ChatMessageUser(content="Now a question.")],
+        "continued answer",
+    )
+
+    assert len(span_begins()) == 1
+    assert event_open.span_id == span_begins()[0].id
+    assert event_cont.span_id == event_open.span_id
+
+
+async def test_conversation_spans_end_at_bridge_close() -> None:
+    """Close ends every open span in reverse order, once."""
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+
+    await spanned_track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "a")
+    await spanned_track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content="Another thread.")], "b"
+    )
+    begins = span_begins()
+
+    bridge.close_conversation_spans()
+    assert [e.id for e in span_ends()] == [begins[1].id, begins[0].id]
+
+    bridge.close_conversation_spans()
+    assert len(span_ends()) == 2
+
+    # a call after close keeps its ambient span and opens nothing new
+    late = pending_event([TASK_SYSTEM, ChatMessageUser(content="Too late.")])
+    sink = bridge.model_event_sink
+    assert sink is not None
+    sink.on_pending(late)
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content="Too late.")], "late")
+    assert late.span_id is None
+    assert len(span_begins()) == 2
+
+
+async def test_restored_conversations_mint_fresh_spans_marked_adopted() -> None:
+    """A checkpoint-restored conversation's span closed with its process: continuation re-spans."""
+    init_transcript(Transcript())
+    first = accumulating_bridge()
+    session: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    event, out = await spanned_track(first, session, "session answer")
+    original_span = event.span_id
+    assert original_span is not None
+
+    checkpointer = RecordingCheckpointer(
+        restored={"bridge_conversations": first._conversations}
+    )
+    resumed = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+        checkpointer=checkpointer,
+    )
+    restored = resumed._conversations[0]
+    assert restored.span_id is None
+    assert restored.resume_adopted
+
+    event_cont, _ = await spanned_track(
+        resumed,
+        [*session, out.message, ChatMessageUser(content="Continue.")],
+        "continued answer",
+    )
+    assert event_cont.span_id is not None
+    assert event_cont.span_id != original_span
+    # the continuation REPLACED the stored conversation; the store carries the span
+    assert resumed._conversations[0].span_id == event_cont.span_id
+    # the adoption is visible in the fresh span's metadata
+    assert span_infos()[-1].data == {
+        "conversation_ordinal": 0,
+        "first_seen_call_index": 0,
+        "resume_adopted": True,
+    }
+
+
+async def test_concurrent_handler_tasks_keep_their_calls_apart() -> None:
+    """Interleaved handler tasks attribute their events to their own conversations.
+
+    The sandbox service dispatches each RPC request in its own task; the call
+    record is task-local, so one call's events cannot be claimed by another
+    call accumulating first. A process-global record would fail this test.
+    """
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+    sink = bridge.model_event_sink
+    assert sink is not None
+
+    one: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    two: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content="Second thread.")]
+    events: dict[str, ModelEvent] = {}
+
+    async def handler(
+        history: list[ChatMessage],
+        completion: str,
+        started: anyio.Event,
+        proceed: anyio.Event,
+    ) -> None:
+        event = pending_event(history)
+        sink.on_pending(event)
+        events[completion] = event
+        started.set()
+        await proceed.wait()
+        await track(bridge, history, completion)
+
+    async with anyio.create_task_group() as tg:
+        started_one, proceed_one = anyio.Event(), anyio.Event()
+        started_two, proceed_two = anyio.Event(), anyio.Event()
+        tg.start_soon(handler, one, "answer one", started_one, proceed_one)
+        await started_one.wait()
+        tg.start_soon(handler, two, "answer two", started_two, proceed_two)
+        await started_two.wait()
+        # both calls hold pending events; accumulate in reverse arrival order
+        proceed_two.set()
+        proceed_one.set()
+
+    def span_of(completion: str) -> str | None:
+        for conversation in bridge._conversations:
+            if any(m.text == completion for m in conversation.messages):
+                return conversation.span_id
+        return None
+
+    assert len(span_begins()) == 2
+    assert events["answer one"].span_id == span_of("answer one")
+    assert events["answer two"].span_id == span_of("answer two")
+    assert events["answer one"].span_id != events["answer two"].span_id
+
+
+async def test_a_root_conversations_begin_event_stays_at_root() -> None:
+    """A None parent captured at emission survives ambient stamping at attribution.
+
+    SpanBeginEvent construction fills a None span_id from the ambient span; if
+    attribution runs inside a later checkpoint span, the begin event must keep
+    the captured root placement rather than bucket under that checkpoint.
+    """
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+    sink = bridge.model_event_sink
+    assert sink is not None
+    history: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+
+    event = pending_event(history)
+    sink.on_pending(event)  # ambient parent: None (no span open)
+
+    async with span("checkpoint 1", type="checkpoint"):
+        await track(bridge, history, "answer")
+
+    begin = next(b for b in span_begins() if b.type == BRIDGE_CONVERSATION_SPAN_TYPE)
+    assert begin.parent_id is None
+    assert begin.span_id is None
+    assert event.span_id == begin.id
+
+
+async def test_a_caller_sink_takes_precedence_over_span_emission() -> None:
+    """Transitional precedence: a caller-supplied sink keeps its current behavior.
+
+    Existing callers pair accumulation with their own sink today; the bridge
+    must not race them for emission ownership, so it emits no spans for such a
+    bridge. The flattening-removal release upgrades this to a hard error.
+    """
+    init_transcript(Transcript())
+
+    class _Sink:
+        def on_pending(self, event: ModelEvent) -> None: ...
+
+        def on_complete(self, event: ModelEvent) -> None: ...
+
+    sink = _Sink()
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+        model_event_sink=sink,
+    )
+    assert bridge.model_event_sink is sink
+    assert bridge._span_emitter is None
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "answer")
+    assert len(bridge._conversations) == 1
+    assert bridge._conversations[0].span_id is None
+    assert span_begins() == []
+
+
+async def test_an_absorbed_conversations_span_ends_at_absorption() -> None:
+    """A stale fork's span ends when the grown conversation absorbs it.
+
+    Organically a fork with its own span cannot arise (a covered call joins the
+    conversation that contains it), but a crash between a fork and its merge
+    can restore one; the absorb loop must end such a span rather than leak it
+    past close. White-box: the stale span is seeded the way a crash leaves it.
+    """
+    init_transcript(Transcript())
+    seed = accumulating_bridge()
+    session: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    _, out_one = await spanned_track(seed, session, "first answer")
+    grown: list[ChatMessage] = [
+        *session,
+        out_one.message,
+        ChatMessageUser(content="Go on."),
+    ]
+    _, out_two = await spanned_track(seed, grown, "second answer")
+    # crash artifact: the pre-growth state and the grown conversation both stored
+    full = seed._conversations[0]
+    fork = [
+        dataclasses.replace(full, key=full.key[:2], messages=full.messages[:3]),
+        full,
+    ]
+
+    checkpointer = RecordingCheckpointer(restored={"bridge_conversations": fork})
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+        checkpointer=checkpointer,
+    )
+    sink = bridge.model_event_sink
+    assert isinstance(sink, _ConversationSpanEmitter)
+    stale = bridge._conversations[0]
+    stale.span_id = "stale-span"
+    sink._span_ids.append("stale-span")
+
+    # continuing along the grown path absorbs the stale fork: its span must end
+    event_grown, _ = await spanned_track(
+        bridge,
+        [*grown, out_two.message, ChatMessageUser(content="Finish.")],
+        "third answer",
+    )
+    assert event_grown.span_id is not None
+    assert event_grown.span_id != "stale-span"
+    assert [e.id for e in span_ends()] == ["stale-span"]
+    assert len(bridge._conversations) == 1
+
+    # close ends only the surviving conversation's span, not the absorbed one again
+    bridge.close_conversation_spans()
+    assert [e.id for e in span_ends()] == ["stale-span", event_grown.span_id]

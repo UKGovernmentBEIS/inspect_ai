@@ -234,6 +234,7 @@ async def sandbox_agent_bridge(
                 yield bridge
                 agent_completed = True
             finally:
+                bridge.close_conversation_spans()
                 with anyio.CancelScope(shield=True):
                     # ensure the process terminates (no-op if already dead)
                     await proxy.kill()
