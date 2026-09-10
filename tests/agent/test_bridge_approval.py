@@ -485,6 +485,38 @@ async def test_terminate_decision_terminates_immediately() -> None:
         )
 
 
+def test_result_stage_only_policies_do_not_arm_the_host_tool_gate() -> None:
+    """Result policies enforce nothing for a bridge, so they must not gate grants."""
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(return_value="contents"),
+        [ApprovalPolicy(auto_approver("approve"), "*", stage="result")],
+    )
+
+    assert bridge.tool_approval_required() is False
+
+
+async def test_result_stage_policies_warn_and_are_not_applied() -> None:
+    """A bridged agent executes its own tools, so results are never reviewed."""
+    from inspect_ai._util import logger as inspect_logger
+
+    inspect_logger._warned.clear()
+    call = ToolCall(id="1", function="bash", arguments={"cmd": "ls"})
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+
+    run = await run_bridge(
+        [tool_calls_output(call)],
+        approval=[
+            ApprovalPolicy(auto_approver("approve"), "*"),
+            ApprovalPolicy(recording_approver(seen), "*", stage="result"),
+        ],
+    )
+
+    assert run.output.message.tool_calls == [call]
+    assert seen == []
+    assert any("Result-stage approval" in warning for warning in inspect_logger._warned)
+    inspect_logger._warned.clear()
+
+
 def test_sandbox_bridge_terminate_signals_the_monitor() -> None:
     """Sandbox generations run where exceptions can't propagate, so also signal."""
     bridge = SandboxAgentBridge(

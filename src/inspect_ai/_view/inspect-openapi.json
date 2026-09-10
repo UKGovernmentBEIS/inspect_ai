@@ -244,6 +244,15 @@
             ],
             "title": "Span Id"
           },
+          "stage": {
+            "default": "call",
+            "enum": [
+              "call",
+              "result"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
           "timestamp": {
             "title": "Timestamp",
             "type": "string"
@@ -281,6 +290,7 @@
           "message",
           "call",
           "approver",
+          "stage",
           "decision"
         ],
         "title": "ApprovalEvent",
@@ -304,7 +314,7 @@
       },
       "ApproverPolicyConfig": {
         "additionalProperties": true,
-        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
+        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: auto\n    tools: *\n    decision: approve\n\n  - name: evaltools/output_monitor\n    tools: bash\n    stage: result\n```",
         "properties": {
           "name": {
             "title": "Name",
@@ -314,6 +324,15 @@
             "additionalProperties": true,
             "title": "Params",
             "type": "object"
+          },
+          "stage": {
+            "default": "call",
+            "enum": [
+              "call",
+              "result"
+            ],
+            "title": "Stage",
+            "type": "string"
           },
           "tools": {
             "anyOf": [
@@ -333,7 +352,8 @@
         "required": [
           "name",
           "tools",
-          "params"
+          "params",
+          "stage"
         ],
         "title": "ApproverPolicyConfig",
         "type": "object"

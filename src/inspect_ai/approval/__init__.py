@@ -1,5 +1,5 @@
 from ._apply import approval
-from ._approval import Approval, ApprovalDecision
+from ._approval import Approval, ApprovalDecision, ApprovalStage
 from ._approver import Approver
 from ._auto import auto_approver
 from ._human.approver import human_approver
@@ -10,6 +10,7 @@ __all__ = [
     "Approver",
     "Approval",
     "ApprovalDecision",
+    "ApprovalStage",
     "ApprovalPolicy",
     "approval",
     "approver",

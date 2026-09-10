@@ -110,10 +110,21 @@ async def apply_bridge_tool_approval(
         The response for the scaffold, plus the messages to replay to the model when
         the response was rejected.
     """
-    from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
+    from inspect_ai.approval._apply import (
+        apply_tool_approval,
+        have_tool_call_approval,
+        have_tool_result_approval,
+    )
 
     with bridge_approval_scope(bridge.approval):
-        if not have_tool_approval():
+        if have_tool_result_approval():
+            warn_once(
+                logger,
+                "Result-stage approval policies do not apply to bridged agents: "
+                "the agent executes its own tool calls, so Inspect never sees "
+                "their results. Only call-stage policies are enforced.",
+            )
+        if not have_tool_call_approval():
             return BridgeApproval(output, None)
 
         if any(choice.message.tool_calls for choice in output.choices[1:]):

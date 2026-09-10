@@ -7,7 +7,7 @@ from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
-from ._approval import Approval
+from ._approval import Approval, ApprovalStage
 from ._approver import Approver
 
 logger = getLogger(__name__)
@@ -19,6 +19,7 @@ async def call_approver(
     call: ToolCall,
     view: ToolCallView,
     history: list[ChatMessage],
+    stage: ApprovalStage = "call",
 ) -> Approval:
     # run approver (if the approval is still using state then
     # provide that but issue a warning)
@@ -26,6 +27,12 @@ async def call_approver(
     if "state" in signature.parameters.keys():
         from inspect_ai.solver._task_state import sample_state
 
+        if stage == "result":
+            raise ValueError(
+                f"Approver '{registry_log_name(approver)}' takes the deprecated "
+                "'state' parameter and cannot be used at the result stage: the "
+                "result under review is only available in 'history'."
+            )
         warn_once(
             logger, "Approver 'state' parameter is deprecated (use 'history' instead)"
         )
@@ -34,7 +41,7 @@ async def call_approver(
         approval = await approver(message, call, view, history)
 
     # record
-    record_approval(registry_log_name(approver), message, call, view, approval)
+    record_approval(registry_log_name(approver), message, call, view, approval, stage)
 
     # return approval
     return approval
@@ -46,6 +53,7 @@ def record_approval(
     call: ToolCall,
     view: ToolCallView | None,
     approval: Approval,
+    stage: ApprovalStage = "call",
 ) -> None:
     from inspect_ai.log._transcript import transcript
 
@@ -55,6 +63,7 @@ def record_approval(
             call=call,
             view=view,
             approver=approver_name,
+            stage=stage,
             decision=approval.decision,
             modified=approval.modified,
             explanation=approval.explanation,

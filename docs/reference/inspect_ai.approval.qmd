@@ -15,6 +15,7 @@ description: Approvers and approval policies.
 ### Approver
 ### Approval
 ### ApprovalDecision
+### ApprovalStage
 ### ApprovalPolicy
 
 ## Decorator

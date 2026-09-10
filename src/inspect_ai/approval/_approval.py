@@ -16,6 +16,17 @@ Possible values:
 """
 
 
+ApprovalStage = Literal["call", "result"]
+"""Point in a tool call's lifecycle at which an approval policy applies.
+
+Possible values:
+  "call": Before the tool executes. The approver decides whether the call
+    the model submitted may run.
+  "result": After the tool executes. The approver decides whether the
+    result the tool returned may be given to the model.
+"""
+
+
 class Approval(BaseModel):
     """Approval details (decision, explanation, etc.)"""
 

@@ -24,6 +24,10 @@ class ApprovalEvent(BaseEvent):
     approver: str
     """Aprover name."""
 
+    stage: Literal["call", "result"] = Field(default="call")
+    """Stage at which the approval was applied: before the tool call executed
+    ("call") or to the result it returned ("result")."""
+
     decision: Literal["approve", "modify", "reject", "escalate", "terminate"]
     """Decision of approver."""
 

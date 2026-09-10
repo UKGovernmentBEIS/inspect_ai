@@ -162,6 +162,11 @@ async def _execute_tools_impl(
             agent_span_id: str | None = None
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
+            # the call as executed (a call-stage approver may modify it)
+            executed_call = call
+            # cleared by the handlers for the errors call_tool raises before it
+            # runs the tool: parsing/validation failures and call-stage denial
+            call_executed = True
             # Track this tool call on the active sample's execution observer
             # so an intervention producer (ACP today) can snapshot the
             # in-flight tool id into InterruptEvent. No-op when no observer
@@ -179,15 +184,15 @@ async def _execute_tools_impl(
             try:
                 try:
                     with _observer.track_tool_call(call.id, event):
-                        (
-                            result,
-                            messages,
-                            output,
-                            agent,
-                            agent_span_id,
-                        ) = await call_tool(
+                        called = await call_tool(
                             tdefs, message.text, call, event, conversation
                         )
+                        result = called.result
+                        messages = called.messages
+                        output = called.output
+                        agent = called.agent
+                        agent_span_id = called.agent_span_id
+                        executed_call = called.call
                 # unwrap exception group
                 except Exception as ex:
                     inner_ex = inner_exception(ex)
@@ -213,6 +218,7 @@ async def _execute_tools_impl(
                         "parsing",
                         f"An argument to tool '{call.function}' contained an embedded null byte.",
                     )
+                    call_executed = False
                 else:
                     raise
             except SandboxUnavailableError as ex:
@@ -250,8 +256,10 @@ async def _execute_tools_impl(
                 )
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
+                call_executed = False
             except ToolApprovalError as ex:
                 tool_error = ToolCallError("approval", ex.message)
+                call_executed = False
             except ToolError as ex:
                 tool_error = ToolCallError("unknown", ex.message)
             except Exception as ex:
@@ -307,7 +315,7 @@ async def _execute_tools_impl(
                     )
 
             # create event
-            event = ToolEvent(
+            result_event = ToolEvent(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
@@ -319,23 +327,38 @@ async def _execute_tools_impl(
                 agent_span_id=agent_span_id,
             )
 
+            # the result as the model will see it (the event above keeps what
+            # the tool returned even when this is withheld)
+            tool_message = ChatMessageTool(
+                content=cast(list[Content], content),
+                tool_call_id=call.id,
+                function=call.function,
+                error=tool_error,
+            )
+            if tool_exception is None and call_executed:
+                try:
+                    with _observer.track_tool_call(call.id, event):
+                        approved = await _apply_tool_result_approval(
+                            tdefs,
+                            message.text,
+                            executed_call,
+                            conversation,
+                            tool_message,
+                        )
+                    if approved.withheld:
+                        tool_message, messages, output = approved.message, [], None
+                except Exception as ex:
+                    tool_exception = ex
+
             # yield message and event
             async with send_stream:
                 await send_stream.send(
                     (
                         ExecuteToolsResult(
-                            messages=[
-                                ChatMessageTool(
-                                    content=cast(list[Content], content),
-                                    tool_call_id=call.id,
-                                    function=call.function,
-                                    error=tool_error,
-                                )
-                            ]
-                            + messages,
+                            messages=[tool_message] + messages,
                             output=output,
                         ),
-                        event,
+                        result_event,
                         tool_exception,
                     )
                 )
@@ -614,13 +637,26 @@ async def _execute_tools_impl(
         return ExecuteToolsResult([])
 
 
+class CalledTool(NamedTuple):
+    """Outcome of `call_tool()`."""
+
+    result: ToolResult
+    messages: list[ChatMessage]
+    """Further messages produced by the call (a handoff's sub-agent conversation)."""
+    output: ModelOutput | None
+    agent: str | None
+    agent_span_id: str | None
+    call: ToolCall
+    """The call as executed, which a call-stage approver may have modified."""
+
+
 async def call_tool(
     tools: list[ToolDef],
     message: str,
     call: ToolCall,
     event: BaseModel,
     conversation: list[ChatMessage],
-) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None, str | None]:
+) -> CalledTool:
     from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._transcript import transcript
@@ -688,7 +724,7 @@ async def call_tool(
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
                     handoff_result = await agent_handoff(tool_def, call, conversation)
-                    return (*handoff_result, None)
+                    return CalledTool(*handoff_result, None, call)
 
         # normal tool call
         else:
@@ -696,7 +732,61 @@ async def call_tool(
                 transcript()._event(event)
                 result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
-                return result, [], None, None, agent_span_id
+                return CalledTool(result, [], None, None, agent_span_id, call)
+
+
+class _ToolResultApproval(NamedTuple):
+    message: ChatMessageTool
+    """Result message the model will see."""
+
+    withheld: bool
+    """Whether a result-stage approver withheld the tool's actual result."""
+
+
+async def _apply_tool_result_approval(
+    tools: list[ToolDef],
+    message: str,
+    call: ToolCall,
+    conversation: list[ChatMessage],
+    result: ChatMessageTool,
+) -> _ToolResultApproval:
+    """Give result-stage approvers the chance to withhold an executed call's result.
+
+    Only calls that actually ran are reviewed (the caller checks this): a call
+    rejected at the call stage or failed by argument parsing produced no result,
+    and withholding its error would hide the feedback the model needs to correct
+    itself. Handoffs are not reviewed either: their "result" is a transfer
+    notice, and the sub-agent's own tool calls are reviewed individually as they
+    execute.
+
+    Raises:
+        TerminateSampleError: A result-stage approver requested termination.
+    """
+    from inspect_ai.agent._handoff import AgentTool
+    from inspect_ai.approval._apply import apply_tool_result_approval
+
+    tool_def = next((tool for tool in tools if tool.name == call.function), None)
+    if tool_def is not None and isinstance(tool_def.tool, AgentTool):
+        return _ToolResultApproval(result, withheld=False)
+    approved, approval = await apply_tool_result_approval(
+        message, call, tool_def.viewer if tool_def else None, conversation, result
+    )
+    if approved:
+        return _ToolResultApproval(result, withheld=False)
+    if approval is not None and approval.decision == "terminate":
+        raise TerminateSampleError("Tool result approver requested termination.")
+    explanation = (approval.explanation if approval else None) or (
+        "Tool result not approved."
+    )
+    return _ToolResultApproval(
+        ChatMessageTool(
+            content="",
+            tool_call_id=call.id,
+            function=call.function,
+            error=ToolCallError("approval", explanation),
+        ),
+        withheld=True,
+    )
 
 
 async def agent_handoff(

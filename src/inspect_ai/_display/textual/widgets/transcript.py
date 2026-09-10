@@ -365,8 +365,9 @@ def render_input_event(event: InputEvent) -> EventDisplay:
 
 
 def render_approval_event(event: ApprovalEvent) -> EventDisplay:
+    subject = " (tool result)" if event.stage == "result" else ""
     content: list[RenderableType] = [
-        f"[bold]{event.approver}[/bold]: {event.decision} ({event.explanation})"
+        f"[bold]{event.approver}[/bold]{subject}: {event.decision} ({event.explanation})"
     ]
 
     return EventDisplay("approval", Group(*content))

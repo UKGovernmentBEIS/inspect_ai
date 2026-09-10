@@ -1,0 +1,9 @@
+approvers:
+  - name: auto
+    tools: "*"
+    decision: approve
+
+  - name: auto
+    tools: "add*"
+    stage: result
+    decision: reject

@@ -161,10 +161,10 @@ class SandboxAgentBridge(AgentBridge):
     def tool_approval_required(self) -> bool:
         """Return whether explicit or ambient approval governs host tool calls."""
         from inspect_ai.agent._bridge._approval import bridge_approval_scope
-        from inspect_ai.approval._apply import have_tool_approval
+        from inspect_ai.approval._apply import have_tool_call_approval
 
         with bridge_approval_scope(self.approval):
-            return have_tool_approval()
+            return have_tool_call_approval()
 
     def request_terminate(self, reason: str) -> NoReturn:
         """Terminate the sample from a bridged generation.

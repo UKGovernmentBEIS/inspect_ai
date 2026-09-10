@@ -127,7 +127,7 @@ async def my_solver(state):
     ...
 ```
 
-The context manager replaces the current approval policies for its duration and restores the previous ones on exit. Nesting is supported—each nested `approval()` context sets its own policies and correctly restores the outer policies when it exits.
+The context manager replaces the current approval policies for its duration and restores the previous ones on exit. Nesting is supported—each nested `approval()` context sets its own policies and correctly restores the outer policies when it exits. Policies are replaced per [stage](#tool-results): a context whose policies only declare `stage: result` leaves the surrounding call-stage policies in force, and vice versa.
 
 The `execute_tools()` function and the `react()` agent also accept an `approval` parameter for convenience, which applies approval policies for the duration of tool execution:
 
@@ -151,6 +151,54 @@ agent = react(
 )
 ```
 
+## Tool Results {#tool-results}
+
+Approval policies normally run *before* a tool call executes, deciding whether the call the model submitted may run. A policy can instead run *after* the call, on the result the tool returned, by setting its `stage` to `result`:
+
+``` yaml
+approvers:
+  - name: evaltools/output_monitor
+    tools: "bash, python"
+    stage: result
+
+  - name: auto
+    tools: "*"
+    stage: result
+```
+
+Or in code:
+
+``` python
+approval = [
+    ApprovalPolicy(output_monitor(), ["bash", "python"], stage="result"),
+    ApprovalPolicy(auto_approver(), "*", stage="result"),
+]
+```
+
+A result-stage approver is an ordinary `Approver`: it receives the same `message`, `call`, and `view` as a call-stage approver, and `history` ends with the `ChatMessageTool` holding the result under review (the message before it is the assistant turn that made the call). This lets an approver judge a call by what it actually did — for example, a monitor that reads a shell command's output for evidence of something the sandbox should have prevented.
+
+The two stages are independent. Policies for each stage are matched to tools and chained exactly as described above, so a result-stage chain needs its own catch-all `auto` approver: a result no result-stage policy covers is withheld, just as a call no call-stage policy covers is rejected. If no policy declares `stage: result`, results are not reviewed at all. Both stages may be combined in one policy file, and the `approval()` [context manager](#approval-context) replaces the policies of each stage it declares for its duration. When a call-stage approver returns `modify`, the result-stage approver sees the call as modified, since that is the call whose result it is reviewing.
+
+Decisions at the result stage behave as follows:
+
+| Decision | Behavior at the result stage |
+|--------------------------|----------------------------------------------|
+| approve | The result is passed to the model unchanged. |
+| reject | The result is withheld: the model receives a tool error carrying the approver's explanation instead of the tool's output. |
+| terminate | The sample is terminated. |
+| escalate | Passed to the next result-stage approver in the chain, as elsewhere. |
+| modify | Not permitted: the call has already executed. Returning `modify` from a result-stage approver is an error. |
+
+In the eval log, the tool event always records what the tool actually returned, and the approval event that follows it (with `stage: "result"`) records the decision, so a withheld result is still visible to anyone reading the transcript.
+
+Only calls that actually executed are reviewed. A call that a call-stage approver rejected, or that failed before running because its arguments could not be parsed or named an unknown tool, produced no result: the error the model receives is its feedback, and result-stage policies are not consulted for it. Handoffs to other agents are not reviewed at the result stage either — their result is a transfer notice, and the sub-agent's own tool calls are reviewed individually as they execute.
+
+The built-in `human` approver presents only the tool call to the operator, not its result, so it is not suited to the result stage. Write a custom approver (which can read the result from `history`) for interactive review of results.
+
+Result-stage approvers run at the end of each tool call, so when a model makes several tool calls in one turn each result is reviewed as it arrives. `history` holds the conversation up to that turn plus the result under review: the results of the turn's other calls are not included, whether or not they have completed. A `terminate` decision on one result cancels the sibling calls still running, and an exception raised by a result-stage approver fails the sample rather than being reported to the model as a tool error.
+
+Result-stage policies do not apply to [bridged agents](#bridged-agents), which execute their own tool calls.
+
 ## Bridged Agents {#bridged-agents}
 
 Agents integrated via the [Agent Bridge](agent-bridge.qmd) run their own tool loop, so Inspect never executes their tool calls. Approval policies are applied instead to the tool calls in each model response, before that response is handed back to the agent. This covers both `agent_bridge()` and `sandbox_agent_bridge()`, and every API dialect they support.
@@ -169,6 +217,8 @@ async with sandbox_agent_bridge(
 ```
 
 For a sandbox bridge this parameter is the only reliable way to set policy from inside the agent: bridged generations run in the sandbox service task, which doesn't see an `approval()` [context manager](#approval-context) entered within the agent body.
+
+Only call-stage policies apply to bridged agents. Because the agent executes its own tool calls, Inspect never sees their results, so [result-stage](#tool-results) policies cannot be enforced and are ignored with a warning.
 
 Decisions behave as follows:
 
@@ -224,6 +274,8 @@ There are five possible approval decisions:
 | reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
 | escalate | The tool call should be escalated to the next approver in the chain. |
 | terminate | The current sample should be terminated as a result of the tool call. |
+
+An approver used in a [result-stage](#tool-results) policy makes the same decisions about the tool's result rather than the call, with `reject` withholding the result from the model and `modify` not permitted.
 
 
 Here's a more complicated custom approver that implements an allow list for bash commands. Imagine that we've implemented this approver within a Python package named `evaltools`:

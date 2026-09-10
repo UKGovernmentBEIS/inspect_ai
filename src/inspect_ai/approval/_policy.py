@@ -13,7 +13,7 @@ from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._resource import resource
 
-from ._approval import Approval
+from ._approval import Approval, ApprovalStage
 from ._approver import Approver
 from ._call import call_approver, record_approval
 
@@ -28,8 +28,20 @@ class ApprovalPolicy:
     tools: str | list[str]
     """Tools to use this approver for (can be full tool names or globs)."""
 
+    stage: ApprovalStage = "call"
+    """When the approver runs: before the call executes ("call", the default)
+    or after it has executed, on the result it returned ("result")."""
 
-def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
+
+def policy_approver(
+    policies: str | list[ApprovalPolicy], stage: ApprovalStage = "call"
+) -> Approver:
+    """Compile the policies for one stage into a single approver.
+
+    Only policies declared for `stage` take part. A tool call (or result) that
+    no participating policy covers is rejected, as is one that every covering
+    approver escalates.
+    """
     # if policies is a str, it is a config file or an approver
     if isinstance(policies, str):
         policies = approval_policies_from_config(policies)
@@ -37,6 +49,8 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
     # compile policy into approvers and regexes for matching
     policy_matchers: list[tuple[list[str], Approver]] = []
     for policy in policies:
+        if policy.stage != stage:
+            continue
         tool_specs = [policy.tools] if isinstance(policy.tools, str) else policy.tools
         tools: list[str] = []
         for spec in tool_specs:
@@ -68,17 +82,24 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
         has_approver = False
         for approver in tool_approvers(call):
             has_approver = True
-            approval = await call_approver(approver, message, call, view, history)
+            approval = await call_approver(
+                approver, message, call, view, history, stage
+            )
             if approval.decision != "escalate":
                 return approval
 
         # if there are no approvers then we reject
+        subject = (
+            f"tool {call.function}"
+            if stage == "call"
+            else f"the result of tool {call.function}"
+        )
         reject = Approval(
             decision="reject",
-            explanation=f"No {'approval granted' if has_approver else 'approvers registered'} for tool {call.function}",
+            explanation=f"No {'approval granted' if has_approver else 'approvers registered'} for {subject}",
         )
         # record and return the rejection
-        record_approval("policy", message, call, view, reject)
+        record_approval("policy", message, call, view, reject, stage)
         return reject
 
     return approve
@@ -99,12 +120,17 @@ class ApproverPolicyConfig(BaseModel):
       - name: auto
         tools: *
         decision: approve
+
+      - name: evaltools/output_monitor
+        tools: bash
+        stage: result
     ```
     """
 
     name: str
     tools: str | list[str]
     params: dict[str, Any] = Field(default_factory=dict)
+    stage: ApprovalStage = "call"
 
     model_config = {
         "extra": "allow",
@@ -115,7 +141,7 @@ class ApproverPolicyConfig(BaseModel):
     def collect_unknown_fields(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        known_fields = set(["name", "tools", "params"])
+        known_fields = set(["name", "tools", "params", "stage"])
         unknown_fields = {k: v for k, v in data.items() if k not in known_fields}
 
         if unknown_fields:
@@ -130,9 +156,9 @@ class ApprovalPolicyConfig(BaseModel):
     approvers: list[ApproverPolicyConfig]
 
 
-def approver_from_config(policy_config: str) -> Approver:
+def approver_from_config(policy_config: str, stage: ApprovalStage = "call") -> Approver:
     policies = approval_policies_from_config(policy_config)
-    return policy_approver(policies)
+    return policy_approver(policies, stage)
 
 
 def read_approval_policies(file: str) -> list[ApprovalPolicy]:
@@ -152,14 +178,19 @@ def approval_policies_from_config(
 ) -> list[ApprovalPolicy]:
     # create approver policy
     def create_approval_policy(
-        name: str, tools: str | list[str], params: dict[str, Any] = {}
+        name: str,
+        tools: str | list[str],
+        params: dict[str, Any],
+        stage: ApprovalStage,
     ) -> ApprovalPolicy:
         approver = cast(Approver, create_registry_object("approver", name, params))
-        return ApprovalPolicy(approver, tools)
+        return ApprovalPolicy(approver, tools, stage)
 
     # map config -> policy
     def policy_from_config(config: ApproverPolicyConfig) -> ApprovalPolicy:
-        return create_approval_policy(config.name, config.tools, config.params)
+        return create_approval_policy(
+            config.name, config.tools, config.params, config.stage
+        )
 
     # resolve config if its a string
     if isinstance(policy_config, str):
@@ -191,7 +222,9 @@ def config_from_approval_policies(
         name = registry_log_name(policy.approver)
         params = registry_params(policy.approver)
         approvers.append(
-            ApproverPolicyConfig(name=name, tools=policy.tools, params=params)
+            ApproverPolicyConfig(
+                name=name, tools=policy.tools, params=params, stage=policy.stage
+            )
         )
 
     return ApprovalPolicyConfig(approvers=approvers)
