@@ -2,6 +2,8 @@ import abc
 from collections.abc import Sequence
 from typing import IO, TYPE_CHECKING, NamedTuple
 
+import anyio
+
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.error import EvalError
 from inspect_ai.log._config_update import ConfigUpdate
@@ -113,6 +115,8 @@ class Recorder(abc.ABC):
         as bytes) overrides and falls back to this for anything else. Images
         are kept as the prior recorded them, matching the byte copy. Raises
         ``FileNotFoundError`` when a prior log location does not exist.
+        Checkpoints between samples keep synchronous recorder implementations
+        responsive to cancellation and other tasks on the event loop.
         """
         from inspect_ai.log._condense import condense_sample
         from inspect_ai.log._file import read_eval_log_async
@@ -133,6 +137,7 @@ class Recorder(abc.ABC):
                 or SampleRecordKey(str(sample.id), sample.epoch) in kept_keys
             ):
                 await self.log_sample(eval, condense_sample(sample), write_through=True)
+            await anyio.lowlevel.checkpoint()
 
     @abc.abstractmethod
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None: ...

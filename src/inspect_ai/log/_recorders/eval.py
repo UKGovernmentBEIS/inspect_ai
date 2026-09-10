@@ -599,7 +599,11 @@ def _rewrite_eval_zip_with_new_header(zip_bytes: bytes, log: EvalLog) -> bytes:
 
 
 def _copy_live_members(
-    src: ZipFile, dst: ZipFile, exclude: frozenset[str] = frozenset()
+    src: ZipFile,
+    dst: ZipFile,
+    exclude: frozenset[str] = frozenset(),
+    *,
+    cancellable: bool = False,
 ) -> None:
     """Copy each name's last member from ``src`` to ``dst``, streaming.
 
@@ -611,7 +615,8 @@ def _copy_live_members(
     original compression type / date_time / external_attr; the data still
     round-trips through decompress + recompress, streamed in chunks so a
     large member never sits in memory whole. Blocking — run in a worker
-    thread when called from the event loop.
+    thread when called from the event loop. ``cancellable`` requires an
+    AnyIO worker and checks its host task's cancellation between chunks.
     """
     infos = {info.filename: info for info in src.infolist()}
     for info in infos.values():
@@ -621,7 +626,13 @@ def _copy_live_members(
             src.open(info, "r") as reader,
             dst.open(info, "w", force_zip64=True) as writer,
         ):
-            shutil.copyfileobj(reader, writer, length=1024 * 1024)
+            while True:
+                if cancellable:
+                    anyio.from_thread.check_cancelled()
+                chunk = reader.read(1024 * 1024)
+                if not chunk:
+                    break
+                writer.write(chunk)
 
 
 def _eval_log_header(log: EvalLog) -> EvalLog:
@@ -983,7 +994,8 @@ def _compact_zip(src_file: BinaryIO, live: frozenset[str]) -> BinaryIO:
     is not on disk yet — ``ZipFile.close`` rewrites the directory only
     after a write — so the closed file's directory may still list pruned
     members. Blocking (decompress + recompress of every member) — run in a
-    worker thread.
+    worker thread created by AnyIO. Cancellation is checked between chunks
+    and closes the incomplete output before propagating to the caller.
     """
     src_file.seek(0)
     out: BinaryIO = tempfile.TemporaryFile()
@@ -992,7 +1004,9 @@ def _compact_zip(src_file: BinaryIO, live: frozenset[str]) -> BinaryIO:
             ZipFile(src_file, "r") as src,
             ZipFile(out, "w", **zipfile_compress_kwargs) as dst,
         ):
-            _copy_live_members(src, dst, exclude=frozenset(src.namelist()) - live)
+            _copy_live_members(
+                src, dst, exclude=frozenset(src.namelist()) - live, cancellable=True
+            )
     except BaseException:
         out.close()
         raise
@@ -1161,7 +1175,9 @@ class ZipLogFile:
         summary_path = _journal_summary_path(summary_file)
         self._zip_writestr(summary_path, [summary])
         self._summaries = [
-            s for s in self._summaries if SampleRecordKey(str(s.id), s.epoch)
+            s
+            for s in self._summaries
+            if SampleRecordKey(str(s.id), s.epoch)
             != SampleRecordKey(str(summary.id), summary.epoch)
         ]
         self._summaries.append(summary)

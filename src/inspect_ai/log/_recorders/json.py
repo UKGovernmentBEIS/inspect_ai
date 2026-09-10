@@ -261,9 +261,7 @@ class JSONRecorder(FileRecorder):
         ]
         log.summaries = [s for s in log.summaries if not pruned(s.id, s.epoch)]
         log.samples_by_key = {
-            key: sample
-            for key, sample in log.samples_by_key.items()
-            if key not in keys
+            key: sample for key, sample in log.samples_by_key.items() if key not in keys
         }
 
     @override

@@ -575,7 +575,9 @@ reads the prior (`read_eval_log_async`, or the in-memory samples of an
 `EvalLog` source — `eval_retry` on a loaded log, `log_info=None`) and
 writes each kept sample through `log_sample(write_through=True)` before
 `log_start`, today's write-through done sequentially up front, keeping
-images as the prior recorded them so both paths agree. Filtering and lookup
+images as the prior recorded them so both paths agree. A checkpoint between
+samples lets sibling tasks run and cancellation interrupt the seed, even
+when `log_sample` does not suspend (as with JSON). Filtering and lookup
 use `(str(id), epoch)`, matching file reads when a loader changes an integer
 ID to its string form or vice versa. Buffered completions and summaries use
 that same key, so a fresh completion takes precedence over the prior record.
@@ -739,6 +741,11 @@ flush as today. A fresh eval has no dead bytes and skips this; a retry that
 re-ran only a few small samples tolerates their stale copies rather than
 paying a full rewrite for them.
 
+Compaction checks for cancellation between streamed chunks in the AnyIO
+worker. The worker closes its incomplete temporary file before cancellation
+propagates; the recorder reopens the original archive and restores its live
+member set so cancelled finalization can still write a correct log.
+
 Dead bytes are *measured*, not tracked: the member area (offset 0 to the
 `ZipFile`'s `start_dir`, where the central directory is written at close)
 minus the live members' local headers and compressed data. Tracking only
@@ -831,7 +838,8 @@ warning names the prior log and the error.
   and the retry seeds from it (see the `run_task_retry_attempts` section).
   Only completions since the last flush are re-run.
 - **Compaction fails**: warn and flush the uncompacted zip (correct, just
-  larger). Never let compaction fail a successful finish.
+  larger). Cancellation propagates after cleanup and restoration of the
+  original archive, allowing the cancelled finish to use it.
 - **Destination flush fails**: unchanged from today (warning, stale-timer
   retry, `log_finish` backstop). The failure surfaces at `log_start`
   again, as for a fresh eval — restoring the fail-fast #4933 traded away.

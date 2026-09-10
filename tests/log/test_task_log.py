@@ -1,9 +1,11 @@
+import tempfile
 import types
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, BinaryIO, cast
 from unittest.mock import patch
+from zipfile import ZipExtFile
 
 import anyio
 import pytest
@@ -1009,6 +1011,55 @@ def _seed_logger(recorder: Recorder) -> TaskLoggerShim:
     return logger
 
 
+@pytest.mark.parametrize("cancel", [False, True])
+@pytest.mark.parametrize("from_file", [False, True])
+async def test_json_seed_yields_between_samples(
+    cancel: bool, from_file: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recorder = JSONRecorder(str(tmp_path))
+    samples = [_sample().model_copy(update={"id": i}) for i in range(32)]
+    prior = await _write_prior_log(recorder, samples) if from_file else samples
+    spec = _eval_spec().model_copy(
+        update={"eval_id": "retry-attempt", "created": "2026-05-18T00:00:01+00:00"}
+    )
+    location = await recorder.log_init(spec)
+    first_sample = anyio.Event()
+    logged = 0
+    observed: list[int] = []
+    log_sample = recorder.log_sample
+
+    async def record_sample(
+        eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
+        nonlocal logged
+        await log_sample(eval, sample, write_through=write_through)
+        logged += 1
+        first_sample.set()
+
+    async def sibling() -> None:
+        await first_sample.wait()
+        observed.append(logged)
+        if cancel:
+            scope.cancel()
+
+    monkeypatch.setattr(recorder, "log_sample", record_sample)
+    async with anyio.create_task_group() as group:
+        group.start_soon(sibling)
+        with anyio.CancelScope() as scope:
+            await recorder.log_seed(spec, prior, keep=None)
+
+    assert len(observed) == 1 and 0 < observed[0] < len(samples)
+    assert scope.cancelled_caught == cancel
+    assert (0 < logged < len(samples)) if cancel else logged == len(samples)
+    assert not Path(location).exists()
+    await recorder.log_discard(spec)
+    assert not recorder.data
+    if from_file:
+        assert isinstance(prior, str)
+        original = await read_eval_log_async(prior)
+        assert original.samples is not None and len(original.samples) == len(samples)
+
+
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 async def test_task_logger_seed_from_prior_log(
     recorder_type: type, tmp_path: Path
@@ -1279,6 +1330,72 @@ async def test_compact_reopens_the_zip_when_cancelled_before_the_worker_starts(
     await logger.log_finish("success", EvalStats(), prune_unplanned=True)
     log = await read_eval_log_async(logger.location)
     assert log.samples is not None and {s.id for s in log.samples} == {1}
+
+
+async def test_compact_cancels_between_chunks_and_preserves_original_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai.log._recorders.eval as eval_module
+
+    monkeypatch.setattr(eval_module, "COMPACT_DEAD_BYTES_FRACTION", 0.0)
+    recorder = EvalRecorder(str(tmp_path))
+    samples = _prior_samples()
+    samples[0].input = "x" * (3 * 1024 * 1024)
+    prior = await _write_prior_log(recorder, samples)
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=None)
+    await logger.log_start(EvalPlan())
+    clean = await logger.read_prior_sample(1, 1)
+    assert clean is not None
+    logger.note_reused_sample(clean)
+    await recorder.log_prune(logger.eval, set(logger._seeded_pending))
+    (zip_log,) = recorder.data.values()
+    original_file = zip_log._temp_file
+    temporary_files: list[BinaryIO] = []
+    chunks_read = 0
+    read = ZipExtFile.read
+    temporary_file = tempfile.TemporaryFile
+
+    def track_temporary_file() -> BinaryIO:
+        result = temporary_file()
+        temporary_files.append(result)
+        return result
+
+    def cancel_after_first_chunk(reader: ZipExtFile, n: int = -1) -> bytes:
+        nonlocal chunks_read
+        chunk = read(reader, n)
+        if chunk:
+            chunks_read += 1
+            if chunks_read == 1:
+                anyio.from_thread.run_sync(scope.cancel)
+        return chunk
+
+    with monkeypatch.context() as copying:
+        copying.setattr(tempfile, "TemporaryFile", track_temporary_file)
+        copying.setattr(ZipExtFile, "read", cancel_after_first_chunk)
+        with anyio.CancelScope() as scope:
+            await zip_log.compact()
+
+    assert scope.cancelled_caught
+    assert chunks_read == 1
+    assert len(temporary_files) == 1 and temporary_files[0].closed
+    assert zip_log._temp_file is original_file and not original_file.closed
+    assert zip_log._zip is not None
+    assert {n for n in zip_log._zip.NameToInfo if n.startswith("samples/")} == {
+        "samples/1_epoch_1.json"
+    }
+    with anyio.CancelScope(shield=True):
+        await logger.log_finish("cancelled", EvalStats())
+    assert original_file.closed
+    assert not recorder.data
+    log = await read_eval_log_async(logger.location)
+    assert log.status == "cancelled"
+    assert log.samples is not None and {s.id for s in log.samples} == {1}
+    assert log.samples[0].input == samples[0].input
+    assert {
+        s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+    } == {1}
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
