@@ -76,20 +76,64 @@ def test_file_dataset_url_query_uses_path_extension(
     assert mock_reader.call_args.kwargs[file_argument] == url
 
 
-def test_file_dataset_tsv_and_delimiter(tmp_path: Path) -> None:
-    tsv_file = tmp_path / "data.tsv"
-    tsv_file.write_text("input\ttarget\nhello\tworld\nfoo\tbar\n")
-    ds = file_dataset(str(tsv_file))
-    assert len(ds) == 2
-    assert ds[0].input == "hello"
-    assert ds[0].target == "world"
+@pytest.mark.parametrize(
+    ("suffix", "delimiter"),
+    [(".csv", None), (".tsv", "\t"), (".tab", "\t")],
+)
+def test_file_dataset_delimiter_by_extension(
+    suffix: str, delimiter: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mock_reader = Mock(return_value=object())
+    monkeypatch.setattr("inspect_ai.dataset._sources.file.csv_dataset", mock_reader)
 
-    csv_custom_delim = tmp_path / "custom.csv"
-    csv_custom_delim.write_text("input;target\nalpha;beta\n")
-    ds_custom = file_dataset(str(csv_custom_delim), delimiter=";")
-    assert len(ds_custom) == 1
-    assert ds_custom[0].input == "alpha"
-    assert ds_custom[0].target == "beta"
+    file_dataset(f"dataset{suffix}", fieldnames=["input", "target"])
+
+    kwargs = mock_reader.call_args.kwargs
+    assert kwargs["delimiter"] == delimiter
+    assert kwargs["fieldnames"] == ["input", "target"]
+
+
+@pytest.mark.parametrize("suffix", [".tsv", ".tab", ".TSV"])
+def test_file_dataset_reads_tab_delimited(tmp_path: Path, suffix: str) -> None:
+    tsv_file = tmp_path / f"data{suffix}"
+    tsv_file.write_text('input\ttarget\n"hello, world"\tA\nfoo\tbar\n')
+
+    dataset = file_dataset(str(tsv_file))
+
+    assert len(dataset) == 2
+    assert dataset[0].input == "hello, world"
+    assert dataset[0].target == "A"
+    assert dataset[1].input == "foo"
+
+
+def test_file_dataset_tab_delimited_without_header(tmp_path: Path) -> None:
+    tsv_file = tmp_path / "data.tsv"
+    tsv_file.write_text("hello\tA\n")
+
+    dataset = file_dataset(str(tsv_file), fieldnames=["input", "target"])
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello"
+    assert dataset[0].target == "A"
+
+
+def test_file_dataset_csv_honors_dialect_delimiter(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("input\ttarget\nhello\tA\n")
+
+    dataset = file_dataset(str(csv_file), dialect="excel-tab")
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello"
+    assert dataset[0].target == "A"
+
+
+def test_file_dataset_has_no_delimiter_parameter(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("input;target\nhello;A\n")
+
+    with pytest.raises(TypeError, match="delimiter"):
+        file_dataset(str(csv_file), delimiter=";")  # type: ignore[call-arg]
 
 
 # test reading a dataset using default configuration

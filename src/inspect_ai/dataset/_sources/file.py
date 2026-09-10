@@ -24,12 +24,13 @@ def file_dataset(
     name: str | None = None,
     fs_options: dict[str, Any] = {},
     fieldnames: list[str] | None = None,
-    delimiter: str | None = None,
 ) -> Dataset:
-    r"""Dataset read from a JSON or CSV/TSV file.
+    """Dataset read from a JSON or CSV/TSV file.
 
     The `file_dataset` function supports reading from CSV, TSV, and JSON files
-    (and automatically delegates to the appropriate function to do so)
+    (and automatically delegates to the appropriate function to do so). Files
+    with a `.tsv` or `.tab` extension are read as tab-delimited. For files that
+    use another delimiter, call `csv_dataset()` directly and pass `delimiter`.
 
     Args:
         file (str): Path to JSON or CSV/TSV file. Can be a local filesystem path or
@@ -56,8 +57,6 @@ def file_dataset(
         fieldnames (list[str] | None): Optional. A list of fieldnames to use for the CSV/TSV.
             If None, the values in the first row of the file will be used as the fieldnames.
             Useful for files without a header. Only applies to reading CSV/TSV files.
-        delimiter (str | None): Optional. Delimiter character for CSV/TSV files.
-            Defaults to "\t" for .tsv and .tab files, and "," for other files.
 
     Returns:
         Dataset read from JSON or CSV/TSV file.
@@ -81,11 +80,7 @@ def file_dataset(
                 fs_options=fs_options,
             )
         case ".csv" | ".tsv" | ".tab":
-            csv_delimiter = (
-                delimiter
-                if delimiter is not None
-                else ("\t" if ext in (".tsv", ".tab") else ",")
-            )
+            delimiter = "\t" if ext in (".tsv", ".tab") else None
             return csv_dataset(
                 csv_file=file,
                 sample_fields=sample_fields,
@@ -99,7 +94,7 @@ def file_dataset(
                 name=name,
                 fs_options=fs_options,
                 fieldnames=fieldnames,
-                delimiter=csv_delimiter,
+                delimiter=delimiter,
             )
         case _:
             raise ValueError(f"No dataset reader for file with extension {ext}")
