@@ -618,6 +618,11 @@ class ConnectionHandler:
         Distinct from ``session/cancel``, which interrupts the current
         turn but lets the agent loop recover. This method is terminal:
         the sample finishes.
+
+        A bound sample may still be *initializing* (an observe-only
+        ``inspect/attach`` lands before the sample starts — the ACP session
+        opens inside ``active_sample()``); ``interrupt`` then defers, firing
+        as the sample starts (``design/ctl/initializing-sample-cancel.md``).
         """
         bound = self._require_bound(session_id, INSPECT_CANCEL_SAMPLE_METHOD)
         sample = _find_active_sample(bound.target_session_id)
