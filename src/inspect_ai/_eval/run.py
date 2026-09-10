@@ -799,7 +799,9 @@ async def run_task_retry_attempts(
                     except BaseException:
                         with anyio.CancelScope(shield=True):
                             if not options.logger.finished:
-                                await options.logger.discard(keep_destination=True)
+                                await options.logger.discard(
+                                    keep_destination=True, keep_buffer=True
+                                )
                         raise
                     result = run.log
 
@@ -960,7 +962,9 @@ async def run_task_retry_attempts(
                     # if startup failed after seeding an entire prior log.
                     if not retry and not options.logger.finished:
                         with anyio.CancelScope(shield=True):
-                            await options.logger.discard(keep_destination=True)
+                            await options.logger.discard(
+                                keep_destination=True, keep_buffer=True
+                            )
 
                     # finalize atomically (no awaits below) so the dispatcher sees
                     # a consistent (in_flight, pending) snapshot

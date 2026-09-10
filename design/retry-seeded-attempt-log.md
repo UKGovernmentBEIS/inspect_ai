@@ -291,8 +291,10 @@ keys and a shared ZIP reader. Admissions resolve only selected keys against
 that index and retain at most eight selected Eval bodies at once. Finish and discard
 release the cache and its filesystem clients; shielded task-exit cleanup also
 releases them after terminal startup failures. Once the dispatcher decides no
-retry follows, it discards the unfinished recorder entry and its sample data,
-temporary ZIP and buffer database without removing any written destination.
+retry follows, it discards the unfinished recorder entry and temporary ZIP,
+and closes the buffer database connections and sync worker. It preserves both
+the written destination and SQLite/shared recovery files: the buffers may hold
+completed samples that never reached the destination after a final-write failure.
 Discard also detaches live control handlers and guards calls already holding
 the logger, so flushes and config updates cannot reach the removed entry.
 Exceptions escaping the task also trigger this cleanup before propagating.

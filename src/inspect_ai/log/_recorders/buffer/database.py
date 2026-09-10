@@ -272,6 +272,7 @@ class SampleBufferDatabase(SampleBuffer):
         self._sample_read_leases: dict[tuple[str, int], int] = {}
         self._pending_sample_removals: set[tuple[str, int]] = set()
         self._cleanup_pending = False
+        self._close_pending = False
         self._lease_lock = threading.Lock()
 
         # create sync filestore if log_shared
@@ -493,6 +494,22 @@ class SampleBufferDatabase(SampleBuffer):
                 logger.warning(f"Unexpcted error cleaning up samples: {ex}")
             finally:
                 cursor.close()
+
+    def close(self) -> None:
+        """Stop syncing and close connections while preserving recovery files.
+
+        Active sample readers retain their connections until their leases end.
+        SQLite data and shared buffer files remain available for recovery.
+        """
+        if not self._close_sync_worker_for_cleanup():
+            return
+
+        with self._lease_lock:
+            if self._sample_read_leases:
+                self._close_pending = True
+                return
+
+        self._close_all_connections()
 
     @override
     def cleanup(self) -> None:
@@ -984,6 +1001,7 @@ class SampleBufferDatabase(SampleBuffer):
         finally:
             ready_remove = False
             cleanup_ready = False
+            close_ready = False
             with self._lease_lock:
                 lease_count = self._sample_read_leases[key] - 1
                 if lease_count > 0:
@@ -996,10 +1014,15 @@ class SampleBufferDatabase(SampleBuffer):
                     if self._cleanup_pending and not self._sample_read_leases:
                         self._cleanup_pending = False
                         cleanup_ready = True
+                    if self._close_pending and not self._sample_read_leases:
+                        self._close_pending = False
+                        close_ready = True
             if ready_remove:
                 self._remove_samples_now([key])
             if cleanup_ready:
                 self._cleanup_now()
+            elif close_ready:
+                self._close_all_connections()
 
     def _open_connection(self) -> Connection:
         """Open and configure a new SQLite connection (with connect-time retry).

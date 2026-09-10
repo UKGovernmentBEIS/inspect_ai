@@ -1115,13 +1115,18 @@ class TaskLogger:
         for stopped in stopped_events:
             await stopped.wait()
 
-    async def cleanup(self) -> None:
+    async def cleanup(self, *, keep_buffer: bool = False) -> None:
         await self._stop_stale_flush_timer()
         if self._buffer_db is not None:
-            self._buffer_db.cleanup()
+            if keep_buffer:
+                self._buffer_db.close()
+            else:
+                self._buffer_db.cleanup()
             self._buffer_db = None
 
-    async def discard(self, *, keep_destination: bool = False) -> None:
+    async def discard(
+        self, *, keep_destination: bool = False, keep_buffer: bool = False
+    ) -> None:
         """Discard this attempt's never-finished log.
 
         Beyond :meth:`cleanup` (stale-flush timer + realtime buffer db),
@@ -1136,6 +1141,10 @@ class TaskLogger:
         attempt whose startup or final write failed the file is kept:
         it holds every sample flushed so far, which the next attempt seeds
         from — sample progress outranks the header it lacks.
+
+        ``keep_buffer`` closes the realtime buffer without deleting its SQLite
+        or shared files. Terminal failures preserve these for recovery: they
+        may contain completed samples that never reached the destination.
 
         Failures are contained (logged as a warning) rather than raised:
         callers run inside the dispatcher task group, where an escaping
@@ -1157,7 +1166,7 @@ class TaskLogger:
             async with self._flush_pending_lock:
                 self.flush_pending = []
         try:
-            await self.cleanup()
+            await self.cleanup(keep_buffer=keep_buffer)
         except Exception as ex:
             logger.warning(
                 f"Error cleaning up abandoned log entry '{self.location}': {ex}"

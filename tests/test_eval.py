@@ -635,6 +635,111 @@ def test_failed_log_start_returns_errored_log(
     assert logs[0].location  # the path the failed write was destined for
 
 
+@pytest.mark.parametrize("task_retry_attempts", [0, 1])
+@pytest.mark.parametrize("recovery_source", ["database", "filestore"])
+async def test_terminal_log_write_failure_preserves_recovery(
+    task_retry_attempts: int,
+    recovery_source: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from test_helpers.buffer import simulate_crashed_buffer_db
+
+    from inspect_ai.log import read_eval_log_async
+    from inspect_ai.log._recorders.buffer import database as database_module
+    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+    from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
+    from inspect_ai.log._recover import recover_eval_log_async
+    from inspect_ai.model import ModelOutput, get_model
+
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: tmp_path / "db")
+    loggers: list[TaskLogger] = []
+    buffers: list[SampleBufferDatabase] = []
+    entries: list[ZipLogFile] = []
+    init = TaskLogger.init
+    flush = ZipLogFile.flush
+
+    async def track_init(logger: TaskLogger) -> None:
+        await init(logger)
+        loggers.append(logger)
+        assert logger.buffer_db is not None
+        buffers.append(logger.buffer_db)
+        assert isinstance(logger.recorder, EvalRecorder)
+        entries.extend(logger.recorder.data.values())
+
+    async def fail_final_write(log: ZipLogFile, fsync: bool = False) -> None:
+        if fsync:
+            buffer = buffers[-1]
+            filestore = buffer._sync_filestore
+            if filestore is not None:
+                database_module.sync_to_filestore(buffer, filestore)
+            await anyio.lowlevel.checkpoint()
+            raise OSError("persistent final write failure")
+        await flush(log, fsync=fsync)
+
+    monkeypatch.setattr(TaskLogger, "init", track_init)
+    monkeypatch.setattr(ZipLogFile, "flush", fail_final_write)
+    try:
+        logs = await eval_async(
+            Task(dataset=[Sample(id=1, input="x", target="saved")], scorer=match()),
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[ModelOutput.from_content("mockllm/model", "saved")]
+                * (task_retry_attempts + 1),
+            ),
+            log_dir=str(tmp_path / "logs"),
+            log_buffer=100,
+            log_shared=3600 if recovery_source == "filestore" else 0,
+            task_retry_attempts=task_retry_attempts,
+            ctl_server=False,
+        )
+        assert logs[0].status == "error"
+        assert logs[0].error is not None
+        assert "persistent final write failure" in logs[0].error.message
+        assert len(buffers) == task_retry_attempts + 1
+        logger = loggers[-1]
+        written = await read_eval_log_async(logger.location)
+        assert written.status == "started"
+        assert not written.samples
+        assert logger.buffer_db is None
+        assert isinstance(logger.recorder, EvalRecorder)
+        assert not logger.recorder.data
+        assert not logger._stale_flush_stops
+        assert all(entry._temp_file.closed and entry._zip is None for entry in entries)
+        buffer = buffers[-1]
+        assert buffer._closed and not buffer._connections
+        assert buffer._sync_thread is None
+        assert buffer.db_path.exists()
+        filestore = buffer._sync_filestore
+
+        if recovery_source == "database":
+            assert filestore is None
+            # Recovery ignores databases owned by a still-live process.
+            simulate_crashed_buffer_db(buffer)
+        else:
+            assert filestore is not None and filestore.read_manifest() is not None
+        # Restore storage for recovery; the missing DB simulates another machine.
+        monkeypatch.setattr(ZipLogFile, "flush", flush)
+        recovered_log = await recover_eval_log_async(
+            logger.location,
+            _db_dir=tmp_path
+            / ("db" if recovery_source == "database" else "missing-db"),
+        )
+        assert recovered_log.location is not None
+        recovered = await read_eval_log_async(recovered_log.location)
+        assert recovered.samples is not None
+        (sample,) = recovered.samples
+        assert sample.id == 1
+        assert sample.completed_at is not None
+        assert sample.error is None
+        assert sample.output.completion == "saved"
+        assert sample.scores is not None and sample.scores["match"].value == "C"
+        assert sample.events
+    finally:
+        for buffer in buffers:
+            buffer.cleanup()
+
+
 @pytest.mark.parametrize("log_format", ["eval", "json"])
 def test_unserializable_score_metadata_does_not_abort_eval(
     tmp_path: Path, log_format: Literal["eval", "json"]
