@@ -360,7 +360,11 @@ def set_additional_properties_false(schema: JSONSchema) -> None:
     Bedrock's grammar compiler does the same. Only object nodes are stamped,
     matching the transformation the Anthropic and OpenAI SDKs apply themselves.
     """
-    if schema.type == "object" or schema.properties:
+    if (
+        schema.type == "object"
+        or (isinstance(schema.type, list) and "object" in schema.type)
+        or schema.properties
+    ):
         schema.additionalProperties = False
 
     if schema.items:

@@ -663,3 +663,18 @@ def test_set_additional_properties_false_stamps_object_nodes_only():
     assert "anyOf" in nickname
     assert "additionalProperties" not in nickname
     assert all("additionalProperties" not in member for member in nickname["anyOf"])
+
+
+def test_set_additional_properties_false_stamps_nullable_object_type_arrays():
+    """Object alternatives expressed by a type array remain strict."""
+    schema = JSONSchema(
+        anyOf=[
+            JSONSchema(type=["object", "null"]),
+            JSONSchema(type=["object", "null"], properties={}),
+        ]
+    )
+
+    set_additional_properties_false(schema)
+
+    assert schema.anyOf is not None
+    assert all(member.additionalProperties is False for member in schema.anyOf)
