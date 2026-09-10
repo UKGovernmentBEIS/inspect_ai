@@ -55,6 +55,7 @@ class SeedSamples:
     def __init__(self) -> None:
         self.keys: list[SampleIdEpoch] = []
         self.lookup = SampleKeyLookup()
+        self._by_record: dict[SampleRecordKey, SampleIdEpoch] = {}
         self._samples: dict[SampleIdEpoch, EvalSample] = {}
         self._fs = AsyncFilesystem()
         self._reader: AsyncZipReader | None = None
@@ -85,6 +86,13 @@ class SeedSamples:
                 keys = list(self._samples)
         self.keys = keys
         self.lookup = SampleKeyLookup(keys)
+        self._by_record = {}
+        for key in keys:
+            self._by_record.setdefault(SampleRecordKey(str(key[0]), key[1]), key)
+
+    def key_for(self, id: str, epoch: int) -> SampleIdEpoch | None:
+        """The prior key a seeded record's string-form ``(id, epoch)`` came from."""
+        return self._by_record.get(SampleRecordKey(id, epoch))
 
     def select(self, keep: set[SampleIdEpoch] | None) -> list[SampleIdEpoch]:
         """The prior keys ``keep`` resolves to, in source order (every key when None).
@@ -120,6 +128,7 @@ class SeedSamples:
         self._samples.clear()
         self.keys = []
         self.lookup = SampleKeyLookup()
+        self._by_record = {}
         self._reader = None
         with anyio.CancelScope(shield=True):
             await self._fs.close()

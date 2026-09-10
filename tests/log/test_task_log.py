@@ -1398,6 +1398,46 @@ async def test_seed_adopts_a_normalized_prior_record_under_the_planned_id(
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("prior_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("planned", [None, {(1, 1), ("001", 1)}])
+async def test_normalized_lookup_takes_the_first_prior_record_in_log_order(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    prior_type: type[EvalRecorder] | type[JSONRecorder],
+    planned: set[tuple[str | int, int]] | None,
+    tmp_path: Path,
+) -> None:
+    # two prior records normalise alike ("0001" then "001", in log order).
+    # "001" resolves exactly; 1 resolves by normalised id and must take the
+    # first such record in log order, as the log readers do — not whichever
+    # a set happened to iterate first, which could hand both planned ids the
+    # same transcript and prune the other prior result at the finish
+    samples = [
+        _prior_samples()[0].model_copy(update={"id": "0001", "input": "FIRST"}),
+        _prior_samples()[0].model_copy(update={"id": "001", "input": "SECOND"}),
+    ]
+    prior = await _write_prior_log(prior_type(str(tmp_path / "prior")), samples)
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=planned)
+    await logger.log_start(EvalPlan())
+
+    exact = await logger.read_prior_sample("001", 1)
+    assert exact is not None and exact.input == "SECOND"
+    logger.note_reused_sample(exact)
+    adopted = await logger.read_prior_sample(1, 1)
+    assert adopted is not None and adopted.id == 1 and adopted.input == "FIRST"
+    logger.note_reused_sample(adopted)
+
+    await logger.log_finish("success", EvalStats(), prune_unplanned=True)
+    final = await read_eval_log_async(logger.location)
+    assert {s.id: s.input for s in final.samples or []} == {
+        "001": "SECOND",
+        1: "FIRST",
+    }
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 @pytest.mark.parametrize("planned", [None, {("001", 1), (1, 1)}])
 async def test_reused_adopted_record_reads_under_its_own_id(
     recorder_type: type[EvalRecorder] | type[JSONRecorder],

@@ -570,7 +570,11 @@ class TaskLogger:
         self._prior = prior
         seeded = await self.recorder.sample_summaries(self.eval)
         self._seeded_pending = {_seeded_key(s.id, s.epoch) for s in seeded or []}
-        self._seeded_lookup = SampleKeyLookup(self._seeded_pending)
+        # built in log order (not from the set): a normalised match takes the
+        # first record in that order, as every log reader does
+        self._seeded_lookup = SampleKeyLookup(
+            _seeded_key(s.id, s.epoch) for s in seeded or []
+        )
 
     async def seed_added_samples(
         self, prior: "str | list[EvalSample]", keep: set[tuple[str | int, int]]
@@ -623,7 +627,7 @@ class TaskLogger:
 
             assert self._prior is not None
             source = await self.recorder.seed_source(self.eval, self._prior)
-            prior_key = source.lookup.get(match[0], epoch)
+            prior_key = source.key_for(str(match[0]), epoch)
             if prior_key is None:
                 return None
             (record,) = await source.read([prior_key])
