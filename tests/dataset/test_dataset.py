@@ -1,3 +1,4 @@
+import csv as csv_module
 import json as json_module
 import os
 from io import StringIO
@@ -438,6 +439,54 @@ def write_ragged_csv(tmp_path: Path, body: str) -> str:
     path = tmp_path / "data.csv"
     path.write_text(body, newline="")
     return str(path)
+
+
+@pytest.mark.parametrize("dialect", ["unix", "excel", "excel-tab"])
+@pytest.mark.parametrize("fieldnames", [None, ["input", "target"]])
+def test_csv_dialect_delimiter(
+    tmp_path: Path, dialect: str, fieldnames: list[str] | None
+) -> None:
+    delimiter = csv_module.get_dialect(dialect).delimiter
+    body = f'"hello, world"{delimiter}A\n'
+    if fieldnames is None:
+        body = f"input{delimiter}target\n" + body
+
+    dataset = csv_dataset(
+        write_ragged_csv(tmp_path, body), dialect=dialect, fieldnames=fieldnames
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello, world"
+    assert dataset[0].target == "A"
+
+
+def test_csv_registered_dialect_delimiter(tmp_path: Path) -> None:
+    csv_module.register_dialect("inspect-test-semicolon", "unix", delimiter=";")
+    try:
+        dataset = csv_dataset(
+            write_ragged_csv(tmp_path, 'input;target\n"hello; world";A\n'),
+            dialect="inspect-test-semicolon",
+        )
+        assert len(dataset) == 1
+        assert dataset[0].input == "hello; world"
+        assert dataset[0].target == "A"
+    finally:
+        csv_module.unregister_dialect("inspect-test-semicolon")
+
+
+@pytest.mark.parametrize("dialect,delimiter", [("excel-tab", ","), ("unix", "\t")])
+def test_csv_delimiter_overrides_dialect(
+    tmp_path: Path, dialect: str, delimiter: str
+) -> None:
+    dataset = csv_dataset(
+        write_ragged_csv(tmp_path, f"input{delimiter}target\nhello{delimiter}A\n"),
+        dialect=dialect,
+        delimiter=delimiter,
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello"
+    assert dataset[0].target == "A"
 
 
 def test_csv_short_blank_row_names_the_line(tmp_path: Path) -> None:
