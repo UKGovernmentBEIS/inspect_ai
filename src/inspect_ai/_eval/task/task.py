@@ -557,6 +557,20 @@ def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:
     return epochs
 
 
+def resolve_task_epochs(task: Task, epochs: Epochs | None = None) -> Epochs:
+    """Epochs a task effectively runs with, given an optional eval-level override.
+
+    Mirrors the runner's merge: an eval-level count replaces the task's, but a
+    bare count (no reducer) keeps the task's reducer, and the recorded log
+    config reflects that merge.
+    """
+    if epochs is None:
+        return Epochs(task.epochs or 1, task.epochs_reducer)
+    if epochs.reducer is None:
+        return Epochs(epochs.epochs, task.epochs_reducer)
+    return epochs
+
+
 class ResolvedDataset(NamedTuple):
     """A task's dataset plus the `SampleSource` that seeded it (if any)."""
 
