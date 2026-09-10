@@ -444,6 +444,10 @@ async def stream_log_bytes(
 ) -> AsyncIterable[bytes] | BytesIO:
     """Download log bytes with optional streaming for large files.
 
+    The S3 return value is a live connection-backed body the caller must
+    `release()` (see `ReleasingStreamingResponse`); the local streaming
+    branch closes itself.
+
     Args:
         log_file: The log file to download.
         start: The start byte position to download from.
