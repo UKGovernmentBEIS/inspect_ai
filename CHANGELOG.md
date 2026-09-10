@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
 - Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
 - Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.
 - Datasets: `csv_dataset()` now honors the dialect's delimiter when no explicit delimiter is supplied, including tab-separated and registered custom dialects.
@@ -37,6 +38,7 @@
 - Eval Log: Reading zstd-compressed `.eval` files no longer fails with `AttributeError: ... '_needs_input'` on Python builds that include CPython's gh-156002 zipfile change.
 - Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
 - Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
+- Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
 
 ## 0.3.263 (03 September 2026)
 
