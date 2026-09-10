@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: lookback prompt caching no longer places `cache_control` on a server-side `fallback` block (the record of a refused turn served by a fallback model), which the API rejects with `fallback.cache_control: Extra inputs are not permitted` and which failed every request following such a turn.
 - Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
 - Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
 - Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.
