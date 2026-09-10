@@ -5,8 +5,8 @@ by the checkpointing code:
 
 - **Remote object keys** enumerated from a resume source (an S3 prefix
   the eval reads back on retry). ``iter_files`` yields them verbatim,
-  so a key may carry ``..`` segments or a double slash (an absolute
-  remainder makes ``Path`` discard the join root entirely).
+  so a key may carry ``..`` segments, a double slash or a leading
+  slash; each is refused so a key is copied exactly or not at all.
 - **Dataset-supplied sample ids**, interpolated into the per-sample
   checkpoints and staging dir names. An id containing ``/`` or ``..``
   would relocate the whole per-sample tree.
@@ -45,8 +45,9 @@ def contained_component(name: str) -> str:
     """Validate ``name`` as one path component that stays inside its parent.
 
     Accepts a non-empty string that is not ``.`` or ``..`` and contains
-    no path separator (forward slash, or backslash because a Windows host
-    ``Path`` would honor it) and no NUL. Returns ``name`` unchanged.
+    no path separator (forward slash, or backslash, which ``basename``
+    folds to a slash so a name holding one would be mis-derived) and no
+    NUL. Returns ``name`` unchanged.
 
     Raises:
         ValueError: naming the offending component.

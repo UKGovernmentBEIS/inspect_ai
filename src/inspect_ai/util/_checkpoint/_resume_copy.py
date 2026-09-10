@@ -50,7 +50,7 @@ from inspect_ai._util.asyncfiles import (
     is_s3_filename,
     s3_bucket_and_key,
 )
-from inspect_ai._util.file import dirname, filesystem
+from inspect_ai._util.file import dirname, filesystem, local_path
 from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
@@ -86,7 +86,15 @@ async def copy_resume_payloads(
     same rule). Source and destination never coincide: a log location
     repeats only when the prior attempt wrote no log, and retries never
     source such an attempt.
+
+    A ``file://`` side is resolved to its plain path before any name is
+    joined onto it: the local copy sink resolves ``file://`` URIs with
+    ``local_path``, which percent-decodes, so a validated segment such
+    as ``%2e%2e`` joined onto a URI would reach the OS as ``..``. The
+    string containment validated must be the string the OS receives.
     """
+    source_eval_dir = local_path(source_eval_dir)
+    destination_eval_dir = local_path(destination_eval_dir)
     assert source_eval_dir != destination_eval_dir
 
     with trace_action(
@@ -168,7 +176,11 @@ async def copy_payload_files(source_dir: str, destination_dir: str) -> list[str]
     its local staging dir. A missing or empty source copies nothing.
 
     Returns the list of paths written, relative to ``destination_dir``.
+    ``file://`` URIs are resolved to plain paths first, for the reason
+    given on ``copy_resume_payloads``.
     """
+    source_dir = local_path(source_dir)
+    destination_dir = local_path(destination_dir)
     rels = await _list_payload(source_dir)
     await _copy_payload_data(source_dir, destination_dir, rels)
     return rels
@@ -230,9 +242,9 @@ def _check_contained(base: str, rels: Iterable[str]) -> None:
 
     Every relative path is joined onto the destination sample dir, and
     the listing is untrusted: an object-store key may carry ``..``
-    segments or a doubled slash (an absolute remainder would make the
-    join discard its root). A path that is not contained raises rather
-    than being copied anywhere.
+    segments, a doubled slash or a leading slash. A path that is not
+    contained raises rather than being copied anywhere, so a key is
+    copied exactly or not at all.
     """
     for rel in rels:
         try:

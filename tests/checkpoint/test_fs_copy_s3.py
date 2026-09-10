@@ -446,3 +446,54 @@ async def test_hashed_sample_dir_round_trips_through_s3(
         assert await fs.read_file(f"{new_sample_dir}/restic/host/config") == b"cfg"
         resume = await resolve_resume_checkpoint(new_eval, sample_id, 0)
         assert resume is not None and resume.attempt == "resume"
+
+
+async def test_copy_resume_payloads_file_uri_destination_writes_validated_names(
+    tmp_path: Path, mock_s3: None
+) -> None:
+    """A ``file://`` destination receives the validated strings, not decoded ones.
+
+    The local copy sink resolves ``file://`` URIs with ``local_path``,
+    which percent-decodes, so ``%2e%2e`` (a legal, contained key segment)
+    joined onto a ``file://`` URI would reach the OS as ``..``. The copy
+    resolves both sides to plain paths before any name is joined.
+    """
+    source_eval = f"{S3_BUCKET}/{tmp_path.name}.checkpoints"
+    dest_eval = tmp_path / "root" / "new-eval.checkpoints"
+
+    async with AsyncFilesystem() as fs:
+        await _put(fs, f"{source_eval}/s__0/restic/host/config", b"cfg")
+        await _put(fs, f"{source_eval}/s__0/%2e%2e/%2e%2e/%2e%2e/escape", b"evil")
+        await _put(
+            fs, f"{source_eval}/%2e%2e/x__1/ckpt-00001.json", _checkpoint_bytes(1)
+        )
+        await copy_resume_payloads(
+            source_eval_dir=source_eval,
+            destination_eval_dir=dest_eval.as_uri(),
+        )
+
+    assert (dest_eval / "s__0" / "restic" / "host" / "config").read_bytes() == b"cfg"
+    literal = dest_eval / "s__0" / "%2e%2e" / "%2e%2e" / "%2e%2e" / "escape"
+    assert literal.read_bytes() == b"evil"
+    assert (dest_eval / "%2e%2e" / "x__1" / "ckpt-00001.json").exists()
+    _assert_nothing_outside(dest_eval)
+
+
+async def test_copy_payload_files_file_uri_source_reads_listed_names(
+    tmp_path: Path,
+) -> None:
+    """A ``file://`` source is read at the names the listing produced.
+
+    Without resolving the URI first, the sink would percent-decode a
+    literal ``%2e%2e`` directory in the source path and read its parent.
+    """
+    source = tmp_path / "old.checkpoints" / "s__0"
+    (source / "restic" / "%2e%2e").mkdir(parents=True)
+    (source / "restic" / "%2e%2e" / "config").write_bytes(b"cfg")
+    dest = tmp_path / "new.checkpoints" / "s__0"
+
+    async with AsyncFilesystem():
+        written = await copy_payload_files(source.as_uri(), dest.as_uri())
+
+    assert written == ["restic/%2e%2e/config"]
+    assert (dest / "restic" / "%2e%2e" / "config").read_bytes() == b"cfg"
