@@ -1,4 +1,5 @@
 import csv as csv_module
+import inspect
 import json as json_module
 import os
 from pathlib import Path
@@ -128,12 +129,10 @@ def test_file_dataset_csv_honors_dialect_delimiter(tmp_path: Path) -> None:
     assert dataset[0].target == "A"
 
 
-def test_file_dataset_has_no_delimiter_parameter(tmp_path: Path) -> None:
-    csv_file = tmp_path / "data.csv"
-    csv_file.write_text("input;target\nhello;A\n")
-
-    with pytest.raises(TypeError, match="delimiter"):
-        file_dataset(str(csv_file), delimiter=";")  # type: ignore[call-arg]
+def test_file_dataset_has_no_delimiter_parameter() -> None:
+    # custom delimiters belong to csv_dataset(); file_dataset() only
+    # defaults by extension
+    assert "delimiter" not in inspect.signature(file_dataset).parameters
 
 
 # test reading a dataset using default configuration
