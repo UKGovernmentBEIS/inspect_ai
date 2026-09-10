@@ -5,6 +5,9 @@ from typing import Any, Iterator
 
 from pydantic import BaseModel, Field
 
+# imported as a module (not `from ._model import Model`) so this file can be
+# imported by _model.py without a cycle; with annotations deferred above, the
+# alias is only ever dereferenced by get_type_hints(), never at import time
 import inspect_ai.model as model_module
 from inspect_ai.model._generate_config import GenerateConfig
 

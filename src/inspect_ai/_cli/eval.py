@@ -1643,7 +1643,7 @@ def eval_set_command(
 
 
 def parse_run_config(config: str) -> dict[str, Any]:
-    run_config: RunConfigInput = read_run_config(config)
+    run_config = read_run_config(config)
     return run_config.to_params()
 
 

@@ -38,7 +38,7 @@ class RunConfig(BaseModel):
     tasks and solvers; call ``to_params()`` to prepare evaluation arguments.
     """
 
-    model_config = ConfigDict(extra="forbid", title="RunConfigInput")
+    model_config = ConfigDict(extra="forbid")
 
     task: str | TaskInput | None = None
     """Task name or path, optionally with task arguments."""
@@ -169,11 +169,11 @@ class RunConfig(BaseModel):
 RunConfigInput = RunConfig
 
 
-def read_run_config(config: str) -> RunConfig:
+def read_run_config(path: str) -> RunConfig:
     """Read and validate an evaluation run configuration without resolving models.
 
     Args:
-        config: YAML or JSON configuration file (local path, file URI, or remote
+        path: YAML or JSON configuration file (local path, file URI, or remote
             filesystem URL such as ``s3://bucket/run.yaml``).
 
     Returns:
@@ -185,7 +185,7 @@ def read_run_config(config: str) -> RunConfig:
     """
     from jsonschema import Draft7Validator
 
-    config_dict = resolve_args(config)
+    config_dict = resolve_args(path)
     try:
         run_config = RunConfig.model_validate(config_dict)
     except ValidationError as ex:
@@ -196,23 +196,23 @@ def read_run_config(config: str) -> RunConfig:
         errors = list(Draft7Validator(schema).iter_errors(config_dict))
         if errors:
             message = "\n".join(
-                [f"Invalid run config '{config}':"]
+                [f"Invalid run config '{path}':"]
                 + [f" - {error.message}" for error in errors]
             )
         else:
-            message = f"Invalid run config '{config}': {ex}"
+            message = f"Invalid run config '{path}': {ex}"
         raise PrerequisiteError(message)
     return run_config
 
 
 def merge_run_config_params(
-    run_params: dict[str, Any], cli_params: dict[str, Any]
+    run_params: dict[str, Any], overrides: dict[str, Any]
 ) -> dict[str, Any]:
     """Merge evaluation overrides using the CLI's run-configuration precedence.
 
     Args:
         run_params: Base evaluation arguments, typically from ``RunConfig.to_params``.
-        cli_params: Overrides. ``None``, empty dictionaries, and ``score=True``
+        overrides: Overrides. ``None``, empty dictionaries, and ``score=True``
             are ignored, matching CLI defaults. Task arguments, model arguments,
             and model roles merge by key; all other supplied values replace.
 
@@ -220,7 +220,7 @@ def merge_run_config_params(
         Merged arguments in a new dictionary, without modifying either input.
     """
     params = dict(run_params)
-    for key, value in cli_params.items():
+    for key, value in overrides.items():
         if value is None or value == {}:
             continue
         if key == "score" and value is True:
