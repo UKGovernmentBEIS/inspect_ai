@@ -115,15 +115,17 @@ def choice() -> Scorer:
         # choice means the model did not follow the requested ANSWER
         # format. The sample stays in the denominator either way, but the
         # reason lets analysis separate the two causes (see ScoreReason).
-        completion = state.output.completion or ""
-        if not completion.strip():
-            return Score(
-                value=NOANSWER,
-                answer="",
-                explanation=explanation,
-                reason="no_response",
-            )
+        # These branches only run when no choice was selected: a marked
+        # choice keeps its answer even if the completion text is empty.
         if not generated_selected_choices:
+            completion = state.output.completion or ""
+            if not completion.strip():
+                return Score(
+                    value=NOANSWER,
+                    answer="",
+                    explanation=explanation,
+                    reason="no_response",
+                )
             return Score(
                 value=INCORRECT,
                 answer="",

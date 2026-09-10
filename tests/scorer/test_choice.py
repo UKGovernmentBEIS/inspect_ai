@@ -309,6 +309,24 @@ async def test_score_selected_choices_carry_no_reason():
     assert result.reason is None
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("completion", ["", "   "])
+async def test_score_marked_choice_with_empty_completion_keeps_answer(
+    completion: str,
+):
+    scorer = choice()
+    state = simple_task_state(model_output=completion, choices=["choice 1", "choice 2"])
+    state.choices.mark_choice(0, False)
+    state.choices.mark_choice(1, True)
+
+    result = await scorer(state, Target("A"))
+
+    assert result is not None
+    assert result.text == INCORRECT
+    assert result.reason is None
+    assert result.answer == "B"
+
+
 def test_target_sequences():
     t_str = Target("A")
     assert len(t_str) == 1
