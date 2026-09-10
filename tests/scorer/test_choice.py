@@ -154,6 +154,16 @@ def test_answer_index_rejects_separators():
         answer_index(" ")
 
 
+def test_answer_index_zero_and_invalid_alpha():
+    # "0" should raise ValueError rather than colliding with index 25 ("Z")
+    with pytest.raises(ValueError, match="numeric choices start at 1"):
+        answer_index("0")
+
+    # Multi-character alpha should raise ValueError
+    with pytest.raises(ValueError):
+        answer_index("AB")
+
+
 @pytest.mark.anyio
 async def test_letter_incorrect_if_false_positives_found():
     scorer = choice()
