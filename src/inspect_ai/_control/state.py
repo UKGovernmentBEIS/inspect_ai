@@ -625,6 +625,7 @@ def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
         "error": None,
         "limit": None,
         "limit_reason": None,
+        "interrupt": None,
     }
 
 
@@ -650,6 +651,7 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "retries": None,
         "limit": None,
         "limit_reason": None,
+        "interrupt": None,
     }
 
 
@@ -1058,6 +1060,7 @@ def _summary_from_eval_sample_summary(
         "retries": summary.retries,
         "limit": summary.limit,
         "limit_reason": summary.limit_reason,
+        "interrupt": None,
     }
 
 
@@ -1144,6 +1147,12 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "retries": s.retries or None,
         "limit": None,
         "limit_reason": None,
+        # the pending cancel resolution, whatever its origin — the
+        # poller-visible evidence that a `sample cancel` of an initializing
+        # sample (rendered `queued` here) was accepted and is waiting for the
+        # sample to start; a running sample inside its logging window reports
+        # it too (design/ctl/initializing-sample-cancel.md). Purely additive.
+        "interrupt": s.interrupt_action,
     }
 
 
