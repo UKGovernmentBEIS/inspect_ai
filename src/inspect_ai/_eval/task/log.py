@@ -510,13 +510,16 @@ class TaskLogger:
         ``prior`` is the prior log's location or an in-memory prior log's
         samples; the recorder copies a same-format prior log file whole and
         re-logs samples otherwise (see ``Recorder.log_seed``). Restricted to
-        the planned ``keep`` keys. With no upfront plan, explicit sample ID
+        the planned ``keep`` keys. With no upfront plan, sample ID and epoch
         filters still restrict the seed, including samples produced later by
-        a dynamic feed.
+        a dynamic feed. A limited dynamic feed supplies its initial plan and
+        calls :meth:`seed_added_samples` as it admits further samples.
 
-        Afterwards the log holds every prior record the attempt could reuse,
-        so whatever ends the attempt, ``log_finish`` writes a complete log —
-        the next attempt never re-runs a sample this one already carried.
+        Afterwards the log holds every prior record in the upfront selection,
+        so whatever ends the attempt, ``log_finish`` preserves those records.
+        Limited dynamic feeds extend that guarantee when each admission copy
+        finishes; cancellation during admission preserves only copies made
+        so far.
         Seeded records are *not* counted as this attempt's resolutions here:
         :attr:`samples_logged` and :attr:`samples_completed` count a reused
         record when the reuse sweep accepts it (:meth:`note_reused_sample`)
@@ -532,21 +535,29 @@ class TaskLogger:
         without writing a log.
         """
         try:
-            if keep is None and self.eval.config.sample_id is not None:
+            prior_samples = None
+            json_prior = isinstance(prior, str) and prior.endswith(".json")
+            if keep is None or json_prior:
                 from inspect_ai.log._file import read_eval_log_sample_summaries_async
 
-                from .util import sample_id_filter
-
-                matcher = sample_id_filter(self.eval.config.sample_id)
                 prior_samples = (
                     await read_eval_log_sample_summaries_async(prior)
                     if isinstance(prior, str)
                     else prior
                 )
+            if keep is None:
+                from .util import sample_id_filter
+
+                matcher = (
+                    sample_id_filter(self.eval.config.sample_id)
+                    if self.eval.config.sample_id is not None
+                    else None
+                )
+                assert prior_samples is not None
                 keep = {
                     (sample.id, sample.epoch)
                     for sample in prior_samples
-                    if matcher.matches(sample.id)
+                    if (matcher is None or matcher.matches(sample.id))
                     and sample.epoch <= (self.eval.config.epochs or 1)
                 }
             await self.recorder.log_seed(self.eval, prior, keep)
@@ -559,10 +570,30 @@ class TaskLogger:
         self._prior_seeded = True
         seeded = await self.recorder.sample_summaries(self.eval)
         self._seeded_pending = {_seeded_key(s.id, s.epoch) for s in seeded or []}
-        if isinstance(prior, str) and prior.endswith(".json"):
+        if json_prior:
+            assert prior_samples is not None
             self._prior_sample_keys = SampleKeyLookup(
-                (s.id, s.epoch) for s in seeded or []
+                (s.id, s.epoch) for s in prior_samples
             )
+
+    async def seed_added_samples(
+        self, prior: "str | list[EvalSample]", keep: set[tuple[str | int, int]]
+    ) -> None:
+        """Carry admitted dynamic samples into a limited retry before dispatch.
+
+        Their selection is unknown at startup. Copying them only after the
+        feed applies its limit prevents excluded transcripts from reaching
+        any destination flush, while retaining prior results and errors for
+        every admitted sample.
+        """
+        await self.recorder.log_seed_samples(
+            self.eval,
+            prior,
+            keep,
+            on_sample=lambda id, epoch: self._seeded_pending.add(
+                _seeded_key(id, epoch)
+            ),
+        )
 
     async def read_prior_sample(self, id: str | int, epoch: int) -> EvalSample | None:
         """The seeded prior record for ``(id, epoch)``, read from the recorder, or None.
@@ -575,7 +606,9 @@ class TaskLogger:
         every other lock user (a control-channel listing, a live completion)
         would queue behind the whole sweep.
         JSON sources retain the original reader's exact-first normalized ID
-        lookup even when this attempt writes Eval format.
+        lookup and source ordering even when this attempt writes Eval format
+        or admits samples later. The index contains only prior keys; the
+        recorder supplies the version currently present for that key.
         """
         async with self._prior_read_limit:
             if self._prior_sample_keys is not None:

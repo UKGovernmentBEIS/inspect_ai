@@ -1,5 +1,5 @@
 import abc
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from typing import IO, TYPE_CHECKING, NamedTuple
 
 import anyio
@@ -151,6 +151,25 @@ class Recorder(abc.ABC):
         Eval sources are selected by summary before bodies are read in bounded
         batches. JSON sources retain the reader's exact-first normalized IDs.
         """
+        await self.log_seed_samples(eval, prior, keep)
+
+    async def log_seed_samples(
+        self,
+        eval: EvalSpec,
+        prior: "str | Sequence[EvalSample]",
+        keep: set[tuple[str | int, int]] | None,
+        *,
+        on_sample: Callable[[str | int, int], None] | None = None,
+    ) -> None:
+        """Append selected prior records.
+
+        Unlike the whole-file seed, this can extend a started log when a
+        dynamic feed admits more samples under its limit. Only selected
+        bodies absent from the recorder are written, preserving results the
+        current attempt has already recorded, including normalized aliases.
+        ``on_sample`` runs before each record is written, so the caller can
+        withhold pending records from live readers throughout the copy.
+        """
         from inspect_ai.log._condense import condense_sample
         from inspect_ai.log._file import (
             read_eval_log_async,
@@ -159,6 +178,10 @@ class Recorder(abc.ABC):
         )
         from inspect_ai.log._recorders.eval import EvalRecorder
 
+        existing = {
+            SampleRecordKey(str(sample.id), sample.epoch)
+            for sample in await self.sample_summaries(eval) or []
+        }
         if isinstance(prior, str) and EvalRecorder.handles_location(prior):
             async with AsyncFilesystem() as fs:
                 summaries = await read_eval_log_sample_summaries_async(prior)
@@ -170,8 +193,11 @@ class Recorder(abc.ABC):
                 keys = [
                     (s.id, s.epoch)
                     for s in summaries
-                    if kept_keys is None
-                    or SampleRecordKey(str(s.id), s.epoch) in kept_keys
+                    if (
+                        kept_keys is None
+                        or SampleRecordKey(str(s.id), s.epoch) in kept_keys
+                    )
+                    and SampleRecordKey(str(s.id), s.epoch) not in existing
                 ]
                 reader = AsyncZipReader(fs, prior)
                 # Bound retained bodies as well as concurrent reads: the bulk
@@ -181,6 +207,8 @@ class Recorder(abc.ABC):
                         prior, keys[offset : offset + 8], concurrency=8, reader=reader
                     )
                     for sample in batch:
+                        if on_sample is not None:
+                            on_sample(sample.id, sample.epoch)
                         await self.log_sample(
                             eval, condense_sample(sample), write_through=True
                         )
@@ -206,7 +234,11 @@ class Recorder(abc.ABC):
                     if SampleRecordKey(str(s.id), s.epoch) in kept_keys
                 }
         for sample in samples:
-            if selected is None or (sample.id, sample.epoch) in selected:
+            if (
+                selected is None or (sample.id, sample.epoch) in selected
+            ) and SampleRecordKey(str(sample.id), sample.epoch) not in existing:
+                if on_sample is not None:
+                    on_sample(sample.id, sample.epoch)
                 await self.log_sample(eval, condense_sample(sample), write_through=True)
             await anyio.lowlevel.checkpoint()
 

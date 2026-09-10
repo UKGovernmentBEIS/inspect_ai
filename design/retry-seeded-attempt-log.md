@@ -201,9 +201,12 @@ and `_journal/config_updates/*` (otherwise an in-progress read of the new log
 would return the prior attempt's finished header and eval_id — readers prefer
 `header.json` when present), and sample entries for keys outside this
 attempt's plan (a `sample_id`/`limit` subset or reduced epoch count; a
-dynamic-feed task has no upfront plan, but still applies explicit sample ID
-filters to the prior records, including IDs it may produce later. With no ID
-filter it keeps everything, pruning the records it never consults at a natural
+dynamic-feed task still applies epoch and explicit sample ID filters to prior
+records, including IDs it may produce later. With a limit and no ID filter,
+only the sliced initial dataset is seeded upfront. As the feed admits more
+samples under the remaining limit, their selected prior records are appended
+before dispatch. With neither a limit nor an ID filter, it keeps every prior
+record in the selected epochs, pruning records it never consults at a natural
 success instead — see trade-off 5).
 For an explicit plan, only selected sample members enter a fresh ZIP before
 the first destination write. Central-directory pruning alone is insufficient:
@@ -211,9 +214,9 @@ excluded transcripts remain recoverable from their local ZIP records, even
 when ordinary readers no longer list them. Rebuilding also removes dead
 bytes inherited from prior attempts, including superseded versions of kept
 samples. Failure or cancellation of this mandatory rewrite aborts the seed;
-it cannot fall back to publishing an unfiltered copy. Unrestricted dynamic
-seeds still prune metadata from the central directory and rely on optional
-finish-time compaction for dead-byte reclamation.
+it cannot fall back to publishing an unfiltered copy. Dynamic seeds also
+rebuild from selected bodies, so excluded epochs and inherited dead bytes
+cannot reach the destination even when no sample ID filter is set.
 The prior's journal summary files (`_journal/summaries/N.json`) are pruned too and
 replaced by a single fresh journal member holding the kept summaries.
 Member-level pruning cannot do this for them: a flush batches every sample
@@ -642,7 +645,19 @@ checkpoint copy and the `log_start` flush had uploaded the whole seeded log
 for the dispatcher's discard to remove. Either path ends in that discard,
 which closes the seeded temp file.
 `keep` is the plan `task_run` has just sliced (`sample_ids × range(1,
-epochs+1)`; `None` for a dynamic-feed task). `TaskLogger.seed_from_prior`
+epochs+1)`; `None` for a dynamic-feed task without an effective limit).
+`TaskLogger.seed_from_prior` resolves dynamic epoch and ID restrictions from
+prior summaries before calling the recorder. Limited feeds use the sliced
+initial plan, then call `seed_added_samples` for each admitted batch before
+sandbox startup, control registration, and scheduling. The recorder's
+`log_seed_samples` appends only those selected records, using bounded body
+reads for Eval sources and the existing exact-first normalized lookup for
+JSON. These incremental reads
+use the prior source; they skip original keys already in the recorder, so
+they cannot overwrite current results. JSON lookup keeps the prior's key
+order rather than indexing the destination's changing mix of records.
+`sample_id` takes precedence over `limit`, matching the feed's own selection.
+`TaskLogger.seed_from_prior`
 asks the recorder to `log_seed` and sets `prior_seeded`; a prior log that
 no longer exists (`FileNotFoundError`) leaves the attempt unseeded with a
 warning rather than failing it — the sweep's own `lookup` degrades the same
@@ -913,15 +928,24 @@ warning names the prior log and the error.
    is the same size, so this is a timing change, not a cost change; and
    every later flush already rewrites the whole file.
 5. **Unplanned prior entries in a dynamic-feed retry linger until the
-   finish.** With no upfront plan there is nothing to prune against at the
-   seed, so the attempt carries every prior record; the ones the feed never
+   finish.** Without a limit, the attempt carries every prior record matching
+   its epoch and sample ID filters; the ones the feed never
    re-injects stay out of the live listing (never consulted) and are
    dropped at a natural successful finish (`Recorder.log_prune`, keyed by
    what is still in `_seeded_pending`), so the success log holds only this
    attempt's plan. They remain in a non-success log (the next attempt's
    seed) and in a graceful resolution's success log (its abandoned samples
    re-run in the next pass, reusing them). Compaction, which only reclaims
-   unreferenced bytes, does not remove live members on its own.
+   unreferenced bytes, does not remove live members on its own. A limited
+   feed cannot know which later records it will select, so it carries only
+   its initial selection and subsequently admitted samples. An interrupted
+   limited retry therefore preserves fully seeded admissions; unknown future
+   selections are excluded, even if a later retry would have produced them.
+   Admission itself remains cancellable: a failure midway through copying a
+   new batch leaves only the records copied so far, and the batch is not
+   registered or dispatched. Finalization preserves those copies and closes
+   the recorder. This restriction-specific trade-off avoids publishing
+   unselected data or delaying cancellation for an unbounded source copy.
 6. **A `log_finish` failure after earlier flushes leaves a `started` log as
    the task's newest.** The retry's source is that partial destination (the
    prior set plus this attempt's flushed completions, so no completed
@@ -943,10 +967,10 @@ warning names the prior log and the error.
 - **Fresh eval / no sample source**: no seed; byte-for-byte unchanged.
 - **Ineligible prior log** (shuffled without ids, dataset size changed): the
   existing warnings fire, no seed, no reuse — as today.
-- **`sample_id` / `limit` subset, or fewer epochs than the prior**: unplanned
-  keys pruned at seed; the log holds exactly the plan (plus dead bytes until
-  compaction). More epochs than the prior: new epochs are absent keys and
-  run live.
+- **`sample_id` / `limit` subset, or fewer epochs than the prior**: excluded
+  payloads are physically removed before publication, independently of
+  finish-time compaction. More epochs than the prior: new epochs are absent
+  keys and run live.
 - **Invalidated sample in the prior**: its record is seeded (so an
   in-progress read shows it); the sweep's local body read sees
   `invalidation`, so the summary's clean `error` does not mask it; it

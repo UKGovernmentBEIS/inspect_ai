@@ -22,7 +22,7 @@
 - Agent bridge: Bridged OpenAI and Google requests with a malformed `tool_choice`/`toolConfig` now return a 400 naming the bad field instead of a status-less error, and a non-string tool name no longer poisons the sample transcript.
 - Eval Set: A retry attempt that itself errors or is interrupted no longer causes the next attempt to re-run (or, with `retry_cleanup`, lose) samples an earlier attempt completed.
 - Eval Set: Retries preserve completed samples and error history when sample IDs change between integers and strings, including padded numeric IDs in JSON logs.
-- Eval Set: Restricted retry logs, including dynamic tasks, physically exclude unselected transcripts before their first write, including payloads inherited from earlier attempts.
+- Eval Set: Dynamic retry logs honor sample limits and epoch restrictions before every write, physically excluding unselected transcripts inherited from earlier attempts.
 - Control Channel: Pending retry samples with padded numeric IDs in JSON logs no longer appear finished when cancelling or requeuing them.
 - Eval Set: Intermediate retry logs keep sample bodies and summaries consistent when padded numeric IDs rerun as integers.
 - Eval Set: Retrying selected samples from an Eval log into JSON loads only the selected sample bodies, in bounded batches.

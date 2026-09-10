@@ -299,7 +299,8 @@ class EvalSampleSource(NamedTuple):
     checkpoint dirs). It is the fallback for an attempt whose log was not
     seeded (sample logging off, or no eligible prior); a seeded attempt
     reads each prior record from its own log and resolves it with
-    `seed.classify` instead, so no per-sample read of the prior log happens.
+    `seed.classify` instead. Limited dynamic feeds copy selected prior records
+    during admission, before that local lookup.
     `prior_checkpoints_dir` is the prior attempt's eval checkpoints dir
     (None when checkpointing was off or vetoed) — the source the startup
     copy replicates into this attempt's dir.
@@ -925,13 +926,18 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # log, and this precedes the paged sample store and the display row).
     # With sample logging off nothing is seeded (as nothing is re-logged) and
     # the reuse sweep falls back to reading the prior source.
+    limited_sample_feed = (
+        sample_feed is not None
+        and config.limit is not None
+        and config.sample_id is None
+    )
     if sample_source is not None and sample_source.seed is not None and log_samples:
         await logger.seed_from_prior(
             sample_source.seed.source,
-            # Dynamic feeds have no upfront plan; the logger still applies
-            # explicit sample ID filters to their prior records.
+            # A limited feed's later selections are unknown until admission;
+            # add_and_start seeds those records before dispatching them.
             keep=None
-            if sample_feed is not None
+            if sample_feed is not None and not limited_sample_feed
             else {
                 (sample_id, epoch)
                 for sample_id in sample_ids
@@ -1605,7 +1611,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         samples: list[Sample]
 
                     def add_samples(samples: list[Sample]) -> AddedSamples:
-                        nonlocal total_samples, auto_id, remaining
+                        nonlocal auto_id, remaining
                         added = AddedSamples([], [])
                         over_limit = 0
                         for sample in samples:
@@ -1639,9 +1645,39 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 f"Sample limit ({limit_count}) reached: ignoring "
                                 f"{over_limit} sample(s) added to the task."
                             )
+                        return added
+
+                    async def add_and_start(samples: list[Sample]) -> bool:
+                        """Add samples and start them; True if any started.
+
+                        Added samples get the same run-level sandbox startup
+                        as the seed (``task_init`` for configs not seen
+                        before: image build/pull, validation, cleanup
+                        registration) before they spawn; already-started
+                        configs are a cheap no-op. A startup failure
+                        propagates and fails the task, matching a seed
+                        config failing startup.
+                        """
+                        nonlocal total_samples
+
+                        added = add_samples(samples)
+                        if (
+                            added.samples
+                            and limited_sample_feed
+                            and logger.prior_seeded
+                            and sample_source is not None
+                            and sample_source.seed is not None
+                        ):
+                            await logger.seed_added_samples(
+                                sample_source.seed.source,
+                                {
+                                    (sample.id, epoch)
+                                    for sample in added.samples
+                                    if sample.id is not None
+                                    for epoch in range(1, epochs + 1)
+                                },
+                            )
                         if added.indexes:
-                            # grow the planned totals (display denominator,
-                            # fail_on_error threshold, control-channel counters)
                             total_samples += len(added.indexes) * epochs
                             sample_error_handler.total_samples = total_samples
                             record_samples_added(
@@ -1656,20 +1692,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             td.sample_complete(
                                 complete=len(progress_results), total=total_samples
                             )
-                        return added
-
-                    async def add_and_start(samples: list[Sample]) -> bool:
-                        """Add samples and start them; True if any started.
-
-                        Added samples get the same run-level sandbox startup
-                        as the seed (``task_init`` for configs not seen
-                        before: image build/pull, validation, cleanup
-                        registration) before they spawn; already-started
-                        configs are a cheap no-op. A startup failure
-                        propagates and fails the task, matching a seed
-                        config failing startup.
-                        """
-                        added = add_samples(samples)
                         if added.samples and options.startup_sandboxes is not None:
                             await options.startup_sandboxes(added.samples)
                         scheduler.add(

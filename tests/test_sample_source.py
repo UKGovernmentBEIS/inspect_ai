@@ -1180,6 +1180,136 @@ def test_sample_source_retry_filters_prior_payloads_before_publication(
     assert runs.count(selected_id) == 2 and runs.count(2) == 1
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize(
+    "initial_count,limit,expected_ids",
+    [
+        (2, 1, {1}),
+        (0, 1, {1}),
+        (1, 2, {1, 2}),
+        (1, 3, {1, 2, 3}),
+        (1, None, {1, 2, 3}),
+    ],
+)
+def test_sample_source_retry_applies_limit_and_epochs_before_publication(
+    log_format: Literal["eval", "json"],
+    initial_count: int,
+    limit: int | None,
+    expected_ids: set[int],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._eval.task.log import TaskLogger
+    from inspect_ai.log._log import EvalPlan
+    from inspect_ai.log._recorders import eval as eval_recorder
+
+    failing = True
+    runs: list[tuple[str | int, int]] = []
+
+    class Source(SampleSource):
+        def __init__(self) -> None:
+            self.next_id = initial_count + 1
+
+        def initial_samples(self) -> list[Sample]:
+            return [
+                Sample(id=id, input=f"private-sample-{id}", target="ok")
+                for id in range(1, initial_count + 1)
+            ]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self.next_id > 3:
+                return None
+            id = self.next_id
+            self.next_id += 1
+            return [Sample(id=id, input=f"private-sample-{id}", target="ok")]
+
+    @solver
+    def fail_last_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append((state.sample_id, state.epoch))
+            state.metadata["private"] = f"private-epoch-{state.epoch}"
+            if state.sample_id == 3 and failing:
+                raise RuntimeError("retry task")
+            return state
+
+        return solve
+
+    @task
+    def limited_source_task() -> Task:
+        return Task(dataset=Source(), solver=fail_last_once())
+
+    monkeypatch.setattr(
+        eval_recorder, "zipfile_compress_kwargs", {"compression": ZIP_STORED}
+    )
+    monkeypatch.setattr(eval_recorder, "COMPACT_DEAD_BYTES_FRACTION", 2.0)
+    log_dir = str(tmp_path / "logs")
+    ok, prior_logs = eval_set(
+        limited_source_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=log_format,
+        epochs=2,
+        retry_attempts=1,
+        retry_immediate=False,
+        fail_on_error=True,
+        retry_on_error=0,
+        log_realtime=False,
+        display="none",
+    )
+    assert not ok
+    prior_bytes = Path(prior_logs[0].location).read_bytes()
+    assert b"private-sample-2" in prior_bytes
+    assert b"private-epoch-2" in prior_bytes
+    failing = False
+    runs.clear()
+    start = TaskLogger.log_start
+    snapshots: list[str] = []
+
+    def check_snapshot(location: str) -> None:
+        raw = Path(location).read_bytes()
+        assert b"private-epoch-2" not in raw
+        for id in {1, 2, 3} - expected_ids:
+            assert f"private-sample-{id}".encode() not in raw
+        if log_format == "eval":
+            with ZipFile(location) as archive:
+                bodies = {
+                    name for name in archive.namelist() if name.startswith("samples/")
+                }
+                assert bodies <= {f"samples/{id}_epoch_1.json" for id in expected_ids}
+
+    async def check_start(logger: TaskLogger, plan: EvalPlan) -> None:
+        await start(logger, plan)
+        assert logger.prior_seeded
+        check_snapshot(logger.location)
+        snapshots.append(logger.location)
+
+    monkeypatch.setattr(TaskLogger, "log_start", check_start)
+    ok, logs = eval_set(
+        limited_source_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=log_format,
+        limit=limit,
+        epochs=1,
+        retry_attempts=1,
+        retry_immediate=False,
+        retry_on_error=0,
+        log_realtime=False,
+        display="none",
+    )
+    assert ok and len(snapshots) == 1
+    check_snapshot(logs[0].location)
+    final = read_eval_log(logs[0].location)
+    assert {(s.id, s.epoch) for s in final.samples or []} == {
+        (id, 1) for id in expected_ids
+    }
+    assert runs == ([(3, 1)] if 3 in expected_ids else [])
+    if 3 in expected_ids:
+        retried = next(s for s in final.samples or [] if s.id == 3)
+        assert retried.error_retries
+        assert "retry task" in retried.error_retries[-1].message
+
+
 def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:
     # the reuse path reports the reused run terminal (counted `completed`)
     # *before* notifying the source, so a raising `sample_complete` tears the

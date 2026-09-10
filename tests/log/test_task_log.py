@@ -1061,6 +1061,208 @@ async def test_json_seed_yields_between_samples(
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("prior_format", ["eval", "json", "memory"])
+@pytest.mark.parametrize("epochs", [None, 1])
+async def test_dynamic_seed_filters_epochs_without_sample_ids(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    prior_format: str,
+    epochs: int | None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from zipfile import ZIP_STORED
+
+    import inspect_ai.log._recorders.eval as eval_module
+
+    monkeypatch.setattr(
+        eval_module, "zipfile_compress_kwargs", {"compression": ZIP_STORED}
+    )
+    monkeypatch.setattr(eval_module, "COMPACT_DEAD_BYTES_FRACTION", 2.0)
+    samples = [
+        _prior_samples()[0],
+        _prior_samples()[0].model_copy(
+            update={"epoch": 2, "input": "excluded-epoch-private-payload"}
+        ),
+    ]
+    prior = (
+        samples
+        if prior_format == "memory"
+        else await _write_prior_log(
+            (EvalRecorder if prior_format == "eval" else JSONRecorder)(
+                str(tmp_path / "prior")
+            ),
+            samples,
+        )
+    )
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger.eval.config.epochs = epochs
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=None)
+    await logger.log_start(EvalPlan())
+    for finish in (False, True):
+        if finish:
+            logger.note_reused_sample(samples[0])
+            await logger.log_finish("success", EvalStats(), prune_unplanned=True)
+        assert (
+            b"excluded-epoch-private-payload" not in Path(logger.location).read_bytes()
+        )
+        log = await read_eval_log_async(logger.location)
+        assert {(s.id, s.epoch) for s in log.samples or []} == {(1, 1)}
+        assert {
+            (s.id, s.epoch)
+            for s in await read_eval_log_sample_summaries_async(logger.location)
+        } == {(1, 1)}
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("prior_format", ["eval", "json", "memory"])
+async def test_dynamic_seed_adds_only_admitted_samples(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    prior_format: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    samples = _prior_samples()
+    if prior_format == "json":
+        samples[1] = samples[1].model_copy(update={"id": "002"})
+    prior = (
+        samples
+        if prior_format == "memory"
+        else await _write_prior_log(
+            (EvalRecorder if prior_format == "eval" else JSONRecorder)(
+                str(tmp_path / "prior")
+            ),
+            samples,
+        )
+    )
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep={(1, 1)})
+    await logger.log_start(EvalPlan())
+    logger.note_reused_sample(samples[0])
+    log_sample = recorder.log_sample
+
+    async def check_pending_during_copy(
+        eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
+        await log_sample(eval, sample, write_through=write_through)
+        assert {s.id for s in await logger.sample_summaries() or []} == {1}
+        assert await logger.read_sample(sample.id, sample.epoch) is None
+        assert await logger.read_sample(2, sample.epoch) is None
+
+    monkeypatch.setattr(recorder, "log_sample", check_pending_during_copy)
+    await logger.seed_added_samples(prior, keep={(2, 1)})
+    assert {s.id for s in await logger.sample_summaries() or []} == {1}
+    admitted = await logger.read_prior_sample(2, 1)
+    assert admitted is not None and admitted.error == samples[1].error
+    assert await logger.read_sample(admitted.id, 1) is None
+    assert await logger.read_prior_sample(3, 1) is None
+    await logger.log_finish("error", EvalStats(), error=_error("interrupted retry"))
+    log = await read_eval_log_async(logger.location)
+    assert {(s.id, s.epoch) for s in log.samples or []} == {
+        (1, 1),
+        (samples[1].id, 1),
+    }
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+async def test_dynamic_seed_alias_does_not_overwrite_current_attempt(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder], tmp_path: Path
+) -> None:
+    prior_sample = _prior_samples()[1].model_copy(update={"id": "002"})
+    prior = await _write_prior_log(
+        JSONRecorder(str(tmp_path / "prior")), [prior_sample]
+    )
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep={("002", 1)})
+    await logger.log_start(EvalPlan())
+    fresh = EvalSample(id="002", epoch=1, input="fresh rerun", target="a")
+    await logger.complete_sample(fresh, flush=False)
+    await logger.seed_added_samples(prior, keep={(2, 1)})
+    assert not logger._seeded_pending
+    assert await logger.read_prior_sample(2, 1) == fresh
+    assert await logger.read_sample("002", 1) == fresh
+    await logger.log_finish("success", EvalStats(), prune_unplanned=True)
+    final = await read_eval_log_async(logger.location)
+    assert final.samples == [fresh]
+
+
+@pytest.mark.parametrize("initial_live", [False, True])
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+async def test_dynamic_seed_keeps_json_source_lookup(
+    initial_live: bool,
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    tmp_path: Path,
+) -> None:
+    samples = [
+        _prior_samples()[0].model_copy(update={"id": "001", "input": "first"}),
+        _prior_samples()[0].model_copy(update={"id": "01", "input": "second"}),
+    ]
+    # A different prior ID leaves both requested IDs absent, so a live result
+    # must not become a normalized prior match for the later sample.
+    if initial_live:
+        samples = [_prior_samples()[0].model_copy(update={"id": 9})]
+    prior = await _write_prior_log(JSONRecorder(str(tmp_path / "prior")), samples)
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep={("01", 1)})
+    await logger.log_start(EvalPlan())
+    if initial_live:
+        await logger.complete_sample(
+            EvalSample(id="01", epoch=1, input="live", target="a"), flush=False
+        )
+    else:
+        logger.note_reused_sample(samples[1])
+    await logger.seed_added_samples(prior, keep={("0001", 1)})
+    actual = await logger.read_prior_sample("0001", 1)
+    if initial_live:
+        assert actual is None
+    else:
+        assert actual is not None and actual.id == "001" and actual.input == "first"
+    await logger.log_finish("error", EvalStats(), error=_error("done"))
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_dynamic_seed_admission_failure_releases_recorder(
+    cancel: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recorder = EvalRecorder(str(tmp_path))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(_prior_samples(), keep={(1, 1)})
+    await logger.log_start(EvalPlan())
+    log_sample = recorder.log_sample
+
+    async def interrupt_copy(
+        eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
+        await log_sample(eval, sample, write_through=write_through)
+        if cancel:
+            scope.cancel()
+            await anyio.lowlevel.checkpoint()
+        raise RuntimeError("admission copy failed")
+
+    monkeypatch.setattr(recorder, "log_sample", interrupt_copy)
+    with anyio.CancelScope() as scope:
+        if cancel:
+            await logger.seed_added_samples(_prior_samples(), keep={(2, 1), (3, 1)})
+        else:
+            with pytest.raises(RuntimeError, match="admission copy failed"):
+                await logger.seed_added_samples(_prior_samples(), keep={(2, 1), (3, 1)})
+    assert scope.cancelled_caught == cancel
+    assert await logger.read_sample(2, 1) is None
+    await logger.log_finish("error", EvalStats(), error=_error("admission interrupted"))
+    assert not recorder.data
+    final = await read_eval_log_async(logger.location)
+    assert {s.id for s in final.samples or []} == {1, 2}
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 async def test_memory_seed_does_not_normalize_padded_ids(
     recorder_type: type[EvalRecorder] | type[JSONRecorder], tmp_path: Path
 ) -> None:
@@ -1483,8 +1685,6 @@ async def test_task_logger_prune_survives_failed_compaction(
     def failing_compact(src_file: Any, live: Any) -> Any:
         raise RuntimeError("simulated compaction failure")
 
-    monkeypatch.setattr(eval_module, "_compact_zip", failing_compact)
-
     recorder = EvalRecorder(str(tmp_path))
     prior = await _write_prior_log(recorder, _prior_samples())
     logger = _seed_logger(recorder)
@@ -1495,6 +1695,7 @@ async def test_task_logger_prune_survives_failed_compaction(
     assert clean is not None
     logger.note_reused_sample(clean)
 
+    monkeypatch.setattr(eval_module, "_compact_zip", failing_compact)
     with patch.object(eval_module.logger, "warning") as warning:
         await logger.log_finish("success", EvalStats(), prune_unplanned=True)
     assert warning.call_count == 1
