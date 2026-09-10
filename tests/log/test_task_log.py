@@ -1851,11 +1851,13 @@ async def test_compact_reopens_the_zip_when_cancelled_before_the_worker_starts(
     await recorder.log_prune(logger.eval, set(logger._seeded_pending))
     (zip_log,) = recorder.data.values()
 
+    from inspect_ai._util.zipfile import compact_zip
+
     original_run_sync = anyio.to_thread.run_sync
     cancelled_once = {"done": False}
 
     async def cancel_at_the_await(func: Any, *args: Any, **kwargs: Any) -> Any:
-        if func is eval_module.compact_zip and not cancelled_once["done"]:
+        if func is compact_zip and not cancelled_once["done"]:
             cancelled_once["done"] = True
             scope.cancel()
             await anyio.lowlevel.checkpoint()

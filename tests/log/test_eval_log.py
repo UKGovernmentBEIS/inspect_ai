@@ -1864,7 +1864,7 @@ async def test_restricted_seed_rewrite_failure_keeps_destination_unwritten(
     original_file = zip_log._temp_file
     temporary_files: list[BinaryIO] = []
     temporary_file = tempfile.TemporaryFile
-    compact = eval_module.compact_zip
+    from inspect_ai._util.zipfile import compact_zip as compact
 
     def track_temporary_file() -> BinaryIO:
         result = temporary_file()
