@@ -75,11 +75,13 @@ def _ask_console() -> Iterator[Console]:
 def _ask_schema(
     message: str, schema: ElicitationSchema, console: Console
 ) -> InputResult:
+    # Model-authored text is printed with soft_wrap so a long command stays on
+    # one line for the terminal to wrap: Rich's hard wrap breaks copy/paste.
     if schema.title:
-        console.print(f"[bold]{schema.title}[/bold]")
-    console.print(message)
+        console.print(f"[bold]{schema.title}[/bold]", soft_wrap=True)
+    console.print(message, soft_wrap=True)
     if schema.description:
-        console.print(f"[dim]{schema.description}[/dim]")
+        console.print(f"[dim]{schema.description}[/dim]", soft_wrap=True)
     console.print(f"[dim](Type {DECLINE_TOKEN} at any prompt to decline.)[/dim]")
 
     required = set(schema.required or [])
@@ -101,7 +103,7 @@ def _ask_property(
 ) -> Any:
     label = prop.title or name
     if prop.description:
-        console.print(f"[dim]{prop.description}[/dim]")
+        console.print(f"[dim]{prop.description}[/dim]", soft_wrap=True)
 
     if isinstance(prop, ElicitationStringPropertySchema):
         return _ask_string(label, prop, required, console)
@@ -128,7 +130,7 @@ def _ask_string(
     console: Console,
 ) -> Any:
     if prop.format:
-        console.print(f"[dim](format: {prop.format})[/dim]")
+        console.print(f"[dim](format: {prop.format})[/dim]", soft_wrap=True)
 
     if is_multiline(prop):
         return _ask_multiline(label, prop, required, console)
@@ -140,10 +142,11 @@ def _ask_string(
     if labels is not None:
         if prop.one_of is not None:
             for const, title in labels:
-                console.print(f"  [cyan]{const}[/cyan]: {title}")
+                console.print(f"  [cyan]{const}[/cyan]: {title}", soft_wrap=True)
         else:
             console.print(
-                f"[dim]options: {', '.join(string_choices(prop) or [])}[/dim]"
+                f"[dim]options: {', '.join(string_choices(prop) or [])}[/dim]",
+                soft_wrap=True,
             )
 
     while True:
@@ -163,7 +166,7 @@ def _ask_string(
 
         accepted, error = validate_string(prop, value)
         if error is not None:
-            console.print(f"[red]{error}[/red]")
+            console.print(f"[red]{error}[/red]", soft_wrap=True)
             continue
         return accepted
 
@@ -277,7 +280,7 @@ def _ask_numeric(
         else:
             result, error = validate_number(prop, raw)
         if error is not None:
-            console.print(f"[red]{error}[/red]")
+            console.print(f"[red]{error}[/red]", soft_wrap=True)
             continue
         return result
 
@@ -326,9 +329,9 @@ def _ask_multiselect(
 
     for i, (const, title) in enumerate(options, start=1):
         if const == title:
-            console.print(f"  [cyan]{i}[/cyan]: {title}")
+            console.print(f"  [cyan]{i}[/cyan]: {title}", soft_wrap=True)
         else:
-            console.print(f"  [cyan]{i}[/cyan]: {title} ({const})")
+            console.print(f"  [cyan]{i}[/cyan]: {title} ({const})", soft_wrap=True)
 
     min_items = prop.min_items
     max_items = prop.max_items
@@ -388,6 +391,6 @@ def _ask_multiselect(
         values = [options[i - 1][0] for i in unique_indices]
         accepted, error = validate_multiselect(prop, values)
         if error is not None:
-            console.print(f"[red]{error}[/red]")
+            console.print(f"[red]{error}[/red]", soft_wrap=True)
             continue
         return accepted

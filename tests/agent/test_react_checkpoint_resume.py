@@ -342,7 +342,7 @@ async def test_resumed_compaction_prefix_excludes_prior_conversation(
 
     assert len(generate_inputs) == 3
     # sanity: call 2 was the summarization call triggered by compaction
-    assert "continuation summary" in generate_inputs[1][-1].text
+    assert "summarizing conversations" in generate_inputs[1][-1].text
 
     post_compaction_input = generate_inputs[2]
     # the compacted view must retain the true prefix and the summary ...
