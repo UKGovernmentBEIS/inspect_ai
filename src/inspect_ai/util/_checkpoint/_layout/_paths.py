@@ -45,9 +45,10 @@ def contained_component(name: str) -> str:
     """Validate ``name`` as one path component that stays inside its parent.
 
     Accepts a non-empty string that is not ``.`` or ``..`` and contains
-    no path separator (forward slash, or backslash, which ``basename``
-    folds to a slash so a name holding one would be mis-derived) and no
-    NUL. Returns ``name`` unchanged.
+    no path separator (forward slash, or backslash, which a Windows host
+    would honor as one and which ``basename`` folds to a slash, so a
+    name holding one would be mis-derived) and no NUL. Returns ``name``
+    unchanged.
 
     Raises:
         ValueError: naming the offending component.
