@@ -53,7 +53,9 @@ class SampleKeyLookup:
     """Index JSON sample keys using the reader's exact-first normalized matching.
 
     Keep the first normalized match in source order, without merging distinct
-    exact IDs such as ``"001"`` and ``1``.
+    exact IDs such as ``"001"`` and ``1``. IDs that cannot be normalized
+    (e.g. Unicode digits such as ``"²"`` that ``int`` rejects) match only
+    by their exact value.
     """
 
     def __init__(self, keys: Iterable[tuple[str | int, int]]) -> None:
@@ -62,13 +64,22 @@ class SampleKeyLookup:
         for id, epoch in keys:
             key = SampleKey(sample_id=id, epoch=epoch)
             self._exact.setdefault(key, key)
-            self._normalized.setdefault((normalise_sample_id(id), epoch), key)
+            try:
+                normalized = normalise_sample_id(id)
+            except ValueError:
+                continue
+            self._normalized.setdefault((normalized, epoch), key)
 
     def get(self, id: str | int, epoch: int) -> SampleKey | None:
         """Return the original key for an exact match, then a normalized match."""
-        return self._exact.get((id, epoch)) or self._normalized.get(
-            (normalise_sample_id(id), epoch)
-        )
+        exact = self._exact.get((id, epoch))
+        if exact is not None:
+            return exact
+        try:
+            normalized = normalise_sample_id(id)
+        except ValueError:
+            return None
+        return self._normalized.get((normalized, epoch))
 
 
 class SeedSamples:

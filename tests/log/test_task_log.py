@@ -1721,6 +1721,40 @@ async def test_memory_seed_does_not_normalize_padded_ids(
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("sample_id", ["²", "①"])
+@pytest.mark.parametrize("restricted", [False, True])
+async def test_json_seed_preserves_exact_unicode_ids(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    sample_id: str,
+    restricted: bool,
+    tmp_path: Path,
+) -> None:
+    samples = [
+        _prior_samples()[0].model_copy(update={"id": sample_id}),
+        _prior_samples()[1].model_copy(update={"id": "001"}),
+    ]
+    prior = await _write_prior_log(JSONRecorder(str(tmp_path / "prior")), samples)
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    keep: set[tuple[str | int, int]] | None = (
+        {(sample_id, 1), (1, 1)} if restricted else None
+    )
+    await logger.seed_from_prior(prior, keep)
+    exact = await logger.read_prior_sample(sample_id, 1)
+    assert exact is not None and exact.id == sample_id
+    assert exact.input == samples[0].input
+    assert await logger.read_prior_sample(sample_id, 2) is None
+    normalized = await logger.read_prior_sample(1, 1)
+    assert normalized is not None and normalized.id == "001"
+    assert normalized.error == samples[1].error
+    await logger.log_start(EvalPlan())
+    await logger.log_finish("error", EvalStats())
+    final = await read_eval_log_async(logger.location)
+    assert {s.id for s in final.samples or []} == {sample_id, "001"}
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 @pytest.mark.parametrize("keep", [None, {(1, 1)}])
 @pytest.mark.parametrize("errored", [False, True])
 async def test_json_seed_preserves_normalized_prior_lookup(
@@ -2902,6 +2936,54 @@ async def test_task_logger_discard_drops_recorder_entry_and_flushed_file(
     await logger.discard()
     assert not Path(location).exists()
     assert recorder.data == {}
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+async def test_task_logger_discard_quiesces_live_controls_after_finish_failure(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._control.buffer import flush_task_samples
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai.log import ProvenanceData
+    from inspect_ai.log._config_update import ConfigUpdate
+
+    recorder = recorder_type(str(tmp_path))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.log_start(EvalPlan())
+
+    async def fail_finish(*args: Any, **kwargs: Any) -> EvalLog:
+        raise OSError("final write failed")
+
+    monkeypatch.setattr(recorder, "log_finish", fail_finish)
+    state = register_eval(logger.eval.eval_id, 1, task_id="discarded-task", live=logger)
+    live = state.live
+    assert live is not None
+    try:
+        async with _running_stale_flush_timer(logger, start=False):
+            await logger.complete_sample(_sample(), flush=True)
+            with pytest.raises(OSError, match="final write failed"):
+                await logger.log_finish("error", EvalStats())
+            assert logger.flush_pending
+            await logger.discard(keep_destination=True)
+            assert state.live is None
+            assert await flush_task_samples("discarded-task") is None
+            assert await live.flush_samples() == 0
+            assert not await live.log_config_update(
+                ConfigUpdate(
+                    changes=[], scope="task", provenance=ProvenanceData(author="test")
+                )
+            )
+            assert not logger.flush_pending
+            assert logger._stale_flush_cancel_scope is None
+            assert not logger._stale_flush_stops
+            assert not logger.finished
+            assert not recorder.data
+            assert Path(logger.location).exists()
+    finally:
+        clear_all_eval_states()
 
 
 async def test_task_logger_discard_contains_recorder_failures() -> None:

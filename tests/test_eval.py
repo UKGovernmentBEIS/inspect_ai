@@ -684,13 +684,47 @@ def test_unserializable_score_metadata_does_not_abort_eval(
     assert reduced.metadata is None
 
 
+@pytest.mark.parametrize("sample_id", ["²", "①"])
+async def test_json_retry_preserves_unicode_sample_id(
+    sample_id: str, tmp_path: Path
+) -> None:
+    attempts = 0
+
+    @solver
+    def fail_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("first attempt fails")
+            return state
+
+        return solve
+
+    logs = await eval_async(
+        Task(dataset=[Sample(id=sample_id, input="x")], solver=fail_once()),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        log_format="json",
+        task_retry_attempts=1,
+        ctl_server=False,
+    )
+    assert attempts == 2
+    assert logs[0].status == "success"
+    assert logs[0].samples is not None
+    (sample,) = logs[0].samples
+    assert sample.id == sample_id
+    assert sample.error_retries is not None and len(sample.error_retries) == 1
+    assert "first attempt fails" in sample.error_retries[0].message
+
+
 @pytest.mark.parametrize("failure_stage", ["seed", "checkpoint", "start", "flush"])
 @pytest.mark.parametrize("log_format", ["eval", "json"])
-@pytest.mark.parametrize("cancel", [False, True])
-async def test_terminal_retry_startup_closes_seed_source(
+@pytest.mark.parametrize("failure_mode", ["error", "cancel", "debug"])
+async def test_terminal_retry_startup_releases_recorder(
     failure_stage: str,
     log_format: Literal["eval", "json"],
-    cancel: bool,
+    failure_mode: str,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -698,6 +732,8 @@ async def test_terminal_retry_startup_closes_seed_source(
     import inspect_ai.log._samples as samples_module
     from inspect_ai._eval.task import PreviousTask
     from inspect_ai.log import EvalSample, EvalSpec, list_eval_logs, read_eval_log_async
+    from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
+    from inspect_ai.log._recorders.json import JSONRecorder
     from inspect_ai.log._recorders.recorder import Recorder, SeedSamples
     from inspect_ai.util import CheckpointConfig, TurnInterval
     from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -708,10 +744,18 @@ async def test_terminal_retry_startup_closes_seed_source(
     loaded: list[SeedSamples] = []
     closed: list[SeedSamples] = []
     failed_loggers: list[TaskLogger] = []
+    entries: list[ZipLogFile | JSONRecorder.JSONLogFile] = []
     load = SeedSamples.load
     close = SeedSamples.close
     seed = Recorder.log_seed_samples
     start = TaskLogger.log_start
+    init = TaskLogger.init
+
+    async def track_init(logger: TaskLogger) -> None:
+        await init(logger)
+        failed_loggers.append(logger)
+        assert isinstance(logger.recorder, EvalRecorder | JSONRecorder)
+        entries.extend(logger.recorder.data.values())
 
     async def track_load(source: SeedSamples, prior: str | list[EvalSample]) -> None:
         await load(source, prior)
@@ -724,7 +768,7 @@ async def test_terminal_retry_startup_closes_seed_source(
 
     async def fail_startup() -> None:
         assert loaded
-        if cancel:
+        if failure_mode == "cancel":
             scope.cancel()
             await anyio.lowlevel.checkpoint()
         raise OSError("simulated terminal startup failure")
@@ -746,10 +790,8 @@ async def test_terminal_retry_startup_closes_seed_source(
             await fail_startup()
 
     async def start_and_fail(logger: TaskLogger, *args: Any, **kwargs: Any) -> None:
-        if logger.prior_seeded:
-            failed_loggers.append(logger)
-            if failure_stage == "start":
-                await fail_startup()
+        if logger.prior_seeded and failure_stage == "start":
+            await fail_startup()
         await start(logger, *args, **kwargs)
         if logger.prior_seeded and failure_stage == "flush":
             await fail_startup()
@@ -763,7 +805,7 @@ async def test_terminal_retry_startup_closes_seed_source(
 
     def retry_startup_task() -> Task:
         return Task(
-            dataset=[Sample(id=1, input="x", target="y")],
+            dataset=[Sample(id=1, input="x" * 100_000, target="y")],
             solver=fail_sample(),
             checkpoint=CheckpointConfig(trigger=TurnInterval(every=1)),
         )
@@ -780,10 +822,13 @@ async def test_terminal_retry_startup_closes_seed_source(
             model="mockllm/model",
             log_dir=str(tmp_path),
             log_format="json",
+            ctl_server=False,
         )
     )[0]
     assert prior.location is not None
-    with anyio.CancelScope() as scope:
+    monkeypatch.setattr(TaskLogger, "init", track_init)
+
+    async def retry() -> None:
         result = await eval_async(
             PreviousTask(
                 id=prior.eval.task_id,
@@ -797,19 +842,37 @@ async def test_terminal_retry_startup_closes_seed_source(
             model="mockllm/model",
             log_dir=str(tmp_path),
             log_format=log_format,
+            debug_errors=failure_mode == "debug",
+            ctl_server=False,
         )
-        if not cancel:
+        if failure_mode == "error":
             assert result[0].status == "error"
             assert result[0].error is not None
             assert "simulated terminal startup failure" in result[0].error.message
 
-    assert scope.cancel_called == cancel
+    with anyio.CancelScope() as scope:
+        if failure_mode == "debug":
+            error_type = RuntimeError if failure_stage == "checkpoint" else OSError
+            with pytest.raises(error_type, match="simulated terminal startup failure"):
+                await retry()
+        else:
+            await retry()
+
+    assert scope.cancel_called == (failure_mode == "cancel")
     assert len(loaded) == 1
     assert closed == loaded
     assert not loaded[0]._samples and not loaded[0].keys
     assert loaded[0]._reader is None
+    assert len(failed_loggers) == len(entries) == 1
     for logger in failed_loggers:
+        assert isinstance(logger.recorder, EvalRecorder | JSONRecorder)
         assert not logger.recorder._seed_sources
+        assert not logger.recorder.data
+        assert logger.buffer_db is None
+    for entry in entries:
+        if isinstance(entry, ZipLogFile):
+            assert entry._temp_file.closed
+            assert entry._zip is None
     logs = list_eval_logs(str(tmp_path))
     assert len(logs) == (2 if failure_stage == "flush" else 1)
     if failure_stage == "flush":

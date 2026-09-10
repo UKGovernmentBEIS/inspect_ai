@@ -364,6 +364,7 @@ class TaskLogger:
         self._stale_flush_stops: set[anyio.Event] = set()
         self._stale_flush_generation = 0
         self._stale_flush_interval = _STALE_FLUSH_INTERVAL
+        self._discarded = False
 
     async def init(self) -> None:
         self._bump_created_past_existing_logs()
@@ -408,6 +409,7 @@ class TaskLogger:
         self._cancelled_sample_keys = set()
         self.flush_pending = []
         self._finished = False
+        self._discarded = False
         # the retry attempt re-enters task_run, which seeds its fresh log
         self._prior_seeded = False
         self._prior_sample_source = None
@@ -889,14 +891,13 @@ class TaskLogger:
         Shared by every flush path — the buffer-full flush and the stale-flush
         timer (which ignore the return) and the on-demand ``flush_samples()``.
         Serialized via :attr:`_flush_lock`; a no-op returning 0 once the eval
-        has finished (``log_finish`` has written everything and torn the
-        recorder down, so reaching into it would raise) or when nothing is
-        pending.
+        has finished or been discarded (the recorder has been torn down,
+        so reaching into it would raise) or when nothing is pending.
         """
         reschedule_stale_flush = False
         flushed = 0
         async with self._flush_lock:
-            if self._finished:
+            if self._finished or self._discarded:
                 return 0
             async with self._flush_pending_lock:
                 pending = list(self.flush_pending)
@@ -1040,7 +1041,7 @@ class TaskLogger:
         ``EvalLog.config_updates``). Missing ``previous`` values are filled
         from this log's launch config before recording, so each affected log
         reports its own honest "before". Returns ``False`` (recording
-        nothing) once ``log_finish`` has torn the recorder down — a finished
+        nothing) once finish or discard has torn the recorder down — a finished
         log's record is complete, and under ``--ctl-server=keep`` the logger
         stays attached to the eval's state after finishing.
 
@@ -1050,7 +1051,7 @@ class TaskLogger:
         from inspect_ai.log._config_update import fill_previous_from_launch
 
         async with self._flush_lock:
-            if self._finished:
+            if self._finished or self._discarded:
                 return False
             update = fill_previous_from_launch(update, self.eval)
             await self.recorder.log_config_update(self.eval, update)
@@ -1067,7 +1068,7 @@ class TaskLogger:
         async with self._flush_pending_lock:
             # never arm once log_finish() has begun finalizing — it has (or is
             # about to) clear pending and tear down, so a timer here is stale
-            if self._finished:
+            if self._finished or self._discarded:
                 return
             if generation is not None and generation != self._stale_flush_generation:
                 return
@@ -1132,7 +1133,7 @@ class TaskLogger:
         file is a stray: a ``started`` log that would otherwise win the
         end-of-run retry-cleanup sweep by mtime, deleting the errored
         attempt's log that must stand as the task's final state. For an
-        attempt whose final write failed (:meth:`reinit`) the file is kept:
+        attempt whose startup or final write failed the file is kept:
         it holds every sample flushed so far, which the next attempt seeds
         from — sample progress outranks the header it lacks.
 
@@ -1144,7 +1145,17 @@ class TaskLogger:
         would have left anyway. Each step is contained on its own so a
         failed buffer-db removal in ``cleanup`` doesn't skip the recorder
         drop — the entry leak is the very thing this method exists to close.
+        Detaches control handlers and quiesces already captured flush/config
+        calls before dropping their recorder. A discarded log is not marked
+        finished: its destination may never have been written.
         """
+        from inspect_ai._control.eval_state import detach_eval_live
+
+        detach_eval_live(self.eval.eval_id)
+        async with self._flush_lock:
+            self._discarded = True
+            async with self._flush_pending_lock:
+                self.flush_pending = []
         try:
             await self.cleanup()
         except Exception as ex:

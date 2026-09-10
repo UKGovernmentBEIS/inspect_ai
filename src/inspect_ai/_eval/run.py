@@ -792,7 +792,15 @@ async def run_task_retry_attempts(
                 async def run_one(item: PendingTask) -> None:
                     nonlocal in_flight, cancelled
                     options = item.options
-                    run = await _run_task(options, can_retry=item.retries_remaining > 0)
+                    try:
+                        run = await _run_task(
+                            options, can_retry=item.retries_remaining > 0
+                        )
+                    except BaseException:
+                        with anyio.CancelScope(shield=True):
+                            if not options.logger.finished:
+                                await options.logger.discard(keep_destination=True)
+                        raise
                     result = run.log
 
                     # a drain/cancel abandoned this queued retry between the
@@ -946,6 +954,13 @@ async def run_task_retry_attempts(
                         # was already cleared by the directive; this is a no-op
                         # then)
                         clear_eval_retry_pending(result.eval.eval_id)
+
+                    # Retry source selection needs the recorder's write state.
+                    # Once no retry follows, release any unfinished entry even
+                    # if startup failed after seeding an entire prior log.
+                    if not retry and not options.logger.finished:
+                        with anyio.CancelScope(shield=True):
+                            await options.logger.discard(keep_destination=True)
 
                     # finalize atomically (no awaits below) so the dispatcher sees
                     # a consistent (in_flight, pending) snapshot

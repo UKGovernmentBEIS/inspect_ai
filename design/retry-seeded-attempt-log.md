@@ -274,9 +274,10 @@ keys and reads their bodies through the indexed reader in batches of eight,
 bounding both concurrent reads and retained source bodies. JSON sources keep
 the existing whole-log reader and exact-first normalized ID matching; a
 seeded lookup retains that matching in either destination format, including
-padded numeric IDs, without merging distinct exact IDs. A re-run under a
-different matched ID supersedes the original record only after every planned
-ID sharing that record has completed. An unknown dynamic plan retains it
+padded numeric IDs, without merging distinct exact IDs. IDs that cannot be
+normalized numerically, such as superscript digits, remain exactly addressable.
+A re-run under a different matched ID supersedes the original record only
+after every planned ID sharing that record has completed. An unknown dynamic plan retains it
 until natural success; a later limited admission restores a pruned alias
 from the cached source before dispatch. JSON retry lookups use independent
 copies of the cached original bodies, restricted to admitted prior records,
@@ -289,11 +290,15 @@ one prior source per attempt: JSON bodies and their exact-first index, or Eval
 keys and a shared ZIP reader. Admissions resolve only selected keys against
 that index and retain at most eight selected Eval bodies at once. Finish and discard
 release the cache and its filesystem clients; shielded task-exit cleanup also
-releases them after terminal startup failures without removing any written
-destination. Failed initial reads close their clients before propagating the
-failure. `EvalRecorder`
-overrides for a `.eval` prior with `ZipLogFile.seed_from_prior_log` (copy
-the prior file into a fresh temp zip, open in append mode, prune, rewrite
+releases them after terminal startup failures. Once the dispatcher decides no
+retry follows, it discards the unfinished recorder entry and its sample data,
+temporary ZIP and buffer database without removing any written destination.
+Discard also detaches live control handlers and guards calls already holding
+the logger, so flushes and config updates cannot reach the removed entry.
+Exceptions escaping the task also trigger this cleanup before propagating.
+Failed initial reads close their clients before propagating the failure.
+`EvalRecorder` overrides for a `.eval` prior with `ZipLogFile.seed_from_prior_log`
+(copy the prior file into a fresh temp zip, open in append mode, prune, rewrite
 the summaries journal); a `seed` field on `EvalSampleSource` that carries
 the prior location (or samples) once the eligibility checks pass so
 `task_run` can seed the log before `log_start`; and a **compaction** step at
