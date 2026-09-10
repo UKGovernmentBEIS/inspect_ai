@@ -451,9 +451,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
         The download counterpart of :meth:`write_file_streaming`, for a
         destination that is a file object rather than a path (an anonymous
-        temp file). A local source is one ``copyfileobj`` in a worker thread
+        temp file). A local source is copied in one worker thread
         (a thread hop per chunk through an async file would cost more than
-        the copy). An S3 source streams into ``dest`` chunk by chunk: under
+        the copy), with cancellation checks between chunks. An S3 source
+        streams into ``dest`` chunk by chunk: under
         trio the synchronous response is copied in a worker thread, with
         cancellation checks between chunks; under asyncio a byte stream
         from :meth:`read_file_bytes` is written inline (a buffered
@@ -1404,4 +1405,9 @@ _READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB
 def _copy_local_file_into(path: str, dest: BinaryIO, chunk_size: int) -> None:
     """Blocking local copy for ``read_file_into`` — run in a worker thread."""
     with open(path, "rb") as src:
-        shutil.copyfileobj(src, dest, length=chunk_size)
+        while True:
+            anyio.from_thread.check_cancelled()
+            chunk = src.read(chunk_size)
+            if not chunk:
+                break
+            dest.write(chunk)

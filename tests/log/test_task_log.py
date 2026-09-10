@@ -1061,6 +1061,102 @@ async def test_json_seed_yields_between_samples(
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+async def test_memory_seed_does_not_normalize_padded_ids(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder], tmp_path: Path
+) -> None:
+    recorder = recorder_type(str(tmp_path))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    prior = [_prior_samples()[0].model_copy(update={"id": "001"})]
+    await logger.seed_from_prior(prior, keep={(1, 1)})
+    assert await recorder.sample_summaries(logger.eval) == []
+    assert await logger.read_prior_sample(1, 1) is None
+    await recorder.log_discard(logger.eval)
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("keep", [None, {(1, 1)}])
+@pytest.mark.parametrize("errored", [False, True])
+async def test_json_seed_preserves_normalized_prior_lookup(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    keep: set[tuple[str | int, int]] | None,
+    errored: bool,
+    tmp_path: Path,
+) -> None:
+    sample = _prior_samples()[1 if errored else 0].model_copy(update={"id": "001"})
+    prior = await _write_prior_log(JSONRecorder(str(tmp_path / "prior")), [sample])
+    expected = await read_eval_log_sample_async(prior, 1, 1)
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep)
+
+    reused = await logger.read_prior_sample(1, 1)
+    assert reused is not None
+    assert reused.id == expected.id == "001"
+    assert reused.input == expected.input
+    assert reused.error == expected.error
+    assert await logger.read_prior_sample(1, 2) is None
+    assert await logger.sample_summaries() == []
+
+    history: list[EvalRetryError] = []
+    if errored:
+        from inspect_ai._eval.task.run import _seed_error_retries
+
+        history = _seed_error_retries(reused)
+        assert expected.error is not None
+        assert history and history[-1].message == expected.error.message
+        await logger.complete_sample(
+            EvalSample(id=1, epoch=1, input="retry", target="a", error_retries=history),
+            flush=False,
+        )
+    else:
+        logger.note_reused_sample(reused)
+    assert not logger._seeded_pending
+    await logger.log_start(EvalPlan())
+    await logger.log_finish("success", EvalStats(), prune_unplanned=True)
+    final = await read_eval_log_async(logger.location)
+    assert final.samples is not None and len(final.samples) == 1
+    assert final.samples[0].id == (1 if errored else "001")
+    if errored:
+        assert final.samples[0].error_retries == history
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("keep", [None, {(1, 1)}, {("001", 1)}, {(1, 1), ("001", 1)}])
+async def test_json_seed_prefers_distinct_exact_ids(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    keep: set[tuple[str | int, int]] | None,
+    tmp_path: Path,
+) -> None:
+    samples = [
+        _prior_samples()[0].model_copy(update={"id": "001", "input": "padded"}),
+        _prior_samples()[0].model_copy(update={"input": "integer"}),
+    ]
+    prior = await _write_prior_log(JSONRecorder(str(tmp_path / "prior")), samples)
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep)
+    expected_keys: set[tuple[str | int, int]] = (
+        keep if keep is not None else {(1, 1), ("001", 1)}
+    )
+    assert {
+        (s.id, s.epoch) for s in await recorder.sample_summaries(logger.eval) or []
+    } == expected_keys
+    for id, epoch in expected_keys:
+        expected = await read_eval_log_sample_async(prior, id, epoch)
+        actual = await logger.read_prior_sample(id, epoch)
+        assert actual is not None and actual.input == expected.input
+        logger.note_reused_sample(actual)
+    await logger.log_start(EvalPlan())
+    await logger.log_finish("success", EvalStats(), prune_unplanned=True)
+    final = await read_eval_log_async(logger.location)
+    assert final.samples is not None
+    assert {(s.id, s.epoch) for s in final.samples} == expected_keys
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 async def test_task_logger_seed_from_prior_log(
     recorder_type: type, tmp_path: Path
 ) -> None:

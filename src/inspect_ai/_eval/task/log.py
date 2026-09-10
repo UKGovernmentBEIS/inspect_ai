@@ -49,7 +49,7 @@ from inspect_ai.log._log import (
 )
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
-from inspect_ai.log._recorders.recorder import SampleRecordKey
+from inspect_ai.log._recorders.recorder import SampleKeyLookup, SampleRecordKey
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import (
     GenerateConfig,
@@ -319,6 +319,7 @@ class TaskLogger:
         # attempt's sample records (see seed_from_prior); the limit bounds the
         # sweep's read-back of those records (see read_prior_sample)
         self._prior_seeded = False
+        self._prior_sample_keys: SampleKeyLookup | None = None
         self._prior_read_limit = anyio.Semaphore(_PRIOR_READ_CONCURRENCY)
         # seeded (id, epoch) keys the reuse sweep has not yet resolved: the
         # records sample_summaries withholds from the control channel (see
@@ -398,6 +399,7 @@ class TaskLogger:
         self._finished = False
         # the retry attempt re-enters task_run, which seeds its fresh log
         self._prior_seeded = False
+        self._prior_sample_keys = None
         self._seeded_pending = set()
         # the retry attempt gets a fresh log, which must re-record the run's
         # full accumulated process-scoped updates in init() below
@@ -539,6 +541,10 @@ class TaskLogger:
         self._prior_seeded = True
         seeded = await self.recorder.sample_summaries(self.eval)
         self._seeded_pending = {_seeded_key(s.id, s.epoch) for s in seeded or []}
+        if isinstance(prior, str) and prior.endswith(".json"):
+            self._prior_sample_keys = SampleKeyLookup(
+                (s.id, s.epoch) for s in seeded or []
+            )
 
     async def read_prior_sample(self, id: str | int, epoch: int) -> EvalSample | None:
         """The seeded prior record for ``(id, epoch)``, read from the recorder, or None.
@@ -550,8 +556,15 @@ class TaskLogger:
         the recorder serializes them on its own lock, and without the bound
         every other lock user (a control-channel listing, a live completion)
         would queue behind the whole sweep.
+        JSON sources retain the original reader's exact-first normalized ID
+        lookup even when this attempt writes Eval format.
         """
         async with self._prior_read_limit:
+            if self._prior_sample_keys is not None:
+                key = self._prior_sample_keys.get(id, epoch)
+                if key is None:
+                    return None
+                id, epoch = key.sample_id, key.epoch
             return await self.recorder.buffered_sample(self.eval, id, epoch)
 
     def note_reused_sample(self, sample: EvalSample) -> None:
@@ -679,6 +692,18 @@ class TaskLogger:
         await self._finalize_sample(sample, flush=flush)
 
     async def _finalize_sample(self, sample: EvalSample, *, flush: bool) -> None:
+        if self._prior_sample_keys is not None:
+            prior_key = self._prior_sample_keys.get(sample.id, sample.epoch)
+            if prior_key is not None:
+                prior_record = _seeded_key(prior_key.sample_id, prior_key.epoch)
+                if (
+                    prior_record != _seeded_key(sample.id, sample.epoch)
+                    and prior_record in self._seeded_pending
+                ):
+                    # A normalized JSON match can re-run under a different
+                    # member name; its old error must still be superseded.
+                    await self.recorder.log_prune(self.eval, {prior_record})
+                    self._seeded_pending.discard(prior_record)
         if self._buffer_db is not None:
             self._buffer_db.complete_sample(
                 sample.summary(), sample_metadata=sample.metadata

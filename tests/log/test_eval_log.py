@@ -1721,7 +1721,7 @@ async def test_eval_recorder_seed_copies_prunes_and_supersedes(tmp_path) -> None
     from inspect_ai.log._log import EvalPlan, EvalStats
     from inspect_ai.log._recorders.eval import EvalRecorder
 
-    # sample 3 is large so pruning it leaves enough dead bytes to compact
+    # A restricted seed physically removes sample 3 before its first flush.
     big = os.urandom(200_000).hex()
     prior = await _write_seed_prior(
         tmp_path / "prior",
@@ -1740,11 +1740,10 @@ async def test_eval_recorder_seed_copies_prunes_and_supersedes(tmp_path) -> None
 
     zip_log = recorder.data[recorder._log_file_key(spec)]
     assert zip_log._zip is not None
-    # the prior log's member bytes were copied verbatim (no end record written
-    # over them); only its central directory is rewritten, as any append is
-    prior_members_end = ZipFile(io.BytesIO(prior_bytes)).start_dir
-    zip_log._temp_file.seek(0)
-    assert zip_log._temp_file.read(prior_members_end) == prior_bytes[:prior_members_end]
+    with ZipFile(io.BytesIO(prior_bytes)) as prior_zip:
+        assert zip_log._zip.read("samples/1_epoch_1.json") == prior_zip.read(
+            "samples/1_epoch_1.json"
+        )
     names = set(zip_log._zip.NameToInfo)
     assert {"samples/1_epoch_1.json", "samples/2_epoch_1.json"} <= names
     assert "samples/3_epoch_1.json" not in names
@@ -1772,6 +1771,7 @@ async def test_eval_recorder_seed_copies_prunes_and_supersedes(tmp_path) -> None
     header = await read_eval_log_async(location, header_only=True)
     assert header.eval.eval_id == "retry-attempt"
     assert header.status == "started"
+    assert Path(local_path(location)).stat().st_size < len(prior_bytes) // 2
 
     # a re-run supersedes the seeded record for every reader
     await recorder.log_sample(spec, _seed_sample(2, "two again"))
@@ -1780,11 +1780,10 @@ async def test_eval_recorder_seed_copies_prunes_and_supersedes(tmp_path) -> None
     assert rerun is not None and rerun.input == "two again" and rerun.error is None
     assert (await read_eval_log_sample_async(location, 2, 1)).input == "two again"
 
-    # a successful finish compacts the dead bytes away and round-trips
+    # The final log round-trips after the re-run.
     await recorder.log_finish(spec, "success", EvalStats(), None, None)
     with ZipFile(local_path(location)) as zf:
         member_names = zf.namelist()
-        assert len(member_names) == len(set(member_names))
         assert "samples/3_epoch_1.json" not in member_names
     assert Path(local_path(location)).stat().st_size < len(prior_bytes)
     final = await read_eval_log_async(location)
@@ -1793,6 +1792,152 @@ async def test_eval_recorder_seed_copies_prunes_and_supersedes(tmp_path) -> None
     assert {(s.id, s.input) for s in final.samples} == {(1, "one"), (2, "two again")}
     summaries = await read_eval_log_sample_summaries_async(location)
     assert {s.id for s in summaries} == {1, 2}
+
+
+@pytest.mark.parametrize("keep", [{(1, 1)}, {(1, 1), (2, 1)}])
+async def test_restricted_seed_physically_excludes_private_payloads(
+    tmp_path: Path, keep: set[tuple[str | int, int]]
+) -> None:
+    from zipfile import ZIP_STORED
+
+    from inspect_ai.log._log import EvalPlan, EvalStats
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    prior = await _write_seed_prior(
+        tmp_path / "prior", [_seed_sample(1, "one"), _seed_sample(2, "two")]
+    )
+    live_secret = "excluded-live-transcript-secret"
+    dead_secret = "inherited-unreferenced-transcript-secret"
+    with ZipFile(local_path(prior), "a", compression=ZIP_STORED) as archive:
+        with pytest.warns(UserWarning, match="Duplicate name"):
+            archive.writestr(
+                "samples/2_epoch_1.json", _seed_sample(2, live_secret).model_dump_json()
+            )
+        archive.writestr(
+            "samples/3_epoch_1.json", _seed_sample(3, dead_secret).model_dump_json()
+        )
+        archive.filelist = [
+            info
+            for info in archive.filelist
+            if info.filename != "samples/3_epoch_1.json"
+        ]
+        archive.NameToInfo.pop("samples/3_epoch_1.json")
+    original = Path(local_path(prior)).read_bytes()
+    assert live_secret.encode() in original and dead_secret.encode() in original
+
+    spec = _seed_spec("restricted")
+    recorder = EvalRecorder(str(tmp_path / "retry"))
+    location = await recorder.log_init(spec)
+    await recorder.log_seed(spec, prior, keep=keep)
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+
+    def check_destination() -> None:
+        raw = Path(local_path(location)).read_bytes()
+        assert dead_secret.encode() not in raw
+        if (2, 1) not in keep:
+            assert live_secret.encode() not in raw
+        with ZipFile(io.BytesIO(raw)) as archive:
+            assert {
+                name for name in archive.namelist() if name.startswith("samples/")
+            } == {f"samples/{id}_epoch_{epoch}.json" for id, epoch in keep}
+
+    check_destination()
+    await recorder.log_finish(spec, "success", EvalStats(), None, None)
+    check_destination()
+    assert Path(local_path(prior)).read_bytes() == original
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_restricted_seed_rewrite_failure_keeps_destination_unwritten(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancel: bool
+) -> None:
+    import inspect_ai.log._recorders.eval as eval_module
+
+    prior = await _write_seed_prior(tmp_path / "prior", [_seed_sample(1, "one")])
+    recorder = eval_module.EvalRecorder(str(tmp_path / "retry"))
+    spec = _seed_spec("rewrite-failure")
+    location = await recorder.log_init(spec)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    original_file = zip_log._temp_file
+    temporary_files: list[BinaryIO] = []
+    temporary_file = tempfile.TemporaryFile
+    compact = eval_module._compact_zip
+
+    def track_temporary_file() -> BinaryIO:
+        result = temporary_file()
+        temporary_files.append(result)
+        return result
+
+    def fail_rewrite(src: BinaryIO, live: frozenset[str]) -> BinaryIO:
+        if cancel:
+            anyio.from_thread.run_sync(scope.cancel)
+            return compact(src, live)
+        raise OSError("restricted rewrite failed")
+
+    monkeypatch.setattr(tempfile, "TemporaryFile", track_temporary_file)
+    monkeypatch.setattr(eval_module, "_compact_zip", fail_rewrite)
+    with anyio.CancelScope() as scope:
+        if cancel:
+            await recorder.log_seed(spec, prior, keep={(1, 1)})
+        else:
+            with pytest.raises(OSError, match="restricted rewrite failed"):
+                await recorder.log_seed(spec, prior, keep={(1, 1)})
+    assert scope.cancelled_caught == cancel
+    assert temporary_files and all(f.closed for f in temporary_files)
+    assert zip_log._temp_file is original_file and not original_file.closed
+    assert not recorder.destination_written(spec)
+    assert not Path(local_path(location)).exists()
+    await recorder.log_discard(spec)
+
+
+@pytest.mark.parametrize("keep", [{(7, 1), (999, 1)}, None, set()])
+async def test_cross_format_seed_reads_only_selected_bodies_in_batches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    keep: set[tuple[str | int, int]] | None,
+) -> None:
+    from inspect_ai._util.async_zip import AsyncZipReader
+    from inspect_ai.log._recorders.json import JSONRecorder
+
+    samples = [_seed_sample(i, f"sample {i}") for i in range(40)]
+    prior = await _write_seed_prior(tmp_path / "prior", samples)
+    recorder = JSONRecorder(str(tmp_path / "retry"))
+    spec = _seed_spec("cross-format")
+    await recorder.log_init(spec)
+    read_ids: list[int] = []
+    logged = 0
+    max_ahead = 0
+    original_read = AsyncZipReader.read_member_fully
+    original_log = recorder.log_sample
+
+    async def read_member(reader: AsyncZipReader, name: str) -> bytes:
+        nonlocal max_ahead
+        if name.startswith("samples/"):
+            read_ids.append(int(name.split("/")[1].split("_epoch_")[0]))
+            max_ahead = max(max_ahead, len(read_ids) - logged)
+        return await original_read(reader, name)
+
+    async def log_sample(
+        eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
+        nonlocal logged
+        await original_log(eval, sample, write_through=write_through)
+        logged += 1
+
+    monkeypatch.setattr(AsyncZipReader, "read_member_fully", read_member)
+    monkeypatch.setattr(recorder, "log_sample", log_sample)
+    await recorder.log_seed(spec, prior, keep)
+    expected = (
+        {id for id, epoch in keep if id in range(40)}
+        if keep is not None
+        else set(range(40))
+    )
+    assert set(read_ids) == expected
+    assert len(read_ids) == logged == len(expected)
+    assert 0 <= max_ahead <= 8
+    assert {s.id for s in await recorder.sample_summaries(spec) or []} == expected
+    await recorder.log_discard(spec)
 
 
 async def test_eval_recorder_seed_from_started_prior_reads_journal(tmp_path) -> None:
@@ -1939,8 +2084,11 @@ async def test_eval_recorder_compacts_dead_bytes_inherited_from_prior(
     second_spec = _seed_spec("second-attempt")
     second_recorder = EvalRecorder(str(tmp_path / "second"))
     second = await second_recorder.log_init(second_spec)
-    await second_recorder.log_seed(second_spec, first, keep={(1, 1), (2, 1)})
+    await second_recorder.log_seed(second_spec, first, keep=None)
     await second_recorder.log_start(second_spec, EvalPlan())
+    from inspect_ai.log._recorders.recorder import SampleRecordKey
+
+    await second_recorder.log_prune(second_spec, {SampleRecordKey("3", 1)})
     await second_recorder.log_finish(second_spec, "error", EvalStats(), None, None)
     second_size = Path(local_path(second)).stat().st_size
     assert second_size > 150_000
@@ -1948,7 +2096,7 @@ async def test_eval_recorder_compacts_dead_bytes_inherited_from_prior(
     third_spec = _seed_spec("third-attempt")
     third_recorder = EvalRecorder(str(tmp_path / "third"))
     third = await third_recorder.log_init(third_spec)
-    await third_recorder.log_seed(third_spec, second, keep={(1, 1), (2, 1)})
+    await third_recorder.log_seed(third_spec, second, keep=None)
     await third_recorder.log_start(third_spec, EvalPlan())
     await third_recorder.log_finish(third_spec, "success", EvalStats(), None, None)
 

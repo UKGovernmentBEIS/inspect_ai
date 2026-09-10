@@ -31,7 +31,7 @@ S3_BUCKET = "s3://test-bucket"
 # Tests for read_file_into(): copy a file into an open file object
 # =============================================================================
 async def test_read_file_into_local_file(tmp_path: Path) -> None:
-    # local branch: one copyfileobj in a worker thread, honouring chunk_size
+    # local branch: one worker thread, honouring chunk_size
     payload = os.urandom(3 * 1024 + 100)
     source = tmp_path / "source.bin"
     source.write_bytes(payload)
@@ -41,6 +41,58 @@ async def test_read_file_into_local_file(tmp_path: Path) -> None:
             await fs.read_file_into(str(source), dest, chunk_size=1024)
         dest.seek(0)
         assert dest.read() == payload
+
+
+@pytest.mark.parametrize("as_uri", [False, True])
+async def test_read_file_into_local_cancellation_joins_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, as_uri: bool
+) -> None:
+    source = tmp_path / "source file.bin"
+    source.write_bytes(b"x" * (33 * 1024))
+    writing = anyio.Event()
+    release = threading.Event()
+    exited = False
+    cancelled = False
+    writes = 0
+
+    with tempfile.TemporaryFile() as dest:
+        original_write = dest.write
+
+        def write(chunk: bytes) -> int:
+            nonlocal writes, exited
+            writes += 1
+            anyio.from_thread.run_sync(writing.set)
+            assert release.wait(timeout=10)
+            try:
+                return original_write(chunk)
+            finally:
+                exited = True
+
+        monkeypatch.setattr(dest, "write", write)
+        async with AsyncFilesystem() as fs:
+
+            async def copy() -> None:
+                nonlocal cancelled
+                try:
+                    await fs.read_file_into(
+                        source.as_uri() if as_uri else str(source), dest, 1024
+                    )
+                except anyio.get_cancelled_exc_class():
+                    cancelled = True
+                    assert exited and not dest.closed
+                    raise
+
+            async with anyio.create_task_group() as group:
+                group.start_soon(copy)
+                try:
+                    await writing.wait()
+                    group.cancel_scope.cancel()
+                finally:
+                    release.set()
+        assert cancelled and exited
+        assert writes == 1
+        assert dest.tell() == 1024
+        assert not dest.closed
 
 
 async def test_read_file_into_missing_local_file_raises(tmp_path: Path) -> None:

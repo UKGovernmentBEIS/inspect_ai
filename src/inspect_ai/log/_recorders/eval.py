@@ -1493,15 +1493,17 @@ class ZipLogFile:
         """Fill the temp zip from a prior attempt's log before this log starts.
 
         Copies the prior ``.eval`` as a file (one streamed download for a
-        remote log), so every prior sample record is in this log byte for
-        byte before any of the attempt's own work runs — the invariant that
+        remote log), so every selected prior sample record is in this log
+        before any of the attempt's own work runs — the invariant that
         makes any finish of the attempt write a complete log (see
         ``design/retry-seeded-attempt-log.md``). Then prunes the prior's
         metadata members and the sample members outside ``keep`` from the
-        central directory (dead bytes, reclaimed by :meth:`compact` at a
-        successful finish), rewrites the summaries journal to list exactly
-        the kept samples (one member, built in a worker thread), and
-        re-journals any config updates recorded since :meth:`init`.
+        central directory. Restricted seeds first rebuild the archive with
+        only the kept sample bodies, physically removing excluded payloads
+        and inherited dead bytes before any destination write. Rewrites the
+        summaries journal to list exactly the kept samples (one member, built
+        in a worker thread), and re-journals any config updates recorded since
+        :meth:`init`.
 
         ``keep`` restricts the seed to the attempt's planned ``(id, epoch)``
         keys; ``None`` keeps every prior sample (a dynamically fed task has no
@@ -1531,6 +1533,20 @@ class ZipLogFile:
         try:
             await _copy_prior_log(prior_log, seeded)
             summaries = await anyio.to_thread.run_sync(_read_prior_summaries, seeded)
+            if keep is not None:
+                keep_names = {_sample_filename(id, epoch) for id, epoch in keep}
+                summaries = [
+                    s
+                    for s in summaries
+                    if _sample_filename(s.id, s.epoch) in keep_names
+                ]
+                restricted = await anyio.to_thread.run_sync(
+                    _compact_zip,
+                    seeded,
+                    frozenset(_sample_filename(s.id, s.epoch) for s in summaries),
+                )
+                seeded.close()
+                seeded = restricted
         except BaseException:
             seeded.close()
             raise
@@ -1547,13 +1563,6 @@ class ZipLogFile:
             self._open()
             assert self._zip is not None
 
-            if keep is not None:
-                keep_names = {_sample_filename(id, epoch) for id, epoch in keep}
-                summaries = [
-                    s
-                    for s in summaries
-                    if _sample_filename(s.id, s.epoch) in keep_names
-                ]
             kept_names = {_sample_filename(s.id, s.epoch) for s in summaries}
             self._prune_prior_members(kept_names)
 
@@ -1589,8 +1598,9 @@ class ZipLogFile:
         ``reductions.json``, ``start.json``, journaled config updates and
         summaries) — an in-progress read of this log would otherwise return
         the prior attempt's header and eval_id — and every sample member not
-        in ``kept_sample_names``. Bytes stay in the file unreferenced (the
-        idiom ``_replace_eval_header_in_place`` uses) until :meth:`compact`
+        in ``kept_sample_names``. Restricted seeds have already physically
+        removed these members. For unrestricted seeds, bytes stay unreferenced
+        (the idiom ``_replace_eval_header_in_place`` uses) until :meth:`compact`
         measures and reclaims them. Caller holds ``_lock``.
         """
         assert self._zip is not None

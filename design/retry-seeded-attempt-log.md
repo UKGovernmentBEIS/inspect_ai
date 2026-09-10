@@ -151,9 +151,12 @@ identity (one log file with its own `eval_id` per attempt).
 Before the attempt does any work, copy the prior `.eval` **as a file** into
 the new attempt's `ZipLogFile._temp_file` — one streamed download for S3/GCS,
 one local file copy otherwise — and open it in append mode. The attempt then
-starts with every prior sample entry already in its log, byte for byte, with
-zero per-sample reads, no JSON parsing, no condense, no recompression. Its
-own work appends on top:
+starts with every selected prior sample entry already in its log, without
+per-sample remote reads, JSON parsing, or condensing. Unrestricted seeds
+retain the byte-copy path. Restricted seeds rebuild the downloaded ZIP from
+the selected live members before adopting it, removing excluded payloads
+and inherited dead bytes; this costs local decompression and recompression.
+The attempt's own work appends on top:
 
 - Samples that need re-running (errored, invalidated, absent, or planned
   keys with no prior entry) run live and append a superseding entry under
@@ -192,16 +195,24 @@ own work appends on top:
   prior header's `invalidated` flag; that was only worthwhile while clean
   samples were meant to skip the body read.)
 
-At seed time a few entries are pruned from the central directory (dead bytes,
-not rewritten): the prior `header.json`, `summaries.json`, `reductions.json`
+At seed time a few entries are pruned: the prior `header.json`,
+`summaries.json`, `reductions.json`
 and `_journal/config_updates/*` (otherwise an in-progress read of the new log
 would return the prior attempt's finished header and eval_id — readers prefer
 `header.json` when present), and sample entries for keys outside this
 attempt's plan (a `sample_id`/`limit` subset or reduced epoch count; a
 dynamic-feed task has no upfront plan and keeps everything, pruning the
 records it never consults at a natural success instead — see trade-off 5).
-The prior's
-journal summary files (`_journal/summaries/N.json`) are pruned too and
+For an explicit plan, only selected sample members enter a fresh ZIP before
+the first destination write. Central-directory pruning alone is insufficient:
+excluded transcripts remain recoverable from their local ZIP records, even
+when ordinary readers no longer list them. Rebuilding also removes dead
+bytes inherited from prior attempts, including superseded versions of kept
+samples. Failure or cancellation of this mandatory rewrite aborts the seed;
+it cannot fall back to publishing an unfiltered copy. Unrestricted dynamic
+seeds still prune metadata from the central directory and rely on optional
+finish-time compaction for dead-byte reclamation.
+The prior's journal summary files (`_journal/summaries/N.json`) are pruned too and
 replaced by a single fresh journal member holding the kept summaries.
 Member-level pruning cannot do this for them: a flush batches every sample
 it carries into one journal file, so a pruned key's row would otherwise
@@ -246,7 +257,13 @@ in-memory samples) through `log_sample(write_through=True)` — the path an
 in-memory prior log, a prior in a different format (`eval_retry(...,
 log_format=...)` allows a `.eval` prior to be retried into a `.json` attempt
 and vice versa, and a byte copy is only valid same-format) and the `.json`
-recorder (whole-log-in-memory anyway) all take — and which `EvalRecorder`
+recorder all take. For an Eval source, this fallback first selects summary
+keys and reads their bodies through the indexed reader in batches of eight,
+bounding both concurrent reads and retained source bodies. JSON sources keep
+the existing whole-log reader and exact-first normalized ID matching; a
+seeded lookup retains that matching in either destination format, including
+padded numeric IDs, without merging distinct exact IDs. A re-run under a
+different matched ID supersedes the original record. `EvalRecorder`
 overrides for a `.eval` prior with `ZipLogFile.seed_from_prior_log` (copy
 the prior file into a fresh temp zip, open in append mode, prune, rewrite
 the summaries journal); a `seed` field on `EvalSampleSource` that carries
@@ -255,19 +272,21 @@ the prior location (or samples) once the eligibility checks pass so
 a successful `log_finish` that rewrites the temp zip without dead bytes (see
 below).
 
-**Dead bytes and compaction.** Each attempt's seeded zip carries the prior
-attempt's superseded metadata entries plus, once re-run samples complete,
-their prior records. Over `k` attempts the final log accumulates `k` stale
-copies of the re-run samples' transcripts — bounded (re-run samples are the
+**Dead bytes and compaction.** An unrestricted seed carries the prior
+attempt's superseded metadata entries; either seed path accumulates prior
+records once re-run samples complete. Over `k` unrestricted attempts the
+final log can accumulate `k` stale copies of the re-run samples' transcripts
+— bounded (re-run samples are the
 errored ones) but real. Compaction at a *successful* finish — the log's last
 write — drops every unreferenced member before the final flush. It is local
 CPU only (the temp zip is a local file): either a raw member copy if it can be
 done against documented `zipfile` surface, or the decompress+recompress
 rewrite that `_rewrite_eval_zip_with_new_header` already uses, run in a
-worker thread. Non-success finishes skip compaction (their logs are
-short-lived retry seeds and `retry_cleanup` removes them), so the cost is
-paid once per task. A size heuristic (compact only when dead bytes exceed some
-fraction of the file) keeps it a no-op for a fresh eval.
+worker thread. Non-success finishes skip this optional compaction (their logs
+are short-lived retry seeds and `retry_cleanup` removes them). Restricted
+seeds still require their own rewrite before publication. A size heuristic
+(compact only when dead bytes exceed some fraction of the file) keeps it a
+no-op for a fresh eval.
 
 ### B. Eager entry-level copy (pre-pass) with raw member copy
 

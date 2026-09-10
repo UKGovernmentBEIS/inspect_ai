@@ -1,11 +1,13 @@
 import abc
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import IO, TYPE_CHECKING, NamedTuple
 
 import anyio
 
 from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import EvalError
+from inspect_ai.dataset._util import normalise_sample_id
 from inspect_ai.log._config_update import ConfigUpdate
 from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._log import (
@@ -38,6 +40,35 @@ class SampleRecordKey(NamedTuple):
 
     sample_id: str
     epoch: int
+
+
+class SampleKey(NamedTuple):
+    """A sample's original typed ID and epoch."""
+
+    sample_id: str | int
+    epoch: int
+
+
+class SampleKeyLookup:
+    """Index JSON sample keys using the reader's exact-first normalized matching.
+
+    Keep the first normalized match in source order, without merging distinct
+    exact IDs such as ``"001"`` and ``1``.
+    """
+
+    def __init__(self, keys: Iterable[tuple[str | int, int]]) -> None:
+        self._exact: dict[tuple[str | int, int], SampleKey] = {}
+        self._normalized: dict[tuple[str, int], SampleKey] = {}
+        for id, epoch in keys:
+            key = SampleKey(sample_id=id, epoch=epoch)
+            self._exact.setdefault(key, key)
+            self._normalized.setdefault((normalise_sample_id(id), epoch), key)
+
+    def get(self, id: str | int, epoch: int) -> SampleKey | None:
+        """Return the original key for an exact match, then a normalized match."""
+        return self._exact.get((id, epoch)) or self._normalized.get(
+            (normalise_sample_id(id), epoch)
+        )
 
 
 def sample_read_exclusions(exclude_fields: set[str] | None) -> set[str]:
@@ -117,25 +148,65 @@ class Recorder(abc.ABC):
         ``FileNotFoundError`` when a prior log location does not exist.
         Checkpoints between samples keep synchronous recorder implementations
         responsive to cancellation and other tasks on the event loop.
+        Eval sources are selected by summary before bodies are read in bounded
+        batches. JSON sources retain the reader's exact-first normalized IDs.
         """
         from inspect_ai.log._condense import condense_sample
-        from inspect_ai.log._file import read_eval_log_async
+        from inspect_ai.log._file import (
+            read_eval_log_async,
+            read_eval_log_sample_summaries_async,
+            read_eval_log_samples_by_id_async,
+        )
+        from inspect_ai.log._recorders.eval import EvalRecorder
+
+        if isinstance(prior, str) and EvalRecorder.handles_location(prior):
+            async with AsyncFilesystem() as fs:
+                summaries = await read_eval_log_sample_summaries_async(prior)
+                kept_keys = (
+                    {SampleRecordKey(str(id), epoch) for id, epoch in keep}
+                    if keep is not None
+                    else None
+                )
+                keys = [
+                    (s.id, s.epoch)
+                    for s in summaries
+                    if kept_keys is None
+                    or SampleRecordKey(str(s.id), s.epoch) in kept_keys
+                ]
+                reader = AsyncZipReader(fs, prior)
+                # Bound retained bodies as well as concurrent reads: the bulk
+                # reader returns its entire request as a list.
+                for offset in range(0, len(keys), 8):
+                    batch = await read_eval_log_samples_by_id_async(
+                        prior, keys[offset : offset + 8], concurrency=8, reader=reader
+                    )
+                    for sample in batch:
+                        await self.log_sample(
+                            eval, condense_sample(sample), write_through=True
+                        )
+                        await anyio.lowlevel.checkpoint()
+                    del batch
+            return
 
         samples = (
             (await read_eval_log_async(prior)).samples or []
             if isinstance(prior, str)
             else prior
         )
-        kept_keys = (
-            {SampleRecordKey(str(id), epoch) for id, epoch in keep}
-            if keep is not None
-            else None
-        )
+        selected: set[SampleKey | None] | None = None
+        if keep is not None:
+            if isinstance(prior, str):
+                lookup = SampleKeyLookup((s.id, s.epoch) for s in samples)
+                selected = {lookup.get(id, epoch) for id, epoch in keep}
+            else:
+                kept_keys = {SampleRecordKey(str(id), epoch) for id, epoch in keep}
+                selected = {
+                    SampleKey(sample_id=s.id, epoch=s.epoch)
+                    for s in samples
+                    if SampleRecordKey(str(s.id), s.epoch) in kept_keys
+                }
         for sample in samples:
-            if (
-                kept_keys is None
-                or SampleRecordKey(str(sample.id), sample.epoch) in kept_keys
-            ):
+            if selected is None or (sample.id, sample.epoch) in selected:
                 await self.log_sample(eval, condense_sample(sample), write_through=True)
             await anyio.lowlevel.checkpoint()
 
