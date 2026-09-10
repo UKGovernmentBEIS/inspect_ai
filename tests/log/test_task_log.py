@@ -1592,7 +1592,7 @@ async def test_task_logger_seed_keeps_complete_archive_without_rewriting(
     def fail_rewrite(src: BinaryIO, live: frozenset[str]) -> BinaryIO:
         raise AssertionError("A complete archive must not recompress sample bodies")
 
-    monkeypatch.setattr(eval_module, "_compact_zip", fail_rewrite)
+    monkeypatch.setattr(eval_module, "compact_zip", fail_rewrite)
     recorder = EvalRecorder(str(tmp_path / "retry"))
     logger = _seed_logger(recorder)
     logger._location = await recorder.log_init(logger.eval)
@@ -1815,7 +1815,7 @@ async def test_task_logger_prune_survives_failed_compaction(
     assert clean is not None
     logger.note_reused_sample(clean)
 
-    monkeypatch.setattr(eval_module, "_compact_zip", failing_compact)
+    monkeypatch.setattr(eval_module, "compact_zip", failing_compact)
     with patch.object(eval_module.logger, "warning") as warning:
         await logger.log_finish("success", EvalStats(), prune_unplanned=True)
     assert warning.call_count == 1
@@ -1855,7 +1855,7 @@ async def test_compact_reopens_the_zip_when_cancelled_before_the_worker_starts(
     cancelled_once = {"done": False}
 
     async def cancel_at_the_await(func: Any, *args: Any, **kwargs: Any) -> Any:
-        if func is eval_module._compact_zip and not cancelled_once["done"]:
+        if func is eval_module.compact_zip and not cancelled_once["done"]:
             cancelled_once["done"] = True
             scope.cancel()
             await anyio.lowlevel.checkpoint()

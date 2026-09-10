@@ -60,7 +60,13 @@ from inspect_ai._util.json import (
 )
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
-from inspect_ai._util.zipfile import zipfile_compress_kwargs
+from inspect_ai._util.zipfile import (
+    compact_zip,
+    copy_live_members,
+    zip_dead_bytes,
+    zip_needs_rewrite,
+    zipfile_compress_kwargs,
+)
 
 from .._condense import ATTACHMENT_PROTOCOL, condense_sample
 from .._config_update import ConfigUpdate
@@ -595,46 +601,9 @@ def _rewrite_eval_zip_with_new_header(zip_bytes: bytes, log: EvalLog) -> bytes:
         ZipFile(BytesIO(zip_bytes), "r") as src,
         ZipFile(out, "w", **zipfile_compress_kwargs) as dst,
     ):
-        _copy_live_members(src, dst, exclude=frozenset({HEADER_JSON}))
+        copy_live_members(src, dst, exclude=frozenset({HEADER_JSON}))
         dst.writestr(HEADER_JSON, to_json_safe(eval_header, indent=None))
     return out.getvalue()
-
-
-def _copy_live_members(
-    src: ZipFile,
-    dst: ZipFile,
-    exclude: frozenset[str] = frozenset(),
-    *,
-    cancellable: bool = False,
-) -> None:
-    """Copy each name's last member from ``src`` to ``dst``, streaming.
-
-    Dedupes by member name, last entry winning — a requeued or re-run
-    sample's fresh record supersedes the prior one as a duplicate zip member
-    (see ``_zip_writestr``), and read-by-name resolves to the last entry;
-    copying every info would write those superseded bytes twice. Opening
-    the destination entry with the source ``ZipInfo`` preserves the
-    original compression type / date_time / external_attr; the data still
-    round-trips through decompress + recompress, streamed in chunks so a
-    large member never sits in memory whole. Blocking — run in a worker
-    thread when called from the event loop. ``cancellable`` requires an
-    AnyIO worker and checks its host task's cancellation between chunks.
-    """
-    infos = {info.filename: info for info in src.infolist()}
-    for info in infos.values():
-        if info.filename in exclude:
-            continue
-        with (
-            src.open(info, "r") as reader,
-            dst.open(info, "w", force_zip64=True) as writer,
-        ):
-            while True:
-                if cancellable:
-                    anyio.from_thread.check_cancelled()
-                chunk = reader.read(1024 * 1024)
-                if not chunk:
-                    break
-                writer.write(chunk)
 
 
 def _eval_log_header(log: EvalLog) -> EvalLog:
@@ -970,37 +939,6 @@ def _read_all_summaries(zip: ZipFile) -> list[EvalSampleSummary]:
     return _dedupe_summaries(summaries)
 
 
-def _seed_requires_rewrite(prior: BinaryIO, kept_names: frozenset[str]) -> bool:
-    """Check for excluded sample members or inherited dead bytes without inflating bodies.
-
-    A complete keep-set can use the byte copy only if all member bytes are
-    accounted for. Gaps may contain excluded transcripts pruned from an
-    earlier attempt's directory. Read exact local header lengths: estimating
-    from central-directory extras can miss small gaps, especially with ZIP64.
-    Data descriptors and unfamiliar layouts conservatively require rewriting.
-    Blocking local I/O — run in a worker thread.
-    """
-    prior.seek(0)
-    with ZipFile(prior, "r") as archive:
-        if any(
-            name.startswith(f"{SAMPLES_DIR}/") and name not in kept_names
-            for name in archive.NameToInfo
-        ):
-            return True
-        end = 0
-        for info in sorted(archive.NameToInfo.values(), key=lambda i: i.header_offset):
-            if info.header_offset != end or info.flag_bits & 0x08:
-                return True
-            prior.seek(info.header_offset)
-            header = prior.read(30)
-            if len(header) != 30 or header[:4] != b"PK\x03\x04":
-                return True
-            name_length = int.from_bytes(header[26:28], "little")
-            extra_length = int.from_bytes(header[28:30], "little")
-            end += 30 + name_length + extra_length + info.compress_size
-        return end != archive.start_dir
-
-
 def _parse_sample_data(data: bytes | dict[str, Any]) -> EvalSample:
     """Validate a full or selectively parsed member, resolved as a log read is.
 
@@ -1015,35 +953,6 @@ def _parse_sample_data(data: bytes | dict[str, Any]) -> EvalSample:
         context=get_deserializing_context(),
     )
     return rebind_sample_timelines(resolve_sample_events_data(sample))
-
-
-def _compact_zip(src_file: BinaryIO, live: frozenset[str]) -> BinaryIO:
-    """Copy the live members of a closed zip temp file into a fresh temp file.
-
-    Live means the last member under each name in ``live`` (the readers'
-    rule); pruned and superseded members are left behind. ``live`` is the
-    writer's in-memory central directory rather than the file's: a prune
-    since the last write (``prune_samples`` with nothing buffered after it)
-    is not on disk yet — ``ZipFile.close`` rewrites the directory only
-    after a write — so the closed file's directory may still list pruned
-    members. Blocking (decompress + recompress of every member) — run in a
-    worker thread created by AnyIO. Cancellation is checked between chunks
-    and closes the incomplete output before propagating to the caller.
-    """
-    src_file.seek(0)
-    out: BinaryIO = tempfile.TemporaryFile()
-    try:
-        with (
-            ZipFile(src_file, "r") as src,
-            ZipFile(out, "w", **zipfile_compress_kwargs) as dst,
-        ):
-            _copy_live_members(
-                src, dst, exclude=frozenset(src.namelist()) - live, cancellable=True
-            )
-    except BaseException:
-        out.close()
-        raise
-    return out
 
 
 class _BufferedSample(NamedTuple):
@@ -1576,11 +1485,18 @@ class ZipLogFile:
                 kept_names = frozenset(
                     _sample_filename(s.id, s.epoch) for s in summaries
                 )
+                # excluded sample bodies must not reach the destination, not
+                # even as dead bytes: rewrite the copy unless it holds exactly
+                # the kept samples (the prior's metadata members are pruned
+                # from the directory either way)
                 if await anyio.to_thread.run_sync(
-                    _seed_requires_rewrite, seeded, kept_names
+                    zip_needs_rewrite,
+                    seeded,
+                    lambda name: not name.startswith(f"{SAMPLES_DIR}/")
+                    or name in kept_names,
                 ):
                     restricted = await anyio.to_thread.run_sync(
-                        _compact_zip, seeded, kept_names
+                        compact_zip, seeded, kept_names
                     )
                     seeded.close()
                     seeded = restricted
@@ -1763,7 +1679,7 @@ class ZipLogFile:
             compacted: BinaryIO | None = None
             try:
                 compacted = await anyio.to_thread.run_sync(
-                    _compact_zip, self._temp_file, live
+                    compact_zip, self._temp_file, live
                 )
             except Exception as ex:
                 logger.warning(f"Unable to compact eval log {self._file}: {ex}")
@@ -1773,7 +1689,7 @@ class ZipLogFile:
                 # writes, or the cancel path's discard) expects an open zip.
                 # Without a compacted file the original is reopened, which
                 # re-reads its on-disk central directory; a prune since the
-                # last write has not reached that (see _compact_zip), so
+                # last write has not reached that (see compact_zip), so
                 # restore the live set or the pruned members come back as
                 # bodies without summaries
                 if compacted is not None:
@@ -1787,26 +1703,15 @@ class ZipLogFile:
     def _should_compact(self) -> bool:
         """Whether dead bytes are at least ``COMPACT_DEAD_BYTES_FRACTION`` of the member area.
 
-        Measured from the file rather than tracked per prune or supersede,
-        so dead bytes inherited from the prior log count too: the member
-        area runs from offset 0 to ``start_dir`` (where the central directory
-        is written at close), and whatever the live members' local headers
-        and compressed data don't cover is dead. A local header is
-        reconstructed as ``FileHeader(zip64=True)``: exact for the members
-        ``_zip_open_write`` streams with ``force_zip64``, and 20 bytes over
-        for ``writestr`` members, so dead bytes are if anything
-        under-counted (a fresh eval measures none).
+        Measured from the file (``zip_dead_bytes``) rather than tracked per
+        prune or supersede, so dead bytes inherited from the prior log count
+        too; a fresh eval measures none.
         """
         assert self._zip is not None
-        member_area = self._zip.start_dir
-        live = sum(
-            len(info.FileHeader(zip64=True)) + info.compress_size
-            for info in self._zip.NameToInfo.values()
-        )
-        dead = member_area - live
+        dead = zip_dead_bytes(self._zip)
         if dead <= 0:
             return False
-        return dead >= member_area * COMPACT_DEAD_BYTES_FRACTION
+        return dead >= self._zip.start_dir * COMPACT_DEAD_BYTES_FRACTION
 
     # cleanup zip file if we didn't in normal course
     def __del__(self) -> None:

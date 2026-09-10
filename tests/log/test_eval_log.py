@@ -1864,7 +1864,7 @@ async def test_restricted_seed_rewrite_failure_keeps_destination_unwritten(
     original_file = zip_log._temp_file
     temporary_files: list[BinaryIO] = []
     temporary_file = tempfile.TemporaryFile
-    compact = eval_module._compact_zip
+    compact = eval_module.compact_zip
 
     def track_temporary_file() -> BinaryIO:
         result = temporary_file()
@@ -1878,7 +1878,7 @@ async def test_restricted_seed_rewrite_failure_keeps_destination_unwritten(
         raise OSError("restricted rewrite failed")
 
     monkeypatch.setattr(tempfile, "TemporaryFile", track_temporary_file)
-    monkeypatch.setattr(eval_module, "_compact_zip", fail_rewrite)
+    monkeypatch.setattr(eval_module, "compact_zip", fail_rewrite)
     with anyio.CancelScope() as scope:
         if cancel:
             await recorder.log_seed(spec, prior, keep={(1, 1)})
