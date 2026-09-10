@@ -46,7 +46,10 @@ should raise the expiry alongside the cap.
 from __future__ import annotations
 
 import os
+import re
 import socket
+import ssl
+import sys
 from logging import getLogger
 from typing import Any, overload
 
@@ -202,6 +205,47 @@ async def _floor_connect_timeout(request: httpx2.Request) -> None:
         timeout["connect"] = floor
 
 
+def _default_ssl_context() -> ssl.SSLContext | None:
+    # truststore repeatedly loads OpenSSL's default paths before handshakes.
+    # OpenSSL 3.0-3.3 accumulates duplicate directory lookups as a result.
+    # Load the same system trust once; retain native and custom TLS backends.
+    if (
+        sys.platform != "linux"
+        or ssl.SSLContext.__module__ != "ssl"
+        or os.environ.get("SSL_CERT_FILE")
+        or os.environ.get("SSL_CERT_DIR")
+    ):
+        return None
+
+    paths = ssl.get_default_verify_paths()
+    if paths.cafile is None:
+        if paths.capath is None:
+            return None
+        with os.scandir(paths.capath) as entries:
+            if not any(
+                re.fullmatch(r"[0-9a-fA-F]{8}\.[0-9]", entry.name) for entry in entries
+            ):
+                return None
+
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.load_default_certs()
+    return context
+
+
+def _default_proxy(proxy: str | httpx2.URL | httpx2.Proxy) -> httpx2.Proxy:
+    proxy = proxy if isinstance(proxy, httpx2.Proxy) else httpx2.Proxy(proxy)
+    if proxy.url.scheme == "https" and proxy.ssl_context is None:
+        context = _default_ssl_context()
+        if context is not None:
+            return httpx2.Proxy(
+                proxy.url,
+                ssl_context=context,
+                auth=proxy.auth,
+                headers=proxy.headers,
+            )
+    return proxy
+
+
 def _transport_kwargs(
     limits: httpx2.Limits, overrides: dict[str, Any]
 ) -> dict[str, Any]:
@@ -233,6 +277,12 @@ def default_client_kwargs(**overrides: Any) -> dict[str, Any]:
     kwargs.setdefault("follow_redirects", True)
 
     if "transport" not in kwargs:
+        if kwargs.get("verify", True) is True:
+            context = _default_ssl_context()
+            if context is not None:
+                kwargs["verify"] = context
+        if kwargs.get("proxy") is not None:
+            kwargs["proxy"] = _default_proxy(kwargs["proxy"])
         transport_kwargs = _transport_kwargs(limits, kwargs)
         # Supplying a transport turns off httpx's environment proxy discovery,
         # so rebuild the mounts with the same settings rather than losing
@@ -247,7 +297,9 @@ def default_client_kwargs(**overrides: Any) -> dict[str, Any]:
         mounts: dict[str, httpx2.AsyncBaseTransport | None] = {
             key: None
             if url is None
-            else httpx2.AsyncHTTPTransport(proxy=httpx2.Proxy(url), **transport_kwargs)
+            else httpx2.AsyncHTTPTransport(
+                proxy=_default_proxy(url), **transport_kwargs
+            )
             for key, url in environment_proxies.items()
         }
         mounts.update(kwargs.get("mounts") or {})
