@@ -18,9 +18,9 @@ from acp.schema import (
 from rich.console import Console
 from rich.prompt import Prompt
 
-from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
 from inspect_ai.util import InputRequest
 from inspect_ai.util._input import console as console_module
+from inspect_ai.util._input._validate import MULTILINE_META_KEY
 from inspect_ai.util._input.console import (
     DECLINE_TOKEN,
     MULTILINE_END_TOKEN,

@@ -29,8 +29,8 @@ from textual.app import App, ComposeResult
 from textual.widgets import Checkbox, Input, Select, SelectionList, TextArea
 
 from inspect_ai._util.textual.form import ElicitationForm
-from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
 from inspect_ai.util import InputRequest, InputResult
+from inspect_ai.util._input._validate import MULTILINE_META_KEY
 from inspect_ai.util._input.manager import (
     HumanQuestionManager,
     PendingQuestionRequest,

@@ -10,8 +10,8 @@ from acp.schema import (
 from pydantic import ValidationError
 
 from inspect_ai._util.json import to_json_str_safe
-from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
 from inspect_ai.util import request_input
+from inspect_ai.util._input._validate import MULTILINE_META_KEY
 
 from .._tool import Tool, ToolError, tool
 

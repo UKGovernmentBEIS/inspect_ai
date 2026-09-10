@@ -4,12 +4,15 @@ from typing import Any
 import pytest
 from acp.schema import ElicitationSchema, ElicitationStringPropertySchema
 
-from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
 from inspect_ai.tool import ToolError, ask_user
 from inspect_ai.tool._tool_def import tool_def_fields
 from inspect_ai.util import InputResult
 from inspect_ai.util._input import request as request_module
-from inspect_ai.util._input._validate import is_multiline, known_property
+from inspect_ai.util._input._validate import (
+    MULTILINE_META_KEY,
+    is_multiline,
+    known_property,
+)
 
 
 def _schema() -> dict[str, Any]:

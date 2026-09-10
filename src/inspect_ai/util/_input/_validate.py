@@ -21,7 +21,14 @@ from acp.schema import (
     TitledMultiSelectItems,
 )
 
-from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
+MULTILINE_META_KEY = "inspect.multiline"
+"""`_meta` key on an elicitation string property requesting a multi-line control.
+
+Defined here rather than in `inspect_ext.py` (which re-exports it) because
+`ask_user` needs it, and a module-level import from `inspect_ai.tool` into
+`inspect_ai.agent._acp` puts mypy into an import cycle where it stops
+resolving the `TreeItem` alias in `event/_timeline.py`.
+"""
 
 PropertySchema = Union[
     ElicitationStringPropertySchema,

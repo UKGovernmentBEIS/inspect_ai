@@ -47,6 +47,7 @@ from inspect_ai.agent._acp._guards import acp_guard, acp_send_guard
 # Runtime import (not TYPE_CHECKING): pydantic resolves `CancelSampleParams`'
 # `action` annotation when the model class is built.
 from inspect_ai.log._samples import SampleCancelAction
+from inspect_ai.util._input._validate import MULTILINE_META_KEY as MULTILINE_META_KEY
 
 if TYPE_CHECKING:
     from acp.connection import Connection
@@ -141,7 +142,8 @@ TOOL_CALL_CANCELABLE_META_KEY = "inspect.tool_call_cancelable"
 # command output, a log excerpt). A presentation hint, kept out of
 # ``format`` so it can coexist with ``uri`` / ``date-time``. Clients that
 # don't know the key render their ordinary string control.
-MULTILINE_META_KEY = "inspect.multiline"
+# ``MULTILINE_META_KEY`` is defined in ``util/_input/_validate.py`` and
+# re-exported here (imported above); its docstring says why.
 
 
 # ---------------------------------------------------------------------------
