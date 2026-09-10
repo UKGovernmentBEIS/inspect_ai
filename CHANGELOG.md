@@ -23,7 +23,8 @@
 - Eval Set: A retry attempt that itself errors or is interrupted no longer causes the next attempt to re-run (or, with `retry_cleanup`, lose) samples an earlier attempt completed.
 - Eval Set: Retries preserve completed samples and error history when sample IDs change between integers and strings, including padded numeric IDs in JSON logs.
 - Eval Set: Dynamic retry logs honor sample limits and epoch restrictions before every write, physically excluding unselected transcripts inherited from earlier attempts.
-- Control Channel: Pending retry samples with padded numeric IDs in JSON logs stay pending when cancelling or requeuing, even after a shared prior ID completes.
+- Control Channel: Pending JSON retry samples retain pending cancel and requeue responses after a shared prior ID completes, including unlimited dynamic feeds.
+- Eval Set: Retrying all samples avoids recompressing prior log payloads when the archive contains no inherited dead bytes.
 - Eval Set: Retries preserve error history shared by distinct sample IDs that normalize alike, even when interrupted before every sample runs.
 - Eval Set: JSON retries now run both samples when distinct numeric IDs share a prior error, regardless of completion order.
 - Eval Set: Overlapping retry completions preserve every fresh result when distinct sample IDs share a prior JSON record.

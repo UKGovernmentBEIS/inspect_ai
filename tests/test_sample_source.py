@@ -1017,6 +1017,106 @@ def test_sample_source_retry_runs_ids_sharing_a_prior_error(
         assert sample.error_retries[0].message == prior.samples[0].error.message
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("initial_alias", [False, True])
+def test_unlimited_retry_keeps_shared_alias_pending(
+    log_format: Literal["eval", "json"],
+    initial_alias: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai._control.requeue import requeue_sample
+    from inspect_ai._control.state import _full_sample
+    from inspect_ai._eval.task.log import TaskLogger
+
+    failing = True
+    completed = anyio.Event()
+    checked = False
+
+    @solver
+    def fail_prior() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if failing:
+                raise RuntimeError("shared prior failure")
+            return state
+
+        return solve
+
+    class Source(SampleSource):
+        def __init__(self) -> None:
+            self.produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            samples = [Sample(id="001", input="source")]
+            if initial_alias:
+                samples.append(Sample(id=1, input="alias"))
+            return samples
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not failing and not initial_alias and not self.produced:
+                self.produced = True
+                return [Sample(id=1, input="alias")]
+            return None
+
+        async def sample_complete(self, sample: EvalSample) -> None:
+            if not failing and sample.id == "001":
+                completed.set()
+
+    @task
+    def shared_pending_task() -> Task:
+        return Task(dataset=Source(), solver=fail_prior())
+
+    log_dir = str(tmp_path / "logs")
+    ok, prior_logs = eval_set(
+        shared_pending_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format="json",
+        retry_attempts=1,
+        retry_on_error=0,
+        max_samples=1,
+        display="none",
+    )
+    assert not ok
+    prior = read_eval_log(prior_logs[0].location)
+    assert {sample.id for sample in prior.samples or []} == {"001"}
+    failing = False
+    read_prior = TaskLogger.read_prior_sample
+
+    async def check_pending(
+        logger: TaskLogger, id: str | int, epoch: int
+    ) -> EvalSample | None:
+        nonlocal checked
+        if id == 1:
+            with anyio.fail_after(10):
+                await completed.wait()
+            assert await _full_sample(logger.eval.eval_id, "1", 1) is None
+            cancelled = await cancel_sample(logger.eval.eval_id, "1", 1)
+            assert cancelled is not None and not cancelled["ok"]
+            assert "retry" in cancelled["error"]
+            requeued = await requeue_sample(logger.eval.eval_id, "1", 1)
+            assert requeued is not None and requeued["ok"]
+            assert requeued["status"] == "pending"
+            checked = True
+        return await read_prior(logger, id, epoch)
+
+    monkeypatch.setattr(TaskLogger, "read_prior_sample", check_pending)
+    ok, logs = eval_set(
+        shared_pending_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=log_format,
+        retry_attempts=1,
+        retry_on_error=0,
+        max_samples=2,
+        display="none",
+    )
+    assert ok and checked
+    final = read_eval_log(logs[0].location)
+    assert {sample.id for sample in final.samples or []} == {"001", 1}
+
+
 def test_sample_source_task_retry_reuses_completed_followup() -> None:
     # on a task retry, an injected follow-up that *completed* in the prior
     # attempt is reused via the prior-attempt lookup (never re-run) — the

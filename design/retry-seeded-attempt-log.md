@@ -152,10 +152,12 @@ Before the attempt does any work, copy the prior `.eval` **as a file** into
 the new attempt's `ZipLogFile._temp_file` — one streamed download for S3/GCS,
 one local file copy otherwise — and open it in append mode. The attempt then
 starts with every selected prior sample entry already in its log, without
-per-sample remote reads, JSON parsing, or condensing. Unrestricted seeds
-retain the byte-copy path. Restricted seeds rebuild the downloaded ZIP from
-the selected live members before adopting it, removing excluded payloads
-and inherited dead bytes; this costs local decompression and recompression.
+per-sample remote reads, JSON parsing, or condensing. Seeds retaining every
+sample keep the byte-copy path when exact local-header extents account for
+all member bytes. Seeds excluding sample members or containing inherited
+dead bytes rebuild the downloaded ZIP from the selected live members before
+adopting it, removing excluded payloads; this costs local decompression and
+recompression. Unknown layouts conservatively take the rewrite path.
 The attempt's own work appends on top:
 
 - Samples that need re-running (errored, invalidated, absent, or planned
@@ -280,7 +282,7 @@ from the cached source before dispatch. JSON retry lookups use independent
 copies of the cached original bodies, restricted to admitted prior records,
 even after an exact-ID completion replaces that record in the destination.
 Thus a later alias still runs with the original error or invalidation instead
-of reusing another sample's new success. For a known plan, live control reads
+of reusing another sample's new success. For every admission, live control reads
 guard each admitted alias until its own lookup accepts the prior result or
 its rerun completes, even after the original ID completes. The recorder caches
 one prior source per attempt: JSON bodies and their exact-first index, or Eval
@@ -672,6 +674,10 @@ JSON. These incremental reads
 use the prior source; they skip original keys already in the recorder, so
 they cannot overwrite current results. JSON lookup keeps the prior's key
 order rather than indexing the destination's changing mix of records.
+Pending requested IDs are tracked separately from the seed's pruning plan:
+unlimited feeds register both their initial IDs and every later admission.
+Completing or reusing a shared prior record releases only the resolved
+requested ID, so another pending alias cannot read its terminal result.
 `sample_id` takes precedence over `limit`, matching the feed's own selection.
 `TaskLogger.seed_from_prior`
 asks the recorder to `log_seed` and sets `prior_seeded`; a prior log that

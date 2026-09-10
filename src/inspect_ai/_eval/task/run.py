@@ -1663,6 +1663,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         nonlocal total_samples
 
                         added = add_samples(samples)
+                        added_keys = {
+                            (sample.id, epoch)
+                            for sample in added.samples
+                            if sample.id is not None
+                            for epoch in range(1, epochs + 1)
+                        }
+                        logger.register_prior_sample_users(added_keys)
                         if (
                             added.samples
                             and limited_sample_feed
@@ -1672,12 +1679,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         ):
                             await logger.seed_added_samples(
                                 sample_source.seed.source,
-                                {
-                                    (sample.id, epoch)
-                                    for sample in added.samples
-                                    if sample.id is not None
-                                    for epoch in range(1, epochs + 1)
-                                },
+                                added_keys,
                             )
                         if added.indexes:
                             total_samples += len(added.indexes) * epochs

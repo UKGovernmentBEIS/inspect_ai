@@ -970,6 +970,37 @@ def _read_all_summaries(zip: ZipFile) -> list[EvalSampleSummary]:
     return _dedupe_summaries(summaries)
 
 
+def _seed_requires_rewrite(prior: BinaryIO, kept_names: frozenset[str]) -> bool:
+    """Check for excluded sample members or inherited dead bytes without inflating bodies.
+
+    A complete keep-set can use the byte copy only if all member bytes are
+    accounted for. Gaps may contain excluded transcripts pruned from an
+    earlier attempt's directory. Read exact local header lengths: estimating
+    from central-directory extras can miss small gaps, especially with ZIP64.
+    Data descriptors and unfamiliar layouts conservatively require rewriting.
+    Blocking local I/O — run in a worker thread.
+    """
+    prior.seek(0)
+    with ZipFile(prior, "r") as archive:
+        if any(
+            name.startswith(f"{SAMPLES_DIR}/") and name not in kept_names
+            for name in archive.NameToInfo
+        ):
+            return True
+        end = 0
+        for info in sorted(archive.NameToInfo.values(), key=lambda i: i.header_offset):
+            if info.header_offset != end or info.flag_bits & 0x08:
+                return True
+            prior.seek(info.header_offset)
+            header = prior.read(30)
+            if len(header) != 30 or header[:4] != b"PK\x03\x04":
+                return True
+            name_length = int.from_bytes(header[26:28], "little")
+            extra_length = int.from_bytes(header[28:30], "little")
+            end += 30 + name_length + extra_length + info.compress_size
+        return end != archive.start_dir
+
+
 def _parse_sample_data(data: bytes | dict[str, Any]) -> EvalSample:
     """Validate a full or selectively parsed member, resolved as a log read is.
 
@@ -1500,12 +1531,12 @@ class ZipLogFile:
         makes any finish of the attempt write a complete log (see
         ``design/retry-seeded-attempt-log.md``). Then prunes the prior's
         metadata members and the sample members outside ``keep`` from the
-        central directory. Restricted seeds first rebuild the archive with
-        only the kept sample bodies, physically removing excluded payloads
-        and inherited dead bytes before any destination write. Rewrites the
-        summaries journal to list exactly the kept samples (one member, built
-        in a worker thread), and re-journals any config updates recorded since
-        :meth:`init`.
+        central directory. Seeds that exclude sample bodies or contain dead
+        bytes first rebuild the archive, physically removing those payloads
+        before any destination write. Complete keep-sets without dead bytes
+        retain the byte-copy path. Rewrites the summaries journal to list
+        exactly the kept samples (one member, built in a worker thread), and
+        re-journals any config updates recorded since :meth:`init`.
 
         ``keep`` restricts the seed to the attempt's planned ``(id, epoch)``
         keys; ``None`` keeps every prior sample (a dynamically fed task has no
@@ -1542,13 +1573,17 @@ class ZipLogFile:
                     for s in summaries
                     if _sample_filename(s.id, s.epoch) in keep_names
                 ]
-                restricted = await anyio.to_thread.run_sync(
-                    _compact_zip,
-                    seeded,
-                    frozenset(_sample_filename(s.id, s.epoch) for s in summaries),
+                kept_names = frozenset(
+                    _sample_filename(s.id, s.epoch) for s in summaries
                 )
-                seeded.close()
-                seeded = restricted
+                if await anyio.to_thread.run_sync(
+                    _seed_requires_rewrite, seeded, kept_names
+                ):
+                    restricted = await anyio.to_thread.run_sync(
+                        _compact_zip, seeded, kept_names
+                    )
+                    seeded.close()
+                    seeded = restricted
         except BaseException:
             seeded.close()
             raise
@@ -1600,10 +1635,10 @@ class ZipLogFile:
         ``reductions.json``, ``start.json``, journaled config updates and
         summaries) — an in-progress read of this log would otherwise return
         the prior attempt's header and eval_id — and every sample member not
-        in ``kept_sample_names``. Restricted seeds have already physically
-        removed these members. For unrestricted seeds, bytes stay unreferenced
-        (the idiom ``_replace_eval_header_in_place`` uses) until :meth:`compact`
-        measures and reclaims them. Caller holds ``_lock``.
+        in ``kept_sample_names``. Seeds requiring a rewrite have already
+        physically removed these members. Otherwise, metadata bytes stay
+        unreferenced (the idiom ``_replace_eval_header_in_place`` uses) until
+        :meth:`compact` measures and reclaims them. Caller holds ``_lock``.
         """
         assert self._zip is not None
         metadata = {

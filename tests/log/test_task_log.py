@@ -1345,6 +1345,8 @@ async def test_json_seed_preserves_history_for_shared_normalized_ids(
     )
     recorder = recorder_type(str(tmp_path / "retry"))
     logger = _seed_logger(recorder)
+    sample_ids: list[str | int] = [1, "001"]
+    logger.eval.dataset.sample_ids = sample_ids
     logger._location = await recorder.log_init(logger.eval)
     await logger.seed_from_prior(prior, keep=planned)
     await logger.log_start(EvalPlan())
@@ -1373,9 +1375,8 @@ async def test_json_seed_preserves_history_for_shared_normalized_ids(
     assert len(history) == 1
     current = await logger.read_sample(first_id, 1)
     assert current is not None and current.error is None and current.input == "first"
-    if planned is not None or first_id != prior_sample.id:
-        assert await logger.read_sample(second_id, 1) is None
-    if planned is not None and first_id == prior_sample.id:
+    assert await logger.read_sample(second_id, 1) is None
+    if first_id == prior_sample.id:
         state = register_eval(
             logger.eval.eval_id, 2, live=logger, sample_ids=[first_id, second_id]
         )
@@ -1430,8 +1431,11 @@ async def test_json_seed_preserves_history_for_shared_normalized_ids(
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("planned", [None, {("001", 1), (1, 1)}])
 async def test_json_seed_reused_alias_resolves_only_its_requested_id(
-    recorder_type: type[EvalRecorder] | type[JSONRecorder], tmp_path: Path
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    planned: set[tuple[str | int, int]] | None,
+    tmp_path: Path,
 ) -> None:
     prior_sample = _prior_samples()[0].model_copy(update={"id": "001"})
     prior = await _write_prior_log(
@@ -1439,8 +1443,10 @@ async def test_json_seed_reused_alias_resolves_only_its_requested_id(
     )
     recorder = recorder_type(str(tmp_path / "retry"))
     logger = _seed_logger(recorder)
+    sample_ids: list[str | int] = ["001", 1]
+    logger.eval.dataset.sample_ids = sample_ids
     logger._location = await recorder.log_init(logger.eval)
-    await logger.seed_from_prior(prior, keep={("001", 1), (1, 1)})
+    await logger.seed_from_prior(prior, keep=planned)
     await logger.log_start(EvalPlan())
     logger.note_reused_sample(prior_sample, sample_id="001")
     assert await logger.read_sample("001", 1) == prior_sample
@@ -1924,6 +1930,46 @@ async def test_pruning_all_seeds_persists_an_empty_journal(
             s.id for s in await read_eval_log_sample_summaries_async(logger.location)
         } == expected
     await recorder.log_discard(logger.eval)
+
+
+@pytest.mark.parametrize("keep", [None, {(1, 1)}, {(1, 1), (99, 1)}])
+@pytest.mark.parametrize("streamed", [False, True])
+async def test_task_logger_seed_keeps_complete_archive_without_rewriting(
+    keep: set[tuple[str | int, int]] | None,
+    streamed: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from zipfile import ZipFile
+
+    import inspect_ai.log._recorders.eval as eval_module
+
+    sample = _prior_samples()[0]
+    prior = await _write_prior_log(EvalRecorder(str(tmp_path / "prior")), [sample])
+    if streamed:
+        with ZipFile(prior, "r") as archive:
+            members = [
+                (info.filename, archive.read(info)) for info in archive.infolist()
+            ]
+        with ZipFile(prior, "w") as archive:
+            for name, data in members:
+                with archive.open(name, "w", force_zip64=True) as member:
+                    member.write(data)
+
+    def fail_rewrite(src: BinaryIO, live: frozenset[str]) -> BinaryIO:
+        raise AssertionError("A complete archive must not recompress sample bodies")
+
+    monkeypatch.setattr(eval_module, "_compact_zip", fail_rewrite)
+    recorder = EvalRecorder(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=keep)
+    await logger.log_start(EvalPlan())
+    snapshot = await read_eval_log_async(logger.location)
+    assert snapshot.eval.eval_id == logger.eval.eval_id
+    assert snapshot.status == "started"
+    assert snapshot.samples == [sample]
+    await logger.log_finish("cancelled", EvalStats())
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])

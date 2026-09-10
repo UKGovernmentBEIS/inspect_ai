@@ -1854,7 +1854,9 @@ async def test_restricted_seed_rewrite_failure_keeps_destination_unwritten(
 ) -> None:
     import inspect_ai.log._recorders.eval as eval_module
 
-    prior = await _write_seed_prior(tmp_path / "prior", [_seed_sample(1, "one")])
+    prior = await _write_seed_prior(
+        tmp_path / "prior", [_seed_sample(1, "one"), _seed_sample(2, "excluded")]
+    )
     recorder = eval_module.EvalRecorder(str(tmp_path / "retry"))
     spec = _seed_spec("rewrite-failure")
     location = await recorder.log_init(spec)

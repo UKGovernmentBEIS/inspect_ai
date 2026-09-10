@@ -329,6 +329,7 @@ class TaskLogger:
         self._prior_sample_users: dict[SampleRecordKey, set[SampleRecordKey]] | None = (
             None
         )
+        self._prior_pending_samples: set[SampleRecordKey] = set()
         self._prior_read_limit = anyio.Semaphore(_PRIOR_READ_CONCURRENCY)
         self._prior_seed_lock = anyio.Lock()
         # seeded (id, epoch) keys the reuse sweep has not yet resolved: the
@@ -413,6 +414,7 @@ class TaskLogger:
         self._prior_sample_records = set()
         self._prior_sample_keys = None
         self._prior_sample_users = None
+        self._prior_pending_samples = set()
         self._seeded_pending = set()
         # the retry attempt gets a fresh log, which must re-record the run's
         # full accumulated process-scoped updates in init() below
@@ -585,7 +587,15 @@ class TaskLogger:
             self._prior_sample_keys = source.json_keys
             if planned is not None:
                 self._prior_sample_users = {}
-                self._register_prior_sample_users(planned)
+            self.register_prior_sample_users(
+                planned
+                if planned is not None
+                else {
+                    (id, epoch)
+                    for id in self.eval.dataset.sample_ids or []
+                    for epoch in range(1, (self.eval.config.epochs or 1) + 1)
+                }
+            )
 
     async def seed_added_samples(
         self, prior: "str | list[EvalSample]", keep: set[tuple[str | int, int]]
@@ -600,7 +610,7 @@ class TaskLogger:
         # Admission and alias pruning both await recorder operations. Keep
         # a completion from pruning a seed an admission just chose to reuse.
         async with self._prior_seed_lock:
-            self._register_prior_sample_users(keep)
+            self.register_prior_sample_users(keep)
             await self.recorder.log_seed_samples(
                 self.eval,
                 prior,
@@ -615,21 +625,25 @@ class TaskLogger:
                     for key in self._prior_sample_source.select(keep)
                 )
 
-    def _register_prior_sample_users(self, keep: set[tuple[str | int, int]]) -> None:
-        """Retain a shared JSON seed until all admitted aliases have completed.
+    def register_prior_sample_users(self, keep: set[tuple[str | int, int]]) -> None:
+        """Withhold unresolved requested IDs and retain their shared JSON seeds.
 
-        With an unknown plan, keep aliases until natural success instead.
+        Pending IDs are tracked for every admission, including unlimited
+        feeds. With an unknown plan, keep seeds until natural success instead
+        of pruning them when the currently admitted aliases complete.
         Later limited admissions can restore a pruned seed from the cached
         source before dispatching another alias.
         """
-        if self._prior_sample_keys is None or self._prior_sample_users is None:
+        if self._prior_sample_keys is None:
             return
         for id, epoch in keep:
             key = self._prior_sample_keys.get(id, epoch)
             if key is not None:
-                self._prior_sample_users.setdefault(
-                    _seeded_key(key.sample_id, key.epoch), set()
-                ).add(_seeded_key(id, epoch))
+                self._prior_pending_samples.add(_seeded_key(id, epoch))
+                if self._prior_sample_users is not None:
+                    self._prior_sample_users.setdefault(
+                        _seeded_key(key.sample_id, key.epoch), set()
+                    ).add(_seeded_key(id, epoch))
 
     async def read_prior_sample(self, id: str | int, epoch: int) -> EvalSample | None:
         """The seeded prior record for ``(id, epoch)``, read from the recorder, or None.
@@ -672,6 +686,9 @@ class TaskLogger:
         seed already put in the log: nothing is written or flushed. Release
         the requested ``sample_id`` when it aliases a different prior ID.
         """
+        self._prior_pending_samples.discard(
+            _seeded_key(sample.id if sample_id is None else sample_id, sample.epoch)
+        )
         if self._prior_sample_users is not None:
             users = self._prior_sample_users.get(
                 _seeded_key(sample.id, sample.epoch), set()
@@ -744,18 +761,11 @@ class TaskLogger:
         # to the finalized on-disk log once it's flushed / the recorder is torn
         # down — otherwise those reads see only the on-disk log and miss a
         # just-completed (or reused-on-retry) sample the listing already shows.
-        if _seeded_key(id, epoch) in self._seeded_pending:
+        if (
+            _seeded_key(id, epoch) in self._seeded_pending
+            or _seeded_key(id, epoch) in self._prior_pending_samples
+        ):
             return None
-        if self._prior_sample_keys is not None and self._prior_sample_users is not None:
-            key = self._prior_sample_keys.get(id, epoch)
-            if key is not None:
-                record = _seeded_key(key.sample_id, key.epoch)
-                # Completing the source ID does not resolve other planned
-                # IDs that still need to consult the original prior record.
-                if _seeded_key(id, epoch) in self._prior_sample_users.get(
-                    record, set()
-                ):
-                    return None
         sample = await self.recorder.buffered_sample(
             self.eval, id, epoch, exclude_fields=exclude_fields
         )
@@ -816,6 +826,7 @@ class TaskLogger:
         # before releasing the alias user or awaiting a flush, so another
         # completion cannot prune the replacement as an unresolved seed.
         self._seeded_pending.discard(_seeded_key(sample.id, sample.epoch))
+        self._prior_pending_samples.discard(_seeded_key(sample.id, sample.epoch))
         if self._prior_sample_keys is not None and self._prior_sample_users is not None:
             async with self._prior_seed_lock:
                 prior_key = self._prior_sample_keys.get(sample.id, sample.epoch)
@@ -1234,6 +1245,7 @@ class TaskLogger:
             self._finished = True
             self._seeded_pending.clear()
             self._prior_sample_users = None
+            self._prior_pending_samples.clear()
             async with self._flush_pending_lock:
                 self.flush_pending.clear()
 
