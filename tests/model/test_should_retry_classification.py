@@ -378,6 +378,61 @@ def test_openai_provider_quota_exceeded_does_not_retry() -> None:
     assert decision.retry is False
 
 
+async def test_openai_insufficient_quota_is_not_retried() -> None:
+    """A dry prepaid balance fails once with the provider's structured error."""
+    from openai import RateLimitError
+    from tenacity import RetryCallState, retry
+
+    from inspect_ai.model._providers.openai import OpenAIAPI
+    from inspect_ai.model._retry import model_retry_config
+
+    message = "You have no credits remaining..."
+    body = {
+        "message": message,
+        "type": "insufficient_quota",
+        "code": "credit_balance_exhausted",
+    }
+    error = RateLimitError(
+        message=message,
+        response=_httpx2_response(429),
+        body=body,
+    )
+    api = OpenAIAPI.__new__(OpenAIAPI)
+    attempts = 0
+
+    def before_retry(_: BaseException) -> None:
+        return None
+
+    def log_retry(_model_name: str, _retry_state: RetryCallState) -> None:
+        return None
+
+    @retry(
+        **model_retry_config(
+            "gpt-5.6",
+            3,
+            None,
+            api.should_retry,
+            before_retry,
+            log_retry,
+        )
+    )
+    async def fake_provider_generate() -> None:
+        nonlocal attempts
+        attempts += 1
+        raise error
+
+    surfaced: Exception | None = None
+    try:
+        await fake_provider_generate()
+    except Exception as ex:
+        surfaced = ex
+
+    assert attempts == 1
+    assert isinstance(surfaced, RateLimitError)
+    assert surfaced.type == "insufficient_quota"
+    assert surfaced.body == body
+
+
 def test_openai_provider_429_classifies_as_rate_limit() -> None:
     from openai import RateLimitError
 

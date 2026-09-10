@@ -39,6 +39,7 @@
 - Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
 - Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
 - Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
+- OpenAI: Insufficient prepaid credit errors now fail immediately and retain their provider error details for sandboxed agents.
 
 ## 0.3.263 (03 September 2026)
 

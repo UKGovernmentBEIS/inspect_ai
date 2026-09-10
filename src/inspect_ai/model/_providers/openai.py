@@ -676,9 +676,16 @@ class OpenAIAPI(ModelAPI):
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, RateLimitError):
-            # quota-exceeded is a permanent monthly-quota error, not a transient
-            # rate limit — do not retry.
-            if "You exceeded your current quota" in ex.message:
+            # Prepaid-balance exhaustion is permanent, not a transient rate limit.
+            # Prefer the SDK's structured error type; the messages cover legacy
+            # responses that did not supply one.
+            if ex.type == "insufficient_quota" or (
+                ex.type is None
+                and (
+                    "You exceeded your current quota" in ex.message
+                    or "You have no credits remaining" in ex.message
+                )
+            ):
                 warn_once(logger, f"OpenAI quota exceeded, not retrying: {ex.message}")
                 return RetryDecision.no()
         decision = openai_classify_retry(ex)

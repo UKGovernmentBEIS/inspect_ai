@@ -104,6 +104,71 @@ def test_provider_error_payload_bare_exception() -> None:
     }
 
 
+@pytest.mark.parametrize("via_cause", [False, True], ids=("last_attempt", "cause"))
+def test_provider_error_payload_unwraps_openai_retry_error(
+    via_cause: bool,
+) -> None:
+    """A retried OpenAI failure retains its provider-native error body."""
+    import httpx2
+    from openai import RateLimitError
+    from tenacity import Future, RetryError
+
+    message = "You have no credits remaining..."
+    body = {
+        "message": message,
+        "type": "insufficient_quota",
+        "code": "credit_balance_exhausted",
+    }
+    provider_error = RateLimitError(
+        message=message,
+        response=httpx2.Response(
+            429,
+            request=httpx2.Request("POST", "https://api.openai.com/v1/responses"),
+        ),
+        body=body,
+    )
+    attempt = Future(1)
+    if via_cause:
+        retry_error = RetryError(attempt)
+        retry_error.__cause__ = provider_error
+    else:
+        attempt.set_exception(provider_error)
+        retry_error = RetryError(attempt)
+
+    assert provider_error_payload(retry_error) == {
+        "status": 429,
+        "message": message,
+        "body": body,
+    }
+
+
+def test_provider_error_payload_handles_retry_error_without_last_attempt() -> None:
+    """Malformed RetryError instances retain a non-crashing generic fallback."""
+    from tenacity import Future, RetryError
+
+    retry_error = RetryError(Future(1))
+    del retry_error.last_attempt
+
+    assert provider_error_payload(retry_error) == {
+        "status": None,
+        "message": "RetryError",
+    }
+
+
+def test_provider_error_payload_handles_retry_error_with_successful_attempt() -> None:
+    """A RetryError with no underlying exception retains generic formatting."""
+    from tenacity import Future, RetryError
+
+    attempt = Future(1)
+    attempt.set_result(None)
+    retry_error = RetryError(attempt)
+
+    assert provider_error_payload(retry_error) == {
+        "status": None,
+        "message": str(retry_error),
+    }
+
+
 # ---------- _forward_provider_errors (service.py) ----------
 
 

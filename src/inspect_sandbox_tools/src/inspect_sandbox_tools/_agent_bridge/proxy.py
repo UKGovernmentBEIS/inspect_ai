@@ -560,8 +560,12 @@ def _provider_error(result: Any) -> Optional[dict[str, Any]]:
     return None
 
 
-def _openai_error_body(status: int, message: str) -> dict[str, Any]:
+def _openai_error_body(
+    status: int, message: str, provider_body: Optional[dict[str, Any]] = None
+) -> dict[str, Any]:
     """OpenAI-dialect error body (Chat Completions and Responses)."""
+    if provider_body is not None:
+        return {"error": provider_body}
     return {
         "error": {
             "message": message,
@@ -711,9 +715,14 @@ async def model_proxy_server(
             error = _provider_error(completion)
             if error is not None:
                 status = error.get("status") or _DEFAULT_ERROR_STATUS
+                body = error.get("body")
                 return {
                     "status": status,
-                    "body": _openai_error_body(status, error.get("message") or ""),
+                    "body": _openai_error_body(
+                        status,
+                        error.get("message") or "",
+                        body if isinstance(body, dict) else None,
+                    ),
                 }
 
             if stream:
@@ -1444,9 +1453,14 @@ async def model_proxy_server(
             error = _provider_error(completion)
             if error is not None:
                 status = error.get("status") or _DEFAULT_ERROR_STATUS
+                body = error.get("body")
                 return {
                     "status": status,
-                    "body": _openai_error_body(status, error.get("message") or ""),
+                    "body": _openai_error_body(
+                        status,
+                        error.get("message") or "",
+                        body if isinstance(body, dict) else None,
+                    ),
                 }
 
             if stream:

@@ -5,6 +5,7 @@ import json
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, AsyncIterator
 
+import httpx2
 import pytest
 from aiohttp import ClientSession
 from anthropic import AsyncAnthropic
@@ -15,7 +16,7 @@ from inspect_sandbox_tools._agent_bridge.proxy import (
     AsyncHTTPServer,
     model_proxy_server,
 )
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 from openai.types.responses import (
     FunctionToolParam,
     ResponseOutputText,
@@ -2664,11 +2665,18 @@ async def _proxy_with_service(mock_service: Any) -> AsyncGenerator[str, None]:
             await server.server.wait_closed()
 
 
-def _error_service(status: int | None, message: str) -> Any:
+def _error_service(
+    status: int | None,
+    message: str,
+    body: dict[str, Any] | None = None,
+) -> Any:
     """A mock bridge service that always returns a forwarded provider error."""
+    payload: dict[str, Any] = {"status": status, "message": message}
+    if body is not None:
+        payload["body"] = body
 
     async def mock_service(method: str, **params: Any) -> dict[str, Any]:
-        return {PROVIDER_ERROR_KEY: {"status": status, "message": message}}
+        return {PROVIDER_ERROR_KEY: payload}
 
     return mock_service
 
@@ -2735,6 +2743,53 @@ async def test_provider_error_forwarded_non_streaming(
             async with session.post(f"{base_url}{path}", json=body) as response:
                 assert response.status == status
                 assert assert_body(await response.json())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "request_body"),
+    [
+        (
+            "/v1/chat/completions",
+            {"model": "gpt-5.6", "messages": [{"role": "user", "content": "hi"}]},
+        ),
+        ("/v1/responses", {"model": "gpt-5.6", "input": "hi"}),
+    ],
+)
+async def test_openai_retry_error_forwards_provider_envelope(
+    path: str, request_body: dict[str, Any]
+) -> None:
+    """Codex receives the original insufficient_quota body, not a RetryError repr."""
+    from tenacity import Future, RetryError
+
+    message = "You have no credits remaining..."
+    body = {
+        "message": message,
+        "type": "insufficient_quota",
+        "code": "credit_balance_exhausted",
+    }
+    provider_error = RateLimitError(
+        message=message,
+        response=httpx2.Response(
+            429,
+            request=httpx2.Request("POST", "https://api.openai.com/v1/responses"),
+        ),
+        body=body,
+    )
+    attempt = Future(1)
+    attempt.set_exception(provider_error)
+    retry_error = RetryError(attempt)
+    error = retry_error.last_attempt.exception()
+    assert isinstance(error, RateLimitError)
+    assert isinstance(error.body, dict)
+
+    async with _proxy_with_service(
+        _error_service(429, str(retry_error), error.body)
+    ) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}{path}", json=request_body) as response:
+                assert response.status == 429
+                assert await response.json() == {"error": body}
 
 
 @pytest.mark.asyncio
