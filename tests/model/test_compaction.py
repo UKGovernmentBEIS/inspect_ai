@@ -58,6 +58,13 @@ def system_msg(content: str, id: str) -> ChatMessageSystem:
     return ChatMessageSystem(content=content, id=id)
 
 
+# The `_fit_summarization_input` tests below pin an exact token budget, so their
+# payload sizes are only meaningful relative to the summarization prompt's own
+# size. Give them a fixed ~287-token prompt rather than the default one, so that
+# editing the default prompt can't silently retune their arithmetic.
+FIT_TEST_PROMPT = "Summarize the conversation so far in detail. " * 26 + "{addendums}"
+
+
 @pytest.fixture
 def memory_tool() -> ToolInfo:
     """Memory tool info for testing memory warning logic."""
@@ -1585,7 +1592,7 @@ async def test_summary_elides_media_tool_output(
         _model_info._custom_models, str(model), ModelInfo(_input_tokens=2000)
     )
 
-    strategy = CompactionSummary()
+    strategy = CompactionSummary(prompt=FIT_TEST_PROMPT)
     image = ContentImage(image="data:image/png;base64," + "A" * 400)
     messages: list[ChatMessage] = [
         system_msg("S", "sys1"),
@@ -1630,7 +1637,7 @@ async def test_summary_truncation_preserves_content_structure(
         _model_info._custom_models, str(model), ModelInfo(_input_tokens=2000)
     )
 
-    strategy = CompactionSummary()
+    strategy = CompactionSummary(prompt=FIT_TEST_PROMPT)
     big_text = " ".join(f"word{i}" for i in range(1200))
     messages: list[ChatMessage] = [
         system_msg("S", "sys1"),
@@ -1759,7 +1766,7 @@ async def test_summary_fit_reserves_output_headroom(
         _model_info._custom_models, str(model), ModelInfo(_input_tokens=2000)
     )
 
-    strategy = CompactionSummary()
+    strategy = CompactionSummary(prompt=FIT_TEST_PROMPT)
     # sized to fit the 2000-token window but not the 1000-token fit target
     # that remains once output headroom is reserved
     big = " ".join(f"word{i}" for i in range(400))
