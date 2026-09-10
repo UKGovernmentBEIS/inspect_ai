@@ -38,6 +38,7 @@ from tenacity import (
     AsyncRetrying,
     RetryCallState,
     retry_if_exception,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential_jitter,
 )
@@ -231,9 +232,14 @@ async def _s3_multipart_upload_async(
     config: TransferConfig,
 ) -> dict[str, Any]:
     # Real S3 rejects this upload with "Checksum Type mismatch" if botocore attaches its default
-    # CRC32 to each part, so we rely on request_checksum_calculation="when_required" in
-    # _create_s3_client_async.
-    created = await client.create_multipart_upload(Bucket=bucket, Key=key)
+    # CRC32 to each part without it being declared here, so we declare it whenever the client
+    # config would attach one.
+    create_args: dict[str, Any] = {}
+    if client.meta.config.request_checksum_calculation == "when_supported":
+        create_args["ChecksumAlgorithm"] = "CRC32"
+    created = await client.create_multipart_upload(
+        Bucket=bucket, Key=key, **create_args
+    )
     upload_id = created["UploadId"]
     parts: list[dict[str, Any]] = []
 
@@ -289,7 +295,7 @@ async def _s3_multipart_upload_async(
             MultipartUpload={"Parts": parts},
         )
     except BaseException:
-        with anyio.CancelScope(shield=True), suppress(Exception):
+        with anyio.move_on_after(_S3_ABORT_TIMEOUT, shield=True), suppress(Exception):
             await client.abort_multipart_upload(
                 Bucket=bucket, Key=key, UploadId=upload_id
             )
@@ -304,14 +310,8 @@ async def _s3_upload_fileobj_async(
     bucket: str,
     key: str,
     config: TransferConfig | None = None,
-) -> str | None:
+) -> str:
     """Upload `source` to S3 and capture the final response ETag."""
-    if not hasattr(client, "meta"):
-        await client.upload_fileobj(
-            Fileobj=source, Bucket=bucket, Key=key, Config=config
-        )
-        return None
-
     from boto3.s3.transfer import TransferConfig
 
     config = config or TransferConfig()
@@ -338,25 +338,40 @@ async def _s3_download_file_async(
     client: Any, bucket: str, key: str, local: str, config: TransferConfig
 ) -> None:
     """Download an S3 object to `local` with concurrent ranged GETs."""
-    size = int((await client.head_object(Bucket=bucket, Key=key))["ContentLength"])
+    from s3transfer.utils import S3_RETRYABLE_DOWNLOAD_ERRORS
+
+    head = await client.head_object(Bucket=bucket, Key=key)
+    size = int(head["ContentLength"])
     part_starts = range(0, size, config.multipart_chunksize)
     pending = iter(part_starts)
     open(local, "wb").close()
 
+    async def download_part(f: BinaryIO, start: int) -> None:
+        response = await client.get_object(
+            Bucket=bucket,
+            Key=key,
+            IfMatch=head["ETag"],
+            Range=s3_range_header(start, min(start + config.multipart_chunksize, size)),
+        )
+        body = response["Body"]
+        try:
+            data = await body.read()
+        finally:
+            body.close()
+
+        f.seek(start)
+        await anyio.to_thread.run_sync(f.write, data)
+
     async def download_parts() -> None:
         with open(local, "r+b") as f:
             for start in pending:
-                end = min(start + config.multipart_chunksize, size)
-                response = await client.get_object(
-                    Bucket=bucket, Key=key, Range=s3_range_header(start, end)
-                )
-                body = response["Body"]
-                try:
-                    f.seek(start)
-                    async for chunk in body.iter_chunks(_DOWNLOAD_IO_CHUNKSIZE):
-                        f.write(chunk)
-                finally:
-                    body.close()
+                async for attempt in AsyncRetrying(
+                    retry=retry_if_exception_type(S3_RETRYABLE_DOWNLOAD_ERRORS),
+                    stop=stop_after_attempt(_S3_DOWNLOAD_ATTEMPTS),
+                    reraise=True,
+                ):
+                    with attempt:
+                        await download_part(f, start)
 
     await tg_collect(
         [download_parts] * min(config.max_request_concurrency, len(part_starts))
@@ -1438,4 +1453,6 @@ _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
 # accumulating a range into memory.
 _READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB
 
-_DOWNLOAD_IO_CHUNKSIZE = 1024 * 1024  # 1 MB
+_S3_DOWNLOAD_ATTEMPTS = 5
+
+_S3_ABORT_TIMEOUT = 30

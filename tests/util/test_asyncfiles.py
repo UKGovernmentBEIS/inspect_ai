@@ -4,13 +4,14 @@ import io
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, AsyncIterator, cast
+from types import SimpleNamespace
+from typing import Any, cast
 
 import anyio
 import pytest
 from anyio import EndOfStream
 from boto3.s3.transfer import TransferConfig
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, ResponseStreamingError
 
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
@@ -471,7 +472,16 @@ async def test_write_file_streaming_s3_sync_backend_source_reusable(
         assert await fs.read_file(s3_path) == test_data
 
 
+class _FakeMeta:
+    def __init__(self, request_checksum_calculation: str = "when_required") -> None:
+        self.config = SimpleNamespace(
+            request_checksum_calculation=request_checksum_calculation
+        )
+
+
 class _RetryingUploadClient:
+    meta = _FakeMeta()
+
     def __init__(self, fail_times: int = 1) -> None:
         self.fail_times = fail_times
         self.calls = 0
@@ -480,8 +490,14 @@ class _RetryingUploadClient:
     def upload_fileobj_sync(
         self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
     ) -> None:
+        self.record(Fileobj.read())
+
+    async def put_object(self, Body: bytes, **kwargs: Any) -> dict[str, Any]:
+        self.record(bytes(Body))
+        return {"ETag": '"etag-1"'}
+
+    def record(self, data: bytes) -> None:
         self.calls += 1
-        data = Fileobj.read()
         if self.calls <= self.fail_times:
             raise ClientError(
                 cast(
@@ -502,6 +518,8 @@ class _RetryingUploadClient:
 
 
 class _FailingUploadClient:
+    meta = _FakeMeta()
+
     def __init__(self, code: str) -> None:
         self.code = code
         self.calls = 0
@@ -509,8 +527,15 @@ class _FailingUploadClient:
     def upload_fileobj_sync(
         self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
     ) -> None:
-        self.calls += 1
         Fileobj.read()
+        self.fail()
+
+    async def put_object(self, **kwargs: Any) -> dict[str, Any]:
+        self.fail()
+        return {}
+
+    def fail(self) -> None:
+        self.calls += 1
         raise ClientError(
             cast(
                 Any,
@@ -653,9 +678,13 @@ async def test_write_file_streaming_s3_does_not_retry_non_retryable_error(
 class _MultipartClient:
     """Fake aiobotocore S3 client recording a multipart upload."""
 
-    meta = object()
-
-    def __init__(self, fail_part: int | None = None) -> None:
+    def __init__(
+        self,
+        fail_part: int | None = None,
+        request_checksum_calculation: str = "when_required",
+    ) -> None:
+        self.meta = _FakeMeta(request_checksum_calculation)
+        self.created: dict[str, Any] | None = None
         self.fail_part = fail_part
         self.parts: list[tuple[int, bytes]] = []
         self.completed: list[dict[str, Any]] | None = None
@@ -667,6 +696,7 @@ class _MultipartClient:
         raise AssertionError("put_object must not be used above the threshold")
 
     async def create_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
+        self.created = kwargs
         return {"UploadId": "upload-1"}
 
     async def upload_part(
@@ -716,6 +746,18 @@ async def test_s3_upload_async_multipart_exact_multiple_of_chunksize() -> None:
     ]
     assert client.aborted == []
     assert not source.closed
+    assert client.created is not None and "ChecksumAlgorithm" not in client.created
+
+
+async def test_s3_upload_async_multipart_declares_default_checksum() -> None:
+    client = _MultipartClient(request_checksum_calculation="when_supported")
+
+    await _s3_upload_fileobj_async(
+        client, io.BytesIO(b"aaaabbbb"), "bucket", "key", _SMALL_PARTS()
+    )
+
+    assert client.created is not None
+    assert client.created["ChecksumAlgorithm"] == "CRC32"
 
 
 async def test_s3_upload_async_multipart_aborts_on_part_failure() -> None:
@@ -750,16 +792,28 @@ async def test_s3_upload_async_multipart_aborts_on_cancel() -> None:
 
 
 class _RangedGetClient:
-    def __init__(self, data: bytes) -> None:
+    def __init__(
+        self, data: bytes, fail_reads: int = 0, head_etag: str | None = None
+    ) -> None:
         self.data = data
+        self.etag = '"etag-original"'
+        self.head_etag = head_etag or self.etag
+        self.fail_reads = fail_reads
         self.ranges: list[str] = []
         self.in_flight = 0
         self.max_in_flight = 0
 
     async def head_object(self, **kwargs: Any) -> dict[str, Any]:
-        return {"ContentLength": len(self.data)}
+        return {"ContentLength": len(self.data), "ETag": self.head_etag}
 
-    async def get_object(self, Range: str, **kwargs: Any) -> dict[str, Any]:
+    async def get_object(
+        self, Range: str, IfMatch: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        if IfMatch != self.etag:
+            raise ClientError(
+                cast(Any, {"Error": {"Code": "PreconditionFailed", "Message": ""}}),
+                "GetObject",
+            )
         self.ranges.append(Range)
         start, end = (int(v) for v in Range.removeprefix("bytes=").split("-"))
 
@@ -771,17 +825,19 @@ class _RangedBody:
         self.client = client
         self.chunk = chunk
 
-    async def iter_chunks(self, size: int) -> AsyncIterator[bytes]:
+    async def read(self) -> bytes:
         self.client.in_flight += 1
         self.client.max_in_flight = max(
             self.client.max_in_flight, self.client.in_flight
         )
         await anyio.sleep(0.01)
-
-        for i in range(0, len(self.chunk), size):
-            yield self.chunk[i : i + size]
-
         self.client.in_flight -= 1
+
+        if self.client.fail_reads > 0:
+            self.client.fail_reads -= 1
+            raise ResponseStreamingError(error=OSError("reset"))
+
+        return self.chunk
 
     def close(self) -> None:
         pass
@@ -809,6 +865,37 @@ async def test_s3_download_async_concurrent_ranges() -> None:
         "bytes=900-1023",
     ]
     assert client.max_in_flight == 3
+
+
+async def test_s3_download_async_retries_failed_body_read() -> None:
+    data = b"\x01" * 1000
+    client = _RangedGetClient(data, fail_reads=2)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client,
+            "bucket",
+            "key",
+            local,
+            TransferConfig(multipart_chunksize=400, max_concurrency=1),
+        )
+        assert Path(local).read_bytes() == data
+
+    assert len(client.ranges) == 5
+
+
+async def test_s3_download_async_rejects_object_changed_after_head() -> None:
+    client = _RangedGetClient(b"\x01" * 1000, head_etag='"etag-stale"')
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        with pytest.raises(ClientError) as exc_info:
+            await _s3_download_file_async(
+                client, "bucket", "key", local, TransferConfig(multipart_chunksize=400)
+            )
+
+    assert exc_info.value.response["Error"]["Code"] == "PreconditionFailed"
 
 
 async def test_s3_download_async_empty_object() -> None:
