@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Tools: Exclude dataclass `init=False` fields from parameters, preserving constructor-managed values and returning parsing errors for supplied non-init fields instead of crashing samples.
+- Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
 - Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.
 - Datasets: `csv_dataset()` now honors the dialect's delimiter when no explicit delimiter is supplied, including tab-separated and registered custom dialects.
 - Elicitation: long lines in `ask_user` prompts are no longer hard-wrapped by the console, so long commands copy out of the terminal intact.
@@ -21,6 +21,7 @@
 - Checkpointing: Sandbox transfers are size-limited, cannot overwrite existing repository files, and resume uses the recorded snapshot when available.
 - Checkpointing: Oversized sandbox archive headers are rejected before they can cause large host memory allocations.
 - Sandboxes: Compose files using long syntax volume mounts, `pids_limit`, `read_only`, `cgroup`, `stop_grace_period`, `build.no_cache`, or `build.pull` no longer fail validation when starting an eval.
+- Tools: Exclude dataclass `init=False` fields from parameters, preserving constructor-managed values and returning parsing errors for supplied non-init fields instead of crashing samples.
 - Sandbox Tools: The in-sandbox tool server's socket and control files now live inside the injected tools tree, out of reach of other users in the container.
 - Sandbox tools: `bash_session()`, `text_editor()`, `exec_remote()` and sandboxed MCP servers now run as the sandbox's default user instead of always as root; the three tools accept `user="root"` to restore the old behavior.
 - Sandbox Tools: Binaries downloaded from S3 that fail SHA256 verification or lack a pinned digest are now rejected instead of run with a warning; `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` has been removed.
