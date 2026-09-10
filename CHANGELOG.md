@@ -37,6 +37,7 @@
 - Eval Log: Reading zstd-compressed `.eval` files no longer fails with `AttributeError: ... '_needs_input'` on Python builds that include CPython's gh-156002 zipfile change.
 - Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
 - Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
+- Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
 
 ## 0.3.263 (03 September 2026)
 
