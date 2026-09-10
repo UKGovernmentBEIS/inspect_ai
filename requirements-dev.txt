@@ -42,6 +42,7 @@ ruff==0.9.6
 textual-dev>=0.86.2
 together>=2.0.0
 trio
+trustme
 types-aioboto3
 types-beautifulsoup4
 types-boto3

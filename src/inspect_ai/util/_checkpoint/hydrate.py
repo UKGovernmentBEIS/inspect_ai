@@ -74,9 +74,11 @@ from inspect_ai.util._span import current_span_id
 
 from ._host_egress import seed_manifest
 from ._layout import host_context
+from ._layout._paths import sample_dir_segment
 from ._layout.eval_checkpoints_dir import eval_checkpoints_dir
 from ._layout.sample_checkpoints_dir import (
     checkpoint_file_id,
+    checkpoint_file_name,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
     scan_committed_checkpoints,
@@ -202,6 +204,49 @@ class HydrationResult:
     default (empty-path entries opt out)."""
 
 
+_sample_dir_rename_warned = False
+"""Whether the sample-id rename warning has been emitted in this process.
+
+A plain flag, not a lock: hydration runs on the eval's single event loop
+thread, so two samples cannot race here.
+"""
+
+
+def _warn_if_sample_dir_renamed(sample_id: int | str) -> None:
+    """Warn once per process when a sample id is not its checkpoint dir name.
+
+    ``sample_dir_segment`` rewrites an id that is not used verbatim as a
+    directory name (one with a slash, backslash, NUL or the reserved ``~``,
+    ``.``/``..``, or over 200 bytes) to a hashed segment. Ids with a ``/``
+    used to nest a level down and resume from there, so after an upgrade
+    their earlier checkpoints are not found. The warning makes
+    that visible at fresh provision, the moment a new name is first used;
+    it names the first such id and fires once, because an id shape like
+    ``owner/task`` usually runs through a whole dataset and one warning per
+    sample would drown the log. Every renamed id is recorded in the trace
+    log so the mapping stays recoverable.
+    """
+    global _sample_dir_rename_warned
+    segment = sample_dir_segment(sample_id)
+    if segment == str(sample_id):
+        return
+    trace_message(
+        logger,
+        "Checkpoint",
+        f"sample id {str(sample_id)!r} checkpoints stored under {segment!r}",
+    )
+    if _sample_dir_rename_warned:
+        return
+    _sample_dir_rename_warned = True
+    logger.warning(
+        f"checkpoint: sample id {str(sample_id)!r} is not used as its checkpoint "
+        f"directory name; its checkpoints are stored under {segment!r} (further "
+        "ids like it are "
+        "recorded in the trace log). Checkpoints written by earlier versions "
+        "under the raw id are not resumed."
+    )
+
+
 async def hydrate(
     *,
     config: ResolvedCheckpointConfig,
@@ -232,6 +277,8 @@ async def hydrate(
     new_eval_checkpoints_dir = eval_checkpoints_dir(
         log_location, config.checkpoints_location
     )
+    if not resume_checkpoint:
+        _warn_if_sample_dir_renamed(sample_id)
     new_sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
         new_eval_checkpoints_dir, sample_id, epoch
     )
@@ -773,7 +820,7 @@ def _synthesize_trailing_checkpoint_event(
     indistinguishable from a live one — same content, same
     timestamp.
     """
-    checkpoint_path = f"{sample_root}/ckpt-{latest_committed_id:05d}.json"
+    checkpoint_path = f"{sample_root}/{checkpoint_file_name(latest_committed_id)}"
     with file(checkpoint_path, "r") as f:
         checkpoint = Checkpoint.model_validate_json(f.read())
     return CheckpointEvent.from_details(checkpoint).model_copy(

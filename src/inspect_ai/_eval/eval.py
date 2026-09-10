@@ -109,7 +109,7 @@ from .task.enqueue import (
     register_task_enqueuer,
 )
 from .task.images import InputMediaPolicy
-from .task.resolved import ResolvedTask, resolved_model_names
+from .task.resolved import ResolvedTask, resolved_model_names, resolved_task_names
 from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
@@ -173,6 +173,7 @@ def eval(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -244,7 +245,7 @@ def eval(
             to "eval", the native high-performance format).
         limit: Limit evaluated samples
             (defaults to all samples).
-        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`)..
+        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`); a prefix that names no task in the run is part of the id, and an empty list selects no samples.
         sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
@@ -306,6 +307,7 @@ def eval(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
         **kwargs: Model generation options.
@@ -379,6 +381,7 @@ def eval(
                 acp_server=acp_server,
                 ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
+                eval_set_tasks=eval_set_tasks,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
@@ -466,6 +469,7 @@ async def eval_async(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -517,7 +521,7 @@ async def eval_async(
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
         limit: Limit evaluated samples (defaults to all samples).
-        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`).
+        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`); a prefix that names no task in the run is part of the id, and an empty list selects no samples.
         sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
@@ -569,6 +573,7 @@ async def eval_async(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
         **kwargs: Model generation options.
@@ -656,6 +661,7 @@ async def eval_async(
                 acp_server=acp_server,
                 ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
+                eval_set_tasks=eval_set_tasks,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
@@ -735,6 +741,7 @@ async def _eval_async_inner(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -1045,13 +1052,25 @@ async def _eval_async_inner(
                 # feed later iterations, all under this run_id. `debug_errors`
                 # is passed only on the parallel==1 path (the multi-task path
                 # never set it — preserved asymmetry).
+                # every task name the run has seen, so `task:id` sample
+                # selectors resolve the same way in every batch: the enclosing
+                # eval set's tasks (a retry runs a subset), then each batch as
+                # it is prepared (an enqueued task sees the ones before it)
+                task_names = list(eval_set_tasks or [])
+
                 async def run_batch(
                     tasks: list[ResolvedTask],
                     debug: bool,
                     inject: TaskInjection | None = None,
                 ) -> list[EvalLog]:
+                    task_names.extend(
+                        name
+                        for name in resolved_task_names(tasks)
+                        if name not in task_names
+                    )
                     return await eval_run(
                         eval_set_id=eval_set_id,
+                        eval_set_tasks=task_names,
                         run_id=run_id,
                         tasks=tasks,
                         parallel=parallel,
@@ -1475,6 +1494,24 @@ def eval_retry(
     return result
 
 
+def _requalify_sample_ids(
+    task: str, sample_id: str | int | list[str] | list[int] | list[str | int] | None
+) -> str | int | list[str] | list[int] | list[str | int] | None:
+    """Re-qualify a log's `sample_id` with its task name for a retry.
+
+    A log records the selection already resolved for its task (a `task:`
+    prefix stripped), and the retry resolves it again — so an id that itself
+    begins with `<task>:` would be stripped twice. Prefixing each string id
+    with the task name makes the second resolution return exactly what ran.
+    """
+    if isinstance(sample_id, list):
+        return [f"{task}:{id}" if isinstance(id, str) else id for id in sample_id]
+    elif isinstance(sample_id, str):
+        return f"{task}:{sample_id}"
+    else:
+        return sample_id
+
+
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
@@ -1730,7 +1767,9 @@ async def eval_retry_async(
                     log_format = "eval"
                 case ".json":
                     log_format = "json"
-        sample_id = eval_log.eval.config.sample_id
+        sample_id = _requalify_sample_ids(
+            eval_log.eval.task, eval_log.eval.config.sample_id
+        )
         sample_shuffle = eval_log.eval.config.sample_shuffle
         epochs = (
             Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
