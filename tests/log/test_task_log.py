@@ -1186,6 +1186,7 @@ async def test_dynamic_seed_alias_does_not_overwrite_current_attempt(
     await logger.seed_added_samples(prior, keep={(2, 1)})
     assert not logger._seeded_pending
     assert await logger.read_prior_sample(2, 1) == prior_sample
+    assert await logger.read_sample(2, 1) is None
     assert await logger.read_sample("002", 1) == fresh
     await logger.complete_sample(
         EvalSample(id=2, epoch=1, input="admitted rerun", target="a"), flush=False
@@ -1329,7 +1330,14 @@ async def test_json_seed_preserves_history_for_shared_normalized_ids(
     reverse_order: bool,
     tmp_path: Path,
 ) -> None:
+    from unittest.mock import Mock
+
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.requeue import requeue_sample
+    from inspect_ai._control.state import _full_sample
     from inspect_ai._eval.task.run import _seed_error_retries
+    from inspect_ai._eval.task.scheduler import SampleQueueView, SampleRequeue
 
     prior_sample = _prior_samples()[1].model_copy(update={"id": "001"})
     prior = await _write_prior_log(
@@ -1365,8 +1373,35 @@ async def test_json_seed_preserves_history_for_shared_normalized_ids(
     assert len(history) == 1
     current = await logger.read_sample(first_id, 1)
     assert current is not None and current.error is None and current.input == "first"
-    if first_id != prior_sample.id:
+    if planned is not None or first_id != prior_sample.id:
         assert await logger.read_sample(second_id, 1) is None
+    if planned is not None and first_id == prior_sample.id:
+        state = register_eval(
+            logger.eval.eval_id, 2, live=logger, sample_ids=[first_id, second_id]
+        )
+        handle = Mock(spec=SampleRequeue)
+        handle.open = True
+        handle.cancelled_keys.return_value = frozenset()
+        handle.sample_view.return_value = SampleQueueView(
+            pending=False,
+            prior_status=None,
+            pending_departed=False,
+            queue=None,
+            cancelled=None,
+            typed_id=second_id,
+        )
+        state.sample_requeue = handle
+        try:
+            assert await _full_sample(logger.eval.eval_id, str(second_id), 1) is None
+            cancelled = await cancel_sample(logger.eval.eval_id, str(second_id), 1)
+            assert cancelled is not None and not cancelled["ok"]
+            assert "retry" in cancelled["error"]
+            requeued = await requeue_sample(logger.eval.eval_id, str(second_id), 1)
+            assert requeued is not None and requeued["ok"]
+            assert requeued["status"] == "pending"
+            handle.accept.assert_not_called()
+        finally:
+            clear_all_eval_states()
     snapshot = await read_eval_log_async(logger.location)
     assert {s.id for s in snapshot.samples or []} == {first_id, "001"}
     if finish_second:
@@ -1385,11 +1420,36 @@ async def test_json_seed_preserves_history_for_shared_normalized_ids(
     assert final.samples is not None
     by_id = {s.id: s for s in final.samples}
     assert set(by_id) == {first_id, second_id if finish_second else "001"}
+    if recorder_type is JSONRecorder:
+        assert await logger.read_sample(second_id, 1) is not None
     assert len(by_id[first_id].error_retries or []) == 1
     if finish_second:
         assert by_id[second_id].error_retries == history
     elif first_id != "001":
         assert by_id["001"].error == prior_sample.error
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+async def test_json_seed_reused_alias_resolves_only_its_requested_id(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder], tmp_path: Path
+) -> None:
+    prior_sample = _prior_samples()[0].model_copy(update={"id": "001"})
+    prior = await _write_prior_log(
+        JSONRecorder(str(tmp_path / "prior")), [prior_sample]
+    )
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep={("001", 1), (1, 1)})
+    await logger.log_start(EvalPlan())
+    logger.note_reused_sample(prior_sample, sample_id="001")
+    assert await logger.read_sample("001", 1) == prior_sample
+    assert await logger.read_sample(1, 1) is None
+    logger.note_reused_sample(prior_sample, sample_id=1)
+    if recorder_type is JSONRecorder:
+        assert await logger.read_sample(1, 1) == prior_sample
+    assert await logger.read_sample("001", 1) == prior_sample
+    await logger.log_finish("success", EvalStats(), prune_unplanned=True)
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])

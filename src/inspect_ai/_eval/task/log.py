@@ -663,12 +663,22 @@ class TaskLogger:
                 return samples[0].model_copy(deep=True)
             return await self.recorder.buffered_sample(self.eval, id, epoch)
 
-    def note_reused_sample(self, sample: EvalSample) -> None:
+    def note_reused_sample(
+        self, sample: EvalSample, *, sample_id: str | int | None = None
+    ) -> None:
         """Record that the reuse sweep accepted a seeded prior sample as this attempt's result.
 
         The bookkeeping half of :meth:`complete_sample` for a record the
-        seed already put in the log: nothing is written or flushed.
+        seed already put in the log: nothing is written or flushed. Release
+        the requested ``sample_id`` when it aliases a different prior ID.
         """
+        if self._prior_sample_users is not None:
+            users = self._prior_sample_users.get(
+                _seeded_key(sample.id, sample.epoch), set()
+            )
+            users.discard(
+                _seeded_key(sample.id if sample_id is None else sample_id, sample.epoch)
+            )
         self._record_sample_outcome(sample)
 
     async def log_start(self, plan: EvalPlan) -> None:
@@ -740,9 +750,11 @@ class TaskLogger:
             key = self._prior_sample_keys.get(id, epoch)
             if key is not None:
                 record = _seeded_key(key.sample_id, key.epoch)
-                if record in self._seeded_pending and _seeded_key(
-                    id, epoch
-                ) in self._prior_sample_users.get(record, set()):
+                # Completing the source ID does not resolve other planned
+                # IDs that still need to consult the original prior record.
+                if _seeded_key(id, epoch) in self._prior_sample_users.get(
+                    record, set()
+                ):
                     return None
         sample = await self.recorder.buffered_sample(
             self.eval, id, epoch, exclude_fields=exclude_fields
@@ -1221,6 +1233,7 @@ class TaskLogger:
             # empty pending rather than reporting stale pending.
             self._finished = True
             self._seeded_pending.clear()
+            self._prior_sample_users = None
             async with self._flush_pending_lock:
                 self.flush_pending.clear()
 

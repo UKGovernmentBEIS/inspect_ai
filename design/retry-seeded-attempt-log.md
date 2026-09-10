@@ -280,12 +280,16 @@ from the cached source before dispatch. JSON retry lookups use independent
 copies of the cached original bodies, restricted to admitted prior records,
 even after an exact-ID completion replaces that record in the destination.
 Thus a later alias still runs with the original error or invalidation instead
-of reusing another sample's new success. The recorder caches one prior source
-per attempt: JSON bodies and their exact-first index, or Eval keys and a
-shared ZIP reader. Admissions resolve only selected keys against that index
-and retain at most eight selected Eval bodies at once. Finish and discard
-release the cache and its filesystem clients; failed initial reads close
-their clients before propagating the failure. `EvalRecorder`
+of reusing another sample's new success. For a known plan, live control reads
+guard each admitted alias until its own lookup accepts the prior result or
+its rerun completes, even after the original ID completes. The recorder caches
+one prior source per attempt: JSON bodies and their exact-first index, or Eval
+keys and a shared ZIP reader. Admissions resolve only selected keys against
+that index and retain at most eight selected Eval bodies at once. Finish and discard
+release the cache and its filesystem clients; shielded task-exit cleanup also
+releases them after terminal startup failures without removing any written
+destination. Failed initial reads close their clients before propagating the
+failure. `EvalRecorder`
 overrides for a `.eval` prior with `ZipLogFile.seed_from_prior_log` (copy
 the prior file into a fresh temp zip, open in append mode, prune, rewrite
 the summaries journal); a `seed` field on `EvalSampleSource` that carries

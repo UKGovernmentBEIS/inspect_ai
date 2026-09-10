@@ -684,6 +684,141 @@ def test_unserializable_score_metadata_does_not_abort_eval(
     assert reduced.metadata is None
 
 
+@pytest.mark.parametrize("failure_stage", ["seed", "checkpoint", "start", "flush"])
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_terminal_retry_startup_closes_seed_source(
+    failure_stage: str,
+    log_format: Literal["eval", "json"],
+    cancel: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import inspect_ai._eval.task.run as task_run_module
+    import inspect_ai.log._samples as samples_module
+    from inspect_ai._eval.task import PreviousTask
+    from inspect_ai.log import EvalSample, EvalSpec, list_eval_logs, read_eval_log_async
+    from inspect_ai.log._recorders.recorder import Recorder, SeedSamples
+    from inspect_ai.util import CheckpointConfig, TurnInterval
+    from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+    monkeypatch.setattr(
+        samples_module, "create_checkpointer", lambda **kwargs: _NoopCheckpointer()
+    )
+    loaded: list[SeedSamples] = []
+    closed: list[SeedSamples] = []
+    failed_loggers: list[TaskLogger] = []
+    load = SeedSamples.load
+    close = SeedSamples.close
+    seed = Recorder.log_seed_samples
+    start = TaskLogger.log_start
+
+    async def track_load(source: SeedSamples, prior: str | list[EvalSample]) -> None:
+        await load(source, prior)
+        loaded.append(source)
+
+    async def track_close(source: SeedSamples) -> None:
+        await anyio.lowlevel.checkpoint()
+        await close(source)
+        closed.append(source)
+
+    async def fail_startup() -> None:
+        assert loaded
+        if cancel:
+            scope.cancel()
+            await anyio.lowlevel.checkpoint()
+        raise OSError("simulated terminal startup failure")
+
+    async def seed_and_fail(
+        recorder: Recorder,
+        spec: EvalSpec,
+        prior: str | list[EvalSample],
+        keep: set[tuple[str | int, int]] | None,
+    ) -> None:
+        await seed(recorder, spec, prior, keep)
+        if failure_stage == "seed":
+            await fail_startup()
+
+    async def copy_checkpoints(
+        *, source_eval_dir: str, destination_eval_dir: str
+    ) -> None:
+        if failure_stage == "checkpoint":
+            await fail_startup()
+
+    async def start_and_fail(logger: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        if logger.prior_seeded:
+            failed_loggers.append(logger)
+            if failure_stage == "start":
+                await fail_startup()
+        await start(logger, *args, **kwargs)
+        if logger.prior_seeded and failure_stage == "flush":
+            await fail_startup()
+
+    @solver
+    def fail_sample() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            raise RuntimeError("first attempt fails")
+
+        return solve
+
+    def retry_startup_task() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="x", target="y")],
+            solver=fail_sample(),
+            checkpoint=CheckpointConfig(trigger=TurnInterval(every=1)),
+        )
+
+    monkeypatch.setattr(SeedSamples, "load", track_load)
+    monkeypatch.setattr(SeedSamples, "close", track_close)
+    monkeypatch.setattr(Recorder, "log_seed_samples", seed_and_fail)
+    monkeypatch.setattr(task_run_module, "copy_resume_payloads", copy_checkpoints)
+    monkeypatch.setattr(TaskLogger, "log_start", start_and_fail)
+    # JSON priors exercise the cached-body path for both destination formats.
+    prior = (
+        await eval_async(
+            retry_startup_task(),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            log_format="json",
+        )
+    )[0]
+    assert prior.location is not None
+    with anyio.CancelScope() as scope:
+        result = await eval_async(
+            PreviousTask(
+                id=prior.eval.task_id,
+                task=retry_startup_task(),
+                task_args={},
+                model=None,
+                model_roles=None,
+                log=await read_eval_log_async(prior.location, header_only=True),
+                log_info=list_eval_logs(str(tmp_path))[0],
+            ),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            log_format=log_format,
+        )
+        if not cancel:
+            assert result[0].status == "error"
+            assert result[0].error is not None
+            assert "simulated terminal startup failure" in result[0].error.message
+
+    assert scope.cancel_called == cancel
+    assert len(loaded) == 1
+    assert closed == loaded
+    assert not loaded[0]._samples and not loaded[0].keys
+    assert loaded[0]._reader is None
+    for logger in failed_loggers:
+        assert not logger.recorder._seed_sources
+    logs = list_eval_logs(str(tmp_path))
+    assert len(logs) == (2 if failure_stage == "flush" else 1)
+    if failure_stage == "flush":
+        written = await read_eval_log_async(failed_loggers[0].location)
+        assert written.status == "started"
+        assert written.samples is not None and len(written.samples) == 1
+        assert written.samples[0].error == (prior.samples or [])[0].error
+
+
 def test_failed_log_start_is_retried(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

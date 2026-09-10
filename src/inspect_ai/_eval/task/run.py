@@ -1392,7 +1392,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     if isinstance(previous_sample, EvalSample):
                         reporter.progress()
                         if logger.prior_seeded:
-                            logger.note_reused_sample(previous_sample)
+                            logger.note_reused_sample(
+                                previous_sample, sample_id=sample_id
+                            )
                         elif log_samples:
                             await logger.complete_sample(
                                 condense_sample(previous_sample, log_images),

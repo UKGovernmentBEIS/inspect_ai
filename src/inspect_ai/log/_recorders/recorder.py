@@ -76,7 +76,7 @@ class SeedSamples:
 
     JSON and memory sources retain their bodies. Eval sources retain only
     keys and a ZIP directory; body reads remain bounded by the caller's batch.
-    The recorder owns this source and closes it on finish or discard.
+    The recorder owns this source and closes it on finish, discard, or task exit.
     """
 
     def __init__(self) -> None:
@@ -213,7 +213,7 @@ class Recorder(abc.ABC):
         return source
 
     async def close_seed_source(self, eval: EvalSpec) -> None:
-        """Release this attempt's cached prior when finishing or discarding it."""
+        """Release this attempt's cached prior on finish, discard, or task exit."""
         source = self._seed_sources.pop(eval.eval_id, None)
         if source is not None:
             await source.close()

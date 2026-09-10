@@ -626,6 +626,14 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
             error=eval_error(inner, type(inner), inner, inner.__traceback__),
             location=options.logger.location,
         )
+    finally:
+        # Startup can fail before log_finish owns teardown. Release the
+        # cached prior on every exit without removing a written destination.
+        with anyio.CancelScope(shield=True):
+            try:
+                await options.logger.recorder.close_seed_source(options.logger.eval)
+            except Exception as ex:
+                log.warning(f"Error closing prior log source: {exception_message(ex)}")
     return TaskRunResult(result, cancel_type)
 
 
