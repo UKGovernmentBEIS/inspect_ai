@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Sample selection: `--sample-id` now accepts ids containing colons (e.g. `user:cybergym/arvo_6008`); a `task:` prefix is stripped only when it names a task in the run.
 - Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
 - Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
 - Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.
