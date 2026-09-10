@@ -4,7 +4,7 @@ import re
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, Tuple, Union, cast
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from typing_extensions import override
 
 if TYPE_CHECKING:
@@ -170,24 +170,17 @@ class ConverseReasoningContent(BaseModel):
     botocore enforces that on the way out -- setting both raises
     `ParamValidationError` before the request is signed.
 
-    Both members are nonetheless optional here so that an unrecognised
-    response shape (a variant added to the union later) parses to an empty
-    block rather than raising; `model_output_from_response` records that as
-    redacted reasoning. A request must never carry an empty block, and
-    `converse_reasoning_content` returns None rather than building one.
+    Both members are optional here rather than enforced as a union, because
+    this class parses responses as well as building requests: an unrecognised
+    response shape must land as an empty block for
+    `model_output_from_response` to record as redacted reasoning, not raise.
+    Requests are kept valid on the way out instead --
+    `converse_reasoning_content` emits exactly one member or None, and
+    botocore refuses both members and an empty block alike.
     """
 
     reasoningText: ConverseReasoningText | None = None
     redactedContent: bytes | None = None
-
-    @model_validator(mode="after")
-    def validate_union(self) -> "ConverseReasoningContent":
-        if self.reasoningText is not None and self.redactedContent is not None:
-            raise ValueError(
-                "reasoningContent is a tagged union: set reasoningText or "
-                "redactedContent, not both"
-            )
-        return self
 
 
 class ConverseCachePoint(BaseModel):

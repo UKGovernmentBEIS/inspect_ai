@@ -35,7 +35,6 @@ import json
 from typing import Any, AsyncIterator
 
 import pytest
-from pydantic import ValidationError
 from test_helpers.utils import skip_if_trio
 
 pytest.importorskip("aiobotocore")
@@ -452,17 +451,31 @@ async def test_streamed_redacted_reasoning_accumulates_across_deltas() -> None:
 # ------------------------------------------------------ the tagged union
 
 
-def test_setting_both_union_members_is_rejected() -> None:
+def test_both_union_members_would_fail_validation() -> None:
     """`ReasoningContentBlock` is a tagged union, so both is never valid.
 
-    botocore refuses it too ("Invalid number of parameters set for tagged
-    union structure"), but failing at construction keeps a bad request from
-    being assembled in the first place.
+    Enforced on the way out by botocore rather than by the model, which also
+    parses responses and must let an unrecognised shape through instead of
+    raising. This pins the behaviour the replay path relies on.
     """
-    with pytest.raises(ValidationError, match="tagged union"):
-        ConverseReasoningContent(
-            reasoningText=ConverseReasoningText(text="t"),
-            redactedContent=REDACTED_BYTES,
+    with pytest.raises(ParamValidationError, match="Invalid number of parameters"):
+        _validate_against_service_model(
+            {
+                "modelId": "m",
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "reasoningContent": {
+                                    "reasoningText": {"text": "t"},
+                                    "redactedContent": REDACTED_BYTES,
+                                }
+                            }
+                        ],
+                    }
+                ],
+            }
         )
 
 
