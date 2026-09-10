@@ -37,6 +37,7 @@ import ast
 import inspect
 import json
 import stat
+from pathlib import Path
 from textwrap import dedent
 
 from inspect_ai.util import SandboxEnvironment, sandbox
@@ -254,36 +255,33 @@ async def append_bashrc(
         )
 
 
-def _strip_type_only_override_decorators(source: str) -> str:
-    """Remove ``@override`` decorators from copied standalone handler source."""
-    handler = ast.parse(source).body[0]
-    if not isinstance(handler, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        raise ValueError("Expected a command handler function")
-
-    line_offsets = [0]
-    for line in source.splitlines(keepends=True):
-        line_offsets.append(line_offsets[-1] + len(line))
-
-    decorator_ranges: list[tuple[int, int]] = []
-    for decorator in handler.decorator_list:
-        if isinstance(decorator, ast.Name) and decorator.id == "override":
-            if decorator.end_lineno is None or decorator.end_col_offset is None:
-                raise ValueError("Override decorator has no source range")
-            line_start = line_offsets[decorator.lineno - 1]
-            decorator_start = source.rfind(
-                "@", line_start, line_start + decorator.col_offset
+def _human_agent_command_handler_source(command: HumanAgentCommand) -> str:
+    """Render the bound CLI method structurally from its defining source file."""
+    handler = getattr(command.cli, "__func__", command.cli)
+    source_file = inspect.getsourcefile(handler)
+    if source_file is None:
+        raise ValueError("Could not find command handler source file")
+    tree = ast.parse(Path(source_file).read_text(encoding="utf-8"))
+    handler_line = handler.__code__.co_firstlineno
+    handler_node = next(
+        (
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == handler.__name__
+            and min(
+                (decorator.lineno for decorator in node.decorator_list),
+                default=node.lineno,
             )
-            if decorator_start == -1:
-                raise ValueError("Could not find override decorator source")
-            decorator_end = (
-                line_offsets[decorator.end_lineno - 1] + decorator.end_col_offset
-            )
-            decorator_ranges.append((decorator_start, decorator_end))
+            == handler_line
+        ),
+        None,
+    )
+    if handler_node is None:
+        raise ValueError("Could not find command handler definition")
 
-    for decorator_start, decorator_end in reversed(decorator_ranges):
-        source = source[:decorator_start] + source[decorator_end:]
-
-    return source
+    handler_node.name = f"_{command.name}_cli"
+    return ast.unparse(handler_node)
 
 
 def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
@@ -295,8 +293,29 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     import argparse
     import json
     import sys
+    import types
+    import typing
     from argparse import Namespace
     from pathlib import Path
+
+    try:
+        import typing_extensions
+    except ImportError:
+        typing_extensions = None
+
+    try:
+        from typing_extensions import override
+    except ImportError:
+        try:
+            from typing import override
+        except ImportError:
+            def override(function):
+                return function
+
+    if not hasattr(typing, "override"):
+        typing.override = override
+    if typing_extensions is None:
+        typing_extensions = types.SimpleNamespace(override=override)
 
     sys.path.append("/var/tmp/sandbox-services/human_agent")
     from human_agent import call_human_agent
@@ -360,13 +379,7 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
 
 def human_agent_command_handler(command: HumanAgentCommand) -> str:
     name = command.name
-    handler = _strip_type_only_override_decorators(
-        dedent(
-            inspect.getsource(command.cli).replace(
-                "cli(self, ", f"_{name}_cli(self, ", 1
-            )
-        )
-    )
+    handler = _human_agent_command_handler_source(command)
     state = repr(json.dumps(command.cli_state))
     return (
         f"{handler}\n"

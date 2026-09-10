@@ -1,5 +1,6 @@
 import ast
 import concurrent.futures
+import importlib.util
 import os
 import re
 import shutil
@@ -7,14 +8,17 @@ import stat
 import subprocess
 import sys
 import time
+import typing
 from argparse import Namespace
 from collections.abc import AsyncIterator, Iterator
 from io import StringIO
 from pathlib import Path
+from textwrap import dedent
 from typing import Callable, Literal, NamedTuple, overload
 from uuid import uuid4
 
 import pytest
+import typing_extensions
 from pydantic import JsonValue
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_docker
@@ -33,10 +37,6 @@ from inspect_ai.agent._human.commands.clock import StartCommand
 from inspect_ai.agent._human.commands.instructions import InstructionsCommand
 from inspect_ai.agent._human.commands.submit import QuitCommand, SubmitCommand
 from inspect_ai.agent._human.install import (
-    human_agent_commands as human_agent_task_commands,
-)
-from inspect_ai.agent._human.state import HumanAgentState
-from inspect_ai.agent._human.install import (
     _BASHRC_APPEND_SCRIPT,
     BASHRC,
     BASHRC_MARKER,
@@ -45,9 +45,12 @@ from inspect_ai.agent._human.install import (
     TASK_PY_MODE,
     append_bashrc,
     human_agent_bashrc,
-    human_agent_commands,
     install_human_agent,
 )
+from inspect_ai.agent._human.install import (
+    human_agent_commands as human_agent_task_commands,
+)
+from inspect_ai.agent._human.state import HumanAgentState
 from inspect_ai.util._sandbox._framework_directory import (
     _SCRIPT,
     _STAT_ENTRY,
@@ -118,6 +121,68 @@ class _StatefulAdditionalCommand(_AdditionalCommand):
 
     def cli(self, args: Namespace) -> None:
         print(self.value)
+
+
+class _TypingExtensionsOverrideCommand(_AdditionalCommand):
+    @typing_extensions.override
+    def cli(self, args: Namespace) -> None:
+        del args
+        print("attribute override handler ran")
+
+
+class _ParenthesizedTypingExtensionsOverrideCommand(_AdditionalCommand):
+    @(typing_extensions.override)
+    def cli(self, args: Namespace) -> None:
+        del args
+        print("attribute override handler ran")
+
+
+class _RuntimeOverrideCommand(_AdditionalCommand):
+    @Namespace(
+        override=lambda function: (print("runtime decorator ran"), function)[1]
+    ).override
+    def cli(self, args: Namespace) -> None:
+        del args
+        print("custom command ran")
+
+
+class _MatrixOverrideCommand(_AdditionalCommand):
+    @((lambda function: function) if True else (None @ None))
+    @override
+    def cli(self, args: Namespace) -> None:
+        del args
+        print("custom command ran")
+
+
+class _InheritedOverrideBaseCommand(_AdditionalCommand):
+    @override
+    def cli(self, args: Namespace) -> None:
+        del args
+        print("custom command ran")
+
+
+class _InheritedOverrideCommand(_InheritedOverrideBaseCommand):
+    pass
+
+
+_ATTRIBUTE_OVERRIDE_COMMANDS = [
+    pytest.param(_TypingExtensionsOverrideCommand(), id="typing-extensions"),
+    pytest.param(
+        _ParenthesizedTypingExtensionsOverrideCommand(),
+        id="parenthesized-typing-extensions",
+    ),
+]
+if sys.version_info >= (3, 12):
+
+    class _TypingOverrideCommand(_AdditionalCommand):
+        @typing.override
+        def cli(self, args: Namespace) -> None:
+            del args
+            print("attribute override handler ran")
+
+    _ATTRIBUTE_OVERRIDE_COMMANDS.append(
+        pytest.param(_TypingOverrideCommand(), id="typing")
+    )
 
 
 def test_human_cli_accepts_public_commands_filter():
@@ -413,7 +478,7 @@ async def test_install_writes_task_py_into_verified_root_dir_after_bashrc(
     assert write_user == "root"
     assert helper_flags(write) == ROOT_CHECK
     assert is_task_py_write(write)
-    assert sandbox.inputs[3] == human_agent_commands([])
+    assert sandbox.inputs[3] == human_agent_task_commands([])
 
     # Every command is launched through the absolute shell path; nothing is staged,
     # chowned, or executed from a directory the login user could replace.
@@ -632,7 +697,7 @@ async def test_failed_task_py_write_is_reported() -> None:
 
 def test_generated_task_py_is_valid_python() -> None:
     """What the installer publishes for a real command list must at least parse."""
-    ast.parse(human_agent_commands(REAL_COMMANDS))
+    ast.parse(human_agent_task_commands(REAL_COMMANDS))
 
 
 def test_generated_task_py_executes_handler_decorated_with_override(
@@ -655,7 +720,7 @@ def test_generated_task_py_executes_handler_decorated_with_override(
             del args
             print(message)
 
-    task_py = human_agent_commands([OverrideCommand()])
+    task_py = human_agent_task_commands([OverrideCommand()])
     (tmp_path / "human_agent.py").write_text(
         "def call_human_agent(*args, **kwargs):\n    return None\n",
         encoding="utf-8",
@@ -674,7 +739,218 @@ def test_generated_task_py_executes_handler_decorated_with_override(
     assert result.returncode == 0, result.stderr
     assert result.stdout == "handler literal @override\n"
     assert "The generated handler documentation contains @override." in task_py
-    assert "# @override\n" in task_py
+
+
+@pytest.mark.parametrize("command", _ATTRIBUTE_OVERRIDE_COMMANDS)
+def test_generated_task_py_executes_handler_decorated_with_attribute_override(
+    tmp_path: Path, command: HumanAgentCommand
+) -> None:
+    task_py = human_agent_task_commands([command])
+    (tmp_path / "human_agent.py").write_text(
+        "def call_human_agent(*args, **kwargs):\n    return None\n",
+        encoding="utf-8",
+    )
+    task_py_path = tmp_path / "task.py"
+    task_py_path.write_text(task_py, encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(task_py_path), "additional"],
+        cwd=tmp_path,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "attribute override handler ran\n"
+
+
+@pytest.mark.parametrize(
+    ("command", "expected_output"),
+    [
+        pytest.param(
+            _RuntimeOverrideCommand(),
+            "runtime decorator ran\ncustom command ran\n",
+            id="runtime-attribute",
+        ),
+        pytest.param(
+            _MatrixOverrideCommand(), "custom command ran\n", id="matrix-operator"
+        ),
+        pytest.param(
+            _InheritedOverrideCommand(), "custom command ran\n", id="inherited"
+        ),
+    ],
+)
+def test_generated_task_py_preserves_handler_decorators(
+    tmp_path: Path, command: HumanAgentCommand, expected_output: str
+) -> None:
+    task_py = human_agent_task_commands([command])
+    (tmp_path / "human_agent.py").write_text(
+        "def call_human_agent(*args, **kwargs):\n    return None\n",
+        encoding="utf-8",
+    )
+    task_py_path = tmp_path / "task.py"
+    task_py_path.write_text(task_py, encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(task_py_path), "additional"],
+        cwd=tmp_path,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == expected_output
+
+
+@pytest.mark.parametrize(
+    ("source", "module_name"),
+    [
+        pytest.param(
+            dedent("""
+                import typing_extensions
+                from argparse import Namespace
+
+                from inspect_ai.agent import HumanAgentCommand
+
+
+                class OverrideCommand(HumanAgentCommand):
+                    @property
+                    def name(self) -> str:
+                        return "override"
+
+                    @property
+                    def description(self) -> str:
+                        return "A command with a multiline type-only decorator."
+
+                    @(
+                        typing_extensions.override
+                    )
+                    def cli(self, args: Namespace) -> None:
+                        del args
+                        print("tokenized override handler ran")
+                """),
+            "multiline_override_command",
+            id="multiline",
+        ),
+        pytest.param(
+            dedent("""
+                import typing_extensions
+                from argparse import Namespace
+
+                from inspect_ai.agent import HumanAgentCommand
+
+
+                class OverrideCommand(HumanAgentCommand):
+                    @property
+                    def name(self) -> str:
+                        return "override"
+
+                    @property
+                    def description(self) -> str:
+                        return "A command with a comment in its type-only decorator."
+
+                    @(typing_extensions.override  # (
+                    )
+                    def cli(self, args: Namespace) -> None:
+                        del args
+                        print("tokenized override handler ran")
+                """),
+            "commented_override_command",
+            id="commented",
+        ),
+        pytest.param(
+            dedent("""
+                from argparse import Namespace
+                from typing_extensions import override
+
+                from inspect_ai.agent import HumanAgentCommand
+
+
+                class OverrideCommand(HumanAgentCommand):
+                    @property
+                    def name(self) -> str:
+                        return "override"
+
+                    @property
+                    def description(self) -> str:
+                        return "A command with a multiline matrix decorator."
+
+                    @(
+                        (lambda function: function)
+                        if True
+                        else (None @ None)
+                    )
+                    @override
+                    def cli(self, args: Namespace) -> None:
+                        del args
+                        print("tokenized override handler ran")
+                """),
+            "multiline_matrix_override_command",
+            id="multiline-matrix",
+        ),
+        pytest.param(
+            dedent("""
+                from argparse import Namespace
+                from typing_extensions import override
+
+                from inspect_ai.agent import HumanAgentCommand
+
+
+                class OverrideCommand(HumanAgentCommand):
+                    @property
+                    def name(self) -> str:
+                        return "override"
+
+                    @property
+                    def description(self) -> str:
+                        return "A command with decorator string arguments."
+
+                    @((lambda *args: lambda function: function)(")", "@", "cli(self, "))
+                    @override
+                    def cli(self, args: Namespace) -> None:
+                        del args
+                        print("tokenized override handler ran")
+                """),
+            "decorator_string_argument_command",
+            id="decorator-string-argument",
+        ),
+    ],
+)
+def test_generated_task_py_executes_multiline_override_decorators(
+    tmp_path: Path, source: str, module_name: str
+) -> None:
+    command_path = tmp_path / f"{module_name}.py"
+    command_path.write_text(source, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(module_name, command_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+        command = getattr(module, "OverrideCommand")()
+        task_py = human_agent_task_commands([command])
+    finally:
+        del sys.modules[module_name]
+
+    (tmp_path / "human_agent.py").write_text(
+        "def call_human_agent(*args, **kwargs):\n    return None\n",
+        encoding="utf-8",
+    )
+    task_py_path = tmp_path / "task.py"
+    task_py_path.write_text(task_py, encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(task_py_path), "override"],
+        cwd=tmp_path,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "tokenized override handler ran\n"
 
 
 def test_installer_source_runs_nothing_outside_the_helper_and_bashrc_scripts() -> None:
