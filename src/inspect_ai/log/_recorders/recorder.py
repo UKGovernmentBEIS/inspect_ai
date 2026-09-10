@@ -1,5 +1,5 @@
 import abc
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from typing import IO, TYPE_CHECKING, NamedTuple
 
 import anyio
@@ -7,7 +7,7 @@ import anyio
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.error import EvalError
-from inspect_ai.dataset._util import normalise_sample_id
+from inspect_ai.dataset._util import SampleIdEpoch, SampleKeyLookup
 from inspect_ai.log._config_update import ConfigUpdate
 from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._log import (
@@ -42,59 +42,20 @@ class SampleRecordKey(NamedTuple):
     epoch: int
 
 
-class SampleKey(NamedTuple):
-    """A sample's original typed ID and epoch."""
-
-    sample_id: str | int
-    epoch: int
-
-
-class SampleKeyLookup:
-    """Index JSON sample keys using the reader's exact-first normalized matching.
-
-    Keep the first normalized match in source order, without merging distinct
-    exact IDs such as ``"001"`` and ``1``. IDs that cannot be normalized
-    (e.g. Unicode digits such as ``"²"`` that ``int`` rejects) match only
-    by their exact value.
-    """
-
-    def __init__(self, keys: Iterable[tuple[str | int, int]]) -> None:
-        self._exact: dict[tuple[str | int, int], SampleKey] = {}
-        self._normalized: dict[tuple[str, int], SampleKey] = {}
-        for id, epoch in keys:
-            key = SampleKey(sample_id=id, epoch=epoch)
-            self._exact.setdefault(key, key)
-            try:
-                normalized = normalise_sample_id(id)
-            except ValueError:
-                continue
-            self._normalized.setdefault((normalized, epoch), key)
-
-    def get(self, id: str | int, epoch: int) -> SampleKey | None:
-        """Return the original key for an exact match, then a normalized match."""
-        exact = self._exact.get((id, epoch))
-        if exact is not None:
-            return exact
-        try:
-            normalized = normalise_sample_id(id)
-        except ValueError:
-            return None
-        return self._normalized.get((normalized, epoch))
-
-
 class SeedSamples:
-    """An attempt's cached prior index and reader for incremental seeding.
+    """An attempt's prior log, indexed once for seeding.
 
-    JSON and memory sources retain their bodies. Eval sources retain only
-    keys and a ZIP directory; body reads remain bounded by the caller's batch.
-    The recorder owns this source and closes it on finish, discard, or task exit.
+    Holds the prior's sample keys in source order and a :class:`SampleKeyLookup`
+    over them. A ``.eval`` prior keeps only a shared zip reader and reads
+    selected bodies in bounded batches; a ``.json`` or in-memory prior keeps
+    its bodies (its reader loads the whole file anyway). The recorder owns
+    this source and closes it on finish, discard, or task exit.
     """
 
     def __init__(self) -> None:
-        self.keys: dict[SampleRecordKey, SampleKey] = {}
-        self.json_keys: SampleKeyLookup | None = None
-        self._samples: dict[SampleKey, EvalSample] = {}
-        self._order: dict[SampleKey, int] = {}
+        self.keys: list[SampleIdEpoch] = []
+        self.lookup = SampleKeyLookup()
+        self._samples: dict[SampleIdEpoch, EvalSample] = {}
         self._fs = AsyncFilesystem()
         self._reader: AsyncZipReader | None = None
         self._location: str | None = None
@@ -112,7 +73,7 @@ class SeedSamples:
                 self._location = prior
                 self._reader = AsyncZipReader(self._fs, prior)
                 summaries, _ = await _read_all_summaries_async(self._reader)
-                keys = [SampleKey(sample_id=s.id, epoch=s.epoch) for s in summaries]
+                keys = [(s.id, s.epoch) for s in summaries]
             else:
                 samples = (
                     (await read_eval_log_async(prior)).samples or []
@@ -120,32 +81,29 @@ class SeedSamples:
                     else prior
                 )
                 for sample in samples:
-                    self._samples.setdefault(
-                        SampleKey(sample_id=sample.id, epoch=sample.epoch), sample
-                    )
+                    self._samples.setdefault((sample.id, sample.epoch), sample)
                 keys = list(self._samples)
-                if isinstance(prior, str):
-                    self.json_keys = SampleKeyLookup(keys)
-        self.keys = {SampleRecordKey(str(k.sample_id), k.epoch): k for k in keys}
-        self._order = {key: index for index, key in enumerate(keys)}
+        self.keys = keys
+        self.lookup = SampleKeyLookup(keys)
 
-    def select(self, keep: set[tuple[str | int, int]] | None) -> list[SampleKey]:
-        """Resolve selected keys through the prior's index, in source order."""
+    def select(self, keep: set[SampleIdEpoch] | None) -> list[SampleIdEpoch]:
+        """The prior keys ``keep`` resolves to, in source order (every key when None).
+
+        Each planned key resolves through :attr:`lookup` (exact first, then
+        normalised), so a plan of ``1`` selects a prior stored as ``"001"``.
+        The record keeps the prior's id; ``TaskLogger.read_prior_sample``
+        adopts it under the planned id when the two differ.
+        """
         if keep is None:
-            return list(self._order)
+            return list(self.keys)
         selected = {
-            key
+            match
             for id, epoch in keep
-            if (
-                key := self.json_keys.get(id, epoch)
-                if self.json_keys is not None
-                else self.keys.get(SampleRecordKey(str(id), epoch))
-            )
-            is not None
+            if (match := self.lookup.get(id, epoch)) is not None
         }
-        return sorted(selected, key=self._order.__getitem__)
+        return [key for key in self.keys if key in selected]
 
-    async def read(self, keys: list[SampleKey]) -> list[EvalSample]:
+    async def read(self, keys: list[SampleIdEpoch]) -> list[EvalSample]:
         """Read a selected batch without retaining Eval bodies between calls."""
         from inspect_ai.log._file import read_eval_log_samples_by_id_async
 
@@ -160,9 +118,8 @@ class SeedSamples:
     async def close(self) -> None:
         """Release cached bodies, index and filesystem clients, including on cancellation."""
         self._samples.clear()
-        self.keys.clear()
-        self._order.clear()
-        self.json_keys = None
+        self.keys = []
+        self.lookup = SampleKeyLookup()
         self._reader = None
         with anyio.CancelScope(shield=True):
             await self._fs.close()
@@ -286,12 +243,12 @@ class Recorder(abc.ABC):
 
         Unlike the whole-file seed, this can extend a started log when a
         dynamic feed admits more samples under its limit. Only selected
-        bodies absent from the recorder are written, preserving results the
-        current attempt has already recorded, including normalized aliases.
-        The prior data/index and reader are shared across admissions until
-        this attempt finishes or is discarded.
-        ``on_sample`` runs before each record is written, so the caller can
-        withhold pending records from live readers throughout the copy.
+        records absent from the recorder are written (a result this attempt
+        already recorded is never replaced), under the prior's own ids. The
+        prior's index and reader are shared across admissions until this
+        attempt finishes or is discarded. ``on_sample`` runs before each
+        record is written, so the caller can withhold pending records from
+        live readers throughout the copy.
         """
         from inspect_ai.log._condense import condense_sample
 
@@ -303,7 +260,7 @@ class Recorder(abc.ABC):
         keys = [
             key
             for key in source.select(keep)
-            if SampleRecordKey(str(key.sample_id), key.epoch) not in existing
+            if SampleRecordKey(str(key[0]), key[1]) not in existing
         ]
         # Bound retained bodies as well as concurrent reads: the bulk
         # reader returns its entire request as a list.

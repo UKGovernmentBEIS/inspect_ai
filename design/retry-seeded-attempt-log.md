@@ -271,24 +271,25 @@ log_format=...)` allows a `.eval` prior to be retried into a `.json` attempt
 and vice versa, and a byte copy is only valid same-format) and the `.json`
 recorder all take. For an Eval source, this fallback first selects summary
 keys and reads their bodies through the indexed reader in batches of eight,
-bounding both concurrent reads and retained source bodies. JSON sources keep
-the existing whole-log reader and exact-first normalized ID matching; a
-seeded lookup retains that matching in either destination format, including
-padded numeric IDs, without merging distinct exact IDs. IDs that cannot be
-normalized numerically, such as superscript digits, remain exactly addressable.
-A re-run under a different matched ID supersedes the original record only
-after every planned ID sharing that record has completed. An unknown dynamic plan retains it
-until natural success; a later limited admission restores a pruned alias
-from the cached source before dispatch. JSON retry lookups use independent
-copies of the cached original bodies, restricted to admitted prior records,
-even after an exact-ID completion replaces that record in the destination.
-Thus a later alias still runs with the original error or invalidation instead
-of reusing another sample's new success. For every admission, live control reads
-guard each admitted alias until its own lookup accepts the prior result or
-its rerun completes, even after the original ID completes. The recorder caches
-one prior source per attempt: JSON bodies and their exact-first index, or Eval
-keys and a shared ZIP reader. Admissions resolve only selected keys against
-that index and retain at most eight selected Eval bodies at once. Finish and discard
+bounding both concurrent reads and retained source bodies. Selection and
+lookup share one id rule, `SampleKeyLookup` (`inspect_ai.dataset._util`,
+beside `normalise_sample_id`, and the rule the JSON sample reader itself
+uses): an exact match first, then the first key whose normalised id matches,
+so a plan of `1` selects a prior stored as `"001"` while `"001"` and `1` stay
+individually addressable when both exist; an id `int` rejects (`"²"`)
+matches only exactly. Seeded records keep the prior's ids.
+`TaskLogger.read_prior_sample` resolves a planned key through that lookup
+over the seeded keys. A record found under a different id is *adopted*: the
+prior's record — read from the cached seed source, since the other id's own
+re-run may already have superseded the recorder's copy — is re-logged under
+the planned id (marked pending before the write), so this sample's reuse or
+re-run supersedes it by name and the control channel finds it under the id
+the plan uses. The original stays a pending seeded record until its own id
+is consulted or the natural-success prune drops it. No cross-id state is
+tracked at runtime. The recorder caches one prior source per attempt
+(`SeedSamples`: the prior's keys, a `SampleKeyLookup` over them, and JSON or
+in-memory bodies or an Eval zip reader); admissions and adoptions resolve
+against it, and Eval bodies are read in batches of eight. Finish and discard
 release the cache and its filesystem clients; shielded task-exit cleanup also
 releases them after terminal startup failures. Once the dispatcher decides no
 retry follows, it discards the unfinished recorder entry and temporary ZIP,
@@ -675,16 +676,10 @@ epochs+1)`; `None` for a dynamic-feed task without an effective limit).
 prior summaries before calling the recorder. Limited feeds use the sliced
 initial plan, then call `seed_added_samples` for each admitted batch before
 sandbox startup, control registration, and scheduling. The recorder's
-`log_seed_samples` appends only those selected records, using bounded body
-reads for Eval sources and the existing exact-first normalized lookup for
-JSON. These incremental reads
-use the prior source; they skip original keys already in the recorder, so
-they cannot overwrite current results. JSON lookup keeps the prior's key
-order rather than indexing the destination's changing mix of records.
-Pending requested IDs are tracked separately from the seed's pruning plan:
-unlimited feeds register both their initial IDs and every later admission.
-Completing or reusing a shared prior record releases only the resolved
-requested ID, so another pending alias cannot read its terminal result.
+`log_seed_samples` appends only those selected records, resolving each
+admitted key through the cached source's `SampleKeyLookup` and skipping
+keys already in the recorder, so an admission never overwrites a result this
+attempt recorded; each record is marked pending as it lands.
 `sample_id` takes precedence over `limit`, matching the feed's own selection.
 `TaskLogger.seed_from_prior`
 asks the recorder to `log_seed` and sets `prior_seeded`; a prior log that
@@ -781,10 +776,10 @@ withholds the same keys, so a sample awaiting its re-run resolves as
 "planned, not yet at the queue" (a 409 for requeue and cancel, see
 `design/ctl/queued-sample-cancel.md`) rather than as a terminal record
 that requeue would run a second time and cancel would report as already
-finished. The full-sample guard checks the ID of the record actually returned
-by the reader too: JSON's exact-first normalized matching can resolve an
-integer lookup to a pending padded string ID without merging distinct exact
-IDs.
+finished. The live full-sample read is exact-id: this attempt records each
+sample under its own id, so a record the on-disk reader resolves under
+another id (a normalised match) is another sample's — or a seeded record a
+planned id has yet to adopt — and is not served.
 
 Dynamically fed tasks have no upfront plan; explicit ID filters still restrict
 their seeds before publication. A seeded key the feed never re-injects is never

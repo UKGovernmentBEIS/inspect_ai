@@ -9,7 +9,7 @@ from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.constants import MODEL_NONE
 from inspect_ai._util.file import clean_filename_component, filesystem
 from inspect_ai._util.task import task_display_name
-from inspect_ai.dataset._util import normalise_sample_id
+from inspect_ai.dataset._util import SampleKeyLookup
 
 from .._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from .recorder import Recorder
@@ -108,34 +108,20 @@ class FileRecorder(Recorder):
         if not eval_log.samples:
             raise IndexError(f"No samples found in log {location}")
 
-        # find the sample. Prefer an exact id match so ids that normalise alike
-        # (e.g. the string "001" and the int 1, which both normalise to a
-        # zero-filled "1") stay individually addressable, then fall back to the
-        # normalised match for loose addressing (e.g. "1" -> int 1) and uuid.
+        # find the sample by id (exact first, then normalised — see
+        # SampleKeyLookup), else by uuid
         eval_sample: EvalSample | None = None
         if id is not None:
-            eval_sample = next(
-                (
-                    sample
-                    for sample in eval_log.samples
-                    if sample.id == id and sample.epoch == epoch
-                ),
-                None,
+            key = SampleKeyLookup((s.id, s.epoch) for s in eval_log.samples).get(
+                id, epoch
             )
-        if eval_sample is None:
-            norm_id = normalise_sample_id(id) if id is not None else None
+            if key is not None:
+                eval_sample = next(
+                    s for s in eval_log.samples if (s.id, s.epoch) == key
+                )
+        if eval_sample is None and uuid:
             eval_sample = next(
-                (
-                    sample
-                    for sample in eval_log.samples
-                    if (
-                        norm_id is not None
-                        and normalise_sample_id(sample.id) == norm_id
-                        and sample.epoch == epoch
-                    )
-                    or (uuid and sample.uuid == uuid)
-                ),
-                None,
+                (sample for sample in eval_log.samples if sample.uuid == uuid), None
             )
         if eval_sample is None:
             if id is None:

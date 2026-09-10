@@ -21,19 +21,12 @@
 - Bedrock, Groq, Mistral, Azure AI: Transient errors delivered mid-stream (throttling, capacity, dropped connections) are now retried instead of failing the sample or returning a truncated output.
 - Agent bridge: Bridged OpenAI and Google requests with a malformed `tool_choice`/`toolConfig` now return a 400 naming the bad field instead of a status-less error, and a non-string tool name no longer poisons the sample transcript.
 - Eval Set: A retry attempt that itself errors or is interrupted no longer causes the next attempt to re-run (or, with `retry_cleanup`, lose) samples an earlier attempt completed.
-- Eval Set: Retries preserve completed samples and error history when sample IDs change between integers and strings, including padded numeric IDs in JSON logs.
+- Eval Set: Retries reuse completed samples and error history when a sample id's type changes between runs (e.g. `"001"` recorded by one run and `1` by the next), matching ids the way log readers do.
 - Eval Set: Dynamic retry logs honor sample limits and epoch restrictions before every write, physically excluding unselected transcripts inherited from earlier attempts.
-- Control Channel: Pending JSON retry samples retain pending cancel and requeue responses after a shared prior ID completes, including unlimited dynamic feeds.
 - Eval Set: Retrying all samples avoids recompressing prior log payloads when the archive contains no inherited dead bytes.
-- Eval Set: Retries preserve error history shared by distinct sample IDs that normalize alike, even when interrupted before every sample runs.
-- Eval Set: JSON retries now run both samples when distinct numeric IDs share a prior error, regardless of completion order.
-- Eval Set: Overlapping retry completions preserve every fresh result when distinct sample IDs share a prior JSON record.
-- Eval Set: Limited dynamic retries read the prior log index once per attempt instead of reloading it for every admission.
 - Eval Set: Retry startup failures and cancellations release retained sample data, temporary files, and storage connections while preserving any written sample progress.
 - Eval Log: Completed samples remain recoverable after a final log write fails and no retry remains.
-- Eval Set: JSON retries preserve exact matching for Unicode sample IDs, including superscript and circled digits.
-- Eval Set: Intermediate retry logs keep sample bodies and summaries consistent when padded numeric IDs rerun as integers.
-- Eval Set: Retrying selected samples from an Eval log into JSON loads only the selected sample bodies, in bounded batches.
+- Eval Set: Retrying selected samples from a large log reads only the selected sample bodies, in bounded batches, and indexes the prior log once per attempt.
 - Eval Set: Large S3 retries under Trio and retry sample detail reads now use less memory.
 - Eval Set: Retry log seeding and compaction now respond to cancellation between samples or chunks, keeping other evaluations and control requests responsive.
 - Eval Set: A retry attempt's live samples now start after the prior attempt's completed samples have been carried into its log, rather than alongside that copy.

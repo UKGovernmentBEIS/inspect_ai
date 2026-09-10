@@ -28,6 +28,49 @@ def normalise_sample_id(id: str | int | None) -> str:
     return id if isinstance(id, str) else str(id).zfill(20)
 
 
+SampleIdEpoch = tuple[str | int, int]
+"""A sample's dataset-typed ``(id, epoch)``."""
+
+
+class SampleKeyLookup:
+    """Resolve a requested ``(id, epoch)`` against a set of sample keys.
+
+    An exact match wins; otherwise the first key (in insertion order) whose
+    ``normalise_sample_id`` form matches, so ``1`` finds a record stored as
+    ``"001"`` while ``"001"`` and ``1`` stay individually addressable when
+    both exist. An id that cannot be normalised (``"²"``, which ``int``
+    rejects despite ``isdigit``) matches only exactly. The one matching rule
+    for the JSON sample reader, a retry seed's selection of prior records
+    and the seeded lookup, so every path resolves ids the same way.
+    """
+
+    def __init__(self, keys: Iterable[SampleIdEpoch] = ()) -> None:
+        self._exact: dict[SampleIdEpoch, SampleIdEpoch] = {}
+        self._normalised: dict[tuple[str, int], SampleIdEpoch] = {}
+        for key in keys:
+            self.add(key)
+
+    def add(self, key: SampleIdEpoch) -> None:
+        self._exact.setdefault(key, key)
+        normalised = _normalised_key(key)
+        if normalised is not None:
+            self._normalised.setdefault(normalised, key)
+
+    def get(self, id: str | int, epoch: int) -> SampleIdEpoch | None:
+        exact = self._exact.get((id, epoch))
+        if exact is not None:
+            return exact
+        normalised = _normalised_key((id, epoch))
+        return self._normalised.get(normalised) if normalised is not None else None
+
+
+def _normalised_key(key: SampleIdEpoch) -> tuple[str, int] | None:
+    try:
+        return (normalise_sample_id(key[0]), key[1])
+    except ValueError:
+        return None
+
+
 # determine how we will go from file records to samples. if there is
 # no field spec, we assume the column names "input" and "target",
 # otherwise use the provided field spec or custom converter function

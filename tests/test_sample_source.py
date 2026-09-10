@@ -1080,7 +1080,10 @@ def test_unlimited_retry_keeps_shared_alias_pending(
     )
     assert not ok
     prior = read_eval_log(prior_logs[0].location)
-    assert {sample.id for sample in prior.samples or []} == {"001"}
+    # the retry pass seeds "001" and, when 1 is planned from the start, may
+    # adopt a copy of its record under 1 before the teardown lands
+    prior_ids = {sample.id for sample in prior.samples or []}
+    assert "001" in prior_ids and prior_ids <= {"001", 1}
     failing = False
     read_prior = TaskLogger.read_prior_sample
 

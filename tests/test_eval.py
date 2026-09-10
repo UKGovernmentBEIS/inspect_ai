@@ -668,11 +668,10 @@ async def test_terminal_log_write_failure_preserves_recovery(
         entries.extend(logger.recorder.data.values())
 
     async def fail_final_write(log: ZipLogFile, fsync: bool = False) -> None:
+        # the completion's shared-buffer upload is requested but not yet due
+        # (log_shared=3600): the terminal close must drain it, or another
+        # host has nothing to recover from
         if fsync:
-            buffer = buffers[-1]
-            filestore = buffer._sync_filestore
-            if filestore is not None:
-                database_module.sync_to_filestore(buffer, filestore)
             await anyio.lowlevel.checkpoint()
             raise OSError("persistent final write failure")
         await flush(log, fsync=fsync)

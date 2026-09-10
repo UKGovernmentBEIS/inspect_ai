@@ -72,6 +72,7 @@ from inspect_ai._util.working import (
 )
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
+from inspect_ai.dataset._util import SampleIdEpoch
 from inspect_ai.event._error import ErrorEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
@@ -346,8 +347,8 @@ SampleIndex: TypeAlias = int
 SampleIndexEpoch: TypeAlias = tuple[SampleIndex, int]
 
 # (sample_id, epoch): how progress results and the log key a sample run —
-# distinct from the scheduler's `SampleIndexEpoch` keys.
-SampleIdEpoch: TypeAlias = tuple[int | str, int]
+# distinct from the scheduler's `SampleIndexEpoch` keys. Shared with the
+# recorders and the id-matching rule in `inspect_ai.dataset._util`.
 
 # What running one sample yields for results aggregation: scores when the run
 # was scored (even if it errored), an EarlyStop marker, None (scoreless
@@ -1392,9 +1393,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     if isinstance(previous_sample, EvalSample):
                         reporter.progress()
                         if logger.prior_seeded:
-                            logger.note_reused_sample(
-                                previous_sample, sample_id=sample_id
-                            )
+                            logger.note_reused_sample(previous_sample)
                         elif log_samples:
                             await logger.complete_sample(
                                 condense_sample(previous_sample, log_images),
@@ -1669,7 +1668,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             if sample.id is not None
                             for epoch in range(1, epochs + 1)
                         }
-                        logger.register_prior_sample_users(added_keys)
                         if (
                             added.samples
                             and limited_sample_feed

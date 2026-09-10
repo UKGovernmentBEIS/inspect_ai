@@ -288,6 +288,10 @@ class SampleBufferDatabase(SampleBuffer):
         self._sync_pending = False
         self._sync_closed = False
         self._sync_requested = False
+        # whether the sync worker performs a requested-but-not-yet-due upload
+        # before it stops (close preserves recovery data, so it drains;
+        # cleanup deletes it, so it does not)
+        self._sync_drain = False
 
     def start_sample(self, sample: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
@@ -498,10 +502,14 @@ class SampleBufferDatabase(SampleBuffer):
     def close(self) -> None:
         """Stop syncing and close connections while preserving recovery files.
 
-        Active sample readers retain their connections until their leases end.
-        SQLite data and shared buffer files remain available for recovery.
+        A requested shared-buffer upload that is not yet due is performed
+        before the worker stops: the buffer may hold completed samples that
+        never reached the destination, and the shared copy is how another
+        host recovers them. Active sample readers retain their connections
+        until their leases end. SQLite data and shared buffer files remain
+        available for recovery.
         """
-        if not self._close_sync_worker_for_cleanup():
+        if not self._close_sync_worker_for_cleanup(drain=True):
             return
 
         with self._lease_lock:
@@ -523,15 +531,19 @@ class SampleBufferDatabase(SampleBuffer):
 
         self._cleanup_now()
 
-    def _close_sync_worker_for_cleanup(self) -> bool:
-        """Close the sync worker before destructive cleanup.
+    def _close_sync_worker_for_cleanup(self, *, drain: bool = False) -> bool:
+        """Stop the sync worker before closing or cleaning up.
 
-        Returns True when cleanup may proceed. Returns False when cleanup should
-        be skipped because cleanup was requested from the sync worker itself or
-        the worker did not stop within the cleanup timeout.
+        With ``drain`` the worker first performs a requested upload that is
+        not yet due (see :meth:`close`); without it (destructive cleanup) a
+        pending upload is dropped along with the files. Returns True when the
+        caller may proceed. Returns False when it should skip because it was
+        called from the sync worker itself or the worker did not stop within
+        the cleanup timeout.
         """
         sync_thread: threading.Thread | None = None
         with self._sync_lock:
+            self._sync_drain = drain
             self._sync_closed = True
             self._sync_wakeup.notify_all()
             sync_thread = self._sync_thread
@@ -1314,10 +1326,18 @@ class SampleBufferDatabase(SampleBuffer):
     def _sync_to_filestore(self, sync_filestore: SampleBufferFilestore) -> None:
         while True:
             with self._sync_lock:
-                while not self._sync_closed:
+                while True:
+                    # a draining close runs a requested upload at once instead
+                    # of waiting out the interval, then stops
+                    drain = (
+                        self._sync_closed and self._sync_drain and self._sync_requested
+                    )
+                    if self._sync_closed and not drain:
+                        self._sync_thread = None
+                        return
                     assert self.log_shared is not None
                     remaining = self.log_shared - (time.monotonic() - self._sync_time)
-                    if self._sync_requested and remaining <= 0:
+                    if self._sync_requested and (remaining <= 0 or drain):
                         self._sync_requested = False
                         self._sync_pending = False
                         self._sync_time = time.monotonic()
@@ -1325,9 +1345,6 @@ class SampleBufferDatabase(SampleBuffer):
 
                     timeout = max(remaining, 0) if self._sync_requested else None
                     self._sync_wakeup.wait(timeout=timeout)
-                else:
-                    self._sync_thread = None
-                    return
 
             try:
                 with trace_action(logger, "Log Sync", self.location):
