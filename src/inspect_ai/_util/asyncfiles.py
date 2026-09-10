@@ -32,6 +32,7 @@ import anyio
 import anyio.to_thread
 from anyio import AsyncFile, EndOfStream, open_file
 from anyio.abc import ByteReceiveStream
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from botocore.exceptions import ClientError
 from tenacity import (
     AsyncRetrying,
@@ -202,8 +203,6 @@ class _S3ETagCapture:
             raise RuntimeError("S3 upload completed without returning an ETag")
         return self.etag
 
-
-class _SyncS3ETagCapture(_S3ETagCapture):
     def put_object(self, **kwargs: Any) -> dict[str, Any]:
         return self._capture(self._client.put_object(**kwargs))
 
@@ -211,7 +210,7 @@ class _SyncS3ETagCapture(_S3ETagCapture):
         return self._capture(self._client.complete_multipart_upload(**kwargs))
 
 
-async def _read_exactly(source: BinaryIO, size: int, io_chunksize: int) -> bytes:
+async def _read_exactly(source: BinaryIO, size: int, io_chunksize: int) -> bytearray:
     data = bytearray()
     while len(data) < size:
         chunk = source.read(min(io_chunksize, size - len(data)))
@@ -220,7 +219,7 @@ async def _read_exactly(source: BinaryIO, size: int, io_chunksize: int) -> bytes
         data += chunk
         await anyio.sleep(0)
 
-    return bytes(data)
+    return data
 
 
 async def _s3_multipart_upload_async(
@@ -228,43 +227,61 @@ async def _s3_multipart_upload_async(
     source: BinaryIO,
     bucket: str,
     key: str,
-    first_part: bytes,
+    first_part: bytearray,
     config: TransferConfig,
 ) -> dict[str, Any]:
+    # Real S3 rejects this upload with "Checksum Type mismatch" if botocore attaches its default
+    # CRC32 to each part, so we rely on request_checksum_calculation="when_required" in
+    # _create_s3_client_async.
     created = await client.create_multipart_upload(Bucket=bucket, Key=key)
     upload_id = created["UploadId"]
+    parts: list[dict[str, Any]] = []
 
-    async def upload_part(part_number: int, body: bytes) -> dict[str, Any]:
-        response = await client.upload_part(
-            Bucket=bucket,
-            Key=key,
-            UploadId=upload_id,
-            PartNumber=part_number,
-            Body=body,
-        )
-        return {"ETag": response["ETag"], "PartNumber": part_number}
+    async def read_parts(send: MemoryObjectSendStream[tuple[int, bytearray]]) -> None:
+        async with send:
+            part_number = 1
+            await send.send((part_number, first_part))
 
-    try:
-        parts: list[dict[str, Any]] = []
-        pending = [first_part]
-        eof = False
-        while pending:
-            parts += await tg_collect(
-                [
-                    functools.partial(upload_part, len(parts) + i + 1, body)
-                    for i, body in enumerate(pending)
-                ]
-            )
-
-            pending = []
-            while not eof and len(pending) < config.max_request_concurrency:
+            while True:
                 body = await _read_exactly(
                     source, config.multipart_chunksize, config.io_chunksize
                 )
-                eof = len(body) < config.multipart_chunksize
                 if body:
-                    pending.append(body)
+                    part_number += 1
+                    await send.send((part_number, body))
+                if len(body) < config.multipart_chunksize:
+                    break
 
+    async def upload_parts(
+        receive: MemoryObjectReceiveStream[tuple[int, bytearray]],
+    ) -> None:
+        async with receive:
+            async for part_number, body in receive:
+                response = await client.upload_part(
+                    Bucket=bucket,
+                    Key=key,
+                    UploadId=upload_id,
+                    PartNumber=part_number,
+                    Body=body,
+                )
+                parts.append({"ETag": response["ETag"], "PartNumber": part_number})
+
+    try:
+        send, receive = anyio.create_memory_object_stream[tuple[int, bytearray]](
+            config.max_request_concurrency
+        )
+        async with receive:
+            await tg_collect(
+                [
+                    functools.partial(read_parts, send),
+                    *[
+                        functools.partial(upload_parts, receive.clone())
+                        for _ in range(config.max_request_concurrency)
+                    ],
+                ]
+            )
+
+        parts.sort(key=lambda part: part["PartNumber"])
         response = await client.complete_multipart_upload(
             Bucket=bucket,
             Key=key,
@@ -317,6 +334,35 @@ async def _s3_upload_fileobj_async(
     return str(etag).strip('"')
 
 
+async def _s3_download_file_async(
+    client: Any, bucket: str, key: str, local: str, config: TransferConfig
+) -> None:
+    """Download an S3 object to `local` with concurrent ranged GETs."""
+    size = int((await client.head_object(Bucket=bucket, Key=key))["ContentLength"])
+    part_starts = range(0, size, config.multipart_chunksize)
+    pending = iter(part_starts)
+    open(local, "wb").close()
+
+    async def download_parts() -> None:
+        with open(local, "r+b") as f:
+            for start in pending:
+                end = min(start + config.multipart_chunksize, size)
+                response = await client.get_object(
+                    Bucket=bucket, Key=key, Range=s3_range_header(start, end)
+                )
+                body = response["Body"]
+                try:
+                    f.seek(start)
+                    async for chunk in body.iter_chunks(_DOWNLOAD_IO_CHUNKSIZE):
+                        f.write(chunk)
+                finally:
+                    body.close()
+
+    await tg_collect(
+        [download_parts] * min(config.max_request_concurrency, len(part_starts))
+    )
+
+
 def _s3_upload_fileobj_sync(
     client: Any,
     source: BinaryIO,
@@ -332,7 +378,7 @@ def _s3_upload_fileobj_sync(
     from boto3.s3.transfer import TransferConfig
     from s3transfer.manager import TransferManager
 
-    capture = _SyncS3ETagCapture(client)
+    capture = _S3ETagCapture(client)
     # Always use the classic manager: the CRT manager bypasses the botocore
     # client proxy, so it cannot expose the completed upload's ETag here.
     with TransferManager(cast(Any, capture), config or TransferConfig()) as manager:
@@ -642,16 +688,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     client = await self.s3_client_async()
                     partial_path = f"{local}.{uuid.uuid4().hex}.part"
                     try:
-                        response = await client.get_object(Bucket=bucket, Key=key)
-                        body = response["Body"]
-                        try:
-                            with open(partial_path, "wb") as f:
-                                async for chunk in body.iter_chunks(
-                                    _STREAMING_COPY_BUFSIZE
-                                ):
-                                    f.write(chunk)
-                        finally:
-                            body.close()
+                        await _s3_download_file_async(
+                            client, bucket, key, partial_path, _s3_transfer_config()
+                        )
                         os.replace(partial_path, local)
                     finally:
                         with suppress(FileNotFoundError):
@@ -1398,3 +1437,5 @@ _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
 # Granularity for `read_file_bytes_fully`: one read hop per chunk while
 # accumulating a range into memory.
 _READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB
+
+_DOWNLOAD_IO_CHUNKSIZE = 1024 * 1024  # 1 MB

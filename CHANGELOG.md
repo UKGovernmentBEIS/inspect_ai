@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Bedrock, SageMaker, and S3 log access now use `aiobotocore` directly instead of `aioboto3`, so installing Inspect no longer pins `botocore` to an October 2025 release.
+- Bedrock, SageMaker, and S3 log access now use `aiobotocore` directly instead of `aioboto3`, so Inspect's `botocore` pin tracks current releases instead of an October 2025 one, and `aioboto3` is no longer installed with Inspect.
 - Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.
 - Sample and Task Sources: `sample_complete()` now fires for a running sample cancelled individually, so a source waiting on that sample no longer stalls; a blocking callback can no longer hang a task cancel.
 - Agent Bridge: Google clients now receive token log probabilities and top candidates returned by the host model.

@@ -4,8 +4,9 @@ import io
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, AsyncIterator, cast
 
+import anyio
 import pytest
 from anyio import EndOfStream
 from boto3.s3.transfer import TransferConfig
@@ -16,6 +17,7 @@ from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     _current_async_fs,
     _RetiredClient,
+    _s3_download_file_async,
     _s3_upload_fileobj_async,
     get_async_filesystem,
     s3_bucket_and_key,
@@ -658,6 +660,8 @@ class _MultipartClient:
         self.parts: list[tuple[int, bytes]] = []
         self.completed: list[dict[str, Any]] | None = None
         self.aborted: list[str] = []
+        self.block_part: int | None = None
+        self.blocked = anyio.Event()
 
     async def put_object(self, **kwargs: Any) -> dict[str, Any]:
         raise AssertionError("put_object must not be used above the threshold")
@@ -669,6 +673,9 @@ class _MultipartClient:
         self, PartNumber: int, Body: bytes, UploadId: str, **kwargs: Any
     ) -> dict[str, Any]:
         assert UploadId == "upload-1"
+        if PartNumber == self.block_part:
+            self.blocked.set()
+            await anyio.sleep_forever()
         if PartNumber == self.fail_part:
             raise ClientError(
                 cast(Any, {"Error": {"Code": "InternalError", "Message": "boom"}}),
@@ -724,6 +731,99 @@ async def test_s3_upload_async_multipart_aborts_on_part_failure() -> None:
     assert client.aborted == ["upload-1"]
 
 
+async def test_s3_upload_async_multipart_aborts_on_cancel() -> None:
+    client = _MultipartClient()
+    client.block_part = 2
+
+    async def upload() -> None:
+        await _s3_upload_fileobj_async(
+            client, io.BytesIO(b"aaaabbbbcccc"), "bucket", "key", _SMALL_PARTS()
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(upload)
+        await client.blocked.wait()
+        tg.cancel_scope.cancel()
+
+    assert client.completed is None
+    assert client.aborted == ["upload-1"]
+
+
+class _RangedGetClient:
+    def __init__(self, data: bytes) -> None:
+        self.data = data
+        self.ranges: list[str] = []
+        self.in_flight = 0
+        self.max_in_flight = 0
+
+    async def head_object(self, **kwargs: Any) -> dict[str, Any]:
+        return {"ContentLength": len(self.data)}
+
+    async def get_object(self, Range: str, **kwargs: Any) -> dict[str, Any]:
+        self.ranges.append(Range)
+        start, end = (int(v) for v in Range.removeprefix("bytes=").split("-"))
+
+        return {"Body": _RangedBody(self, self.data[start : end + 1])}
+
+
+class _RangedBody:
+    def __init__(self, client: _RangedGetClient, chunk: bytes) -> None:
+        self.client = client
+        self.chunk = chunk
+
+    async def iter_chunks(self, size: int) -> AsyncIterator[bytes]:
+        self.client.in_flight += 1
+        self.client.max_in_flight = max(
+            self.client.max_in_flight, self.client.in_flight
+        )
+        await anyio.sleep(0.01)
+
+        for i in range(0, len(self.chunk), size):
+            yield self.chunk[i : i + size]
+
+        self.client.in_flight -= 1
+
+    def close(self) -> None:
+        pass
+
+
+async def test_s3_download_async_concurrent_ranges() -> None:
+    data = bytes(range(256)) * 4
+    client = _RangedGetClient(data)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client,
+            "bucket",
+            "key",
+            local,
+            TransferConfig(multipart_chunksize=300, max_concurrency=3),
+        )
+        assert Path(local).read_bytes() == data
+
+    assert client.ranges == [
+        "bytes=0-299",
+        "bytes=300-599",
+        "bytes=600-899",
+        "bytes=900-1023",
+    ]
+    assert client.max_in_flight == 3
+
+
+async def test_s3_download_async_empty_object() -> None:
+    client = _RangedGetClient(b"")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client, "bucket", "key", local, TransferConfig(multipart_chunksize=300)
+        )
+        assert Path(local).read_bytes() == b""
+
+    assert client.ranges == []
+
+
 # =============================================================================
 # Tests for get_file()
 # =============================================================================
@@ -746,7 +846,7 @@ async def test_get_file_local() -> None:
 
 def test_get_file_s3(mock_s3: None) -> None:
     """get_file downloads an S3 source to a local destination."""
-    test_data = b"s3 get_file payload"
+    test_data = b"\xcd" * (10 * 1024 * 1024)  # 10MB, spans two 8MB ranged GETs
     s3_path = f"{S3_BUCKET}/get_file_test/file.bin"
 
     async def run() -> None:
