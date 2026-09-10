@@ -104248,114 +104248,120 @@ var ApprovalEventView_module_default = {
 /**
 * Renders the ApprovalEventView component.
 */ var ApprovalEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(31);
+	const $ = (0, import_compiler_runtime.c)(33);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
 	const decision = event.decision;
 	let alarming;
 	let approver;
 	let explanation;
+	let subject;
 	let t1;
-	if ($[0] !== decision || $[1] !== event.approver || $[2] !== event.explanation) {
+	if ($[0] !== decision || $[1] !== event.approver || $[2] !== event.explanation || $[3] !== event.stage) {
 		explanation = event.explanation?.trim() ?? "";
 		approver = event.approver;
+		subject = event.stage === "result" ? "tool result" : void 0;
 		alarming = decision === "reject" || decision === "terminate";
 		t1 = explanation.includes("\n");
 		$[0] = decision;
 		$[1] = event.approver;
 		$[2] = event.explanation;
-		$[3] = alarming;
-		$[4] = approver;
-		$[5] = explanation;
-		$[6] = t1;
+		$[3] = event.stage;
+		$[4] = alarming;
+		$[5] = approver;
+		$[6] = explanation;
+		$[7] = subject;
+		$[8] = t1;
 	} else {
-		alarming = $[3];
-		approver = $[4];
-		explanation = $[5];
-		t1 = $[6];
+		alarming = $[4];
+		approver = $[5];
+		explanation = $[6];
+		subject = $[7];
+		t1 = $[8];
 	}
 	const explanationIsBlock = t1;
 	let t2;
-	if ($[7] !== alarming || $[8] !== decision) {
+	if ($[9] !== alarming || $[10] !== decision) {
 		t2 = alarming ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ApprovalEventView_module_default.rejected,
 			children: decisionLabel(decision)
 		}) : decisionLabel(decision);
-		$[7] = alarming;
-		$[8] = decision;
-		$[9] = t2;
-	} else t2 = $[9];
-	let t3;
-	if ($[10] !== decision) {
-		t3 = decisionIcon(decision);
+		$[9] = alarming;
 		$[10] = decision;
-		$[11] = t3;
-	} else t3 = $[11];
+		$[11] = t2;
+	} else t2 = $[11];
+	let t3;
+	if ($[12] !== decision) {
+		t3 = decisionIcon(decision);
+		$[12] = decision;
+		$[13] = t3;
+	} else t3 = $[13];
 	const t4 = alarming ? ApprovalEventView_module_default.rejected : void 0;
 	let t5;
-	if ($[12] !== explanation || $[13] !== explanationIsBlock) {
+	if ($[14] !== explanation || $[15] !== explanationIsBlock) {
 		t5 = explanation && explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0;
-		$[12] = explanation;
-		$[13] = explanationIsBlock;
-		$[14] = t5;
-	} else t5 = $[14];
+		$[14] = explanation;
+		$[15] = explanationIsBlock;
+		$[16] = t5;
+	} else t5 = $[16];
 	let t6;
-	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
 		t6 = clsx("text-style-secondary");
-		$[15] = t6;
-	} else t6 = $[15];
-	let t7;
-	if ($[16] !== approver) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+		$[17] = t6;
+	} else t6 = $[17];
+	const t7 = subject ? `${approver}, ${subject}` : approver;
+	let t8;
+	if ($[18] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: t6,
 			children: [
 				"(",
-				approver,
+				t7,
 				")"
 			]
 		});
-		$[16] = approver;
-		$[17] = t7;
-	} else t7 = $[17];
-	let t8;
-	if ($[18] !== explanation || $[19] !== explanationIsBlock) {
-		t8 = explanation && !explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		$[18] = t7;
+		$[19] = t8;
+	} else t8 = $[19];
+	let t9;
+	if ($[20] !== explanation || $[21] !== explanationIsBlock) {
+		t9 = explanation && !explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ApprovalEventView_module_default.inlineExplanation,
 			children: explanation
 		}) : null;
-		$[18] = explanation;
-		$[19] = explanationIsBlock;
-		$[20] = t8;
-	} else t8 = $[20];
-	let t9;
-	if ($[21] !== t7 || $[22] !== t8) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: ApprovalEventView_module_default.headline,
-			children: [t7, t8]
-		});
-		$[21] = t7;
-		$[22] = t8;
-		$[23] = t9;
-	} else t9 = $[23];
+		$[20] = explanation;
+		$[21] = explanationIsBlock;
+		$[22] = t9;
+	} else t9 = $[22];
 	let t10;
-	if ($[24] !== className || $[25] !== t2 || $[26] !== t3 || $[27] !== t4 || $[28] !== t5 || $[29] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
+	if ($[23] !== t8 || $[24] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: ApprovalEventView_module_default.headline,
+			children: [t8, t9]
+		});
+		$[23] = t8;
+		$[24] = t9;
+		$[25] = t10;
+	} else t10 = $[25];
+	let t11;
+	if ($[26] !== className || $[27] !== t10 || $[28] !== t2 || $[29] !== t3 || $[30] !== t4 || $[31] !== t5) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
 			title: t2,
 			icon: t3,
 			iconClassName: t4,
 			className,
 			below: t5,
-			children: t9
+			children: t10
 		});
-		$[24] = className;
-		$[25] = t2;
-		$[26] = t3;
-		$[27] = t4;
-		$[28] = t5;
-		$[29] = t9;
-		$[30] = t10;
-	} else t10 = $[30];
-	return t10;
+		$[26] = className;
+		$[27] = t10;
+		$[28] = t2;
+		$[29] = t3;
+		$[30] = t4;
+		$[31] = t5;
+		$[32] = t11;
+	} else t11 = $[32];
+	return t11;
 };
 var decisionLabel = (decision) => {
 	switch (decision) {
@@ -123832,9 +123838,12 @@ var TranscriptLayout_module_default = {
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/transform/toolApprovals.ts
 /**
-* Pairs ApprovalEvents to their ToolEvents by call id so the tool panel can
-* render the approval inline, and maps hidden approval node ids to their
-* host tool node so deep links targeting an approval still scroll somewhere.
+* Pairs call-stage ApprovalEvents to their ToolEvents by call id so the tool
+* panel can render the approval inline, and maps hidden approval node ids to
+* their host tool node so deep links targeting an approval still scroll
+* somewhere. Result-stage approvals (a review of the tool's output, recorded
+* after the tool event) stay in the flat list as their own rows: a call can
+* carry one decision per stage, and the tool panel shows only one.
 */ function pairToolApprovals(eventNodes) {
 	const toolNodeIdsByCallId = /* @__PURE__ */ new Map();
 	const walkTools = (nodes) => {
@@ -123851,10 +123860,12 @@ var TranscriptLayout_module_default = {
 		for (const n of nodes) {
 			if (n.event.event === "approval") {
 				const toolNodeId = toolNodeIdsByCallId.get(n.event.call.id);
-				if (n.event.approver === "auto" && n.event.decision === "approve") {
+				const isAutoApprove = n.event.approver === "auto" && n.event.decision === "approve";
+				const isResultStage = n.event.stage === "result";
+				if (isAutoApprove) {
 					hiddenApprovalIds.add(n.id);
 					if (toolNodeId) approvalScrollRedirects.set(n.id, toolNodeId);
-				} else if (toolNodeId) {
+				} else if (toolNodeId && !isResultStage) {
 					toolApprovals.set(n.event.call.id, eventNodeOf(n, "approval"));
 					hiddenApprovalIds.add(n.id);
 					approvalScrollRedirects.set(n.id, toolNodeId);
