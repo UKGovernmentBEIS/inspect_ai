@@ -181,6 +181,23 @@ async def test_multiline_meta_survives_argument_parsing_and_serialization(
     assert is_multiline(known_property((reparsed.properties or {})["output"]))
 
 
+@pytest.mark.parametrize("value", ["true", 1, None])
+async def test_non_boolean_multiline_meta_raises_tool_error(value: Any) -> None:
+    # `_meta` is untyped, so a "true" string would validate and then render
+    # single-line, truncating the paste the flag exists to collect.
+    tool = ask_user()
+    schema = {
+        "type": "object",
+        "properties": {
+            "output": {"type": "string", "_meta": {MULTILINE_META_KEY: value}}
+        },
+    }
+    with pytest.raises(ToolError) as exc_info:
+        await tool("paste", schema)
+    assert "invalid schema" in exc_info.value.message.lower()
+    assert MULTILINE_META_KEY in exc_info.value.message
+
+
 async def test_invalid_schema_raises_tool_error() -> None:
     # The model supplies a malformed schema dict — pydantic validation
     # should fail and produce a ToolError the model can self-correct from.

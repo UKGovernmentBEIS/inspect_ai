@@ -4,11 +4,13 @@ from acp.schema import (
     ElicitationMultiSelectPropertySchema,
     ElicitationOtherPropertySchema,
     ElicitationSchema,
+    ElicitationStringPropertySchema,
     OtherMultiSelectItems,
 )
 from pydantic import ValidationError
 
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
 from inspect_ai.util import request_input
 
 from .._tool import Tool, ToolError, tool
@@ -125,17 +127,31 @@ def ask_user() -> Tool:
         # ACP's schema types include catch-alls for custom/future property
         # and multi-select item types; the built-in input handlers (and this
         # tool's documented surface) support only the known types, so reject
-        # them here where the model can self-correct.
-        unsupported = [
-            f"property {name!r} has unsupported type {prop.type!r}"
-            for name, prop in (validated.properties or {}).items()
-            if isinstance(prop, ElicitationOtherPropertySchema)
-        ] + [
-            f"property {name!r} has unsupported items type {prop.items.type!r}"
-            for name, prop in (validated.properties or {}).items()
-            if isinstance(prop, ElicitationMultiSelectPropertySchema)
-            and isinstance(prop.items, OtherMultiSelectItems)
-        ]
+        # them here where the model can self-correct. Same for a non-boolean
+        # multiline flag: `_meta` is untyped, and a "true" string would
+        # silently render single-line and truncate the paste.
+        unsupported = (
+            [
+                f"property {name!r} has unsupported type {prop.type!r}"
+                for name, prop in (validated.properties or {}).items()
+                if isinstance(prop, ElicitationOtherPropertySchema)
+            ]
+            + [
+                f"property {name!r} has unsupported items type {prop.items.type!r}"
+                for name, prop in (validated.properties or {}).items()
+                if isinstance(prop, ElicitationMultiSelectPropertySchema)
+                and isinstance(prop.items, OtherMultiSelectItems)
+            ]
+            + [
+                f"property {name!r} has non-boolean {MULTILINE_META_KEY!r} "
+                f"in _meta: {prop.field_meta[MULTILINE_META_KEY]!r}"
+                for name, prop in (validated.properties or {}).items()
+                if isinstance(prop, ElicitationStringPropertySchema)
+                and prop.field_meta is not None
+                and MULTILINE_META_KEY in prop.field_meta
+                and not isinstance(prop.field_meta[MULTILINE_META_KEY], bool)
+            ]
+        )
         if unsupported:
             raise ToolError(f"Invalid schema: {'; '.join(unsupported)}")
 

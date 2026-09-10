@@ -288,7 +288,8 @@ def test_string_without_multiline_meta_stays_single_line(
     monkeypatch: pytest.MonkeyPatch, prop_kwargs: dict[str, Any]
 ) -> None:
     # Only JSON true under the key switches control; a `format` spelling or
-    # a truthy non-bool value does not.
+    # a truthy non-bool value does not (ask_user rejects the latter upstream;
+    # a direct request_input caller gets the single-line default).
     calls = _patch_prompt(monkeypatch, ["one line"])
     schema = ElicitationSchema(
         properties={
