@@ -1,4 +1,5 @@
 import csv as csv_module
+import inspect
 import json as json_module
 import os
 from io import StringIO
@@ -56,6 +57,8 @@ limit_dataset_params = [
     ("suffix", "reader", "file_argument"),
     [
         (".csv", "csv_dataset", "csv_file"),
+        (".tsv", "csv_dataset", "csv_file"),
+        (".tab", "csv_dataset", "csv_file"),
         (".json", "json_dataset", "json_file"),
         (".jsonl", "json_dataset", "json_file"),
     ],
@@ -137,6 +140,64 @@ def test_json_dataset_preserves_filesystem_path_characters(
         ("b", "2"),
     ]
     mock_file.assert_called_once_with(path, "r", encoding="utf-8", fs_options={})
+
+
+@pytest.mark.parametrize(
+    ("suffix", "delimiter"),
+    [(".csv", None), (".tsv", "\t"), (".tab", "\t")],
+)
+def test_file_dataset_delimiter_by_extension(
+    suffix: str, delimiter: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mock_reader = Mock(return_value=object())
+    monkeypatch.setattr("inspect_ai.dataset._sources.file.csv_dataset", mock_reader)
+
+    file_dataset(f"dataset{suffix}", fieldnames=["input", "target"])
+
+    kwargs = mock_reader.call_args.kwargs
+    assert kwargs["delimiter"] == delimiter
+    assert kwargs["fieldnames"] == ["input", "target"]
+
+
+@pytest.mark.parametrize("suffix", [".tsv", ".tab", ".TSV"])
+def test_file_dataset_reads_tab_delimited(tmp_path: Path, suffix: str) -> None:
+    tsv_file = tmp_path / f"data{suffix}"
+    tsv_file.write_text('input\ttarget\n"hello, world"\tA\nfoo\tbar\n')
+
+    dataset = file_dataset(str(tsv_file))
+
+    assert len(dataset) == 2
+    assert dataset[0].input == "hello, world"
+    assert dataset[0].target == "A"
+    assert dataset[1].input == "foo"
+
+
+def test_file_dataset_tab_delimited_without_header(tmp_path: Path) -> None:
+    tsv_file = tmp_path / "data.tsv"
+    tsv_file.write_text("hello\tA\n")
+
+    dataset = file_dataset(str(tsv_file), fieldnames=["input", "target"])
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello"
+    assert dataset[0].target == "A"
+
+
+def test_file_dataset_csv_honors_dialect_delimiter(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("input\ttarget\nhello\tA\n")
+
+    dataset = file_dataset(str(csv_file), dialect="excel-tab")
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello"
+    assert dataset[0].target == "A"
+
+
+def test_file_dataset_has_no_delimiter_parameter() -> None:
+    # custom delimiters belong to csv_dataset(); file_dataset() only
+    # defaults by extension
+    assert "delimiter" not in inspect.signature(file_dataset).parameters
 
 
 # test reading a dataset using default configuration
