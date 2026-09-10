@@ -27,7 +27,7 @@ from typing import (
 from zipfile import ZipFile
 
 import anyio
-from ijson import IncompleteJSONError, ObjectBuilder  # type: ignore[import-untyped]
+from ijson import IncompleteJSONError  # type: ignore[import-untyped]
 from ijson.backends.python import (  # type: ignore[import-untyped]
     UnexpectedSymbol,
 )
@@ -53,6 +53,7 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
 from inspect_ai._util.json import (
+    ExcludingObjectBuilder,
     is_ijson_int_overflow_error,
     is_ijson_nan_inf_error,
     jsonable_dict,
@@ -636,32 +637,6 @@ def _rewrite_eval_zip_via_filesystem(location: str, log: EvalLog) -> None:
         f.write(new_bytes)
 
 
-class _SampleJSONBuilder:
-    """Build included top-level JSON fields without retaining excluded subtrees."""
-
-    def __init__(self, exclude_fields: set[str]) -> None:
-        self.data: dict[str, Any] = {}
-        self._excluded = exclude_fields
-        self._depth = 0
-        self._key = ""
-        self._builder: ObjectBuilder | None = None
-
-    def event(self, event: str, value: Any) -> None:
-        if event in ("start_map", "start_array"):
-            self._depth += 1
-        elif event in ("end_map", "end_array"):
-            self._depth -= 1
-
-        if self._depth == 1 and event == "map_key":
-            self._key = value
-            self._builder = None if value in self._excluded else ObjectBuilder()
-        elif self._builder is not None:
-            self._builder.event(event, value)
-            if self._depth == 1:
-                self.data[self._key] = self._builder.value
-                self._builder = None
-
-
 def _read_local_sample_excluding(
     zip: ZipFile, member: str, exclude_fields: set[str]
 ) -> dict[str, Any]:
@@ -673,7 +648,7 @@ def _read_local_sample_excluding(
     from inspect_ai._util.json import get_ijson_backend
 
     try:
-        builder = _SampleJSONBuilder(exclude_fields)
+        builder = ExcludingObjectBuilder(exclude_fields)
         with zip.open(member) as stream:
             for prefix, event, value in get_ijson_backend().parse(
                 stream, use_float=True
@@ -703,7 +678,7 @@ async def _read_member_json_excluding(
     try:
         data: dict[str, Any] = {}
         async with await reader.open_member(member) as f:
-            builder = _SampleJSONBuilder(exclude_fields)
+            builder = ExcludingObjectBuilder(exclude_fields)
             async for prefix, event, value in ijson.parse_async(
                 adapt_to_reader(f), use_float=True
             ):
