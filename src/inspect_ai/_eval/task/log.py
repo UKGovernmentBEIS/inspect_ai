@@ -1004,11 +1004,16 @@ class TaskLogger:
         buffer_db = self._buffer_db
         if buffer_db is None:
             return
-        self._buffer_db = None
-        if keep:
-            await buffer_db.aclose()
-        else:
-            await buffer_db.acleanup()
+        # a cancellation landing before the teardown's worker thread starts
+        # must not orphan the buffer (its SQLite connections and sync thread
+        # would stay open with nothing left to close them): hand over the
+        # reference and tear down under one shield
+        with anyio.CancelScope(shield=True):
+            self._buffer_db = None
+            if keep:
+                await buffer_db.aclose()
+            else:
+                await buffer_db.acleanup()
 
     async def discard(
         self, *, keep_destination: bool = False, keep_buffer: bool = False

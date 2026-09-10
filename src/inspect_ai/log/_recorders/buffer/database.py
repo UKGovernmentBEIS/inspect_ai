@@ -513,8 +513,15 @@ class SampleBufferDatabase(SampleBuffer):
         await anyio.to_thread.run_sync(self.close)
 
     async def acleanup(self) -> None:
-        """:meth:`cleanup` off the event loop (it joins the sync worker too)."""
-        await anyio.to_thread.run_sync(self.cleanup)
+        """:meth:`cleanup` with its worker join and local deletion off the event loop.
+
+        The shared filestore's removal stays on the loop: it is synchronous
+        fsspec work on a possibly remote filesystem, which must not run in a
+        worker thread (fsspec's own background loop — see AGENTS.md). It is
+        one ``rm``, as on the sync path.
+        """
+        if await anyio.to_thread.run_sync(self._cleanup_local):
+            self._cleanup_filestore()
 
     def close(self) -> None:
         """Stop syncing and close connections while preserving recovery files.
@@ -538,15 +545,26 @@ class SampleBufferDatabase(SampleBuffer):
 
     @override
     def cleanup(self) -> None:
+        if self._cleanup_local():
+            self._cleanup_filestore()
+
+    def _cleanup_local(self) -> bool:
+        """Join the sync worker and delete the SQLite files; True when done now.
+
+        False when skipped (called from the sync worker itself, or it did not
+        stop in time) or deferred until the last sample reader's lease ends —
+        the lease release then runs :meth:`_cleanup_now`, filestore included.
+        """
         if not self._close_sync_worker_for_cleanup():
-            return
+            return False
 
         with self._lease_lock:
             if self._sample_read_leases:
                 self._cleanup_pending = True
-                return
+                return False
 
-        self._cleanup_now()
+        self._delete_local_files()
+        return True
 
     def _close_sync_worker_for_cleanup(self, *, drain: bool = False) -> bool:
         """Stop the sync worker before closing or cleaning up.
@@ -584,14 +602,20 @@ class SampleBufferDatabase(SampleBuffer):
         return True
 
     def _cleanup_now(self) -> None:
+        self._delete_local_files()
+        self._cleanup_filestore()
+
+    def _delete_local_files(self) -> None:
         # Close all persistent connections BEFORE unlinking. This is required
         # for correctness on Windows (unlink fails on an open file) and to allow
         # removal of the WAL -wal/-shm sidecars, which stay open as long as a
         # connection is open. The sync worker is already joined by this point
-        # (see cleanup -> _close_sync_worker_for_cleanup), so closing its handle
-        # cross-thread is safe.
+        # (see _cleanup_local -> _close_sync_worker_for_cleanup), so closing
+        # its handle cross-thread is safe.
         self._close_all_connections()
         cleanup_sample_buffer_db(self.db_path)
+
+    def _cleanup_filestore(self) -> None:
         if self._sync_filestore is not None:
             self._sync_filestore.cleanup()
 

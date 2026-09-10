@@ -2653,6 +2653,66 @@ async def test_buffer_teardown_does_not_block_the_event_loop(
     buffer_db.cleanup()
 
 
+async def test_buffer_teardown_survives_cancellation(tmp_path: Path) -> None:
+    # a cancellation landing before the teardown's worker thread starts must
+    # not leave the buffer orphaned: released from the logger yet open, with
+    # its SQLite connections and sync thread alive and nothing left to close
+    # them. The hand-over and teardown run under one shield
+    buffer_db = SampleBufferDatabase(
+        location=str(tmp_path / "retry.eval"), create=True, db_dir=tmp_path / "db"
+    )
+    buffer_db.start_sample(EvalSampleSummary(id=1, epoch=1, input="q", target="a"))
+    logger = TaskLoggerShim(buffer_db)
+    logger.eval = _eval_spec()
+    logger._location = str(tmp_path / "retry.eval")
+
+    with anyio.CancelScope() as scope:
+        scope.cancel()
+        await logger._release_buffer_db(keep=True)
+
+    assert logger.buffer_db is None
+    assert buffer_db._closed and not buffer_db._connections
+    assert buffer_db.db_path.exists()
+    buffer_db.cleanup()
+
+
+async def test_buffer_acleanup_keeps_filestore_removal_off_worker_threads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the local SQLite deletion (and the worker join) run in a worker thread;
+    # the shared filestore's removal is synchronous fsspec work on a possibly
+    # remote filesystem and must stay on the event loop (AGENTS.md)
+    import threading
+
+    from inspect_ai.log._recorders.buffer import database as database_module
+    from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
+
+    threads: dict[str, bool] = {}
+    local_cleanup = database_module.cleanup_sample_buffer_db
+
+    def record_local(path: Path) -> None:
+        threads["local"] = threading.current_thread() is threading.main_thread()
+        local_cleanup(path)
+
+    def record_filestore(self: SampleBufferFilestore) -> None:
+        threads["filestore"] = threading.current_thread() is threading.main_thread()
+
+    monkeypatch.setattr(database_module, "cleanup_sample_buffer_db", record_local)
+    monkeypatch.setattr(SampleBufferFilestore, "cleanup", record_filestore)
+
+    buffer_db = SampleBufferDatabase(
+        location=str(tmp_path / "retry.eval"),
+        create=True,
+        log_shared=30,
+        db_dir=tmp_path / "db",
+    )
+    buffer_db.start_sample(EvalSampleSummary(id=1, epoch=1, input="q", target="a"))
+    await buffer_db.acleanup()
+
+    assert threads == {"local": False, "filestore": True}
+    assert not buffer_db.db_path.exists()
+
+
 async def test_task_logger_discard_contains_recorder_failures() -> None:
     # discard's callers run inside the dispatcher task group: a storage error
     # from the destination removal must be logged, not raised — an escaping
