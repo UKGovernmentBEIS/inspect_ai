@@ -20,6 +20,8 @@ from typing import (
     TypeVar,
 )
 
+import anyio
+import anyio.to_thread
 import psutil
 from pydantic import BaseModel, JsonValue
 from shortuuid import uuid
@@ -498,6 +500,21 @@ class SampleBufferDatabase(SampleBuffer):
                 logger.warning(f"Unexpcted error cleaning up samples: {ex}")
             finally:
                 cursor.close()
+
+    async def aclose(self) -> None:
+        """:meth:`close` off the event loop.
+
+        Closing joins the sync worker for up to ``SYNC_CLEANUP_TIMEOUT``, and
+        a close first drains a pending shared upload, so the join can span a
+        whole upload; on the event loop that would stall every sibling task
+        and control request. The upload itself runs on the worker's own
+        thread either way, so this hop only waits for it.
+        """
+        await anyio.to_thread.run_sync(self.close)
+
+    async def acleanup(self) -> None:
+        """:meth:`cleanup` off the event loop (it joins the sync worker too)."""
+        await anyio.to_thread.run_sync(self.cleanup)
 
     def close(self) -> None:
         """Stop syncing and close connections while preserving recovery files.

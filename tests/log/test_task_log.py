@@ -225,6 +225,15 @@ class _FlushBufferDB:
     def cleanup(self) -> None:
         pass
 
+    async def acleanup(self) -> None:
+        self.cleanup()
+
+    def close(self) -> None:
+        pass
+
+    async def aclose(self) -> None:
+        self.close()
+
 
 class _FinishRecorder(_FlushRecorder):
     """A flush recorder whose ``log_finish`` can be paused mid-call."""
@@ -2582,6 +2591,66 @@ async def test_task_logger_discard_quiesces_live_controls_after_finish_failure(
             assert Path(logger.location).exists()
     finally:
         clear_all_eval_states()
+
+
+async def test_buffer_teardown_does_not_block_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a terminal cleanup that keeps the recovery buffer drains its pending
+    # shared upload and joins the sync worker (up to SYNC_CLEANUP_TIMEOUT);
+    # that join must not run on the event loop, or every sibling task and
+    # control request stalls for the length of the upload
+    import threading
+
+    from inspect_ai.event._info import InfoEvent
+    from inspect_ai.log._recorders.buffer import database as database_module
+    from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
+    from inspect_ai.log._recorders.types import SampleEvent
+
+    monkeypatch.setattr(database_module, "SYNC_CLEANUP_TIMEOUT", 2)
+    release = threading.Event()
+    upload_started = threading.Event()
+
+    def blocking_upload(db: SampleBufferDatabase, fs: SampleBufferFilestore) -> None:
+        upload_started.set()
+        release.wait(timeout=5)
+
+    monkeypatch.setattr(database_module, "sync_to_filestore", blocking_upload)
+
+    buffer_db = SampleBufferDatabase(
+        location=str(tmp_path / "retry.eval"),
+        create=True,
+        log_shared=30,
+        db_dir=tmp_path / "db",
+    )
+    buffer_db.start_sample(EvalSampleSummary(id=1, epoch=1, input="q", target="a"))
+    # requests an upload that is not yet due; close drains it
+    buffer_db.log_events([SampleEvent(id=1, epoch=1, event=InfoEvent(data="x"))])
+    logger = TaskLoggerShim(buffer_db)
+    logger.eval = _eval_spec()
+    logger._location = str(tmp_path / "retry.eval")
+
+    heartbeats = 0
+
+    async def heartbeat() -> None:
+        # the loop stays responsive while the join is pending; once the
+        # upload is under way and we have seen it tick, let the upload finish
+        nonlocal heartbeats
+        while not release.is_set():
+            await anyio.sleep(0.01)
+            heartbeats += 1
+            if heartbeats >= 5 and upload_started.is_set():
+                release.set()
+
+    with anyio.fail_after(10):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(heartbeat)
+            await logger.cleanup(keep_buffer=True)
+
+    assert heartbeats >= 5
+    assert buffer_db._closed and buffer_db.db_path.exists()
+    assert logger.buffer_db is None
+    buffer_db.cleanup()
 
 
 async def test_task_logger_discard_contains_recorder_failures() -> None:

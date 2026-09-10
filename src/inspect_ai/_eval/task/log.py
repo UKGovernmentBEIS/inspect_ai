@@ -407,9 +407,7 @@ class TaskLogger:
         # log_finish() (or discard() above) has cleaned up the buffer db; a
         # stale one would collide with the new attempt's (the location repeats
         # if `created` lands on the same second)
-        if self._buffer_db is not None:
-            self._buffer_db.cleanup()
-            self._buffer_db = None
+        await self._release_buffer_db(keep=False)
         await self.init()
 
     def _bump_created_past_existing_logs(self) -> None:
@@ -999,12 +997,18 @@ class TaskLogger:
 
     async def cleanup(self, *, keep_buffer: bool = False) -> None:
         await self._stop_stale_flush_timer()
-        if self._buffer_db is not None:
-            if keep_buffer:
-                self._buffer_db.close()
-            else:
-                self._buffer_db.cleanup()
-            self._buffer_db = None
+        await self._release_buffer_db(keep=keep_buffer)
+
+    async def _release_buffer_db(self, *, keep: bool) -> None:
+        """Close (``keep``, preserving recovery files) or delete the realtime buffer."""
+        buffer_db = self._buffer_db
+        if buffer_db is None:
+            return
+        self._buffer_db = None
+        if keep:
+            await buffer_db.aclose()
+        else:
+            await buffer_db.acleanup()
 
     async def discard(
         self, *, keep_destination: bool = False, keep_buffer: bool = False
@@ -1150,9 +1154,7 @@ class TaskLogger:
                 self.flush_pending.clear()
 
             # cleanup the events db
-            if self._buffer_db is not None:
-                self._buffer_db.cleanup()
-                self._buffer_db = None
+            await self._release_buffer_db(keep=False)
 
         # An on-demand flush_samples() that was mid-flush while we waited on
         # _flush_lock above re-arms the stale-flush timer *outside* _flush_lock
