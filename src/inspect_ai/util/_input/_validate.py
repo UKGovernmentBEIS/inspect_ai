@@ -21,6 +21,8 @@ from acp.schema import (
     TitledMultiSelectItems,
 )
 
+from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
+
 PropertySchema = Union[
     ElicitationStringPropertySchema,
     ElicitationIntegerPropertySchema,
@@ -44,20 +46,16 @@ def known_property(
     return prop
 
 
-MULTILINE_FORMAT = "multiline"
-"""String property ``format`` that requests a multi-line field.
-
-Not a JSON Schema format. A custom value is legal on the wire; an ACP client
-that does not recognise it falls back to its single-line string control.
-"""
-
-
 def is_multiline(prop: PropertySchema) -> bool:
-    """Whether a property should render as a multi-line text field."""
+    """Whether a property should render as a multi-line text field.
+
+    True for a string property (without `enum`/`one_of`) whose `_meta`
+    carries `MULTILINE_META_KEY: true`. Only JSON `true` counts.
+    """
     return (
         isinstance(prop, ElicitationStringPropertySchema)
         and string_choice_labels(prop) is None
-        and prop.format == MULTILINE_FORMAT
+        and (prop.field_meta or {}).get(MULTILINE_META_KEY) is True
     )
 
 

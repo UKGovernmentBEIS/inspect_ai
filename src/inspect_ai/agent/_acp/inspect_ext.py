@@ -136,6 +136,13 @@ TOTAL_MESSAGES_META_KEY = "inspect.total_messages"
 # still interrupt the whole turn). Absent ⇒ cancelable (the react default).
 TOOL_CALL_CANCELABLE_META_KEY = "inspect.tool_call_cancelable"
 
+# Set to ``True`` on an elicitation string property's ``_meta`` to ask
+# for a multi-line control (the answer is expected to span lines: pasted
+# command output, a log excerpt). A presentation hint, kept out of
+# ``format`` so it can coexist with ``uri`` / ``date-time``. Clients that
+# don't know the key render their ordinary string control.
+MULTILINE_META_KEY = "inspect.multiline"
+
 
 # ---------------------------------------------------------------------------
 # inspect/* JSON-RPC methods (non-standard)

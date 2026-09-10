@@ -35,6 +35,7 @@ from acp.schema import (
 )
 from test_helpers.utils import skip_if_trio
 
+from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.util import InputRequest
@@ -172,7 +173,9 @@ class _ElicitationClientRpcStub:
 def _trivial_schema() -> ElicitationSchema:
     return ElicitationSchema(
         properties={
-            "answer": ElicitationStringPropertySchema(type="string", title="Answer")
+            "answer": ElicitationStringPropertySchema(
+                type="string", title="Answer", field_meta={MULTILINE_META_KEY: True}
+            )
         },
         required=["answer"],
     )
@@ -273,6 +276,9 @@ async def test_elicitation_over_real_socket_accept_round_trip(
     assert params["mode"] == "form"
     assert "sessionId" in params
     assert params["requestedSchema"]["properties"]["answer"]["type"] == "string"
+    assert params["requestedSchema"]["properties"]["answer"]["_meta"] == {
+        MULTILINE_META_KEY: True
+    }
 
 
 @skip_if_trio

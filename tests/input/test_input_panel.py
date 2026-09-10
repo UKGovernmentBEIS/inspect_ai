@@ -29,6 +29,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Checkbox, Input, Select, SelectionList, TextArea
 
 from inspect_ai._util.textual.form import ElicitationForm
+from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
 from inspect_ai.util import InputRequest, InputResult
 from inspect_ai.util._input.manager import (
     HumanQuestionManager,
@@ -410,18 +411,21 @@ async def test_form_required_boolean_uses_checkbox() -> None:
 @skip_if_trio
 @pytest.mark.anyio
 async def test_form_multiline_string_renders_text_area() -> None:
-    """Only ``format: "multiline"`` gets a TextArea; other strings keep Input."""
+    """Only the ``inspect.multiline`` meta flag gets a TextArea; other strings keep Input."""
     schema = ElicitationSchema(
         properties={
             "notes": ElicitationStringPropertySchema(
-                type="string", title="Notes", format="multiline"
+                type="string", title="Notes", field_meta={MULTILINE_META_KEY: True}
             ),
             "email": ElicitationStringPropertySchema(
                 type="string", title="Email", format="email"
             ),
             "plain": ElicitationStringPropertySchema(type="string", title="Plain"),
             "color": ElicitationStringPropertySchema(
-                type="string", title="Color", enum=["red", "blue"], format="multiline"
+                type="string",
+                title="Color",
+                enum=["red", "blue"],
+                field_meta={MULTILINE_META_KEY: True},
             ),
         },
         required=["notes"],
@@ -437,7 +441,7 @@ async def test_form_multiline_string_renders_text_area() -> None:
         form = app.query_one(ElicitationForm)
         assert len(form.query(TextArea)) == 1
         assert len(form.query(Input)) == 2
-        assert len(form.query(Select)) == 1  # enum wins over format
+        assert len(form.query(Select)) == 1  # enum wins over the meta flag
         text_area = form.query_one(TextArea)
         assert text_area.tab_behavior == "focus"
 
@@ -467,7 +471,10 @@ async def test_form_multiline_enter_inserts_newline_without_submit() -> None:
     schema = ElicitationSchema(
         properties={
             "notes": ElicitationStringPropertySchema(
-                type="string", title="Notes", format="multiline", default="a"
+                type="string",
+                title="Notes",
+                field_meta={MULTILINE_META_KEY: True},
+                default="a",
             ),
         },
         required=["notes"],

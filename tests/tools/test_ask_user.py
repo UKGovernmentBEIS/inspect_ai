@@ -2,12 +2,14 @@ import json
 from typing import Any
 
 import pytest
-from acp.schema import ElicitationSchema
+from acp.schema import ElicitationSchema, ElicitationStringPropertySchema
 
+from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
 from inspect_ai.tool import ToolError, ask_user
 from inspect_ai.tool._tool_def import tool_def_fields
 from inspect_ai.util import InputResult
 from inspect_ai.util._input import request as request_module
+from inspect_ai.util._input._validate import is_multiline, known_property
 
 
 def _schema() -> dict[str, Any]:
@@ -122,6 +124,61 @@ async def test_uppercase_types_are_normalized(
     await tool("hi", uppercase)
 
     assert isinstance(captured["schema"], ElicitationSchema)
+
+
+async def test_multiline_meta_survives_argument_parsing_and_serialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The model supplies `_meta` as a plain dict key; it must reach the
+    # handlers as `field_meta` and come back out as `_meta` on the ACP wire
+    # (the same model_dump call connection.py uses for elicitation/create).
+    captured: dict[str, Any] = {}
+
+    async def fake_request_input(*, message, schema, metadata=None):
+        captured["schema"] = schema
+        return InputResult(outcome="accepted", content={"output": "a\nb"})
+
+    import inspect_ai.tool._tools._ask_user as ask_user_module
+
+    monkeypatch.setattr(ask_user_module, "request_input", fake_request_input)
+
+    schema = {
+        "type": "OBJECT",
+        "properties": {
+            "output": {
+                "type": "STRING",
+                "format": "uri",
+                "_meta": {MULTILINE_META_KEY: True},
+            },
+            "name": {"type": "string"},
+            "color": {"type": "string", "enum": ["red", "blue"]},
+        },
+        "required": ["output"],
+    }
+    tool = ask_user()
+    await tool("paste", schema)
+
+    validated: ElicitationSchema = captured["schema"]
+    props = {
+        name: known_property(prop)
+        for name, prop in (validated.properties or {}).items()
+    }
+    output = props["output"]
+    assert isinstance(output, ElicitationStringPropertySchema)
+    assert output.field_meta == {MULTILINE_META_KEY: True}
+    assert output.format == "uri"
+    assert is_multiline(output)
+    assert not is_multiline(props["name"])
+    assert not is_multiline(props["color"])
+
+    wire = validated.model_dump(mode="json", by_alias=True, exclude_none=True)
+    assert wire["properties"]["output"]["_meta"] == {MULTILINE_META_KEY: True}
+    assert "field_meta" not in wire["properties"]["output"]
+    assert "_meta" not in wire["properties"]["name"]
+    # A client parsing the wire payload (the ACP TUI does exactly this) sees
+    # the same flag.
+    reparsed = ElicitationSchema.model_validate(wire)
+    assert is_multiline(known_property((reparsed.properties or {})["output"]))
 
 
 async def test_invalid_schema_raises_tool_error() -> None:

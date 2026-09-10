@@ -19,7 +19,6 @@ from inspect_ai.util._console import input_screen
 
 from ._types import InputRequest, InputResult
 from ._validate import (
-    MULTILINE_FORMAT,
     PropertySchema,
     is_multiline,
     known_property,
@@ -128,12 +127,11 @@ def _ask_string(
     required: bool,
     console: Console,
 ) -> Any:
+    if prop.format:
+        console.print(f"[dim](format: {prop.format})[/dim]")
+
     if is_multiline(prop):
         return _ask_multiline(label, prop, required, console)
-
-    # An enum/one_of string with format "multiline" is still a single choice.
-    if prop.format and prop.format != MULTILINE_FORMAT:
-        console.print(f"[dim](format: {prop.format})[/dim]")
 
     # Print options for bounded-choice strings; we deliberately do NOT pass
     # `choices=` to Prompt.ask because Rich would reject `:decline` before we

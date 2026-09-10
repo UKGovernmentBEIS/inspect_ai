@@ -18,6 +18,7 @@ from acp.schema import (
 from rich.console import Console
 from rich.prompt import Prompt
 
+from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
 from inspect_ai.util import InputRequest
 from inspect_ai.util._input import console as console_module
 from inspect_ai.util._input.console import (
@@ -69,7 +70,7 @@ def _multiline_schema(**kwargs: Any) -> ElicitationSchema:
     return ElicitationSchema(
         properties={
             "output": ElicitationStringPropertySchema(
-                type="string", format="multiline", **kwargs
+                type="string", field_meta={MULTILINE_META_KEY: True}, **kwargs
             )
         },
         required=["output"],
@@ -251,7 +252,7 @@ def test_multiline_shows_default_and_sentinel_hint(
     assert f"'{MULTILINE_END_TOKEN}'" in out and "Ctrl-D" in out
 
 
-def test_enum_with_multiline_format_stays_single_line(
+def test_enum_with_multiline_meta_stays_single_line(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = _patch_prompt(monkeypatch, ["red"])
@@ -260,7 +261,9 @@ def test_enum_with_multiline_format_stays_single_line(
     schema = ElicitationSchema(
         properties={
             "color": ElicitationStringPropertySchema(
-                type="string", enum=["red", "blue"], format="multiline"
+                type="string",
+                enum=["red", "blue"],
+                field_meta={MULTILINE_META_KEY: True},
             )
         },
         required=["color"],
@@ -268,7 +271,46 @@ def test_enum_with_multiline_format_stays_single_line(
     result = _ask_schema("pick", schema, console)
     assert result.content == {"color": "red"}
     assert len(calls) == 1
-    assert "multiline" not in buf.getvalue()
+    assert "Multi-line" not in buf.getvalue()
+
+
+@pytest.mark.parametrize(
+    "prop_kwargs",
+    [
+        {},
+        {"format": "multiline"},
+        {"field_meta": {MULTILINE_META_KEY: "true"}},
+        {"field_meta": {MULTILINE_META_KEY: False}},
+        {"field_meta": {"inspect.other": True}},
+    ],
+)
+def test_string_without_multiline_meta_stays_single_line(
+    monkeypatch: pytest.MonkeyPatch, prop_kwargs: dict[str, Any]
+) -> None:
+    # Only JSON true under the key switches control; a `format` spelling or
+    # a truthy non-bool value does not.
+    calls = _patch_prompt(monkeypatch, ["one line"])
+    schema = ElicitationSchema(
+        properties={
+            "name": ElicitationStringPropertySchema(type="string", **prop_kwargs)
+        },
+        required=["name"],
+    )
+    result = _ask_schema("q", schema, _silent_console())
+    assert result.content == {"name": "one line"}
+    assert len(calls) == 1
+
+
+def test_multiline_with_format_shows_format_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The flag is a presentation hint and coexists with a semantic format.
+    _patch_input_lines(monkeypatch, ["https://a.example", MULTILINE_END_TOKEN])
+    buf = io.StringIO()
+    console = Console(file=buf, width=80, force_terminal=False)
+    result = _ask_schema("paste", _multiline_schema(format="uri"), console)
+    assert result.content == {"output": "https://a.example"}
+    assert "(format: uri)" in buf.getvalue()
 
 
 def test_multiline_does_not_use_prompt_ask(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -74,7 +74,8 @@ def ask_user() -> Tool:
 
         Multi-line text (command output, a log excerpt, a stack trace, a file):
           {"type": "object",
-           "properties": {"output": {"type": "string", "format": "multiline",
+           "properties": {"output": {"type": "string",
+                                     "_meta": {"inspect.multiline": true},
                                      "description": "Paste the output of `df -h`"}},
            "required": ["output"]}
 
@@ -92,10 +93,11 @@ def ask_user() -> Tool:
 
         ## Constraints per property type
         - string: `enum`, `min_length`, `max_length`, `pattern`, `format`.
-          `format: "multiline"` requests a multi-line field; use it whenever
-          the answer may span lines (a single-line field drops pasted lines
-          after the first). Note `pattern` matches with `re.fullmatch` and
-          without DOTALL, so a pattern over multi-line text needs `(?s)`.
+          `"_meta": {"inspect.multiline": true}` requests a multi-line field;
+          use it whenever the answer may span lines (a single-line field drops
+          pasted lines after the first). Note `pattern` matches with
+          `re.fullmatch` and without DOTALL, so a pattern over multi-line text
+          needs `(?s)`.
         - integer / number: `minimum`, `maximum`
         - boolean: no extra constraints
         - array (multi-select): `min_items`, `max_items`; `items.any_of` for titled
