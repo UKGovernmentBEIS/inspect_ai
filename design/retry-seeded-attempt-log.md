@@ -1088,6 +1088,125 @@ Eval-level (`tests/test_eval_set.py`):
 
 Run the async tests with `--runtrio` as well.
 
+## Performance
+
+Measured 2026-09-10 on the implementation branch against `origin/main`
+(merge base `10cab126`), on one macOS laptop, `.eval` logs only, two
+worktrees sharing a venv via `PYTHONPATH`. The benchmark script is not
+checked in; the method is recorded here so it can be repeated.
+
+### Method
+
+A react-agent task on `mockllm/model` whose callable `custom_outputs`
+returns `run_cmd` tool calls for a fixed number of turns and then `submit`;
+tool output and assistant text are pseudo-random prose so zstd does not
+collapse the log. The last 5% of samples raise once (a marker file per
+sample id) with `continue_on_fail=True`, so attempt 1 ends `status=error`
+with N−K completed samples and K errored ones. Two phases, each a fresh
+process:
+
+- **prime**: `eval_set(retry_attempts=0)` writes attempt 1's log.
+- **retry**: a second `eval_set` call on a copy of the primed log dir. Its
+  one attempt is the retry that reuses the completed samples; this is the
+  timed path. Re-runs of the K failed samples use 2-turn transcripts so the
+  timing isolates the reuse path, which is what changed (the live re-run
+  cost is identical in both builds).
+
+Two shapes: **A**, 500 samples × 80 turns (≈250 KB each, 119 MB log,
+25 re-runs) — many medium agentic samples; **B**, 50 samples × 400 turns
+(≈4 MB each, 195 MB log, 3 re-runs) — the incident's shape of few, very
+long transcripts. A 200-sample / 25 MB shape and a 2 MB "floor" (same
+sample and re-run counts as A, 1-turn transcripts) bound the fixed cost:
+eval_set start-up, the re-runs and the final write.
+
+### Local disk
+
+Retry wall seconds, median of 2 runs; every retry ended `success` with all
+samples completed and one log file after cleanup, on both builds.
+
+| Prior log | main | branch |
+|---|---|---|
+| 200 samples, 25 MB | 6.0 | 3.5 |
+| A: 500 samples, 119 MB | 24.9 | 9.4 |
+| B: 50 × 4 MB, 195 MB | 15.8 | 6.4 |
+| floor: 500 samples, 2 MB | 2.7 | 2.1 |
+
+Net of the floor the reuse work is ≈22 s vs ≈7 s on A and ≈13 s vs ≈4 s
+on B, about 3× in both shapes. First-attempt time did not regress (A: 744 s
+main vs 625 s branch; B: 1584 s vs 1584 s; identical log sizes), so the
+normal write path, compaction heuristic included, is unaffected.
+
+An in-process `cProfile` of the A retry (the `-m cProfile` wrapper changes
+the task's identity and eval_set rejects the log dir as dirty) attributes
+main's per-sample cost to `condense_sample` (attachment walking,
+`exceeds_max_depth`, message copies), then re-serialization
+(`to_jsonable_python`/`to_json`) and zstd in `complete_sample`, with the
+read's `model_validate` third. The branch skips all of it; its remaining
+cost is the per-key local body read plus `model_validate` that feeds the
+reporter (summaries are thinned, see the mechanism section). Under the
+profiler main took 198 s to the branch's 14 s — inflated by profiling
+overhead on Python-call-heavy code, but the attribution stands.
+
+### S3
+
+Same primed logs uploaded to `s3://inspect-flow-test/perf-420/` and the
+retry phase run against the S3 log dir, from an office link measuring
+≈11 MB/s in each direction. Inspect's trace log (`trace-<pid>.log` under the
+data dir, one `Log Write` action per flush with its duration) splits each
+run into upload time and everything else; upload durations were stable
+across the day (≈11 s per 119 MB, ≈18 s per 195 MB) while the CPU-bound
+remainder was sensitive to unrelated load on the machine, so contended
+reps were re-run and the split below uses clean ones.
+
+**Every flush re-uploads the whole file, in both builds**, and those uploads
+were 50–75% of retry time. The structural upload count is the same on both
+sides: main held destination writes until its sweep settled and then wrote a
+settle flush; the branch writes the seeded log at `log_start` instead.
+Threshold flushes (`log_buffer`, default 10 for these sizes) and the finish
+are common to both.
+
+| Shape, setting | uploads main / branch | main task s | branch task s |
+|---|---|---|---|
+| A, default `log_buffer` | 4 / 5 | 69 | 75 |
+| A, `log_buffer=50` | 2 / 2 | 46, 47 | 47, 42 |
+| B, default (3 re-runs → no threshold flush) | 2 / 2 | 87–109 | 75–81 |
+
+"task s" is the `Run Task` trace action's duration. On A at defaults the
+branch's fifth upload was a redundant threshold flush: completions that
+land while an 11 s upload is in progress each queue their own flush and
+the queued ones drain small remainders (meridianlabs-ai/inspect_ai#480;
+the same code path exists on main). With equal upload counts the
+non-upload time is: A, ≈24 s main (CPU sweep overlapping 25-way range
+reads) vs ≈20–24 s branch (≈11 s whole-file download + ≈8–13 s local
+sweep); B, 52–71 s main vs ≈45 s branch (18 s download + 27 s local body
+reads of 4 MB samples). So on this link the branch's whole-file download
+costs about what its CPU savings buy on A, and it wins clearly on B where
+main's per-sample work is heavier. On an in-region link the download is a
+second or two and the local numbers apply.
+
+### Conclusions and follow-ups
+
+- The seed replaces main's per-sample remote read + condense + re-serialize
+  + recompress with one download and one local read per key: ≈3× less
+  reuse time locally and in-region; roughly break-even on a slow link at
+  the default `log_buffer`, better with fewer flushes or larger samples.
+- Retry time on remote storage is bounded below by whole-log uploads, which
+  neither build addresses. Filed separately: #479 (compose the seeded
+  start flush server-side from the prior object's member area, no upload
+  of bytes S3 already holds), #481 (incremental flushes for every S3 eval
+  via ranged `UploadPartCopy` onto the log's own key; blocked by #479),
+  #482 (seed without the download once flushes are incremental; blocked
+  by #481 and gated on re-measurement), #480 (the redundant threshold
+  flush; independent).
+- Skipping the `log_start` flush was considered and rejected for this
+  change: it would save one upload but leave the attempt invisible to
+  `inspect view` and other readers until its first later flush, lose
+  fail-fast on an unwritable destination, and a hard kill before that flush
+  would re-run the attempt's live completions. A skeleton start file
+  without the seeded body is unsafe (a `started` newest log holding no
+  samples is the incident class this design removes). #479 keeps the
+  flush and makes it cheap.
+
 ## Follow-ups (out of scope)
 
 - **A2 (concurrent seed)** if A1's startup latency is a demonstrated problem,
@@ -1105,3 +1224,11 @@ Run the async tests with `--runtrio` as well.
   so those hold nothing the newest log lacks and could be removed like
   errored ones; only a task's newest log ever needs recovery. Tracked as
   meridianlabs-ai/inspect_ai#459.
+- **Server-side compose for remote logs** (see Performance). #479: the
+  seeded start flush composes the destination from the prior object's
+  member area plus a small uploaded tail instead of re-uploading the seeded
+  zip. #481: every S3 flush composes the delta onto the log's own key.
+  #482: with incremental flushes the seed no longer needs the prior bytes
+  locally; evaluate after #481 with a re-run of the benchmark above.
+- **Redundant threshold flushes** during a slow upload (#480); pre-existing
+  on `main`, observed in the S3 runs above.
