@@ -301,15 +301,18 @@ class Recorder(abc.ABC):
     async def flush(self, eval: EvalSpec) -> None: ...
 
     async def log_prune(self, eval: EvalSpec, keys: set[SampleRecordKey]) -> None:
-        """Drop seeded sample records the attempt never resolved.
+        """Drop seeded sample records, including their journal summaries.
 
         Called just before a natural success's ``log_finish`` with the keys
         of prior records ``log_seed`` carried in that no sample
-        of this attempt consulted: a dynamic feed (seeded with every prior
-        record, having no upfront plan) whose realized set no longer
+        of this attempt consulted: a dynamic feed (seeded with selected prior
+        records, having no upfront plan) whose realized set no longer
         includes them. Dropping them keeps the finished log's samples to
-        this attempt's plan. The base implementation is a no-op, as for
-        :meth:`log_discard`; the built-in recorders override it.
+        this attempt's plan. Also called mid-run when a normalized JSON ID
+        re-runs under a different key: the prior record must leave both the
+        bodies and summaries in every subsequent flush. The base
+        implementation is a no-op, as for :meth:`log_discard`; the built-in
+        recorders override it.
         """
 
     async def log_discard(

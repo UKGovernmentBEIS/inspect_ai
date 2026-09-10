@@ -9,6 +9,7 @@ samples are live: they start as soon as there is free capacity.
 import tempfile
 from pathlib import Path
 from typing import Any, Literal, overload
+from zipfile import ZIP_STORED, ZipFile
 
 import anyio
 import pytest
@@ -1074,6 +1075,109 @@ def test_sample_source_task_retry_drops_prior_records_outside_the_realized_plan(
     # seed for the retry); only the success log is pruned to its plan
     assert [log.status for log in all_logs] == ["error", "success"]
     assert _sample_inputs(all_logs[0]) == ["s1", "s2", "s3"]
+
+
+@pytest.mark.parametrize("selected_id,filter", [(1, [1]), ("keep-1", ["keep-*"])])
+@pytest.mark.parametrize("selected_in_seed", [False, True])
+def test_sample_source_retry_filters_prior_payloads_before_publication(
+    selected_id: str | int,
+    filter: list[str | int],
+    selected_in_seed: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._eval.task.log import TaskLogger
+    from inspect_ai.log._log import EvalPlan
+    from inspect_ai.log._recorders import eval as eval_recorder
+
+    secret = "excluded-dynamic-sample-private-input"
+    selected = Sample(id=selected_id, input="selected", target="ok")
+    excluded = Sample(id=2, input=secret, target="ok")
+    failing = True
+    runs: list[str | int] = []
+    excluded_complete: dict[str, anyio.Event] = {}
+
+    class Source(SampleSource):
+        def __init__(self) -> None:
+            self.produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [excluded, selected] if selected_in_seed else [excluded]
+
+        async def sample_complete(self, sample: EvalSample) -> None:
+            if sample.id == 2:
+                excluded_complete.setdefault("done", anyio.Event()).set()
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not selected_in_seed and not self.produced:
+                self.produced = True
+                return [selected]
+            return None
+
+    @solver
+    def fail_selected_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(state.sample_id)
+            if state.sample_id == selected_id and failing:
+                await excluded_complete.setdefault("done", anyio.Event()).wait()
+                raise RuntimeError("retry selected sample")
+            return state
+
+        return solve
+
+    @task
+    def filtered_source_task() -> Task:
+        return Task(dataset=Source(), solver=fail_selected_once())
+
+    monkeypatch.setattr(
+        eval_recorder, "zipfile_compress_kwargs", {"compression": ZIP_STORED}
+    )
+    log_dir = str(tmp_path / "logs")
+    ok, prior_logs = eval_set(
+        filtered_source_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        retry_attempts=1,
+        retry_immediate=False,
+        fail_on_error=True,
+        retry_on_error=0,
+        log_realtime=False,
+        display="none",
+    )
+    assert not ok
+    assert secret.encode() in Path(prior_logs[0].location).read_bytes()
+    failing = False
+    start = TaskLogger.log_start
+    snapshots: list[str] = []
+
+    def check_snapshot(location: str) -> None:
+        assert secret.encode() not in Path(location).read_bytes()
+        with ZipFile(location) as archive:
+            assert {
+                name for name in archive.namelist() if name.startswith("samples/")
+            } == {f"samples/{selected_id}_epoch_1.json"}
+
+    async def check_start(logger: TaskLogger, plan: EvalPlan) -> None:
+        await start(logger, plan)
+        assert logger.prior_seeded
+        check_snapshot(logger.location)
+        snapshots.append(logger.location)
+
+    monkeypatch.setattr(TaskLogger, "log_start", check_start)
+    ok, logs = eval_set(
+        filtered_source_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        sample_id=filter,
+        retry_attempts=1,
+        retry_immediate=False,
+        retry_on_error=0,
+        log_realtime=False,
+        display="none",
+    )
+    assert ok and len(snapshots) == 1
+    check_snapshot(logs[0].location)
+    assert runs.count(selected_id) == 2 and runs.count(2) == 1
 
 
 def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:

@@ -1630,30 +1630,44 @@ class ZipLogFile:
     async def prune_samples(self, keys: set[SampleRecordKey]) -> None:
         """Drop the sample members and summaries for ``keys``.
 
-        The finish-time counterpart of :meth:`_prune_prior_members` for
-        seeded records no sample of this attempt resolved (see
-        ``Recorder.log_prune``): the members leave the in-memory central
-        directory (their bytes stay until :meth:`compact` reclaims them) and
-        the summaries leave ``_summaries``, which ``log_finish`` writes as
-        ``summaries.json`` — the consolidated listing a finished log's
-        readers prefer over the journal. The directory reaches disk with
-        the next write (``log_finish`` always writes); :meth:`compact` takes
-        its live set from memory for the same reason.
+        Used at finish for unresolved seeds and mid-run when a normalized
+        JSON ID re-runs under a different member name. Rewrite the summary
+        journal along with the directory so intermediate snapshots list only
+        readable samples. Writing the journal, even when empty, also marks
+        the ZIP modified: its next close must persist directory deletions.
+        Removed bodies' bytes remain until :meth:`compact` reclaims them.
         """
         async with self._lock:
             assert self._zip is not None
             names = {_sample_filename(key.sample_id, key.epoch) for key in keys}
-            self._zip.filelist = [
-                info for info in self._zip.filelist if info.filename not in names
-            ]
-            for name in names:
-                self._zip.NameToInfo.pop(name, None)
-            self._local_sample_names -= names
-            self._summaries = [
+            summaries = [
                 s
                 for s in self._summaries
                 if SampleRecordKey(str(s.id), s.epoch) not in keys
             ]
+            zip_file = self._zip
+
+            def rewrite_journal() -> None:
+                journal = to_json_safe(summaries, indent=None)
+                removed = names | {
+                    name
+                    for name in zip_file.NameToInfo
+                    if name == SUMMARIES_JSON
+                    or name.startswith(_journal_summary_path() + "/")
+                }
+                zip_file.filelist = [
+                    info for info in zip_file.filelist if info.filename not in removed
+                ]
+                for name in removed:
+                    zip_file.NameToInfo.pop(name, None)
+                zip_file.writestr(
+                    _journal_summary_path(_journal_summary_file(1)), journal
+                )
+                self._summary_counter = 1
+                self._summaries = summaries
+                self._local_sample_names -= names
+
+            await anyio.to_thread.run_sync(rewrite_journal)
 
     def _restrict_members(self, live: frozenset[str]) -> None:
         """Drop every member not in ``live`` from the open zip's central directory.

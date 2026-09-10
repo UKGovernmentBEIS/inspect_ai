@@ -510,8 +510,9 @@ class TaskLogger:
         ``prior`` is the prior log's location or an in-memory prior log's
         samples; the recorder copies a same-format prior log file whole and
         re-logs samples otherwise (see ``Recorder.log_seed``). Restricted to
-        the planned ``keep`` keys (``None`` for a dynamically fed task keeps
-        everything).
+        the planned ``keep`` keys. With no upfront plan, explicit sample ID
+        filters still restrict the seed, including samples produced later by
+        a dynamic feed.
 
         Afterwards the log holds every prior record the attempt could reuse,
         so whatever ends the attempt, ``log_finish`` writes a complete log —
@@ -531,6 +532,23 @@ class TaskLogger:
         without writing a log.
         """
         try:
+            if keep is None and self.eval.config.sample_id is not None:
+                from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+                from .util import sample_id_filter
+
+                matcher = sample_id_filter(self.eval.config.sample_id)
+                prior_samples = (
+                    await read_eval_log_sample_summaries_async(prior)
+                    if isinstance(prior, str)
+                    else prior
+                )
+                keep = {
+                    (sample.id, sample.epoch)
+                    for sample in prior_samples
+                    if matcher.matches(sample.id)
+                    and sample.epoch <= (self.eval.config.epochs or 1)
+                }
             await self.recorder.log_seed(self.eval, prior, keep)
         except FileNotFoundError:
             logger.warning(
@@ -640,22 +658,26 @@ class TaskLogger:
         # just-completed (or reused-on-retry) sample the listing already shows.
         if _seeded_key(id, epoch) in self._seeded_pending:
             return None
-        buffered = await self.recorder.buffered_sample(
+        sample = await self.recorder.buffered_sample(
             self.eval, id, epoch, exclude_fields=exclude_fields
         )
-        if buffered is not None:
-            return buffered
+        if sample is None:
+            from inspect_ai.log._file import read_eval_log_sample_async
 
-        from inspect_ai.log._file import read_eval_log_sample_async
-
-        try:
-            return await read_eval_log_sample_async(
-                self.location, id, epoch, exclude_fields=exclude_fields
-            )
-        except (IndexError, FileNotFoundError):
-            # IndexError: no such sample in the log. FileNotFoundError: the
-            # destination log doesn't exist yet (before log_start's flush).
+            try:
+                sample = await read_eval_log_sample_async(
+                    self.location, id, epoch, exclude_fields=exclude_fields
+                )
+            except (IndexError, FileNotFoundError):
+                # IndexError: no such sample in the log. FileNotFoundError: the
+                # destination log doesn't exist yet (before log_start's flush).
+                return None
+        # JSON readers try exact IDs before normalized aliases. Check the
+        # matched record too, so an alias cannot reveal a pending sample or
+        # hide a distinct, resolved exact ID.
+        if _seeded_key(sample.id, sample.epoch) in self._seeded_pending:
             return None
+        return sample
 
     def sample_events_provider(
         self, id: str | int, epoch: int

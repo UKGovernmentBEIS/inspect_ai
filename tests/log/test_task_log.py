@@ -47,7 +47,7 @@ from inspect_ai.log._log import (
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
-from inspect_ai.log._recorders.recorder import Recorder
+from inspect_ai.log._recorders.recorder import Recorder, SampleRecordKey
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
 from inspect_ai.model._chat_message import ChatMessageUser
 
@@ -1154,6 +1154,133 @@ async def test_json_seed_prefers_distinct_exact_ids(
     final = await read_eval_log_async(logger.location)
     assert final.samples is not None
     assert {(s.id, s.epoch) for s in final.samples} == expected_keys
+
+
+@pytest.mark.parametrize("prior_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("distinct_id", [None, 1, "001"])
+async def test_json_seed_pending_guard_uses_the_readers_matched_id(
+    prior_type: type[EvalRecorder] | type[JSONRecorder],
+    distinct_id: str | int | None,
+    tmp_path: Path,
+) -> None:
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.state import _full_sample
+
+    samples = [_prior_samples()[1].model_copy(update={"id": "001"})]
+    if distinct_id is not None:
+        samples.append(_prior_samples()[0])
+    prior = await _write_prior_log(prior_type(str(tmp_path / "prior")), samples)
+    recorder = JSONRecorder(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=None)
+    await logger.log_start(EvalPlan())
+    register_eval(logger.eval.eval_id, len(samples), live=logger)
+    try:
+        assert await _full_sample(logger.eval.eval_id, "001", 1) is None
+        for id in ("001", "1", 1, "0001"):
+            assert await logger.read_sample(id, 1) is None
+
+        if distinct_id is not None:
+            resolved = await logger.read_prior_sample(distinct_id, 1)
+            assert resolved is not None and resolved.id == distinct_id
+            logger.note_reused_sample(resolved)
+            actual = await logger.read_sample(distinct_id, 1)
+            assert actual is not None and actual.id == distinct_id
+            pending_id = "001" if distinct_id == 1 else 1
+            assert await logger.read_sample(pending_id, 1) is None
+        else:
+            resolved = await logger.read_prior_sample("001", 1)
+            assert resolved is not None
+            logger.note_reused_sample(resolved)
+            actual = await _full_sample(logger.eval.eval_id, "001", 1)
+            assert actual is not None and actual.id == "001"
+            actual = await logger.read_sample(1, 1)
+            assert actual is not None and actual.id == "001"
+    finally:
+        clear_all_eval_states()
+        await recorder.log_discard(logger.eval)
+
+
+@pytest.mark.parametrize("intervening_flush", [False, True])
+async def test_normalized_seed_pruning_survives_intermediate_flushes(
+    intervening_flush: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prior = await _write_prior_log(
+        JSONRecorder(str(tmp_path / "prior")),
+        [_prior_samples()[1].model_copy(update={"id": "001"})],
+    )
+    recorder = EvalRecorder(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=None)
+    await logger.log_start(EvalPlan())
+    prune = recorder.log_prune
+
+    async def flush_then_prune(eval: EvalSpec, keys: set[SampleRecordKey]) -> None:
+        if intervening_flush:
+            await recorder.flush(eval)
+        await prune(eval, keys)
+
+    monkeypatch.setattr(recorder, "log_prune", flush_then_prune)
+    await logger.complete_sample(
+        EvalSample(id=1, epoch=1, input="rerun", target="a"), flush=False
+    )
+
+    async def check_snapshot(expected_ids: set[int]) -> None:
+        log = await read_eval_log_async(logger.location)
+        assert log.samples is not None
+        assert {s.id for s in log.samples} == expected_ids
+        assert {
+            s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+        } == expected_ids
+        with pytest.raises(IndexError):
+            await read_eval_log_sample_async(logger.location, "001", 1)
+
+    for _ in range(2):
+        await recorder.flush(logger.eval)
+        await check_snapshot({1})
+    await logger.complete_sample(
+        EvalSample(id=2, epoch=1, input="next", target="a"), flush=False
+    )
+    await recorder.flush(logger.eval)
+    await check_snapshot({1, 2})
+    await logger.log_finish("success", EvalStats(), prune_unplanned=True)
+    await check_snapshot({1, 2})
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_pruning_all_seeds_persists_an_empty_journal(
+    cancel: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recorder = EvalRecorder(str(tmp_path))
+    prior = await _write_prior_log(recorder, _prior_samples())
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=None)
+    await logger.log_start(EvalPlan())
+    run_sync = anyio.to_thread.run_sync
+
+    async def cancel_before_worker(func: Any, *args: Any, **kwargs: Any) -> Any:
+        if cancel:
+            scope.cancel()
+            await anyio.lowlevel.checkpoint()
+        return await run_sync(func, *args, **kwargs)
+
+    with monkeypatch.context() as pruning:
+        pruning.setattr(anyio.to_thread, "run_sync", cancel_before_worker)
+        with anyio.CancelScope() as scope:
+            await recorder.log_prune(logger.eval, set(logger._seeded_pending))
+    assert scope.cancelled_caught == cancel
+    for _ in range(2):
+        await recorder.flush(logger.eval)
+        log = await read_eval_log_async(logger.location)
+        expected = {1, 2, 3, 4} if cancel else set()
+        assert {s.id for s in log.samples or []} == expected
+        assert {
+            s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+        } == expected
+    await recorder.log_discard(logger.eval)
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])

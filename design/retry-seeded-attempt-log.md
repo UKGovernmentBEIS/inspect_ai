@@ -201,8 +201,10 @@ and `_journal/config_updates/*` (otherwise an in-progress read of the new log
 would return the prior attempt's finished header and eval_id — readers prefer
 `header.json` when present), and sample entries for keys outside this
 attempt's plan (a `sample_id`/`limit` subset or reduced epoch count; a
-dynamic-feed task has no upfront plan and keeps everything, pruning the
-records it never consults at a natural success instead — see trade-off 5).
+dynamic-feed task has no upfront plan, but still applies explicit sample ID
+filters to the prior records, including IDs it may produce later. With no ID
+filter it keeps everything, pruning the records it never consults at a natural
+success instead — see trade-off 5).
 For an explicit plan, only selected sample members enter a fresh ZIP before
 the first destination write. Central-directory pruning alone is insufficient:
 excluded transcripts remain recoverable from their local ZIP records, even
@@ -221,7 +223,12 @@ finish every in-progress reader takes the journal path of
 `_read_all_summaries_async` (the viewer sample list,
 `read_eval_log_sample_summaries`, the ctl summaries surface) and would list
 samples whose bodies are gone — a body read for one raises `IndexError`.
-Rewriting the journal is local CPU over small records.
+Rewriting the journal is local CPU over small records. Mid-run pruning also
+rewrites the journal, including an empty journal when nothing remains. This
+marks the ZIP modified so its next close persists the directory deletions,
+even if a flush between completion and pruning cleared its modification
+state. In-progress log readers, viewers, and recovery consumers therefore see
+the same set of bodies and summaries after every subsequent flush.
 
 Two sub-variants:
 
@@ -730,11 +737,15 @@ withholds the same keys, so a sample awaiting its re-run resolves as
 "planned, not yet at the queue" (a 409 for requeue and cancel, see
 `design/ctl/queued-sample-cancel.md`) rather than as a terminal record
 that requeue would run a second time and cancel would report as already
-finished.
+finished. The full-sample guard checks the ID of the record actually returned
+by the reader too: JSON's exact-first normalized matching can resolve an
+integer lookup to a pending padded string ID without merging distinct exact
+IDs.
 
-Dynamically fed tasks seed with no plan (`keep=None`); a seeded key the
-feed never re-injects is never resolved, so it stays out of the live
-listing until the eval finishes. At a natural success — the attempt
+Dynamically fed tasks have no upfront plan; explicit ID filters still restrict
+their seeds before publication. A seeded key the feed never re-injects is never
+resolved, so it stays out of the live listing until the eval finishes. At a
+natural success — the attempt
 realized its whole plan, nothing abandoned — `TaskLogger.log_finish`
 (`prune_unplanned`) hands the still-pending keys to `Recorder.log_prune`,
 which drops their members and summaries before the finish is written: the

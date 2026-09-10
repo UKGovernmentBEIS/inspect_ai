@@ -928,7 +928,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     if sample_source is not None and sample_source.seed is not None and log_samples:
         await logger.seed_from_prior(
             sample_source.seed.source,
-            # a SampleSource-driven task has no upfront plan: keep everything
+            # Dynamic feeds have no upfront plan; the logger still applies
+            # explicit sample ID filters to their prior records.
             keep=None
             if sample_feed is not None
             else {
