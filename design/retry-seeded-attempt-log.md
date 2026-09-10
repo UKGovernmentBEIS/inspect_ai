@@ -273,7 +273,15 @@ bounding both concurrent reads and retained source bodies. JSON sources keep
 the existing whole-log reader and exact-first normalized ID matching; a
 seeded lookup retains that matching in either destination format, including
 padded numeric IDs, without merging distinct exact IDs. A re-run under a
-different matched ID supersedes the original record. `EvalRecorder`
+different matched ID supersedes the original record only after every planned
+ID sharing that record has completed. An unknown dynamic plan retains it
+until natural success; a later limited admission restores a pruned alias
+from the cached source before dispatch. The recorder caches one prior source
+per attempt: JSON bodies and their exact-first index, or Eval keys and a
+shared ZIP reader. Admissions resolve only selected keys against that index
+and retain at most eight selected Eval bodies at once. Finish and discard
+release the cache and its filesystem clients; failed initial reads close
+their clients before propagating the failure. `EvalRecorder`
 overrides for a `.eval` prior with `ZipLogFile.seed_from_prior_log` (copy
 the prior file into a fresh temp zip, open in append mode, prune, rewrite
 the summaries journal); a `seed` field on `EvalSampleSource` that carries

@@ -277,6 +277,7 @@ class EvalRecorder(FileRecorder):
     async def log_discard(
         self, eval: EvalSpec, *, keep_destination: bool = False
     ) -> None:
+        await self.close_seed_source(eval)
         log = self.data.pop(self._log_file_key(eval), None)
         if log is not None:
             await log.discard(keep_destination=keep_destination)
@@ -306,6 +307,7 @@ class EvalRecorder(FileRecorder):
         log_updates: list[LogUpdate] | None = None,
         config_updates: list[ConfigUpdate] | None = None,
     ) -> EvalLog:
+        await self.close_seed_source(eval)
         # get the key and log
         key = self._log_file_key(eval)
         log = self.data[key]

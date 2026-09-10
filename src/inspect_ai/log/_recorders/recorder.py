@@ -5,7 +5,7 @@ from typing import IO, TYPE_CHECKING, NamedTuple
 import anyio
 
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.error import EvalError
 from inspect_ai.dataset._util import normalise_sample_id
 from inspect_ai.log._config_update import ConfigUpdate
@@ -71,6 +71,92 @@ class SampleKeyLookup:
         )
 
 
+class SeedSamples:
+    """An attempt's cached prior index and reader for incremental seeding.
+
+    JSON and memory sources retain their bodies. Eval sources retain only
+    keys and a ZIP directory; body reads remain bounded by the caller's batch.
+    The recorder owns this source and closes it on finish or discard.
+    """
+
+    def __init__(self) -> None:
+        self.keys: dict[SampleRecordKey, SampleKey] = {}
+        self.json_keys: SampleKeyLookup | None = None
+        self._samples: dict[SampleKey, EvalSample] = {}
+        self._order: dict[SampleKey, int] = {}
+        self._fs = AsyncFilesystem()
+        self._reader: AsyncZipReader | None = None
+        self._location: str | None = None
+
+    async def load(self, prior: str | Sequence[EvalSample]) -> None:
+        """Read the prior's keys once, retaining JSON bodies and the Eval reader."""
+        from inspect_ai.log._file import read_eval_log_async
+        from inspect_ai.log._recorders.eval import (
+            EvalRecorder,
+            _read_all_summaries_async,
+        )
+
+        with bind_async_filesystem(self._fs):
+            if isinstance(prior, str) and EvalRecorder.handles_location(prior):
+                self._location = prior
+                self._reader = AsyncZipReader(self._fs, prior)
+                summaries, _ = await _read_all_summaries_async(self._reader)
+                keys = [SampleKey(sample_id=s.id, epoch=s.epoch) for s in summaries]
+            else:
+                samples = (
+                    (await read_eval_log_async(prior)).samples or []
+                    if isinstance(prior, str)
+                    else prior
+                )
+                for sample in samples:
+                    self._samples.setdefault(
+                        SampleKey(sample_id=sample.id, epoch=sample.epoch), sample
+                    )
+                keys = list(self._samples)
+                if isinstance(prior, str):
+                    self.json_keys = SampleKeyLookup(keys)
+        self.keys = {SampleRecordKey(str(k.sample_id), k.epoch): k for k in keys}
+        self._order = {key: index for index, key in enumerate(keys)}
+
+    def select(self, keep: set[tuple[str | int, int]] | None) -> list[SampleKey]:
+        """Resolve selected keys through the prior's index, in source order."""
+        if keep is None:
+            return list(self._order)
+        selected = {
+            key
+            for id, epoch in keep
+            if (
+                key := self.json_keys.get(id, epoch)
+                if self.json_keys is not None
+                else self.keys.get(SampleRecordKey(str(id), epoch))
+            )
+            is not None
+        }
+        return sorted(selected, key=self._order.__getitem__)
+
+    async def read(self, keys: list[SampleKey]) -> list[EvalSample]:
+        """Read a selected batch without retaining Eval bodies between calls."""
+        from inspect_ai.log._file import read_eval_log_samples_by_id_async
+
+        if self._reader is not None:
+            assert self._location is not None
+            with bind_async_filesystem(self._fs):
+                return await read_eval_log_samples_by_id_async(
+                    self._location, keys, concurrency=8, reader=self._reader
+                )
+        return [self._samples[key] for key in keys]
+
+    async def close(self) -> None:
+        """Release cached bodies, index and filesystem clients, including on cancellation."""
+        self._samples.clear()
+        self.keys.clear()
+        self._order.clear()
+        self.json_keys = None
+        self._reader = None
+        with anyio.CancelScope(shield=True):
+            await self._fs.close()
+
+
 def sample_read_exclusions(exclude_fields: set[str] | None) -> set[str]:
     """Keep required fields and omit event-dependent data with excluded events.
 
@@ -108,6 +194,30 @@ def exclude_sample_fields(
 
 
 class Recorder(abc.ABC):
+    def __init__(self) -> None:
+        self._seed_sources: dict[str, SeedSamples] = {}
+
+    async def seed_source(
+        self, eval: EvalSpec, prior: str | Sequence[EvalSample]
+    ) -> SeedSamples:
+        """Return this attempt's prior source, loading it once before dispatch."""
+        source = self._seed_sources.get(eval.eval_id)
+        if source is None:
+            source = SeedSamples()
+            try:
+                await source.load(prior)
+            except BaseException:
+                await source.close()
+                raise
+            self._seed_sources[eval.eval_id] = source
+        return source
+
+    async def close_seed_source(self, eval: EvalSpec) -> None:
+        """Release this attempt's cached prior when finishing or discarding it."""
+        source = self._seed_sources.pop(eval.eval_id, None)
+        if source is not None:
+            await source.close()
+
     @classmethod
     @abc.abstractmethod
     def handles_location(cls, location: str) -> bool: ...
@@ -167,80 +277,33 @@ class Recorder(abc.ABC):
         dynamic feed admits more samples under its limit. Only selected
         bodies absent from the recorder are written, preserving results the
         current attempt has already recorded, including normalized aliases.
+        The prior data/index and reader are shared across admissions until
+        this attempt finishes or is discarded.
         ``on_sample`` runs before each record is written, so the caller can
         withhold pending records from live readers throughout the copy.
         """
         from inspect_ai.log._condense import condense_sample
-        from inspect_ai.log._file import (
-            read_eval_log_async,
-            read_eval_log_sample_summaries_async,
-            read_eval_log_samples_by_id_async,
-        )
-        from inspect_ai.log._recorders.eval import EvalRecorder
 
+        source = await self.seed_source(eval, prior)
         existing = {
             SampleRecordKey(str(sample.id), sample.epoch)
             for sample in await self.sample_summaries(eval) or []
         }
-        if isinstance(prior, str) and EvalRecorder.handles_location(prior):
-            async with AsyncFilesystem() as fs:
-                summaries = await read_eval_log_sample_summaries_async(prior)
-                kept_keys = (
-                    {SampleRecordKey(str(id), epoch) for id, epoch in keep}
-                    if keep is not None
-                    else None
-                )
-                keys = [
-                    (s.id, s.epoch)
-                    for s in summaries
-                    if (
-                        kept_keys is None
-                        or SampleRecordKey(str(s.id), s.epoch) in kept_keys
-                    )
-                    and SampleRecordKey(str(s.id), s.epoch) not in existing
-                ]
-                reader = AsyncZipReader(fs, prior)
-                # Bound retained bodies as well as concurrent reads: the bulk
-                # reader returns its entire request as a list.
-                for offset in range(0, len(keys), 8):
-                    batch = await read_eval_log_samples_by_id_async(
-                        prior, keys[offset : offset + 8], concurrency=8, reader=reader
-                    )
-                    for sample in batch:
-                        if on_sample is not None:
-                            on_sample(sample.id, sample.epoch)
-                        await self.log_sample(
-                            eval, condense_sample(sample), write_through=True
-                        )
-                        await anyio.lowlevel.checkpoint()
-                    del batch
-            return
-
-        samples = (
-            (await read_eval_log_async(prior)).samples or []
-            if isinstance(prior, str)
-            else prior
-        )
-        selected: set[SampleKey | None] | None = None
-        if keep is not None:
-            if isinstance(prior, str):
-                lookup = SampleKeyLookup((s.id, s.epoch) for s in samples)
-                selected = {lookup.get(id, epoch) for id, epoch in keep}
-            else:
-                kept_keys = {SampleRecordKey(str(id), epoch) for id, epoch in keep}
-                selected = {
-                    SampleKey(sample_id=s.id, epoch=s.epoch)
-                    for s in samples
-                    if SampleRecordKey(str(s.id), s.epoch) in kept_keys
-                }
-        for sample in samples:
-            if (
-                selected is None or (sample.id, sample.epoch) in selected
-            ) and SampleRecordKey(str(sample.id), sample.epoch) not in existing:
+        keys = [
+            key
+            for key in source.select(keep)
+            if SampleRecordKey(str(key.sample_id), key.epoch) not in existing
+        ]
+        # Bound retained bodies as well as concurrent reads: the bulk
+        # reader returns its entire request as a list.
+        for offset in range(0, len(keys), 8):
+            batch = await source.read(keys[offset : offset + 8])
+            for sample in batch:
                 if on_sample is not None:
                     on_sample(sample.id, sample.epoch)
                 await self.log_sample(eval, condense_sample(sample), write_through=True)
-            await anyio.lowlevel.checkpoint()
+                await anyio.lowlevel.checkpoint()
+            del batch
 
     @abc.abstractmethod
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None: ...
@@ -341,8 +404,9 @@ class Recorder(abc.ABC):
         records, having no upfront plan) whose realized set no longer
         includes them. Dropping them keeps the finished log's samples to
         this attempt's plan. Also called mid-run when a normalized JSON ID
-        re-runs under a different key: the prior record must leave both the
-        bodies and summaries in every subsequent flush. The base
+        re-runs under a different key and every planned ID sharing the
+        prior record has completed: it must leave both the bodies and
+        summaries in every subsequent flush. The base
         implementation is a no-op, as for :meth:`log_discard`; the built-in
         recorders override it.
         """

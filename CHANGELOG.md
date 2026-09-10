@@ -24,6 +24,8 @@
 - Eval Set: Retries preserve completed samples and error history when sample IDs change between integers and strings, including padded numeric IDs in JSON logs.
 - Eval Set: Dynamic retry logs honor sample limits and epoch restrictions before every write, physically excluding unselected transcripts inherited from earlier attempts.
 - Control Channel: Pending retry samples with padded numeric IDs in JSON logs no longer appear finished when cancelling or requeuing them.
+- Eval Set: Retries preserve error history shared by distinct sample IDs that normalize alike, even when interrupted before every sample runs.
+- Eval Set: Limited dynamic retries read the prior log index once per attempt instead of reloading it for every admission.
 - Eval Set: Intermediate retry logs keep sample bodies and summaries consistent when padded numeric IDs rerun as integers.
 - Eval Set: Retrying selected samples from an Eval log into JSON loads only the selected sample bodies, in bounded batches.
 - Eval Set: Large S3 retries under Trio and retry sample detail reads now use less memory.

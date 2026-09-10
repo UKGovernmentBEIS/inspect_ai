@@ -218,6 +218,7 @@ class JSONRecorder(FileRecorder):
         log_updates: list[LogUpdate] | None = None,
         config_updates: list[ConfigUpdate] | None = None,
     ) -> EvalLog:
+        await self.close_seed_source(eval)
         log = self.data[self._log_file_key(eval)]
         log.data.status = status
         log.data.stats = stats
@@ -268,6 +269,7 @@ class JSONRecorder(FileRecorder):
     async def log_discard(
         self, eval: EvalSpec, *, keep_destination: bool = False
     ) -> None:
+        await self.close_seed_source(eval)
         log = self.data.pop(self._log_file_key(eval), None)
         # `written` only becomes true via this process's own flush, and
         # TaskLogger.init() never passes a pre-existing location to log_init,

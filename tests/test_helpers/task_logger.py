@@ -16,5 +16,7 @@ class TaskLoggerShim(TaskLogger):
         self._finished = False
         self._prior_seeded = False
         self._prior_sample_keys = None
+        self._prior_sample_users = None
         self._prior_read_limit = anyio.Semaphore(4)
+        self._prior_seed_lock = anyio.Lock()
         self._seeded_pending = set()

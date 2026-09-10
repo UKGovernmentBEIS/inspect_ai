@@ -72,6 +72,7 @@ class FileRecorder(Recorder):
     def __init__(
         self, log_dir: str, suffix: str, fs_options: dict[str, Any] | None = None
     ) -> None:
+        super().__init__()
         self.log_dir = log_dir.rstrip("/\\")
         self.suffix = suffix
 

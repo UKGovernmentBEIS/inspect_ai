@@ -320,7 +320,11 @@ class TaskLogger:
         # sweep's read-back of those records (see read_prior_sample)
         self._prior_seeded = False
         self._prior_sample_keys: SampleKeyLookup | None = None
+        self._prior_sample_users: dict[SampleRecordKey, set[SampleRecordKey]] | None = (
+            None
+        )
         self._prior_read_limit = anyio.Semaphore(_PRIOR_READ_CONCURRENCY)
+        self._prior_seed_lock = anyio.Lock()
         # seeded (id, epoch) keys the reuse sweep has not yet resolved: the
         # records sample_summaries withholds from the control channel (see
         # its docstring). A key leaves when the sweep accepts its record
@@ -400,6 +404,7 @@ class TaskLogger:
         # the retry attempt re-enters task_run, which seeds its fresh log
         self._prior_seeded = False
         self._prior_sample_keys = None
+        self._prior_sample_users = None
         self._seeded_pending = set()
         # the retry attempt gets a fresh log, which must re-record the run's
         # full accumulated process-scoped updates in init() below
@@ -534,17 +539,12 @@ class TaskLogger:
         the recorder's own retries — raises; the caller fails the attempt
         without writing a log.
         """
+        planned = keep
         try:
-            prior_samples = None
+            source = None
             json_prior = isinstance(prior, str) and prior.endswith(".json")
             if keep is None or json_prior:
-                from inspect_ai.log._file import read_eval_log_sample_summaries_async
-
-                prior_samples = (
-                    await read_eval_log_sample_summaries_async(prior)
-                    if isinstance(prior, str)
-                    else prior
-                )
+                source = await self.recorder.seed_source(self.eval, prior)
             if keep is None:
                 from .util import sample_id_filter
 
@@ -553,12 +553,12 @@ class TaskLogger:
                     if self.eval.config.sample_id is not None
                     else None
                 )
-                assert prior_samples is not None
+                assert source is not None
                 keep = {
-                    (sample.id, sample.epoch)
-                    for sample in prior_samples
-                    if (matcher is None or matcher.matches(sample.id))
-                    and sample.epoch <= (self.eval.config.epochs or 1)
+                    (key.sample_id, key.epoch)
+                    for key in source.keys.values()
+                    if (matcher is None or matcher.matches(key.sample_id))
+                    and key.epoch <= (self.eval.config.epochs or 1)
                 }
             await self.recorder.log_seed(self.eval, prior, keep)
         except FileNotFoundError:
@@ -571,10 +571,11 @@ class TaskLogger:
         seeded = await self.recorder.sample_summaries(self.eval)
         self._seeded_pending = {_seeded_key(s.id, s.epoch) for s in seeded or []}
         if json_prior:
-            assert prior_samples is not None
-            self._prior_sample_keys = SampleKeyLookup(
-                (s.id, s.epoch) for s in prior_samples
-            )
+            assert source is not None
+            self._prior_sample_keys = source.json_keys
+            if planned is not None:
+                self._prior_sample_users = {}
+                self._register_prior_sample_users(planned)
 
     async def seed_added_samples(
         self, prior: "str | list[EvalSample]", keep: set[tuple[str | int, int]]
@@ -586,14 +587,34 @@ class TaskLogger:
         any destination flush, while retaining prior results and errors for
         every admitted sample.
         """
-        await self.recorder.log_seed_samples(
-            self.eval,
-            prior,
-            keep,
-            on_sample=lambda id, epoch: self._seeded_pending.add(
-                _seeded_key(id, epoch)
-            ),
-        )
+        # Admission and alias pruning both await recorder operations. Keep
+        # a completion from pruning a seed an admission just chose to reuse.
+        async with self._prior_seed_lock:
+            self._register_prior_sample_users(keep)
+            await self.recorder.log_seed_samples(
+                self.eval,
+                prior,
+                keep,
+                on_sample=lambda id, epoch: self._seeded_pending.add(
+                    _seeded_key(id, epoch)
+                ),
+            )
+
+    def _register_prior_sample_users(self, keep: set[tuple[str | int, int]]) -> None:
+        """Retain a shared JSON seed until all admitted aliases have completed.
+
+        With an unknown plan, keep aliases until natural success instead.
+        Later limited admissions can restore a pruned seed from the cached
+        source before dispatching another alias.
+        """
+        if self._prior_sample_keys is None or self._prior_sample_users is None:
+            return
+        for id, epoch in keep:
+            key = self._prior_sample_keys.get(id, epoch)
+            if key is not None:
+                self._prior_sample_users.setdefault(
+                    _seeded_key(key.sample_id, key.epoch), set()
+                ).add(_seeded_key(id, epoch))
 
     async def read_prior_sample(self, id: str | int, epoch: int) -> EvalSample | None:
         """The seeded prior record for ``(id, epoch)``, read from the recorder, or None.
@@ -691,6 +712,14 @@ class TaskLogger:
         # just-completed (or reused-on-retry) sample the listing already shows.
         if _seeded_key(id, epoch) in self._seeded_pending:
             return None
+        if self._prior_sample_keys is not None and self._prior_sample_users is not None:
+            key = self._prior_sample_keys.get(id, epoch)
+            if key is not None:
+                record = _seeded_key(key.sample_id, key.epoch)
+                if record in self._seeded_pending and _seeded_key(
+                    id, epoch
+                ) in self._prior_sample_users.get(record, set()):
+                    return None
         sample = await self.recorder.buffered_sample(
             self.eval, id, epoch, exclude_fields=exclude_fields
         )
@@ -747,18 +776,22 @@ class TaskLogger:
         await self._finalize_sample(sample, flush=flush)
 
     async def _finalize_sample(self, sample: EvalSample, *, flush: bool) -> None:
-        if self._prior_sample_keys is not None:
-            prior_key = self._prior_sample_keys.get(sample.id, sample.epoch)
-            if prior_key is not None:
-                prior_record = _seeded_key(prior_key.sample_id, prior_key.epoch)
-                if (
-                    prior_record != _seeded_key(sample.id, sample.epoch)
-                    and prior_record in self._seeded_pending
-                ):
-                    # A normalized JSON match can re-run under a different
-                    # member name; its old error must still be superseded.
-                    await self.recorder.log_prune(self.eval, {prior_record})
-                    self._seeded_pending.discard(prior_record)
+        if self._prior_sample_keys is not None and self._prior_sample_users is not None:
+            async with self._prior_seed_lock:
+                prior_key = self._prior_sample_keys.get(sample.id, sample.epoch)
+                if prior_key is not None:
+                    prior_record = _seeded_key(prior_key.sample_id, prior_key.epoch)
+                    users = self._prior_sample_users.get(prior_record, set())
+                    users.discard(_seeded_key(sample.id, sample.epoch))
+                    if (
+                        not users
+                        and prior_record != _seeded_key(sample.id, sample.epoch)
+                        and prior_record in self._seeded_pending
+                    ):
+                        # A different member supersedes this seed only after
+                        # every planned ID sharing it has completed.
+                        await self.recorder.log_prune(self.eval, {prior_record})
+                        self._seeded_pending.discard(prior_record)
         if self._buffer_db is not None:
             self._buffer_db.complete_sample(
                 sample.summary(), sample_metadata=sample.metadata
