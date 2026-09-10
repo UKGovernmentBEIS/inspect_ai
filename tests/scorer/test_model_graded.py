@@ -1,7 +1,9 @@
 import asyncio
+import base64
 import math
 import os
 import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Literal
 
@@ -19,11 +21,13 @@ from inspect_ai._util.content import (
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
-from inspect_ai.log import read_eval_log
+from inspect_ai.log import read_eval_log_async
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageUser,
+    GenerateConfig,
     Model,
     ModelName,
     ModelRole,
@@ -46,6 +50,7 @@ from inspect_ai.scorer._model import (
     neutralize_structural_delimiters,
 )
 from inspect_ai.solver._task_state import TaskState
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 
 def include_history_task(include_history: bool | Callable[[TaskState], str]) -> Task:
@@ -216,6 +221,7 @@ async def test_model_graded_image_only_input(include_history):
     assert len([item for item in content if isinstance(item, ContentImage)]) == 1
 
 
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
 @pytest.mark.parametrize(
     "include_history",
     [
@@ -224,43 +230,48 @@ async def test_model_graded_image_only_input(include_history):
     ],
 )
 @pytest.mark.anyio
-async def test_model_graded_input_media_attached_once_with_history(include_history):
-    dataset = json_dataset(
-        os.path.join("tests", "util", "test_images", "images.jsonl")
-    )[0:1]
-    grader_model = get_model(
-        "mockllm/model",
-        custom_outputs=[ModelOutput.from_content("mockllm/model", "GRADE: C")],
+async def test_model_graded_input_media_attached_once_with_history(
+    scorer_factory: Callable[..., Scorer],
+    include_history: bool | Callable[[TaskState], str],
+) -> None:
+    image = ContentImage(image="data:image/png;base64,dGFzaw==")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(content=[ContentText(text="Question"), image])
+    ]
+    state = TaskState(
+        model=ModelName("mockllm/subject"),
+        sample_id=1,
+        epoch=1,
+        input=sample_input,
+        messages=[*sample_input, ChatMessageAssistant(content="Answer")],
     )
-    subject_model = get_model(
-        "mockllm/model",
-        custom_outputs=[ModelOutput.from_content("mockllm/model", "Three balloons")],
-    )
-    log = (
-        await eval_async(
-            Task(
-                dataset=dataset,
-                scorer=model_graded_qa(
-                    model=grader_model, include_history=include_history
-                ),
-            ),
-            model=subject_model,
-        )
-    )[0]
+    state.output = ModelOutput.from_content("mockllm/subject", "Answer")
+    original_input = deepcopy(state.input)
+    requests: list[list[ChatMessage]] = []
 
-    assert log.samples
-    grading_prompt = log.samples[0].scores["model_graded_qa"].metadata["grading"][0]
-    sample = resolve_sample_attachments(log.samples[0], "full")
-    model_event = next(
-        event
-        for event in reversed(sample.events)
-        if event.event == "model"
-        and event.input
-        and event.input[0].id == grading_prompt["id"]
-    )
-    content = model_event.input[0].content
+    def capture(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        requests.append(deepcopy(messages))
+        return ModelOutput.from_content("mockllm/grader", "GRADE: C")
+
+    result = await scorer_factory(
+        model=get_model("mockllm/grader", custom_outputs=capture),
+        include_history=include_history,
+    )(state, Target("Answer"))
+
+    assert result is not None and result.value == CORRECT
+    assert state.input == original_input
+    assert len(requests) == 1
+    content = requests[0][0].content
     assert isinstance(content, list)
-    assert len([item for item in content if isinstance(item, ContentImage)]) == 1
+    assert isinstance(content[0], ContentText)
+    if callable(include_history):
+        assert "Custom: Question (see [Task media])" in content[0].text
+    assert content[1:] == [ContentText(text="[Task media]"), image]
 
 
 def test_model_grader_input_media_preserves_message_and_content_order():
@@ -320,6 +331,7 @@ def test_model_scoring_prompt_labels_task_and_submission_media():
     ]
 
 
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
 @pytest.mark.parametrize("log_format", ["eval", "json"])
 @pytest.mark.parametrize(
     ("grader_output", "expected_reason"),
@@ -328,86 +340,152 @@ def test_model_scoring_prompt_labels_task_and_submission_media():
         pytest.param("No grade", "grader_failed", id="unscored"),
     ],
 )
-def test_saved_grading_metadata_excludes_media(
+async def test_saved_grading_metadata_excludes_media(
     tmp_path: Path,
+    scorer_factory: Callable[..., Scorer],
     log_format: Literal["eval", "json"],
     grader_output: str,
     expected_reason: str | None,
 ) -> None:
-    media: list[Content] = [
-        ContentImage(image="data:image/png;base64,aW1hZ2U="),
-        ContentAudio(audio="data:audio/wav;base64,YXVkaW8=", format="wav"),
-        ContentVideo(video="data:video/mp4;base64,dmlkZW8=", format="mp4"),
-        ContentDocument(
-            document="data:application/pdf;base64,ZG9jdW1lbnQ=",
-            filename="reference.pdf",
-        ),
+    # Inert transport fixtures distinguish task, submission, and grader media.
+    # Only the mock provider receives them; no decoding or fetching is tested.
+    def media(label: str) -> list[Content]:
+        payload = base64.b64encode(label.encode()).decode()
+        return [
+            ContentImage(image=f"data:image/png;base64,{payload}"),
+            ContentAudio(audio=f"data:audio/wav;base64,{payload}", format="wav"),
+            ContentVideo(video=f"data:video/mp4;base64,{payload}", format="mp4"),
+            ContentDocument(
+                document=f"data:application/pdf;base64,{payload}",
+                filename=f"{label}.pdf",
+            ),
+        ]
+
+    task_media = media("task")
+    response_media = media("grader")
+    submission_image = ContentImage(image="data:image/png;base64,c3VibWlzc2lvbg==")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(content=[ContentText(text="Question"), *task_media])
     ]
     subject_model = get_model(
-        "mockllm/model",
-        custom_outputs=[ModelOutput.from_content("mockllm/model", "Answer")],
-    )
-    grader_model = get_model(
-        "mockllm/model",
+        "mockllm/subject",
         custom_outputs=[
-            ModelOutput.from_content(
-                "mockllm/model", [ContentText(text=grader_output), *media]
-            )
+            ModelOutput.from_content("mockllm/subject", [submission_image])
         ],
     )
-    log = eval(
-        Task(
-            dataset=[
-                Sample(
-                    input=[
-                        ChatMessageUser(content=[ContentText(text="Question"), *media])
-                    ],
-                    target="Answer",
-                )
-            ],
-            scorer=model_graded_fact(model=grader_model),
-        ),
-        model=subject_model,
-        display="none",
-        log_dir=str(tmp_path),
-        log_format=log_format,
-        log_images=False,
+    grader_response = ModelOutput.from_content(
+        "mockllm/grader",
+        [
+            ContentText(text="Grader explanation"),
+            *response_media,
+            ContentText(text=grader_output),
+        ],
+    )
+    requests: list[list[ChatMessage]] = []
+
+    def capture(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        requests.append(deepcopy(messages))
+        return grader_response
+
+    grader_model = get_model("mockllm/grader", custom_outputs=capture)
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(input=sample_input, target="Answer")],
+                scorer=scorer_factory(model=grader_model),
+            ),
+            model=subject_model,
+            log_dir=str(tmp_path),
+            log_format=log_format,
+            log_images=False,
+        )
     )[0]
 
-    saved_log = read_eval_log(log.location)
-    assert saved_log.samples
-    sample = saved_log.samples[0]
-    assert sample.scores
-    score = sample.scores["model_graded_fact"]
-    assert score.reason == expected_reason
-    assert score.metadata
-    grading_prompt = score.metadata["grading"][0]
-    assert isinstance(grading_prompt, dict)
-    assert grading_prompt["id"]
-    assert isinstance(grading_prompt["content"], str)
-    assert "Question" in grading_prompt["content"]
-    assert "attachment://" not in grading_prompt["content"]
-    grading_response = score.metadata["grading"][1]
-    assert isinstance(grading_response, dict)
-    assert grading_response["id"]
-    assert isinstance(grading_response["content"], str)
-    assert grader_output in grading_response["content"]
-    assert "base64" not in score.model_dump_json()
+    assert log.status == "success"
+    assert len(requests) == 1
+    assert len(requests[0]) == 1
+    request = requests[0][0]
+    assert isinstance(request.content, list)
+    assert isinstance(request.content[0], ContentText)
+    assert "Question (see [Task media])" in request.content[0].text
+    assert "[Submission]: See [Submission media]" in request.content[0].text
+    assert request.content[1:] == [
+        ContentText(text="[Task media]"),
+        *task_media,
+        ContentText(text="[Submission media]"),
+        submission_image,
+    ]
 
-    grading_event = next(
-        event
-        for event in sample.events
-        if event.event == "model"
-        and event.input
-        and event.input[0].id == grading_prompt["id"]
-    )
-    event_content = grading_event.input[0].content
-    assert isinstance(event_content, list)
-    assert [
-        type(item)
-        for item in event_content
-        if isinstance(item, (ContentImage, ContentAudio, ContentVideo, ContentDocument))
-    ] == [ContentImage, ContentAudio, ContentVideo, ContentDocument]
+    default_log = await read_eval_log_async(log.location)
+    resolved_log = await read_eval_log_async(log.location, resolve_attachments=True)
+    saved_metadata = []
+    for saved_log in (default_log, resolved_log):
+        assert saved_log.samples
+        sample = saved_log.samples[0]
+        assert sample.scores
+        score = sample.scores[scorer_factory.__name__]
+        assert score.reason == expected_reason
+        if expected_reason is None:
+            assert score.value == CORRECT
+        else:
+            assert isinstance(score.value, float) and math.isnan(score.value)
+        assert score.metadata
+        saved_metadata.append(score.metadata)
+        grading_prompt, grading_response = score.metadata["grading"]
+        assert isinstance(grading_prompt, dict)
+        assert isinstance(grading_response, dict)
+        assert grading_prompt["id"] == request.id
+        assert grading_prompt["id"]
+        assert grading_response["id"]
+        assert grading_response["id"] != grading_prompt["id"]
+        assert grading_prompt["content"] == request.text
+        assert grading_response["content"] == f"Grader explanation\n{grader_output}"
+        assert "base64" not in score.model_dump_json()
+        assert "attachment://" not in score.model_dump_json()
+
+        grading_events = [
+            event
+            for event in sample.events
+            if event.event == "model"
+            and event.input
+            and event.input[0].id == request.id
+        ]
+        assert len(grading_events) == 1
+        grading_event = grading_events[0]
+        assert grading_event.output.message.id == grading_response["id"]
+        if saved_log is resolved_log:
+            assert grading_event.input[0].text == grading_prompt["content"]
+            assert grading_event.output.message.text == grading_response["content"]
+        assert [item.type for item in grading_event.input[0].content_list] == [
+            "text",
+            "text",
+            "image",
+            "audio",
+            "video",
+            "document",
+            "text",
+            "image",
+        ]
+        assert [item.type for item in grading_event.output.message.content_list] == [
+            "text",
+            "image",
+            "audio",
+            "video",
+            "document",
+            "text",
+        ]
+
+    assert saved_metadata[0] == saved_metadata[1]
+    assert grader_response.message.content == [
+        ContentText(text="Grader explanation"),
+        *response_media,
+        ContentText(text=grader_output),
+    ]
 
 
 @pytest.mark.parametrize(
