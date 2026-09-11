@@ -469,8 +469,8 @@ def test_read_review_policies_file() -> None:
 
 
 def test_review_policies_from_config_object() -> None:
-    config = ReviewPolicyConfig(
-        reviewers=[ReviewerPolicyConfig(name="fixed", tools="*", decision="escalate")]  # type: ignore[call-arg]
+    config = ReviewPolicyConfig.model_validate(
+        {"reviewers": [{"name": "fixed", "tools": "*", "decision": "escalate"}]}
     )
 
     [only] = review_policies_from_config(config)
