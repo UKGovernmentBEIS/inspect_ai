@@ -10,7 +10,6 @@ from openai import (
     AsyncOpenAI,
     BadRequestError,
     DefaultAsyncHttpxClient,
-    NotFoundError,
     NotGiven,
     RateLimitError,
     omit,
@@ -377,8 +376,8 @@ class OpenAIAPI(ModelAPI):
         """Count tokens using native API for messages, tiktoken for text.
 
         For messages, uses OpenAI's input_tokens endpoint which can accurately
-        count encrypted reasoning blocks. Raises an exception if native
-        counting fails.
+        count encrypted reasoning blocks. Falls back to tiktoken if the native
+        endpoint is unavailable. All other failures propagate unchanged.
         """
         if isinstance(input, str):
             return await self.count_text_tokens(input)
@@ -387,8 +386,14 @@ class OpenAIAPI(ModelAPI):
         if self.responses_api:
             try:
                 return await self._count_tokens_native(input, config)
-            except NotFoundError:
-                pass  # endpoint not available (e.g. Azure); fall through to tiktoken
+            except APIStatusError as ex:
+                # 404 means the endpoint has no route. 405 can mean the real
+                # GET /responses/{response_id} route matched "input_tokens"
+                # when the POST /responses/input_tokens route is unavailable.
+                if ex.status_code not in (404, 405):
+                    raise
+                # Endpoint unavailable (e.g. Azure); fall through to tiktoken.
+                pass
 
         # For non-responses API, use tiktoken-based counting
         from .._tokens import count_tokens
@@ -803,7 +808,8 @@ class OpenAIAPI(ModelAPI):
             A tuple of (compacted messages, usage info).
 
         Raises:
-            NotImplementedError: If the model is not using the Responses API.
+            NotImplementedError: If the model is not using the Responses API or
+                the native compaction endpoint is unavailable.
         """
         if not self.responses_api:
             raise NotImplementedError(
@@ -822,7 +828,12 @@ class OpenAIAPI(ModelAPI):
                 input=input_params,
                 instructions=instructions if instructions is not None else omit,
             )
-        except NotFoundError:
+        except APIStatusError as ex:
+            # 404 means the endpoint has no route. 405 can mean the real
+            # GET /responses/{response_id} route matched "compact" when the
+            # POST /responses/compact route is unavailable.
+            if ex.status_code not in (404, 405):
+                raise
             raise NotImplementedError(
                 f"Native compaction endpoint not available for {self.service_model_name()}"
             ) from None

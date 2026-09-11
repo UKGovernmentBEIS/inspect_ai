@@ -1,7 +1,10 @@
 import base64
 import json
 
+import httpx2
+import openai
 import pytest
+from openai import DefaultAsyncHttpxClient
 from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 
 from inspect_ai import Task, eval
@@ -9,12 +12,72 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
+    Model,
     get_model,
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._openai import openai_completion_params
 from inspect_ai.tool import tool
+
+
+def _openai_model_with_status_response(status_code: int, path: str) -> Model:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.method == "POST"
+        assert request.url.path == path
+        return httpx2.Response(
+            status_code,
+            headers={"allow": "GET"} if status_code == 405 else {},
+            json={"detail": f"HTTP {status_code}"},
+            request=request,
+        )
+
+    http_client = DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler))
+    return get_model(
+        "openai/test",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=http_client,
+        responses_api=True,
+        memoize=False,
+    )
+
+
+@pytest.mark.parametrize("status_code", [404, 405])
+async def test_openai_count_tokens_falls_back_for_unavailable_endpoint(
+    status_code: int,
+) -> None:
+    async with _openai_model_with_status_response(
+        status_code, "/v1/responses/input_tokens"
+    ) as model:
+        assert await model.count_tokens([ChatMessageUser(content="hello")]) == 1
+
+
+async def test_openai_count_tokens_propagates_other_endpoint_errors() -> None:
+    async with _openai_model_with_status_response(
+        403, "/v1/responses/input_tokens"
+    ) as model:
+        with pytest.raises(openai.PermissionDeniedError):
+            await model.count_tokens([ChatMessageUser(content="hello")])
+
+
+@pytest.mark.parametrize("status_code", [404, 405])
+async def test_openai_compact_reports_unavailable_endpoint(
+    status_code: int,
+) -> None:
+    async with _openai_model_with_status_response(
+        status_code, "/v1/responses/compact"
+    ) as model:
+        with pytest.raises(NotImplementedError, match="endpoint not available"):
+            await model.compact([ChatMessageUser(content="hello")], [])
+
+
+async def test_openai_compact_propagates_other_endpoint_errors() -> None:
+    async with _openai_model_with_status_response(
+        403, "/v1/responses/compact"
+    ) as model:
+        with pytest.raises(openai.PermissionDeniedError):
+            await model.compact([ChatMessageUser(content="hello")], [])
 
 
 @pytest.mark.anyio
