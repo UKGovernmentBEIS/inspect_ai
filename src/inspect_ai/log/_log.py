@@ -480,10 +480,11 @@ class EvalSample(BaseModel):
         Returns:
           StoreModel: model_cls bound to sample store data.
         """
-        # un-namespace names for creation
-        data = {
-            k.replace(f"{model_cls.__name__}:", "", 1): v for k, v in self.store.items()
-        }
+        # un-namespace names for creation (mirrors StoreModel._ns_name, which
+        # writes instanced fields as "ClassName:instance:field")
+        namespace = f"{instance}:" if instance is not None else ""
+        prefix = f"{model_cls.__name__}:{namespace}"
+        data = {k.replace(prefix, "", 1): v for k, v in self.store.items()}
 
         # since we are reading from the log provide a fully detached store
         data["store"] = Store()
