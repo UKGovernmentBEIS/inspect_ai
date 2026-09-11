@@ -43,6 +43,8 @@
 - Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
 - Scoring: `math()` now raises an error when no reference answer can be parsed instead of silently excluding the sample from metrics.
 - Scoring: `choice()` now raises an error for samples without answer options instead of silently scoring them incorrect.
+- Anthropic: Forced web searches (`tool_choice` naming `web_search`) now work on Claude 4.6+ models, including Claude Code's WebSearch through the agent bridge; `allowed_callers` can be set explicitly.
+- Agent Bridge: A provider error delivered during a streamed response now reaches the bridged agent as an error instead of a malformed HTTP 200 success.
 
 ## 0.3.263 (03 September 2026)
 

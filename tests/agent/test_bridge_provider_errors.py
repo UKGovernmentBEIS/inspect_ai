@@ -61,6 +61,56 @@ def test_status_code_of_returns_none_when_absent() -> None:
     assert status_code_of(_ProviderError("x", 0)) == 0  # falsy-but-valid status
 
 
+class _StreamError(Exception):
+    """Stand-in for an SDK error raised for an SSE `error` event on a 200 stream.
+
+    The Anthropic SDK builds `APIStatusError` from the stream's own response, so
+    `status_code` is 200 and the real status is only implied by `body`.
+    """
+
+    def __init__(self, body: object, status_code: int = 200) -> None:
+        super().__init__("mid-stream error")
+        self.status_code = status_code
+        self.body = body
+
+
+@pytest.mark.parametrize(
+    ("error_type", "expected"),
+    [
+        ("invalid_request_error", 400),
+        ("conflict_error", 409),
+        ("rate_limit_error", 429),
+        ("timeout_error", 504),
+        ("overloaded_error", 529),
+    ],
+)
+def test_status_code_of_derives_mid_stream_status_from_error_type(
+    error_type: str, expected: int
+) -> None:
+    ex = _StreamError({"type": "error", "error": {"type": error_type, "message": "x"}})
+    assert status_code_of(ex) == expected
+
+
+def test_status_code_of_prefers_numeric_status_in_error_body() -> None:
+    ex = _StreamError({"error": {"code": 503, "message": "unavailable"}})
+    assert status_code_of(ex) == 503
+    # Google shape: symbolic `status` beside the numeric `code`.
+    ex = _StreamError({"error": {"status": "UNAVAILABLE", "code": 503, "message": "x"}})
+    assert status_code_of(ex) == 503
+
+
+def test_status_code_of_mid_stream_without_usable_body_is_none() -> None:
+    # Never report a success code for an exception; None lets the proxy apply
+    # its default error status instead of a 200.
+    assert status_code_of(_StreamError(None)) is None
+    assert status_code_of(_StreamError({"error": {"type": "unknown_error"}})) is None
+
+
+def test_provider_error_payload_mid_stream_error_is_not_200() -> None:
+    ex = _StreamError({"type": "error", "error": {"type": "invalid_request_error"}})
+    assert provider_error_payload(ex)["status"] == 400
+
+
 # ---------- ModelGenerateError ----------
 
 
