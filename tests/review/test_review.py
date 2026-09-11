@@ -38,7 +38,13 @@ from inspect_ai.review._policy import (
 )
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool._tool import ToolResult, tool
+from inspect_ai.tool._tool import (
+    Tool,
+    ToolApprovalError,
+    ToolParsingError,
+    ToolResult,
+    tool,
+)
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_def import ToolDef
 
@@ -438,6 +444,93 @@ async def test_calls_that_never_executed_are_not_reviewed() -> None:
     error = tool_message(messages).error
     assert error is not None
     assert error.type == "parsing"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ToolParsingError("The tool reported a parsing error."),
+        ToolApprovalError("The tool reported an approval error."),
+        ValueError("embedded null byte"),
+    ],
+)
+async def test_errors_from_executed_tools_are_reviewed(error: Exception) -> None:
+    executed: list[bool] = []
+
+    @tool
+    def failing() -> Tool:
+        async def execute() -> str:
+            """Run a tool that reports an error."""
+            executed.append(True)
+            raise error
+
+        return execute
+
+    seen: list[Seen] = []
+    init_transcript(Transcript())
+    messages, _ = await execute_tools(
+        [
+            ChatMessageAssistant(
+                content=[],
+                tool_calls=[ToolCall(id="f", function="failing", arguments={})],
+            )
+        ],
+        [failing()],
+        review=[ReviewPolicy(recording_reviewer(seen), "*")],
+    )
+
+    assert executed == [True]
+    [one] = seen
+    assert one.result.error is not None
+    assert one.result.error == tool_message(messages).error
+    assert one.output == ""
+    assert review_events()[0].call.id == "f"
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        ToolCall(id="test", function="addition", arguments={}),
+        ToolCall(
+            id="test", function="addition", arguments={"x": "not a number", "y": 1}
+        ),
+        ToolCall(
+            id="test", function="addition", arguments={}, parse_error="Invalid JSON"
+        ),
+    ],
+)
+async def test_argument_validation_failures_are_not_reviewed(call: ToolCall) -> None:
+    seen: list[Seen] = []
+    messages = await execute_addition(
+        [ReviewPolicy(recording_reviewer(seen), "*")], call
+    )
+
+    assert seen == []
+    error = tool_message(messages).error
+    assert error is not None
+    assert error.type == "parsing"
+
+
+async def test_approval_rejections_are_not_reviewed() -> None:
+    @approver
+    def rejecting_approver() -> Approver:
+        async def approve(
+            message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+        ) -> Approval:
+            return Approval(decision="reject")
+
+        return approve
+
+    seen: list[Seen] = []
+    messages = await execute_addition(
+        [ReviewPolicy(recording_reviewer(seen), "*")],
+        approval=[ApprovalPolicy(rejecting_approver(), "*")],
+    )
+
+    assert seen == []
+    error = tool_message(messages).error
+    assert error is not None
+    assert error.type == "approval"
 
 
 async def test_handoffs_are_not_reviewed() -> None:

@@ -23,6 +23,8 @@ There is no `reject` or `modify`: the call has already run, so there is nothing 
 
 Only calls that executed are reviewed. A call an approver rejected, or that failed before running because its arguments could not be parsed, produced no result and is not reviewed. Handoffs to sub-agents are not reviewed either; the sub-agent's own tool calls are reviewed as they run.
 
+Errors reported by an executed tool are reviewed when they would otherwise be returned to the model, including parsing or approval errors raised from inside the tool.
+
 ## Custom Reviewers
 
 A reviewer is an async function that receives the tool call, its result, and the conversation, and returns a `Review`:

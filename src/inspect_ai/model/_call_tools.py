@@ -171,18 +171,17 @@ async def _execute_tools_impl(
             agent_span_id: str | None = None
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
-            # the call as executed (a call-stage approver may modify it),
-            # published by call_tool just before it runs the tool so that it is
-            # known even when the tool raises
-            executed_call = call
+            executed_call: ToolCall | None = None
 
             def note_executed_call(executed: ToolCall) -> None:
+                """Track entry into the tool body, including approver modifications.
+
+                A tool body can raise the same errors as pre-execution validation,
+                so the exception type cannot tell us whether the call executed.
+                """
                 nonlocal executed_call
                 executed_call = executed
 
-            # cleared by the handlers for the errors call_tool raises before it
-            # runs the tool: parsing/validation failures and call-stage denial
-            call_executed = True
             # Track this tool call on the active sample's execution observer
             # so an intervention producer (ACP today) can snapshot the
             # in-flight tool id into InterruptEvent. No-op when no observer
@@ -238,7 +237,6 @@ async def _execute_tools_impl(
                         "parsing",
                         f"An argument to tool '{call.function}' contained an embedded null byte.",
                     )
-                    call_executed = False
                 else:
                     raise
             except SandboxUnavailableError as ex:
@@ -276,10 +274,8 @@ async def _execute_tools_impl(
                 )
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
-                call_executed = False
             except ToolApprovalError as ex:
                 tool_error = ToolCallError("approval", ex.message)
-                call_executed = False
             except ToolError as ex:
                 tool_error = ToolCallError("unknown", ex.message)
             except Exception as ex:
@@ -358,7 +354,7 @@ async def _execute_tools_impl(
                 messages=[tool_message] + messages,
                 output=output,
             )
-            if tool_exception is None and call_executed:
+            if tool_exception is None and executed_call is not None:
                 try:
                     with _observer.track_tool_call(call.id, event):
                         await _apply_tool_review(
@@ -768,8 +764,6 @@ async def call_tool(
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
         call = approval.modified
-    if on_execute is not None:
-        on_execute(call)
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
@@ -794,6 +788,8 @@ async def call_tool(
         else:
             async with span(name=call.function, type="tool"):
                 transcript()._event(event)
+                if on_execute is not None:
+                    on_execute(call)
                 result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
                 return CalledTool(result, [], None, None, agent_span_id)
