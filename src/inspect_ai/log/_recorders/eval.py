@@ -69,6 +69,7 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .file import FileRecorder, write_local_snapshot
+from .version import validate_log_file_version
 
 logger = getLogger(__name__)
 
@@ -1373,11 +1374,13 @@ async def _read_header_async(
     if HEADER_JSON in entry_names:
         data = await _read_member_json(reader, HEADER_JSON)
         log = EvalLog.model_validate(data, context=get_deserializing_context())
+        validate_log_file_version(log.version)
         log.location = location
         return log
     else:
         data = await _read_member_json(reader, _journal_path(START_JSON))
         start = LogStart.model_validate(data, context=get_deserializing_context())
+        validate_log_file_version(start.version)
         # an in-progress/crashed log has no consolidated header — read any
         # journaled config updates so the header still reports mid-run retunes
         config_updates: list[ConfigUpdate] = []
@@ -1489,6 +1492,7 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
             log = EvalLog.model_validate(
                 json.load(f), context=get_deserializing_context()
             )
+            validate_log_file_version(log.version)
             log.location = location
             return log
     else:
@@ -1496,6 +1500,7 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
             start = LogStart.model_validate(
                 json.load(f), context=get_deserializing_context()
             )
+        validate_log_file_version(start.version)
         # see the equivalent journal read in _read_header_async
         config_updates: list[ConfigUpdate] = []
         for name in _sorted_config_update_entries(set(zip.namelist())):
