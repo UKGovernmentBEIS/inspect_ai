@@ -690,7 +690,7 @@ This closes the round-trip: `eval → log → export-config → eval`. By defaul
 
 See [Run Config File](tasks.qmd#run-config) for the full schema that `--run-config` accepts.
 
-Logs record an optional `eval.run_config_source` identifying an applied task-default file (`task_default:<resolved-path>`) or a CLI-selected file (`cli:<path>`). Export includes the effective settings, including overrides, rather than a dependency on that file. Replaying the export with `--run-config` replaces any default attached to the task, so the original default file can change or be unavailable without affecting the replay. Operational settings such as logging and parallelism remain omitted from exported configurations.
+Logs record an optional `eval.run_config_source` identifying an applied task-default file (`task_default:<resolved-path>`) or a CLI-selected file (`cli:<path>`). A retry keeps the original run's value, since the settings it replays came from that file, but does not read the file or show the default-config notice. Export includes the effective settings, including overrides, rather than a dependency on that file. Replaying the export with `--run-config` replaces any default attached to the task, so the original default file can change or be unavailable without affecting the replay. Operational settings such as logging and parallelism remain omitted from exported configurations.
 
 ### Log Schema
 

@@ -1059,8 +1059,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     else:
         log_location = logger.location
 
-    if logger.eval.run_config_source and logger.eval.run_config_source.startswith(
-        "task_default:"
+    # a retry or resume replays logged settings without reading the file, so
+    # the override hint would be wrong; provenance is still recorded
+    if (
+        options.sample_source is None
+        and logger.eval.run_config_source
+        and logger.eval.run_config_source.startswith("task_default:")
     ):
         config_name = logger.eval.run_config_source.removeprefix("task_default:")
         display().print(
