@@ -4,17 +4,22 @@ import io
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Callable, cast
 
+import aiohttp
+import anyio
 import pytest
 from anyio import EndOfStream
-from botocore.exceptions import ClientError
+from boto3.s3.transfer import TransferConfig
+from botocore.exceptions import ClientError, ResponseStreamingError
 
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     _current_async_fs,
     _RetiredClient,
+    _s3_download_file_async,
+    _s3_upload_fileobj_async,
     get_async_filesystem,
     s3_bucket_and_key,
     s3_write_file_streaming,
@@ -476,8 +481,14 @@ class _RetryingUploadClient:
     def upload_fileobj_sync(
         self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
     ) -> None:
+        self.record(Fileobj.read())
+
+    async def put_object(self, Body: bytes, **kwargs: Any) -> dict[str, Any]:
+        self.record(bytes(Body))
+        return {"ETag": '"etag-1"'}
+
+    def record(self, data: bytes) -> None:
         self.calls += 1
-        data = Fileobj.read()
         if self.calls <= self.fail_times:
             raise ClientError(
                 cast(
@@ -505,8 +516,15 @@ class _FailingUploadClient:
     def upload_fileobj_sync(
         self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
     ) -> None:
-        self.calls += 1
         Fileobj.read()
+        self.fail()
+
+    async def put_object(self, **kwargs: Any) -> dict[str, Any]:
+        self.fail()
+        return {}
+
+    def fail(self) -> None:
+        self.calls += 1
         raise ClientError(
             cast(
                 Any,
@@ -646,6 +664,253 @@ async def test_write_file_streaming_s3_does_not_retry_non_retryable_error(
     assert client.calls == 1
 
 
+class _MultipartClient:
+    """Fake aiobotocore S3 client recording a multipart upload."""
+
+    def __init__(self, fail_part: int | None = None) -> None:
+        self.created: dict[str, Any] | None = None
+        self.fail_part = fail_part
+        self.parts: list[tuple[int, bytes]] = []
+        self.completed: list[dict[str, Any]] | None = None
+        self.aborted: list[str] = []
+        self.block_part: int | None = None
+        self.blocked = anyio.Event()
+
+    async def put_object(self, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("put_object must not be used above the threshold")
+
+    async def create_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
+        self.created = kwargs
+        return {"UploadId": "upload-1"}
+
+    async def upload_part(
+        self, PartNumber: int, Body: bytes, UploadId: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        assert UploadId == "upload-1"
+        if PartNumber == self.block_part:
+            self.blocked.set()
+            await anyio.sleep_forever()
+        if PartNumber == self.fail_part:
+            raise ClientError(
+                cast(Any, {"Error": {"Code": "InternalError", "Message": "boom"}}),
+                "UploadPart",
+            )
+        self.parts.append((PartNumber, Body))
+        return {"ETag": f'"etag-{PartNumber}"'}
+
+    async def complete_multipart_upload(
+        self, MultipartUpload: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
+        self.completed = MultipartUpload["Parts"]
+        return {"ETag": '"final-etag-3"'}
+
+    async def abort_multipart_upload(self, UploadId: str, **kwargs: Any) -> None:
+        self.aborted.append(UploadId)
+
+
+_SMALL_PARTS = functools.partial(
+    TransferConfig, multipart_threshold=4, multipart_chunksize=4, max_concurrency=2
+)
+
+
+async def test_s3_upload_async_multipart_exact_multiple_of_chunksize() -> None:
+    client = _MultipartClient()
+    source = io.BytesIO(b"aaaabbbbcccc")
+
+    etag = await _s3_upload_fileobj_async(
+        client, source, "bucket", "key", _SMALL_PARTS()
+    )
+
+    assert etag == "final-etag-3"
+    assert sorted(client.parts) == [(1, b"aaaa"), (2, b"bbbb"), (3, b"cccc")]
+    assert client.completed == [
+        {"ETag": '"etag-1"', "PartNumber": 1},
+        {"ETag": '"etag-2"', "PartNumber": 2},
+        {"ETag": '"etag-3"', "PartNumber": 3},
+    ]
+    assert client.aborted == []
+    assert not source.closed
+    assert client.created is not None and "ChecksumAlgorithm" not in client.created
+
+
+async def test_s3_upload_async_multipart_aborts_on_part_failure() -> None:
+    client = _MultipartClient(fail_part=2)
+
+    with pytest.raises(ClientError) as exc_info:
+        await _s3_upload_fileobj_async(
+            client, io.BytesIO(b"aaaabbbbcc"), "bucket", "key", _SMALL_PARTS()
+        )
+
+    assert exc_info.value.response["Error"]["Code"] == "InternalError"
+    assert client.completed is None
+    assert client.aborted == ["upload-1"]
+
+
+async def test_s3_upload_async_multipart_aborts_on_cancel() -> None:
+    client = _MultipartClient()
+    client.block_part = 2
+
+    async def upload() -> None:
+        await _s3_upload_fileobj_async(
+            client, io.BytesIO(b"aaaabbbbcccc"), "bucket", "key", _SMALL_PARTS()
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(upload)
+        await client.blocked.wait()
+        tg.cancel_scope.cancel()
+
+    assert client.completed is None
+    assert client.aborted == ["upload-1"]
+
+
+class _RangedGetClient:
+    def __init__(
+        self,
+        data: bytes,
+        fail_reads: int = 0,
+        read_error: Callable[[], Exception] = lambda: ResponseStreamingError(
+            error=OSError("reset")
+        ),
+        head_etag: str | None = None,
+    ) -> None:
+        self.data = data
+        self.etag = '"etag-original"'
+        self.head_etag = head_etag or self.etag
+        self.fail_reads = fail_reads
+        self.read_error = read_error
+        self.ranges: list[str] = []
+        self.in_flight = 0
+        self.max_in_flight = 0
+
+    async def head_object(self, **kwargs: Any) -> dict[str, Any]:
+        return {"ContentLength": len(self.data), "ETag": self.head_etag}
+
+    async def get_object(
+        self, Range: str, IfMatch: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        if IfMatch != self.etag:
+            raise ClientError(
+                cast(Any, {"Error": {"Code": "PreconditionFailed", "Message": ""}}),
+                "GetObject",
+            )
+        self.ranges.append(Range)
+        start, end = (int(v) for v in Range.removeprefix("bytes=").split("-"))
+
+        return {"Body": _RangedBody(self, self.data[start : end + 1])}
+
+
+class _RangedBody:
+    def __init__(self, client: _RangedGetClient, chunk: bytes) -> None:
+        self.client = client
+        self.chunk = chunk
+
+    async def read(self) -> bytes:
+        self.client.in_flight += 1
+        self.client.max_in_flight = max(
+            self.client.max_in_flight, self.client.in_flight
+        )
+        await anyio.sleep(0.01)
+        self.client.in_flight -= 1
+
+        if self.client.fail_reads > 0:
+            self.client.fail_reads -= 1
+            raise self.client.read_error()
+
+        return self.chunk
+
+    def close(self) -> None:
+        pass
+
+
+async def test_s3_download_async_concurrent_ranges() -> None:
+    data = bytes(range(256)) * 4
+    client = _RangedGetClient(data)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client,
+            "bucket",
+            "key",
+            local,
+            TransferConfig(multipart_chunksize=300, max_concurrency=3),
+        )
+        assert Path(local).read_bytes() == data
+
+    assert client.ranges == [
+        "bytes=0-299",
+        "bytes=300-599",
+        "bytes=600-899",
+        "bytes=900-1023",
+    ]
+    assert client.max_in_flight == 3
+
+
+async def test_s3_download_async_retries_failed_body_read() -> None:
+    data = b"\x01" * 1000
+    client = _RangedGetClient(data, fail_reads=2)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client,
+            "bucket",
+            "key",
+            local,
+            TransferConfig(multipart_chunksize=400, max_concurrency=1),
+        )
+        assert Path(local).read_bytes() == data
+
+    assert len(client.ranges) == 5
+
+
+async def test_s3_download_async_retries_aiohttp_payload_error() -> None:
+    data = b"\x02" * 1000
+    client = _RangedGetClient(
+        data, fail_reads=1, read_error=lambda: aiohttp.ClientPayloadError("dropped")
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client,
+            "bucket",
+            "key",
+            local,
+            TransferConfig(multipart_chunksize=400, max_concurrency=1),
+        )
+        assert Path(local).read_bytes() == data
+
+    assert len(client.ranges) == 4
+
+
+async def test_s3_download_async_rejects_object_changed_after_head() -> None:
+    client = _RangedGetClient(b"\x01" * 1000, head_etag='"etag-stale"')
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        with pytest.raises(ClientError) as exc_info:
+            await _s3_download_file_async(
+                client, "bucket", "key", local, TransferConfig(multipart_chunksize=400)
+            )
+
+    assert exc_info.value.response["Error"]["Code"] == "PreconditionFailed"
+
+
+async def test_s3_download_async_empty_object() -> None:
+    client = _RangedGetClient(b"")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client, "bucket", "key", local, TransferConfig(multipart_chunksize=300)
+        )
+        assert Path(local).read_bytes() == b""
+
+    assert client.ranges == []
+
+
 # =============================================================================
 # Tests for get_file()
 # =============================================================================
@@ -668,7 +933,7 @@ async def test_get_file_local() -> None:
 
 def test_get_file_s3(mock_s3: None) -> None:
     """get_file downloads an S3 source to a local destination."""
-    test_data = b"s3 get_file payload"
+    test_data = b"\xcd" * (10 * 1024 * 1024)  # 10MB, spans two 8MB ranged GETs
     s3_path = f"{S3_BUCKET}/get_file_test/file.bin"
 
     async def run() -> None:
