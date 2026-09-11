@@ -552,6 +552,97 @@ async def test_messages_to_openai_think_tag_fallback_for_non_gemini() -> None:
     assert "</think>" in text
     assert "reasoning_details" not in payload
 
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model",
+    ["google/gemini-3.1-pro-preview", "anthropic/claude-sonnet-4-5", "x-ai/grok-4"],
+)
+async def test_messages_to_openai_think_tag_skipped_without_readable_text(
+    model: str,
+) -> None:
+    """Reasoning with no readable text must not produce a <think> tag.
+
+    A redacted block with no summary (e.g. an Anthropic-native encrypted
+    thought replayed through an OpenRouter model acting as a judge or monitor)
+    has no OpenRouter reasoning_details and nothing a model could read. The
+    think-tag fallback would put its opaque payload into the assistant text
+    channel, so it is skipped entirely, for every model family.
+    """
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+
+    encrypted_blob = "ENCRYPTED_BLOB_xyz"
+    msg = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning=encrypted_blob,
+                redacted=True,
+                signature="rs_abc123",
+            )
+        ],
+    )
+
+    api = _make_api(model)
+    converted = await api.messages_to_openai([msg])
+
+    payload = converted[0]
+    content = payload.get("content")
+    text = content if isinstance(content, str) else ""
+    assert "<think" not in text
+    assert encrypted_blob not in text
+    assert "rs_abc123" not in text
+    assert "reasoning_details" not in payload
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_think_tag_skipped_for_blank_reasoning() -> None:
+    """Non-redacted reasoning that is blank produces no (empty) <think> tag."""
+    from inspect_ai._util.content import ContentReasoning, ContentText
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+
+    msg = ChatMessageAssistant(
+        content=[ContentReasoning(reasoning="   \n"), ContentText(text="answer")],
+    )
+
+    api = _make_api("google/gemini-3.1-pro-preview")
+    converted = await api.messages_to_openai([msg])
+
+    payload = converted[0]
+    content = payload.get("content")
+    text = content if isinstance(content, str) else ""
+    assert "<think" not in text
+    assert text.strip() == "answer"
+    assert "reasoning_details" not in payload
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_think_tag_keeps_redacted_summary() -> None:
+    """A redacted block with a readable summary still replays as a <think> tag."""
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+
+    msg = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning="ENCRYPTED_BLOB_xyz",
+                summary="weighed the options",
+                redacted=True,
+                signature="rs_abc123",
+            )
+        ],
+    )
+
+    api = _make_api("google/gemini-3.1-pro-preview")
+    converted = await api.messages_to_openai([msg])
+
+    payload = converted[0]
+    content = payload.get("content")
+    text = content if isinstance(content, str) else ""
+    assert "<think" in text
+    assert "weighed the options" in text
+
+
 # -- Prompt cache sticky routing (x-session-id) --------------------------------
 
 
