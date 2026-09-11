@@ -36,6 +36,7 @@ from inspect_ai._util.asyncfiles import (
 from inspect_ai._util.file import local_path
 
 from .._async_fs import async_mkdir
+from ._paths import sample_dir_segment
 from .schemas import Checkpoint, ResticConfig
 from .staging_dir import clear_sample_staging_dir, restic_config_path, restic_dir
 
@@ -44,7 +45,7 @@ logger = getLogger(__name__)
 _M = TypeVar("_M", bound=BaseModel)
 
 
-_CHECKPOINT_FILE_RE = re.compile(r"^ckpt-(\d+)\.json$")
+_CHECKPOINT_FILE_RE = re.compile(r"ckpt-([0-9]+)\.json")
 
 
 def checkpoint_file_id(name: str) -> int | None:
@@ -52,14 +53,33 @@ def checkpoint_file_id(name: str) -> int | None:
 
     The one predicate for "is this a checkpoint file" — the copy, the
     delete, host egress, hydrate's validation, and the id scan all use it.
+    Only the exact form ``write_checkpoint_file`` emits is accepted: ASCII
+    digits, zero-padded to at least five, so that ``checkpoint_file_name``
+    round-trips the id back to ``name``. ``ckpt-1.json`` and
+    ``ckpt-000001.json`` both parse as an int but are not checkpoint
+    files; a listing (an object store yields key names verbatim) cannot
+    smuggle in a second name for the same id.
     """
-    match = _CHECKPOINT_FILE_RE.match(name)
-    return int(match.group(1)) if match else None
+    match = _CHECKPOINT_FILE_RE.fullmatch(name)
+    if match is None:
+        return None
+    checkpoint_id = int(match.group(1))
+    return checkpoint_id if checkpoint_file_name(checkpoint_id) == name else None
+
+
+def checkpoint_file_name(checkpoint_id: int) -> str:
+    """The ``ckpt-NNNNN.json`` file name for ``checkpoint_id``."""
+    return f"ckpt-{checkpoint_id:05d}.json"
 
 
 def sample_dir_name(sample_id: int | str, epoch: int) -> str:
-    """The name of a sample's checkpoints dir within its eval checkpoints dir."""
-    return f"{sample_id}__{epoch}"
+    """The name of a sample's checkpoints dir within its eval checkpoints dir.
+
+    The sample id is dataset-supplied; ``sample_dir_segment`` reduces it
+    to one safe path component so an id containing ``/`` or ``..`` cannot
+    relocate the per-sample tree out of the eval checkpoints dir.
+    """
+    return f"{sample_dir_segment(sample_id)}__{epoch}"
 
 
 def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
@@ -183,7 +203,7 @@ async def _read_checkpoint_file(
     would reuse its id and overwrite it.
     """
     raw = await get_async_filesystem().read_file(
-        f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
+        f"{sample_checkpoints_dir}/{checkpoint_file_name(n)}"
     )
     try:
         return Checkpoint.model_validate_json(raw)
@@ -258,7 +278,7 @@ async def write_checkpoint_file(
     costs at most one checkpoint's progress — same as crashing before
     the file starts.
     """
-    path = f"{sample_checkpoints_dir}/ckpt-{checkpoint.checkpoint_id:05d}.json"
+    path = f"{sample_checkpoints_dir}/{checkpoint_file_name(checkpoint.checkpoint_id)}"
     await _write_model_json(path, checkpoint)
     return path
 
