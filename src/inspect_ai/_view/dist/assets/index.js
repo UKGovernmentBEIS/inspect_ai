@@ -104878,139 +104878,6 @@ var decisionIcon$1 = (decision) => {
 		default: return TranscriptIcons.approve;
 	}
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ReviewEventView.tsx
-/**
-* Renders a ReviewEvent: a reviewer's decision on an executed tool call's
-* result. Shares the approval row's styling; the decision set differs.
-*/ var ReviewEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(32);
-	const { eventNode, className } = t0;
-	const event = eventNode.event;
-	const decision = event.decision;
-	let alarming;
-	let explanation;
-	let reviewer;
-	let t1;
-	if ($[0] !== decision || $[1] !== event.explanation || $[2] !== event.reviewer) {
-		explanation = event.explanation?.trim() ?? "";
-		reviewer = event.reviewer;
-		alarming = decision === "terminate";
-		t1 = explanation.includes("\n");
-		$[0] = decision;
-		$[1] = event.explanation;
-		$[2] = event.reviewer;
-		$[3] = alarming;
-		$[4] = explanation;
-		$[5] = reviewer;
-		$[6] = t1;
-	} else {
-		alarming = $[3];
-		explanation = $[4];
-		reviewer = $[5];
-		t1 = $[6];
-	}
-	const explanationIsBlock = t1;
-	const t2 = eventNode.id;
-	let t3;
-	if ($[7] !== alarming || $[8] !== decision) {
-		t3 = alarming ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: ApprovalEventView_module_default.rejected,
-			children: decisionLabel(decision)
-		}) : decisionLabel(decision);
-		$[7] = alarming;
-		$[8] = decision;
-		$[9] = t3;
-	} else t3 = $[9];
-	let t4;
-	if ($[10] !== decision) {
-		t4 = decisionIcon(decision);
-		$[10] = decision;
-		$[11] = t4;
-	} else t4 = $[11];
-	const t5 = alarming ? ApprovalEventView_module_default.rejected : void 0;
-	let t6;
-	if ($[12] !== explanation || $[13] !== explanationIsBlock) {
-		t6 = explanation && explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0;
-		$[12] = explanation;
-		$[13] = explanationIsBlock;
-		$[14] = t6;
-	} else t6 = $[14];
-	let t7;
-	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
-		t7 = clsx("text-style-secondary");
-		$[15] = t7;
-	} else t7 = $[15];
-	let t8;
-	if ($[16] !== reviewer) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: t7,
-			children: [
-				"(",
-				reviewer,
-				")"
-			]
-		});
-		$[16] = reviewer;
-		$[17] = t8;
-	} else t8 = $[17];
-	let t9;
-	if ($[18] !== explanation || $[19] !== explanationIsBlock) {
-		t9 = explanation && !explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: ApprovalEventView_module_default.inlineExplanation,
-			children: explanation
-		}) : null;
-		$[18] = explanation;
-		$[19] = explanationIsBlock;
-		$[20] = t9;
-	} else t9 = $[20];
-	let t10;
-	if ($[21] !== t8 || $[22] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: ApprovalEventView_module_default.headline,
-			children: [t8, t9]
-		});
-		$[21] = t8;
-		$[22] = t9;
-		$[23] = t10;
-	} else t10 = $[23];
-	let t11;
-	if ($[24] !== className || $[25] !== eventNode.id || $[26] !== t10 || $[27] !== t3 || $[28] !== t4 || $[29] !== t5 || $[30] !== t6) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
-			eventNodeId: t2,
-			title: t3,
-			icon: t4,
-			iconClassName: t5,
-			className,
-			below: t6,
-			children: t10
-		});
-		$[24] = className;
-		$[25] = eventNode.id;
-		$[26] = t10;
-		$[27] = t3;
-		$[28] = t4;
-		$[29] = t5;
-		$[30] = t6;
-		$[31] = t11;
-	} else t11 = $[31];
-	return t11;
-};
-var decisionLabel = (decision) => {
-	switch (decision) {
-		case "continue": return "Reviewed";
-		case "terminate": return "Terminated";
-		case "escalate": return "Escalated";
-		default: return decision;
-	}
-};
-var decisionIcon = (decision) => {
-	switch (decision) {
-		case "terminate": return TranscriptIcons.approvals.terminate;
-		case "escalate": return TranscriptIcons.approvals.escalate;
-		default: return TranscriptIcons.approvals.approve;
-	}
-};
 var BranchEventView_module_default = { panel: "_panel_8zdtn_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/EventLabelContext.ts
@@ -110276,6 +110143,139 @@ function _temp$54(choice) {
 function _temp2$39(m) {
 	return !isLivePlaceholderMessage(m);
 }
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/ReviewEventView.tsx
+/**
+* Renders a ReviewEvent: a reviewer's decision on an executed tool call's
+* result. Shares the approval row's styling; the decision set differs.
+*/ var ReviewEventView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(32);
+	const { eventNode, className } = t0;
+	const event = eventNode.event;
+	const decision = event.decision;
+	let alarming;
+	let explanation;
+	let reviewer;
+	let t1;
+	if ($[0] !== decision || $[1] !== event.explanation || $[2] !== event.reviewer) {
+		explanation = event.explanation?.trim() ?? "";
+		reviewer = event.reviewer;
+		alarming = decision === "terminate";
+		t1 = explanation.includes("\n");
+		$[0] = decision;
+		$[1] = event.explanation;
+		$[2] = event.reviewer;
+		$[3] = alarming;
+		$[4] = explanation;
+		$[5] = reviewer;
+		$[6] = t1;
+	} else {
+		alarming = $[3];
+		explanation = $[4];
+		reviewer = $[5];
+		t1 = $[6];
+	}
+	const explanationIsBlock = t1;
+	const t2 = eventNode.id;
+	let t3;
+	if ($[7] !== alarming || $[8] !== decision) {
+		t3 = alarming ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ApprovalEventView_module_default.rejected,
+			children: decisionLabel(decision)
+		}) : decisionLabel(decision);
+		$[7] = alarming;
+		$[8] = decision;
+		$[9] = t3;
+	} else t3 = $[9];
+	let t4;
+	if ($[10] !== decision) {
+		t4 = decisionIcon(decision);
+		$[10] = decision;
+		$[11] = t4;
+	} else t4 = $[11];
+	const t5 = alarming ? ApprovalEventView_module_default.rejected : void 0;
+	let t6;
+	if ($[12] !== explanation || $[13] !== explanationIsBlock) {
+		t6 = explanation && explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0;
+		$[12] = explanation;
+		$[13] = explanationIsBlock;
+		$[14] = t6;
+	} else t6 = $[14];
+	let t7;
+	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
+		t7 = clsx("text-style-secondary");
+		$[15] = t7;
+	} else t7 = $[15];
+	let t8;
+	if ($[16] !== reviewer) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: t7,
+			children: [
+				"(",
+				reviewer,
+				")"
+			]
+		});
+		$[16] = reviewer;
+		$[17] = t8;
+	} else t8 = $[17];
+	let t9;
+	if ($[18] !== explanation || $[19] !== explanationIsBlock) {
+		t9 = explanation && !explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ApprovalEventView_module_default.inlineExplanation,
+			children: explanation
+		}) : null;
+		$[18] = explanation;
+		$[19] = explanationIsBlock;
+		$[20] = t9;
+	} else t9 = $[20];
+	let t10;
+	if ($[21] !== t8 || $[22] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: ApprovalEventView_module_default.headline,
+			children: [t8, t9]
+		});
+		$[21] = t8;
+		$[22] = t9;
+		$[23] = t10;
+	} else t10 = $[23];
+	let t11;
+	if ($[24] !== className || $[25] !== eventNode.id || $[26] !== t10 || $[27] !== t3 || $[28] !== t4 || $[29] !== t5 || $[30] !== t6) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
+			eventNodeId: t2,
+			title: t3,
+			icon: t4,
+			iconClassName: t5,
+			className,
+			below: t6,
+			children: t10
+		});
+		$[24] = className;
+		$[25] = eventNode.id;
+		$[26] = t10;
+		$[27] = t3;
+		$[28] = t4;
+		$[29] = t5;
+		$[30] = t6;
+		$[31] = t11;
+	} else t11 = $[31];
+	return t11;
+};
+var decisionLabel = (decision) => {
+	switch (decision) {
+		case "continue": return "Reviewed";
+		case "terminate": return "Terminated";
+		case "escalate": return "Escalated";
+		default: return decision;
+	}
+};
+var decisionIcon = (decision) => {
+	switch (decision) {
+		case "terminate": return TranscriptIcons.approvals.terminate;
+		case "escalate": return TranscriptIcons.approvals.escalate;
+		default: return TranscriptIcons.approvals.approve;
+	}
+};
 var SampleInitEventView_module_default = {
 	noMargin: "_noMargin_1a3fk_1",
 	code: "_code_1a3fk_5",
