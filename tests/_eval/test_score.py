@@ -348,11 +348,11 @@ def adds_to_state() -> Scorer:
         pytest.param(
             LOG_SCORED,
             "append",
-            [("f1", dict[str, Any]()), ("choice", dict[str, Any]())],
+            [("f1", dict[str, Any]()), ("includes", dict[str, Any]())],
             {
                 "match": {"num_metrics": 2},
                 "f1": {"num_metrics": 2},
-                "choice": {"num_metrics": 2},
+                "includes": {"num_metrics": 2},
             },
             None,
             id="multiple-scorers",

@@ -774,8 +774,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     kwargs = options.kwargs
 
     # a SampleSource-driven task generates samples while it runs (`sample_feed`
-    # to distinguish it from `sample_source`, the prior-attempt lookup above)
-    sample_feed: SampleSource | None = task.sample_source
+    # to distinguish it from `sample_source`, the prior-attempt lookup above).
+    # A task no `task:id` selector named (sample_id resolved to []) runs no
+    # samples, so its source is never consulted: polling it could block forever
+    sample_feed: SampleSource | None = (
+        task.sample_source if config.sample_id != [] else None
+    )
 
     # resolve default generate_config for task
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
