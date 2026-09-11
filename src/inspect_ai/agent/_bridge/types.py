@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, NamedTuple, NoReturn, Sequence, Set
 
 from shortuuid import uuid
 
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
@@ -713,6 +713,20 @@ def _conversation_message_fingerprint(
       on the way out and `"(no content)"` on the way back. Both fingerprint empty.
     - `tool_calls[].view`: a render hint the bridge attaches on the way out and
       the CLI never sends back. Presentation, not identity; dropped.
+    - tool-call ids: a transport handle, not identity. Anthropic mints one the
+      CLI echoes verbatim, so ids happened to match; Gemini's wire format has
+      none, so the bridge drops the produced id on the way out and synthesizes
+      `call_<fn>_<hash(fn, args, position)>` on the way back -- which is to say
+      that on that transport an id already means nothing but function, arguments
+      and position. Comparing ids made every Gemini turn a new conversation.
+      Identity is the function and its arguments; the tool result's
+      `tool_call_id` goes the same way. Two byte-identical parallel sub-agents
+      therefore share a conversation until their content diverges (the fork
+      rule below splits them there); their EVENTS stay distinct through the
+      sink's placement, which is the sink's job, not a transport id's.
+    - reasoning parts: a provider's thought signature, which Gemini's CLI
+      re-attaches as a redacted reasoning part the producer never emitted.
+      Stripped from identity on both sides; what remains is what was said.
     """
     message_identity = message.model_dump(
         exclude={
@@ -720,11 +734,17 @@ def _conversation_message_fingerprint(
             "metadata": True,
             "model": True,
             "source": True,
-            "tool_calls": {"__all__": {"view"}},
+            "tool_call_id": True,
+            "tool_calls": {"__all__": {"id", "view"}},
         },
         exclude_none=True,
     )
     content = message.content
+    if isinstance(content, list):
+        content = [part for part in content if not isinstance(part, ContentReasoning)]
+        message_identity["content"] = [
+            part.model_dump(exclude_none=True) for part in content
+        ]
     if (
         isinstance(content, list)
         and len(content) == 1
@@ -1025,6 +1045,16 @@ class _ConversationSpanEmitter:
         # follows the call that could have spawned it. A side call with no tool
         # calls (a title generation) leaving the same span does not displace it.
         self._rehomed: dict[str, str] = {}
+        # Spans written after this emitter first subscribed to the transcript:
+        # a sink's own placement tree, never the harness's ambient spans, which
+        # were open before any bridged call (see `_adopt_placement`).
+        self._late_spans: dict[str, "SpanBeginEvent"] = {}
+        # A placing sink's ambient, claimed by the conversation of the last
+        # tool-calling event whose placement tree was rooted there: the trees a
+        # sink roots there afterwards -- a sub-agent's scheduling and calls --
+        # are that call's doing and nest under its conversation, as a sink-opened
+        # `agent` span does under the ambient a tool-calling call vacated.
+        self._claimed_roots: dict[str, str] = {}
         self._unsubscribe: Callable[[], None] | None = None
 
     def on_pending(self, event: "ModelEvent") -> None:
@@ -1075,6 +1105,7 @@ class _ConversationSpanEmitter:
         from inspect_ai.event import ModelEvent, SpanBeginEvent
 
         if isinstance(event, SpanBeginEvent):
+            self._late_spans[event.id] = event
             target = self._rehomed.get(event.parent_id or "")
             if target is not None:
                 self._rehome_child(event, event.parent_id or "", target)
@@ -1083,8 +1114,12 @@ class _ConversationSpanEmitter:
         if deferred is None or not isinstance(event, ModelEvent):
             return
         span_id, ambient = deferred
-        if event.span_id == ambient and span_id in self._span_ids:
+        if span_id not in self._span_ids:
+            return
+        if event.span_id == ambient:
             self._move_event(event, span_id)
+        else:
+            self._adopt_placement(event, span_id)
 
     def next_call_index(self) -> int:
         """The zero-based index of the bridged call being accumulated."""
@@ -1140,8 +1175,68 @@ class _ConversationSpanEmitter:
                 # beside it. An event still sitting at the ambient was written
                 # without a placement of its own, and the conversation is its home.
                 if event.span_id != record.parent_id:
+                    self._adopt_placement(event, span_id)
                     continue
             self._move_event(event, span_id)
+
+    def _adopt_placement(self, event: "ModelEvent", span_id: str) -> None:
+        """Hang a sink-placed event's span tree under its conversation.
+
+        A sink that places every event in a span tree of its own -- Gemini's
+        consumer rebuilds the CLI's native trace, `model` spans under `tool`
+        and `agent` spans -- roots that tree at ITS ambient, the span current
+        in the consumer's task, which is neither the bridge's ambient nor any
+        conversation. The placement is kept (it is the sink's identity
+        decision); its topmost span of the sink's own making is re-parented
+        onto the conversation the event was attributed to, so the contract
+        that every bridged event is owned by exactly one conversation holds
+        for a placing sink too. Only spans written since this emitter began
+        listening are the sink's; the harness's own spans -- open before any
+        bridged call -- are never moved. A tree already under a conversation
+        (this one or another sub-agent's) stays where it is.
+
+        Which conversation: the one that claimed the tree's root ambient, else
+        the event's own. A call that issued tool calls claims the ambient its
+        tree was rooted at, so a sub-agent's tree rooted there afterwards nests
+        under the PARENT call's conversation -- the shape a sink-opened `agent`
+        span already has (see `_move_event`), and the one the sub-agent's own
+        conversation span then sits beside, as its `bridge_conversation` record
+        says. Gemini's trace has no edge from a call to the tool scheduling it
+        caused; this is the one place that edge is known, so this is where it
+        is drawn.
+        """
+        from inspect_ai.event import SpanBeginEvent
+        from inspect_ai.log._transcript import transcript
+
+        if self._unsubscribe is None:
+            self._unsubscribe = transcript()._subscribe(self._on_written)
+        parents = {
+            begin.id: begin
+            for begin in transcript().events
+            if isinstance(begin, SpanBeginEvent)
+        }
+        node = event.span_id
+        root: SpanBeginEvent | None = None
+        seen: set[str] = set()
+        while node is not None and node not in seen:
+            seen.add(node)
+            if node in self._span_ids:
+                return
+            begin = parents.get(node)
+            if begin is None:
+                break
+            if node in self._late_spans:
+                root = begin
+            node = begin.parent_id
+        if root is None:
+            return
+        ambient = root.parent_id or ""
+        target = self._claimed_roots.get(ambient, span_id)
+        root.parent_id = target
+        root.span_id = target
+        transcript()._event_updated(root)
+        if any(choice.message.tool_calls for choice in event.output.choices):
+            self._claimed_roots[ambient] = target
 
     def _move_event(self, event: "ModelEvent", span_id: str) -> None:
         """Move an event into its conversation span, carrying its child spans along.
@@ -1210,6 +1305,8 @@ class _ConversationSpanEmitter:
         self._span_ids.clear()
         self._deferred.clear()
         self._rehomed.clear()
+        self._claimed_roots.clear()
+        self._late_spans.clear()
         if self._unsubscribe is not None:
             self._unsubscribe()
             self._unsubscribe = None

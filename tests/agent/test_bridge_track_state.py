@@ -14,7 +14,7 @@ import anyio
 from pydantic import TypeAdapter
 from test_helpers.checkpoint import RecordingCheckpointer
 
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
@@ -2711,3 +2711,286 @@ async def test_a_late_child_span_follows_the_tool_calling_parent_not_a_side_call
     child = next(b for b in span_begins() if b.id == "opencode-session-child")
     assert child.parent_id == parent_event.span_id
     assert bridge._conversations[0].span_id == parent_event.span_id
+
+
+async def test_a_producer_message_matches_its_gemini_echo() -> None:
+    """One Gemini session is one conversation, whatever the transport re-attaches.
+
+    Gemini's wire format carries no tool-call ids, so the bridge drops the
+    produced id on the way out and synthesizes `call_<fn>_<hash>` on the way
+    back; the CLI also re-attaches the thought signature as a redacted
+    reasoning part the producer never emitted. Comparing either made every
+    Gemini turn a new conversation -- five spans for a five-call session in the
+    first gemini centaur run, and every bridged call unowned.
+    """
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+
+    one: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    produced = ToolCall(
+        id="for_tool_call_706613ab-7c30-425c-9069-bab4a3bc90e6",
+        function="run_shell_command",
+        arguments={"command": "printf 'child complete' > /workspace/child.txt"},
+    )
+    await track_with_tool_call(bridge, one, produced)
+    echoed_call = ToolCall(
+        id="call_run_shell_command_74cd2417",
+        function=produced.function,
+        arguments=dict(produced.arguments),
+    )
+    echoed = ChatMessageAssistant(
+        content=[
+            ContentText(text="tool call for tool run_shell_command"),
+            ContentReasoning(
+                reasoning="skip_thought_signature_validator", redacted=True
+            ),
+        ],
+        tool_calls=[echoed_call],
+    )
+    result = ChatMessageTool(
+        content='{"output": ""}',
+        tool_call_id=echoed_call.id,
+        function=echoed_call.function,
+    )
+    await spanned_track(bridge, [*one, echoed, result], "child complete")
+
+    assert len(bridge._conversations) == 1
+    assert [b.name for b in span_begins()] == ["conversation 0"]
+
+
+async def track_with_tool_call(
+    bridge: AgentBridge, input: list[ChatMessage], call: ToolCall
+) -> ModelEvent:
+    """One bridged call whose output is a tool call with a provider-minted id."""
+    emitter = bridge.model_event_sink
+    assert emitter is not None
+    event = pending_event(input)
+    emitter.on_pending(event)
+    emitter.on_complete(event)
+    output = ModelOutput.for_tool_call(
+        "mockllm/model",
+        tool_name=call.function,
+        tool_arguments=call.arguments,
+        tool_call_id=call.id,
+        content=f"tool call for tool {call.function}",
+    )
+    event.output = output
+    await bridge._track_state(input, output)
+    return event
+
+
+async def test_identical_parallel_sub_agents_share_a_conversation_until_they_diverge() -> (
+    None
+):
+    """The tiebreaker for byte-identical parallel sub-agents is content, not ids.
+
+    Two sub-agents given the same prompt that issue the same first tool call
+    are one conversation by content -- ids never told them apart on Gemini,
+    and on Anthropic they only did by accident of the provider minting one.
+    The moment their content diverges the fork rule splits them; until then
+    the shared prefix is genuinely shared. Their EVENTS are the sink's to
+    distinguish through placement (see the placing-sink tests), not a
+    transport id's.
+    """
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+    main: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    await spanned_track(bridge, main, "delegating")
+
+    prompt = ChatMessageUser(content="Explore the repo and report its layout.")
+
+    def first_call(sub_agent: str) -> ToolCall:
+        # the same call, a provider-minted id apart
+        return ToolCall(
+            id=f"toolu_{sub_agent}1", function="glob", arguments={"pattern": "**/*.py"}
+        )
+
+    for sub_agent in ("a", "b"):
+        await track_with_tool_call(bridge, [TASK_SYSTEM, prompt], first_call(sub_agent))
+    assert len(bridge._conversations) == 2  # main + the shared sub-agent prefix
+
+    def turn_two(sub_agent: str, listing: str) -> list[ChatMessage]:
+        call = first_call(sub_agent)
+        return [
+            TASK_SYSTEM,
+            prompt,
+            ChatMessageAssistant(content="tool call for tool glob", tool_calls=[call]),
+            ChatMessageTool(content=listing, tool_call_id=call.id, function="glob"),
+        ]
+
+    await spanned_track(bridge, turn_two("a", "src/a.py"), "found one file")
+    await spanned_track(bridge, turn_two("b", "src/a.py"), "found one file")
+    assert len(bridge._conversations) == 2  # still byte-identical: still shared
+
+    # b now answers differently from what the shared conversation holds
+    await spanned_track(bridge, turn_two("b", "src/a.py"), "found one file, no tests")
+    assert len(bridge._conversations) == 3  # forked at the divergence, not before
+
+
+class _PlacingSink:
+    """A sink that rebuilds a native trace of its own, as Gemini's does.
+
+    Every event lands in a leaf span of a tree rooted at the CONSUMER's ambient,
+    written late.
+    """
+
+    def __init__(self, ambient_id: str) -> None:
+        self.ambient_id = ambient_id
+        self.held: list[ModelEvent] = []
+        self.roots: list[SpanBeginEvent] = []
+
+    def on_pending(self, event: ModelEvent) -> None:
+        self.held.append(event)
+
+    def on_complete(self, event: ModelEvent) -> None: ...
+
+    def place(self, *, root: SpanBeginEvent | None = None) -> SpanBeginEvent:
+        if root is None:
+            root = SpanBeginEvent(
+                id=f"native-root-{len(self.roots)}",
+                parent_id=self.ambient_id,
+                type="tool",
+                name="schedule_tool_call",
+            )
+            transcript()._event(root)
+            self.roots.append(root)
+        for index, event in enumerate(self.held):
+            leaf = SpanBeginEvent(
+                id=f"native-llm-{root.id}-{index}",
+                parent_id=root.id,
+                type="model",
+                name="gemini-2.5-pro",
+            )
+            transcript()._event(leaf)
+            event.span_id = leaf.id
+            transcript()._event(event)
+        self.held.clear()
+        return root
+
+
+def _parent_of(span_id: str) -> str | None:
+    return next(b for b in span_begins() if b.id == span_id).parent_id
+
+
+async def test_a_placing_sinks_span_tree_hangs_under_its_conversation() -> None:
+    """A sink-placed event's own span tree is re-rooted onto its conversation.
+
+    Gemini's consumer places every bridged event in a native `model` span under
+    `tool`/`agent` spans rooted at the consumer's ambient -- not the bridge's,
+    and not any conversation. Kept as an identity decision and otherwise left
+    alone, that tree made every Gemini event unowned by any conversation span
+    (`subagent_conversation_missing` on every gemini centaur run). The
+    placement stands; the tree's topmost span of the sink's making moves under
+    the conversation. The event's own span is untouched.
+    """
+    init_transcript(Transcript())
+    async with span("human_cli", type="agent"):
+        consumer_ambient = current_span_id()
+        assert consumer_ambient is not None
+        sink = _PlacingSink(consumer_ambient)
+        bridge = AgentBridge(
+            AgentState(messages=[ChatMessageUser(content=TASK)]),
+            accumulate_conversations=True,
+            model_event_sink=sink,
+        )
+        one: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+        async with span("Gemini CLI", type="agent"):
+            event, _ = await spanned_track(bridge, one, "first")
+        root = sink.place()
+
+    conversation = next(
+        b for b in span_begins() if b.type == BRIDGE_CONVERSATION_SPAN_TYPE
+    )
+    assert event.span_id == f"native-llm-{root.id}-0"  # placement kept
+    assert _parent_of(root.id) == conversation.id  # tree re-rooted
+    assert _parent_of(event.span_id) == root.id
+
+
+async def test_a_placing_sink_keeps_the_consumers_own_spans_where_they_were() -> None:
+    """Only the sink's late-written tree moves; the consumer's ambient never does.
+
+    The consumer's `human_cli` span was open before any bridged call. Stealing
+    it onto a conversation would move the whole native session under one of its
+    own conversations. And a tree already under a conversation -- a second
+    event placed in the same tree -- stays put: no double re-rooting.
+    """
+    init_transcript(Transcript())
+    async with span("outer", type="agent"):
+        outer = current_span_id()
+        async with span("human_cli", type="agent"):
+            consumer_ambient = current_span_id()
+            assert consumer_ambient is not None
+            sink = _PlacingSink(consumer_ambient)
+            bridge = AgentBridge(
+                AgentState(messages=[ChatMessageUser(content=TASK)]),
+                accumulate_conversations=True,
+                model_event_sink=sink,
+            )
+            one: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+            first, out = await spanned_track(bridge, one, "first")
+            root = sink.place()
+            echoed = ChatMessageAssistant(content=[ContentText(text="first")])
+            second, _ = await spanned_track(
+                bridge, [*one, echoed, ChatMessageUser(content="and?")], "second"
+            )
+            sink.place(root=root)  # same tree, already under the conversation
+
+    conversation = next(
+        b for b in span_begins() if b.type == BRIDGE_CONVERSATION_SPAN_TYPE
+    )
+    assert len(bridge._conversations) == 1
+    assert _parent_of(consumer_ambient) == outer  # never moved
+    assert _parent_of(root.id) == conversation.id
+    assert _parent_of(first.span_id or "") == root.id
+    assert _parent_of(second.span_id or "") == root.id
+
+
+async def test_a_placing_sinks_sub_agent_tree_nests_under_the_parent_calls_conversation() -> (
+    None
+):
+    """A sub-agent's placed tree follows the tool-calling call that caused it.
+
+    Gemini roots the parent call's generation and the tool scheduling that
+    runs the sub-agent as siblings at its ambient, with no edge between them.
+    Rooting each tree at its own events' conversation put the parent's turn
+    under conversation 0 and the sub-agent's scheduling under conversation 1
+    -- the sub-agent's own -- where a Claude sub-agent's `agent` span nests
+    under the PARENT's conversation. Same shape here: the parent call, having
+    issued tool calls, claims the ambient; the scheduling tree rooted there
+    afterwards nests under the parent's conversation, and the two native
+    roots stay siblings. A sub-agent whose parent issued no tool calls keeps
+    its own conversation.
+    """
+    init_transcript(Transcript())
+    async with span("human_cli", type="agent"):
+        consumer_ambient = current_span_id()
+        assert consumer_ambient is not None
+        sink = _PlacingSink(consumer_ambient)
+        bridge = AgentBridge(
+            AgentState(messages=[ChatMessageUser(content=TASK)]),
+            accumulate_conversations=True,
+            model_event_sink=sink,
+        )
+        main: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+        async with span("Gemini CLI", type="agent"):
+            parent = await track_with_tool_call(
+                bridge,
+                main,
+                ToolCall(id="for_tool_call_1", function="invoke_agent", arguments={}),
+            )
+            generation = sink.place()
+            child_prompt = ChatMessageUser(content="Create the child proof file.")
+            child, _ = await spanned_track(bridge, [TASK_SYSTEM, child_prompt], "done")
+            scheduling = sink.place()
+
+    conversations = [
+        b for b in span_begins() if b.type == BRIDGE_CONVERSATION_SPAN_TYPE
+    ]
+    assert [b.name for b in conversations] == ["conversation 0", "conversation 1"]
+    parent_conversation = conversations[0].id
+    assert _parent_of(generation.id) == parent_conversation
+    assert (
+        _parent_of(scheduling.id) == parent_conversation
+    )  # siblings, under the parent
+    assert _parent_of(child.span_id or "") == scheduling.id  # placement kept
+    assert _parent_of(parent.span_id or "") == generation.id
