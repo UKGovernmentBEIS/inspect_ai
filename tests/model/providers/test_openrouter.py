@@ -618,7 +618,7 @@ async def test_messages_to_openai_think_tag_skipped_for_blank_reasoning() -> Non
 
 @pytest.mark.anyio
 async def test_messages_to_openai_think_tag_keeps_redacted_summary() -> None:
-    """A redacted block with a readable summary still replays as a <think> tag."""
+    """A redacted block with a readable summary replays its summary as a <think> tag."""
     from inspect_ai._util.content import ContentReasoning
     from inspect_ai.model._chat_message import ChatMessageAssistant
 
@@ -639,8 +639,12 @@ async def test_messages_to_openai_think_tag_keeps_redacted_summary() -> None:
     payload: dict[str, Any] = dict(converted[0])
     content = payload.get("content")
     text = content if isinstance(content, str) else ""
-    assert "<think" in text
+    assert "<think>" in text
     assert "weighed the options" in text
+    # the tag carries readable text only: no payload, signature, or attributes
+    assert "ENCRYPTED_BLOB_xyz" not in text
+    assert "rs_abc123" not in text
+    assert "redacted=" not in text
 
 
 # -- Prompt cache sticky routing (x-session-id) --------------------------------

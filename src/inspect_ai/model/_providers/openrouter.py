@@ -23,9 +23,6 @@ from inspect_ai.model._openai import (
     chat_choices_from_openai,
     openai_chat_message,
 )
-from inspect_ai.model._reasoning import (
-    reasoning_to_think_tag,
-)
 from inspect_ai.tool import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -233,9 +230,9 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         # output, and it dropped the encrypted thought signature Gemini needs
         # for multi-turn tool continuity. Reasoning that has no OpenRouter
         # reasoning_details (e.g. replayed cross-model) falls back to a
-        # `<think>` tag only when it has readable text: a redacted block with
-        # no summary (an Anthropic-native encrypted thought, say) would
-        # otherwise put its opaque payload into the assistant text channel.
+        # `<think>` tag carrying only its readable text, and to nothing when
+        # there is none (a redacted block with no summary, say), so no opaque
+        # payload or signature ever enters the assistant text channel.
         family = self.model_family()
         _replay_reasoning_content = _requires_reasoning_content(family)
 
@@ -260,7 +257,11 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             readable = content.summary if content.redacted else content.reasoning
             if not (readable or "").strip():
                 return {}
-            return reasoning_to_think_tag(content)
+            # Readable text only. Signature attributes and a redacted block's
+            # opaque payload (an Anthropic thinking signature lives in
+            # `reasoning`, for instance) mean nothing to another provider's
+            # model, and Gemini echoes such blobs back into its output.
+            return f"<think>\n{readable}\n</think>"
 
         return [
             await openai_chat_message(message, "system", handle_reasoning_details)
