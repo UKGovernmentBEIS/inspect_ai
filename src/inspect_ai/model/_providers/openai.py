@@ -10,7 +10,6 @@ from openai import (
     AsyncOpenAI,
     BadRequestError,
     DefaultAsyncHttpxClient,
-    NotFoundError,
     NotGiven,
     RateLimitError,
     omit,
@@ -387,8 +386,14 @@ class OpenAIAPI(ModelAPI):
         if self.responses_api:
             try:
                 return await self._count_tokens_native(input, config)
-            except NotFoundError:
-                pass  # endpoint not available (e.g. Azure); fall through to tiktoken
+            except APIStatusError as ex:
+                # 404 means the endpoint has no route. 405 can mean the real
+                # GET /responses/{response_id} route matched "input_tokens"
+                # when the POST /responses/input_tokens route is unavailable.
+                if ex.status_code not in (404, 405):
+                    raise
+                # Endpoint unavailable (e.g. Azure); fall through to tiktoken.
+                pass
 
         # For non-responses API, use tiktoken-based counting
         from .._tokens import count_tokens
@@ -823,7 +828,12 @@ class OpenAIAPI(ModelAPI):
                 input=input_params,
                 instructions=instructions if instructions is not None else omit,
             )
-        except NotFoundError:
+        except APIStatusError as ex:
+            # 404 means the endpoint has no route. 405 can mean the real
+            # GET /responses/{response_id} route matched "compact" when the
+            # POST /responses/compact route is unavailable.
+            if ex.status_code not in (404, 405):
+                raise
             raise NotImplementedError(
                 f"Native compaction endpoint not available for {self.service_model_name()}"
             ) from None
