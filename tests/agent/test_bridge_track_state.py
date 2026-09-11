@@ -40,10 +40,15 @@ def task_bridge() -> AgentBridge:
 
 
 async def track(
-    bridge: AgentBridge, input: list[ChatMessage], completion: str
+    bridge: AgentBridge,
+    input: list[ChatMessage],
+    completion: str,
+    model: str | None = None,
 ) -> ModelOutput:
-    output = ModelOutput.from_content(model="mockllm/model", content=completion)
-    await bridge._track_state(input, output)
+    output = ModelOutput.from_content(
+        model=model or "mockllm/model", content=completion
+    )
+    await bridge._track_state(input, output, model)
     return output
 
 
@@ -116,6 +121,108 @@ async def test_side_call_after_main_loop_does_not_displace_task_thread() -> None
 
     assert bridge.state.output.completion == "Castle"
     assert len(bridge.state.messages) == len(turn2) + 1
+
+
+# ---------------------------------------------------------------------------
+# Model-identity arbitration (the `model` parameter to `_track_state`)
+# ---------------------------------------------------------------------------
+
+
+async def test_track_state_adopts_main_model_after_side_model_arrives_first() -> None:
+    """Explicit model identifiers do not interfere with descent-based arbitration.
+
+    Same shape as `test_side_call_arriving_first_does_not_displace_task_thread`,
+    with `model` supplied on both calls: the main call's `EXACT` descent still
+    displaces the non-descending side call from a different model.
+    """
+    bridge = task_bridge()
+
+    await track(
+        bridge, title_generation_input(), "Doctor Who Series 9 setting", "openai/title"
+    )
+    await track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "Castle", "openai/agent"
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_track_state_does_not_replace_primary_with_longer_side_model() -> None:
+    """A longer side call from a different model must not hijack tracking.
+
+    With no initial input to anchor descent on, the legacy length heuristic
+    alone would let any longer call take over (see
+    `test_length_heuristic_fallback_without_initial_input`). Model identity
+    now gates that fallback: once a call establishes a primary model, a
+    longer call from a *different* model is rejected outright instead of
+    winning the length comparison.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    primary_input: list[ChatMessage] = [
+        ChatMessageUser(content="primary 0"),
+        ChatMessageUser(content="primary 1"),
+    ]
+    await track(bridge, primary_input, "primary response", "openai/agent")
+
+    side_input: list[ChatMessage] = [
+        ChatMessageUser(content=f"reviewer {i}") for i in range(8)
+    ]
+    await track(bridge, side_input, "reviewer verdict", "openai/codex-auto-review")
+
+    assert bridge.state.output.completion == "primary response"
+
+
+async def test_track_state_adopts_growing_primary_model_conversation() -> None:
+    """The legacy length heuristic still promotes a growing same-model thread.
+
+    Non-extending messages (a scaffold that rewrites its history each call)
+    still win by length against the previous call from the same model, now
+    that the comparison is keyed per model rather than a single global count.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    await track(
+        bridge,
+        [ChatMessageUser(content="primary 0")],
+        "initial response",
+        "openai/agent",
+    )
+
+    growing_input: list[ChatMessage] = [
+        ChatMessageUser(content="primary 0"),
+        ChatMessageUser(content="primary 1"),
+    ]
+    await track(bridge, growing_input, "growing response", "openai/agent")
+
+    assert bridge.state.output.completion == "growing response"
+
+
+async def test_track_state_recovers_compacted_primary_model_conversation() -> None:
+    """Per-model message counts still recover tracking after a rejected candidate.
+
+    A same-model call shorter than the tracked thread is parked (not
+    adopted) but still updates that model's own last-seen length; a
+    subsequent same-model call longer than *that* recovers tracking via the
+    legacy heuristic.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    original_input: list[ChatMessage] = [
+        ChatMessageUser(content=f"primary {i}") for i in range(4)
+    ]
+    await track(bridge, original_input, "original response", "openai/agent")
+
+    compacted_input: list[ChatMessage] = [ChatMessageUser(content="primary 0")]
+    await track(bridge, compacted_input, "compacted response", "openai/agent")
+
+    recovered_input: list[ChatMessage] = [
+        ChatMessageUser(content="primary 0"),
+        ChatMessageUser(content="primary 1"),
+    ]
+    await track(bridge, recovered_input, "recovered response", "openai/agent")
+
+    assert bridge.state.output.completion == "recovered response"
 
 
 # ---------------------------------------------------------------------------
