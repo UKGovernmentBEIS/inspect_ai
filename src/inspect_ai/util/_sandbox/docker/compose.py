@@ -441,8 +441,8 @@ async def compose_command(
                 )
                 continue
             logger.warning(
-                f"Docker compose command exited before reading its stdin "
-                f"{retries} time(s): {shlex.join(compose_command)}"
+                f"Docker compose command exited before reading its stdin; "
+                f"giving up after {retries} attempt(s): {shlex.join(compose_command)}"
             )
             return run.result
 

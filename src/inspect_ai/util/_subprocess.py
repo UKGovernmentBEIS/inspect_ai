@@ -60,11 +60,12 @@ class SubprocessRun(Generic[T]):
     stdin_written: bool
     """Whether `input` was fully written to the child's stdin.
 
-    Trivially `True` when no input was given. `False` means the child exited
-    (or closed its stdin) before the write finished; `result` still carries the
-    child's exit status and output. Input smaller than the OS pipe buffer is
-    accepted by the kernel whether or not the child reads it, so `True` does
-    not imply the child consumed it.
+    Trivially `True` when no input was given. `False` means the write failed
+    because the child had already exited or closed its stdin; that can happen
+    at any input size and which side wins is timing dependent. `result` still
+    carries the child's exit status and output. `True` means the write
+    completed, not that the child read the input: input that fits the OS pipe
+    buffer sits there whether or not the child ever reads it.
     """
 
 
@@ -207,7 +208,7 @@ async def run_subprocess(
     timeout: int | None = None,
     concurrency: bool = True,
 ) -> SubprocessRun[str] | SubprocessRun[bytes]:
-    """`subprocess()` that also reports whether `input` reached the child.
+    """`subprocess()` that also reports whether `input` was fully written to the child's stdin.
 
     A child that exits before reading its stdin is not an error for
     `subprocess()` (its `ExecResult` says what happened), but some callers

@@ -428,3 +428,15 @@ async def test_log_stream_empty_lines(monkeypatch) -> None:
     stream = cast(ByteReceiveStream, _FakeStream([b"a\n\nb\n"]))
     await _log_stream(stream)
     assert messages == ["a", "", "b"]
+
+
+@pytest.mark.anyio
+async def test_subprocess_timeout_while_stdin_writer_is_blocked(monkeypatch):
+    """A timeout still fires and kills the child when the stdin write is stuck.
+
+    The child never reads its stdin and never exits, so the writer is parked in
+    `send()` when the timeout cancels the task group.
+    """
+    monkeypatch.setattr(_subprocess_mod, "SUBPROCESS_SIGTERM_GRACE_SECONDS", 0.2)
+    with pytest.raises(TimeoutError):
+        await subprocess(["sleep", "30"], input=_LARGE_IO, timeout=1)

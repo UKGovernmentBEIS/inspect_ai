@@ -94,7 +94,7 @@ async def test_compose_command_returns_last_result_when_stdin_retries_exhausted(
     assert result is ATTACH_FAILED.result
     assert len(calls) == 3
     assert len(warnings) == 1
-    assert "exited before reading its stdin 3 time(s)" in warnings[0]
+    assert "giving up after 3 attempt(s)" in warnings[0]
 
 
 async def test_compose_command_stdin_retry_honours_timeout_retry_false(
@@ -121,7 +121,7 @@ async def test_compose_command_does_not_retry_without_a_timeout(
 async def test_compose_command_does_not_retry_when_stdin_was_written(
     outcome: SubprocessRun[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A command that consumed its stdin ran; its result stands whatever it is."""
+    """A command whose stdin was written ran; its result stands whatever it is."""
     calls = _stub_run_subprocess(monkeypatch, [outcome, OK])
     result = await compose_command(EXEC, project=PROJECT, timeout=10, input="payload")
     assert result is outcome.result
