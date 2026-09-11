@@ -30,6 +30,7 @@
 - Sandbox tools: `bash_session()`, `text_editor()`, `exec_remote()` and sandboxed MCP servers now run as the sandbox's default user instead of always as root; the three tools accept `user="root"` to restore the old behavior.
 - Sandbox Tools: Binaries downloaded from S3 that fail SHA256 verification or lack a pinned digest are now rejected instead of run with a warning; `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` has been removed.
 - Sandbox tools: Fixed a race during injection that let a non-root sandbox user replace the tools archive before root unpacked it.
+- Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
 - Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
 - Inspect View: Requests for unreadable log headers now return 403 instead of 500.
 - Eval Set: Tasks that set a non-mean epochs reducer now reuse their completed log on subsequent `eval_set()` calls instead of being re-run every time.

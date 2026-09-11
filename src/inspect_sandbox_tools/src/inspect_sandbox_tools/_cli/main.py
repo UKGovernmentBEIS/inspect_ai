@@ -28,6 +28,7 @@ from inspect_sandbox_tools._util.json_rpc_chunking import (
     JSON_RPC_RESPONSE_CHUNK_METHOD,
     chunk_json_rpc_response_if_needed,
     handle_json_rpc_response_chunk_request,
+    prepare_json_rpc_response_chunk_root,
 )
 from inspect_sandbox_tools._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_sandbox_tools._util.load_tools import load_tools
@@ -88,6 +89,7 @@ def main() -> None:
 
 def start_server() -> None:
     """Start the sandbox tools server and validate it is responsive."""
+    prepare_json_rpc_response_chunk_root()
     _ensure_server_is_running()
     healthcheck()
 
@@ -210,6 +212,7 @@ async def _exec(request: str | None) -> None:
             request_json_str = json.dumps(request_data)
             target = switch_target(run_as, can_switch_user=os.getuid() == 0)
             if target is not None:
+                prepare_json_rpc_response_chunk_root()
                 switch_user(target)
                 os.environ["HOME"] = get_home_dir(target)
 
