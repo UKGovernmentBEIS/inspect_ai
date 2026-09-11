@@ -33,8 +33,11 @@ refused even here: no earlier release left a rootless installation to repair, an
 the fallback may itself be running as root.
 """
 
+import ast
 import inspect
+import json
 import stat
+from pathlib import Path
 from textwrap import dedent
 
 from inspect_ai.util import SandboxEnvironment, sandbox
@@ -252,6 +255,35 @@ async def append_bashrc(
         )
 
 
+def _human_agent_command_handler_source(command: HumanAgentCommand) -> str:
+    """Render the bound CLI method structurally from its defining source file."""
+    handler = getattr(command.cli, "__func__", command.cli)
+    source_file = inspect.getsourcefile(handler)
+    if source_file is None:
+        raise ValueError("Could not find command handler source file")
+    tree = ast.parse(Path(source_file).read_text(encoding="utf-8"))
+    handler_line = handler.__code__.co_firstlineno
+    handler_node = next(
+        (
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == handler.__name__
+            and min(
+                (decorator.lineno for decorator in node.decorator_list),
+                default=node.lineno,
+            )
+            == handler_line
+        ),
+        None,
+    )
+    if handler_node is None:
+        raise ValueError("Could not find command handler definition")
+
+    handler_node.name = f"_{command.name}_cli"
+    return ast.unparse(handler_node)
+
+
 def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     # filter out hidden commands
     commands = [command for command in commands if "cli" in command.contexts]
@@ -259,9 +291,31 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     # standard imports (including any dependencies that call methods carry)
     imports = dedent("""
     import argparse
+    import json
     import sys
+    import types
+    import typing
     from argparse import Namespace
     from pathlib import Path
+
+    try:
+        import typing_extensions
+    except ImportError:
+        typing_extensions = None
+
+    try:
+        from typing_extensions import override
+    except ImportError:
+        try:
+            from typing import override
+        except ImportError:
+            def override(function):
+                return function
+
+    if not hasattr(typing, "override"):
+        typing.override = override
+    if typing_extensions is None:
+        typing_extensions = types.SimpleNamespace(override=override)
 
     sys.path.append("/var/tmp/sandbox-services/human_agent")
     from human_agent import call_human_agent
@@ -272,12 +326,9 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
         return f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
     """)
 
-    # command handler source code (extracted from call methods)
+    # command handler source code and state (extracted from call methods)
     command_handlers = "\n\n".join(
-        dedent(
-            inspect.getsource(command.cli).replace("cli(self, ", f"{command.name}(", 1)
-        )
-        for command in commands
+        human_agent_command_handler(command) for command in commands
     )
 
     # parse commands
@@ -324,6 +375,18 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     """) + "\n".join(command_dispatchers)
 
     return "\n".join([imports, command_handlers, parse, dispatch]) + "\n"
+
+
+def human_agent_command_handler(command: HumanAgentCommand) -> str:
+    name = command.name
+    handler = _human_agent_command_handler_source(command)
+    state = repr(json.dumps(command.cli_state))
+    return (
+        f"{handler}\n"
+        f"_{name}_state = Namespace(**json.loads({state}))\n"
+        f"def {name}(args):\n"
+        f"    _{name}_cli(_{name}_state, args)"
+    )
 
 
 def human_agent_bashrc(
