@@ -94,7 +94,7 @@ class ReviewerPolicyConfig(BaseModel):
 
     ```yaml
     reviewers:
-      - name: evaltools/output_monitor
+      - name: mypackage/output_monitor
         tools: bash, python
 
       - name: human

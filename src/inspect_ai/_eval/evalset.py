@@ -768,6 +768,7 @@ def eval_set(
             sandbox,
             sample_shuffle,
             notification=notification,
+            review=review,
             input_media_policy="trusted_pre_run",
         )
         if len(capture_tasks) == 0:
@@ -858,6 +859,7 @@ def eval_set(
                 sandbox,
                 sample_shuffle,
                 notification=notification,
+                review=review,
                 input_media_policy="trusted_pre_run",
             )
             if len(resolved) == 0:
@@ -1020,6 +1022,7 @@ def eval_set(
             sandbox,
             sample_shuffle,
             notification=notification,
+            review=review,
             input_media_policy="trusted_pre_run",
         )
 

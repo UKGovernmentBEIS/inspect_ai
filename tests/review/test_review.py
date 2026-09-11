@@ -333,8 +333,9 @@ async def test_calls_that_never_executed_are_not_reviewed() -> None:
     )
 
     assert seen == []
-    assert tool_message(messages).error is not None
-    assert tool_message(messages).error.type == "parsing"
+    error = tool_message(messages).error
+    assert error is not None
+    assert error.type == "parsing"
 
 
 async def test_handoffs_are_not_reviewed() -> None:

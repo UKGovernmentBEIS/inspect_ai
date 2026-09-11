@@ -113,4 +113,4 @@ Agents integrated via the [Agent Bridge](agent-bridge.qmd) run their own tool lo
 
 ## Transcript
 
-Each decision is recorded as a `ReviewEvent` immediately after the `ToolEvent` for the call it reviewed. The event records the reviewer's name, the call, the decision, and the reviewer's explanation; the result and the call's view are on the `ToolEvent` with the same call id.
+Each decision is recorded as a `ReviewEvent` once the tool call completes, after the `ToolEvent` for the call it reviewed and any events the tool itself emitted. The event records the reviewer's name, the call, the decision, and the reviewer's explanation; the result and the call's view are on the `ToolEvent` with the same call id.
