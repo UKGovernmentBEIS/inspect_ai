@@ -560,4 +560,4 @@ The control server is on by default. To run an eval without it:
 inspect eval ctf.py --ctl-server=false
 ```
 
-The `INSPECT_EVAL_CTL_SERVER` environment variable mirrors the option (for example, set `INSPECT_EVAL_CTL_SERVER=false` to disable it across a CI job). If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.
+The `INSPECT_EVAL_CTL_SERVER` environment variable mirrors the option (for example, set `INSPECT_EVAL_CTL_SERVER=false` to disable it across a CI job). It applies to `eval()` / `eval_set()` called from Python as well as to the CLI, whenever `ctl_server` is not passed explicitly — including `INSPECT_EVAL_CTL_SERVER=keep`, which makes a Python `eval()` park after it finishes just as `--ctl-server=keep` does. If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.
