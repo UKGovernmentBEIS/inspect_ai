@@ -6,8 +6,8 @@ moves from queued to terminal, where each transition lives in
 side-effects every terminal outcome must perform. Companion docs:
 [`ctl/sample-requeue.md`](ctl/sample-requeue.md) (re-running a terminal
 sample in a live eval), [`sample-source.md`](sample-source.md) (dynamic
-sample feeds), [`retry-reused-sample-flush.md`](retry-reused-sample-flush.md)
-(the reuse sweep on task retry).
+sample feeds), [`retry-seeded-attempt-log.md`](retry-seeded-attempt-log.md)
+(seeding a retry attempt's log from the prior attempt).
 
 Deliberately **not** a dispatch mechanism: transitions here are ordinary
 control flow, and cancellation / fail-on-error propagate as exceptions

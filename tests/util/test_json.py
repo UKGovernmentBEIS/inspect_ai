@@ -440,3 +440,17 @@ def test_exceeds_max_depth_terminates_on_cycles():
     cyclic_list: list[object] = []
     cyclic_list.append(cyclic_list)
     assert exceeds_max_depth(cyclic_list, 100)
+
+
+def test_excluding_object_builder_skips_excluded_top_level_keys() -> None:
+    from inspect_ai._util.json import ExcludingObjectBuilder, get_ijson_backend
+
+    document = (
+        b'{"id": 1, "events": [{"a": {"b": 2}}, 3], "input": "q", '
+        b'"nested": {"events": "kept"}}'
+    )
+    builder = ExcludingObjectBuilder({"events", "missing"})
+    for _prefix, event, value in get_ijson_backend().parse(document):
+        builder.event(event, value)
+    # only top-level keys are excluded; a same-named nested key is kept
+    assert builder.data == {"id": 1, "input": "q", "nested": {"events": "kept"}}

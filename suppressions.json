@@ -1893,12 +1893,6 @@
       "undescribed": 2
     }
   },
-  "tests/test_task_retry_error_history.py": {
-    "type: ignore[arg-type]": {
-      "count": 4,
-      "undescribed": 4
-    }
-  },
   "tests/tools/test_call_tools.py": {
     "type: ignore[assignment]": {
       "count": 1,

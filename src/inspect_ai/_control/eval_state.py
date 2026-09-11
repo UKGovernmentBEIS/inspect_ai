@@ -949,7 +949,7 @@ def reset_gracefully_resolved() -> None:
 
 
 def detach_eval_live(eval_id: str) -> None:
-    """Detach a superseded attempt's live data source.
+    """Detach a superseded or discarded attempt's live data source.
 
     Called by ``TaskLogger.reinit()`` when a task retry re-points the (one,
     shared) logger at a fresh attempt: the superseded attempt's :attr:`live`
@@ -962,6 +962,9 @@ def detach_eval_live(eval_id: str) -> None:
     is deliberately left alone: it holds data read from this attempt's *own*
     log, which stays correct until that log is deleted —
     :func:`invalidate_log_sample_summaries` handles that moment.
+    ``TaskLogger.discard()`` also detaches these handles before releasing an
+    unfinished attempt's recorder, so terminal failures cannot leave live
+    control requests reaching into a removed recorder entry.
 
     The attempt-scoped :attr:`sample_requeue` handle is detached here too: a
     requeue aimed at a superseded attempt's ``eval_id`` must be rejected, not

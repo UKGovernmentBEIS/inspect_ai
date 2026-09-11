@@ -9,6 +9,7 @@ from typing import (
     TypeAlias,
 )
 
+import ijson  # type: ignore[import-untyped]
 import jsonpatch
 from jsonpointer import (  # type: ignore  # jsonpointer is already a dependency of jsonpatch
     JsonPointerException,
@@ -130,7 +131,6 @@ def get_ijson_backend() -> Any:
     pure-Python backend when running under trio so that async readers
     (e.g. ``read_eval_log_async(..., exclude_fields=...)``) work there.
     """
-    import ijson  # type: ignore[import-untyped]
     import sniffio
 
     try:
@@ -141,6 +141,38 @@ def get_ijson_backend() -> Any:
     except sniffio.AsyncLibraryNotFoundError:
         pass
     return ijson
+
+
+class ExcludingObjectBuilder:
+    """Build a JSON object from ijson events, skipping excluded top-level keys.
+
+    The counterpart of ijson's ``ObjectBuilder`` for reading a large object
+    selectively: feed it the ``(event, value)`` pairs a streaming parse
+    yields, and ``data`` holds the included top-level fields when the parse
+    ends. An excluded key's subtree is never built, so it costs no memory.
+    """
+
+    def __init__(self, exclude_fields: set[str]) -> None:
+        self.data: dict[str, Any] = {}
+        self._excluded = exclude_fields
+        self._depth = 0
+        self._key = ""
+        self._builder: Any | None = None
+
+    def event(self, event: str, value: Any) -> None:
+        if event in ("start_map", "start_array"):
+            self._depth += 1
+        elif event in ("end_map", "end_array"):
+            self._depth -= 1
+
+        if self._depth == 1 and event == "map_key":
+            self._key = value
+            self._builder = None if value in self._excluded else ijson.ObjectBuilder()
+        elif self._builder is not None:
+            self._builder.event(event, value)
+            if self._depth == 1:
+                self.data[self._key] = self._builder.value
+                self._builder = None
 
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]

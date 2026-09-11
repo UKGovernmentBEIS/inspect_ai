@@ -258,10 +258,10 @@ async def test_eval_recorder_multiple_updates_ordered(tmp_path: Path) -> None:
 async def test_eval_recorder_update_before_first_write_creates_no_destination(
     tmp_path: Path,
 ) -> None:
-    # design/retry-deferred-destination-log.md: the eager per-update flush keys
-    # off "the destination has been written at least once", so a retune while a
-    # held retry attempt defers its destination writes stays journal-only —
-    # writing it would create exactly the empty newest log the hold prevents.
+    # The eager per-update flush keys off "the destination has been written at
+    # least once" (ZipLogFile.destination_written), so a retune before
+    # log_start's flush stays journal-only — writing it would create an empty
+    # newest log ahead of the seeded first write (design/retry-seeded-attempt-log.md).
     log = _make_log()
     recorder = EvalRecorder(str(tmp_path))
     location = await recorder.log_init(log.eval)
