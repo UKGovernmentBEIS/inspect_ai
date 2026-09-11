@@ -96,6 +96,13 @@ def image_content_returning_tool(call_log: list[dict]):
 # =============================================================================
 
 
+NONROOT_SANDBOX = (
+    "docker",
+    str(Path(__file__).parent / "test_sandbox_compose.yaml"),
+)
+"""A sandbox whose default user is not root (root exec still works)."""
+
+
 @task
 def bridged_tools_task(test_solver: Solver, sandbox: str | tuple[str, str] = "docker"):
     return Task(
@@ -185,10 +192,7 @@ async def call_mcp_tools_list(config: MCPServerConfigHTTP) -> dict:
 # lives in the root-owned tools tree) when the sandbox default user is not root.
 @pytest.mark.parametrize(
     "sandbox",
-    [
-        "docker",
-        ("docker", str(Path(__file__).parent / "test_sandbox_compose.yaml")),
-    ],
+    ["docker", NONROOT_SANDBOX],
 )
 @skip_if_no_docker
 @pytest.mark.slow
@@ -220,6 +224,53 @@ def test_single_tool_call_returns_correct_result(
         return solve
 
     eval_bridged_tools_task(test_solver(), sandbox)
+
+    assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_single_tool_call_with_nonroot_default_user() -> None:
+    """The model service runs as the non-root default user while the proxy runs as root.
+
+    The service's request/response queues are private (0700) to the default user;
+    the proxy inside the sandbox-tools daemon runs as root and must still be able to
+    file requests into them and collect the responses.
+    """
+    call_log: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                bridged_tools=[
+                    BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
+                ]
+            ) as bridge:
+                whoami = await sandbox().exec(["id", "-u"])
+                assert whoami.stdout.strip() not in ("", "0"), whoami
+                config = bridge.mcp_server_configs[0]
+                response = await call_mcp_tool(
+                    config, "calculator_add", {"x": 5, "y": 3}
+                )
+                assert response["result"]["content"][0]["text"] == "8"
+
+                queues = await sandbox().exec(
+                    [
+                        "sh",
+                        "-c",
+                        "stat -c '%U %a' /var/tmp/sandbox-services/bridge_model_service/*/requests "
+                        "/var/tmp/sandbox-services/bridge_model_service/*/responses",
+                    ]
+                )
+                assert queues.success, queues.stderr
+                assert queues.stdout.split("\n")[:-1] == ["nonroot 700"] * 2, queues
+
+            return state
+
+        return solve
+
+    eval_bridged_tools_task(test_solver(), NONROOT_SANDBOX)
 
     assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
 

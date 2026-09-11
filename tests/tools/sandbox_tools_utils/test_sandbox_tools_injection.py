@@ -2,11 +2,15 @@
 
 from contextlib import asynccontextmanager
 from io import BytesIO
-from typing import AsyncIterator, BinaryIO, NamedTuple
+from typing import AsyncIterator, BinaryIO
 
 import anyio
 import pytest
-from test_helpers.sandbox import CannedSandbox
+from test_helpers.sandbox import (
+    CannedSandbox,
+    FrameworkDirectoryCall,
+    framework_directory_call,
+)
 
 from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
@@ -19,7 +23,6 @@ from inspect_ai.util._sandbox._framework_directory import (
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
-    SHELL_PATH,
     FrameworkDirectoryError,
 )
 from inspect_ai.util._sandbox.environment import (
@@ -84,30 +87,27 @@ NOT_ROOT = ExecResult(
 """A provider that accepted user="root" but ran the helper as someone else."""
 
 
+def _tools_dir_call(cmd: list[str]) -> FrameworkDirectoryCall | None:
+    call = framework_directory_call(cmd)
+    return call if call is not None and call.path == SANDBOX_TOOLS_DIR else None
+
+
 def is_framework_dir_call(cmd: list[str]) -> bool:
-    return cmd[:2] == [SHELL_PATH, "-c"] and SANDBOX_TOOLS_DIR.rsplit("/", 1)[1] in cmd
+    return _tools_dir_call(cmd) is not None
 
 
 def wrapped_command(cmd: list[str]) -> list[str]:
     """The command a framework-directory call execs after verification."""
-    assert is_framework_dir_call(cmd)
-    leaf = SANDBOX_TOOLS_DIR.rsplit("/", 1)[1]
-    return cmd[cmd.index(leaf) + 1 :]
+    call = _tools_dir_call(cmd)
+    assert call is not None
+    return list(call.cmd)
 
 
-class HelperFlags(NamedTuple):
+def helper_flags(cmd: list[str]) -> FrameworkDirectoryCall:
     """The fixed arguments a framework-directory call passes ahead of the path."""
-
-    expected_uid: str
-    create: str
-    repair: str
-    mode: str
-
-
-def helper_flags(cmd: list[str]) -> HelperFlags:
-    assert is_framework_dir_call(cmd)
-    leaf = SANDBOX_TOOLS_DIR.rsplit("/", 1)[1]
-    return HelperFlags(*cmd[cmd.index(leaf) - 5 : cmd.index(leaf) - 1])
+    call = _tools_dir_call(cmd)
+    assert call is not None
+    return call
 
 
 DEFAULT_USER = ExecResult(
@@ -264,7 +264,7 @@ async def test_inject_uses_root_and_verifies_before_start(
     ]
     assert len(verifications) >= 2
     assert verifications[-1] == start - 1
-    assert helper_flags(sandbox.exec_calls[start - 1][0]).create == "0"
+    assert not helper_flags(sandbox.exec_calls[start - 1][0]).create
     # Every root-side check insists the script really ran as uid 0, and none asks
     # for a wrong-mode root-owned directory to be repaired.
     root_flags = [
@@ -273,7 +273,7 @@ async def test_inject_uses_root_and_verifies_before_start(
         if is_framework_dir_call(cmd) and user == "root"
     ]
     assert all(flags.expected_uid == "0" for flags in root_flags)
-    assert all(flags.repair == "0" for flags in root_flags)
+    assert not any(flags.repair for flags in root_flags)
     # The tools tree stays private to the tools user.
     assert all(flags.mode == "700" for flags in root_flags)
     # No path-based chmod: the directory is created 0700 and verified, not repaired.
@@ -306,8 +306,8 @@ async def test_inject_falls_back_when_provider_runs_root_as_default_user(
         if is_framework_dir_call(cmd) and user is None
     ]
     assert all(flags.expected_uid == "" for flags in default_flags)
-    assert [flags.repair for flags in default_flags if flags.create == "1"] == ["1"]
-    assert all(flags.repair == "0" for flags in default_flags if flags.create == "0")
+    assert [flags.repair for flags in default_flags if flags.create] == [True]
+    assert not any(flags.repair for flags in default_flags if not flags.create)
 
 
 @pytest.mark.parametrize(
