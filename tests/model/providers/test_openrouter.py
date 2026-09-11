@@ -1,5 +1,6 @@
 """Tests for the OpenRouter provider's Anthropic prompt-caching support."""
 
+import json
 from typing import Any
 
 import pytest
@@ -294,14 +295,13 @@ def test_apply_cache_creation_usage_noop_when_no_call() -> None:
 
 
 @pytest.mark.anyio
-async def test_messages_to_openai_gemini_think_tag_clean_for_text_and_encrypted() -> (
-    None
-):
-    """Gemini text+encrypted reasoning must produce a clean <think> tag (issue #4320).
+async def test_messages_to_openai_gemini_replays_encrypted_structurally() -> None:
+    """Gemini text+encrypted reasoning replays as structural reasoning_details.
 
-    The bug: reasoning_to_think_tag() dumps the full HTML-escaped JSON
-    signature blob as an attribute and the encrypted payload as the body.
-    The fix: emit only the readable summary text, no signature/blob.
+    The unsigned readable text is dropped (it is unverifiable on replay) and
+    the encrypted continuity blob is kept. Nothing is serialized into the
+    assistant text channel — no <think> tag, no HTML-escaped signature blob,
+    no encrypted payload as text.
     """
     from inspect_ai._util.content import ContentReasoning
     from inspect_ai.model._chat_message import ChatMessageAssistant
@@ -313,9 +313,22 @@ async def test_messages_to_openai_gemini_think_tag_clean_for_text_and_encrypted(
         "I've determined the most direct path forward involves the run_bash tool."
     )
     encrypted_blob = "CjcBjz1rXxKfW2fJuqbBlfGrk8wxR..."
-    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + (
-        '[{"type": "reasoning.text", "text": "...", "format": "google-gemini-v1", "index": 0},'
-        '{"type": "reasoning.encrypted", "data": "CjcBjz1rXxKfW2fJ...", "format": "google-gemini-v1", "id": "tool_X", "index": 1}]'
+    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + json.dumps(
+        [
+            {
+                "type": "reasoning.text",
+                "text": readable_text,
+                "format": "google-gemini-v1",
+                "index": 0,
+            },
+            {
+                "type": "reasoning.encrypted",
+                "data": encrypted_blob,
+                "format": "google-gemini-v1",
+                "id": "tool_X",
+                "index": 1,
+            },
+        ]
     )
     msg = ChatMessageAssistant(
         content=[
@@ -331,29 +344,31 @@ async def test_messages_to_openai_gemini_think_tag_clean_for_text_and_encrypted(
     api = _make_api("google/gemini-2.5-flash")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
-    content = payload.get("content")
-    if isinstance(content, list):
-        text = "".join(b.get("text", "") for b in content if isinstance(b, dict))
-    else:
-        text = content if isinstance(content, str) else ""
-
-    # Readable text must appear
-    assert readable_text in text
-    # Encrypted blob must NOT appear
-    assert encrypted_blob not in text
-    # No HTML-escaped JSON blob
-    assert "&quot;" not in text
-    # No signature attribute in the think tag
-    assert 'signature="' not in text
-    # Clean think tag
-    assert "<think>\n" in text
-    assert "</think>" in text
+    payload: dict[str, Any] = dict(converted[0])
+    # structural replay: only the encrypted entry survives
+    assert "reasoning_details" in payload
+    details = payload["reasoning_details"]
+    assert [d["type"] for d in details] == ["reasoning.encrypted"]
+    assert details[0]["data"] == encrypted_blob
+    # nothing leaks into the text channel
+    serialized = json.dumps(payload)
+    assert "<think" not in serialized
+    assert "&quot;" not in serialized
+    assert "reasoning-details://" not in serialized
+    # readable text was dropped (unsigned, unverifiable)
+    assert readable_text not in serialized
 
 
 @pytest.mark.anyio
-async def test_messages_to_openai_gemini_think_tag_text_only() -> None:
-    """Gemini text-only reasoning (not encrypted) uses reasoning field directly."""
+async def test_messages_to_openai_gemini_unsigned_text_only_dropped() -> None:
+    """Unsigned text-only Gemini reasoning is dropped, leaving empty details.
+
+    Matching OpenRouter's SDK, an unsigned reasoning.text (default format
+    anthropic-claude-v1, a signed format) with no encrypted companion is
+    filtered out; the empty array is preserved rather than replayed as text.
+    In real traffic Gemini signs a terminal-turn thought, so this synthetic
+    edge case is what keeps an unverifiable thought out of the channel.
+    """
     from inspect_ai._util.content import ContentReasoning
     from inspect_ai.model._chat_message import ChatMessageAssistant
     from inspect_ai.model._providers.openrouter import (
@@ -376,27 +391,183 @@ async def test_messages_to_openai_gemini_think_tag_text_only() -> None:
     api = _make_api("google/gemini-2.5-pro")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
-    content = payload.get("content")
-    if isinstance(content, list):
-        text = "".join(b.get("text", "") for b in content if isinstance(b, dict))
-    else:
-        text = content if isinstance(content, str) else ""
-
-    assert "Step by step reasoning here." in text
-    assert "&quot;" not in text
-    assert 'signature="' not in text
+    payload: dict[str, Any] = dict(converted[0])
+    assert "reasoning_details" in payload
+    assert payload["reasoning_details"] == []
+    serialized = json.dumps(payload)
+    assert "<think" not in serialized
+    assert "Step by step reasoning here." not in serialized
 
 
 @pytest.mark.anyio
-async def test_messages_to_openai_gemini_think_tag_skipped_without_readable_text() -> (
+async def test_messages_to_openai_replays_encrypted_details_for_gemini() -> None:
+    """Gemini-family models replay the encrypted reasoning detail structurally.
+
+    The encrypted entry carries the thought signature Gemini needs for
+    multi-turn tool continuity, so it is sent as reasoning_details rather than
+    dropped or serialized into the assistant text channel.
+    """
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._providers.openrouter import (
+        OPENROUTER_REASONING_DETAILS_SIGNATURE,
+    )
+
+    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + json.dumps(
+        [
+            {
+                "type": "reasoning.encrypted",
+                "data": "ENCRYPTED",
+                "format": "google-gemini-v1",
+                "id": "tool_X",
+            }
+        ]
+    )
+    msg = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="ENCRYPTED", redacted=True, signature=signature)
+        ],
+    )
+
+    api = _make_api("google/gemini-3-pro-preview")
+    converted = await api.messages_to_openai([msg])
+
+    payload: dict[str, Any] = dict(converted[0])
+    assert "reasoning_details" in payload
+    details = payload["reasoning_details"]
+    assert [d["type"] for d in details] == ["reasoning.encrypted"]
+    assert "<think" not in json.dumps(payload)
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_preserves_reasoning_details_for_non_gemini() -> None:
+    """Anthropic/Grok/OpenAI signed reasoning replay must be left intact."""
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._providers.openrouter import (
+        OPENROUTER_REASONING_DETAILS_SIGNATURE,
+    )
+
+    original = [
+        {
+            "type": "reasoning.text",
+            "text": "considered options",
+            "format": "anthropic-claude-v1",
+            "signature": "sig-abc",
+            "id": "r1",
+        }
+    ]
+    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + json.dumps(original)
+    msg = ChatMessageAssistant(
+        content=[ContentReasoning(reasoning="considered options", signature=signature)],
+    )
+
+    api = _make_api("anthropic/claude-sonnet-4-5")
+    converted = await api.messages_to_openai([msg])
+
+    payload: dict[str, Any] = dict(converted[0])
+    assert "reasoning_details" in payload
+    # signed text survives the filter unchanged
+    assert payload["reasoning_details"] == original
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_replays_reasoning_content_for_deepseek_v4() -> None:
+    """DeepSeek v4 requires reasoning_content, and keeps surviving details.
+
+    Its reasoning uses a non-signed format (`deepseek-v1`), so the sanitizer
+    leaves the text entry intact; both `reasoning_content` and the structural
+    `reasoning_details` must reach the wire.
+    """
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._providers.openrouter import (
+        OPENROUTER_REASONING_DETAILS_SIGNATURE,
+    )
+
+    original = [
+        {
+            "type": "reasoning.text",
+            "text": "considered options",
+            "format": "deepseek-v1",
+            "id": "r1",
+        }
+    ]
+    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + json.dumps(original)
+    msg = ChatMessageAssistant(
+        content=[ContentReasoning(reasoning="considered options", signature=signature)],
+    )
+
+    api = _make_api("deepseek/deepseek-v4-pro")
+    converted = await api.messages_to_openai([msg])
+
+    payload: dict[str, Any] = dict(converted[0])
+    assert payload["reasoning_content"] == "considered options"
+    assert payload["reasoning_details"] == original
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_reasoning_content_without_details_for_deepseek() -> (
     None
 ):
-    """Reasoning without readable text must not produce a <think> tag.
+    """DeepSeek reasoning that has no OpenRouter details still sends content."""
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
 
-    Redacted reasoning with no summary (e.g. an Anthropic redacted block
-    replayed to a Gemini model) has no readable text — skip the tag entirely
-    rather than emit an empty <think></think>.
+    msg = ChatMessageAssistant(
+        content=[ContentReasoning(reasoning="plain cot", signature="rs_x")],
+    )
+
+    api = _make_api("deepseek/deepseek-v4-pro")
+    converted = await api.messages_to_openai([msg])
+
+    payload: dict[str, Any] = dict(converted[0])
+    assert payload["reasoning_content"] == "plain cot"
+    assert "reasoning_details" not in payload
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_think_tag_fallback_for_non_gemini() -> None:
+    """Reasoning without OpenRouter details replays as a <think> tag.
+
+    For a non-Gemini, non-DeepSeek model, reasoning that was not captured as
+    OpenRouter reasoning_details (e.g. parsed from a `<think>` tag) is still
+    serialized back into a `<think>` tag carrying the readable text.
+    """
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+
+    msg = ChatMessageAssistant(
+        content=[ContentReasoning(reasoning="visible chain of thought")],
+    )
+
+    api = _make_api("x-ai/grok-4")
+    converted = await api.messages_to_openai([msg])
+
+    payload: dict[str, Any] = dict(converted[0])
+    content = payload.get("content")
+    text = content if isinstance(content, str) else ""
+    assert "<think" in text
+    assert "visible chain of thought" in text
+    assert "</think>" in text
+    assert "reasoning_details" not in payload
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model",
+    ["google/gemini-3.1-pro-preview", "anthropic/claude-sonnet-4-5", "x-ai/grok-4"],
+)
+async def test_messages_to_openai_think_tag_skipped_without_readable_text(
+    model: str,
+) -> None:
+    """Reasoning with no readable text must not produce a <think> tag.
+
+    A redacted block with no summary (e.g. an Anthropic-native encrypted
+    thought replayed through an OpenRouter model acting as a judge or monitor)
+    has no OpenRouter reasoning_details and nothing a model could read. The
+    think-tag fallback would put its opaque payload into the assistant text
+    channel, so it is skipped entirely, for every model family.
     """
     from inspect_ai._util.content import ContentReasoning
     from inspect_ai.model._chat_message import ChatMessageAssistant
@@ -412,104 +583,68 @@ async def test_messages_to_openai_gemini_think_tag_skipped_without_readable_text
         ],
     )
 
-    api = _make_api("google/gemini-2.5-flash")
+    api = _make_api(model)
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
+    payload: dict[str, Any] = dict(converted[0])
     content = payload.get("content")
-    if isinstance(content, list):
-        text = "".join(b.get("text", "") for b in content if isinstance(b, dict))
-    else:
-        text = content if isinstance(content, str) else ""
-
-    assert "<think>" not in text
+    text = content if isinstance(content, str) else ""
+    assert "<think" not in text
     assert encrypted_blob not in text
+    assert "rs_abc123" not in text
     assert "reasoning_details" not in payload
 
 
 @pytest.mark.anyio
-async def test_messages_to_openai_strips_reasoning_details_for_gemini() -> None:
-    """Gemini-family models must not get reasoning_details replayed.
-
-    OpenRouter's openai-compat translation of Gemini sequential function-call
-    thoughtSignatures produces reasoning_details whose ``id`` is missing or
-    stale vs the new tool_calls[].id, causing HTTP 200 + body
-    ``{code:400, message:"Provider returned error"}`` (upstream Gemini
-    rejects with "function call ... missing a thought_signature"). The
-    provider should fall through to the ``<think>`` tag path for Gemini.
-    """
-    from inspect_ai._util.content import ContentReasoning
+async def test_messages_to_openai_think_tag_skipped_for_blank_reasoning() -> None:
+    """Non-redacted reasoning that is blank produces no (empty) <think> tag."""
+    from inspect_ai._util.content import ContentReasoning, ContentText
     from inspect_ai.model._chat_message import ChatMessageAssistant
-    from inspect_ai.model._providers.openrouter import (
-        OPENROUTER_REASONING_DETAILS_SIGNATURE,
-    )
 
-    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + (
-        '[{"type": "reasoning.encrypted", "data": "ENCRYPTED", "id": "tool_X"}]'
-    )
     msg = ChatMessageAssistant(
-        content=[ContentReasoning(reasoning="thinking...", signature=signature)],
+        content=[ContentReasoning(reasoning="   \n"), ContentText(text="answer")],
     )
 
-    api = _make_api("google/gemini-3-pro-preview")
+    api = _make_api("google/gemini-3.1-pro-preview")
     converted = await api.messages_to_openai([msg])
 
-    # No reasoning_details echoed; content carries <think> tag instead.
-    payload = converted[0]
-    assert "reasoning_details" not in payload
+    payload: dict[str, Any] = dict(converted[0])
     content = payload.get("content")
-    if isinstance(content, list):
-        text = "".join(b.get("text", "") for b in content if isinstance(b, dict))
-    else:
-        text = content if isinstance(content, str) else ""
-    assert "<think" in text and "thinking..." in text and "</think>" in text
+    text = content if isinstance(content, str) else ""
+    assert "<think" not in text
+    assert text.strip() == "answer"
+    assert "reasoning_details" not in payload
 
 
 @pytest.mark.anyio
-async def test_messages_to_openai_preserves_reasoning_details_for_non_gemini() -> None:
-    """Anthropic/Grok/OpenAI reasoning replay must be left intact."""
+async def test_messages_to_openai_think_tag_keeps_redacted_summary() -> None:
+    """A redacted block with a readable summary replays its summary as a <think> tag."""
     from inspect_ai._util.content import ContentReasoning
     from inspect_ai.model._chat_message import ChatMessageAssistant
-    from inspect_ai.model._providers.openrouter import (
-        OPENROUTER_REASONING_DETAILS_SIGNATURE,
-    )
 
-    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + (
-        '[{"type": "reasoning.text", "text": "considered options", "id": "r1"}]'
-    )
     msg = ChatMessageAssistant(
-        content=[ContentReasoning(reasoning="considered options", signature=signature)],
+        content=[
+            ContentReasoning(
+                reasoning="ENCRYPTED_BLOB_xyz",
+                summary="weighed the options",
+                redacted=True,
+                signature="rs_abc123",
+            )
+        ],
     )
 
-    api = _make_api("anthropic/claude-sonnet-4-5")
+    api = _make_api("google/gemini-3.1-pro-preview")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
-    assert "reasoning_details" in payload
-
-
-@pytest.mark.anyio
-async def test_messages_to_openai_replays_reasoning_content_for_deepseek_v4() -> None:
-    """DeepSeek v4 requires reasoning_content in assistant tool-call history."""
-    from inspect_ai._util.content import ContentReasoning
-    from inspect_ai.model._chat_message import ChatMessageAssistant
-    from inspect_ai.model._providers.openrouter import (
-        OPENROUTER_REASONING_DETAILS_SIGNATURE,
-    )
-
-    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + (
-        '[{"type": "reasoning.text", "text": "considered options", "id": "r1"}]'
-    )
-    msg = ChatMessageAssistant(
-        content=[ContentReasoning(reasoning="considered options", signature=signature)],
-    )
-
-    api = _make_api("deepseek/deepseek-v4-pro")
-    converted = await api.messages_to_openai([msg])
-
-    payload = converted[0]
-    assert payload["reasoning_content"] == "considered options"  # type: ignore[typeddict-item]
-    assert "reasoning_details" in payload
+    payload: dict[str, Any] = dict(converted[0])
+    content = payload.get("content")
+    text = content if isinstance(content, str) else ""
+    assert "<think>" in text
+    assert "weighed the options" in text
+    # the tag carries readable text only: no payload, signature, or attributes
+    assert "ENCRYPTED_BLOB_xyz" not in text
+    assert "rs_abc123" not in text
+    assert "redacted=" not in text
 
 
 # -- Prompt cache sticky routing (x-session-id) --------------------------------
