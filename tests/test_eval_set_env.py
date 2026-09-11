@@ -251,6 +251,11 @@ AGREEMENT: list[tuple[str, dict[str, str], list[str]]] = [
         {"INSPECT_EVAL_METADATA": "a=1 b=two"},
         ["metadata"],
     ),
+    (
+        "quoted metadata containing a comma",
+        {"INSPECT_EVAL_METADATA": 'label="alpha,beta" items=alpha,beta'},
+        ["metadata"],
+    ),
     ("a sandbox type", {"INSPECT_EVAL_SANDBOX": "docker"}, ["sandbox"]),
     (
         "a sandbox type with a config",
@@ -298,6 +303,14 @@ def test_epochs_carry_their_reducers() -> None:
 
     bare = resolve_eval_env({"INSPECT_EVAL_EPOCHS": "4"})
     assert bare is not None and bare.epochs == 4
+
+
+def test_quoted_metadata_preserves_commas() -> None:
+    resolved = resolve_eval_env(
+        {"INSPECT_EVAL_METADATA": 'label="alpha,beta" items=alpha,beta'}
+    )
+    assert resolved is not None
+    assert resolved.metadata == {"label": "alpha,beta", "items": ["alpha", "beta"]}
 
 
 # --- the resolver's own rules -----------------------------------------------
