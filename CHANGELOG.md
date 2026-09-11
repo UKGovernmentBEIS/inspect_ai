@@ -43,6 +43,7 @@
 - Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
 - Scoring: `math()` now raises an error when no reference answer can be parsed instead of silently excluding the sample from metrics.
 - Scoring: `choice()` now raises an error for samples without answer options instead of silently scoring them incorrect.
+- Evaluation: Read, validate, and apply run configuration files from Python, with optional deferred model initialization and CLI-compatible overrides.
 
 ## 0.3.263 (03 September 2026)
 

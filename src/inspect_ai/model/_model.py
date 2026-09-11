@@ -76,6 +76,7 @@ from inspect_ai._util.working import (
     sample_working_time,
 )
 from inspect_ai.model._generate_overrides import generate_config_override_for_attempt
+from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -2771,10 +2772,12 @@ def active_model() -> Model | None:
 
 # Mapping (not dict) so that pre-typed user dicts like dict[str, list[str]]
 # type-check — dict is invariant in its value type, Mapping is covariant
-ModelRoles: TypeAlias = Mapping[str, str | Model | Sequence[str | Model]]
+ModelRoles: TypeAlias = Mapping[
+    str, str | Model | ModelConfig | Sequence[str | Model | ModelConfig]
+]
 """Assignment of models to named roles (e.g. the `model_roles` argument to `eval()` or `Task`).
 
-Maps a role name to a model (name or `Model` instance) or to a list of
+Maps a role name to a model (name, `Model`, or `ModelConfig` instance) or to a list of
 models. Assigned roles are looked up with `get_model(role=...)` or
 `model_roles()` (to *reference* a role, e.g. from a scorer, see `ModelRole`).
 """

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Sequence
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._model import Model, ModelRoles, get_model
+from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.model._model_info import _get_model_info_direct
 
 if TYPE_CHECKING:
@@ -17,14 +18,14 @@ def resolve_model_roles(
     if model_roles is not None:
         resolved_model_roles: dict[str, Model | list[Model]] = {}
         for k, v in model_roles.items():
-            if isinstance(v, str | Model):
+            if isinstance(v, str | Model | ModelConfig):
                 resolved_model_roles[k] = _resolve_role_model(k, v)
             else:
                 # guard against untyped values (e.g. CLI YAML parsing can
                 # yield None or numeric scalars) so they get a clean error
                 # rather than a TypeError/AttributeError downstream
                 if not isinstance(v, Sequence) or not all(
-                    isinstance(m, str | Model) for m in v
+                    isinstance(m, str | Model | ModelConfig) for m in v
                 ):
                     raise PrerequisiteError(
                         f"Model role '{k}' has an invalid value ({v!r}): "
@@ -46,13 +47,16 @@ def resolve_model_roles(
         return None
 
 
-def _resolve_role_model(role: str, model: str | Model) -> Model:
+def _resolve_role_model(role: str, model: str | Model | ModelConfig) -> Model:
     # memoize=False for strings / copy for Model instances so that each role
     # gets a distinct Model instance; otherwise roles sharing the same model
     # collapse onto one object and per-role usage is misattributed (see #4450)
-    resolved = (
-        get_model(model, memoize=False) if isinstance(model, str) else copy(model)
-    )
+    if isinstance(model, ModelConfig):
+        resolved = model_config_to_model(model)
+    else:
+        resolved = (
+            get_model(model, memoize=False) if isinstance(model, str) else copy(model)
+        )
     resolved._set_role(role)
     return resolved
 
