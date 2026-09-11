@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import NamedTuple
 
+import anyio
 import pytest
 
 from inspect_ai import Task, eval
@@ -210,6 +211,107 @@ async def test_terminate_with_a_parallel_sibling_finalises_both_events() -> None
     events = tool_events()
     assert sorted(e.id for e in events) == ["a", "b"]
     assert all(e.pending is None for e in events)
+
+
+@reviewer
+def waiting_reviewer(
+    started: anyio.Event,
+    cleaned_up: anyio.Event,
+    terminate_call: str | None = None,
+) -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        if call.id == terminate_call:
+            await started.wait()
+            return Review(decision="terminate")
+        started.set()
+        try:
+            await anyio.sleep_forever()
+        finally:
+            cleaned_up.set()
+        return Review(decision="continue")
+
+    return review_
+
+
+async def test_operator_cancel_during_review_terminates_and_preserves_result() -> None:
+    init_transcript(Transcript())
+    started = anyio.Event()
+    cleaned_up = anyio.Event()
+
+    async def cancel_review() -> None:
+        await started.wait()
+        [event] = tool_events()
+        event._cancel()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(cancel_review)
+        with pytest.raises(TerminateSampleError, match="review.*cancelled"):
+            await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=[addition_call()])],
+                [addition()],
+                review=[ReviewPolicy(waiting_reviewer(started, cleaned_up), "*")],
+            )
+
+    [event] = tool_events()
+    assert event.result == [ContentText(text="2")]
+    assert event.error is None
+    assert event.pending is None
+    assert event.completed is not None
+    assert cleaned_up.is_set()
+    assert review_events() == []
+
+
+async def test_sibling_termination_during_review_preserves_completed_result() -> None:
+    started = anyio.Event()
+    cleaned_up = anyio.Event()
+    with pytest.raises(TerminateSampleError, match="reviewer requested termination"):
+        await execute_addition(
+            [ReviewPolicy(waiting_reviewer(started, cleaned_up, "a"), "*")],
+            addition_call("a"),
+            addition_call("b", x=3),
+            parallel=True,
+        )
+
+    events = {event.id: event for event in tool_events()}
+    assert events["b"].result == [ContentText(text="4")]
+    assert events["b"].error is None
+    assert all(event.pending is None for event in events.values())
+    assert cleaned_up.is_set()
+    assert [(event.call.id, event.decision) for event in review_events()] == [
+        ("a", "terminate")
+    ]
+
+
+async def test_sample_cancellation_during_review_preserves_completed_result() -> None:
+    started = anyio.Event()
+    cleaned_up = anyio.Event()
+
+    with anyio.CancelScope() as scope:
+
+        async def cancel_sample() -> None:
+            await started.wait()
+            scope.cancel()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(cancel_sample)
+            await execute_addition(
+                [ReviewPolicy(waiting_reviewer(started, cleaned_up), "*")]
+            )
+
+    assert scope.cancelled_caught
+    [event] = tool_events()
+    assert event.result == [ContentText(text="2")]
+    assert event.error is None
+    assert event.pending is None
+    assert cleaned_up.is_set()
+    assert review_events() == []
 
 
 async def test_escalate_falls_through_to_the_next_reviewer() -> None:

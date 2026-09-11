@@ -162,6 +162,7 @@ async def _execute_tools_impl(
             send_stream: MemoryObjectSendStream[
                 tuple[ExecuteToolsResult, ToolEvent, Exception | None]
             ],
+            on_review_cancelled: Callable[[ExecuteToolsResult, ToolEvent], None],
         ) -> None:
             result: ToolResult = ""
             messages: list[ChatMessage] = []
@@ -353,6 +354,10 @@ async def _execute_tools_impl(
                 function=call.function,
                 error=tool_error,
             )
+            execution_result = ExecuteToolsResult(
+                messages=[tool_message] + messages,
+                output=output,
+            )
             if tool_exception is None and call_executed:
                 try:
                     with _observer.track_tool_call(call.id, event):
@@ -364,6 +369,9 @@ async def _execute_tools_impl(
                             result,
                             conversation,
                         )
+                except anyio.get_cancelled_exc_class():
+                    on_review_cancelled(execution_result, result_event)
+                    raise
                 except Exception as ex:
                     tool_exception = ex
 
@@ -371,10 +379,7 @@ async def _execute_tools_impl(
             async with send_stream:
                 await send_stream.send(
                     (
-                        ExecuteToolsResult(
-                            messages=[tool_message] + messages,
-                            output=output,
-                        ),
+                        execution_result,
                         result_event,
                         tool_exception,
                     )
@@ -438,6 +443,39 @@ async def _execute_tools_impl(
                 call = tool_calls[idx]
                 event = events[idx]
                 waiting_start = waiting_starts[idx]
+                review_cancellation: TerminateSampleError | None = None
+
+                def record_review_cancellation(
+                    result: ExecuteToolsResult, result_event: ToolEvent
+                ) -> None:
+                    """Preserve an executed call when its unfinished review is cancelled.
+
+                    Cancellation cannot undo execution. Retain the actual result
+                    for log readers, and prevent an operator's per-call cancel
+                    from resuming the sample without a review decision. Outer
+                    cancellation still propagates with its original reason.
+                    """
+                    nonlocal review_cancellation
+                    review_cancellation = TerminateSampleError(
+                        "Tool result review was cancelled before a decision."
+                    )
+                    results[idx] = (result, result_event, review_cancellation)
+                    event._set_result(
+                        result=result_event.result,
+                        truncated=result_event.truncated,
+                        error=result_event.error,
+                        waiting_time=sample_waiting_time() - waiting_start,
+                        agent=result_event.agent,
+                        failed=None,
+                        message_id=result.messages[0].id,
+                        agent_span_id=result_event.agent_span_id,
+                    )
+                    transcript()._event_updated(event)
+                    transcript().info(
+                        f"Review of tool call '{call.function}' ({call.id}) was "
+                        "cancelled before a decision; its result was preserved."
+                    )
+
                 send_stream, receive_stream = anyio.create_memory_object_stream[
                     StreamItem
                 ]()
@@ -448,7 +486,12 @@ async def _execute_tools_impl(
                     # this specific call doesn't disturb its siblings.
                     async with anyio.create_task_group() as tg:
                         tg.start_soon(
-                            call_tool_task, call, event, messages, send_stream
+                            call_tool_task,
+                            call,
+                            event,
+                            messages,
+                            send_stream,
+                            record_review_cancellation,
                         )
                         event._set_cancel_fn(tg.cancel_scope.cancel)
                         async with receive_stream:
@@ -488,6 +531,9 @@ async def _execute_tools_impl(
                     # leave the post-task-group block below to detect and
                     # finalise the cancellation.
                     pass
+
+                if review_cancellation is not None:
+                    raise review_cancellation
 
                 # If this call's per-call CancelScope was cancelled via
                 # `event._cancel()` (operator-initiated for *this* call),

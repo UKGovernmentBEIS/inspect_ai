@@ -65,6 +65,8 @@ The arguments are:
 
 Exceptions raised by a reviewer end the sample as an error, as exceptions from approvers do. Model calls made by a reviewer do not count towards the sample's token or turn limits.
 
+Cancelling a tool call while its review is unfinished stops the sample with an operator limit. The completed tool result remains in the transcript, and an information event records that review was cancelled. If the sample stops for another reason, unfinished reviewers are cancelled and their tools' completed results are also preserved. An interrupted review does not record a review decision.
+
 ## Review Policies
 
 Policies can be written in YAML and passed with `--review`:
