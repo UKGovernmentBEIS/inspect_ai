@@ -431,6 +431,49 @@ def test_json_dataset_supports_kwargs() -> None:
     )
 
 
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig"])
+@pytest.mark.parametrize("fieldnames", [None, ["input", "target"]])
+def test_csv_utf8_with_or_without_bom(
+    tmp_path: Path, encoding: str, fieldnames: list[str] | None
+) -> None:
+    csv_file = tmp_path / "data.csv"
+    body = "café \ufeff text,résumé\r\n"
+    if fieldnames is None:
+        body = "input,target\r\n" + body
+    csv_file.write_bytes(body.encode(encoding))
+
+    dataset = csv_dataset(str(csv_file), fieldnames=fieldnames)
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "café \ufeff text"
+    assert dataset[0].target == "résumé"
+
+
+@pytest.mark.parametrize("encoding", ["utf-16", "cp1252"])
+def test_csv_explicit_encoding(tmp_path: Path, encoding: str) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_bytes("input,target\r\ncafé,résumé\r\n".encode(encoding))
+
+    dataset = csv_dataset(str(csv_file), encoding=encoding)
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "café"
+    assert dataset[0].target == "résumé"
+
+
+def test_csv_explicit_utf8_preserves_bom(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_bytes("café,résumé\r\n".encode("utf-8-sig"))
+
+    dataset = csv_dataset(
+        str(csv_file), encoding="utf-8", fieldnames=["input", "target"]
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "\ufeffcafé"
+    assert dataset[0].target == "résumé"
+
+
 def write_ragged_csv(tmp_path: Path, body: str) -> str:
     path = tmp_path / "data.csv"
     path.write_text(body, newline="")
