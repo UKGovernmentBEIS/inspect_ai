@@ -32,6 +32,7 @@ from typing import (
 
 if TYPE_CHECKING:
     from inspect_ai.approval import ApprovalPolicy
+    from inspect_ai.review import ReviewPolicy
 
 import anyio
 import yaml
@@ -108,6 +109,7 @@ async def execute_tools(
     tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
     max_output: int | None = None,
     approval: list["ApprovalPolicy"] | None = None,
+    review: list["ReviewPolicy"] | None = None,
 ) -> ExecuteToolsResult:
     """Perform tool calls in the last assistant message.
 
@@ -121,6 +123,10 @@ async def execute_tools(
           use for tool calls within this execution. Temporarily
           replaces any active approval policies for the duration
           of the call.
+       review (list[ReviewPolicy] | None): Review policies to use for
+          the results of tool calls within this execution. Temporarily
+          replaces any active review policies for the duration of the
+          call.
 
     Returns:
        Messages added to the conversation and final model output (if any)
@@ -128,9 +134,11 @@ async def execute_tools(
     from contextlib import nullcontext
 
     from inspect_ai.approval._apply import approval as approval_context
+    from inspect_ai.review._apply import review as review_context
 
-    cm = approval_context(approval) if approval else nullcontext()
-    with cm:
+    approval_cm = approval_context(approval) if approval else nullcontext()
+    review_cm = review_context(review) if review else nullcontext()
+    with approval_cm, review_cm:
         return await _execute_tools_impl(messages, tools, max_output)
 
 
@@ -154,6 +162,7 @@ async def _execute_tools_impl(
             send_stream: MemoryObjectSendStream[
                 tuple[ExecuteToolsResult, ToolEvent, Exception | None]
             ],
+            on_review_cancelled: Callable[[ExecuteToolsResult, ToolEvent], None],
         ) -> None:
             result: ToolResult = ""
             messages: list[ChatMessage] = []
@@ -162,6 +171,17 @@ async def _execute_tools_impl(
             agent_span_id: str | None = None
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
+            executed_call: ToolCall | None = None
+
+            def note_executed_call(executed: ToolCall) -> None:
+                """Track entry into the tool body, including approver modifications.
+
+                A tool body can raise the same errors as pre-execution validation,
+                so the exception type cannot tell us whether the call executed.
+                """
+                nonlocal executed_call
+                executed_call = executed
+
             # Track this tool call on the active sample's execution observer
             # so an intervention producer (ACP today) can snapshot the
             # in-flight tool id into InterruptEvent. No-op when no observer
@@ -179,15 +199,19 @@ async def _execute_tools_impl(
             try:
                 try:
                     with _observer.track_tool_call(call.id, event):
-                        (
-                            result,
-                            messages,
-                            output,
-                            agent,
-                            agent_span_id,
-                        ) = await call_tool(
-                            tdefs, message.text, call, event, conversation
+                        called = await call_tool(
+                            tdefs,
+                            message.text,
+                            call,
+                            event,
+                            conversation,
+                            on_execute=note_executed_call,
                         )
+                        result = called.result
+                        messages = called.messages
+                        output = called.output
+                        agent = called.agent
+                        agent_span_id = called.agent_span_id
                 # unwrap exception group
                 except Exception as ex:
                     inner_ex = inner_exception(ex)
@@ -307,7 +331,7 @@ async def _execute_tools_impl(
                     )
 
             # create event
-            event = ToolEvent(
+            result_event = ToolEvent(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
@@ -319,23 +343,40 @@ async def _execute_tools_impl(
                 agent_span_id=agent_span_id,
             )
 
+            # the result as the model will see it
+            tool_message = ChatMessageTool(
+                content=cast(list[Content], content),
+                tool_call_id=call.id,
+                function=call.function,
+                error=tool_error,
+            )
+            execution_result = ExecuteToolsResult(
+                messages=[tool_message] + messages,
+                output=output,
+            )
+            if tool_exception is None and executed_call is not None:
+                try:
+                    with _observer.track_tool_call(call.id, event):
+                        await _apply_tool_review(
+                            tdefs,
+                            message.text,
+                            executed_call,
+                            tool_message,
+                            result,
+                            conversation,
+                        )
+                except anyio.get_cancelled_exc_class():
+                    on_review_cancelled(execution_result, result_event)
+                    raise
+                except Exception as ex:
+                    tool_exception = ex
+
             # yield message and event
             async with send_stream:
                 await send_stream.send(
                     (
-                        ExecuteToolsResult(
-                            messages=[
-                                ChatMessageTool(
-                                    content=cast(list[Content], content),
-                                    tool_call_id=call.id,
-                                    function=call.function,
-                                    error=tool_error,
-                                )
-                            ]
-                            + messages,
-                            output=output,
-                        ),
-                        event,
+                        execution_result,
+                        result_event,
                         tool_exception,
                     )
                 )
@@ -398,6 +439,39 @@ async def _execute_tools_impl(
                 call = tool_calls[idx]
                 event = events[idx]
                 waiting_start = waiting_starts[idx]
+                review_cancellation: TerminateSampleError | None = None
+
+                def record_review_cancellation(
+                    result: ExecuteToolsResult, result_event: ToolEvent
+                ) -> None:
+                    """Preserve an executed call when its unfinished review is cancelled.
+
+                    Cancellation cannot undo execution. Retain the actual result
+                    for log readers, and prevent an operator's per-call cancel
+                    from resuming the sample without a review decision. Outer
+                    cancellation still propagates with its original reason.
+                    """
+                    nonlocal review_cancellation
+                    review_cancellation = TerminateSampleError(
+                        "Tool result review was cancelled before a decision."
+                    )
+                    results[idx] = (result, result_event, review_cancellation)
+                    event._set_result(
+                        result=result_event.result,
+                        truncated=result_event.truncated,
+                        error=result_event.error,
+                        waiting_time=sample_waiting_time() - waiting_start,
+                        agent=result_event.agent,
+                        failed=None,
+                        message_id=result.messages[0].id,
+                        agent_span_id=result_event.agent_span_id,
+                    )
+                    transcript()._event_updated(event)
+                    transcript().info(
+                        f"Review of tool call '{call.function}' ({call.id}) was "
+                        "cancelled before a decision; its result was preserved."
+                    )
+
                 send_stream, receive_stream = anyio.create_memory_object_stream[
                     StreamItem
                 ]()
@@ -408,7 +482,12 @@ async def _execute_tools_impl(
                     # this specific call doesn't disturb its siblings.
                     async with anyio.create_task_group() as tg:
                         tg.start_soon(
-                            call_tool_task, call, event, messages, send_stream
+                            call_tool_task,
+                            call,
+                            event,
+                            messages,
+                            send_stream,
+                            record_review_cancellation,
                         )
                         event._set_cancel_fn(tg.cancel_scope.cancel)
                         async with receive_stream:
@@ -448,6 +527,9 @@ async def _execute_tools_impl(
                     # leave the post-task-group block below to detect and
                     # finalise the cancellation.
                     pass
+
+                if review_cancellation is not None:
+                    raise review_cancellation
 
                 # If this call's per-call CancelScope was cancelled via
                 # `event._cancel()` (operator-initiated for *this* call),
@@ -614,13 +696,25 @@ async def _execute_tools_impl(
         return ExecuteToolsResult([])
 
 
+class CalledTool(NamedTuple):
+    """Outcome of `call_tool()`."""
+
+    result: ToolResult
+    messages: list[ChatMessage]
+    """Further messages produced by the call (a handoff's sub-agent conversation)."""
+    output: ModelOutput | None
+    agent: str | None
+    agent_span_id: str | None
+
+
 async def call_tool(
     tools: list[ToolDef],
     message: str,
     call: ToolCall,
     event: BaseModel,
     conversation: list[ChatMessage],
-) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None, str | None]:
+    on_execute: Callable[[ToolCall], None] | None = None,
+) -> CalledTool:
     from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._transcript import transcript
@@ -688,15 +782,54 @@ async def call_tool(
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
                     handoff_result = await agent_handoff(tool_def, call, conversation)
-                    return (*handoff_result, None)
+                    return CalledTool(*handoff_result, None)
 
         # normal tool call
         else:
             async with span(name=call.function, type="tool"):
                 transcript()._event(event)
+                if on_execute is not None:
+                    on_execute(call)
                 result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
-                return result, [], None, None, agent_span_id
+                return CalledTool(result, [], None, None, agent_span_id)
+
+
+async def _apply_tool_review(
+    tools: list[ToolDef],
+    message: str,
+    call: ToolCall,
+    result: ChatMessageTool,
+    output: ToolResult,
+    conversation: list[ChatMessage],
+) -> None:
+    """Give the active review policies the executed call's result.
+
+    Only calls that actually ran are reviewed (the caller checks this): a call
+    rejected at the call stage or failed by argument parsing produced no result,
+    and the error the model receives is its feedback. Handoffs are not reviewed
+    either: their "result" is a transfer notice, and the sub-agent's own tool
+    calls are reviewed individually as they execute.
+
+    Raises:
+        TerminateSampleError: A reviewer requested termination.
+    """
+    from inspect_ai.agent._handoff import AgentTool
+    from inspect_ai.review._apply import apply_tool_review
+
+    tool_def = next((tool for tool in tools if tool.name == call.function), None)
+    if tool_def is not None and isinstance(tool_def.tool, AgentTool):
+        return
+    review = await apply_tool_review(
+        message,
+        call,
+        result,
+        output,
+        tool_def.viewer if tool_def else None,
+        conversation,
+    )
+    if review is not None and review.decision == "terminate":
+        raise TerminateSampleError("Tool result reviewer requested termination.")
 
 
 async def agent_handoff(

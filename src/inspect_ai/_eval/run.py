@@ -59,6 +59,7 @@ from inspect_ai.log._log import eval_error
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import Model, ModelName, ensure_model_controller
+from inspect_ai.review._policy import ReviewPolicy, config_from_review_policies
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -144,6 +145,7 @@ async def eval_run(
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
     approval: list[ApprovalPolicy] | None = None,
+    review: list[ReviewPolicy] | None = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
@@ -374,6 +376,12 @@ async def eval_run(
                     task_eval_config.approval = config_from_approval_policies(
                         task.approval
                     )
+
+                # review
+                if review:
+                    task.review = review
+                elif task.review:
+                    task_eval_config.review = config_from_review_policies(task.review)
 
                 # merge eval-level and task-level tags
                 merged_tags = list(set(tags or []) | set(task.tags or [])) or None

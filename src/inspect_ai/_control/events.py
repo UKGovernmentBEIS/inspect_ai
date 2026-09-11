@@ -88,6 +88,7 @@ HIGH_SIGNAL_EVENT_TYPES = frozenset(
         "error",
         "score",
         "approval",
+        "review",
         "input",
         "sandbox",
         "logger",
