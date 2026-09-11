@@ -344,6 +344,7 @@ ENV_VARIABLES: dict[str, EnvVariable] = {
     "sandbox_prebuilt": EnvVariable(("INSPECT_EVAL_SANDBOX_PREBUILT",), _only_true),
     "checkpoint": EnvVariable(("INSPECT_EVAL_CHECKPOINT",), _checkpoint),
     "approval": EnvVariable(("INSPECT_EVAL_APPROVAL",), _text),
+    "review": EnvVariable(("INSPECT_EVAL_REVIEW",), _text),
     # --- what happens when something breaks ----------------------------------
     "retry_on_error": EnvVariable(("INSPECT_EVAL_RETRY_ON_ERROR",), _retry_on_error),
     "score_on_error": EnvVariable(("INSPECT_EVAL_SCORE_ON_ERROR",), _flag),

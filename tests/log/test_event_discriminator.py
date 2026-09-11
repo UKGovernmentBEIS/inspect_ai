@@ -19,7 +19,7 @@ def test_event_public_alias_stays_introspectable() -> None:
     members = get_args(Event)
     assert ModelEvent in members
     assert InfoEvent in members
-    assert len(members) == 23
+    assert len(members) == 24
 
 
 def test_discriminated_event_validates_by_tag() -> None:

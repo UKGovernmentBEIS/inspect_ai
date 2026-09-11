@@ -2670,6 +2670,16 @@
             ],
             "title": "Retry On Error"
           },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewPolicyConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "sample_id": {
             "anyOf": [
               {
@@ -3307,6 +3317,7 @@
                       "interrupt": "#/components/schemas/InterruptEvent",
                       "logger": "#/components/schemas/LoggerEvent",
                       "model": "#/components/schemas/ModelEvent",
+                      "review": "#/components/schemas/ReviewEvent",
                       "sample_init": "#/components/schemas/SampleInitEvent",
                       "sample_limit": "#/components/schemas/SampleLimitEvent",
                       "sandbox": "#/components/schemas/SandboxEvent",
@@ -3349,6 +3360,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/ApprovalEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ReviewEvent"
                     },
                     {
                       "$ref": "#/components/schemas/BranchEvent"
@@ -3537,6 +3551,7 @@
                   "interrupt": "#/components/schemas/InterruptEvent",
                   "logger": "#/components/schemas/LoggerEvent",
                   "model": "#/components/schemas/ModelEvent",
+                  "review": "#/components/schemas/ReviewEvent",
                   "sample_init": "#/components/schemas/SampleInitEvent",
                   "sample_limit": "#/components/schemas/SampleLimitEvent",
                   "sandbox": "#/components/schemas/SandboxEvent",
@@ -3579,6 +3594,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/ApprovalEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ReviewEvent"
                 },
                 {
                   "$ref": "#/components/schemas/BranchEvent"
@@ -5151,6 +5169,9 @@
           },
           {
             "$ref": "#/components/schemas/ApprovalEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ReviewEvent"
           },
           {
             "$ref": "#/components/schemas/BranchEvent"
@@ -8146,6 +8167,164 @@
           "references"
         ],
         "title": "Result",
+        "type": "object"
+      },
+      "ReviewEvent": {
+        "description": "Tool result review.",
+        "properties": {
+          "call": {
+            "$ref": "#/components/schemas/ToolCall"
+          },
+          "decision": {
+            "enum": [
+              "continue",
+              "terminate",
+              "escalate"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "event": {
+            "const": "review",
+            "default": "review",
+            "title": "Event",
+            "type": "string"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "reviewer": {
+            "title": "Reviewer",
+            "type": "string"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "message",
+          "call",
+          "reviewer",
+          "decision"
+        ],
+        "title": "ReviewEvent",
+        "type": "object"
+      },
+      "ReviewPolicyConfig": {
+        "properties": {
+          "reviewers": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewerPolicyConfig"
+            },
+            "title": "Reviewers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "reviewers"
+        ],
+        "title": "ReviewPolicyConfig",
+        "type": "object"
+      },
+      "ReviewerPolicyConfig": {
+        "additionalProperties": true,
+        "description": "Configuration format for reviewer policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\nreviewers:\n  - name: mypackage/output_monitor\n    tools: bash, python\n\n  - name: human\n    tools: \"*\"\n```",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "tools": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Tools"
+          }
+        },
+        "required": [
+          "name",
+          "tools",
+          "params"
+        ],
+        "title": "ReviewerPolicyConfig",
         "type": "object"
       },
       "Sample": {
