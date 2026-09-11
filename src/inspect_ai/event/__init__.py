@@ -11,6 +11,7 @@ from ._input import InputEvent
 from ._interrupt import InterruptEvent
 from ._logger import LoggerEvent, LoggingLevel, LoggingMessage
 from ._model import ModelEvent
+from ._review import ReviewEvent
 from ._sample_init import SampleInitEvent
 from ._sample_limit import SampleLimitEvent
 from ._sandbox import SandboxEvent
@@ -46,6 +47,7 @@ from ._tree import (
 __all__ = [
     "Event",
     "ApprovalEvent",
+    "ReviewEvent",
     "AnchorEvent",
     "BranchEvent",
     "ErrorEvent",
