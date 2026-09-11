@@ -150,6 +150,8 @@ def evaluation_defaults(params: dict[str, Any]) -> Iterator[dict[str, Any]]:
     setting; conflicting values require a caller override. Per-task defaults
     are not broadcast into this parameter dictionary.
     """
+    from inspect_ai._util.dotenv import init_dotenv
+
     from .loader import task_default_factories
 
     enabled = params.get("default_config", True)
@@ -157,6 +159,10 @@ def evaluation_defaults(params: dict[str, Any]) -> Iterator[dict[str, Any]]:
     agreed: dict[str, Any] = {}
     sources: dict[str, str] = {}
     if enabled:
+        # discovery imports task modules, which eval_init would otherwise do
+        # only after loading .env; a module that reads the environment at
+        # import time must see the same variables it does on main
+        init_dotenv()
         for factory in task_default_factories(cast(Tasks, params.get("tasks"))):
             path = default_config_path(factory)
             if path is None:
@@ -234,23 +240,21 @@ def create_task_with_defaults(
     if config.eval_config.epochs_reducer is not None and "epochs" not in params:
         params["epochs_reducer"] = config.eval_config.epochs_reducer
     scope = _scope.get()
-    run_wide_keys = sorted(RUN_WIDE_FIELDS & params.keys())
-    if scope is not None:
-        for key in run_wide_keys:
-            current = scope.run_wide.get(key)
-            if current is None:
-                raise ValueError(
-                    f"Task default '{path}' requires run-wide '{key}={params[key]}'; configure it before starting the run"
-                )
-    elif run_wide_keys:
-        # resolved outside eval()/eval_set() (e.g. eval_resolve_tasks from
-        # Inspect Flow): there is no run to agree these for, so drop them
-        # rather than record them in the log as if applied
+    # run-wide keys are agreed before the run starts; a key not agreed here
+    # belongs to a task that could not take part (resolved outside eval() or
+    # eval_set(), or enqueued mid-run), so drop it rather than record it in
+    # the log as if applied
+    unagreed = [
+        key
+        for key in sorted(RUN_WIDE_FIELDS & params.keys())
+        if scope is None or scope.run_wide.get(key) is None
+    ]
+    if unagreed:
         logger.warning(
-            f"Task default '{path}' sets run-wide {run_wide_keys}, which apply "
-            "only when eval(), eval_set() or the CLI resolves the task; ignored"
+            f"Task default '{path}' sets run-wide {unagreed}, which apply only "
+            "to tasks resolved when the run starts; ignored"
         )
-        for key in run_wide_keys:
+        for key in unagreed:
             params.pop(key)
     current_roles = model_roles()
     roles = resolve_model_roles(params.get("model_roles", {}) | current_roles)

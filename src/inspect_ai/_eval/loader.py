@@ -93,6 +93,7 @@ def resolve_tasks(
     eval_checkpoint: CheckpointConfig | None = None,
     warn_unconsumed_task_args: bool = False,
     input_media_policy: InputMediaPolicy = "inline_only",
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
 ) -> list[ResolvedTask]:
     # A TaskSource drives a run dynamically and is handled by eval() (which
     # resolves its initial_tasks() and pulls next_tasks()); it isn't a concrete,
@@ -116,8 +117,10 @@ def resolve_tasks(
         # shuffle data in tasks if requested
         for task in tasks:
             params = getattr(task, TASK_DEFAULT_CONFIG_ATTR, {}) if loaded else {}
+            # an explicit sample_id replaces the file's shuffle, the same rule
+            # eval_run applies when it slices and logs the selection
             selection = resolve_task_eval_config(
-                params, EvalConfig(sample_shuffle=sample_shuffle)
+                params, EvalConfig(sample_shuffle=sample_shuffle, sample_id=sample_id)
             )
             shuffle = selection.sample_shuffle
             if shuffle and not task.dataset.shuffled:

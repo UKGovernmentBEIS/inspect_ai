@@ -783,6 +783,7 @@ def eval_set(
             notification=notification,
             review=review,
             input_media_policy="trusted_pre_run",
+            sample_id=sample_id,
         )
         if len(capture_tasks) == 0:
             raise PrerequisiteError(
@@ -874,6 +875,7 @@ def eval_set(
                 notification=notification,
                 review=review,
                 input_media_policy="trusted_pre_run",
+                sample_id=sample_id,
             )
             if len(resolved) == 0:
                 raise PrerequisiteError(
@@ -1037,6 +1039,7 @@ def eval_set(
             notification=notification,
             review=review,
             input_media_policy="trusted_pre_run",
+            sample_id=sample_id,
         )
 
         # fail with a legible error if no tasks were found (matches `eval`)

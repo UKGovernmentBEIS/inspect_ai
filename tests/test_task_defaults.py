@@ -867,6 +867,107 @@ def test_unscoped_resolution_drops_run_wide_defaults(
     assert log.samples is not None and len(log.samples) == 1
 
 
+def test_discovery_runs_after_dotenv_is_loaded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default-config discovery imports task modules, so .env must load first.
+
+    On main, string task specs are first imported inside eval_resolve_tasks,
+    after eval_init has loaded .env; discovery must not move that earlier.
+    """
+    monkeypatch.delenv("TASK_DEFAULTS_DOTENV_PROBE", raising=False)
+    source = make_source(tmp_path, {"generate_config": {"temperature": 0.2}})
+    source.source.write_text(
+        "import os\n"
+        "os.environ['TASK_DEFAULTS_DOTENV_PROBE']\n" + source.source.read_text()
+    )
+    (tmp_path / ".env").write_text("TASK_DEFAULTS_DOTENV_PROBE=present\n")
+    monkeypatch.chdir(tmp_path)
+    log = eval(
+        source.spec,
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        display="none",
+    )[0]
+    assert log.status == "success"
+    assert log.plan.config.temperature == 0.2
+
+
+def test_file_shuffle_is_not_applied_under_explicit_sample_id(tmp_path: Path) -> None:
+    """The loader shuffles at resolution time; it must honour the same rule."""
+    from inspect_ai._eval.eval import eval_resolve_tasks
+
+    attached = make_task(tmp_path, {"eval_config": {"sample_shuffle": 42}})
+    common = ([get_model("mockllm/model")], None, GenerateConfig(), None, None)
+    shuffled, _ = eval_resolve_tasks(attached.factory, {}, *common, None)
+    assert shuffled[0].task.dataset.shuffled
+    attached = make_task(tmp_path, {"eval_config": {"sample_shuffle": 42}})
+    unshuffled, _ = eval_resolve_tasks(
+        attached.factory, {}, *common, None, sample_id=[2]
+    )
+    assert not unshuffled[0].task.dataset.shuffled
+
+
+def test_retry_does_not_print_default_config_notice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry replays logged settings; it never reads the file, so no hint."""
+    import inspect_ai._display.core.active as active_mod
+    from inspect_ai._cli.eval import eval_retry_command
+
+    source = make_source(tmp_path, {"generate_config": {"temperature": 0.2}})
+    original = run_task(source, tmp_path)
+    monkeypatch.setattr(active_mod, "_active_display", None)
+    result = CliRunner().invoke(
+        eval_retry_command,
+        [
+            original.location,
+            "--log-dir",
+            str(tmp_path / "retry"),
+            "--display",
+            "plain",
+        ],
+    )
+    assert result.exit_code == 0, f"{result.output}\n{result.exception}"
+    assert "default config:" not in result.output
+    retried = read_eval_log(list_eval_logs(str(tmp_path / "retry"))[0])
+    assert retried.plan.config.temperature == 0.2
+    assert retried.eval.run_config_source == original.eval.run_config_source
+
+
+def test_enqueued_task_with_run_wide_default_warns_and_runs(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A task enqueued mid-run could not join run-wide agreement; drop and warn."""
+    from inspect_ai._eval.task.enqueue import enqueue_task
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    enqueued = make_source(tmp_path, {"eval_config": {"log_images": False, "limit": 1}})
+
+    @solver
+    def enqueuer():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(enqueued.spec)
+            return state
+
+        return solve
+
+    @task(name=f"seed_{uuid4().hex}")
+    def seed() -> Task:
+        return Task(dataset=[Sample(input="hi", target="hi")], solver=enqueuer())
+
+    logs = eval(
+        seed, model="mockllm/model", log_dir=str(tmp_path / "logs"), display="none"
+    )
+    by_name = {log.eval.task: log for log in logs}
+    assert all(log.status == "success" for log in logs), [
+        (log.eval.task, log.error and log.error.message) for log in logs
+    ]
+    assert by_name[enqueued.name].eval.config.limit == 1
+    assert by_name[enqueued.name].eval.config.log_images is not False
+    assert "log_images" in caplog.text and enqueued.config.name in caplog.text
+
+
 @pytest.mark.parametrize("disabled", [False, True])
 def test_task_default_eval_set_cli(tmp_path: Path, disabled: bool) -> None:
     source = make_source(tmp_path, None if disabled else runtime_config())
