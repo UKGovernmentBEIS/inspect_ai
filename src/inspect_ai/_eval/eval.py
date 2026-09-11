@@ -845,6 +845,7 @@ async def _eval_async_inner(
             task_source=task_source,
             input_media_policy="trusted_pre_run",
             review=review,
+            sample_id=sample_id,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -2058,6 +2059,7 @@ def eval_resolve_tasks(
     task_source: TaskSource | None = None,
     input_media_policy: InputMediaPolicy = "inline_only",
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None, list[ReviewPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
@@ -2098,6 +2100,7 @@ def eval_resolve_tasks(
                     # (resolve_task_source), so don't warn for that path.
                     warn_unconsumed_task_args=(i == 0 and task_source is None),
                     input_media_policy=input_media_policy,
+                    sample_id=sample_id,
                 )
             )
 
