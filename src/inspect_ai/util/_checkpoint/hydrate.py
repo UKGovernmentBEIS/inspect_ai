@@ -74,12 +74,14 @@ from inspect_ai.util._span import current_span_id
 
 from ._host_egress import seed_manifest
 from ._layout import host_context
+from ._layout._paths import sample_dir_segment
 from ._layout.eval_checkpoints_dir import eval_checkpoints_dir
 from ._layout.sample_checkpoints_dir import (
     checkpoint_file_id,
+    checkpoint_file_name,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
-    scan_latest_committed_checkpoint,
+    scan_committed_checkpoints,
 )
 from ._layout.schemas import Checkpoint, ResticConfig
 from ._layout.staging_dir import (
@@ -95,6 +97,7 @@ from ._resume_copy import copy_payload_files
 from ._snapshot import (
     SandboxSnapshotSession,
     SnapshotContext,
+    committed_snapshots_for,
     create_strategy,
     strategy_config_name,
     strategy_storage_subpath,
@@ -201,6 +204,49 @@ class HydrationResult:
     default (empty-path entries opt out)."""
 
 
+_sample_dir_rename_warned = False
+"""Whether the sample-id rename warning has been emitted in this process.
+
+A plain flag, not a lock: hydration runs on the eval's single event loop
+thread, so two samples cannot race here.
+"""
+
+
+def _warn_if_sample_dir_renamed(sample_id: int | str) -> None:
+    """Warn once per process when a sample id is not its checkpoint dir name.
+
+    ``sample_dir_segment`` rewrites an id that is not used verbatim as a
+    directory name (one with a slash, backslash, NUL or the reserved ``~``,
+    ``.``/``..``, or over 200 bytes) to a hashed segment. Ids with a ``/``
+    used to nest a level down and resume from there, so after an upgrade
+    their earlier checkpoints are not found. The warning makes
+    that visible at fresh provision, the moment a new name is first used;
+    it names the first such id and fires once, because an id shape like
+    ``owner/task`` usually runs through a whole dataset and one warning per
+    sample would drown the log. Every renamed id is recorded in the trace
+    log so the mapping stays recoverable.
+    """
+    global _sample_dir_rename_warned
+    segment = sample_dir_segment(sample_id)
+    if segment == str(sample_id):
+        return
+    trace_message(
+        logger,
+        "Checkpoint",
+        f"sample id {str(sample_id)!r} checkpoints stored under {segment!r}",
+    )
+    if _sample_dir_rename_warned:
+        return
+    _sample_dir_rename_warned = True
+    logger.warning(
+        f"checkpoint: sample id {str(sample_id)!r} is not used as its checkpoint "
+        f"directory name; its checkpoints are stored under {segment!r} (further "
+        "ids like it are "
+        "recorded in the trace log). Checkpoints written by earlier versions "
+        "under the raw id are not resumed."
+    )
+
+
 async def hydrate(
     *,
     config: ResolvedCheckpointConfig,
@@ -231,6 +277,8 @@ async def hydrate(
     new_eval_checkpoints_dir = eval_checkpoints_dir(
         log_location, config.checkpoints_location
     )
+    if not resume_checkpoint:
+        _warn_if_sample_dir_renamed(sample_id)
     new_sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
         new_eval_checkpoints_dir, sample_id, epoch
     )
@@ -269,20 +317,22 @@ async def hydrate(
     host_restic = await resolve_restic()
     host_repo = host_repo_dir(sample_root)
 
-    # On resume, find the latest committed checkpoint (checkpoint files
-    # are the source of truth — see ``Checkpoint`` design notes). Any
-    # strategy snapshot tagged ``ckpt-NNNNN`` with N > its id is an
-    # orphan from an interrupted fire that completed its capture but
-    # never wrote its checkpoint file; ``_hydrate_host`` /
+    # On resume, find the committed checkpoints (checkpoint files are the
+    # source of truth — see ``Checkpoint`` design notes). A host snapshot
+    # tagged ``ckpt-NNNNN`` with N > the latest id is an orphan from an
+    # interrupted fire that completed its capture but never wrote its
+    # checkpoint file; a sandbox snapshot is an orphan unless some
+    # committed checkpoint records it. ``_hydrate_host`` /
     # ``_hydrate_sandbox`` drop those below so restore materializes the
     # committed snapshot.
+    committed_checkpoints: list[Checkpoint] = []
     latest_checkpoint: Checkpoint | None = None
     latest_committed_id: int | None = None
     if resume_checkpoint:
-        latest_checkpoint = await scan_latest_committed_checkpoint(sample_root)
-        # resume detection parsed a committed checkpoint in this very dir
-        # (or the destination this staging dir was just pulled from)
-        assert latest_checkpoint is not None
+        committed_checkpoints = await scan_committed_checkpoints(sample_root)
+        # Resume detection parsed a committed checkpoint in this directory.
+        assert committed_checkpoints
+        latest_checkpoint = committed_checkpoints[-1]
         latest_committed_id = latest_checkpoint.checkpoint_id
 
     # Phase 2: host + sandboxes in parallel. Host work runs alongside
@@ -347,6 +397,7 @@ async def hydrate(
                 storage_subpath=storage_subpath,
                 secret=restic_config.restic_password,
                 resuming=resume_checkpoint is not None,
+                max_snapshot_bytes=config.max_sandbox_snapshot_bytes,
             ),
             paths=paths,
         )
@@ -370,8 +421,7 @@ async def hydrate(
             _hydrate_sandboxes,
             resume_checkpoint,
             sandbox_sessions,
-            latest_committed_id,
-            latest_checkpoint,
+            committed_checkpoints,
             action,
         )
     assert host_result is not None  # task group ran _run_host to completion
@@ -457,8 +507,7 @@ async def _hydrate_host(
 async def _hydrate_sandboxes(
     resume: ResumeCheckpoint | None,
     sandbox_sessions: dict[str, SandboxSnapshotSession],
-    latest_committed_id: int | None,
-    latest_checkpoint: Checkpoint | None,
+    committed_checkpoints: list[Checkpoint],
     action: str,
 ) -> None:
     if not sandbox_sessions:
@@ -470,8 +519,7 @@ async def _hydrate_sandboxes(
                 name=name,
                 session=session,
                 resume=resume,
-                latest_committed_id=latest_committed_id,
-                latest_checkpoint=latest_checkpoint,
+                committed_checkpoints=committed_checkpoints,
                 action=action,
             )
             for name, session in sandbox_sessions.items()
@@ -484,18 +532,19 @@ async def _hydrate_sandbox(
     name: str,
     session: SandboxSnapshotSession,
     resume: ResumeCheckpoint | None,
-    latest_committed_id: int | None,
-    latest_checkpoint: Checkpoint | None,
+    committed_checkpoints: list[Checkpoint],
     action: str,
 ) -> None:
     """Provision (and on resume, restore) one sandbox via its strategy.
 
     Call order per the Protocol contract: ``setup`` on both paths, then
-    on resume ``discard_orphans`` (drop captures from fires that never
-    committed) → ``restore`` (materialize the latest committed snapshot
-    into the fresh sandbox). The strategy's storage area is already in
-    the sample root: the startup copy replicated it verbatim from the
-    retried attempt (see ``_resume_copy``).
+    on resume ``discard_orphans`` (keep exactly the snapshots some
+    committed checkpoint records for this sandbox) → ``restore``
+    (materialize the latest committed snapshot into the fresh sandbox).
+    Orphan discard is skipped, and ``restore`` gets ``ref=None``, only
+    when no committed checkpoint records a snapshot for this sandbox.
+    The retry startup copy already replicated the storage area into
+    this attempt (see ``_resume_copy``).
     """
     env = sandbox(name)
     strategy, ctx, _ = session
@@ -504,9 +553,10 @@ async def _hydrate_sandbox(
     if resume is None:
         return
 
-    if latest_committed_id is not None:
-        await strategy.discard_orphans(latest_committed_id, ctx)
-    ref = latest_checkpoint.sandboxes.get(name) if latest_checkpoint else None
+    committed = committed_snapshots_for(committed_checkpoints, name)
+    if committed:
+        await strategy.discard_orphans(committed, ctx)
+    ref = committed[-1].details if committed else None
     with trace_action(logger, action, f"sandbox {name} restore"):
         await strategy.restore(env, ref, ctx)
 
@@ -770,7 +820,7 @@ def _synthesize_trailing_checkpoint_event(
     indistinguishable from a live one — same content, same
     timestamp.
     """
-    checkpoint_path = f"{sample_root}/ckpt-{latest_committed_id:05d}.json"
+    checkpoint_path = f"{sample_root}/{checkpoint_file_name(latest_committed_id)}"
     with file(checkpoint_path, "r") as f:
         checkpoint = Checkpoint.model_validate_json(f.read())
     return CheckpointEvent.from_details(checkpoint).model_copy(

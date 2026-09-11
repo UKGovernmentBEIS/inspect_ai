@@ -774,8 +774,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     kwargs = options.kwargs
 
     # a SampleSource-driven task generates samples while it runs (`sample_feed`
-    # to distinguish it from `sample_source`, the prior-attempt lookup above)
-    sample_feed: SampleSource | None = task.sample_source
+    # to distinguish it from `sample_source`, the prior-attempt lookup above).
+    # A task no `task:id` selector named (sample_id resolved to []) runs no
+    # samples, so its source is never consulted: polling it could block forever
+    sample_feed: SampleSource | None = (
+        task.sample_source if config.sample_id != [] else None
+    )
 
     # resolve default generate_config for task
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
@@ -2419,8 +2423,14 @@ async def _task_run_sample_attempt(
             # helper to log sample error
             def log_sample_error() -> None:
                 msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
+                # a stamped interrupt suppresses the retry (the attempt is
+                # abandoned as cancelled instead — see the retry decision at
+                # the tail), so promise neither a retry nor a score
                 if attempt.retries_remaining > 0:
-                    msg = f"{msg}. Sample will be retried."
+                    if active.interrupt_action is None:
+                        msg = f"{msg}. Sample will be retried."
+                    else:
+                        msg = f"{msg}. Sample will be cancelled."
                 elif score_on_error:
                     msg = f"{msg}. Sample will be scored."
                 py_logger.warning(msg)
@@ -2645,19 +2655,31 @@ async def _task_run_sample_attempt(
                                     # start the sample
                                     active.start(tg)
 
-                                    # a task cancel with a graceful sample
-                                    # resolution arrived while this sample was
+                                    # a cancel arrived while this sample was
                                     # initializing (after it left the queue,
                                     # before it started — so the control
                                     # layer's interrupt of in-flight samples
                                     # missed it) — resolve it now rather than
-                                    # running the plan
+                                    # running the plan. A per-sample intent
+                                    # (`sample cancel` while initializing,
+                                    # stamped by `interrupt()` with no task
+                                    # group) fires first and exclusively: the
+                                    # task-level branches below also call
+                                    # interrupt(), and the runner handles the
+                                    # *live* interrupt_action, so falling
+                                    # through would let a task `score`
+                                    # overwrite the operator's per-sample
+                                    # `cancel` (the sweep applies the same
+                                    # first-resolution-wins rule).
+                                    pending_interrupt = active.interrupt_action
                                     resolution = (
                                         task_cancel.cancel_type
                                         if task_cancel is not None
                                         else None
                                     )
-                                    if resolution == "drain":
+                                    if pending_interrupt is not None:
+                                        active.interrupt(pending_interrupt)
+                                    elif resolution == "drain":
                                         # drain never interrupts in-flight
                                         # samples, but this one is not yet in
                                         # flight — it left the queue before
@@ -3030,6 +3052,10 @@ async def _task_run_sample_attempt(
                     with anyio.CancelScope(shield=cancelled_error is not None):
                         await cleanup_span.__aexit__(None, None, None)
 
+            # the sample to deliver to the run's sources (SampleSource /
+            # TaskSource) once the completion block below has exited (see there)
+            source_sample: EvalSample | None = None
+
             # complete the sample if there is no error or if there is no retry_on_error in play
             with anyio.CancelScope(shield=cancelled_error is not None):
                 # drain sample events for both completion and retry paths
@@ -3121,22 +3147,43 @@ async def _task_run_sample_attempt(
                         await emit_sample_end(
                             eval_set_id, run_id, task_id, state.uuid, eval_sample
                         )
-                    # notify the task's SampleSource (if it has one) as each
-                    # sample completes, so it can react in real time (and add
-                    # samples to the running task). skipped for a cancelled
-                    # sample: the task is unwinding (any follow-ups could
-                    # never run) and this scope is shielded, so awaiting user
-                    # callback code here would be uncancellable
-                    if sample_feed is not None and cancelled_error is None:
-                        _enqueue_source_samples(
-                            await sample_feed.sample_complete(eval_sample)
-                        )
-                    # notify a TaskSource (if the run has one) as each sample
-                    # completes, so it can react in real time (and add tasks)
-                    if task_source is not None:
-                        _enqueue_source_tasks(
-                            await task_source.sample_complete(eval_sample, task)
-                        )
+                    # deliver the sample to the run's sources (below) unless
+                    # the TASK is unwinding (abort/retry cancel, ^C,
+                    # fail_on_error teardown: any follow-ups could never run).
+                    # a per-sample `ctl sample cancel --action cancel` also
+                    # arrives as a cancellation, but the task keeps running, so
+                    # the sources are still told (a source waiting on that
+                    # sample's completion would otherwise wait forever). a
+                    # graceful task-level score/error stamp doesn't cancel the
+                    # task scope, so a sample cancelled individually under one
+                    # is delivered like any other sample completing under it.
+                    task_unwinding = task_cancel is not None and (
+                        task_cancel.cancel_type in ("abort", "retry")
+                    )
+                    if cancelled_error is None or (
+                        operator_cancelled and not task_unwinding
+                    ):
+                        source_sample = eval_sample
+
+            # notify the task's SampleSource and the run's TaskSource (if any)
+            # as each sample completes, so they can react in real time (and add
+            # samples / tasks). runs after the completion block so that user
+            # callback code is never run under its shield (uncancellable): on
+            # both delivered paths the enclosing scope is live -- a per-sample
+            # cancel's CancelledError came from the sample's own (already
+            # exited) task group. a task-level cancel landing while a callback
+            # is suspended unwinds from here, before the terminal report
+            # below: accepted, since the task is ending and the eval finishes
+            # errored/cancelled regardless (design/sample-lifecycle.md)
+            if source_sample is not None:
+                if sample_feed is not None:
+                    _enqueue_source_samples(
+                        await sample_feed.sample_complete(source_sample)
+                    )
+                if task_source is not None:
+                    _enqueue_source_tasks(
+                        await task_source.sample_complete(source_sample, task)
+                    )
 
     # error that should be retried (we return the retry signal outside of the
     # semaphore scope above so the retry re-acquires the semaphore -- it will
