@@ -1339,6 +1339,7 @@ def test_sample_list_token_ceiling_reflects_override() -> None:
         token_limit_type = "all"
         retries = None
         transcript = _FakeTranscript()
+        interrupt_action = None
 
     register_eval("e1", 5, task_id="t1")
     fake = cast(Any, _FakeActive())

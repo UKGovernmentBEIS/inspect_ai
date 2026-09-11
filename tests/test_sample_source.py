@@ -550,6 +550,34 @@ def test_sample_source_sample_id_filters_produced_samples() -> None:
     assert sorted(sample.id for sample in (log.samples or [])) == [1, 3]
 
 
+def test_sample_source_unaddressed_task_never_polls_source() -> None:
+    # a source task that no `task:id` selector names runs no samples, and its
+    # source is never consulted (a source may block until its samples finish,
+    # and none of them will run)
+    class _Blocking(SampleSource):
+        def __init__(self) -> None:
+            self.polled = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            self.polled = True
+            await anyio.Event().wait()
+            return None
+
+    source = _Blocking()
+    foo = Task(name="foo", dataset=[Sample(id=1, input="hi", target="ok")])
+    blocker = Task(name="blocker", dataset=source, solver=[generate()])
+    logs = eval(
+        [foo, blocker], model="mockllm/model", display="none", sample_id="foo:1"
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert [sample.id for sample in (logs[0].samples or [])] == [1]
+    assert not logs[1].samples
+    assert not source.polled
+
+
 def test_sample_source_sample_id_missing_from_seed_ok() -> None:
     # a requested id absent from the seed is not an error — the source may
     # produce it while the task runs

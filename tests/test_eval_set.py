@@ -10,7 +10,7 @@ import time
 import zipfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable, cast
+from typing import Any, Callable, cast
 from unittest.mock import patch
 
 import pytest
@@ -25,7 +25,7 @@ from test_helpers.utils import (
     sleep_for_solver,
 )
 
-from inspect_ai import Task, eval, task
+from inspect_ai import Epochs, Task, eval, task
 from inspect_ai._eval.evalset import (
     GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     EvalSetArgsInTaskIdentifier,
@@ -390,6 +390,110 @@ def test_eval_zero_retries() -> None:
             model="mockllm/model",
         )
         assert not success
+
+
+def test_eval_set_sample_id_with_colon_and_task_selector(tmp_path: Path) -> None:
+    # a colon inside a dataset id is not a `task:` selector unless the prefix
+    # names a task in the run; the planned count and the log agree on that,
+    # so a second pass finds every task complete and runs nothing
+    gym = Task(
+        name="gym",
+        dataset=[Sample(id=f"user:cybergym/arvo_{n}", input="hi") for n in (1, 2)],
+    )
+    other = Task(name="other", dataset=[Sample(id=n, input="hi") for n in (1, 2)])
+    sample_id = ["user:cybergym/arvo_1", "other:2"]
+
+    success, logs = eval_set(
+        [gym, other],
+        log_dir=str(tmp_path),
+        sample_id=sample_id,
+        retry_attempts=0,
+        model="mockllm/model",
+    )
+    assert success
+    by_task = {log.eval.task: read_eval_log(log.location) for log in logs}
+    assert [s.id for s in by_task["gym"].samples or []] == ["user:cybergym/arvo_1"]
+    assert [s.id for s in by_task["other"].samples or []] == [2]
+
+    success, logs = eval_set(
+        [gym, other],
+        log_dir=str(tmp_path),
+        sample_id=sample_id,
+        retry_attempts=0,
+        model="mockllm/model",
+    )
+    assert success
+    assert len(logs) == 2
+    assert len(list_eval_logs(str(tmp_path))) == 2
+
+
+def test_eval_set_retry_resolves_task_selectors_against_whole_set(
+    tmp_path: Path,
+) -> None:
+    # the retry pass runs only the failed task, and must still read `gym:...`
+    # as a selector for a task outside that batch (not as one of its own ids):
+    # the retried log records the same resolved selection the first pass did
+    from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+
+    attempts: list[int | str] = []
+
+    @solver
+    def fails_first_time() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempts.append(state.sample_id)
+            if len(attempts) == 1:
+                raise ValueError("first attempt")
+            return state
+
+        return solve
+
+    gym = Task(
+        name="gym",
+        dataset=[Sample(id=f"user:cybergym/arvo_{n}", input="hi") for n in (1, 2)],
+    )
+    other = Task(
+        name="other",
+        dataset=[Sample(id=n, input="hi") for n in (1, 2)],
+        solver=[fails_first_time(), generate()],
+    )
+    # two eval_set calls (rather than in-set retries, which re-run the task in
+    # the same eval_run batch) so the retry pass really is a one-task batch
+    args: dict[str, Any] = dict(
+        log_dir=str(tmp_path),
+        sample_id=["gym:user:cybergym/arvo_1", "other:2"],
+        retry_attempts=0,
+        model="mockllm/model",
+    )
+    success, _ = eval_set([gym, other], **args)
+    assert not success
+    success, logs = eval_set([gym, other], **args)
+    assert success
+    assert attempts == [2, 2]
+    by_task = {log.eval.task: read_eval_log(log.location) for log in logs}
+    assert [s.id for s in by_task["other"].samples or []] == [2]
+    assert by_task["other"].eval.config.sample_id == ["2"]
+    assert by_task["gym"].eval.config.sample_id == ["user:cybergym/arvo_1"]
+
+
+def test_eval_set_unaddressed_task_is_complete_on_rerun(tmp_path: Path) -> None:
+    # a task no `task:id` selector names runs no samples (a success log with
+    # no results); a second pass must see it as complete rather than re-run it
+    foo = Task(name="foo", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
+    bar = Task(name="bar", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
+    args: dict[str, Any] = dict(
+        log_dir=str(tmp_path),
+        sample_id=["foo:1"],
+        retry_attempts=0,
+        model="mockllm/model",
+    )
+    success, logs = eval_set([foo, bar], **args)
+    assert success
+    first = {log.eval.task: basename(log.location) for log in logs}
+    assert read_eval_log(logs[1].location).results is None
+
+    success, logs = eval_set([foo, bar], **args)
+    assert success
+    assert {log.eval.task: basename(log.location) for log in logs} == first
 
 
 def test_eval_set_unknown_task_raises_prerequisite_error() -> None:
@@ -1426,6 +1530,88 @@ def test_eval_set_epochs_changed_to_none():
         )
         assert result
         verify_logs(logs, log_dir, epochs=1)
+
+
+def test_eval_set_reuses_log_with_task_epochs_reducer():
+    """A task whose Epochs carry a non-mean reducer is reused on the next call."""
+    task1 = Task(
+        dataset=[Sample(input="Say hello.", target="hello")],
+        solver=[generate()],
+        scorer=includes(),
+        epochs=Epochs(2, "max"),
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=2)
+        assert logs[0].eval.config.epochs_reducer == ["max"]
+        location = logs[0].location
+
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:01"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=2)
+            assert basename(logs[0].location) == basename(location)
+
+        # an eval-level epoch count keeps the task's reducer (as the runner
+        # does when recording the log) and so must also be reused
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            epochs=3,
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=3)
+        assert logs[0].eval.config.epochs_reducer == ["max"]
+        location = logs[0].location
+
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:02"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+                epochs=3,
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=3)
+            assert basename(logs[0].location) == basename(location)
+
+        # an eval-level reducer replaces the task's: re-run once, then reuse
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            epochs=Epochs(3, "mean"),
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=3)
+        assert logs[0].eval.config.epochs_reducer == ["mean"]
+        assert basename(logs[0].location) != basename(location)
+        location = logs[0].location
+
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:03"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+                epochs=Epochs(3, "mean"),
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=3)
+            assert basename(logs[0].location) == basename(location)
 
 
 def test_eval_set_limit_changed():
