@@ -2593,3 +2593,121 @@ async def test_a_sub_agent_span_opened_before_attribution_follows_its_parent_cal
     child = next(b for b in span_begins() if b.id == "agent-child")
     assert event.span_id == conversation.id
     assert child.parent_id == conversation.id
+
+
+async def test_a_sub_agent_span_opened_requests_later_still_follows_its_parent_call() -> (
+    None
+):
+    """A child span opened on a LATER request, under the parent's arrival span, follows it.
+
+    The Claude consumer opens the child at the parent's completion; the OpenCode
+    consumer opens it when the child's own first call arrives, requests later.
+    The one-shot walk at attribution time cannot see a span that does not exist
+    yet, so the emitter remembers every vacated arrival span and re-homes a
+    child begun under it whenever it is written.
+    """
+    init_transcript(Transcript())
+    arrival: list[str | None] = []
+
+    class _LateSpawningSink:
+        def on_pending(self, event: ModelEvent) -> None:
+            arrival.append(event.span_id)
+            transcript()._event(event)
+
+        def on_complete(self, event: ModelEvent) -> None: ...
+
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+        model_event_sink=_LateSpawningSink(),
+    )
+    async with span("outer", type="agent"):
+        # the parent spawns the child through a tool call -- the only kind of
+        # call that can, and the only kind that claims its arrival span
+        parent_input: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+        parent_out = ModelOutput.for_tool_call(
+            "mockllm/model", "task", {"prompt": "do it"}, tool_call_id="task-1"
+        )
+        parent = pending_event(parent_input)
+        parent.output = parent_out
+        sink = bridge.model_event_sink
+        assert sink is not None
+        sink.on_pending(parent)
+        sink.on_complete(parent)
+        await bridge._track_state(parent_input, parent_out)
+        # a later request: the child's first call arrives and the sink opens its
+        # span under the span the PARENT call arrived on
+        transcript()._event(
+            SpanBeginEvent(
+                id="opencode-session-child",
+                parent_id=arrival[0],
+                type="agent",
+                name="opencode",
+            )
+        )
+
+    conversation = next(
+        b for b in span_begins() if b.type == BRIDGE_CONVERSATION_SPAN_TYPE
+    )
+    child = next(b for b in span_begins() if b.id == "opencode-session-child")
+    assert parent.span_id == conversation.id
+    assert child.parent_id == conversation.id
+
+
+async def test_a_late_child_span_follows_the_tool_calling_parent_not_a_side_call() -> (
+    None
+):
+    """A side call that left the same arrival span later must not capture the child.
+
+    OpenCode's title-generation call arrives on the same span as the parent,
+    after it, carries no tool calls, and accumulates as its own conversation.
+    With last-writer-wins, a child opened after it was parented on the title
+    call's conversation. The child follows the most recent departing event that
+    issued a tool call -- the only kind that can spawn one.
+    """
+    init_transcript(Transcript())
+    arrival: list[str | None] = []
+
+    class _Sink:
+        def on_pending(self, event: ModelEvent) -> None:
+            arrival.append(event.span_id)
+            transcript()._event(event)
+
+        def on_complete(self, event: ModelEvent) -> None: ...
+
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+        model_event_sink=_Sink(),
+    )
+    async with span("outer", type="agent"):
+        # the parent: a call that spawns a child via a tool call
+        parent_input: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+        parent_out = ModelOutput.for_tool_call(
+            "mockllm/model", "task", {"prompt": "do it"}, tool_call_id="task-1"
+        )
+        parent_event = pending_event(parent_input)
+        parent_event.output = parent_out
+        sink = bridge.model_event_sink
+        assert sink is not None
+        sink.on_pending(parent_event)
+        sink.on_complete(parent_event)
+        await bridge._track_state(parent_input, parent_out)
+        # a title side call, no tool calls, its own conversation, same arrival span
+        await spanned_track(
+            bridge, [ChatMessageUser(content="Title this session")], "A title"
+        )
+        # the child's first request arrives; the sink opens its span under the
+        # parent's ARRIVAL span
+        transcript()._event(
+            SpanBeginEvent(
+                id="opencode-session-child",
+                parent_id=arrival[0],
+                type="agent",
+                name="opencode",
+            )
+        )
+
+    child = next(b for b in span_begins() if b.id == "opencode-session-child")
+    assert child.parent_id == parent_event.span_id
+    assert bridge._conversations[0].span_id == parent_event.span_id

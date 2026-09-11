@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     # cycles back through partially-initialized modules). Same reason
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
-    from inspect_ai.event import Event, ModelEvent
+    from inspect_ai.event import Event, ModelEvent, SpanBeginEvent
 
 
 class AgentBridge:
@@ -1017,6 +1017,14 @@ class _ConversationSpanEmitter:
         # emission). Placed when the sink finally writes them, if it wrote them
         # back at the ambient rather than somewhere of its own choosing.
         self._deferred: dict[int, tuple[str, str | None]] = {}
+        # Composed only: for every arrival span some event has been moved out
+        # of, the conversation of the most recent moved event that ISSUED A TOOL
+        # CALL there. A sink that opens a sub-agent span under a parent call's
+        # arrival span -- possibly requests later, when the child's own first
+        # call comes in -- names a span whose events have since moved; the child
+        # follows the call that could have spawned it. A side call with no tool
+        # calls (a title generation) leaving the same span does not displace it.
+        self._rehomed: dict[str, str] = {}
         self._unsubscribe: Callable[[], None] | None = None
 
     def on_pending(self, event: "ModelEvent") -> None:
@@ -1056,7 +1064,7 @@ class _ConversationSpanEmitter:
         record.events.append(event)
 
     def _on_written(self, event: "Event") -> None:
-        """Place a formerly held event into its conversation once the sink writes it.
+        """React to the sink's writes: place released events, re-home late child spans.
 
         A sink that held an event past attribution and then wrote it back at the
         ambient span decided it was NOT a sub-agent's, so the conversation span
@@ -1064,8 +1072,13 @@ class _ConversationSpanEmitter:
         placement stands (see `attribute_call`). Runs inside the transcript's
         write, which guards re-entrancy, so the update here does not recurse.
         """
-        from inspect_ai.event import ModelEvent
+        from inspect_ai.event import ModelEvent, SpanBeginEvent
 
+        if isinstance(event, SpanBeginEvent):
+            target = self._rehomed.get(event.parent_id or "")
+            if target is not None:
+                self._rehome_child(event, event.parent_id or "", target)
+            return
         deferred = self._deferred.pop(id(event), None)
         if deferred is None or not isinstance(event, ModelEvent):
             return
@@ -1147,22 +1160,33 @@ class _ConversationSpanEmitter:
         former = event.span_id
         event.span_id = span_id
         transcript()._event_updated(event)
-        if former == span_id or self._writes_events:
+        if former == span_id or self._writes_events or former is None:
             return
+        # Only a call that ISSUED tool calls can have spawned a sub-agent, so only
+        # such a call claims its arrival span for later children. A tool-less call
+        # leaving the same span -- a version probe, a title generation -- claims
+        # nothing, whether it left first or last.
+        if any(choice.message.tool_calls for choice in event.output.choices):
+            self._rehomed[former] = span_id
+        if self._unsubscribe is None:
+            self._unsubscribe = transcript()._subscribe(self._on_written)
         events = transcript().events
         try:
             start = next(i for i, e in enumerate(events) if e is event)
         except StopIteration:
             return
         for child in events[start + 1 :]:
-            if (
-                isinstance(child, SpanBeginEvent)
-                and child.type == "agent"
-                and child.parent_id == former
-            ):
-                child.parent_id = span_id
-                child.span_id = span_id
-                transcript()._event_updated(child)
+            if isinstance(child, SpanBeginEvent):
+                self._rehome_child(child, former, span_id)
+
+    def _rehome_child(self, child: "SpanBeginEvent", former: str, span_id: str) -> None:
+        """Move a sink-opened sub-agent span from a vacated arrival span to the conversation."""
+        from inspect_ai.log._transcript import transcript
+
+        if child.type == "agent" and child.parent_id == former:
+            child.parent_id = span_id
+            child.span_id = span_id
+            transcript()._event_updated(child)
 
     def end_span(self, span_id: str) -> None:
         """End one conversation's span (absorption: nothing extends it again)."""
@@ -1185,6 +1209,7 @@ class _ConversationSpanEmitter:
             transcript()._event(SpanEndEvent(id=span_id))
         self._span_ids.clear()
         self._deferred.clear()
+        self._rehomed.clear()
         if self._unsubscribe is not None:
             self._unsubscribe()
             self._unsubscribe = None
