@@ -1266,24 +1266,40 @@ def test_uvicorn_shutdown_mirror_is_current() -> None:
     settle sleep conditional) and ``main_loop()`` replaces the polling loop,
     both relying on ``should_exit`` being a plain attribute the subclass can
     shadow with a property. ``uvicorn`` is unpinned, so pin the mirrored
-    sources here: when an upgrade changes them, re-check the subclass in
+    code here: when an upgrade changes it, re-check the subclass in
     ``_prompt_exit_server_class`` against the new code and update the hashes.
+
+    The digest covers code tokens only — comments and blank lines are dropped
+    so a comment-only upstream edit doesn't trip it. (Token streams, unlike
+    ``ast.dump`` output, are stable across the Python versions CI runs.)
     """
     import hashlib
     import inspect
+    import io
+    import textwrap
+    import tokenize
 
     import uvicorn.server
 
+    structural = {tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT}
+    significant = {tokenize.NAME, tokenize.NUMBER, tokenize.STRING, tokenize.OP}
+
     def digest(name: str) -> str:
         source = inspect.getsource(getattr(uvicorn.server.Server, name))
-        return hashlib.sha256(source.encode()).hexdigest()[:16]
+        tokens = tokenize.generate_tokens(io.StringIO(textwrap.dedent(source)).readline)
+        parts = [
+            tokenize.tok_name[tok.type] if tok.type in structural else tok.string
+            for tok in tokens
+            if tok.type in structural or tok.type in significant
+        ]
+        return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:16]
 
     assert not isinstance(
         inspect.getattr_static(uvicorn.server.Server, "should_exit", None), property
     )
     assert {name: digest(name) for name in ("shutdown", "main_loop")} == {
-        "shutdown": "9b33c50562992b1e",
-        "main_loop": "afccb353a119333f",
+        "shutdown": "248c7bf71a637115",
+        "main_loop": "c50e6ef76aa27676",
     }, "uvicorn changed a method PromptExitServer mirrors — re-check it"
 
 

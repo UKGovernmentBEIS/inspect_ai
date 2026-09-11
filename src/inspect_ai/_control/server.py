@@ -406,8 +406,9 @@ def _prompt_exit_server_class() -> "type[Any]":
       eval end), keeping uvicorn's drain for the case where one is.
 
     ``shutdown()`` mirrors ``uvicorn.Server.shutdown`` step for step;
-    ``tests/_control/test_server.py`` pins the mirrored uvicorn sources so an
-    upgrade that changes them fails a test and prompts a re-check here.
+    ``tests/_control/test_server.py`` pins the mirrored uvicorn code (comments
+    aside) so an upgrade that changes it fails a test and prompts a re-check
+    here.
 
     Defined in a function because uvicorn is imported lazily — only
     ``start()`` pays for it.
@@ -457,8 +458,11 @@ def _prompt_exit_server_class() -> "type[Any]":
                 server.close()
             for sock in sockets or []:
                 sock.close()
-            # a connection accepted just before the close registers itself
-            # via call_soon — yield once so it's visible below
+            # Best effort: a connection accepted in the same iteration as the
+            # close registers itself via call_soon, so yielding narrows (but
+            # doesn't close) the window in which the check below misses it.
+            # One that slips through is still drained by
+            # _wait_tasks_to_complete, it just skips the settle sleep.
             await asyncio.sleep(0)
             if self.server_state.connections:
                 for connection in list(self.server_state.connections):
