@@ -23,6 +23,7 @@ from inspect_ai._eval.context import init_eval_context
 from inspect_ai._eval.loader import metric_from_spec
 from inspect_ai._eval.score import (
     ScoreAction,
+    check_sample_ids,
     resolve_scorers,
     score_async,
 )
@@ -30,6 +31,7 @@ from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.platform import platform_init
+from inspect_ai._util.samples import parse_sample_id
 from inspect_ai.log._log import EvalLog, EvalResults, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
 from inspect_ai.model._model import Model, get_model
@@ -92,6 +94,12 @@ from .common import CommonOptions, common_options, process_common_options
     help="Whether to append or overwrite the existing scores.",
 )
 @click.option(
+    "--sample-id",
+    type=str,
+    envvar="INSPECT_SCORE_SAMPLE_ID",
+    help="Score specific sample(s) (comma separated list of ids); every other sample keeps its existing scores.",
+)
+@click.option(
     "--overwrite",
     type=bool,
     is_flag=True,
@@ -127,6 +135,7 @@ def score_command(
     s: tuple[str, ...] | None,
     metric: tuple[str, ...] | None,
     action: ScoreAction | None,
+    sample_id: str | None,
     stream: int | bool = False,
     **common: Unpack[CommonOptions],
 ) -> None:
@@ -149,6 +158,7 @@ def score_command(
             action=action,
             log_level=common["log_level"],
             stream=stream,
+            sample_id=sample_id,
         )
 
     anyio.run(run_score, backend=configured_async_backend())
@@ -169,6 +179,7 @@ async def score(
     m: tuple[str, ...] | None = None,
     model_role: tuple[str, ...] | None = None,
     stream: int | bool = False,
+    sample_id: str | None = None,
 ) -> None:
     platform_init()
 
@@ -176,6 +187,7 @@ async def score(
     scorer_args = parse_cli_config(args=s, config=None)
     model_args = parse_cli_args(m)
     model_roles = parse_model_role_cli_args(model_role) if model_role else None
+    sample_ids = parse_sample_id(sample_id)
     override_model: Model | None = (
         get_model(model, base_url=model_base_url, **model_args)
         if model is not None
@@ -195,6 +207,16 @@ async def score(
         raise ValueError(
             f"Cannot determine the number of samples to score for {log_file}"
         )
+
+    # check the filter before the interactive prompts below and, when
+    # streaming, before any sample has been written to the output
+    if sample_ids is not None:
+        present = (
+            [sample.id for sample in eval_log.samples]
+            if eval_log.samples
+            else [id for id, _ in await recorder.read_log_sample_ids(log_file)]
+        )
+        check_sample_ids(sample_ids, present)
 
     # Sample coverage describes the original run, not this scoring pass, and
     # `--action overwrite` replaces `results` with counts taken over the samples
@@ -251,6 +273,7 @@ async def score(
         action=action,
         copy=False,
         samples=read_sample,
+        sample_ids=sample_ids,
     )
 
     if stream:

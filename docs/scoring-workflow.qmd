@@ -83,6 +83,15 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scor
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorer.py --action overwrite
 ```
 
+### Scoring Specific Samples
+
+To rescore only some of the samples, pass their ids with `--sample-id` (comma separated). Every other sample keeps its existing scores in both append and overwrite mode, and an id that matches no sample is an error:
+
+``` bash
+# regrade samples 7 and 12 only, replacing their previous scores
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --sample-id 7,12 --action overwrite
+```
+
 ## Score Function
 
 You can also use the `score()` function in your Python code to score evaluation logs. For example, if you are exploring the performance of different scorers, you might find it more useful to call the `score()` function using varying scorers or scorer options. For example:
