@@ -14,6 +14,7 @@ title: Reference
 | [inspect_ai.hooks](inspect_ai.hooks.qmd) | Hook into Inspect lifecycle events. |
 | [inspect_ai.log](inspect_ai.log.qmd) | List, read, write, and analyse logs. |
 | [inspect_ai.model](inspect_ai.model.qmd) | Model interface and providers. |
+| [inspect_ai.review](inspect_ai.review.qmd) | Reviewers and review policies. |
 | [inspect_ai](inspect_ai.qmd) | Tasks, evaluation, and scoring. |
 | [inspect_ai.scorer](inspect_ai.scorer.qmd) | Task scoring and metrics. |
 | [inspect_ai.solver](inspect_ai.solver.qmd) | Prompting and elicitation. |
