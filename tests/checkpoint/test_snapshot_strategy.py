@@ -51,6 +51,8 @@ from inspect_ai.util._checkpoint._snapshot.types import (
     SnapshotContext,
 )
 from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
+from inspect_ai.util._sandbox import _privileged as privileged
+from inspect_ai.util._sandbox._privileged import pinned_shell_command
 from inspect_ai.util._subprocess import ExecResult
 
 
@@ -175,14 +177,18 @@ async def test_archive_snapshot_handles_paths_with_spaces(tmp_path: Path) -> Non
         assert (data_dir / rel).read_bytes() == content
 
 
-async def test_archive_snapshot_tolerates_tar_exit_1(tmp_path: Path) -> None:
+async def test_archive_snapshot_tolerates_tar_exit_1(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Tar exit 1 (file changed while reading) must not fail the fire.
 
     Regression test for the fd-3 exit-status capture: with ``set -e``
     active, dash/ash abort the capture subshell on tar's non-zero exit
     before ``echo $? >&3`` runs, so the tolerated exit 1 used to fail
     the snapshot with a blank status. A shim ``tar`` that produces a
-    valid archive but exits 1 makes the case deterministic.
+    valid archive but exits 1 makes the case deterministic. The
+    strategy's root scripts ignore the inherited ``PATH`` and use the
+    pinned system directories, so the shim goes on that pinned ``PATH``.
     """
     real_tar = shutil.which("tar")
     assert real_tar is not None
@@ -191,16 +197,20 @@ async def test_archive_snapshot_tolerates_tar_exit_1(tmp_path: Path) -> None:
     shim = shim_dir / "tar"
     shim.write_text(f'#!/bin/sh\n"{real_tar}" "$@"\nexit 1\n')
     shim.chmod(0o755)
-    env = LocalShellSandbox(
-        extra_env={"PATH": f"{shim_dir}{os.pathsep}{os.environ['PATH']}"}
-    )
+    env = LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
     ctx = _context(tmp_path / "sample")
     data_dir = tmp_path / "capture" / "data"
     files = _write_data(data_dir)
     paths = SandboxBackupPaths(include=[str(data_dir)])
 
-    details = await strategy.snapshot(env, paths, 1, ctx)
+    with monkeypatch.context() as shimmed:
+        shimmed.setattr(
+            privileged,
+            "SYSTEM_PATH",
+            f"{shim_dir}{os.pathsep}{privileged.SYSTEM_PATH}",
+        )
+        details = await strategy.snapshot(env, paths, 1, ctx)
 
     # Restore with an un-shimmed tar: the shim only simulates the
     # capture-time "file changed as we read it" warning.
@@ -238,7 +248,9 @@ async def test_archive_snapshot_tolerates_staging_cleanup_exception(
             timeout_retry: bool = True,
             concurrency: bool = True,
         ) -> ExecResult[str]:
-            if cmd == ["sh", "-c", self.cleanup_script]:
+            if self.cleanup_script is not None and cmd == pinned_shell_command(
+                self.cleanup_script
+            ):
                 self.cleanup_attempted = True
                 raise TimeoutError("transport lost during cleanup")
             return await super().exec(
@@ -583,7 +595,7 @@ async def test_copy_out_cancelled_mid_transfer_leaves_no_partial(
             timeout_retry: bool = True,
             concurrency: bool = True,
         ) -> ExecResult[str]:
-            if "dd if=" in cmd[-1]:
+            if any("dd if=" in part for part in cmd):
                 _StallingSandbox.dd_calls += 1
                 if _StallingSandbox.dd_calls == 2:
                     second_chunk_started.set()

@@ -19,6 +19,7 @@ from inspect_ai._util._async import coro_log_exceptions
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult
 
+from ._privileged import image_path_lookup, privileged_exec, privileged_shell
 from .environment import SandboxEnvironment
 from .limits import OutputLimitExceededError, override_max_exec_output_size
 
@@ -636,13 +637,11 @@ class SandboxService:
         # typically can't chmod a dir owned by someone else; best-effort
         # because even the default user may not own it.
         try:
-            await self._sandbox.exec(
-                [
-                    "sh",
-                    "-c",
-                    f"mkdir -p {SERVICES_DIR} && "
-                    f"chmod {SERVICES_DIR_MODE} {SERVICES_DIR} 2>/dev/null; true",
-                ],
+            await privileged_shell(
+                self._sandbox,
+                f"mkdir -p {SERVICES_DIR} && "
+                f"chmod {SERVICES_DIR_MODE} {SERVICES_DIR} 2>/dev/null; true",
+                user=None,
                 timeout=600,
                 concurrency=False,
             )
@@ -706,9 +705,21 @@ class SandboxService:
             raise RuntimeError(msg)
 
     async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
+        """Run ``cmd`` as the service user with utilities pinned to the system dirs.
+
+        The service user is the sandbox default user (root in most images) unless
+        the service was given one, and ``test -O`` below is what rejects a squatted
+        service directory, so none of these commands may come from the image's
+        ``PATH``.
+        """
         try:
-            return await self._sandbox.exec(
-                cmd, user=self._user, input=input, timeout=600, concurrency=False
+            return await privileged_exec(
+                self._sandbox,
+                cmd,
+                user=self._user,
+                input=input,
+                timeout=600,
+                concurrency=False,
             )
         except TimeoutError:
             raise RuntimeError(
@@ -807,8 +818,10 @@ def sandbox_service_script(name: str) -> str:
 async def validate_sandbox_python(
     service_name: str, sandbox: SandboxEnvironment, user: str | None = None
 ) -> None:
-    # validate python in sandbox
-    result = await sandbox.exec(["which", "python3"], user=user, concurrency=False)
+    # The client script runs under whatever `python3` the image's PATH offers
+    # the sandbox user (slim, conda and venv images ship none in /usr/bin), so
+    # that PATH is the one to search.
+    result = await image_path_lookup(sandbox, "python3", user=user, concurrency=False)
     if not result.success:
         raise PrerequisiteError(
             f"The {service_name} requires that Python be installed in the sandbox."

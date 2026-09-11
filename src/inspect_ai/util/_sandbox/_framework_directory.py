@@ -53,11 +53,12 @@ A provider that merges the streams or drops stderr makes every call here fail as
 "did not run", and callers then treat the user as unavailable.
 
 Image requirement: the script runs under ``/bin/sh`` with ``PATH`` fixed to
-``/usr/sbin:/usr/bin:/sbin:/bin``, so ``stat``, ``id``, ``mkdir``, ``chmod``, and
-any command a caller wraps must live in one of those four directories. An image
-whose coreutils live elsewhere (a Nix-style store, or only under ``/usr/local``)
-fails with :class:`FrameworkDirectoryUnavailableError` naming the missing tool
-rather than picking up whatever the inherited ``PATH`` offers.
+``/usr/sbin:/usr/bin:/sbin:/bin`` (the shared pin in
+:mod:`inspect_ai.util._sandbox._privileged`), so ``stat``, ``id``, ``mkdir``,
+``chmod``, and any command a caller wraps must live in one of those four
+directories. An image whose coreutils live elsewhere (a Nix-style store, or only
+under ``/usr/local``) fails with :class:`FrameworkDirectoryUnavailableError` naming
+the missing tool rather than picking up whatever the inherited ``PATH`` offers.
 
 Rootless sandboxes: when the command cannot run as root, the intended owner is the
 sandbox's default uid. The contract still holds for that uid, but it does not
@@ -75,6 +76,7 @@ from typing import NamedTuple
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util._subprocess import ExecResult
 
+from ._privileged import SHELL_PATH, SYSTEM_PATH, pinned_env
 from .environment import SandboxEnvironment
 
 logger = getLogger(__name__)
@@ -109,22 +111,19 @@ _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 # anything it wants other principals to read itself (see
 # `exec_in_framework_directory`). Tool output is captured with stderr discarded so a warning
 # cannot be folded into a value; the error path re-runs the tool for its message.
-# PATH is replaced outright with the four base system directories: the inherited
-# value is not consulted at all, so a user-owned directory an image puts on PATH
-# cannot supply `stat`/`id`/`mkdir` (or the wrapped command), a utility missing from
-# those directories fails rather than falling through, and an empty component
-# (which shells resolve from the cwd, here the possibly world-writable parent)
-# cannot appear. `/usr/local/{bin,sbin}` are deliberately excluded: Dockerfiles
-# routinely hand them to the non-root user (`chown -R user /usr/local` for
-# `npm install -g` or venv-less `pip install`), and nothing the script or the
-# sandbox tools need lives there. The shell itself is resolved by the provider
-# before this runs, through the image's PATH, which is why the host launches it
-# as `SHELL_PATH`.
+# PATH is replaced outright with the four base system directories (`SYSTEM_PATH`):
+# the inherited value is not consulted at all, so a user-owned directory an image
+# puts on PATH cannot supply `stat`/`id`/`mkdir` (or the wrapped command), a
+# utility missing from those directories fails rather than falling through, and an
+# empty component (which shells resolve from the cwd, here the possibly
+# world-writable parent) cannot appear. The shell itself is resolved by the
+# provider before this runs, through the image's PATH, which is why the host
+# launches it as `SHELL_PATH`. See `_privileged` for the rationale behind both.
 _SCRIPT = """
 set -u
 umask 077
 unset CDPATH
-PATH=/usr/sbin:/usr/bin:/sbin:/bin
+PATH=@PATH@
 export PATH
 expect=$1 create=$2 repair=$3 want=$4 parent=$5 leaf=$6
 shift 6
@@ -213,6 +212,7 @@ printf '%s\\n' @VERIFIED@ >&2
 """
 
 for _placeholder, _value in {
+    "@PATH@": SYSTEM_PATH,
     "@VIOLATION@": _VIOLATION_MARKER,
     "@VIOLATION_EXIT@": str(_VIOLATION_EXIT),
     "@MISSING@": _MISSING_MARKER,
@@ -226,16 +226,6 @@ for _placeholder, _value in {
     "@VERIFIED@": _VERIFIED_MARKER,
 }.items():
     _SCRIPT = _SCRIPT.replace(_placeholder, _value)
-
-
-SHELL_PATH = "/bin/sh"
-"""Absolute path of the shell that runs the verification script.
-
-A bare ``sh`` would be resolved by the provider through the image's PATH before the
-script can pin its own, so an image with a default-user-writable directory ahead of
-``/bin`` would let the agent supply the shell that root runs. Callers that run
-their own privileged scripts in a sandbox should launch them the same way.
-"""
 
 
 class FrameworkDirectoryError(RuntimeError):
@@ -411,6 +401,7 @@ async def _run_verified(
             leaf,
             *cmd,
         ],
+        env=pinned_env(None),
         user=user,
         input=input,
         timeout=timeout,

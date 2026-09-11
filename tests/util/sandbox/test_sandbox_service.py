@@ -17,6 +17,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import sandbox
 from inspect_ai.util._background import background
+from inspect_ai.util._sandbox._privileged import SHELL_PATH, pinned_command
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import (
@@ -26,6 +27,17 @@ from inspect_ai.util._sandbox.service import (
     sandbox_service,
 )
 from inspect_ai.util._subprocess import ExecResult
+
+
+def _argv(cmd: list[str]) -> list[str]:
+    """The command a service ``exec`` issues, unwrapped from its PATH-pinning shell.
+
+    The service runs its commands through ``privileged_exec`` (see ``_privileged``);
+    the fakes below dispatch on the wrapped command, as the real utilities would.
+    """
+    if len(cmd) > 4 and cmd == pinned_command(cmd[4:]):
+        return cmd[4:]
+    return cmd
 
 
 @pytest.mark.slow
@@ -226,9 +238,13 @@ class FakeSandboxEnvironment:
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         self.calls.append({"cmd": cmd, "user": user})
         if self.results:
             return cast(ExecResult[str], self.results.pop(0))
@@ -260,7 +276,9 @@ async def test_ensure_service_dir_raises_when_dir_not_owned() -> None:
 
     issued = [call["cmd"] for call in fake.calls]
     assert len(issued) == 3, f"expected 3 exec calls, got {len(issued)}: {issued}"
-    assert issued[0][:2] == ["sh", "-c"]
+    # The shared-parent setup runs as the sandbox default user (root in most
+    # images), so it is launched by absolute shell path with PATH pinned.
+    assert issued[0][:2] == [SHELL_PATH, "-c"]
     assert "chmod 1777" in issued[0][2]
     assert SERVICES_DIR in issued[0][2]
     assert issued[1] == ["mkdir", "-p", f"{SERVICES_DIR}/squatted"]
@@ -391,9 +409,13 @@ class _RequestReadSandbox:
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         self.calls.append(cmd)
         if cmd[0] == "find":
             return cast(ExecResult[str], FakeExecResult(stdout=self.list_stdout))
@@ -697,9 +719,13 @@ class _RealListingSandbox(_RequestReadSandbox):
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         if cmd[0] == "find":
             self.calls.append(cmd)
             completed = subprocess.run(cmd, capture_output=True, text=True)
@@ -896,9 +922,13 @@ class _QueueSandbox:
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         if cmd[0] == "find":
             hits = [
                 path
@@ -1034,9 +1064,13 @@ class _DelayedWriteSandbox(_QueueSandbox):
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         if cmd[0] == "tee" and "/responses/" in cmd[-1]:
             await anyio.sleep(self.write_delay)
         return await super().exec(

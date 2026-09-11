@@ -8,6 +8,7 @@ from pydantic import JsonValue
 
 from inspect_ai._util.ansi import render_text
 from inspect_ai.util._sandbox import sandbox
+from inspect_ai.util._sandbox._privileged import privileged_exec
 
 from ..install import RECORD_SESSION_DIR
 from ..state import HumanAgentState
@@ -28,7 +29,9 @@ class SessionEndCommand(HumanAgentCommand):
     async def _read_session_logs(self) -> dict[str, str]:
         # retreive session logs (don't fail)
         sessions_dir = PurePosixPath(RECORD_SESSION_DIR)
-        result = await sandbox().exec(["ls", "-1", sessions_dir.as_posix()])
+        result = await privileged_exec(
+            sandbox(), ["ls", "-1", sessions_dir.as_posix()], user=None
+        )
         if not result.success:
             logger.warning(f"Error listing human agent session logs: {result.stderr}")
             return {}
