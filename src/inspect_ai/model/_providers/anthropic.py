@@ -2067,12 +2067,21 @@ def _web_search_tool_params(
     web_fetch_tool: BetaWebFetchTool20250910Param | BetaWebFetchTool20260209Param
     web_search_tool: WebSearchTool20250305Param | WebSearchTool20260209Param
     if web_search_filtering:
+        # The _20260209 versions default `allowed_callers` to the code execution
+        # caller only, so a request that forces the tool (`tool_choice` naming
+        # web_search, as Claude Code's WebSearch does) is rejected with a 400.
+        # Allow both callers: dynamic filtering stays available and the model can
+        # still be told to search directly. A caller-supplied `allowed_callers`
+        # (below) overrides this.
         web_fetch_tool = BetaWebFetchTool20260209Param(
-            name="web_fetch", type="web_fetch_20260209"
+            name="web_fetch",
+            type="web_fetch_20260209",
+            allowed_callers=["direct", "code_execution_20260120"],
         )
         web_search_tool = WebSearchTool20260209Param(
             name="web_search",
             type="web_search_20260209",
+            allowed_callers=["direct", "code_execution_20260120"],
         )
     else:
         web_fetch_tool = BetaWebFetchTool20250910Param(
@@ -2101,6 +2110,11 @@ def _web_search_tool_params(
             web_fetch_tool["max_uses"] = web_search_tool["max_uses"]
         if "user_location" in maybe_anthropic_options:
             web_search_tool["user_location"] = maybe_anthropic_options["user_location"]
+        if "allowed_callers" in maybe_anthropic_options:
+            web_search_tool["allowed_callers"] = maybe_anthropic_options[
+                "allowed_callers"
+            ]
+            web_fetch_tool["allowed_callers"] = web_search_tool["allowed_callers"]
 
         if "citations" in maybe_anthropic_options:
             web_fetch_tool["citations"] = maybe_anthropic_options["citations"]

@@ -42,11 +42,18 @@ class TestAnthropicWebSearch:
         ]
 
     def test_web_search_tool_with_filtering(self):
+        # The _20260209 versions default to the code-execution caller only, which
+        # rejects a forced tool_choice; the provider allows both callers.
         assert _web_search_tool_params({}, web_search_filtering=True) == [
-            {"name": "web_fetch", "type": "web_fetch_20260209"},
+            {
+                "name": "web_fetch",
+                "type": "web_fetch_20260209",
+                "allowed_callers": ["direct", "code_execution_20260120"],
+            },
             {
                 "name": "web_search",
                 "type": "web_search_20260209",
+                "allowed_callers": ["direct", "code_execution_20260120"],
             },
         ]
 
@@ -59,14 +66,45 @@ class TestAnthropicWebSearch:
             {
                 "name": "web_fetch",
                 "type": "web_fetch_20260209",
+                "allowed_callers": ["direct", "code_execution_20260120"],
                 "max_uses": 666,
                 "allowed_domains": ["nhl.com"],
             },
             {
                 "name": "web_search",
                 "type": "web_search_20260209",
+                "allowed_callers": ["direct", "code_execution_20260120"],
                 "max_uses": 666,
                 "allowed_domains": ["nhl.com"],
+            },
+        ]
+
+    def test_web_search_tool_allowed_callers_passthrough(self):
+        # An explicit caller list wins over the provider default, on both versions.
+        options = {"allowed_callers": ["direct"]}
+
+        assert _web_search_tool_params(options, web_search_filtering=True) == [
+            {
+                "name": "web_fetch",
+                "type": "web_fetch_20260209",
+                "allowed_callers": ["direct"],
+            },
+            {
+                "name": "web_search",
+                "type": "web_search_20260209",
+                "allowed_callers": ["direct"],
+            },
+        ]
+        assert _web_search_tool_params(options) == [
+            {
+                "name": "web_fetch",
+                "type": "web_fetch_20250910",
+                "allowed_callers": ["direct"],
+            },
+            {
+                "name": "web_search",
+                "type": "web_search_20250305",
+                "allowed_callers": ["direct"],
             },
         ]
 

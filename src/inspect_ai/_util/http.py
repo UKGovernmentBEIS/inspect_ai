@@ -17,11 +17,53 @@ def status_code_of(ex: BaseException) -> int | None:
     wrappers: `status_code` (Anthropic/OpenAI SDKs, `ModelGenerateError`) and
     `code` (google-genai `APIError`). Returns None when no integer status is
     found.
+
+    A 2xx response status does not describe a failure (the Anthropic SDK raises
+    `APIStatusError` with the 200 stream's status for an SSE `error` event).
+    Recover a status from a structured error body when possible; otherwise
+    return None.
     """
     for attr in ("status_code", "code"):
         value = getattr(ex, attr, None)
         if isinstance(value, int):
+            if 200 <= value < 300:
+                return _status_from_error_body(getattr(ex, "body", None))
             return value
+    return None
+
+
+# Anthropic error `type` -> HTTP status (https://docs.anthropic.com/en/api/errors).
+_ANTHROPIC_ERROR_TYPE_STATUS = {
+    "invalid_request_error": 400,
+    "authentication_error": 401,
+    "billing_error": 402,
+    "permission_error": 403,
+    "not_found_error": 404,
+    "conflict_error": 409,
+    "request_too_large": 413,
+    "rate_limit_error": 429,
+    "api_error": 500,
+    "timeout_error": 504,
+    "overloaded_error": 529,
+}
+
+
+def _status_from_error_body(body: object) -> int | None:
+    """Status implied by a provider error body, for errors delivered on a 2xx response."""
+    if not isinstance(body, dict):
+        return None
+    error = body.get("error", body)
+    if not isinstance(error, dict):
+        return None
+    # Google bodies carry a symbolic `status` ("UNAVAILABLE") beside a numeric `code`;
+    # take the first usable integer rather than whichever key happens to be present.
+    for key in ("status", "code"):
+        value = error.get(key)
+        if isinstance(value, int) and not (200 <= value < 300):
+            return value
+    error_type = error.get("type")
+    if isinstance(error_type, str):
+        return _ANTHROPIC_ERROR_TYPE_STATUS.get(error_type)
     return None
 
 
