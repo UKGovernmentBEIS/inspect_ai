@@ -130,19 +130,27 @@ async def test_score_target_beyond_choices_raises():
         "",  # empty
     ],
 )
-async def test_score_no_choices_does_not_raise(target: str):
-    # the choice scorer applied to a sample with no choices (e.g. re-scoring a
-    # non-multiple-choice log) should score incorrect, not abort the run --
-    # whatever the target looks like
+async def test_score_no_choices_raises(target: str):
     scorer = choice()
     state = simple_task_state(model_output="No", choices=[])
 
-    result = await scorer(state, Target(target))
+    with pytest.raises(
+        ValueError, match="The choice scorer requires samples with choices"
+    ):
+        await scorer(state, Target(target))
+
+
+@pytest.mark.anyio
+async def test_score_no_selection_is_incorrect():
+    scorer = choice()
+    state = simple_task_state(model_output="I don't know", choices=["Paris", "Berlin"])
+
+    result = await scorer(state, Target("A"))
 
     assert result is not None
     assert result.text == INCORRECT
     assert result.answer == ""
-    assert result.explanation == "No"
+    assert result.explanation == "I don't know"
 
 
 def test_answer_index_rejects_separators():
@@ -152,6 +160,16 @@ def test_answer_index_rejects_separators():
         answer_index(",")
     with pytest.raises(ValueError):
         answer_index(" ")
+
+
+def test_answer_index_zero_and_invalid_alpha():
+    # "0" should raise ValueError rather than colliding with index 25 ("Z")
+    with pytest.raises(ValueError, match="numeric choices start at 1"):
+        answer_index("0")
+
+    # Multi-character alpha should raise ValueError
+    with pytest.raises(ValueError):
+        answer_index("AB")
 
 
 @pytest.mark.anyio

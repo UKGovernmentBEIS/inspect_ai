@@ -31,6 +31,7 @@ from inspect_ai.event._input import InputEvent
 from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._logger import LoggerEvent
 from inspect_ai.event._model import CANCEL_ERRORS, ModelEvent
+from inspect_ai.event._review import ReviewEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._score import ScoreEvent
@@ -372,6 +373,14 @@ def render_approval_event(event: ApprovalEvent) -> EventDisplay:
     return EventDisplay("approval", Group(*content))
 
 
+def render_review_event(event: ReviewEvent) -> EventDisplay:
+    content: list[RenderableType] = [
+        f"[bold]{event.reviewer}[/bold]: {event.decision} ({event.explanation})"
+    ]
+
+    return EventDisplay("review", Group(*content))
+
+
 def render_info_event(event: InfoEvent) -> EventDisplay:
     if isinstance(event.data, str):
         content: RenderableType = transcript_markdown(event.data)
@@ -484,6 +493,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (ScoreEvent, render_score_event),
     (InputEvent, render_input_event),
     (ApprovalEvent, render_approval_event),
+    (ReviewEvent, render_review_event),
     (InfoEvent, render_info_event),
     (BranchEvent, render_branch_event),
     (CompactionEvent, render_compaction_event),

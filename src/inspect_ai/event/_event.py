@@ -15,6 +15,7 @@ from ._input import InputEvent
 from ._interrupt import InterruptEvent
 from ._logger import LoggerEvent
 from ._model import ModelEvent
+from ._review import ReviewEvent
 from ._sample_init import SampleInitEvent
 from ._sample_limit import SampleLimitEvent
 from ._sandbox import SandboxEvent
@@ -36,6 +37,7 @@ Event: TypeAlias = Union[
     ToolEvent,
     AnchorEvent,
     ApprovalEvent,
+    ReviewEvent,
     BranchEvent,
     CheckpointEvent,
     CompactionEvent,

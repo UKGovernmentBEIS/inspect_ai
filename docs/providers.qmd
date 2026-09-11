@@ -611,7 +611,7 @@ This requires no configuration. Note that the header is not sent for [batch](mod
 
 ## AWS Bedrock {#aws-bedrock}
 
-To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, install the `aioboto3` package, set your credentials, and specify a model using the `--model` option:
+To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, set your credentials and specify a model using the `--model` option:
 
 ``` bash
 export AWS_ACCESS_KEY_ID=access-key-id
@@ -620,7 +620,7 @@ export AWS_DEFAULT_REGION=us-east-1
 inspect eval bedrock/meta.llama2-70b-chat-v1
 ```
 
-For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
+For the `bedrock` provider, custom model args (`-M`) are forwarded to the `create_client` method of the `aiobotocore.session.AioSession` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
 
 Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
@@ -638,10 +638,9 @@ inspect eval arc.py --model bedrock/us.anthropic.claude-sonnet-4-6 -M streaming=
 
 ## AWS SageMaker {#aws-sagemaker}
 
-To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, install the `aioboto3` package, set your credentials, and specify a SageMaker endpoint name using the `--model` option:
+To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, set your credentials and specify a SageMaker endpoint name using the `--model` option:
 
 ``` bash
-pip install aioboto3
 export AWS_ACCESS_KEY_ID=access-key-id
 export AWS_SECRET_ACCESS_KEY=secret-access-key
 inspect eval arc.py --model sagemaker/my-endpoint-name \

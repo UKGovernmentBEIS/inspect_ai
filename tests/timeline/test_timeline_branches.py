@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from inspect_ai.event import Event, timeline_build
+from inspect_ai.event import Event, Timeline, timeline_build, timeline_filter
 from inspect_ai.event._branch import BranchEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
@@ -204,3 +204,104 @@ def test_branched_from_stores_message_id() -> None:
 
     assert len(agent.branches) == 1
     assert agent.branches[0].branched_from == "msg-B"
+
+
+def test_timeline_filter_prunes_scorer_branches_without_mutating_full_timeline() -> (
+    None
+):
+    """Scorer spans and descendants are removed from content and branch trees."""
+    full_timeline = Timeline(
+        name="full",
+        description="Complete task and scorer transcript",
+        root=TimelineSpan(
+            id="root",
+            name="root",
+            span_type="root",
+            content=[
+                TimelineSpan(
+                    id="target",
+                    name="target",
+                    span_type="agent",
+                    content=[
+                        TimelineSpan(
+                            id="content-scorer",
+                            name="content reviewer",
+                            span_type="scorers",
+                            content=[
+                                TimelineSpan(
+                                    id="content-reviewer",
+                                    name="reviewer",
+                                    span_type="agent",
+                                )
+                            ],
+                        ),
+                        TimelineSpan(
+                            id="agent-named-scorer",
+                            name="scorer",
+                            span_type="agent",
+                        ),
+                    ],
+                    branches=[
+                        TimelineSpan(
+                            id="scorer-branch",
+                            name="discarded scorer branch",
+                            span_type="scorers",
+                            content=[
+                                TimelineSpan(
+                                    id="branch-reviewer",
+                                    name="branch reviewer",
+                                    span_type="agent",
+                                )
+                            ],
+                        ),
+                        TimelineSpan(
+                            id="task-branch",
+                            name="task branch",
+                            span_type="branch",
+                            content=[
+                                TimelineSpan(
+                                    id="deep-parent",
+                                    name="deep task agent",
+                                    span_type="agent",
+                                    branches=[
+                                        TimelineSpan(
+                                            id="late-scorer",
+                                            name="late reviewer",
+                                            span_type="scorers",
+                                            content=[
+                                                TimelineSpan(
+                                                    id="late-reviewer",
+                                                    name="late reviewer child",
+                                                    span_type="agent",
+                                                )
+                                            ],
+                                        )
+                                    ],
+                                )
+                            ],
+                        ),
+                    ],
+                )
+            ],
+        ),
+    )
+    full_timeline_before_filtering = full_timeline.model_copy(deep=True)
+
+    judge_timeline = timeline_filter(
+        full_timeline, lambda span: span.span_type != "scorers"
+    )
+
+    for span_id in (
+        "content-scorer",
+        "content-reviewer",
+        "scorer-branch",
+        "branch-reviewer",
+        "late-scorer",
+        "late-reviewer",
+    ):
+        assert _find_span(judge_timeline.root, span_id) is None
+
+    for span_id in ("target", "agent-named-scorer", "task-branch", "deep-parent"):
+        assert _find_span(judge_timeline.root, span_id) is not None
+
+    assert full_timeline == full_timeline_before_filtering
