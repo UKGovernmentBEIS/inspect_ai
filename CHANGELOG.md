@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Fixed Linux evaluations slowing down as model clients open more HTTPS connections.
 - Sample selection: `--sample-id` now accepts ids containing colons (e.g. `user:cybergym/arvo_6008`); a `task:` prefix is stripped only when it names a task in the run.
 - Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
 - Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
@@ -40,7 +41,9 @@
 - Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
 - Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
 - Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
-- Anthropic: Structured output requests whose response schema has an optional (nullable) field no longer fail with HTTP 400; `additionalProperties: false` is now applied to object nodes only.
+- Scoring: `math()` now raises an error when no reference answer can be parsed instead of silently excluding the sample from metrics.
+- Scoring: `choice()` now raises an error for samples without answer options instead of silently scoring them incorrect.
+- Bugfix: Anthropic structured output requests whose response schema has an optional (nullable) field no longer fail with HTTP 400.
 
 ## 0.3.263 (03 September 2026)
 
