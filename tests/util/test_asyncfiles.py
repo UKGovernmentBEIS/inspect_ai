@@ -4,9 +4,9 @@ import io
 import tempfile
 import time
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, Callable, cast
 
+import aiohttp
 import anyio
 import pytest
 from anyio import EndOfStream
@@ -472,16 +472,7 @@ async def test_write_file_streaming_s3_sync_backend_source_reusable(
         assert await fs.read_file(s3_path) == test_data
 
 
-class _FakeMeta:
-    def __init__(self, request_checksum_calculation: str = "when_required") -> None:
-        self.config = SimpleNamespace(
-            request_checksum_calculation=request_checksum_calculation
-        )
-
-
 class _RetryingUploadClient:
-    meta = _FakeMeta()
-
     def __init__(self, fail_times: int = 1) -> None:
         self.fail_times = fail_times
         self.calls = 0
@@ -518,8 +509,6 @@ class _RetryingUploadClient:
 
 
 class _FailingUploadClient:
-    meta = _FakeMeta()
-
     def __init__(self, code: str) -> None:
         self.code = code
         self.calls = 0
@@ -678,12 +667,7 @@ async def test_write_file_streaming_s3_does_not_retry_non_retryable_error(
 class _MultipartClient:
     """Fake aiobotocore S3 client recording a multipart upload."""
 
-    def __init__(
-        self,
-        fail_part: int | None = None,
-        request_checksum_calculation: str = "when_required",
-    ) -> None:
-        self.meta = _FakeMeta(request_checksum_calculation)
+    def __init__(self, fail_part: int | None = None) -> None:
         self.created: dict[str, Any] | None = None
         self.fail_part = fail_part
         self.parts: list[tuple[int, bytes]] = []
@@ -749,17 +733,6 @@ async def test_s3_upload_async_multipart_exact_multiple_of_chunksize() -> None:
     assert client.created is not None and "ChecksumAlgorithm" not in client.created
 
 
-async def test_s3_upload_async_multipart_declares_default_checksum() -> None:
-    client = _MultipartClient(request_checksum_calculation="when_supported")
-
-    await _s3_upload_fileobj_async(
-        client, io.BytesIO(b"aaaabbbb"), "bucket", "key", _SMALL_PARTS()
-    )
-
-    assert client.created is not None
-    assert client.created["ChecksumAlgorithm"] == "CRC32"
-
-
 async def test_s3_upload_async_multipart_aborts_on_part_failure() -> None:
     client = _MultipartClient(fail_part=2)
 
@@ -793,12 +766,19 @@ async def test_s3_upload_async_multipart_aborts_on_cancel() -> None:
 
 class _RangedGetClient:
     def __init__(
-        self, data: bytes, fail_reads: int = 0, head_etag: str | None = None
+        self,
+        data: bytes,
+        fail_reads: int = 0,
+        read_error: Callable[[], Exception] = lambda: ResponseStreamingError(
+            error=OSError("reset")
+        ),
+        head_etag: str | None = None,
     ) -> None:
         self.data = data
         self.etag = '"etag-original"'
         self.head_etag = head_etag or self.etag
         self.fail_reads = fail_reads
+        self.read_error = read_error
         self.ranges: list[str] = []
         self.in_flight = 0
         self.max_in_flight = 0
@@ -835,7 +815,7 @@ class _RangedBody:
 
         if self.client.fail_reads > 0:
             self.client.fail_reads -= 1
-            raise ResponseStreamingError(error=OSError("reset"))
+            raise self.client.read_error()
 
         return self.chunk
 
@@ -883,6 +863,26 @@ async def test_s3_download_async_retries_failed_body_read() -> None:
         assert Path(local).read_bytes() == data
 
     assert len(client.ranges) == 5
+
+
+async def test_s3_download_async_retries_aiohttp_payload_error() -> None:
+    data = b"\x02" * 1000
+    client = _RangedGetClient(
+        data, fail_reads=1, read_error=lambda: aiohttp.ClientPayloadError("dropped")
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client,
+            "bucket",
+            "key",
+            local,
+            TransferConfig(multipart_chunksize=400, max_concurrency=1),
+        )
+        assert Path(local).read_bytes() == data
+
+    assert len(client.ranges) == 4
 
 
 async def test_s3_download_async_rejects_object_changed_after_head() -> None:

@@ -33,7 +33,7 @@ import anyio.to_thread
 from anyio import AsyncFile, EndOfStream, open_file
 from anyio.abc import ByteReceiveStream
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, ResponseStreamingError
 from tenacity import (
     AsyncRetrying,
     RetryCallState,
@@ -232,14 +232,9 @@ async def _s3_multipart_upload_async(
     config: TransferConfig,
 ) -> dict[str, Any]:
     # Real S3 rejects this upload with "Checksum Type mismatch" if botocore attaches its default
-    # CRC32 to each part without it being declared here, so we declare it whenever the client
-    # config would attach one.
-    create_args: dict[str, Any] = {}
-    if client.meta.config.request_checksum_calculation == "when_supported":
-        create_args["ChecksumAlgorithm"] = "CRC32"
-    created = await client.create_multipart_upload(
-        Bucket=bucket, Key=key, **create_args
-    )
+    # CRC32 to each part without it being declared here. We rely on `_create_s3_client_async`
+    # setting `request_checksum_calculation="when_required"` so no checksum is attached.
+    created = await client.create_multipart_upload(Bucket=bucket, Key=key)
     upload_id = created["UploadId"]
     parts: list[dict[str, Any]] = []
 
@@ -273,9 +268,7 @@ async def _s3_multipart_upload_async(
                 parts.append({"ETag": response["ETag"], "PartNumber": part_number})
 
     try:
-        send, receive = anyio.create_memory_object_stream[tuple[int, bytearray]](
-            config.max_request_concurrency
-        )
+        send, receive = anyio.create_memory_object_stream[tuple[int, bytearray]](0)
         async with receive:
             await tg_collect(
                 [
@@ -338,6 +331,7 @@ async def _s3_download_file_async(
     client: Any, bucket: str, key: str, local: str, config: TransferConfig
 ) -> None:
     """Download an S3 object to `local` with concurrent ranged GETs."""
+    import aiohttp
     from s3transfer.utils import S3_RETRYABLE_DOWNLOAD_ERRORS
 
     head = await client.head_object(Bucket=bucket, Key=key)
@@ -356,6 +350,8 @@ async def _s3_download_file_async(
         body = response["Body"]
         try:
             data = await body.read()
+        except aiohttp.ClientPayloadError as e:
+            raise ResponseStreamingError(error=e) from e
         finally:
             body.close()
 
