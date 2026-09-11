@@ -92,7 +92,7 @@ eval(task, review=[ReviewPolicy(no_network(), tools=["bash", "python"])])
 
 ## Task Reviewers
 
-Tasks can declare their own reviewers with the `review` parameter, which accepts a policy file, a single `ReviewPolicy`, or a list of them:
+Tasks can declare their own reviewers with the `review` parameter, which accepts a policy file or a list of `ReviewPolicy` objects:
 
 ``` python
 @task
@@ -106,6 +106,10 @@ def sandbox_task():
 ```
 
 A `review` passed to `eval()` or `--review` overrides the task's reviewers.
+
+## Bridged Agents
+
+Agents integrated via the [Agent Bridge](agent-bridge.qmd) run their own tool loop, so their tool results never pass through Inspect's tool execution and are not reviewed. Approval policies are applied to bridged agents' tool calls (see [Bridged Agents](approval.qmd#bridged-agents)); the equivalent for review is not yet implemented.
 
 ## Transcript
 

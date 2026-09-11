@@ -267,6 +267,38 @@ async def test_the_reviewer_sees_the_call_as_modified_by_an_approver() -> None:
     assert seen[0].call.arguments == {"x": 5, "y": 1}
 
 
+async def test_the_reviewer_sees_the_modified_call_when_the_tool_raises() -> None:
+    from inspect_ai.tool._tool import ToolError
+
+    @tool
+    def failing():
+        async def execute(x: int) -> str:
+            """Always fail.
+
+            Args:
+                x: A number.
+            """
+            raise ToolError(f"boom with x={x}")
+
+        return execute
+
+    seen: list[Seen] = []
+    init_transcript(Transcript())
+    call = ToolCall(id="f", function="failing", arguments={"x": 1})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(failing())],
+        approval=[ApprovalPolicy(modifying_approver(99), "*")],
+        review=[ReviewPolicy(recording_reviewer(seen), "*")],
+    )
+
+    [one] = seen
+    assert one.call.arguments == {"x": 99}
+    assert one.result.error is not None
+    assert "x=99" in one.result.error.message
+    assert tool_message(messages).error is not None
+
+
 async def test_the_reviewer_sees_the_untruncated_output() -> None:
     @tool
     def verbose():

@@ -170,8 +170,15 @@ async def _execute_tools_impl(
             agent_span_id: str | None = None
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
-            # the call as executed (a call-stage approver may modify it)
+            # the call as executed (a call-stage approver may modify it),
+            # published by call_tool just before it runs the tool so that it is
+            # known even when the tool raises
             executed_call = call
+
+            def note_executed_call(executed: ToolCall) -> None:
+                nonlocal executed_call
+                executed_call = executed
+
             # cleared by the handlers for the errors call_tool raises before it
             # runs the tool: parsing/validation failures and call-stage denial
             call_executed = True
@@ -193,14 +200,18 @@ async def _execute_tools_impl(
                 try:
                     with _observer.track_tool_call(call.id, event):
                         called = await call_tool(
-                            tdefs, message.text, call, event, conversation
+                            tdefs,
+                            message.text,
+                            call,
+                            event,
+                            conversation,
+                            on_execute=note_executed_call,
                         )
                         result = called.result
                         messages = called.messages
                         output = called.output
                         agent = called.agent
                         agent_span_id = called.agent_span_id
-                        executed_call = called.call
                 # unwrap exception group
                 except Exception as ex:
                     inner_ex = inner_exception(ex)
@@ -652,8 +663,6 @@ class CalledTool(NamedTuple):
     output: ModelOutput | None
     agent: str | None
     agent_span_id: str | None
-    call: ToolCall
-    """The call as executed, which a call-stage approver may have modified."""
 
 
 async def call_tool(
@@ -662,6 +671,7 @@ async def call_tool(
     call: ToolCall,
     event: BaseModel,
     conversation: list[ChatMessage],
+    on_execute: Callable[[ToolCall], None] | None = None,
 ) -> CalledTool:
     from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.event._tool import ToolEvent
@@ -712,6 +722,8 @@ async def call_tool(
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
         call = approval.modified
+    if on_execute is not None:
+        on_execute(call)
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
@@ -730,7 +742,7 @@ async def call_tool(
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
                     handoff_result = await agent_handoff(tool_def, call, conversation)
-                    return CalledTool(*handoff_result, None, call)
+                    return CalledTool(*handoff_result, None)
 
         # normal tool call
         else:
@@ -738,7 +750,7 @@ async def call_tool(
                 transcript()._event(event)
                 result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
-                return CalledTool(result, [], None, None, agent_span_id, call)
+                return CalledTool(result, [], None, None, agent_span_id)
 
 
 async def _apply_tool_review(
