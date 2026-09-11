@@ -3,6 +3,7 @@ from typing import Any, Literal, cast
 from unittest.mock import AsyncMock, create_autospec, patch
 
 import pytest
+from pydantic import BaseModel
 from test_helpers.utils import setenv_if_unset, skip_if_no_anthropic
 
 from inspect_ai import Task, eval
@@ -20,10 +21,12 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    ResponseSchema,
     get_model,
 )
 from inspect_ai.model._providers.anthropic import AnthropicAPI
 from inspect_ai.tool import ToolCall, ToolFunction, ToolInfo
+from inspect_ai.util import json_schema
 
 
 @pytest.mark.anyio
@@ -115,6 +118,29 @@ def test_anthropic_extra_headers_not_mutated_across_calls() -> None:
             "anthropic_beta": "context-1m-2025-08-07",
             "x-test-header": "value",
         }
+
+
+def test_response_schema_with_optional_field_omits_additional_properties_on_anyof():
+    """The API rejects additionalProperties on the anyOf an optional field renders as."""
+
+    class Report(BaseModel):
+        summary: str
+        severity: Literal["low", "high"] | None = None
+
+    api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
+    config = GenerateConfig(
+        max_tokens=64,
+        response_schema=ResponseSchema(name="report", json_schema=json_schema(Report)),
+    )
+    _params, extra_body, _headers, betas = api.completion_config(config)
+
+    assert "structured-outputs-2025-11-13" in betas
+    schema = extra_body["output_format"]["schema"]
+    assert schema["additionalProperties"] is False
+    severity = schema["properties"]["severity"]
+    assert "anyOf" in severity
+    assert "additionalProperties" not in severity
+    assert all("additionalProperties" not in member for member in severity["anyOf"])
 
 
 @pytest.mark.anyio
