@@ -377,8 +377,8 @@ class OpenAIAPI(ModelAPI):
         """Count tokens using native API for messages, tiktoken for text.
 
         For messages, uses OpenAI's input_tokens endpoint which can accurately
-        count encrypted reasoning blocks. Raises an exception if native
-        counting fails.
+        count encrypted reasoning blocks. Falls back to tiktoken if the native
+        endpoint is unavailable. All other failures propagate unchanged.
         """
         if isinstance(input, str):
             return await self.count_text_tokens(input)
@@ -803,7 +803,8 @@ class OpenAIAPI(ModelAPI):
             A tuple of (compacted messages, usage info).
 
         Raises:
-            NotImplementedError: If the model is not using the Responses API.
+            NotImplementedError: If the model is not using the Responses API or
+                the native compaction endpoint is unavailable.
         """
         if not self.responses_api:
             raise NotImplementedError(
