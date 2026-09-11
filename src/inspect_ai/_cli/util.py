@@ -9,7 +9,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.flag_values import int_bool_or_str_value, int_or_bool_value
 from inspect_ai.model import GenerateConfig, Model, ModelRoles, get_model
 from inspect_ai.util._limit import TokenLimit, parse_token_limit
-from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+from inspect_ai.util._sandbox.environment import parse_sandbox as parse_sandbox
 
 
 def int_or_bool_flag_callback(
@@ -390,14 +390,3 @@ class SectionedCommand(click.Command):
             if records:
                 with formatter.section(title):
                     formatter.write_dl(records)
-
-
-def parse_sandbox(sandbox: str | None) -> SandboxEnvironmentSpec | None:
-    if sandbox is not None:
-        parts = sandbox.split(":", maxsplit=1)
-        if len(parts) == 1:
-            return SandboxEnvironmentSpec(sandbox)
-        else:
-            return SandboxEnvironmentSpec(parts[0], parts[1])
-    else:
-        return None

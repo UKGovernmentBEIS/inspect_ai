@@ -4888,6 +4888,17 @@
               }
             ]
           },
+          "run_config_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Config Source"
+          },
           "run_id": {
             "title": "Run Id",
             "type": "string"

@@ -7,13 +7,6 @@ from collections.abc import Callable, Iterator
 from typing import Any, Literal, TextIO, cast
 
 import click
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    ValidationError,
-    field_validator,
-)
 from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
@@ -23,7 +16,14 @@ from inspect_ai._eval.handoff import (
     set_ctl_pointer_armed,
     set_launch_handoff_listener,
 )
-from inspect_ai._util.config import parse_cli_args, resolve_args
+from inspect_ai._eval.run_config import RunConfigInput as RunConfigInput
+from inspect_ai._eval.run_config import SolverInput as SolverInput
+from inspect_ai._eval.run_config import TaskInput as TaskInput
+from inspect_ai._eval.run_config import (
+    merge_run_config_params as merge_run_config_params,
+)
+from inspect_ai._eval.run_config import read_run_config
+from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_BATCH_SIZE,
@@ -46,17 +46,15 @@ from inspect_ai._util.generate_config_args import (
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log import IncompleteAction
 from inspect_ai.log._file import log_file_info
-from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
+from inspect_ai.log._log import EvalLog
+from inspect_ai.model import GenerateConfigArgs, Model
 from inspect_ai.model._generate_config import (  # noqa: F811
     ResponseSchema,
 )
-from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._limit import TokenLimit
-from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from .common import (
     CommonOptions,
@@ -312,6 +310,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_RUN_CONFIG",
         help="YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with --generate-config, --task-config, or --solver-config.",
+    )
+    @click.option(
+        "--no-default-config",
+        is_flag=True,
+        default=False,
+        envvar="INSPECT_EVAL_NO_DEFAULT_CONFIG",
+        help="Ignore default run configurations attached to task definitions.",
     )
     @click.option(
         "--model-role",
@@ -1090,6 +1095,7 @@ def _eval_command_impl(
     model_config: str | None,
     model_spec: tuple[str, ...] | None,
     run_config: str | None,
+    no_default_config: bool,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -1223,6 +1229,7 @@ def _eval_command_impl(
         model_config=model_config,
         model_spec=model_spec,
         run_config=run_config,
+        no_default_config=no_default_config,
         model_role=model_role,
         t=t,
         task_config=task_config,
@@ -1411,6 +1418,7 @@ def eval_set_command(
     model_config: str | None,
     model_spec: tuple[str, ...] | None,
     run_config: str | None,
+    no_default_config: bool,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -1561,6 +1569,7 @@ def eval_set_command(
             model_config=model_config,
             model_spec=model_spec,
             run_config=run_config,
+            no_default_config=no_default_config,
             model_role=model_role,
             t=t,
             task_config=task_config,
@@ -1644,161 +1653,9 @@ def eval_set_command(
     ctx.exit(0 if success else 1)
 
 
-class TaskInput(BaseModel):
-    task: str
-    args: dict[str, Any] = Field(default_factory=dict)
-
-
-class SolverInput(BaseModel):
-    solver: str
-    args: dict[str, Any] = Field(default_factory=dict)
-
-
-class RunConfigInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    task: str | TaskInput | None = None
-    model: str | ModelConfig | None = None
-    model_roles: dict[str, ModelConfig | list[ModelConfig]] = Field(
-        default_factory=dict
-    )
-    generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
-    eval_config: EvalConfig = Field(default_factory=EvalConfig)
-    solver: str | SolverInput | None = None
-    tags: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    sandbox: str | SandboxEnvironmentSpec | None = None
-
-    @field_validator("generate_config", mode="before")
-    @classmethod
-    def check_generate_config_fields(cls, v: Any) -> Any:
-        if isinstance(v, dict):
-            unknown = set(v.keys()) - set(GenerateConfig.model_fields.keys())
-            if unknown:
-                raise ValueError(f"Unknown generate_config fields: {unknown}")
-        return v
-
-    @field_validator("eval_config", mode="before")
-    @classmethod
-    def check_eval_config_fields(cls, v: Any) -> Any:
-        if isinstance(v, dict):
-            unknown = set(v.keys()) - set(EvalConfig.model_fields.keys())
-            if unknown:
-                raise ValueError(f"Unknown eval_config fields: {unknown}")
-        return v
-
-    def to_params(self) -> dict[str, Any]:
-        params: dict[str, Any] = {}
-
-        # Task
-        if self.task is not None:
-            if isinstance(self.task, str):
-                params["tasks"] = self.task
-            else:
-                params["tasks"] = self.task.task
-                if self.task.args:
-                    params["task_args"] = self.task.args
-
-        # Model
-        if self.model is not None:
-            if isinstance(self.model, str):
-                params["model"] = self.model
-            else:
-                params["model"] = self.model.model
-                if self.model.base_url is not None:
-                    params["model_base_url"] = self.model.base_url
-                if self.model.args:
-                    params["model_args"] = self.model.args
-                model_gc = self.model.config.model_dump(exclude_none=True)
-                if model_gc:
-                    params.update(model_gc)
-
-        # Top-level generate_config overrides any model-level config
-        top_gc = self.generate_config.model_dump(exclude_none=True)
-        if top_gc:
-            params.update(top_gc)
-
-        # Model roles
-        if self.model_roles:
-            params["model_roles"] = {
-                role: [model_config_to_model(m) for m in mc]
-                if isinstance(mc, list)
-                else model_config_to_model(mc)
-                for role, mc in self.model_roles.items()
-            }
-
-        # Solver
-        if self.solver is not None:
-            if isinstance(self.solver, str):
-                params["solver"] = SolverSpec(self.solver, {}, {})
-            else:
-                params["solver"] = SolverSpec(
-                    self.solver.solver, self.solver.args, self.solver.args
-                )
-
-        # Eval config — combine epochs + epochs_reducer into Epochs
-        ec = self.eval_config.model_dump(exclude_none=True)
-        epochs = ec.pop("epochs", None)
-        epochs_reducer = ec.pop("epochs_reducer", None)
-        if epochs is not None:
-            ec["epochs"] = Epochs(epochs, create_reducers(epochs_reducer))
-        params.update(ec)
-
-        # Tags and metadata
-        if self.tags:
-            params["tags"] = self.tags
-        if self.metadata:
-            params["metadata"] = self.metadata
-
-        # Sandbox
-        if self.sandbox is not None:
-            if isinstance(self.sandbox, str):
-                params["sandbox"] = parse_sandbox(self.sandbox)
-            else:
-                params["sandbox"] = self.sandbox
-
-        return params
-
-
 def parse_run_config(config: str) -> dict[str, Any]:
-    from jsonschema import Draft7Validator
-
-    config_dict = resolve_args(config)
-    try:
-        run_config = RunConfigInput.model_validate(config_dict)
-    except ValidationError as ex:
-        # Surface a more readable error via Draft7Validator. Fall back to
-        # pydantic's message when the JSON schema doesn't capture the
-        # failure (e.g. custom field_validators on generate_config/eval_config).
-        schema = RunConfigInput.model_json_schema()
-        errors = list(Draft7Validator(schema).iter_errors(config_dict))
-        if errors:
-            message = "\n".join(
-                [f"Invalid run config '{config}':"]
-                + [f" - {error.message}" for error in errors]
-            )
-        else:
-            message = f"Invalid run config '{config}': {ex}"
-        raise PrerequisiteError(message)
+    run_config = read_run_config(config)
     return run_config.to_params()
-
-
-def merge_run_config_params(
-    run_params: dict[str, Any], cli_params: dict[str, Any]
-) -> dict[str, Any]:
-    params = dict(run_params)
-    for key, value in cli_params.items():
-        if value is None or value == {}:
-            continue
-        if key == "score" and value is True:
-            continue
-        if key in ("task_args", "model_args") and key in params:
-            params[key] = params[key] | value
-        elif key == "model_roles" and key in params:
-            params[key] = params[key] | value
-        else:
-            params[key] = value
-    return params
 
 
 _SINGLE_MODEL_OPTION_NAMES = {"model", "model_base_url", "model_config", "m"}
@@ -1883,6 +1740,7 @@ def eval_exec(
     model_config: str | None,
     model_spec: tuple[str, ...] | None,
     run_config: str | None,
+    no_default_config: bool,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -2135,31 +1993,35 @@ def eval_exec(
         merge_run_config_params(run_params, cli_params) if run_params else cli_params
     )
 
+    params["default_config"] = not (no_default_config or run_config is not None)
+    from inspect_ai._eval.task_defaults import run_config_source
+
     # evaluate
-    if is_eval_set:
-        params["retry_attempts"] = retry_attempts
-        params["retry_immediate"] = retry_immediate
-        params["retry_wait"] = retry_wait
-        params["retry_connections"] = retry_connections
-        params["retry_cleanup"] = retry_cleanup
-        params["incomplete_action"] = incomplete_action
-        params["incomplete_max"] = incomplete_max
-        params["bundle_dir"] = bundle_dir
-        params["bundle_overwrite"] = bundle_overwrite
-        params["embed_viewer"] = embed_viewer
-        params["log_dir_allow_dirty"] = log_dir_allow_dirty
-        params["eval_set_id"] = eval_set_id
-        if json_output:
-            return _eval_exec_json(lambda: eval_set(**params), is_eval_set=True)
-        success, _ = eval_set(**params)
-        return success
-    else:
-        params["log_header_only"] = True  # cli invocation doesn't need full log
-        if json_output:
-            _eval_exec_json(lambda: (True, eval(**params)))
+    with run_config_source(f"cli:{run_config}" if run_config is not None else None):
+        if is_eval_set:
+            params["retry_attempts"] = retry_attempts
+            params["retry_immediate"] = retry_immediate
+            params["retry_wait"] = retry_wait
+            params["retry_connections"] = retry_connections
+            params["retry_cleanup"] = retry_cleanup
+            params["incomplete_action"] = incomplete_action
+            params["incomplete_max"] = incomplete_max
+            params["bundle_dir"] = bundle_dir
+            params["bundle_overwrite"] = bundle_overwrite
+            params["embed_viewer"] = embed_viewer
+            params["log_dir_allow_dirty"] = log_dir_allow_dirty
+            params["eval_set_id"] = eval_set_id
+            if json_output:
+                return _eval_exec_json(lambda: eval_set(**params), is_eval_set=True)
+            success, _ = eval_set(**params)
+            return success
         else:
-            eval(**params)
-        return True
+            params["log_header_only"] = True  # cli invocation doesn't need full log
+            if json_output:
+                _eval_exec_json(lambda: (True, eval(**params)))
+            else:
+                eval(**params)
+            return True
 
 
 def _eval_exec_json(

@@ -1059,6 +1059,19 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     else:
         log_location = logger.location
 
+    # a retry or resume replays logged settings without reading the file, so
+    # the override hint would be wrong; provenance is still recorded
+    if (
+        options.sample_source is None
+        and logger.eval.run_config_source
+        and logger.eval.run_config_source.startswith("task_default:")
+    ):
+        config_name = logger.eval.run_config_source.removeprefix("task_default:")
+        display().print(
+            f"{task.name}: default config: {PurePath(config_name).name} "
+            "(override with flags, --run-config, or --no-default-config)"
+        )
+
     # create task profile for display
     profile = TaskProfile(
         name=options.display_name or task.name,
@@ -1127,8 +1140,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             gated_sample_semaphore = PauseGatedSemaphore(
                 sample_semaphore,
                 task_id=logger.eval.task_id,
-                escape=lambda: task_cancel is not None
-                and task_cancel.cancel_type is not None,
+                escape=lambda: (
+                    task_cancel is not None and task_cancel.cancel_type is not None
+                ),
                 model=pause_model_name,
             )
 

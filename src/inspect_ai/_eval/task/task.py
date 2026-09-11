@@ -502,6 +502,12 @@ class TaskInfo(BaseModel):
     attribs: dict[str, Any]
     """Task attributes (arguments passed to `@task`)"""
 
+    @property
+    def default_config(self) -> str | None:
+        """Declared default configuration path, relative to the task source file."""
+        value = self.attribs.get("default_config")
+        return value if isinstance(value, str) else None
+
     def __str__(self) -> str:
         return f"{self.file}@{self.name}"
 

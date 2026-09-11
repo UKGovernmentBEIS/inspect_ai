@@ -15,6 +15,7 @@ from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import split_spec, task_file, task_run_dir
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.file import local_path
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.module import load_module
 from inspect_ai._util.path import chdir_python, cwd_relative_path
@@ -28,6 +29,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.agent._agent import Agent
 from inspect_ai.agent._as_solver import as_solver
+from inspect_ai.log._log import EvalConfig
 from inspect_ai.model import Model
 from inspect_ai.scorer._metric import Metric, MetricSpec, metric_create
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
@@ -49,13 +51,23 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
-from .registry import task_create, task_source_create
+from .registry import task_source_create
 from .task import PreviousTask, Task, TaskInfo
-from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
+from .task.constants import (
+    TASK_DEFAULT_CONFIG_ATTR,
+    TASK_DEFAULT_CONFIG_SOURCE_ATTR,
+    TASK_FILE_ATTR,
+    TASK_RUN_DIR_ATTR,
+)
 from .task.hf import task_create_from_hf
 from .task.run import eval_log_sample_source
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
+from .task_defaults import (
+    create_task_with_defaults,
+    current_run_config_source,
+    resolve_task_eval_config,
+)
 
 logger = getLogger(__name__)
 
@@ -81,6 +93,7 @@ def resolve_tasks(
     eval_checkpoint: CheckpointConfig | None = None,
     warn_unconsumed_task_args: bool = False,
     input_media_policy: InputMediaPolicy = "inline_only",
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
 ) -> list[ResolvedTask]:
     # A TaskSource drives a run dynamically and is handled by eval() (which
     # resolves its initial_tasks() and pulls next_tasks()); it isn't a concrete,
@@ -98,14 +111,20 @@ def resolve_tasks(
             "`inspect eval` instead."
         )
 
-    def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
+    def as_resolved_tasks(
+        tasks: list[Task], loaded: bool = False
+    ) -> list[ResolvedTask]:
         # shuffle data in tasks if requested
-        if sample_shuffle:
-            for task in tasks:
-                if not task.dataset.shuffled:
-                    task.dataset.shuffle(
-                        None if sample_shuffle is True else sample_shuffle
-                    )
+        for task in tasks:
+            params = getattr(task, TASK_DEFAULT_CONFIG_ATTR, {}) if loaded else {}
+            # an explicit sample_id replaces the file's shuffle, the same rule
+            # eval_run applies when it slices and logs the selection
+            selection = resolve_task_eval_config(
+                params, EvalConfig(sample_shuffle=sample_shuffle, sample_id=sample_id)
+            )
+            shuffle = selection.sample_shuffle
+            if shuffle and not task.dataset.shuffled:
+                task.dataset.shuffle(None if shuffle is True else shuffle)
 
         return [
             ResolvedTask(
@@ -119,6 +138,15 @@ def resolve_tasks(
                 checkpoint=task.checkpoint,
                 sequence=sequence,
                 input_media_policy=input_media_policy,
+                run_config_source=current_run_config_source()
+                or (
+                    getattr(task, TASK_DEFAULT_CONFIG_SOURCE_ATTR, None)
+                    if loaded
+                    else None
+                ),
+                run_config=getattr(task, TASK_DEFAULT_CONFIG_ATTR, {})
+                if loaded
+                else {},
             )
             for sequence, task in enumerate(tasks)
         ]
@@ -126,7 +154,7 @@ def resolve_tasks(
     # an empty list is equivalent to None (load tasks from cwd) — but it
     # must short-circuit before any tasks[0] access below
     if isinstance(tasks, list) and len(tasks) == 0:
-        return as_resolved_tasks(load_tasks(None, task_args))
+        return as_resolved_tasks(load_tasks(None, task_args), loaded=True)
 
     # reflect resolved tasks right back
     if isinstance(tasks, ResolvedTask):
@@ -180,7 +208,9 @@ def resolve_tasks(
         tasks = [tasks]
 
     # done! let's load the tasks
-    return as_resolved_tasks(load_tasks(cast(list[str] | None, tasks), task_args))
+    return as_resolved_tasks(
+        load_tasks(cast(list[str] | None, tasks), task_args), loaded=True
+    )
 
 
 def refers_to_task_source(tasks: Tasks) -> bool:
@@ -303,7 +333,9 @@ def resolve_previous_tasks(
                 loaded_task = previous_task.task
             else:
                 loaded_task_args = previous_task.task_args
-                loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
+                loaded_task = load_tasks(
+                    [previous_task.task], loaded_task_args, default_config=False
+                )[0]
             if sample_shuffle is not None:
                 if not loaded_task.dataset.shuffled:
                     loaded_task.dataset.shuffle(
@@ -342,8 +374,16 @@ def resolve_previous_task(
         copy.deepcopy(prior_stats.role_usage) if prior_stats.role_usage else None
     )
 
+    # a task the framework constructed with an attached default keeps it
+    # (eval_set resumes with current settings); a task reloaded for
+    # eval_retry has none, and eval_retry replays the logged settings as
+    # explicit arguments instead
     return ResolvedTask(
         task=loaded_task,
+        run_config=getattr(loaded_task, TASK_DEFAULT_CONFIG_ATTR, {}),
+        run_config_source=current_run_config_source()
+        or getattr(loaded_task, TASK_DEFAULT_CONFIG_SOURCE_ATTR, None)
+        or previous_task.log.eval.run_config_source,
         task_args=loaded_task_args,
         task_file=previous_task.log.eval.task_file,
         model=previous_task.model or loaded_task.model or model,
@@ -470,35 +510,87 @@ def resolve_task_file_sandbox(
     return SandboxEnvironmentSpec(sandbox.type, file_path.as_posix())
 
 
+def task_default_factories(tasks: Tasks) -> list[Callable[..., Any]]:
+    """Discover attachments without invoking factories or reading their files.
+
+    Preconstructed, retried, and already-resolved tasks deliberately bypass
+    discovery. File discovery follows the same registration paths as loading.
+    """
+    if tasks is None or tasks == []:
+        tasks = [Path.cwd().as_posix()]
+    entries = tasks if isinstance(tasks, list) else [tasks]
+    factories: list[Callable[..., Any]] = []
+    for entry in entries:
+        if isinstance(entry, (Task, PreviousTask, ResolvedTask, TaskSource)):
+            continue
+        if isinstance(entry, TaskInfo):
+            entry = f"{entry.file}@{entry.name}"
+        if callable(entry):
+            if registry_info(entry).type == "task":
+                factories.append(entry)
+            continue
+        if not isinstance(entry, str) or entry.startswith("hf/"):
+            continue
+        factory = registry_lookup("task", entry)
+        if factory is not None:
+            factories.append(cast(Callable[..., Any], factory))
+            continue
+        if refers_to_task_source(entry):
+            continue
+        path, name = split_spec(entry)
+        if name is not None:
+            load_file_tasks(Path(local_path(path)).absolute())
+            names = [name]
+        else:
+            root = Path.cwd()
+            target = (
+                [] if Path(local_path(path)).resolve() == root else [local_path(path)]
+            )
+            names = []
+            for source in sorted(task_files(target, root)):
+                with chdir_python(source.parent.as_posix()):
+                    names.extend(_load_task_specs(source))
+        for name in names:
+            factory = registry_lookup("task", name)
+            if factory is not None:
+                factories.append(cast(Callable[..., Any], factory))
+    return factories
+
+
 def load_tasks(
-    task_specs: list[str] | None, task_args: dict[str, Any] = {}
+    task_specs: list[str] | None,
+    task_args: dict[str, Any] = {},
+    default_config: bool = True,
 ) -> list[Task]:
     """Load one more more tasks (if no tasks are specified, load from the current working directory"""
     # load tasks
     return [
         spec
         for task_spec in (task_specs if task_specs else [Path.cwd().as_posix()])
-        for spec in load_task_spec(task_spec, task_args)
+        for spec in load_task_spec(task_spec, task_args, default_config)
     ]
 
 
-def load_task_spec(task_spec: str, task_args: dict[str, Any] = {}) -> list[Task]:
+def load_task_spec(
+    task_spec: str, task_args: dict[str, Any] = {}, default_config: bool = True
+) -> list[Task]:
     # task in a python package
     if registry_lookup("task", task_spec) is not None:
         # create the task from a python package
-        return [task_create(task_spec, **task_args)]
+        return [create_task_with_defaults(task_spec, task_args, default_config)]
     elif task_spec.startswith("hf/"):
         # load task from huggingface
         return task_create_from_hf(task_spec, **task_args)
     else:
         # load tasks from glob
-        return create_tasks([task_spec], task_args)
+        return create_tasks([task_spec], task_args, default_config=default_config)
 
 
 def create_tasks(
     globs: list[str],
     task_args: dict[str, Any] = {},
     root_dir: Path | None = None,
+    default_config: bool = True,
 ) -> list[Task]:
     tasks: list[Task] = []
 
@@ -511,9 +603,11 @@ def create_tasks(
         # so the task is registered before we create it)
         spec_split = split_spec(glob)
         if spec_split[1] is not None:
-            task_path = Path(spec_split[0])
+            task_path = Path(local_path(spec_split[0]))
             load_file_tasks(task_path.absolute())
-            tasks.extend(create_file_tasks(task_path, [spec_split[1]], task_args))
+            tasks.extend(
+                create_file_tasks(task_path, [spec_split[1]], task_args, default_config)
+            )
         else:
             # if the glob is the root dir then set it to empty (will result in
             # enumeration of the root dir)
@@ -521,7 +615,7 @@ def create_tasks(
             files = task_files(target, root_dir)
             files = sorted(files, key=lambda f: f.as_posix())
             for file in files:
-                tasks.extend(create_file_tasks(file, None, task_args))
+                tasks.extend(create_file_tasks(file, None, task_args, default_config))
     return tasks
 
 
@@ -534,6 +628,7 @@ def create_file_tasks(
     file: Path,
     task_specs: list[str] | list[RegistryInfo] | None = None,
     task_args: dict[str, Any] = {},
+    default_config: bool = True,
 ) -> list[Task]:
     run_dir = file.parent.resolve().as_posix()
     with chdir_python(file.parent.as_posix()):
@@ -551,7 +646,7 @@ def create_file_tasks(
             # create the task from the loaded source file and
             # note that it was loaded from this directory
             # (will be used later to ensure it runs in the directory)
-            task = task_create(task_spec, **task_args)
+            task = create_task_with_defaults(task_spec, task_args, default_config)
             setattr(task, TASK_FILE_ATTR, file.as_posix())
             setattr(task, TASK_RUN_DIR_ATTR, run_dir)
             tasks.append(task)

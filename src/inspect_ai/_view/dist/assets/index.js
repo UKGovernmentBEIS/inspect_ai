@@ -112242,9 +112242,21 @@ var StateEventView_module_default = {
 	return changeList.join(", ");
 };
 var isPathContainer = (value) => typeof value === "object" && value !== null;
-var getChild = (container, key) => Array.isArray(container) ? container[Number(key)] : container[key];
+var getChild = (container, key) => {
+	if (Array.isArray(container)) {
+		const index = Number(key);
+		return Object.hasOwn(container, index) ? container[index] : void 0;
+	}
+	return Object.hasOwn(container, key) ? container[key] : void 0;
+};
 var setChild = (container, key, value) => {
 	if (Array.isArray(container)) container[Number(key)] = value;
+	else if (key === "__proto__") Object.defineProperty(container, key, {
+		value,
+		enumerable: true,
+		writable: true,
+		configurable: true
+	});
 	else container[key] = value;
 };
 var asArray$1 = (value) => Array.isArray(value) ? value : void 0;
@@ -118329,14 +118341,13 @@ function useTimelineConfig(t0) {
 	return rootItems;
 }
 /**
-* Merge orphaned events into a host timeline's root, preserving time order.
+* Keep orphaned events visible without distorting server-authored timelines.
 *
 * When server-provided timelines don't reference every event (e.g. scorer
-* events), the unreferenced events are collected, wrapped in their minimal
-* parent span tree, and inserted into the host timeline's root content in
-* chronological order. The host is the first timeline whose root is not a
-* branch tree, falling back to the first timeline.
-*/ function attachOrphanedEvents(timelines, events) {
+* events), a single timeline receives the orphan set in chronological order.
+* With multiple timelines, the full built timeline is appended as an Overall
+* view so no authored timeline receives another timeline's events.
+*/ function attachOrphanedEvents(timelines, events, builtTimeline) {
 	if (timelines.length === 0 || events.length === 0) return timelines;
 	const referencedUuids = /* @__PURE__ */ new Set();
 	const referencedSpanIds = /* @__PURE__ */ new Set();
@@ -118352,6 +118363,11 @@ function useTimelineConfig(t0) {
 		if (uuid && !referencedUuids.has(uuid)) orphanEvents.push(event);
 	}
 	if (orphanEvents.length === 0) return timelines;
+	if (timelines.length > 1) return [...timelines, {
+		name: "Overall",
+		description: "Full sample transcript",
+		root: builtTimeline.root
+	}];
 	const orphanContent = buildOrphanContent(orphanEvents, buildSpanLookup(events), referencedSpanIds);
 	if (orphanContent.length === 0) return timelines;
 	const hostIndex = Math.max(0, timelines.findIndex((tl) => tl.root.branches.length === 0));
@@ -118377,7 +118393,7 @@ function useTimelineConfig(t0) {
 	} : tl);
 }
 function useTimelinesArray(events, serverTimelines, options) {
-	const $ = (0, import_compiler_runtime.c)(14);
+	const $ = (0, import_compiler_runtime.c)(15);
 	const showEmptyBranches = options?.showEmptyBranches ?? false;
 	let t0;
 	if ($[0] !== events) {
@@ -118395,28 +118411,29 @@ function useTimelinesArray(events, serverTimelines, options) {
 	} else t1 = $[4];
 	const convertedTimelines = t1;
 	let t2;
-	if ($[5] !== convertedTimelines || $[6] !== events) {
-		t2 = convertedTimelines ? attachOrphanedEvents(convertedTimelines, events) : null;
-		$[5] = convertedTimelines;
-		$[6] = events;
-		$[7] = t2;
-	} else t2 = $[7];
+	if ($[5] !== builtTimeline || $[6] !== convertedTimelines || $[7] !== events) {
+		t2 = convertedTimelines ? attachOrphanedEvents(convertedTimelines, events, builtTimeline) : null;
+		$[5] = builtTimeline;
+		$[6] = convertedTimelines;
+		$[7] = events;
+		$[8] = t2;
+	} else t2 = $[8];
 	const withOrphans = t2;
 	let t3;
-	if ($[8] !== builtTimeline || $[9] !== withOrphans) {
+	if ($[9] !== builtTimeline || $[10] !== withOrphans) {
 		t3 = withOrphans ?? [builtTimeline];
-		$[8] = builtTimeline;
-		$[9] = withOrphans;
-		$[10] = t3;
-	} else t3 = $[10];
+		$[9] = builtTimeline;
+		$[10] = withOrphans;
+		$[11] = t3;
+	} else t3 = $[11];
 	const resolved = t3;
 	let t4;
-	if ($[11] !== resolved || $[12] !== showEmptyBranches) {
+	if ($[12] !== resolved || $[13] !== showEmptyBranches) {
 		t4 = showEmptyBranches ? resolved : resolved.map(filterEmptyBranches);
-		$[11] = resolved;
-		$[12] = showEmptyBranches;
-		$[13] = t4;
-	} else t4 = $[13];
+		$[12] = resolved;
+		$[13] = showEmptyBranches;
+		$[14] = t4;
+	} else t4 = $[14];
 	return t4;
 }
 //#endregion
@@ -118433,7 +118450,7 @@ function useTimelinesArray(events, serverTimelines, options) {
 var emptySourceSpans = /* @__PURE__ */ new Map();
 var emptyHighlightedKeys = /* @__PURE__ */ new Map();
 function useTranscriptTimeline(options) {
-	const $ = (0, import_compiler_runtime.c)(96);
+	const $ = (0, import_compiler_runtime.c)(101);
 	const { events: rawEvents, markerConfig: t0, timelineOptions, serverTimelines, timelineProps, activeTimelineProps } = options;
 	const markerConfig = t0 === void 0 ? defaultMarkerConfig : t0;
 	let t1;
@@ -118454,30 +118471,47 @@ function useTranscriptTimeline(options) {
 		$[3] = t2;
 	} else t2 = $[3];
 	const timelines = useTimelinesArray(events, serverTimelines, t2);
-	const { active: activeTimeline, activeIndex: activeTimelineIndex, setActive: setActiveTimeline } = useActiveTimeline(timelines, activeTimelineProps);
-	const baseTimeline = activeTimeline;
+	const { active: activeTimeline, activeIndex: activeTimelineIndex, setActive: setActiveTimelineIndex } = useActiveTimeline(timelines, activeTimelineProps);
+	const onSelectTimeline = timelineProps?.onSelect;
 	let t3;
-	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = [];
-		$[4] = t3;
-	} else t3 = $[4];
-	const [viewStack, setViewStack] = (0, import_react.useState)(t3);
+	if ($[4] !== activeTimelineIndex || $[5] !== onSelectTimeline || $[6] !== setActiveTimelineIndex || $[7] !== timelines.length) {
+		t3 = (index, options_0) => {
+			if (index < 0 || index >= timelines.length) return;
+			if (index === activeTimelineIndex) return;
+			if (options_0) onSelectTimeline?.(null, options_0);
+			else onSelectTimeline?.(null);
+			setActiveTimelineIndex(index);
+		};
+		$[4] = activeTimelineIndex;
+		$[5] = onSelectTimeline;
+		$[6] = setActiveTimelineIndex;
+		$[7] = timelines.length;
+		$[8] = t3;
+	} else t3 = $[8];
+	const setActiveTimeline = t3;
+	const baseTimeline = activeTimeline;
+	let t4;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t4 = [];
+		$[9] = t4;
+	} else t4 = $[9];
+	const [viewStack, setViewStack] = (0, import_react.useState)(t4);
 	const [stackBase, setStackBase] = (0, import_react.useState)(baseTimeline);
 	if (stackBase !== baseTimeline) {
 		setStackBase(baseTimeline);
 		setViewStack([]);
 	}
-	let t4;
-	if ($[5] !== baseTimeline || $[6] !== viewStack) {
-		t4 = viewStack.at(-1)?.timeline ?? baseTimeline;
-		$[5] = baseTimeline;
-		$[6] = viewStack;
-		$[7] = t4;
-	} else t4 = $[7];
-	const timeline = t4;
 	let t5;
-	if ($[8] !== baseTimeline.root || $[9] !== timelineProps) {
-		t5 = (branch, label) => {
+	if ($[10] !== baseTimeline || $[11] !== viewStack) {
+		t5 = viewStack.at(-1)?.timeline ?? baseTimeline;
+		$[10] = baseTimeline;
+		$[11] = viewStack;
+		$[12] = t5;
+	} else t5 = $[12];
+	const timeline = t5;
+	let t6;
+	if ($[13] !== baseTimeline.root || $[14] !== timelineProps) {
+		t6 = (branch, label) => {
 			setViewStack((s) => [...s, {
 				label,
 				timeline: spliceToTimeline(baseTimeline.root, branch),
@@ -118485,75 +118519,75 @@ function useTranscriptTimeline(options) {
 			}]);
 			timelineProps?.onSelect(null);
 		};
-		$[8] = baseTimeline.root;
-		$[9] = timelineProps;
-		$[10] = t5;
-	} else t5 = $[10];
-	const pushView = t5;
-	let t6;
-	if ($[11] !== timelineProps || $[12] !== viewStack) {
-		t6 = () => {
+		$[13] = baseTimeline.root;
+		$[14] = timelineProps;
+		$[15] = t6;
+	} else t6 = $[15];
+	const pushView = t6;
+	let t7;
+	if ($[16] !== timelineProps || $[17] !== viewStack) {
+		t7 = () => {
 			const top = viewStack.at(-1);
 			if (!top) return;
 			setViewStack(_temp$48);
 			timelineProps?.onSelect(top.priorSelected);
 		};
-		$[11] = timelineProps;
-		$[12] = viewStack;
-		$[13] = t6;
-	} else t6 = $[13];
-	const popView = t6;
+		$[16] = timelineProps;
+		$[17] = viewStack;
+		$[18] = t7;
+	} else t7 = $[18];
+	const popView = t7;
 	const state = useTimeline(timeline, timelineOptions, timelineProps);
-	let t7;
-	if ($[14] !== state.rows) {
-		t7 = state.rows.filter(_temp2$35);
-		$[14] = state.rows;
-		$[15] = t7;
-	} else t7 = $[15];
-	const visibleRows = t7;
 	let t8;
-	if ($[16] !== state.node) {
-		t8 = computeTimeMapping(state.node);
-		$[16] = state.node;
-		$[17] = t8;
-	} else t8 = $[17];
-	const timeMapping = t8;
+	if ($[19] !== state.rows) {
+		t8 = state.rows.filter(_temp2$35);
+		$[19] = state.rows;
+		$[20] = t8;
+	} else t8 = $[20];
+	const visibleRows = t8;
 	let t9;
-	if ($[18] !== timeline.root) {
-		t9 = computeTimeMapping(timeline.root);
-		$[18] = timeline.root;
-		$[19] = t9;
-	} else t9 = $[19];
-	const rootTimeMapping = t9;
+	if ($[21] !== state.node) {
+		t9 = computeTimeMapping(state.node);
+		$[21] = state.node;
+		$[22] = t9;
+	} else t9 = $[22];
+	const timeMapping = t9;
 	let t10;
+	if ($[23] !== timeline.root) {
+		t10 = computeTimeMapping(timeline.root);
+		$[23] = timeline.root;
+		$[24] = t10;
+	} else t10 = $[24];
+	const rootTimeMapping = t10;
+	let t11;
 	bb0: {
 		if (!forkRelative || !showBranches) {
-			t10 = void 0;
+			t11 = void 0;
 			break bb0;
 		}
-		let t11;
-		if ($[20] !== timeMapping || $[21] !== visibleRows) {
-			t11 = computeBranchMappings(visibleRows, timeMapping);
-			$[20] = timeMapping;
-			$[21] = visibleRows;
-			$[22] = t11;
-		} else t11 = $[22];
-		t10 = t11;
+		let t12;
+		if ($[25] !== timeMapping || $[26] !== visibleRows) {
+			t12 = computeBranchMappings(visibleRows, timeMapping);
+			$[25] = timeMapping;
+			$[26] = visibleRows;
+			$[27] = t12;
+		} else t12 = $[27];
+		t11 = t12;
 	}
-	const branchMappings = t10;
-	let t11;
-	if ($[23] !== branchMappings || $[24] !== markerConfig.depth || $[25] !== markerConfig.kinds || $[26] !== timeMapping || $[27] !== visibleRows) {
-		t11 = computeRowLayouts(visibleRows, timeMapping, markerConfig.depth, markerConfig.kinds, branchMappings);
-		$[23] = branchMappings;
-		$[24] = markerConfig.depth;
-		$[25] = markerConfig.kinds;
-		$[26] = timeMapping;
-		$[27] = visibleRows;
-		$[28] = t11;
-	} else t11 = $[28];
-	const layouts = t11;
+	const branchMappings = t11;
 	let t12;
-	if ($[29] !== events || $[30] !== includeUtility || $[31] !== showBranches || $[32] !== state.rows || $[33] !== state.selected) {
+	if ($[28] !== branchMappings || $[29] !== markerConfig.depth || $[30] !== markerConfig.kinds || $[31] !== timeMapping || $[32] !== visibleRows) {
+		t12 = computeRowLayouts(visibleRows, timeMapping, markerConfig.depth, markerConfig.kinds, branchMappings);
+		$[28] = branchMappings;
+		$[29] = markerConfig.depth;
+		$[30] = markerConfig.kinds;
+		$[31] = timeMapping;
+		$[32] = visibleRows;
+		$[33] = t12;
+	} else t12 = $[33];
+	const layouts = t12;
+	let t13;
+	if ($[34] !== events || $[35] !== includeUtility || $[36] !== showBranches || $[37] !== state.rows || $[38] !== state.selected) {
 		bb1: {
 			let selection = state.selected;
 			let spans = getSelectedSpans(state.rows, selection);
@@ -118563,24 +118597,24 @@ function useTranscriptTimeline(options) {
 			}
 			const parsed = parseSelection(selection);
 			if (spans.length === 0) {
-				let t13;
-				if ($[35] !== events) {
-					t13 = {
+				let t14;
+				if ($[40] !== events) {
+					t14 = {
 						selectedEvents: events,
 						sourceSpans: emptySourceSpans,
 						branchScrollTarget: null
 					};
-					$[35] = events;
-					$[36] = t13;
-				} else t13 = $[36];
-				t12 = t13;
+					$[40] = events;
+					$[41] = t14;
+				} else t14 = $[41];
+				t13 = t14;
 				break bb1;
 			}
 			const rowKey = parsed?.rowKey ?? "";
 			const row_0 = state.rows.find((r) => r.key === rowKey);
 			if (spans.length === 1 && (row_0?.branch || (spans[0]?.branches.length ?? 0) > 0)) {
 				const collected = collectPathWithNavigators(state.rows, rowKey, events);
-				t12 = {
+				t13 = {
 					selectedEvents: collected.events,
 					sourceSpans: collected.sourceSpans,
 					branchScrollTarget: null
@@ -118593,37 +118627,37 @@ function useTranscriptTimeline(options) {
 				showBranches,
 				branchPrefix: getBranchPrefix(state.rows, selection)
 			});
-			let t13;
-			if ($[37] !== collected_0.events || $[38] !== collected_0.sourceSpans) {
-				t13 = {
+			let t14;
+			if ($[42] !== collected_0.events || $[43] !== collected_0.sourceSpans) {
+				t14 = {
 					selectedEvents: collected_0.events,
 					sourceSpans: collected_0.sourceSpans,
 					branchScrollTarget: null
 				};
-				$[37] = collected_0.events;
-				$[38] = collected_0.sourceSpans;
-				$[39] = t13;
-			} else t13 = $[39];
-			t12 = t13;
+				$[42] = collected_0.events;
+				$[43] = collected_0.sourceSpans;
+				$[44] = t14;
+			} else t14 = $[44];
+			t13 = t14;
 		}
-		$[29] = events;
-		$[30] = includeUtility;
-		$[31] = showBranches;
-		$[32] = state.rows;
-		$[33] = state.selected;
-		$[34] = t12;
-	} else t12 = $[34];
-	const { selectedEvents, sourceSpans, branchScrollTarget } = t12;
-	let t13;
-	if ($[40] !== state.rows || $[41] !== state.selected) {
-		t13 = computeMinimapSelection(state.rows, state.selected);
-		$[40] = state.rows;
-		$[41] = state.selected;
-		$[42] = t13;
-	} else t13 = $[42];
-	const minimapSelection = t13;
+		$[34] = events;
+		$[35] = includeUtility;
+		$[36] = showBranches;
+		$[37] = state.rows;
+		$[38] = state.selected;
+		$[39] = t13;
+	} else t13 = $[39];
+	const { selectedEvents, sourceSpans, branchScrollTarget } = t13;
+	let t14;
+	if ($[45] !== state.rows || $[46] !== state.selected) {
+		t14 = computeMinimapSelection(state.rows, state.selected);
+		$[45] = state.rows;
+		$[46] = state.selected;
+		$[47] = t14;
+	} else t14 = $[47];
+	const minimapSelection = t14;
 	let counts;
-	if ($[43] !== state.rows) {
+	if ($[48] !== state.rows) {
 		counts = /* @__PURE__ */ new Map();
 		for (const row_1 of state.rows) {
 			const firstSpan = row_1.spans[0];
@@ -118634,16 +118668,16 @@ function useTranscriptTimeline(options) {
 				if (compactionCount > 0) counts.set(row_1.key, compactionCount + 1);
 			}
 		}
-		$[43] = state.rows;
-		$[44] = counts;
-	} else counts = $[44];
+		$[48] = state.rows;
+		$[49] = counts;
+	} else counts = $[49];
 	const regionCounts = counts;
-	let t14;
-	if ($[45] !== layouts || $[46] !== state.rows || $[47] !== state.selected) {
+	let t15;
+	if ($[50] !== layouts || $[51] !== state.rows || $[52] !== state.selected) {
 		bb2: {
 			const rowKey_0 = parseSelection(state.selected)?.rowKey ?? "";
 			if (!state.rows.find((r_0) => r_0.key === rowKey_0)?.branch) {
-				t14 = emptyHighlightedKeys;
+				t15 = emptyHighlightedKeys;
 				break bb2;
 			}
 			const layoutByKey = /* @__PURE__ */ new Map();
@@ -118659,141 +118693,141 @@ function useTranscriptTimeline(options) {
 				keys.set(parentKey, forkMarker?.left ?? 100);
 				childKey = parentKey;
 			}
-			t14 = keys;
+			t15 = keys;
 		}
-		$[45] = layouts;
-		$[46] = state.rows;
-		$[47] = state.selected;
-		$[48] = t14;
-	} else t14 = $[48];
-	const highlightedKeys = t14;
-	let t15;
-	if ($[49] !== timeline.root.branches || $[50] !== timeline.root.content) {
-		t15 = timeline.root.content.length > 0 && (timeline.root.content.some(_temp3$29) || timeline.root.branches.length > 0);
-		$[49] = timeline.root.branches;
-		$[50] = timeline.root.content;
-		$[51] = t15;
-	} else t15 = $[51];
-	const hasTimeline = t15;
+		$[50] = layouts;
+		$[51] = state.rows;
+		$[52] = state.selected;
+		$[53] = t15;
+	} else t15 = $[53];
+	const highlightedKeys = t15;
 	let t16;
-	if ($[52] !== visibleRows) {
-		t16 = visibleRows.some(_temp4$24);
-		$[52] = visibleRows;
-		$[53] = t16;
-	} else t16 = $[53];
-	const hasAgentTimeline = t16;
+	if ($[54] !== timeline.root.branches || $[55] !== timeline.root.content) {
+		t16 = timeline.root.content.length > 0 && (timeline.root.content.some(_temp3$29) || timeline.root.branches.length > 0);
+		$[54] = timeline.root.branches;
+		$[55] = timeline.root.content;
+		$[56] = t16;
+	} else t16 = $[56];
+	const hasTimeline = t16;
 	let t17;
+	if ($[57] !== visibleRows) {
+		t17 = visibleRows.some(_temp4$24);
+		$[57] = visibleRows;
+		$[58] = t17;
+	} else t17 = $[58];
+	const hasAgentTimeline = t17;
+	let t18;
 	bb3: {
 		if (!state.selected) {
-			t17 = timeline.root.name;
+			t18 = timeline.root.name;
 			break bb3;
 		}
-		let t18;
-		if ($[54] !== state.selected) {
-			t18 = parseSelection(state.selected);
-			$[54] = state.selected;
-			$[55] = t18;
-		} else t18 = $[55];
-		const rowKey_1 = t18?.rowKey ?? state.selected;
 		let t19;
-		if ($[56] !== rowKey_1 || $[57] !== state.rows) {
-			let t20;
-			if ($[59] !== rowKey_1) {
-				t20 = (r_1) => r_1.key === rowKey_1;
-				$[59] = rowKey_1;
-				$[60] = t20;
-			} else t20 = $[60];
-			t19 = state.rows.find(t20);
-			$[56] = rowKey_1;
-			$[57] = state.rows;
-			$[58] = t19;
-		} else t19 = $[58];
-		t17 = t19?.name ?? timeline.root.name;
+		if ($[59] !== state.selected) {
+			t19 = parseSelection(state.selected);
+			$[59] = state.selected;
+			$[60] = t19;
+		} else t19 = $[60];
+		const rowKey_1 = t19?.rowKey ?? state.selected;
+		let t20;
+		if ($[61] !== rowKey_1 || $[62] !== state.rows) {
+			let t21;
+			if ($[64] !== rowKey_1) {
+				t21 = (r_1) => r_1.key === rowKey_1;
+				$[64] = rowKey_1;
+				$[65] = t21;
+			} else t21 = $[65];
+			t20 = state.rows.find(t21);
+			$[61] = rowKey_1;
+			$[62] = state.rows;
+			$[63] = t20;
+		} else t20 = $[63];
+		t18 = t20?.name ?? timeline.root.name;
 	}
-	const selectedRowName = t17;
-	let t18;
-	if ($[61] !== highlightedKeys || $[62] !== layouts || $[63] !== regionCounts || $[64] !== timeMapping) {
-		t18 = {
+	const selectedRowName = t18;
+	let t19;
+	if ($[66] !== highlightedKeys || $[67] !== layouts || $[68] !== regionCounts || $[69] !== timeMapping) {
+		t19 = {
 			layouts,
 			regionCounts,
 			highlightedKeys,
 			timeMapping
 		};
-		$[61] = highlightedKeys;
-		$[62] = layouts;
-		$[63] = regionCounts;
-		$[64] = timeMapping;
-		$[65] = t18;
-	} else t18 = $[65];
-	const swimlanes = t18;
-	let t19;
-	if ($[66] !== minimapSelection || $[67] !== rootTimeMapping) {
-		t19 = {
+		$[66] = highlightedKeys;
+		$[67] = layouts;
+		$[68] = regionCounts;
+		$[69] = timeMapping;
+		$[70] = t19;
+	} else t19 = $[70];
+	const swimlanes = t19;
+	let t20;
+	if ($[71] !== minimapSelection || $[72] !== rootTimeMapping) {
+		t20 = {
 			mapping: rootTimeMapping,
 			selection: minimapSelection
 		};
-		$[66] = minimapSelection;
-		$[67] = rootTimeMapping;
-		$[68] = t19;
-	} else t19 = $[68];
-	const minimap = t19;
-	let t20;
-	if ($[69] !== activeTimelineIndex || $[70] !== setActiveTimeline || $[71] !== timelines) {
-		t20 = {
+		$[71] = minimapSelection;
+		$[72] = rootTimeMapping;
+		$[73] = t20;
+	} else t20 = $[73];
+	const minimap = t20;
+	let t21;
+	if ($[74] !== activeTimelineIndex || $[75] !== setActiveTimeline || $[76] !== timelines) {
+		t21 = {
 			timelines,
 			activeIndex: activeTimelineIndex,
 			setActive: setActiveTimeline
 		};
-		$[69] = activeTimelineIndex;
-		$[70] = setActiveTimeline;
-		$[71] = timelines;
-		$[72] = t20;
-	} else t20 = $[72];
-	const multiTimeline = t20;
-	let t21;
-	if ($[73] !== pushView || $[74] !== state.rows) {
-		t21 = (rowKey_2, label_0) => {
+		$[74] = activeTimelineIndex;
+		$[75] = setActiveTimeline;
+		$[76] = timelines;
+		$[77] = t21;
+	} else t21 = $[77];
+	const multiTimeline = t21;
+	let t22;
+	if ($[78] !== pushView || $[79] !== state.rows) {
+		t22 = (rowKey_2, label_0) => {
 			const span_0 = state.rows.find((r_2) => r_2.key === rowKey_2)?.spans[0];
 			if (span_0 && "agent" in span_0) pushView(span_0.agent, label_0);
 		};
-		$[73] = pushView;
-		$[74] = state.rows;
-		$[75] = t21;
-	} else t21 = $[75];
-	const pushViewByRowKey = t21;
-	let t22;
-	if ($[76] !== popView || $[77] !== pushView || $[78] !== pushViewByRowKey || $[79] !== viewStack) {
-		t22 = {
+		$[78] = pushView;
+		$[79] = state.rows;
+		$[80] = t22;
+	} else t22 = $[80];
+	const pushViewByRowKey = t22;
+	let t23;
+	if ($[81] !== popView || $[82] !== pushView || $[83] !== pushViewByRowKey || $[84] !== viewStack) {
+		t23 = {
 			stack: viewStack,
 			push: pushView,
 			pushByRowKey: pushViewByRowKey,
 			pop: popView
 		};
-		$[76] = popView;
-		$[77] = pushView;
-		$[78] = pushViewByRowKey;
-		$[79] = viewStack;
-		$[80] = t22;
-	} else t22 = $[80];
-	const views = t22;
-	let t23;
-	if ($[81] !== branchScrollTarget || $[82] !== selectedEvents || $[83] !== selectedRowName || $[84] !== sourceSpans) {
-		t23 = {
+		$[81] = popView;
+		$[82] = pushView;
+		$[83] = pushViewByRowKey;
+		$[84] = viewStack;
+		$[85] = t23;
+	} else t23 = $[85];
+	const views = t23;
+	let t24;
+	if ($[86] !== branchScrollTarget || $[87] !== selectedEvents || $[88] !== selectedRowName || $[89] !== sourceSpans) {
+		t24 = {
 			events: selectedEvents,
 			sourceSpans,
 			branchScrollTarget,
 			rowName: selectedRowName
 		};
-		$[81] = branchScrollTarget;
-		$[82] = selectedEvents;
-		$[83] = selectedRowName;
-		$[84] = sourceSpans;
-		$[85] = t23;
-	} else t23 = $[85];
-	const selection_0 = t23;
-	let t24;
-	if ($[86] !== hasAgentTimeline || $[87] !== hasTimeline || $[88] !== minimap || $[89] !== multiTimeline || $[90] !== selection_0 || $[91] !== state || $[92] !== swimlanes || $[93] !== timeline || $[94] !== views) {
-		t24 = {
+		$[86] = branchScrollTarget;
+		$[87] = selectedEvents;
+		$[88] = selectedRowName;
+		$[89] = sourceSpans;
+		$[90] = t24;
+	} else t24 = $[90];
+	const selection_0 = t24;
+	let t25;
+	if ($[91] !== hasAgentTimeline || $[92] !== hasTimeline || $[93] !== minimap || $[94] !== multiTimeline || $[95] !== selection_0 || $[96] !== state || $[97] !== swimlanes || $[98] !== timeline || $[99] !== views) {
+		t25 = {
 			timeline,
 			state,
 			hasTimeline,
@@ -118804,18 +118838,18 @@ function useTranscriptTimeline(options) {
 			views,
 			selection: selection_0
 		};
-		$[86] = hasAgentTimeline;
-		$[87] = hasTimeline;
-		$[88] = minimap;
-		$[89] = multiTimeline;
-		$[90] = selection_0;
-		$[91] = state;
-		$[92] = swimlanes;
-		$[93] = timeline;
-		$[94] = views;
-		$[95] = t24;
-	} else t24 = $[95];
-	return t24;
+		$[91] = hasAgentTimeline;
+		$[92] = hasTimeline;
+		$[93] = minimap;
+		$[94] = multiTimeline;
+		$[95] = selection_0;
+		$[96] = state;
+		$[97] = swimlanes;
+		$[98] = timeline;
+		$[99] = views;
+		$[100] = t25;
+	} else t25 = $[100];
+	return t25;
 }
 function _temp4$24(row_3) {
 	if (row_3.depth < 1) return false;
@@ -121567,7 +121601,7 @@ function _temp$44() {}
 			if (deepLinkTimelineIndex < 0) return;
 			prevDeepLinkRef.current = key;
 			if (deepLinkTimelineIndex === activeTimelineIndex) return;
-			setActiveTimeline(deepLinkTimelineIndex);
+			setActiveTimeline(deepLinkTimelineIndex, { preserveDeepLink: true });
 		};
 		t9 = [
 			initialEventId,
@@ -170244,97 +170278,82 @@ var componentIcons = {
 * Renders the application content. Mounted below the config gate so it can
 * read the resolved app config.
 */ var AppContent = () => {
-	const $ = (0, import_compiler_runtime.c)(14);
-	let t0;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t0 = getApi();
-		$[0] = t0;
-	} else t0 = $[0];
-	const api = t0;
+	const $ = (0, import_compiler_runtime.c)(12);
 	const rehydrated = useStore(_temp5);
-	const logDir = useLogDir();
 	const setInitialState = useStore(_temp6);
-	let t1;
-	if ($[1] !== logDir || $[2] !== rehydrated || $[3] !== setInitialState) {
-		t1 = (e) => {
+	let t0;
+	if ($[0] !== rehydrated || $[1] !== setInitialState) {
+		t0 = (e) => {
 			bb6: switch (e.data.type) {
 				case "updateState":
 					if (e.data.url) {
-						const decodedUrl_0 = decodeURIComponent(e.data.url);
-						setLogRoot(resolveEmbeddedLogDir(decodedUrl_0));
-						if (!rehydrated) setInitialState(isUri(decodedUrl_0) ? basename(decodedUrl_0) : decodedUrl_0, e.data.sample_id, e.data.sample_epoch);
+						const decodedUrl = decodeURIComponent(e.data.url);
+						setLogRoot(resolveEmbeddedLogDir(decodedUrl));
+						if (!rehydrated) setInitialState(isUri(decodedUrl) ? basename(decodedUrl) : decodedUrl, e.data.sample_id, e.data.sample_epoch);
 					}
 					break bb6;
-				case "backgroundUpdate": {
-					const decodedUrl = decodeURIComponent(e.data.url);
-					const log_dir = e.data.log_dir;
-					if (!document.hasFocus()) {
-						if (log_dir === logDir) selectLogFile(decodedUrl);
-						else api.open_log_file(e.data.url, e.data.log_dir);
-					} else imperativeLogData.invalidateLogListing();
-				}
+				case "backgroundUpdate": imperativeLogData.invalidateLogListing();
 			}
 		};
-		$[1] = logDir;
-		$[2] = rehydrated;
-		$[3] = setInitialState;
-		$[4] = t1;
-	} else t1 = $[4];
-	const onMessage = t1;
+		$[0] = rehydrated;
+		$[1] = setInitialState;
+		$[2] = t0;
+	} else t0 = $[2];
+	const onMessage = t0;
+	let t1;
 	let t2;
-	let t3;
-	if ($[5] !== onMessage) {
-		t2 = () => {
+	if ($[3] !== onMessage) {
+		t1 = () => {
 			window.addEventListener("message", onMessage);
 			return () => {
 				window.removeEventListener("message", onMessage);
 			};
 		};
-		t3 = [onMessage];
-		$[5] = onMessage;
-		$[6] = t2;
-		$[7] = t3;
+		t2 = [onMessage];
+		$[3] = onMessage;
+		$[4] = t1;
+		$[5] = t2;
 	} else {
-		t2 = $[6];
-		t3 = $[7];
+		t1 = $[4];
+		t2 = $[5];
 	}
-	(0, import_react.useEffect)(t2, t3);
+	(0, import_react.useEffect)(t1, t2);
 	const embeddedDispatched = (0, import_react.useRef)(false);
+	let t3;
 	let t4;
-	let t5;
-	if ($[8] !== onMessage) {
-		t4 = () => {
+	if ($[6] !== onMessage) {
+		t3 = () => {
 			if (embeddedDispatched.current) return;
 			embeddedDispatched.current = true;
 			const embedded = readEmbeddedStartupState();
 			if (embedded) onMessage({ data: embedded });
 		};
-		t5 = [onMessage];
-		$[8] = onMessage;
-		$[9] = t4;
-		$[10] = t5;
+		t4 = [onMessage];
+		$[6] = onMessage;
+		$[7] = t3;
+		$[8] = t4;
 	} else {
-		t4 = $[9];
-		t5 = $[10];
+		t3 = $[7];
+		t4 = $[8];
 	}
-	(0, import_react.useEffect)(t4, t5);
+	(0, import_react.useEffect)(t3, t4);
 	useMountEffect(_temp7);
+	let t5;
 	let t6;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
+		$[9] = t5;
+		$[10] = t6;
+	} else {
+		t5 = $[9];
+		t6 = $[10];
+	}
 	let t7;
 	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
-		$[11] = t6;
-		$[12] = t7;
-	} else {
-		t6 = $[11];
-		t7 = $[12];
-	}
-	let t8;
-	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+			t5,
 			t6,
-			t7,
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentIconProvider, {
 				icons: componentIcons,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentStateProvider, {
@@ -170343,9 +170362,9 @@ var componentIcons = {
 				})
 			})
 		] });
-		$[13] = t8;
-	} else t8 = $[13];
-	return t8;
+		$[11] = t7;
+	} else t7 = $[11];
+	return t7;
 };
 var App = () => {
 	const $ = (0, import_compiler_runtime.c)(1);

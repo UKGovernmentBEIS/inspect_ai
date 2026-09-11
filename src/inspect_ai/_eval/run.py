@@ -100,6 +100,7 @@ from .task.sandbox import (
 from .task.task import Task
 from .task.task_source import TaskSource
 from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
+from .task_defaults import resolve_task_eval_config
 
 log = logging.getLogger(__name__)
 
@@ -239,7 +240,9 @@ async def eval_run(
                 # rebinds below — nested state (dataset, config, reducer list
                 # contents) is still shared, so don't write to it in place.
                 task = copy(resolved_task.task)
-                task_eval_config = eval_config.model_copy()
+                task_eval_config = resolve_task_eval_config(
+                    resolved_task.run_config, eval_config
+                )
 
                 # sample_ids can be specified per task
                 task_eval_config.sample_id = resolve_task_sample_ids(
@@ -386,9 +389,10 @@ async def eval_run(
                     task_registry_name=resolved_task.task.registry_name,
                     task_display_name=resolved_task.task.display_name,
                     task_id=resolved_task.id,
+                    run_config_source=resolved_task.run_config_source,
                     eval_set_id=eval_set_id,
                     run_id=run_id,
-                    solver=eval_solver_spec,
+                    solver=eval_solver_spec or resolved_task.run_config.get("solver"),
                     tags=merged_tags,
                     model=resolved_task.model,
                     model_roles=resolved_task.model_roles,

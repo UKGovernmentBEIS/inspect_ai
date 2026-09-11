@@ -117,11 +117,16 @@ def task(func: TaskType) -> TaskType: ...
 
 @overload
 def task(
-    *, name: str | None = ..., **attribs: Any
+    *, name: str | None = ..., default_config: str | None = ..., **attribs: Any
 ) -> Callable[[TaskType], TaskType]: ...
 
 
-def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
+def task(
+    *args: Any,
+    name: str | None = None,
+    default_config: str | None = None,
+    **attribs: Any,
+) -> Any:
     r"""Decorator for registering tasks.
 
     Args:
@@ -131,11 +136,17 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
         Optional name for task. If the decorator has no name
         argument then the name of the function
         will be used to automatically assign a name.
+      default_config (str | None):
+        Optional path to a run configuration file, relative to the
+        task's source file, applied when the framework constructs
+        the task (e.g. `inspect eval`). Not read on direct calls.
       **attribs: (dict[str,Any]): Additional task attributes.
 
     Returns:
         Task with registry attributes.
     """
+    if default_config is not None:
+        attribs = attribs | {"default_config": default_config}
 
     def create_task_wrapper(task_type: TaskType) -> TaskType:
         # Get the name and parameters of the task
