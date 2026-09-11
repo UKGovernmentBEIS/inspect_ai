@@ -4,7 +4,7 @@ import pytest
 from test_helpers.utils import simple_task_state
 
 from inspect_ai._util.answer import answer_index
-from inspect_ai.scorer import CORRECT, INCORRECT, Target, choice
+from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, Target, choice
 
 
 @pytest.mark.anyio
@@ -267,6 +267,82 @@ async def test_correct_multiple_answers_all_incorrect():
     assert result.text == CORRECT
     assert result.answer == ""
     assert result.explanation == "ANSWERS: "
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("completion", ["", "   "])
+async def test_score_empty_completion_is_noanswer(completion: str):
+    # the solver leaves choices unmarked when there is nothing to parse,
+    # which the scorer reads the same as all-False
+    scorer = choice()
+    state = simple_task_state(model_output=completion, choices=["choice 1", "choice 2"])
+
+    result = await scorer(state, Target("A"))
+
+    assert result is not None
+    assert result.text == NOANSWER
+    assert result.reason == "no_response"
+    assert result.answer == ""
+
+
+@pytest.mark.anyio
+async def test_score_unparsable_completion_marks_format_reason():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="I think it is the second one, honestly.",
+        choices=["choice 1", "choice 2"],
+    )
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
+    assert result.answer == ""
+
+
+@pytest.mark.anyio
+async def test_score_selected_choices_carry_no_reason():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: B", choices=["choice 1", "choice 2"]
+    )
+    state.choices.mark_choice(0, False)
+    state.choices.mark_choice(1, True)
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == INCORRECT
+    assert result.reason is None
+    assert result.answer == "B"
+
+    state = simple_task_state(
+        model_output="ANSWER: A", choices=["choice 1", "choice 2"]
+    )
+    state.choices.mark_choice(0, True)
+    state.choices.mark_choice(1, False)
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == CORRECT
+    assert result.reason is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("completion", ["", "   "])
+async def test_score_marked_choice_with_empty_completion_keeps_answer(
+    completion: str,
+):
+    scorer = choice()
+    state = simple_task_state(model_output=completion, choices=["choice 1", "choice 2"])
+    state.choices.mark_choice(0, False)
+    state.choices.mark_choice(1, True)
+
+    result = await scorer(state, Target("A"))
+
+    assert result is not None
+    assert result.text == INCORRECT
+    assert result.reason is None
+    assert result.answer == "B"
 
 
 def test_target_sequences():
