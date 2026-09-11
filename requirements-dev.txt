@@ -43,7 +43,7 @@ textual-dev>=0.86.2
 together>=2.0.0
 trio
 trustme
-types-aioboto3
+types-aiobotocore
 types-beautifulsoup4
 types-boto3
 types-botocore

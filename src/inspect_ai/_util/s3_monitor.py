@@ -2,7 +2,7 @@
 
 Enabled by setting ``INSPECT_S3_MONITOR=1`` (or ``true``/``yes``). When
 enabled, monkey-patches ``AsyncFilesystem._create_s3_client_async`` so
-that every newly-created aioboto3 S3 client (across all
+that every newly-created aiobotocore S3 client (across all
 ``AsyncFilesystem`` instances in this process) has ``before-call`` /
 ``after-call`` event hooks attached. Counters accumulate into a single
 per-process ``S3Stats``; a background ticker prints a snapshot every
@@ -49,7 +49,7 @@ class S3Stats:
 
 
 def _attach_hooks(client: Any, stats: S3Stats) -> None:
-    """Register before-call/after-call event hooks on a boto3/aioboto3 client.
+    """Register before-call/after-call event hooks on a boto3/aiobotocore client.
 
     Handlers accept ``**kwargs`` because the hook system passes keyword
     args that vary by event (``model``, ``params``, ``parsed``, etc.);
@@ -155,7 +155,7 @@ async def monitor_s3_traffic(
     """No-op unless INSPECT_S3_MONITOR is set.
 
     Installs a per-process monkey-patch on first use that attaches event
-    hooks to every newly-created aioboto3 S3 client. Within a process
+    hooks to every newly-created aiobotocore S3 client. Within a process
     only one monitor scope should be active at a time.
     """
     if not s3_monitor_enabled():

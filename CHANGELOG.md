@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Bedrock and SageMaker now require `aiobotocore` instead of `aioboto3`, which is no longer installed, and Inspect no longer holds `botocore` back to an old release.
+- Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.
 - Fixed Linux evaluations slowing down as model clients open more HTTPS connections.
 - Sample selection: `--sample-id` now accepts ids containing colons (e.g. `user:cybergym/arvo_6008`); a `task:` prefix is stripped only when it names a task in the run.
 - Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
