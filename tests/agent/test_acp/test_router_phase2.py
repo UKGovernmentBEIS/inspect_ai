@@ -19,7 +19,6 @@ things that Phase 6 left optional/absent:
 from typing import Any
 from uuid import UUID
 
-import pytest
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
@@ -44,7 +43,12 @@ from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, _transcript
-from inspect_ai.model import ChatMessageAssistant, ModelInfo, set_model_info
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ModelInfo,
+    get_model_info,
+    set_model_info,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
@@ -58,17 +62,17 @@ from inspect_ai.tool._tool_call import ToolCall
 # broken by changes to the canonical model data files.
 _TEST_MODEL = "phase2-router-test/synthetic"
 _TEST_CONTEXT_LENGTH = 100_000
+_NOT_REGISTERED = (
+    "registry lost the test model (see isolate_custom_model_info in conftest)"
+)
 
 
-@pytest.fixture(autouse=True)
-def register_test_model() -> None:
-    # per-test (not module import time): other test modules call
-    # clear_model_info_cache(), which wipes custom registrations, and under
-    # xdist they can run on this worker between collection and these tests.
-    set_model_info(
-        _TEST_MODEL,
-        ModelInfo(context_length=_TEST_CONTEXT_LENGTH, output_tokens=4096),
-    )
+# Import-time registration is safe: conftest's isolate_custom_model_info
+# heals the wipe when another module's fixture calls clear_model_info_cache().
+set_model_info(
+    _TEST_MODEL,
+    ModelInfo(context_length=_TEST_CONTEXT_LENGTH, output_tokens=4096),
+)
 
 
 def _new_session() -> LiveAcpTransport:
@@ -290,6 +294,9 @@ def test_chunks_from_different_events_can_carry_different_models() -> None:
 
 
 def test_usage_update_emitted_after_text_chunk() -> None:
+    # Named precondition: without it a wiped registration fails four tests
+    # with an opaque `assert 0 == 1` (how the #4972 xdist flake presented).
+    assert get_model_info(_TEST_MODEL) is not None, _NOT_REGISTERED
     tr = Transcript()
     token = _transcript.set(tr)
     try:
@@ -312,6 +319,7 @@ def test_usage_update_emitted_after_text_chunk() -> None:
 
 
 def test_usage_update_includes_cached_tokens() -> None:
+    assert get_model_info(_TEST_MODEL) is not None, _NOT_REGISTERED
     tr = Transcript()
     token = _transcript.set(tr)
     try:
@@ -367,6 +375,7 @@ def test_usage_update_order_after_chunks() -> None:
     updates so the chip change visually corresponds to the model call
     just rendered.
     """
+    assert get_model_info(_TEST_MODEL) is not None, _NOT_REGISTERED
     tr = Transcript()
     token = _transcript.set(tr)
     try:
@@ -397,6 +406,7 @@ def test_usage_update_emitted_for_tool_call_only_response() -> None:
     real flow: pending fires when the model call begins, complete
     fires when it returns (tool-only).
     """
+    assert get_model_info(_TEST_MODEL) is not None, _NOT_REGISTERED
     tr = Transcript()
     token = _transcript.set(tr)
     try:
