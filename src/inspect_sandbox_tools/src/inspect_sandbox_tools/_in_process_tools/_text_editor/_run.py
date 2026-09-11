@@ -1,4 +1,4 @@
-"""Utility to run shell commands asynchronously with a timeout."""
+"""Utility to run commands asynchronously with a timeout."""
 
 # TODO: Cloned from computer tool temporarily. Should resolve when we have a unified container package.
 
@@ -18,13 +18,13 @@ def maybe_truncate(content: str, truncate_after: int | None = MAX_RESPONSE_LEN) 
 
 
 async def run(
-    cmd: str,
+    cmd: list[str],
     timeout: float | None = 120.0,  # seconds
     truncate_after: int | None = MAX_RESPONSE_LEN,
 ) -> tuple[int, str, str]:
-    """Run a shell command asynchronously with a timeout."""
-    process = await asyncio.create_subprocess_shell(
-        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    """Run a command without a shell, asynchronously with a timeout."""
+    process = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
 
     try:

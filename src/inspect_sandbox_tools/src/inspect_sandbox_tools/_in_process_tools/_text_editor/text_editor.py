@@ -29,9 +29,17 @@ async def view(path_str: str, view_range: list[int] | None = None) -> str:
     if path.is_dir():
         path_str = str(path).rstrip("/") + "/"
 
-        _, stdout, stderr = await run(
-            rf"find {path_str} -maxdepth 2 -not -path '*/\.*'"
-        )
+        try:
+            _, stdout, stderr = await run(
+                ["find", path_str, "-maxdepth", "2", "-not", "-path", r"*/\.*"]
+            )
+        except TimeoutError:
+            # TimeoutError is an OSError, but must retain its existing RPC failure.
+            raise
+        except OSError as exc:
+            raise ToolException(
+                f"Encountered error attempting to view {path}: {exc}"
+            ) from exc
 
         if stderr:
             raise ToolException(
