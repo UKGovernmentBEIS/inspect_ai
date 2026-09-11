@@ -43,6 +43,8 @@
 - Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
 - Scoring: `math()` now raises an error when no reference answer can be parsed instead of silently excluding the sample from metrics.
 - Scoring: `choice()` now raises an error for samples without answer options instead of silently scoring them incorrect.
+- Inspect View: Find on the Messages tab now searches the whole sample (including running ones) case- and accent-insensitively, paging through matches beyond the loaded rows.
+- Logs: `read_eval_log_sample()` now reads samples stored in the chunked per-sample layout (previously raised `IndexError` for them).
 
 ## 0.3.263 (03 September 2026)
 
