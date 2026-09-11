@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import Self, override
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.working import WaitingTime
 
 if TYPE_CHECKING:
     # These imports are used as type hints only - prevent circular imports.
@@ -1476,6 +1477,7 @@ class _WorkingLimit(Limit, _Node):
         self.parent: _WorkingLimit | None = None
         self._start_time: float | None = None
         self._end_time: float | None = None
+        self._waits = WaitingTime()
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
@@ -1491,6 +1493,7 @@ class _WorkingLimit(Limit, _Node):
         exc_tb: TracebackType | None,
     ) -> None:
         self._end_time = anyio.current_time()
+        self._waiting_time += self._waits.elapsed()
         self._pop_and_check_identity(working_limit_tree)
 
     @property
@@ -1502,7 +1505,13 @@ class _WorkingLimit(Limit, _Node):
         if self._start_time is None:
             return 0.0
         if self._end_time is None:
-            return anyio.current_time() - self._start_time - self._waiting_time
+            waiting_time = self._waits.elapsed()
+            return (
+                anyio.current_time()
+                - self._start_time
+                - self._waiting_time
+                - waiting_time
+            )
         return self._end_time - self._start_time - self._waiting_time
 
     def record_waiting_time(self, waiting_time: float) -> None:

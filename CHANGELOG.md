@@ -37,6 +37,7 @@
 - Human Agent: The `task` shell hook is now appended to the login user's `.bashrc` as that user, so a `.bashrc` that user cannot write (e.g. root-owned) or that is a symlink fails installation instead of being written by the sandbox default user (root in most images).
 - Bugfix: MockLLM callable `custom_outputs` now populate default token usage when the returned `ModelOutput` omits `usage`, matching iterable/generator behavior.
 - Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.
+- Bugfix: Concurrent model retries, semaphore waits, and hard pauses no longer double-count waiting time, report negative sample working time, or extend working limits after cancellation.
 - Eval Log: Reading zstd-compressed `.eval` files no longer fails with `AttributeError: ... '_needs_input'` on Python builds that include CPython's gh-156002 zipfile change.
 - Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
 - Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
