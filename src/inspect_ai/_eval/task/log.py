@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from importlib import metadata as importlib_metadata
 from importlib.metadata import Distribution
 from typing import TYPE_CHECKING, Any, cast
@@ -10,7 +11,7 @@ from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._eval.task.util import slice_dataset
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai._util.dateutil import iso_now
+from inspect_ai._util.dateutil import datetime_now_utc, iso_now
 from inspect_ai._util.error import is_cancellation_message
 from inspect_ai._util.git import git_context, redact_url_credentials
 from inspect_ai._util.package import (
@@ -51,6 +52,7 @@ from inspect_ai.log._recorders import Recorder
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.recorder import SampleRecordKey
 from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.log._recover._api import sample_record_time
 from inspect_ai.model import (
     GenerateConfig,
     Model,
@@ -147,6 +149,33 @@ def resolve_package_revision(distribution: Distribution | None) -> EvalRevision 
 def _is_high_throughput(sample_count: int) -> bool:
     """Detect high-throughput runs that benefit from reduced logging overhead."""
     return sample_count >= 1000
+
+
+def _warn_if_clock_behind_prior(
+    seeded: list[EvalSampleSummary], prior: "str | list[EvalSample]"
+) -> None:
+    """Warn when this clock reads earlier than the prior attempt's latest record.
+
+    Crash recovery decides between an inherited record and this attempt's
+    buffered re-run of it by timestamp (``_recover._api._superseded_by_buffer``):
+    the re-run started after the inherited record ended. A clock behind
+    the prior attempt's by more than the gap between its finish and this start
+    would invert that. Only a lower bound on the skew is observable here, so
+    there is nothing to repair; the warning names the hazard.
+    """
+    latest: datetime | None = None
+    for summary in seeded:
+        ended = sample_record_time(summary)
+        if ended is not None and (latest is None or ended > latest):
+            latest = ended
+    if latest is not None and datetime_now_utc() < latest:
+        logger.warning(
+            f"The prior log {prior if isinstance(prior, str) else ''} has a sample "
+            f"record from {latest.isoformat()}, later than this clock's "
+            f"current time: the clock runs behind the prior attempt's, so crash "
+            "recovery of this attempt may prefer inherited samples over its own "
+            "re-runs of them."
+        )
 
 
 def _seeded_key(id: str | int, epoch: int) -> SampleRecordKey:
@@ -560,6 +589,7 @@ class TaskLogger:
         self._prior_seeded = True
         seeded = await self.recorder.sample_summaries(self.eval)
         self._seeded_pending = {_seeded_key(s.id, s.epoch) for s in seeded or []}
+        _warn_if_clock_behind_prior(seeded or [], prior)
 
     async def seed_added_samples(
         self, prior: "str | list[EvalSample]", keep: set[tuple[str | int, int]]

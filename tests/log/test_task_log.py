@@ -1953,6 +1953,34 @@ async def test_compact_cancels_between_chunks_and_preserves_original_log(
     } == {1}
 
 
+@pytest.mark.parametrize("behind", [True, False])
+async def test_seed_warns_when_the_clock_is_behind_the_prior(
+    behind: bool, tmp_path: Path
+) -> None:
+    # crash recovery tells an inherited record from this attempt's buffered
+    # re-run by timestamp; a clock behind the prior attempt's would invert
+    # that, and only its lower bound is observable at seed time — so warn
+    from datetime import datetime, timedelta, timezone
+
+    offset = timedelta(hours=1) if behind else -timedelta(hours=1)
+    completed_at = (datetime.now(timezone.utc) + offset).isoformat()
+    prior_samples = [
+        s.model_copy(update={"completed_at": completed_at}) for s in _prior_samples()
+    ]
+    recorder = EvalRecorder(str(tmp_path))
+    prior = await _write_prior_log(recorder, prior_samples)
+    logger = _seed_logger(recorder)
+    logger._location = await recorder.log_init(logger.eval)
+    with patch.object(task_log_module.logger, "warning") as warning:
+        await logger.seed_from_prior(prior, keep=None)
+    if behind:
+        warning.assert_called_once()
+        assert "runs behind the prior attempt" in warning.call_args.args[0]
+    else:
+        warning.assert_not_called()
+    await recorder.log_discard(logger.eval)
+
+
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 async def test_task_logger_seeded_sample_reads_resolved(
     recorder_type: type, tmp_path: Path

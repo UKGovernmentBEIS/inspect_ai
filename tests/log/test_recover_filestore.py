@@ -3,7 +3,7 @@
 import json
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
 from zipfile import ZipFile
@@ -402,6 +402,76 @@ async def test_recover_from_filestore_end_to_end() -> None:
             read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             assert len(read_log.samples) == 1
+
+
+async def test_recover_from_filestore_prefers_buffer_over_seeded_record() -> None:
+    """Shared-filestore recovery also lets a buffer entry supersede a seeded record.
+
+    The crashed log is a seeded retry attempt: "sample1"'s record is the prior
+    attempt's failure, completed minutes before this attempt began. The
+    filestore holds this attempt's completed re-run of it, started later.
+    """
+    from inspect_ai._util.error import EvalError
+    from inspect_ai.log._log import EvalSample
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path, _ = _create_filestore_fixture(
+                temp_dir, num_segments=2, sample_id="sample1", completed=True
+            )
+            eval_spec = EvalSpec(
+                created=datetime.now(timezone.utc).isoformat(),
+                task="test_task",
+                model="mockllm/model",
+                dataset=EvalDataset(name="test", samples=1, sample_ids=["sample1"]),
+                config=EvalConfig(),
+            )
+            log_start = LogStart(
+                version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=EvalPlan()
+            )
+            seeded = EvalSample(
+                id="sample1",
+                epoch=1,
+                input="input sample1",
+                target="target sample1",
+                error=EvalError(
+                    message="prior failure", traceback="", traceback_ansi=""
+                ),
+                started_at=(
+                    datetime.now(timezone.utc) - timedelta(minutes=6)
+                ).isoformat(),
+                completed_at=(
+                    datetime.now(timezone.utc) - timedelta(minutes=5)
+                ).isoformat(),
+            )
+            with ZipFile(eval_path, "w") as zf:
+                zf.writestr(
+                    "_journal/start.json",
+                    json.dumps(to_jsonable_python(log_start, exclude_none=True)),
+                )
+                zf.writestr(
+                    "samples/sample1_epoch_1.json",
+                    json.dumps(to_jsonable_python(seeded, exclude_none=True)),
+                )
+                zf.writestr(
+                    "_journal/summaries/1.json",
+                    json.dumps(
+                        [to_jsonable_python(seeded.summary(), exclude_none=True)]
+                    ),
+                )
+            db_dir = os.path.join(temp_dir, "empty_db_dir")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+
+            assert log.samples is not None and len(log.samples) == 1
+            (sample,) = log.samples
+            assert sample.id == "sample1"
+            # the filestore's re-run, not the inherited failure
+            assert sample.error is None
+            assert any(getattr(e, "event", "") == "model" for e in sample.events)
 
 
 async def test_recover_from_filestore_incomplete_action_error_finalizes() -> None:

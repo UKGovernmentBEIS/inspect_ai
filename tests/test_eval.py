@@ -3,7 +3,7 @@ import logging
 import tempfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Callable, Literal, cast
 from unittest import mock
 
 import anyio
@@ -22,6 +22,7 @@ from inspect_ai import (
 )
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_now_utc
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
@@ -635,6 +636,103 @@ def test_failed_log_start_returns_errored_log(
     assert logs[0].location  # the path the failed write was destined for
 
 
+async def test_running_sample_buffer_row_carries_its_start(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The realtime row opened for a running sample records when it started.
+
+    Crash recovery dates a still-running sample from its row, and decides by
+    that start whether the row is newer than a record the log inherited, so
+    a row without one would lose to the inherited record (#5343 review).
+    """
+    from inspect_ai.log._recorders.buffer import database as database_module
+    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: tmp_path / "db")
+    buffers: list[SampleBufferDatabase] = []
+    init = TaskLogger.init
+
+    async def track_init(logger: TaskLogger) -> None:
+        await init(logger)
+        assert logger.buffer_db is not None
+        buffers.append(logger.buffer_db)
+
+    monkeypatch.setattr(TaskLogger, "init", track_init)
+    rows_while_running: list[str | None] = []
+
+    @solver
+    def inspect_row() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            samples = buffers[-1].get_samples()
+            assert samples is not None and samples != "NotModified"
+            (row,) = samples.samples
+            assert row.completed_at is None
+            rows_while_running.append(row.started_at)
+            return state
+
+        return solve
+
+    try:
+        admitted_no_earlier_than = datetime_now_utc()
+        logs = await eval_async(
+            Task(dataset=[Sample(id=1, input="x", target="x")], solver=inspect_row()),
+            model="mockllm/model",
+            log_dir=str(tmp_path / "logs"),
+            ctl_server=False,
+        )
+        assert logs[0].status == "success"
+        (started_at,) = rows_while_running
+        assert started_at is not None
+        # sub-second precision: a start truncated to the second would read
+        # earlier than the moment the eval was launched
+        assert datetime_from_iso_format_safe(started_at) >= admitted_no_earlier_than
+        assert logs[0].samples is not None
+        (sample,) = logs[0].samples
+        assert sample.started_at is not None and started_at <= sample.started_at
+    finally:
+        for buffer in buffers:
+            buffer.cleanup()
+
+
+async def test_sample_failing_before_it_starts_keeps_its_admission_time(
+    tmp_path: Path,
+) -> None:
+    """A sample whose input cannot be materialized is still dated.
+
+    Execution never began, so there is no run start to record; the logged
+    failure takes the sample's admission time instead, so crash recovery can
+    order it against a record the log inherited for the same key.
+    """
+    from inspect_ai.model import ChatMessageUser, ContentImage
+
+    admitted_no_earlier_than = datetime_now_utc()
+    logs = await eval_async(
+        Task(
+            dataset=[
+                Sample(
+                    id=1,
+                    input=[
+                        ChatMessageUser(
+                            content=[ContentImage(image=str(tmp_path / "missing.png"))]
+                        )
+                    ],
+                    target="x",
+                )
+            ]
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        fail_on_error=False,
+        ctl_server=False,
+    )
+    assert logs[0].status == "success"
+    assert logs[0].samples is not None
+    (sample,) = logs[0].samples
+    assert sample.error is not None
+    assert sample.started_at is not None
+    assert datetime_from_iso_format_safe(sample.started_at) >= admitted_no_earlier_than
+
+
 @pytest.mark.parametrize("task_retry_attempts", [0, 1])
 @pytest.mark.parametrize("recovery_source", ["database", "filestore"])
 async def test_terminal_log_write_failure_preserves_recovery(
@@ -882,8 +980,10 @@ async def test_terminal_retry_startup_releases_recorder(
         spec: EvalSpec,
         prior: str | list[EvalSample],
         keep: set[tuple[str | int, int]] | None,
+        *,
+        on_sample: Callable[[str | int, int], None] | None = None,
     ) -> None:
-        await seed(recorder, spec, prior, keep)
+        await seed(recorder, spec, prior, keep, on_sample=on_sample)
         if failure_stage == "seed":
             await fail_startup()
 

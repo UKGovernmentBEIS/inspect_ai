@@ -2503,6 +2503,12 @@ async def _task_run_sample_attempt(
             sample_summary: EvalSampleSummary | None = None
             attempt_started = False
             sample_row_started = False
+            # the realtime row's start is the sample's admission; the flushed
+            # record's `started_at` is taken later, after sandbox init, and
+            # falls back to this when init itself failed. Crash recovery dates
+            # the sample from these (see `_recover._api`), comparing against
+            # a prior record's completion, so full precision matters
+            sample_admitted_at = datetime.now(timezone.utc)
             sample_time_limit: Limit | None = None
 
             def make_sample_summary() -> EvalSampleSummary:
@@ -2514,6 +2520,7 @@ async def _task_run_sample_attempt(
                     choices=sample.choices,
                     target=sample.target,
                     metadata=sample.metadata or {},
+                    started_at=sample_admitted_at.isoformat(),
                 )
 
             async def emit_attempt_end(will_retry: bool) -> None:
@@ -3097,7 +3104,7 @@ async def _task_run_sample_attempt(
                             error_retries=previous_attempt_errors
                             + list(attempt.errors),
                             time_limit=effective_time_limit,
-                            started_at=sample_start_datetime(),
+                            started_at=sample_start_datetime() or sample_admitted_at,
                             include_events=include_events,
                         )
 

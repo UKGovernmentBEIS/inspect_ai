@@ -890,7 +890,30 @@ warning names the prior log and the error.
   complete prior set plus whatever later flushes carried. Buffer-db recovery
   discovers the `started` log again (reversing #4933's trade-off 2) and the
   recovered log is a superset of the prior — recovery no longer "cements the
-  loss".
+  loss". Recovery must not mistake an inherited record for one this attempt
+  flushed: a seeded errored sample whose re-run completed (or was still
+  running) in the buffer but had not reached a destination flush would
+  otherwise recover as the old failure and the buffer be deleted. Recovery
+  decides by the timestamps both sides already carry: a buffer entry
+  (completed or in progress) that *started after* the log's record for its
+  key *ended* is the newer result and wins; otherwise the log's record is
+  authoritative, as for every flushed key today — which also covers a
+  sample requeued after its completion was flushed. A record's end is its
+  completion, or for a recovered interruption (a running sample an earlier
+  recovery wrote from its row; it has no completion) its start; for that,
+  and so a running sample's row can be dated at all, the realtime row now
+  carries the sample's admission time as `started_at` (full precision: a
+  re-run can start within the second its inherited record completed), and a
+  sample that fails before its run starts (input materialization) is dated
+  from its admission too. The comparison spans
+  attempts, so it assumes their clocks agree to within the gap between the
+  prior finishing and the retry starting. `seed_from_prior` warns when this
+  clock reads earlier than the prior's latest completion (only a lower
+  bound on skew is observable, so nothing is repaired); under undetected
+  skew the inherited record wins, the pre-existing behavior for that key.
+  An explicit seeded-members journal was considered and rejected: exact,
+  but a new member family whose size grows with re-runs × seeded records
+  unless delta-encoded, to insure against a rare case.
 - **`log_finish` fails after earlier flushes**: the destination holds the
   complete prior set plus the flushed completions under a `started` header,
   and the retry seeds from it (see the `run_task_retry_attempts` section).
