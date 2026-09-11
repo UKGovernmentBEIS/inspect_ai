@@ -232,8 +232,10 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         # be echoed back into a later turn's `content` and stored as model
         # output, and it dropped the encrypted thought signature Gemini needs
         # for multi-turn tool continuity. Reasoning that has no OpenRouter
-        # reasoning_details (e.g. replayed cross-model) still falls back to a
-        # `<think>` tag, as for every other family.
+        # reasoning_details (e.g. replayed cross-model) falls back to a
+        # `<think>` tag only when it has readable text: a redacted block with
+        # no summary (an Anthropic-native encrypted thought, say) would
+        # otherwise put its opaque payload into the assistant text channel.
         family = self.model_family()
         _replay_reasoning_content = _requires_reasoning_content(family)
 
@@ -255,6 +257,9 @@ class OpenRouterAPI(OpenAICompatibleAPI):
                 return (details or {}) | reasoning_content
             if details is not None:
                 return details
+            readable = content.summary if content.redacted else content.reasoning
+            if not (readable or "").strip():
+                return {}
             return reasoning_to_think_tag(content)
 
         return [
