@@ -360,7 +360,7 @@ async def test_handoffs_are_not_reviewed() -> None:
                 ],
             )
         ],
-        [ToolDef(handoff(helper(), description="A helper agent."))],
+        [handoff(helper(), description="A helper agent.")],
         review=[ReviewPolicy(recording_reviewer(seen), "*")],
     )
 
