@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -317,8 +317,8 @@ async def test_openrouter_alias_uses_family_for_reasoning_replay() -> None:
     api.service = "OpenRouter"
 
     converted = await api.messages_to_openai([message])
-    payload = converted[0]
-    assert payload["reasoning_content"] == "thinking"  # type: ignore[typeddict-item]
+    payload: dict[str, Any] = dict(converted[0])
+    assert payload["reasoning_content"] == "thinking"
 
 
 def test_hf_handler_uses_family_for_parsing_and_alias_for_output(

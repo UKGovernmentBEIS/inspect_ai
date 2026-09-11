@@ -344,10 +344,10 @@ async def test_messages_to_openai_gemini_replays_encrypted_structurally() -> Non
     api = _make_api("google/gemini-2.5-flash")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
+    payload: dict[str, Any] = dict(converted[0])
     # structural replay: only the encrypted entry survives
     assert "reasoning_details" in payload
-    details = payload["reasoning_details"]  # type: ignore[typeddict-item]
+    details = payload["reasoning_details"]
     assert [d["type"] for d in details] == ["reasoning.encrypted"]
     assert details[0]["data"] == encrypted_blob
     # nothing leaks into the text channel
@@ -391,9 +391,9 @@ async def test_messages_to_openai_gemini_unsigned_text_only_dropped() -> None:
     api = _make_api("google/gemini-2.5-pro")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
+    payload: dict[str, Any] = dict(converted[0])
     assert "reasoning_details" in payload
-    assert payload["reasoning_details"] == []  # type: ignore[typeddict-item]
+    assert payload["reasoning_details"] == []
     serialized = json.dumps(payload)
     assert "<think" not in serialized
     assert "Step by step reasoning here." not in serialized
@@ -432,9 +432,9 @@ async def test_messages_to_openai_replays_encrypted_details_for_gemini() -> None
     api = _make_api("google/gemini-3-pro-preview")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
+    payload: dict[str, Any] = dict(converted[0])
     assert "reasoning_details" in payload
-    details = payload["reasoning_details"]  # type: ignore[typeddict-item]
+    details = payload["reasoning_details"]
     assert [d["type"] for d in details] == ["reasoning.encrypted"]
     assert "<think" not in json.dumps(payload)
 
@@ -465,10 +465,10 @@ async def test_messages_to_openai_preserves_reasoning_details_for_non_gemini() -
     api = _make_api("anthropic/claude-sonnet-4-5")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
+    payload: dict[str, Any] = dict(converted[0])
     assert "reasoning_details" in payload
     # signed text survives the filter unchanged
-    assert payload["reasoning_details"] == original  # type: ignore[typeddict-item]
+    assert payload["reasoning_details"] == original
 
 
 @pytest.mark.anyio
@@ -501,9 +501,9 @@ async def test_messages_to_openai_replays_reasoning_content_for_deepseek_v4() ->
     api = _make_api("deepseek/deepseek-v4-pro")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
-    assert payload["reasoning_content"] == "considered options"  # type: ignore[typeddict-item]
-    assert payload["reasoning_details"] == original  # type: ignore[typeddict-item]
+    payload: dict[str, Any] = dict(converted[0])
+    assert payload["reasoning_content"] == "considered options"
+    assert payload["reasoning_details"] == original
 
 
 @pytest.mark.anyio
@@ -521,8 +521,8 @@ async def test_messages_to_openai_reasoning_content_without_details_for_deepseek
     api = _make_api("deepseek/deepseek-v4-pro")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
-    assert payload["reasoning_content"] == "plain cot"  # type: ignore[typeddict-item]
+    payload: dict[str, Any] = dict(converted[0])
+    assert payload["reasoning_content"] == "plain cot"
     assert "reasoning_details" not in payload
 
 
@@ -544,7 +544,7 @@ async def test_messages_to_openai_think_tag_fallback_for_non_gemini() -> None:
     api = _make_api("x-ai/grok-4")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
+    payload: dict[str, Any] = dict(converted[0])
     content = payload.get("content")
     text = content if isinstance(content, str) else ""
     assert "<think" in text
@@ -586,7 +586,7 @@ async def test_messages_to_openai_think_tag_skipped_without_readable_text(
     api = _make_api(model)
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
+    payload: dict[str, Any] = dict(converted[0])
     content = payload.get("content")
     text = content if isinstance(content, str) else ""
     assert "<think" not in text
@@ -608,7 +608,7 @@ async def test_messages_to_openai_think_tag_skipped_for_blank_reasoning() -> Non
     api = _make_api("google/gemini-3.1-pro-preview")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
+    payload: dict[str, Any] = dict(converted[0])
     content = payload.get("content")
     text = content if isinstance(content, str) else ""
     assert "<think" not in text
@@ -636,7 +636,7 @@ async def test_messages_to_openai_think_tag_keeps_redacted_summary() -> None:
     api = _make_api("google/gemini-3.1-pro-preview")
     converted = await api.messages_to_openai([msg])
 
-    payload = converted[0]
+    payload: dict[str, Any] = dict(converted[0])
     content = payload.get("content")
     text = content if isinstance(content, str) else ""
     assert "<think" in text

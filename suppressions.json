@@ -1726,12 +1726,6 @@
       "undescribed": 3
     }
   },
-  "tests/model/providers/test_openrouter.py": {
-    "type: ignore[typeddict-item]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "tests/model/providers/test_transformer_lens.py": {
     "type: ignore": {
       "count": 4,
