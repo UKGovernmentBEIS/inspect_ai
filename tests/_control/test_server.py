@@ -1076,7 +1076,7 @@ async def test_404_body_shape_distinguishes_missing_route(
         assert not _handler_404(router)
 
 
-def test_resolve_ctl_server_values() -> None:
+def test_resolve_ctl_server_values(monkeypatch: pytest.MonkeyPatch) -> None:
     """The ``ctl_server`` param resolves to ``(enabled, keep_alive)``.
 
     ``None`` and ``True`` are the default-on shape, ``False`` disables,
@@ -1087,8 +1087,11 @@ def test_resolve_ctl_server_values() -> None:
     typo of ``keep``, and dropping the requested park would strand the
     user.
     """
-    from inspect_ai._control.server import resolve_ctl_server
+    from inspect_ai._control.server import CTL_SERVER_ENV_VAR, resolve_ctl_server
     from inspect_ai._util.error import PrerequisiteError
+
+    # the suite-wide fixture sets the env var; this test pins the bare default
+    monkeypatch.delenv(CTL_SERVER_ENV_VAR, raising=False)
 
     assert resolve_ctl_server(None) == (True, False)
     assert resolve_ctl_server(True) == (True, False)
@@ -1110,6 +1113,262 @@ def test_resolve_ctl_server_values() -> None:
 
     with pytest.raises(PrerequisiteError, match="keepalive"):
         resolve_ctl_server("keepalive")
+
+
+def test_resolve_ctl_server_reads_env_when_unspecified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``ctl_server=None`` falls back to ``INSPECT_EVAL_CTL_SERVER``.
+
+    The documented CI-wide switch has to reach in-process ``eval()`` calls,
+    not just the CLI (where click's ``envvar`` handles it) — a pytest run
+    setting ``INSPECT_EVAL_CTL_SERVER=false`` must skip the bind. Explicit
+    values win over the env var; an empty value counts as unset (as click
+    treats it); an unparseable value is rejected naming the env var.
+    """
+    from inspect_ai._control.server import CTL_SERVER_ENV_VAR, resolve_ctl_server
+    from inspect_ai._util.error import PrerequisiteError
+
+    monkeypatch.setenv(CTL_SERVER_ENV_VAR, "false")
+    assert resolve_ctl_server(None) == (False, False)
+    assert resolve_ctl_server(True) == (True, False)
+    assert resolve_ctl_server("keep") == (True, True)
+
+    monkeypatch.setenv(CTL_SERVER_ENV_VAR, "keep")
+    assert resolve_ctl_server(None) == (True, True)
+    assert resolve_ctl_server(False) == (False, False)
+
+    monkeypatch.setenv(CTL_SERVER_ENV_VAR, "")
+    assert resolve_ctl_server(None) == (True, False)
+
+    monkeypatch.setenv(CTL_SERVER_ENV_VAR, "keepalive")
+    with pytest.raises(PrerequisiteError, match=CTL_SERVER_ENV_VAR):
+        resolve_ctl_server(None)
+
+
+def test_eval_honours_ctl_server_env(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir: Path
+) -> None:
+    """An in-process ``eval()`` skips the bind under ``INSPECT_EVAL_CTL_SERVER=false``.
+
+    Pins the end-to-end effect of the env fallback: no discovery file is
+    published (nothing for ``inspect ctl`` to find), where the explicit
+    ``ctl_server=True`` on the same task does publish one.
+    """
+    from inspect_ai import Task, eval
+    from inspect_ai._control.discovery import list_discovered_servers
+    from inspect_ai._control.server import CTL_SERVER_ENV_VAR
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    published: list[int] = []
+
+    # observed from inside the sample: the server binds after run-start hooks
+    # fire and tears down before the eval returns
+    @solver
+    def probe() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            published.append(len(list_discovered_servers()))
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi")], solver=probe())
+    monkeypatch.setenv(CTL_SERVER_ENV_VAR, "false")
+    eval(task, model="mockllm/model", display="none", log_dir=str(short_data_dir))
+    assert published == [0]
+
+    published.clear()
+    eval(
+        task,
+        model="mockllm/model",
+        display="none",
+        log_dir=str(short_data_dir),
+        ctl_server=True,
+    )
+    assert published == [1]
+
+
+def test_stop_is_prompt_when_idle(short_data_dir: Path) -> None:
+    """Tearing down an idle server takes milliseconds, not uvicorn's polls.
+
+    Regression for meridianlabs-ai/inspect_ai#393: stock uvicorn notices
+    ``should_exit`` only on its 100ms main-loop tick and then sleeps another
+    unconditional 100ms in ``shutdown()``, so every ``eval()`` paid 100-200ms
+    at teardown. The server now wakes on the exit signal and skips the settle
+    sleep when no connection is open. The bound is deliberately below the
+    100ms floor the stock path can't get under; the minimum over a few cycles
+    keeps a loaded runner's one-off stall from failing the assertion.
+    """
+    import time
+
+    from inspect_ai._control.server import ControlServer
+
+    async def cycle() -> float:
+        server = ControlServer(run_id="run-1")
+        await server.start()
+        # let the serve task reach its main loop, so the stop below exercises
+        # the wake-up rather than racing the startup
+        while not server._uvicorn_server.started:
+            await asyncio.sleep(0.001)
+        started = time.perf_counter()
+        await server.stop()
+        return time.perf_counter() - started
+
+    async def run() -> float:
+        return min([await cycle() for _ in range(3)])
+
+    assert asyncio.run(run()) < 0.08
+
+
+def test_should_exit_wakes_a_blocked_loop(short_data_dir: Path) -> None:
+    """Setting ``should_exit`` from outside the loop ends the serve task promptly.
+
+    uvicorn's signal handler assigns ``should_exit`` from a signal context
+    while the loop sits in ``select()``; a plain ``Event.set()`` there only
+    queues a callback the blocked loop won't see until its next 1s tick. The
+    setter goes through the loop's self-pipe instead. Modelled here with a
+    thread (the same "loop is idle, setter runs outside a callback" shape),
+    bounded well under the 1s tick.
+    """
+    import threading
+    import time
+
+    from inspect_ai._control.server import ControlServer
+
+    async def run() -> float:
+        server = ControlServer(run_id="run-1")
+        await server.start()
+        try:
+            uvicorn_server = server._uvicorn_server
+            serve_task = server._serve_task
+            assert serve_task is not None
+            while not uvicorn_server.started:
+                await asyncio.sleep(0.001)
+
+            def _exit_from_thread() -> None:
+                uvicorn_server.should_exit = True
+
+            started = time.perf_counter()
+            threading.Timer(0.05, _exit_from_thread).start()
+            await asyncio.wait_for(serve_task, timeout=5)
+            return time.perf_counter() - started
+        finally:
+            await server.stop()
+
+    assert asyncio.run(run()) < 0.5
+
+
+def test_uvicorn_shutdown_mirror_is_current() -> None:
+    """The uvicorn sources our ``PromptExitServer`` mirrors haven't changed.
+
+    ``shutdown()`` reimplements ``uvicorn.Server.shutdown`` (to make its
+    settle sleep conditional) and ``main_loop()`` replaces the polling loop,
+    both relying on ``should_exit`` being a plain attribute the subclass can
+    shadow with a property. ``uvicorn`` is unpinned, so pin the mirrored
+    code here: when an upgrade changes it, re-check the subclass in
+    ``_prompt_exit_server_class`` against the new code and update the hashes.
+
+    The digest covers code tokens only — comments and blank lines are dropped
+    so a comment-only upstream edit doesn't trip it. (Token streams, unlike
+    ``ast.dump`` output, are stable across the Python versions CI runs.)
+    """
+    import hashlib
+    import inspect
+    import io
+    import textwrap
+    import tokenize
+
+    import uvicorn.server
+
+    structural = {tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT}
+    significant = {tokenize.NAME, tokenize.NUMBER, tokenize.STRING, tokenize.OP}
+
+    def digest(name: str) -> str:
+        source = inspect.getsource(getattr(uvicorn.server.Server, name))
+        tokens = tokenize.generate_tokens(io.StringIO(textwrap.dedent(source)).readline)
+        parts = [
+            tokenize.tok_name[tok.type] if tok.type in structural else tok.string
+            for tok in tokens
+            if tok.type in structural or tok.type in significant
+        ]
+        return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:16]
+
+    assert not isinstance(
+        inspect.getattr_static(uvicorn.server.Server, "should_exit", None), property
+    )
+    assert {name: digest(name) for name in ("shutdown", "main_loop")} == {
+        "shutdown": "248c7bf71a637115",
+        "main_loop": "c50e6ef76aa27676",
+    }, "uvicorn changed a method PromptExitServer mirrors — re-check it"
+
+
+def test_stop_drains_an_open_connection(short_data_dir: Path) -> None:
+    """An idle keep-alive connection is closed by ``stop()``, which still returns.
+
+    The prompt-shutdown path skips uvicorn's settle sleep only when no
+    connection is open; with one open it must still shut the connection
+    (the client sees EOF) and complete rather than hang on the drain.
+    """
+    import socket
+
+    from inspect_ai._control.server import ControlServer
+
+    async def run() -> bytes:
+        server = ControlServer(run_id="run-1")
+        await server.start()
+        assert server.socket_path is not None
+        loop = asyncio.get_running_loop()
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.setblocking(False)
+        try:
+            await loop.sock_connect(client, str(server.socket_path))
+            # a served request leaves the connection open (keep-alive)
+            await loop.sock_sendall(client, b"GET /tasks HTTP/1.1\r\nHost: x\r\n\r\n")
+            response = await asyncio.wait_for(loop.sock_recv(client, 65536), 5)
+            assert response.startswith(b"HTTP/1.1 200")
+            await asyncio.wait_for(server.stop(), 5)
+            # the server closed its side: the client reads EOF
+            return await asyncio.wait_for(loop.sock_recv(client, 1), 5)
+        finally:
+            client.close()
+
+    assert asyncio.run(run()) == b""
+
+
+def test_build_app_is_shared_and_rebound(monkeypatch: pytest.MonkeyPatch) -> None:
+    """One FastAPI app per process, bound to whichever server built it last.
+
+    The route table is static and costs ~40ms to build, so it's cached; the
+    per-server state routes need rides ``app.state.server``. ``GET /tasks``
+    must report the *bound* server's ``started_at``.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.server import ControlServer
+
+    seen: list[float] = []
+
+    async def _record(started_at: float) -> list[dict]:
+        seen.append(started_at)
+        return []
+
+    monkeypatch.setattr(server_mod, "current_eval_summaries", _record)
+
+    async def scenario() -> None:
+        first = ControlServer(run_id="a")
+        second = ControlServer(run_id="b")
+        second._started_at = first.started_at + 100
+        app_a = first._build_app()
+        app_b = second._build_app()
+        assert app_a is app_b
+        transport = httpx.ASGITransport(app=app_b)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            assert (await client.get("/tasks")).status_code == 200
+        assert seen == [second.started_at]
+
+    asyncio.run(scenario())
 
 
 def test_control_server_disabled_binds_nothing(

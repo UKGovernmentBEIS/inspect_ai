@@ -40,6 +40,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import socket
 import time
 from contextlib import asynccontextmanager
 from logging import getLogger
@@ -138,6 +139,10 @@ class CtlServerConfig(NamedTuple):
     """Whether the process parks after the eval finishes."""
 
 
+CTL_SERVER_ENV_VAR = "INSPECT_EVAL_CTL_SERVER"
+"""Environment variable mirroring the ``ctl_server`` parameter / flag."""
+
+
 def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
     """Resolve a ``ctl_server`` parameter value to a :class:`CtlServerConfig`.
 
@@ -145,7 +150,9 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
     ``--ctl-server`` CLI flag) mirrors the ``--acp-server`` shape — one
     flag whose value selects the behaviour:
 
-    - ``None`` / ``True`` — control server on (the default).
+    - ``None`` — not specified: the ``INSPECT_EVAL_CTL_SERVER`` environment
+      variable if set (same spellings as below), else control server on.
+    - ``True`` — control server on (the default).
     - ``False`` — control server off.
     - ``"keep"`` — control server on, and the process parks after the eval
       finishes (until ``inspect ctl process release`` / ``POST /release``).
@@ -155,13 +162,22 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
     callers can forward a flag or ``INSPECT_EVAL_CTL_SERVER`` env value
     verbatim. This function is the single source of truth for the value
     grammar — the ``--ctl-server`` click callback delegates here, so the CLI
-    and the Python API cannot drift apart.
+    and the Python API cannot drift apart. The env-var fallback lives here
+    too (rather than only as the click option's ``envvar``) so that an
+    in-process ``eval()`` honours ``INSPECT_EVAL_CTL_SERVER=false`` exactly
+    as ``inspect eval`` does — the documented way to disable the control
+    server across a CI job. An explicit argument always wins over the env.
 
     Raises:
         PrerequisiteError: For any other value — an unknown string is more
             likely a typo of ``keep`` than an intentional choice, and
             silently treating it as ``True`` would drop the requested park.
     """
+    source = ""
+    if value is None:
+        # an empty env value counts as unset, matching click's envvar handling
+        value = os.environ.get(CTL_SERVER_ENV_VAR) or None
+        source = f" (from {CTL_SERVER_ENV_VAR})"
     if value is None or value is True:
         return CtlServerConfig(enabled=True, keep_alive=False)
     if value is False:
@@ -176,7 +192,8 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
         if lower in ("keep", "keep-alive"):
             return CtlServerConfig(enabled=True, keep_alive=True)
     raise PrerequisiteError(
-        f"Unexpected ctl_server value '{value}' (expected true, false, or keep)."
+        f"Unexpected ctl_server value '{value}'{source} "
+        "(expected true, false, or keep)."
     )
 
 
@@ -373,6 +390,107 @@ def _install_concurrency_warning_filter() -> None:
         uvicorn_logger.addFilter(_ConcurrencyLimitWarningFilter())
 
 
+def _prompt_exit_server_class() -> "type[Any]":
+    """Uvicorn ``Server`` subclass whose shutdown is prompt, not polled.
+
+    Stock uvicorn re-reads ``should_exit`` once per 100ms tick of its main
+    loop, then sleeps another unconditional 100ms in ``shutdown()`` to let
+    open connections settle — so tearing down the control server at the end
+    of an ``eval()`` costs 100-200ms of pure waiting, most of a small eval's
+    wall time. This subclass:
+
+    - wakes the main loop on an event the moment ``should_exit`` is set (any
+      setter — our ``stop()`` or uvicorn's own signal handler), still
+      ticking once a second for the ``Date`` header refresh;
+    - skips the settle sleep when no connection is open (the common case at
+      eval end), keeping uvicorn's drain for the case where one is.
+
+    ``shutdown()`` mirrors ``uvicorn.Server.shutdown`` step for step;
+    ``tests/_control/test_server.py`` pins the mirrored uvicorn code (comments
+    aside) so an upgrade that changes it fails a test and prompts a re-check
+    here.
+
+    Defined in a function because uvicorn is imported lazily — only
+    ``start()`` pays for it.
+    """
+    import uvicorn
+
+    class PromptExitServer(uvicorn.Server):
+        def __init__(self, config: uvicorn.Config) -> None:
+            self._exit_event = asyncio.Event()
+            self._should_exit = False
+            # start() constructs the server on the eval's running loop
+            self._loop = asyncio.get_running_loop()
+            super().__init__(config)
+
+        @property
+        def should_exit(self) -> bool:
+            return self._should_exit
+
+        @should_exit.setter
+        def should_exit(self, value: bool) -> None:
+            self._should_exit = value
+            if value:
+                # Through the loop's self-pipe rather than Event.set() directly:
+                # uvicorn's signal handler assigns this from a signal context
+                # while the loop may be blocked in select(), and a plain
+                # call_soon wouldn't wake it until the next tick.
+                try:
+                    self._loop.call_soon_threadsafe(self._exit_event.set)
+                except RuntimeError:  # loop closed — nothing left to wake
+                    self._exit_event.set()
+            else:
+                self._exit_event.clear()
+
+        async def main_loop(self) -> None:
+            # on_tick(0) refreshes the default headers (as uvicorn does once
+            # a second) and reports should_exit
+            while not await self.on_tick(0):
+                try:
+                    await asyncio.wait_for(self._exit_event.wait(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    pass
+
+        async def shutdown(self, sockets: list[socket.socket] | None = None) -> None:
+            # Mirrors uvicorn.Server.shutdown, except the 100ms settle sleep
+            # only runs when there is a connection to settle.
+            for server in self.servers:
+                server.close()
+            for sock in sockets or []:
+                sock.close()
+            # Best effort: a connection accepted in the same iteration as the
+            # close registers itself via call_soon, so yielding narrows (but
+            # doesn't close) the window in which the check below misses it.
+            # One that slips through is still drained by
+            # _wait_tasks_to_complete, it just skips the settle sleep.
+            await asyncio.sleep(0)
+            if self.server_state.connections:
+                for connection in list(self.server_state.connections):
+                    connection.shutdown()
+                await asyncio.sleep(0.1)
+            try:
+                await asyncio.wait_for(
+                    self._wait_tasks_to_complete(),
+                    timeout=self.config.timeout_graceful_shutdown,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Control server: cancelling %d running task(s), graceful "
+                    "shutdown timeout exceeded",
+                    len(self.server_state.tasks),
+                )
+                for t in self.server_state.tasks:
+                    t.cancel(msg="Task cancelled, timeout graceful shutdown exceeded")
+            if not self.force_exit:
+                await self.lifespan.shutdown()
+
+    return PromptExitServer
+
+
+# The process-wide FastAPI app (see ControlServer._build_app).
+_app: Any = None
+
+
 class ControlServer:
     """FastAPI control server for the live eval.
 
@@ -399,6 +517,11 @@ class ControlServer:
     def socket_path(self) -> Path | None:
         return self._socket_path
 
+    @property
+    def started_at(self) -> float:
+        """Unix timestamp of this server's construction (the run's start)."""
+        return self._started_at
+
     async def wait_for_release(self) -> None:
         """Park until keep-alive intent is released.
 
@@ -422,14 +545,42 @@ class ControlServer:
             self._park_cond.notify_all()
 
     def _build_app(self) -> Any:
-        """Build the FastAPI app.
+        """Return the process-wide FastAPI app, bound to this server.
+
+        The app is built once per process (see :func:`_create_app`) and
+        reused by every ``ControlServer``: its route table is static, and
+        building it costs ~40ms — a fixed tax on every ``eval()`` when done
+        per server. The only per-server state a route needs (this instance,
+        for its ``started_at`` and park condition) rides ``app.state.server``,
+        rebound here. Every shipped path has at most one server live per
+        process (the eval-set park binds its server only after the run's has
+        torn down); a second concurrent ``start()`` would already rebind the
+        per-pid socket path and discovery file out from under the first, so
+        the shared app adds no new hazard there.
+        """
+        global _app
+        if _app is None:
+            _app = self._create_app()
+        _app.state.server = self
+        return _app
+
+    @staticmethod
+    def _create_app() -> Any:
+        """Build the FastAPI app (once per process — see :meth:`_build_app`).
 
         Imported lazily so module import doesn't pay the FastAPI cost
-        when control is disabled.
+        when control is disabled. Routes must not close over a
+        ``ControlServer`` instance; they take the live one via the
+        :func:`current_control_server` dependency. Anything evaluated at
+        definition time (route parameter defaults such as
+        ``DEFAULT_PAGE_LIMIT``, the dependency objects) is fixed for the
+        process — module functions the handlers call are looked up per
+        request, so monkeypatching those still works.
         """
         from fastapi import Depends, FastAPI, Query, Request
         from fastapi.responses import JSONResponse
 
+        from inspect_ai._control.current_server import current_control_server
         from inspect_ai._control.disconnect import (
             ClientDisconnectedError,
             reject_disconnected_client,
@@ -446,7 +597,6 @@ class ControlServer:
         # module docstring for the rationale, including why GETs stay
         # tolerant).
         app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
-        started_at = self._started_at
 
         # Attached per-route (`dependencies=skip_disconnected`) to the reads
         # that do nontrivial work — the disconnect module's docstring has the
@@ -617,8 +767,10 @@ class ControlServer:
         # one row keyed by task_id) — the wire behind `inspect ctl task list`
         # and the selector-resolution step of every other command.
         @app.get("/tasks", dependencies=skip_disconnected)
-        async def list_tasks() -> list[dict[str, Any]]:
-            summaries = await current_eval_summaries(started_at)
+        async def list_tasks(
+            server: ControlServer = Depends(current_control_server),
+        ) -> list[dict[str, Any]]:
+            summaries = await current_eval_summaries(server.started_at)
             # Keep-alive is a process-level property, so every task this
             # process hosts shares it. Stamp each row with the live value
             # (which reflects a runtime `POST /keep` or `/release`, not just
@@ -1443,12 +1595,14 @@ class ControlServer:
         # because it does NOT cancel a running eval — that's a later-phase
         # directive.
         @app.post("/release")
-        async def release() -> dict[str, bool]:
+        async def release(
+            server: ControlServer = Depends(current_control_server),
+        ) -> dict[str, bool]:
             # `changed` lets the client report applied vs the idempotent
             # already-in-that-state no-op (the agent output contract).
             changed = keep_alive_intent()
             request_release()
-            await self.notify_park_change()
+            await server.notify_park_change()
             return {"ok": True, "keep_alive": False, "changed": changed}
 
         # Latches keep-alive ON for the process (the inverse of /release): it
@@ -1547,8 +1701,6 @@ class ControlServer:
 
     async def start(self) -> None:
         """Bind the AF_UNIX socket, write the discovery file, start serving."""
-        import socket
-
         import uvicorn
 
         # Lock dir to 0700 + sweep stale entries.
@@ -1596,11 +1748,13 @@ class ControlServer:
             limit_concurrency=_MAX_CONCURRENT_CONNECTIONS,
             http=http_protocol if http_protocol is not None else "auto",
         )
-        server = uvicorn.Server(config)
-        # Suppress uvicorn's signal handler installation — we're an
-        # embedded server, not the main process, so SIGINT/SIGTERM
-        # should not be intercepted here.
-        server.install_signal_handlers = lambda: None  # type: ignore[attr-defined,method-assign]
+        server = _prompt_exit_server_class()(config)
+        # Note uvicorn captures SIGINT/SIGTERM while serving on the main
+        # thread (`Server.capture_signals`): a signal first shuts this server
+        # down, then is re-raised for the eval's own handling. With the
+        # prompt exit above that detour costs milliseconds. (An earlier
+        # `install_signal_handlers = lambda: None` override targeted a hook
+        # uvicorn removed in 0.29 and never took effect here.)
         self._uvicorn_server = server
         self._serve_task = asyncio.create_task(
             server.serve(sockets=[sock]), name="inspect-ctl-server"
