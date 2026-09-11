@@ -363,7 +363,7 @@ async def _s3_download_file_async(
             for start in pending:
                 async for attempt in AsyncRetrying(
                     retry=retry_if_exception_type(S3_RETRYABLE_DOWNLOAD_ERRORS),
-                    stop=stop_after_attempt(_S3_DOWNLOAD_ATTEMPTS),
+                    stop=stop_after_attempt(config.num_download_attempts),
                     reraise=True,
                 ):
                     with attempt:
@@ -1448,7 +1448,5 @@ _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
 # Granularity for `read_file_bytes_fully`: one read hop per chunk while
 # accumulating a range into memory.
 _READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB
-
-_S3_DOWNLOAD_ATTEMPTS = 5
 
 _S3_ABORT_TIMEOUT = 30
