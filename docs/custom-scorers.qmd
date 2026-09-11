@@ -86,6 +86,7 @@ The components of `Score` include:
 | `value` | `Value` | Value assigned to the sample (e.g. "C" or "I", or a raw numeric value). |
 | `answer` | `str` | Text extracted from model output for comparison (optional). |
 | `explanation` | `str` | Explanation of score, e.g. full model output or grader model output (optional). |
+| `reason` | `ScoreReason \| str` | Standard outcome label or custom string (optional). |
 | `metadata` | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional). |
 
 : {tbl-colwidths=\[20,20,60\]}
@@ -119,17 +120,23 @@ If you are extracting an answer from within a completion (e.g. looking for text 
 
 ### Unscored Samples
 
-When a scorer cannot produce a value for a sample (e.g. an external grader returned no result, the model refused, or an error occurred) but you still want to record context, use `Score.unscored()`:
+Return `None` when a sample is outside the scorer's scope. For example, a code-test scorer in a mixed dataset can return `None` for essay questions. This creates no score entry and does not increase `unscored_samples`.
+
+Use `Score.unscored()` when a judgment is expected but could not be obtained, such as an unparsable grader verdict:
 
 ``` python
 return Score.unscored(
-    reason="timeout",
+    reason="grader_failed",
     answer=extracted,
-    explanation="grader returned no result",
+    explanation="Grader did not return a parseable verdict.",
 )
 ```
 
-Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers. The optional `reason` field records a machine-readable failure mode — use a standard `ScoreReason` value (e.g. `"grader_failed"`, `"invalid_response_format"`) where one fits, or any custom string.
+This creates a score with a `NaN` value and preserves the supplied reason, answer, and explanation. Metrics exclude the value. Coverage counts are calculated after epoch reduction: the default mean reducer ignores unscored epochs, while other reducers can handle them differently. See [Interpreting coverage](scoring-policy.qmd#interpreting-coverage).
+
+The optional `reason` accepts standard `ScoreReason` labels or custom strings. Use a reason that describes the outcome and an explanation with the details needed to understand it.
+
+Return a scored verdict for an incorrect answer or a failure to follow the task's required format. Raise an exception for execution failures or invalid scorer inputs so Inspect can apply the run's error-handling settings. See [Scoring Policy](scoring-policy.qmd) for how these outcomes affect results.
 
 ## Score Value
 
@@ -149,7 +156,13 @@ Next, we'll take a look at the source code for a couple of the built in scorers 
 
 ## Models in Scorers
 
-You'll often want to use models in the implementation of scorers. Use the `get_model()` function to get either the currently evaluated model or another model interface. For example:
+You'll often want to use models in the implementation of scorers. The best way of doing this is to specify the grader model using [model roles](models.qmd#model-roles), allowing them to be chosen at runtime. By default, model-graded scorers look for the `"grader"` model role:
+
+```python
+grader_model = get_model(role="grader")
+```
+
+You can also use the `get_model()` function to get either the currently evaluated model or another model interface. For example:
 
 ``` python
 # use the model being evaluated for grading
@@ -246,14 +259,16 @@ def model_graded_qa(
                 explanation=result.completion,
             )
         else:
-            return Score(
-                value=INCORRECT,
+            return Score.unscored(
+                reason="grader_failed",
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
             )
 
     return score
 ```
+
+If the grade cannot be parsed, this scorer records an unscored result with the grader output as its explanation. See [Unscored Samples](#unscored-samples) for choosing score outcomes.
 
 Note that the call to `model_grader.generate()` is done with `await`. This is critical to ensure that the scorer participates correctly in the scheduling of generation work.
 

@@ -3,6 +3,8 @@ import logging
 import os
 import secrets
 import urllib.parse
+from collections.abc import Callable
+from functools import partial
 from io import BytesIO
 from logging import getLogger
 from pathlib import Path
@@ -21,11 +23,12 @@ from starlette.status import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
 )
-from starlette.types import ASGIApp, Scope
+from starlette.types import ASGIApp, Receive, Scope, Send
 from typing_extensions import override
 
 from inspect_ai._display.core.active import display
 from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
@@ -112,6 +115,34 @@ class InspectJsonResponse(JSONResponse):
             indent=None,
             separators=(",", ":"),
         ).encode("utf-8")
+
+
+class ReleasingStreamingResponse(StreamingResponse):
+    """StreamingResponse that releases a connection-owning body.
+
+    Use instead of `StreamingResponse` when the content exposes `release()`,
+    e.g. the aiobotocore `StreamingBody` from `stream_log_bytes`.
+    """
+
+    @override
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # Nothing else releases the body: starlette never closes a body
+        # iterator, and a `send` failure on `http.response.start` leaves it
+        # unstarted, so an iterator's own `finally` won't run either. An
+        # abandoned S3 body holds its pool slot until every S3 read wedges.
+        # release() is idempotent, so releasing a finished body is free.
+        release: Callable[[], object] | None = getattr(
+            self.body_iterator, "release", None
+        )
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            if release is not None:
+                try:
+                    release()
+                except Exception:
+                    # Don't mask whatever ended the request.
+                    logger.warning("Failed to release response body", exc_info=True)
 
 
 def view_server_app(
@@ -263,7 +294,7 @@ def view_server_app(
             # transfer encoding. The file may change between get_log_size()
             # and the actual S3 read (e.g. in-progress evals being rewritten),
             # which would cause a Content-Length mismatch.
-            return StreamingResponse(
+            return ReleasingStreamingResponse(
                 content=response,
                 media_type="application/octet-stream",
             )
@@ -278,11 +309,24 @@ def view_server_app(
 
         mapped_file = await _map_file(request, file)
 
-        file_size = await get_log_size(mapped_file)
-        stream = await stream_log_bytes(mapped_file, log_file_size=file_size)
-
         base_name = Path(file).stem
         filename = f"{base_name}.eval"
+
+        # Percent-encode names starlette can't encode as latin-1 (it encodes
+        # every header that way, so a CJK or emoji log name would raise in the
+        # response constructor). RFC 6266 form, as starlette's FileResponse.
+        quoted = urllib.parse.quote(filename)
+        disposition = (
+            f'attachment; filename="{filename}"'
+            if quoted == filename
+            else f"attachment; filename*=utf-8''{quoted}"
+        )
+        headers = {"Content-Disposition": disposition}
+
+        # Acquire the body last: anything raising before the return strands
+        # it, since only __call__ can release it.
+        file_size = await get_log_size(mapped_file)
+        stream = await stream_log_bytes(mapped_file, log_file_size=file_size)
 
         # No explicit Content-Length: the file may change between
         # get_log_size() and the read (in-progress evals are rewritten
@@ -290,10 +334,6 @@ def view_server_app(
         # The buffered branch lets the framework set it from the actual
         # body; the streaming branch uses chunked transfer encoding
         # (same rationale as /log-bytes above).
-        headers = {
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        }
-
         if isinstance(stream, BytesIO):
             return Response(
                 content=stream.getvalue(),
@@ -301,7 +341,7 @@ def view_server_app(
                 media_type="application/octet-stream",
             )
         else:
-            return StreamingResponse(
+            return ReleasingStreamingResponse(
                 content=stream,
                 headers=headers,
                 media_type="application/octet-stream",
@@ -441,15 +481,12 @@ def view_server_app(
         request: Request, file: list[str] = Query([])
     ) -> list[EvalLog]:
         files = [normalize_uri(f) for f in file]
-        mapped_files: list[str] = [""] * len(files)
 
-        async def _validate_and_map(idx: int, f: str) -> None:
+        async def _validate_and_map(f: str) -> str:
             await _validate_read(request, f)
-            mapped_files[idx] = await _map_file(request, f)
+            return await _map_file(request, f)
 
-        async with anyio.create_task_group() as tg:
-            for i, f in enumerate(files):
-                tg.start_soon(_validate_and_map, i, f)
+        mapped_files = await tg_collect([partial(_validate_and_map, f) for f in files])
 
         return await read_eval_log_headers_async(mapped_files)
 
