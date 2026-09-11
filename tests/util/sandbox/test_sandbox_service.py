@@ -24,10 +24,10 @@ from inspect_ai.util import sandbox
 from inspect_ai.util._background import background
 from inspect_ai.util._sandbox._framework_directory import (
     _SCRIPT,
-    _SHELL,
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
+    SHELL_PATH,
     FrameworkDirectoryError,
 )
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
@@ -259,7 +259,7 @@ def _assert_no_shell_interpolation(calls: list[list[str]]) -> None:
     """Any shell invocation must be the fixed helper script; data travels in argv."""
     for cmd in calls:
         if len(cmd) > 2 and cmd[1] == "-c":
-            assert cmd[:3] == [_SHELL, "-c", _SCRIPT], cmd
+            assert cmd[:3] == [SHELL_PATH, "-c", _SCRIPT], cmd
 
 
 HelperPolicy = Callable[[FrameworkDirectoryCall, str | None], ExecResult[str]]
@@ -313,13 +313,13 @@ async def test_start_prepares_every_directory_through_the_helper() -> None:
     svc = f"{SERVICES_DIR}/svc"
     reset = ("rm", "-rf", "--", "requests", "responses")
     calls = _helper_calls(sandbox)
-    assert [(c.path, user, c.create, c.shared, c.cmd) for c, user in calls] == [
-        (SERVICES_DIR, "root", True, True, ()),
-        (svc, "agent", True, False, ()),
-        (svc, "agent", False, False, reset),
-        (f"{svc}/requests", "agent", True, False, ()),
-        (f"{svc}/responses", "agent", True, False, ()),
-        (svc, "agent", False, False, ("tee", "--", "svc.py")),
+    assert [(c.path, user, c.create, c.mode, c.cmd) for c, user in calls] == [
+        (SERVICES_DIR, "root", True, "1777", ()),
+        (svc, "agent", True, "700", ()),
+        (svc, "agent", False, "700", reset),
+        (f"{svc}/requests", "agent", True, "700", ()),
+        (f"{svc}/responses", "agent", True, "700", ()),
+        (svc, "agent", False, "700", ("tee", "--", "svc.py")),
     ]
     # the shared parent is prepared as root, and that must really be uid 0
     assert calls[0][0].expected_uid == "0"
@@ -381,10 +381,10 @@ async def test_start_prepares_shared_parent_as_service_user_when_root_unavailabl
     await service.start()
 
     calls = _helper_calls(sandbox)
-    assert [(c.path, user, c.shared) for c, user in calls[:3]] == [
-        (SERVICES_DIR, "root", True),
-        (SERVICES_DIR, "agent", True),
-        (f"{SERVICES_DIR}/svc", "agent", False),
+    assert [(c.path, user, c.mode) for c, user in calls[:3]] == [
+        (SERVICES_DIR, "root", "1777"),
+        (SERVICES_DIR, "agent", "1777"),
+        (f"{SERVICES_DIR}/svc", "agent", "700"),
     ]
     assert calls[1][0].expected_uid == ""
 

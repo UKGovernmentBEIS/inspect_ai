@@ -17,15 +17,15 @@ from pydantic import JsonValue
 
 from inspect_ai._util._async import coro_log_exceptions
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.trace import trace_message
 from inspect_ai.util._subprocess import ExecResult
 
 from ._framework_directory import (
-    FrameworkDirectoryError,
-    FrameworkDirectoryUnavailableError,
+    DEFAULT_MODE,
+    SHARED_MODE,
     ensure_framework_directory,
     exec_in_framework_directory,
     split_framework_path,
+    try_ensure_framework_directory_as_root,
 )
 from .environment import SandboxEnvironment
 from .limits import OutputLimitExceededError, override_max_exec_output_size
@@ -651,37 +651,26 @@ class SandboxService:
         Created as root wherever the sandbox allows: only a root-owned sticky
         directory lets services run as a mix of users, since the owner of a sticky
         directory can rename entries other users created in it (the helper refuses
-        a parent owned by any other non-root user). A probe that could not run as
-        root (the provider refused the user or ran the command as someone else)
-        falls back to the service user; a contract violation or a timeout is never
-        retried, and an existing parent in the wrong shape is refused, not repaired.
+        a parent owned by any other non-root user). When the sandbox cannot run
+        commands as root the service user owns it instead; a contract violation or
+        a timeout is never retried, and an existing parent in the wrong shape is
+        refused, not repaired.
         """
         try:
-            await ensure_framework_directory(
+            as_root = await try_ensure_framework_directory_as_root(
                 self._sandbox,
                 SERVICES_DIR,
-                user="root",
-                expected_uid=0,
-                shared=True,
+                mode=SHARED_MODE,
+                trace_tag="Sandbox Service",
                 timeout=_EXEC_TIMEOUT,
                 concurrency=False,
             )
-        except (FrameworkDirectoryError, FrameworkDirectoryUnavailableError):
-            raise
         except TimeoutError:
             raise RuntimeError(
                 f"Timed out preparing directory {SERVICES_DIR} in sandbox"
             )
-        except Exception as ex:
-            # Broad catch is deliberate: providers signal "cannot exec as root" with
-            # provider-specific exception types, or the helper's uid-mismatch error.
-            trace_message(
-                logger,
-                "Sandbox Service",
-                f"cannot prepare {SERVICES_DIR} as root, preparing it as the "
-                f"service user instead: {ex}",
-            )
-            await self._ensure_dir(SERVICES_DIR, user=self._user, shared=True)
+        if not as_root:
+            await self._ensure_dir(SERVICES_DIR, user=self._user, mode=SHARED_MODE)
 
     async def _ensure_service_dir(self) -> None:
         # <name> first, as a leaf: verified only as the parent of <name>/<instance>, a
@@ -726,7 +715,7 @@ class SandboxService:
         *,
         user: str | None,
         expected_uid: int | None = None,
-        shared: bool = False,
+        mode: int = DEFAULT_MODE,
     ) -> None:
         try:
             await ensure_framework_directory(
@@ -734,7 +723,7 @@ class SandboxService:
                 path,
                 user=user,
                 expected_uid=expected_uid,
-                shared=shared,
+                mode=mode,
                 timeout=_EXEC_TIMEOUT,
                 concurrency=False,
             )

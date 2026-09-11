@@ -82,7 +82,7 @@ from .loader import (
     solver_from_spec,
 )
 from .task.log import TaskLogger
-from .task.resolved import ResolvedTask
+from .task.resolved import ResolvedTask, resolved_task_names
 from .task.run import (
     EvalSampleSource,
     TaskRunOptions,
@@ -155,10 +155,17 @@ async def eval_run(
     task_retry_attempts: int | None = 0,
     task_source: "TaskSource | None" = None,
     inject: TaskInjection | None = None,
+    eval_set_tasks: list[str] | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     # get cwd before any switching
     eval_wd = os.getcwd()
+
+    # names of every task in the run, for resolving `task:id` sample selectors
+    # the same way in every batch: seeded from the enclosing eval set (a retry
+    # runs only a subset of its tasks) and extended as batches are prepared, so
+    # injected tasks see the ones before them
+    task_names: list[str] = list(eval_set_tasks or [])
 
     # resolve solver and solver spec
     if isinstance(solver, Solver):
@@ -186,6 +193,12 @@ async def eval_run(
     async def prepare_options(
         resolved_tasks: list[ResolvedTask],
     ) -> list[TaskRunOptions]:
+        task_names.extend(
+            name
+            for name in resolved_task_names(resolved_tasks)
+            if name not in task_names
+        )
+
         # ensure sample ids
         for resolved_task in resolved_tasks:
             # add sample ids to dataset if they aren't there (start at 1 not 0)
@@ -210,7 +223,7 @@ async def eval_run(
 
         # run startup pass for the sandbox environments these tasks need
         if run_samples and any(t.has_sandbox for t in resolved_tasks):
-            await sandbox_manager.start(resolved_tasks)
+            await sandbox_manager.start(resolved_tasks, task_names)
 
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
@@ -230,8 +243,13 @@ async def eval_run(
 
                 # sample_ids can be specified per task
                 task_eval_config.sample_id = resolve_task_sample_ids(
-                    resolved_task.task.name, task_eval_config.sample_id
+                    resolved_task.task.name, task_eval_config.sample_id, task_names
                 )
+                if task_eval_config.sample_id == [] and eval_config.sample_id != []:
+                    log.warning(
+                        f"No sample_id selector names task '{task.name}'; "
+                        "it will run no samples."
+                    )
 
                 # reject options that assume a fixed sample set for a
                 # SampleSource-driven task — here, before the task's logger
@@ -1053,12 +1071,18 @@ class SandboxManager:
             tuple[Task, SandboxEnvironmentSpec], TaskSandboxEnvironment
         ] = {}
 
-    async def start(self, tasks: list[ResolvedTask]) -> None:
+    async def start(self, tasks: list[ResolvedTask], task_names: list[str]) -> None:
+        """Start the sandboxenvs of `tasks`' selected samples.
+
+        `task_names` is every task name known to the run so far (not just this
+        batch), so `task:id` sample selectors resolve here exactly as they do
+        when the tasks run.
+        """
         # find unique sandboxenvs to start
         sandboxenvs: Set[TaskSandboxEnvironment] = set()
         for task in tasks:
             resolved_task_sample_ids = resolve_task_sample_ids(
-                task.task.name, self._config.sample_id
+                task.task.name, self._config.sample_id, task_names
             )
             dataset = slice_dataset(
                 task.task.dataset,
@@ -1192,7 +1216,7 @@ async def startup_sandbox_environments(
     cleanup: bool,
 ) -> Callable[[], Awaitable[None]]:
     manager = SandboxManager(config, cleanup)
-    await manager.start(tasks)
+    await manager.start(tasks, resolved_task_names(tasks))
     return manager.shutdown
 
 

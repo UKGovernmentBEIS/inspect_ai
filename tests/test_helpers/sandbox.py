@@ -3,7 +3,7 @@
 from pathlib import PurePosixPath
 from typing import Callable, Literal, NamedTuple, overload
 
-from inspect_ai.util._sandbox._framework_directory import _SCRIPT, _SHELL
+from inspect_ai.util._sandbox._framework_directory import _SCRIPT, SHELL_PATH
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
@@ -83,21 +83,22 @@ class FrameworkDirectoryCall(NamedTuple):
     """Uid the script must run as ("" when unconstrained)."""
     create: bool
     repair: bool
-    shared: bool
+    mode: str
+    """Required mode as `stat -c %a` prints it ("700", "1777")."""
     cmd: tuple[str, ...]
     """The wrapped command (empty when only ensuring or verifying the directory)."""
 
 
 def framework_directory_call(cmd: list[str]) -> FrameworkDirectoryCall | None:
     """Decode a framework-directory helper invocation; None for any other command."""
-    if cmd[:3] != [_SHELL, "-c", _SCRIPT]:
+    if cmd[:3] != [SHELL_PATH, "-c", _SCRIPT]:
         return None
-    _, expected_uid, create, repair, shared, parent, leaf, *wrapped = cmd[3:]
+    _, expected_uid, create, repair, mode, parent, leaf, *wrapped = cmd[3:]
     return FrameworkDirectoryCall(
         path=str(PurePosixPath(parent, leaf)),
         expected_uid=expected_uid,
         create=create == "1",
         repair=repair == "1",
-        shared=shared == "1",
+        mode=mode,
         cmd=tuple(wrapped),
     )
