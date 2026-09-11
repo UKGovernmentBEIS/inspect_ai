@@ -2184,7 +2184,10 @@ def is_code_execution_tool(
     return param.get("name") == "code_execution" and not is_tool_param(param)
 
 
-_NON_CACHEABLE_BLOCK_TYPES = frozenset({"thinking", "redacted_thinking"})
+# Block types the API rejects `cache_control` on ("Extra inputs are not
+# permitted"): thinking blocks, and the server-side `fallback` block that
+# records a refused turn being served by a fallback model.
+_NON_CACHEABLE_BLOCK_TYPES = frozenset({"thinking", "redacted_thinking", "fallback"})
 
 
 def add_lookback_cache_control(
@@ -2193,9 +2196,9 @@ def add_lookback_cache_control(
     """Tag the second-to-last cacheable content block across `message_params`.
 
     Walks blocks in reverse (last message first), skipping
-    thinking/redacted_thinking (the API rejects `cache_control` on those with
-    `Extra inputs are not permitted`), and tags the second cacheable block
-    found. Tagging the *second*-to-last rather than the last gives lookback
+    thinking/redacted_thinking and server-side `fallback` blocks (the API
+    rejects `cache_control` on those with `Extra inputs are not permitted`),
+    and tags the second cacheable block found. Tagging the *second*-to-last rather than the last gives lookback
     caching a fallback when the final block changes (RAG, scorers, approvers,
     branching) — auto-cache already covers the very last block.
 
