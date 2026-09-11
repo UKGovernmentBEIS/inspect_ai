@@ -37,12 +37,11 @@ from inspect_ai.tool._tool_choice import ToolFunction
 
 
 def _make_api(**model_args: Any):
-    """Create a SagemakerAPI instance with mocked aioboto3."""
-    mock_aioboto3 = MagicMock()
-    mock_aioboto3.Session.return_value = MagicMock()
-    mock_aioboto3.__version__ = "13.0.0"
+    """Create a SagemakerAPI instance with mocked aiobotocore."""
+    mock_session_module = MagicMock()
+    mock_session_module.get_session.return_value = MagicMock()
 
-    with patch.dict(sys.modules, {"aioboto3": mock_aioboto3}):
+    with patch.dict(sys.modules, {"aiobotocore.session": mock_session_module}):
         from inspect_ai.model._providers.sagemaker import SagemakerAPI
 
         return SagemakerAPI(
