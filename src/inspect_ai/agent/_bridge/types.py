@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import IntEnum
@@ -6,6 +7,7 @@ from typing import TYPE_CHECKING, NamedTuple, NoReturn, Sequence, Set
 
 from shortuuid import uuid
 
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
@@ -37,7 +39,7 @@ if TYPE_CHECKING:
     # cycles back through partially-initialized modules). Same reason
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
-    from inspect_ai.event import ModelEvent
+    from inspect_ai.event import Event, ModelEvent
 
 
 class AgentBridge:
@@ -691,14 +693,74 @@ class _ConversationMessageFingerprint(NamedTuple):
 def _conversation_message_fingerprint(
     message: ChatMessage,
 ) -> _ConversationMessageFingerprint:
+    """Identity of a message for conversation matching.
+
+    Content is compared by meaning, not by wire shape. The bridge's own output
+    message and the CLI's echo of it next request are the same turn, but they
+    differ in four transport-only ways, each of which made a producer message
+    never match its echo -- so every turn of one linear session started a new
+    conversation and the accumulator never extended anything:
+
+    - shape: the bridge emits `content` as a string, the CLI echoes a
+      one-element text list. A single plain text part fingerprints as its
+      string; several parts, an image or a reasoning block keep their structure,
+      which is what distinguishes them.
+    - condensation: the transcript replaces any string over 100 characters with
+      `attachment://<mm3-hash>` before the bridge sees the echo (a long sub-agent
+      prompt inside `tool_calls[].arguments`, for one). Every long string in the
+      identity is condensed the same way here, so both sides hash alike.
+    - empty content: an assistant turn that was only tool calls has `content ""`
+      on the way out and `"(no content)"` on the way back. Both fingerprint empty.
+    - `tool_calls[].view`: a render hint the bridge attaches on the way out and
+      the CLI never sends back. Presentation, not identity; dropped.
+    """
     message_identity = message.model_dump(
-        exclude={"id", "metadata", "model", "source"},
+        exclude={
+            "id": True,
+            "metadata": True,
+            "model": True,
+            "source": True,
+            "tool_calls": {"__all__": {"view"}},
+        },
         exclude_none=True,
     )
+    content = message.content
+    if (
+        isinstance(content, list)
+        and len(content) == 1
+        and isinstance(content[0], ContentText)
+        and content[0].refusal is None
+        and content[0].citations is None
+    ):
+        content = content[0].text
+    if isinstance(content, str):
+        message_identity["content"] = "" if content == _NO_CONTENT_ECHO else content
     return _ConversationMessageFingerprint(
         role=message.role,
-        identity_hash=mm3_hash(to_json_str_safe(message_identity)),
+        identity_hash=mm3_hash(to_json_str_safe(_condensed(message_identity))),
     )
+
+
+_NO_CONTENT_ECHO = "(no content)"
+"""How Claude Code renders an assistant turn that carried only tool calls."""
+
+_CONDENSE_OVER_CHARS = 100
+"""Transcript condensation threshold (`inspect_ai.log._condense`: text > 100)."""
+
+
+def _condensed(value: object) -> object:
+    """The value with every string the transcript would condense, condensed."""
+    if isinstance(value, str):
+        if len(value) > _CONDENSE_OVER_CHARS and not value.startswith(
+            ATTACHMENT_PROTOCOL
+        ):
+            return f"{ATTACHMENT_PROTOCOL}{mm3_hash(value)}"
+        return value
+    if isinstance(value, dict):
+        return {k: _condensed(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_condensed(v) for v in value]
+    return value
 
 
 def _is_producer(message: ChatMessage) -> bool:
@@ -950,6 +1012,12 @@ class _ConversationSpanEmitter:
         # Composed with a caller sink (`_ComposedModelEventSink`), the sink
         # writes and the emitter only records membership and re-parents.
         self._writes_events = writes_events
+        # Composed only: events the sink was still HOLDING when their call was
+        # attributed, keyed by id(event) -> (conversation span, ambient at
+        # emission). Placed when the sink finally writes them, if it wrote them
+        # back at the ambient rather than somewhere of its own choosing.
+        self._deferred: dict[int, tuple[str, str | None]] = {}
+        self._unsubscribe: Callable[[], None] | None = None
 
     def on_pending(self, event: "ModelEvent") -> None:
         from inspect_ai.log._transcript import transcript
@@ -967,17 +1035,43 @@ class _ConversationSpanEmitter:
     def record(self, event: "ModelEvent") -> None:
         """Remember ``event`` as part of the handler task's bridged call.
 
-        The parent recorded here is the span the event was emitted under, read
-        before any sink has moved it: attribution runs later and a concurrent
-        handler may have rotated the ambient span in between.
+        The parent recorded here is the AMBIENT span at emission time: the span
+        the bridge is running under when the call arrives. It is read now, not
+        at attribution, because a concurrent handler may rotate the ambient
+        span in between. It is deliberately not `event.span_id`: standalone the
+        two agree, but composed with a caller sink the event has not been
+        placed yet when it is recorded (recording runs first, so the sink's
+        placement is not mistaken for the emission context), and a sink that
+        holds the event may later place it under a sub-agent span -- a child
+        of the conversation, never the conversation's parent.
         """
+        from inspect_ai.util._span import current_span_id
+
         if self._closed:
             return
         record = _call_record.get()
         if record is None:
-            record = _CallRecord(parent_id=event.span_id, events=[])
+            record = _CallRecord(parent_id=current_span_id(), events=[])
             _call_record.set(record)
         record.events.append(event)
+
+    def _on_written(self, event: "Event") -> None:
+        """Place a formerly held event into its conversation once the sink writes it.
+
+        A sink that held an event past attribution and then wrote it back at the
+        ambient span decided it was NOT a sub-agent's, so the conversation span
+        its call was attributed to is its home. Written anywhere else, the sink's
+        placement stands (see `attribute_call`). Runs inside the transcript's
+        write, which guards re-entrancy, so the update here does not recurse.
+        """
+        from inspect_ai.event import ModelEvent
+
+        deferred = self._deferred.pop(id(event), None)
+        if deferred is None or not isinstance(event, ModelEvent):
+            return
+        span_id, ambient = deferred
+        if event.span_id == ambient and span_id in self._span_ids:
+            self._move_event(event, span_id)
 
     def next_call_index(self) -> int:
         """The zero-based index of the bridged call being accumulated."""
@@ -1013,11 +1107,62 @@ class _ConversationSpanEmitter:
             parent_id=record.parent_id if record is not None else None,
             parent_known=record is not None,
         )
-        for event in record.events if record is not None else []:
-            if not self._writes_events and not transcript()._is_resident(event):
-                continue
-            event.span_id = span_id
-            transcript()._event_updated(event)
+        if record is None:
+            return
+        for event in record.events:
+            if not self._writes_events:
+                if not transcript()._is_resident(event):
+                    # The sink is still holding it. Whichever of the sink's paths
+                    # finally writes it (a completion callback, a native-transcript
+                    # drain, a JSONL record) goes through the transcript, so the
+                    # transcript's write hook is the one place to catch the release.
+                    self._deferred[id(event)] = (span_id, record.parent_id)
+                    if self._unsubscribe is None:
+                        self._unsubscribe = transcript()._subscribe(self._on_written)
+                    continue
+                # The sink wrote it. If it also PLACED it -- anywhere but the
+                # ambient span the call arrived under -- that placement is an
+                # identity decision (a sub-agent span named by the CLI's own
+                # records), adopted in place of the conversation span, never
+                # beside it. An event still sitting at the ambient was written
+                # without a placement of its own, and the conversation is its home.
+                if event.span_id != record.parent_id:
+                    continue
+            self._move_event(event, span_id)
+
+    def _move_event(self, event: "ModelEvent", span_id: str) -> None:
+        """Move an event into its conversation span, carrying its child spans along.
+
+        A sink may open a sub-agent span under the event's span at completion
+        time -- which is BEFORE attribution, so it read the span the event
+        arrived under, not the conversation it turns out to belong to. Left
+        alone, the conversation and the sub-agent tree it spawned would sit as
+        siblings and nothing would record which conversation spawned it. Any
+        `agent` span begun under the event's former span after the event was
+        written, and not yet re-homed, moves with it.
+        """
+        from inspect_ai.event import SpanBeginEvent
+        from inspect_ai.log._transcript import transcript
+
+        former = event.span_id
+        event.span_id = span_id
+        transcript()._event_updated(event)
+        if former == span_id or self._writes_events:
+            return
+        events = transcript().events
+        try:
+            start = next(i for i, e in enumerate(events) if e is event)
+        except StopIteration:
+            return
+        for child in events[start + 1 :]:
+            if (
+                isinstance(child, SpanBeginEvent)
+                and child.type == "agent"
+                and child.parent_id == former
+            ):
+                child.parent_id = span_id
+                child.span_id = span_id
+                transcript()._event_updated(child)
 
     def end_span(self, span_id: str) -> None:
         """End one conversation's span (absorption: nothing extends it again)."""
@@ -1039,6 +1184,10 @@ class _ConversationSpanEmitter:
         for span_id in reversed(self._span_ids):
             transcript()._event(SpanEndEvent(id=span_id))
         self._span_ids.clear()
+        self._deferred.clear()
+        if self._unsubscribe is not None:
+            self._unsubscribe()
+            self._unsubscribe = None
         _call_record.set(None)
 
     def _ensure_span(

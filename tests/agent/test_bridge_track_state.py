@@ -14,6 +14,7 @@ import anyio
 from pydantic import TypeAdapter
 from test_helpers.checkpoint import RecordingCheckpointer
 
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
@@ -40,7 +41,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.tool import ToolCall
-from inspect_ai.util._span import span
+from inspect_ai.util._span import current_span_id, span
 
 TASK = "In the year 2022, what castle did the Doctor spend 4.5 billion years in?"
 
@@ -2439,3 +2440,156 @@ async def test_an_absorbed_conversations_span_ends_at_absorption() -> None:
     # close ends only the surviving conversation's span, not the absorbed one again
     bridge.close_conversation_spans()
     assert [e.id for e in span_ends()] == ["stale-span", event_grown.span_id]
+
+
+async def test_a_producer_message_matches_its_own_content_list_echo() -> None:
+    """One linear session is one conversation, whatever shape the CLI echoes.
+
+    The bridge's output message carries `content` as a string; the CLI sends
+    that turn back as a one-element text list. Fingerprinting the shape made
+    the producer never match its echo, so every turn opened a new conversation
+    -- six spans for one six-call session in the first composed centaur run.
+    """
+    init_transcript(Transcript())
+    bridge = accumulating_bridge()
+
+    one: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    _, out = await spanned_track(bridge, one, "first answer")
+    echoed = ChatMessageAssistant(content=[ContentText(text="first answer")])
+    await spanned_track(
+        bridge, [*one, echoed, ChatMessageUser(content="And then?")], "second answer"
+    )
+
+    assert len(bridge._conversations) == 1
+    assert [b.name for b in span_begins()] == ["conversation 0"]
+
+
+async def test_composed_conversation_span_opens_under_the_ambient_span() -> None:
+    """The conversation's parent is where the bridge runs, not where the event sat.
+
+    Composed with a sink, the event is recorded BEFORE the sink places it, and a
+    sink may then file it under a sub-agent span -- a child of the conversation,
+    never its parent. So the recorded parent must be the ambient span at record
+    time, not `event.span_id`. The two coincide for an event constructed inside
+    the span (construction stamps the ambient), which is why the fixture builds
+    the event OUTSIDE it: only then does reading `event.span_id` give the wrong
+    answer, and the test bites.
+    """
+    init_transcript(Transcript())
+
+    class _RelocatingSink:
+        def on_pending(self, event: ModelEvent) -> None:
+            event.span_id = "agent-child"
+            transcript()._event(event)
+
+        def on_complete(self, event: ModelEvent) -> None: ...
+
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+        model_event_sink=_RelocatingSink(),
+    )
+    input: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    event = pending_event(input)  # stamped with the (absent) ambient: None
+    sink = bridge.model_event_sink
+    assert sink is not None
+    async with span("outer", type="agent"):
+        outer = current_span_id()
+        sink.on_pending(event)
+        sink.on_complete(event)
+        await track(bridge, input, "a")
+
+    begin = next(b for b in span_begins() if b.type == BRIDGE_CONVERSATION_SPAN_TYPE)
+    assert begin.parent_id == outer
+    assert event.span_id == "agent-child"
+
+
+async def test_an_event_a_sink_releases_back_at_the_ambient_joins_its_conversation() -> (
+    None
+):
+    """A held event the sink later writes at the ambient belongs to its conversation.
+
+    A native sink holds every main-thread event while a sub-agent is open, then
+    releases it -- from a drain or a JSONL record, not necessarily a completion
+    callback -- back at the span it arrived under, having decided it was NOT the
+    sub-agent's. Attribution already ran; skipping it as "held" left the main
+    thread's later calls on the agent span while its first call sat in the
+    conversation: one conversation split across two spans, which is what the
+    harness's sub-agent-parentage assertions tripped over.
+    """
+    init_transcript(Transcript())
+
+    class _HoldingSink:
+        def __init__(self) -> None:
+            self.held: list[ModelEvent] = []
+
+        def on_pending(self, event: ModelEvent) -> None:
+            self.held.append(event)
+
+        def on_complete(self, event: ModelEvent) -> None: ...
+
+        def drain(self) -> None:
+            # released where it arrived, by a path that is not on_complete
+            for event in self.held:
+                transcript()._event(event)
+            self.held.clear()
+
+    sink = _HoldingSink()
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+        model_event_sink=sink,
+    )
+    input: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    async with span("outer", type="agent"):
+        event, _ = await spanned_track(bridge, input, "a")
+        assert [e for e in transcript().events if isinstance(e, ModelEvent)] == []
+        sink.drain()
+
+    begin = next(b for b in span_begins() if b.type == BRIDGE_CONVERSATION_SPAN_TYPE)
+    assert event.span_id == begin.id
+
+
+async def test_a_sub_agent_span_opened_before_attribution_follows_its_parent_call() -> (
+    None
+):
+    """A child span the sink opened under the parent's arrival span moves with the parent.
+
+    The sink opens a sub-agent span at completion time, under the span the
+    spawning event then carried -- and completion runs BEFORE the emitter has
+    attributed the call to a conversation. Left alone, the conversation and the
+    sub-agent tree it spawned sit as siblings and nothing records which
+    conversation spawned it.
+    """
+    init_transcript(Transcript())
+
+    class _SpawningSink:
+        def on_pending(self, event: ModelEvent) -> None:
+            transcript()._event(event)
+
+        def on_complete(self, event: ModelEvent) -> None:
+            transcript()._event(
+                SpanBeginEvent(
+                    id="agent-child",
+                    parent_id=event.span_id,
+                    type="agent",
+                    name="child",
+                )
+            )
+
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+        model_event_sink=_SpawningSink(),
+    )
+    async with span("outer", type="agent"):
+        event, _ = await spanned_track(
+            bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "a"
+        )
+
+    conversation = next(
+        b for b in span_begins() if b.type == BRIDGE_CONVERSATION_SPAN_TYPE
+    )
+    child = next(b for b in span_begins() if b.id == "agent-child")
+    assert event.span_id == conversation.id
+    assert child.parent_id == conversation.id
