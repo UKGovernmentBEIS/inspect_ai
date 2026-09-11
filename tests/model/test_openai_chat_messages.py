@@ -1,6 +1,10 @@
+from typing import cast
+
 import pytest
+from openai.types.chat import ChatCompletionMessageParam
 
 from inspect_ai._util.content import ContentAudio, ContentReasoning, ContentText
+from inspect_ai.model._internal import content_internal_tag
 from inspect_ai.model._openai import (
     messages_from_openai,
     messages_to_openai,
@@ -223,6 +227,117 @@ async def test_assistant_message_reasoning_content_round_trip():
     assert isinstance(content, str)
     assert "<think>" not in content
     assert "assistant output" in content
+
+
+async def test_assistant_message_preserves_multiple_internal_text_blocks() -> None:
+    serialized = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+            content_internal_tag({"b": 2}),
+        ]
+    )
+
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage("assistant", content=serialized),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert [
+        (content.text, content.internal)
+        for content in message.content
+        if isinstance(content, ContentText)
+    ] == [("first", {"a": 1}), ("second", {"b": 2})]
+
+
+async def test_assistant_message_preserves_single_internal_text_block() -> None:
+    serialized = "\n".join(
+        [
+            "assistant output",
+            content_internal_tag({"provider_state": "opaque"}),
+        ]
+    )
+
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage("assistant", content=serialized),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert len(message.content) == 1
+    [content] = message.content
+    assert isinstance(content, ContentText)
+    assert content.text == "assistant output"
+    assert content.internal == {"provider_state": "opaque"}
+
+
+async def test_assistant_message_preserves_internal_and_plain_text_blocks() -> None:
+    serialized = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+        ]
+    )
+
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage("assistant", content=serialized),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert [
+        (content.text, content.internal)
+        for content in message.content
+        if isinstance(content, ContentText)
+    ] == [("first", {"a": 1}), ("second", None)]
+
+
+async def test_assistant_message_preserves_reasoning_and_internal_block_order() -> None:
+    serialized = "\n".join(
+        [
+            '<think signature="sig">reasoning</think>',
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+            content_internal_tag({"b": 2}),
+        ]
+    )
+
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage("assistant", content=serialized),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert len(message.content) == 3
+    reasoning, first, second = message.content
+    assert isinstance(reasoning, ContentReasoning)
+    assert isinstance(first, ContentText)
+    assert isinstance(second, ContentText)
+    assert reasoning.reasoning == "reasoning"
+    assert first.text == "first"
+    assert first.internal == {"a": 1}
+    assert second.text == "second"
+    assert second.internal == {"b": 2}
 
 
 async def test_user_message_passthrough():

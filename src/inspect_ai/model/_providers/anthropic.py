@@ -164,6 +164,7 @@ from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
     parse_content_with_internal,
+    parse_content_with_internal_blocks,
 )
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -5363,11 +5364,12 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
 
 def _content_list(input: str | list[Content]) -> list[Content]:
     if isinstance(input, str):
-        # parse out <internal> tags which might be here due to the bridge
-        input, content_internal = parse_content_with_internal(
-            input, CONTENT_INTERNAL_TAG
-        )
-        return [ContentText(text=input, internal=content_internal)]
+        blocks = parse_content_with_internal_blocks(input, CONTENT_INTERNAL_TAG)
+        return [
+            ContentText(text=block.text, internal=block.internal)
+            for block in blocks
+            if block.text or block.internal is not None
+        ] or [ContentText(text="", internal=None)]
     else:
         return input
 

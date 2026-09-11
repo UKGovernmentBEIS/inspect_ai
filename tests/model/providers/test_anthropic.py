@@ -22,7 +22,8 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
-from inspect_ai.model._providers.anthropic import AnthropicAPI
+from inspect_ai.model._internal import content_internal_tag
+from inspect_ai.model._providers.anthropic import AnthropicAPI, _content_list
 from inspect_ai.tool import ToolCall, ToolFunction, ToolInfo
 
 
@@ -3187,3 +3188,29 @@ async def test_reasoning_tokens_fall_back_to_counting_thinking_text() -> None:
 
     assert output.usage is not None
     assert output.usage.reasoning_tokens == 37
+
+
+def test_content_list_preserves_every_internal_payload() -> None:
+    flattened = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+            content_internal_tag({"b": 2}),
+        ]
+    )
+
+    content = _content_list(flattened)
+
+    assert [
+        (block.text, block.internal)
+        for block in content
+        if isinstance(block, ContentText)
+    ] == [("first", {"a": 1}), ("second", {"b": 2})]
+
+
+@pytest.mark.parametrize("text", ["just text", ""])
+def test_content_list_without_internal_is_a_single_block(text: str) -> None:
+    content = _content_list(text)
+
+    assert content == [ContentText(text=text)]

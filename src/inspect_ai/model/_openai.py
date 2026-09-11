@@ -72,6 +72,7 @@ from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
     parse_content_with_internal,
+    parse_content_with_internal_blocks,
 )
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
@@ -660,9 +661,14 @@ async def messages_from_openai(
                 asst_content, smuggled_reasoning = parse_content_with_reasoning(
                     asst_content
                 )
-                asst_content, content_internal = parse_content_with_internal(
+                internal_blocks = parse_content_with_internal_blocks(
                     asst_content, CONTENT_INTERNAL_TAG
                 )
+                text_content: list[Content] = [
+                    ContentText(text=block.text, internal=block.internal)
+                    for block in internal_blocks
+                    if block.text or block.internal is not None
+                ]
                 if smuggled_reasoning:
                     content = [
                         ContentReasoning(
@@ -671,13 +677,15 @@ async def messages_from_openai(
                             redacted=smuggled_reasoning.redacted,
                             summary=smuggled_reasoning.summary,
                         ),
+                        *text_content,
                     ]
-                    if asst_content:
-                        content.append(
-                            ContentText(text=asst_content, internal=content_internal)
-                        )
                 else:
-                    content = asst_content
+                    block = internal_blocks[0]
+                    content = (
+                        block.text
+                        if len(internal_blocks) == 1 and block.internal is None
+                        else text_content
+                    )
             elif asst_content is None:
                 content = message.get("refusal", None) or ""
                 if content:
