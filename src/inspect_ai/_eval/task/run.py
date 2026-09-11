@@ -774,8 +774,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     kwargs = options.kwargs
 
     # a SampleSource-driven task generates samples while it runs (`sample_feed`
-    # to distinguish it from `sample_source`, the prior-attempt lookup above)
-    sample_feed: SampleSource | None = task.sample_source
+    # to distinguish it from `sample_source`, the prior-attempt lookup above).
+    # A task no `task:id` selector named (sample_id resolved to []) runs no
+    # samples, so its source is never consulted: polling it could block forever
+    sample_feed: SampleSource | None = (
+        task.sample_source if config.sample_id != [] else None
+    )
 
     # resolve default generate_config for task
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
@@ -2419,8 +2423,14 @@ async def _task_run_sample_attempt(
             # helper to log sample error
             def log_sample_error() -> None:
                 msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
+                # a stamped interrupt suppresses the retry (the attempt is
+                # abandoned as cancelled instead — see the retry decision at
+                # the tail), so promise neither a retry nor a score
                 if attempt.retries_remaining > 0:
-                    msg = f"{msg}. Sample will be retried."
+                    if active.interrupt_action is None:
+                        msg = f"{msg}. Sample will be retried."
+                    else:
+                        msg = f"{msg}. Sample will be cancelled."
                 elif score_on_error:
                     msg = f"{msg}. Sample will be scored."
                 py_logger.warning(msg)
@@ -2645,19 +2655,31 @@ async def _task_run_sample_attempt(
                                     # start the sample
                                     active.start(tg)
 
-                                    # a task cancel with a graceful sample
-                                    # resolution arrived while this sample was
+                                    # a cancel arrived while this sample was
                                     # initializing (after it left the queue,
                                     # before it started — so the control
                                     # layer's interrupt of in-flight samples
                                     # missed it) — resolve it now rather than
-                                    # running the plan
+                                    # running the plan. A per-sample intent
+                                    # (`sample cancel` while initializing,
+                                    # stamped by `interrupt()` with no task
+                                    # group) fires first and exclusively: the
+                                    # task-level branches below also call
+                                    # interrupt(), and the runner handles the
+                                    # *live* interrupt_action, so falling
+                                    # through would let a task `score`
+                                    # overwrite the operator's per-sample
+                                    # `cancel` (the sweep applies the same
+                                    # first-resolution-wins rule).
+                                    pending_interrupt = active.interrupt_action
                                     resolution = (
                                         task_cancel.cancel_type
                                         if task_cancel is not None
                                         else None
                                     )
-                                    if resolution == "drain":
+                                    if pending_interrupt is not None:
+                                        active.interrupt(pending_interrupt)
+                                    elif resolution == "drain":
                                         # drain never interrupts in-flight
                                         # samples, but this one is not yet in
                                         # flight — it left the queue before

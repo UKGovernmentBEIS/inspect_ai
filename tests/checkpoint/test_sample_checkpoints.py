@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pytest
 
 from inspect_ai._util.asyncfiles import get_async_filesystem
+from inspect_ai.util._checkpoint._layout._paths import sample_dir_segment
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     _read_restic_config,
     checkpoint_file_id,
@@ -400,6 +401,63 @@ def test_checkpoint_file_id() -> None:
     assert checkpoint_file_id("ckpt-00007.tar.zst") is None
     assert checkpoint_file_id("ckpt-00007.json.tmp") is None
     assert checkpoint_file_id("restic-config.json") is None
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "ckpt-1.json",  # int-parses, but not the zero-padded form the writer emits
+        "ckpt-000001.json",  # a second name for id 1
+        "ckpt-00007.json\n",  # `$` would accept a trailing newline
+        "ckpt-\u0663\u0663\u0663\u0663\u0663.json",  # non-ASCII digits: `\\d` accepts them
+        "ckpt- 0005.json",
+        "xckpt-00007.json",
+    ],
+)
+def test_checkpoint_file_id_accepts_only_the_written_form(name: str) -> None:
+    """One name per id: the file a listing offers must round-trip through the writer."""
+    assert checkpoint_file_id(name) is None
+
+
+@pytest.mark.parametrize("sample_id", ["../../escape", "a/b", "/abs", "..", ""])
+def test_sample_checkpoints_dir_contains_hostile_sample_id(sample_id: str) -> None:
+    """A dataset id with `/` or `..` cannot relocate the per-sample tree."""
+    eval_dir = "/logs/foo.checkpoints"
+    sample_dir = sample_checkpoints_dir(eval_dir, sample_id, 0)
+    assert sample_dir.startswith(f"{eval_dir}/")
+    segment = sample_dir.removeprefix(f"{eval_dir}/")
+    assert segment == f"{sample_dir_segment(sample_id)}__0"
+    assert "/" not in segment
+    assert segment.split("__")[0] not in (".", "..")
+
+
+async def test_ensure_with_hostile_sample_id_creates_dir_inside_eval_dir(
+    tmp_path: Path,
+) -> None:
+    eval_dir = tmp_path / "foo.checkpoints"
+    sample_dir = Path(await ensure_sample_checkpoints_dir(str(eval_dir), "../../x", 0))
+    assert sample_dir.is_dir()
+    assert sample_dir.parent == eval_dir
+    assert not (tmp_path / "x__0").exists()
+    assert not (tmp_path.parent / "x__0").exists()
+
+
+async def test_hostile_sample_id_write_and_resume_lookup_agree(tmp_path: Path) -> None:
+    """The write path and the resume lookup derive the same dir name."""
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    sample_id = "task/variant-3"
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, sample_id, 1)
+    lookup_dir = sample_checkpoints_dir(eval_dir, sample_id, 1)
+    assert lookup_dir == sample_dir
+    assert await scan_latest_committed_checkpoint(lookup_dir) is None
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1")
+        ),
+    )
+    checkpoint = await scan_latest_committed_checkpoint(lookup_dir)
+    assert checkpoint is not None and checkpoint.checkpoint_id == 1
 
 
 async def test_delete_sample_checkpoints_dir(tmp_path: Path) -> None:

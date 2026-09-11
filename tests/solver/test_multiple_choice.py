@@ -1,5 +1,5 @@
 from random import Random
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from test_helpers.utils import simple_task_state
@@ -9,10 +9,10 @@ from inspect_ai.dataset._dataset import MemoryDataset, Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelOutput
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer._choice import choice
-from inspect_ai.scorer._metric import CORRECT
+from inspect_ai.scorer._metric import CORRECT, INCORRECT
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import MultipleChoiceTemplate, TaskState, multiple_choice
-from inspect_ai.solver._task_state import Choice
+from inspect_ai.solver._task_state import Choice, Choices
 
 
 async def generate(state: TaskState, **kwargs: Any) -> TaskState:
@@ -542,7 +542,97 @@ async def test_single_choice_trailing_comma():
     assert choices_marked_correct(new_state.choices) == {"choice 1"}
 
 
-def choices_marked_correct(choices: list[Choice]) -> set[str]:
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "ANSWER: $B$",
+        "ANSWER: **B**",
+        "ANSWER: (B)",
+        "ANSWER: (B)\n\nExplanation: Paris is the answer.",
+        "ANSWER: $B$.",
+        "ANSWER: **B**.",
+    ],
+)
+@pytest.mark.anyio
+async def test_answer_letter_with_latex_or_markdown_decoration(answer: str):
+    generate = generate_for_multiple_correct(answers=answer)
+    solver = multiple_choice()
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+    new_state = await solver(state=state, generate=generate)
+    assert choices_marked_correct(new_state.choices) == {"choice 2"}
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "ANSWER: $A$, $B$",
+        "ANSWER: **A**, **B**",
+        "ANSWER: (A), (B)",
+        "ANSWER: $A, B$",
+    ],
+)
+@pytest.mark.anyio
+async def test_multiple_correct_with_latex_or_markdown_decoration(answer: str):
+    generate = generate_for_multiple_correct(answers=answer)
+    solver = multiple_choice(multiple_correct=True)
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+    new_state = await solver(state=state, generate=generate)
+    assert choices_marked_correct(new_state.choices) == {"choice 1", "choice 2"}
+
+
+@pytest.mark.parametrize(
+    ("answer", "expected"),
+    [
+        ("ANSWER: A * B", {"choice 1"}),
+        ("ANSWER: A$B", {"choice 1"}),
+        ("ANSWER: **A", set()),
+    ],
+)
+@pytest.mark.anyio
+async def test_malformed_answer_wrappers_preserve_fallback_behavior(
+    answer: str, expected: set[str]
+):
+    generate = generate_for_multiple_correct(answers=answer)
+    solver = multiple_choice(multiple_correct=True)
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+    new_state = await solver(state=state, generate=generate)
+    assert choices_marked_correct(new_state.choices) == expected
+
+
+@pytest.mark.parametrize(
+    ("answer", "multiple_correct", "expected"),
+    [
+        ("ANSWER: B) Paris", False, {"choice 2"}),
+        ("ANSWER: B (I think)", False, {"choice 2"}),
+        ("ANSWER: B (I)", False, {"choice 2"}),
+        ("ANSWER: B (Paris).", False, {"choice 2"}),
+        ("ANSWER: A, B (both)", True, {"choice 1", "choice 2"}),
+    ],
+)
+@pytest.mark.anyio
+async def test_answer_with_trailing_text(
+    answer: str, multiple_correct: bool, expected: set[str]
+):
+    generate = generate_for_multiple_correct(answers=answer)
+    solver = multiple_choice(multiple_correct=multiple_correct)
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+    new_state = await solver(state=state, generate=generate)
+    assert choices_marked_correct(new_state.choices) == expected
+
+
+def choices_marked_correct(choices: Choices) -> set[str]:
     """Helper function"""
     return set([choice.value for choice in choices if choice.correct])
 
@@ -634,3 +724,25 @@ def test_choices_multiple_shuffles_preserve_original_positions() -> None:
     choices.shuffle(Random(123))
     val_to_orig = {c.value: c.original_position for c in choices}
     assert val_to_orig == {"A": 0, "B": 1, "C": 2, "D": 3}
+
+
+@pytest.mark.anyio
+async def test_model_answer_zero_scores_incorrect() -> None:
+    async def generate_zero(state: TaskState, **kwargs: Any) -> TaskState:
+        content = "ANSWER: 0"
+        state.messages.append(ChatMessageAssistant(content=content))
+        state.output = ModelOutput.from_content(model="model", content=content)
+        return state
+
+    solver = multiple_choice()
+    state = simple_task_state(
+        choices=["Option A", "Option B", "Option C", "Option D"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+
+    new_state = await solver(state=state, generate=cast(Any, generate_zero))
+    assert choices_marked_correct(new_state.choices) == set()
+
+    scorer = choice()
+    result = await scorer(new_state, Target("A"))
+    assert result is not None and result.value == INCORRECT
