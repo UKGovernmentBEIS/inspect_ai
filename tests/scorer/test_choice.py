@@ -4,7 +4,7 @@ import pytest
 from test_helpers.utils import simple_task_state
 
 from inspect_ai._util.answer import answer_index
-from inspect_ai.scorer import CORRECT, INCORRECT, Target, choice
+from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, Target, choice
 
 
 @pytest.mark.anyio
@@ -292,3 +292,79 @@ def test_target_sequences():
     assert t_target[0] == "A"
     assert t_target[1] == "B"
     assert t_target.text == "AB"
+
+
+@pytest.mark.anyio
+async def test_score_empty_completion_marks_no_response():
+    # #5323: an empty completion is a NOANSWER with a machine-readable
+    # reason, not an ordinary wrong letter.
+    scorer = choice()
+    state = simple_task_state(
+        model_output="",
+        choices=["choice 1", "choice 2"],
+    )
+
+    result = await scorer(state, Target("A"))
+    assert result.text == NOANSWER
+    assert result.reason == "no_response"
+
+
+@pytest.mark.anyio
+async def test_score_unparseable_completion_marks_invalid_format():
+    # The model wrote something but never emitted a valid ANSWER line: still
+    # a verdict of INCORRECT, now with the format-failure reason attached.
+    scorer = choice()
+    state = simple_task_state(
+        model_output="I think the answer might be the first one.",
+        choices=["choice 1", "choice 2"],
+    )
+
+    result = await scorer(state, Target("A"))
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
+
+
+@pytest.mark.anyio
+async def test_score_wrong_letter_keeps_plain_verdict():
+    # A well-formed but wrong selection is an ordinary wrong answer and
+    # carries no abnormal-score reason.
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: B",
+        choices=["choice 1", "choice 2"],
+    )
+    state.choices.mark_choice(1, True)
+
+    result = await scorer(state, Target("A"))
+    assert result.text == INCORRECT
+    assert result.reason is None
+
+
+@pytest.mark.anyio
+async def test_score_whitespace_completion_marks_no_response():
+    scorer = choice()
+    state = simple_task_state(
+        model_output=" \n",
+        choices=["choice 1", "choice 2"],
+    )
+
+    result = await scorer(state, Target("A"))
+    assert result.text == NOANSWER
+    assert result.reason == "no_response"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("model_output", ["ANSWERS: ", ""])
+async def test_score_empty_target_keeps_plain_correct(model_output: str):
+    # "Select nothing" being the right answer is a normal correct verdict:
+    # no selection was made and none was required, so no reason attaches.
+    scorer = choice()
+    state = simple_task_state(
+        model_output=model_output,
+        choices=["choice 1", "choice 2"],
+    )
+
+    result = await scorer(state, Target(""))
+    assert result is not None
+    assert result.text == CORRECT
+    assert result.reason is None
