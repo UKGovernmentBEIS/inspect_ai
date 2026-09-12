@@ -20,22 +20,22 @@ logger = getLogger(__name__)
 
 
 def _normalize_iso_z_suffix(input: str) -> str:
-    """Normalize Z suffix in ISO format strings for Python 3.10 compatibility.
+    """Normalize Z suffix in ISO format strings for Python compatibility.
 
     Python 3.10's fromisoformat() doesn't support Z suffix for UTC.
-    Python 3.11+ handles Z natively.
+    Python 3.11+ supports uppercase Z natively, but lowercase z remains invalid.
 
     Args:
         input: ISO format string (may end with Z or z)
 
     Returns:
-        ISO format string with Z/z replaced by +00:00 (if Python < 3.11)
+        ISO format string accepted by the running Python version.
     """
-    return (
-        input
-        if sys.version_info >= (3, 11) or not input.endswith(("Z", "z"))
-        else input[:-1] + "+00:00"
-    )
+    if input.endswith("z"):
+        return input[:-1] + "+00:00"
+    if input.endswith("Z") and sys.version_info < (3, 11):
+        return input[:-1] + "+00:00"
+    return input
 
 
 def is_file_older_than(path: str | Path, delta: timedelta, *, default: bool) -> bool:
