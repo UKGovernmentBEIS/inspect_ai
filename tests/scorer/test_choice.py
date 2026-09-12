@@ -365,5 +365,6 @@ async def test_score_empty_target_keeps_plain_correct(model_output: str):
     )
 
     result = await scorer(state, Target(""))
+    assert result is not None
     assert result.text == CORRECT
     assert result.reason is None
