@@ -58,3 +58,13 @@ def test_boolean_flag_without_value_skipped() -> None:
     """Args without '=' (bare flags like enable-auto-tool-choice) are skipped."""
     result = parse_cli_args(["enable-auto-tool-choice"])
     assert result == {}
+
+
+def test_force_str_preserves_commas() -> None:
+    result = parse_cli_args(["NO_PROXY=localhost,127.0.0.1"], force_str=True)
+    assert result == {"NO_PROXY": "localhost,127.0.0.1"}
+
+
+def test_force_str_preserves_yaml_like_and_equals_values() -> None:
+    result = parse_cli_args(["TOKEN=001=true,false"], force_str=True)
+    assert result == {"TOKEN": "001=true,false"}
