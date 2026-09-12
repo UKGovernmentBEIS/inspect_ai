@@ -406,6 +406,33 @@ def test_score_column_shown_for_single_scorer(
     assert "C" in completed_row
 
 
+def test_status_marks_pending_interrupt(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A live row's pending cancel resolution is visible in the status cell.
+
+    An initializing sample renders `queued`, so without the marker a deferred
+    `sample cancel` would leave no poller-visible evidence it was accepted
+    (design/ctl/initializing-sample-cancel.md). Rows without the field (older
+    servers, terminal rows) render the bare status.
+    """
+    samples = [
+        {**_sample(1, "queued", {}), "interrupt": "cancel"},
+        {**_sample(2, "running", {}), "interrupt": None},
+        _sample(3, "completed", {}),
+    ]
+    _print_samples_table(samples)
+    lines = capsys.readouterr().out.splitlines()
+    assert "queued (cancel requested)" in next(
+        ln for ln in lines if ln.startswith("1 ")
+    )
+    assert "requested" not in next(ln for ln in lines if ln.startswith("2 "))
+    assert "requested" not in next(ln for ln in lines if ln.startswith("3 "))
+
+    _print_sample_detail({**_sample(1, "queued", {}), "interrupt": "score"}, False)
+    assert "queued (score requested)" in capsys.readouterr().out
+
+
 def test_score_column_hidden_for_multiple_scorers(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

@@ -11,6 +11,12 @@ from inspect_sandbox_tools._util.process_tree import (
     process_group_members,
     terminate_process_tree,
 )
+from inspect_sandbox_tools._util.user_switch import (
+    RunAs,
+    get_home_dir,
+    make_preexec,
+    switch_target,
+)
 
 from .jsonrpc_types import (
     ErrorData,
@@ -57,19 +63,29 @@ class MCPServerSession:
 
     @classmethod
     async def create(
-        cls, server_params: StdioServerParameters, errlog: TextIO = sys.stderr
+        cls,
+        server_params: StdioServerParameters,
+        errlog: TextIO = sys.stderr,
+        user: str | RunAs | None = None,
+        can_switch_user: bool = False,
     ) -> "MCPServerSession":
+        user = switch_target(user, can_switch_user)
+        env = server_params.env
+        if user is not None:
+            home = get_home_dir(user)
+            env = {**os.environ, "HOME": home} if env is None else {"HOME": home, **env}
         return cls(
             await asyncio.create_subprocess_exec(
                 server_params.command,
                 *server_params.args,
-                env=server_params.env,
+                env=env,
                 cwd=server_params.cwd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=errlog,
                 limit=_READLINE_LIMIT,
                 start_new_session=True,
+                preexec_fn=make_preexec(user),
             ),
             server_params.encoding,
             server_params.encoding_error_handler,

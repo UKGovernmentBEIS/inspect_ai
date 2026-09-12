@@ -345,7 +345,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # alone leaves orphaned processes inside the container).
         in_container_cmd = cmd
         if timeout is not None:
-            in_container_cmd = ["timeout", "-k", "5s", f"{timeout}s", *cmd]
+            # Resolve the wrapper independently of the image's potentially
+            # user-writable PATH, while preserving PATH for the requested command.
+            in_container_cmd = ["/usr/bin/timeout", "-k", "5s", f"{timeout}s", *cmd]
 
         # add a buffer to the host timeout so the in-container timeout
         # fires first under normal conditions. the in-container timeout

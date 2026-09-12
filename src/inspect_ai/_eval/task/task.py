@@ -46,6 +46,11 @@ from inspect_ai.log import EvalLog, EvalLogInfo, HeadlineMetric
 from inspect_ai.model import GenerateConfig
 from inspect_ai.model._model import Model, ModelRoles
 from inspect_ai.model._util import resolve_model, resolve_model_roles
+from inspect_ai.review._policy import (
+    ReviewPolicy,
+    ReviewPolicyConfig,
+    review_policies_from_config,
+)
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
@@ -97,6 +102,7 @@ class Task:
         on_checkpoint: OnCheckpointCallback | None = None,
         on_resume: OnResumeCallback | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
+        review: str | ReviewPolicyConfig | list[ReviewPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         continue_on_fail: bool | None = None,
@@ -155,6 +161,8 @@ class Task:
                 ``checkpointer().restored``.
             approval: Tool use approval policies.
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
+            review: Tool result review policies.
+                Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
             epochs: Epochs to repeat samples for and optional score
                 reducer function(s) used to combine sample scores (defaults to "mean")
             fail_on_error: `True` to fail on first sample error
@@ -237,6 +245,7 @@ class Task:
         self.sandbox = resolve_sandbox_environment(sandbox)
         self.checkpoint = normalize_checkpoint(checkpoint)
         self.approval = resolve_approval(approval)
+        self.review = resolve_review(review)
         epochs = resolve_epochs(epochs)
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
@@ -317,6 +326,7 @@ def task_with(
     | list[ApprovalPolicy]
     | None
     | NotGiven = NOT_GIVEN,
+    review: str | ReviewPolicyConfig | list[ReviewPolicy] | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
@@ -378,6 +388,8 @@ def task_with(
             ``checkpointer().restored``.
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
+        review: Tool result review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
@@ -449,6 +461,8 @@ def task_with(
         task.checkpoint = normalize_checkpoint(checkpoint)
     if not isinstance(approval, NotGiven):
         task.approval = resolve_approval(approval)
+    if not isinstance(review, NotGiven):
+        task.review = resolve_review(review)
     if not isinstance(epochs, NotGiven):
         epochs = resolve_epochs(epochs)
         task.epochs = epochs.epochs if epochs else None
@@ -534,6 +548,16 @@ def resolve_approval(
     )
 
 
+def resolve_review(
+    review: str | ReviewPolicyConfig | list[ReviewPolicy] | None,
+) -> list[ReviewPolicy] | None:
+    return (
+        review_policies_from_config(review)
+        if isinstance(review, str | ReviewPolicyConfig)
+        else review
+    )
+
+
 def resolve_headline_metric_spec(
     headline_metric: HeadlineMetric | str | None,
 ) -> HeadlineMetric | None:
@@ -554,6 +578,20 @@ def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:
         epochs = Epochs(epochs)
     if epochs is not None and epochs.epochs < 1:
         raise ValueError("epochs must be a positive integer.")
+    return epochs
+
+
+def resolve_task_epochs(task: Task, epochs: Epochs | None = None) -> Epochs:
+    """Epochs a task effectively runs with, given an optional eval-level override.
+
+    Mirrors the runner's merge: an eval-level count replaces the task's, but a
+    bare count (no reducer) keeps the task's reducer, and the recorded log
+    config reflects that merge.
+    """
+    if epochs is None:
+        return Epochs(task.epochs or 1, task.epochs_reducer)
+    if epochs.reducer is None:
+        return Epochs(epochs.epochs, task.epochs_reducer)
     return epochs
 
 

@@ -20,9 +20,30 @@ prevents access by other, non-root users, but not by a process running in the
 sandbox as root.
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .environment import SandboxEnvironment
+
 # Also defined in inspect_ai.tool._sandbox_tools_utils._build_config — keep in sync.
 SANDBOX_TOOLS_BASE_NAME = "inspect-sandbox-tools"
 
 SANDBOX_TOOLS_DIR = "/var/tmp/.da7be258e003d428"
 
 SANDBOX_CLI = f"{SANDBOX_TOOLS_DIR}/{SANDBOX_TOOLS_BASE_NAME}"
+
+
+def tools_user_param(
+    sandbox: "SandboxEnvironment", user: str | None
+) -> str | dict[str, object] | None:
+    """Value of a sandbox tool request's ``user`` param.
+
+    An explicit ``user`` wins; otherwise the sandbox's default exec identity, which
+    the tools switch to (a no-op when they already run as it). None when neither is
+    known, so the tools keep their own identity.
+    """
+    if user:
+        return user
+    if sandbox._tools_default_user:
+        return sandbox._tools_default_user._asdict()
+    return None

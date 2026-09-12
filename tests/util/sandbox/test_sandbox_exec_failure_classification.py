@@ -24,7 +24,7 @@ from inspect_ai.util._sandbox.docker.util import ComposeProject
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 
 # what `exec` injects for `bash(timeout=N)`: GNU `timeout` in front of `bash`
-WRAPPER = InjectedWrapper(binary="timeout", target="bash")
+WRAPPER = InjectedWrapper(binary="/usr/bin/timeout", target="bash")
 
 # --- the four ways a model wrecks its container (issue #4709 repro) --------
 
@@ -36,16 +36,16 @@ KILL_WORKLOAD = ExecResult(
 # `rm -rf /bin /usr/bin` — the binary runc cannot start is Inspect's own
 # `timeout` wrapper, not anything the model named.
 #
-# Captured from docker 29.6.2: the CLI reports this on *stdout*, with CRLF
-# line endings, and leaves stderr empty. Guarding on "output on stdout means
-# a process in the container produced it" therefore misses this entirely,
+# The CLI reports this on *stdout* and leaves stderr empty. Assuming stdout
+# means a process in the container produced it therefore misses this entirely,
 # which is what the end-to-end test below caught.
 RM_BIN = ExecResult(
     success=False,
     returncode=127,
     stdout=(
         "OCI runtime exec failed: exec failed: unable to start container "
-        'process: exec: "timeout": executable file not found in $PATH\r\n'
+        'process: exec: "/usr/bin/timeout": stat /usr/bin/timeout: '
+        "no such file or directory\r\n"
     ),
     stderr="",
 )
@@ -58,7 +58,7 @@ CHMOD_SHELL = ExecResult(
     success=False,
     returncode=126,
     stdout="",
-    stderr="timeout: failed to run command ‘bash’: Permission denied",
+    stderr="/usr/bin/timeout: failed to run command ‘bash’: Permission denied",
 )
 
 # deliberately NOT classified — see the exclusion test below
@@ -84,6 +84,30 @@ def test_unrunnable_sandbox_recognised(result: ExecResult[str]) -> None:
     error = classify_exec_failure(result, wrapper=WRAPPER)
     assert error is not None
     assert (result.stdout or result.stderr).strip() in str(error)
+
+
+@pytest.mark.parametrize(
+    "binary,stat_path,returncode",
+    [
+        ("/usr/bin/timeout", "/usr/bin/timeout", 1),
+        ("/usr/bin/timeout", "/some/other/file", 127),
+        ("/tmp/timeout", "/tmp/timeout", 127),
+        ("/usr/bin/bash", "/usr/bin/bash", 127),
+    ],
+)
+def test_absolute_wrapper_failure_requires_exact_path_and_exit_code(
+    binary: str, stat_path: str, returncode: int
+) -> None:
+    result = ExecResult(
+        success=False,
+        returncode=returncode,
+        stdout=(
+            "OCI runtime exec failed: exec failed: unable to start container "
+            f'process: exec: "{binary}": stat {stat_path}: no such file or directory'
+        ),
+        stderr="",
+    )
+    assert classify_exec_failure(result, wrapper=WRAPPER) is None
 
 
 # --- must not fire on the model's own output -------------------------------

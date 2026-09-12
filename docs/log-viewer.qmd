@@ -93,7 +93,7 @@ You can view and navigate between a history of all evals in the log directory us
 
 ## Live View
 
-Inspect View provides a live view into the status of your evaluation task. The main shows shows what samples have completed (along with incremental metric calculations) and the sample view (described below) let's you follow sample transcripts and message history as events occur.
+Inspect View provides a live view into the status of your evaluation task. The main view shows which samples have completed (along with incremental metric calculations) and the sample view (described below) lets you follow sample transcripts and message history as events occur.
 
 If you are running VS Code, you can click the **View Log** link within the task progress screen to access a live view of your task:
 

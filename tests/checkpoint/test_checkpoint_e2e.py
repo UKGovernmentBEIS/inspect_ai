@@ -49,8 +49,15 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import pytest
+from pytest_mock import MockerFixture
 from test_helpers.utils import flaky_retry, skip_if_no_anthropic, skip_if_no_docker
 
+import inspect_ai.util._sandbox.docker.docker as docker_provider
+from checkpoint.docker_projects import (
+    PROJECTS_DIR_ENV,
+    DockerProjects,
+    checkpoint_docker_projects,
+)
 from checkpoint.hydrate_interrupt_harness import HOOK_NEVER_FIRED_EXIT_CODE
 from checkpoint.resume_kill_harness import (
     B_CONTENT,
@@ -86,6 +93,7 @@ from inspect_ai.util._checkpoint._snapshot import (
     STRATEGY_RESTIC,
     snapshot_strategy_name,
 )
+from inspect_ai.util._sandbox.docker.util import ComposeProject
 
 
 def assert_spans_balanced(events: list[Event]) -> None:
@@ -166,51 +174,94 @@ def _run_interrupted_attempt(
         )
 
 
-def _project_prefix(task_name: str) -> str:
-    """Compose-project name prefix for evals of `task_name`.
-
-    Mirrors `task_project_name` in inspect's docker provider
-    (`inspect-{task[:12].rstrip('_')}-i{suffix}`), minus the random suffix.
-    """
-    return f"inspect-{task_name[:12].rstrip('_')}-"
-
-
-def _inspect_projects(prefix: str) -> set[str]:
-    """Names of this harness's docker compose projects currently known to docker.
-
-    Must be scoped to this test's own task (`prefix`): docker state is
-    machine-global, and under xdist a global before/after diff sweeps up —
-    and force-removes — live containers belonging to concurrently running
-    tests on other workers (#264).
-    """
-    result = subprocess.run(
-        ["docker", "compose", "ls", "--all", "--format", "json"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return set()
+@skip_if_no_docker
+@pytest.mark.slow
+def test_checkpoint_cleanup_preserves_peer_sandbox(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cleanup after a killed child must leave a same-task peer alive."""
+    tests_dir = Path(__file__).parent.parent
+    peer_directory = tmp_path / "peer-projects"
+    peer_directory.mkdir(exist_ok=True)
+    peer = DockerProjects(peer_directory)
     try:
-        projects = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError:
-        return set()
-    return {p.get("Name", "") for p in projects if p.get("Name", "").startswith(prefix)}
+        with checkpoint_docker_projects(tmp_path) as owned:
+            for name in ("owned", "peer"):
+                cancel_file = tmp_path / f"{name}-cancels.txt"
+                cancel_file.unlink(missing_ok=True)
+                with monkeypatch.context() as env:
+                    env.setenv(CANCEL_FILE_ENV, str(cancel_file))
+                    env.setenv(TARGET_ENV, "1")
+                    if name == "peer":
+                        env.setenv(PROJECTS_DIR_ENV, str(peer_directory))
+                    _run_interrupted_attempt(str(tmp_path / name), None, tests_dir)
+
+            owned_ids = owned.container_ids()
+            peer_ids = peer.container_ids()
+            assert len(owned_ids) == len(peer_ids) == 1
+            assert set(owned_ids).isdisjoint(peer_ids)
+            owned.cleanup()
+            assert owned.container_ids() == []
+            assert peer.container_ids() == peer_ids
+            subprocess.run(
+                ["docker", "exec", peer_ids[0], "true"],
+                capture_output=True,
+                check=True,
+                timeout=60,
+            )
+    finally:
+        peer.cleanup()
 
 
-def _project_container_ids(name: str) -> list[str]:
-    """Container ids belonging to a compose project."""
-    return subprocess.run(
-        ["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={name}"],
-        capture_output=True,
-        text=True,
-    ).stdout.split()
+def test_checkpoint_project_tracking_cleans_failed_startup(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """A failure during startup must not leave an unrecorded sandbox."""
+    startup = mocker.patch.object(
+        docker_provider, "project_startup", side_effect=RuntimeError("startup failed")
+    )
+    docker_run = mocker.patch(
+        "checkpoint.docker_projects.subprocess.run",
+        return_value=subprocess.CompletedProcess([], 0, stdout="owned-container\n"),
+    )
+    project = ComposeProject(
+        name="inspect-resume_decod-i123456",
+        config=None,
+        sample_id="resume",
+        epoch=1,
+        env=None,
+    )
+    with pytest.raises(RuntimeError, match="startup failed"):
+        with checkpoint_docker_projects(tmp_path):
+            getattr(docker_provider, "project_startup")(project)
+
+    startup.assert_called_once_with(project)
+    assert docker_run.call_args_list[0].args[0] == [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        f"label=com.docker.compose.project={project.name}",
+    ]
+    assert docker_run.call_args_list[1].args[0] == [
+        "docker",
+        "rm",
+        "-f",
+        "owned-container",
+    ]
 
 
-def _force_remove_project(name: str) -> None:
-    """Best-effort force-remove the containers of a leaked compose project."""
-    ids = _project_container_ids(name)
-    if ids:
-        subprocess.run(["docker", "rm", "-f", *ids], capture_output=True)
+def test_checkpoint_project_query_failure_is_not_an_empty_sandbox(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Docker query failures must not satisfy the SIGINT no-leak assertion."""
+    (tmp_path / "inspect-resume_decod-i123456").touch()
+    mocker.patch(
+        "checkpoint.docker_projects.subprocess.run",
+        side_effect=subprocess.CalledProcessError(1, ["docker", "ps"]),
+    )
+    with pytest.raises(subprocess.CalledProcessError):
+        DockerProjects(tmp_path).container_ids()
 
 
 def _assert_snapshot_dir_hidden(container_id: str, strategy: str) -> None:
@@ -349,9 +400,7 @@ def test_checkpoint_resume_restores_assistant_internal(
     crash_file.unlink(missing_ok=True)
     shutil.rmtree(log_dir, ignore_errors=True)
 
-    prefix = _project_prefix("resume_thinking_task")
-    projects_before = _inspect_projects(prefix)
-    try:
+    with checkpoint_docker_projects(tmp_path):
         _run_interrupted_attempt(
             log_dir, None, tests_dir, harness_name="resume_kill_thinking_harness.py"
         )
@@ -366,9 +415,6 @@ def test_checkpoint_resume_restores_assistant_internal(
         resume = eval_retry(
             read_eval_log(killed_log), log_dir=log_dir, display="plain"
         )[0]
-    finally:
-        for name in _inspect_projects(prefix) - projects_before:
-            _force_remove_project(name)
 
     assert resume.status == "success"
     assert resume.samples is not None and len(resume.samples) == 1
@@ -404,9 +450,7 @@ def test_checkpoint_resume_carries_budget_usage(
     log_dir = str(tmp_path / "logs")
     tests_dir = Path(__file__).parent.parent
 
-    prefix = _project_prefix("resume_decode_task")
-    projects_before = _inspect_projects(prefix)
-    try:
+    with checkpoint_docker_projects(tmp_path):
         _run_interrupted_attempt(log_dir, None, tests_dir)
 
         killed_log = _latest_log(log_dir)
@@ -417,9 +461,6 @@ def test_checkpoint_resume_carries_budget_usage(
 
         reset_generates()
         resume = eval_retry(read_eval_log(killed_log), log_dir=log_dir)[0]
-    finally:
-        for name in _inspect_projects(prefix) - projects_before:
-            _force_remove_project(name)
 
     assert resume.status == "success"
     assert resume.samples is not None and len(resume.samples) == 1
@@ -466,21 +507,12 @@ def test_checkpoint_resume_rehydrated_event_layout(
     log_dir = str(tmp_path / "logs")
     tests_dir = Path(__file__).parent.parent
 
-    # A hard kill skips sandbox teardown, so each killed attempt leaks its
-    # sandbox container. Track this harness's projects before/after and
-    # force-remove the ones this test leaks (the final resume cleans up its
-    # own).
-    prefix = _project_prefix("resume_decode_task")
-    projects_before = _inspect_projects(prefix)
-    try:
+    with checkpoint_docker_projects(tmp_path) as projects:
         # --- attempt #0: fresh eval, interrupted at turn 2 (after ck1/ck2) --
         _run_interrupted_attempt(log_dir, None, tests_dir, interrupt)
 
-        leaked = [
-            cid
-            for name in _inspect_projects(prefix) - projects_before
-            for cid in _project_container_ids(name)
-        ]
+        assert list(projects.directory.iterdir()), "child recorded no sandbox projects"
+        leaked = projects.container_ids()
         if interrupt == "SIGKILL":
             # The hard kill leaves the attempt's sandbox container running —
             # probe it for the snapshot dir's location and permissions.
@@ -495,9 +527,6 @@ def test_checkpoint_resume_rehydrated_event_layout(
         # --- final resume: runs in this process, to completion --------------
         reset_generates()
         resume = eval_retry(read_eval_log(_latest_log(log_dir)), log_dir=log_dir)[0]
-    finally:
-        for name in _inspect_projects(prefix) - projects_before:
-            _force_remove_project(name)
 
     assert resume.status == "success"
     assert resume.samples is not None and len(resume.samples) == 1
@@ -709,9 +738,7 @@ def test_checkpoint_resume_survives_interrupted_hydration(
     log_dir = str(tmp_path / "logs")
     tests_dir = Path(__file__).parent.parent
 
-    prefix = _project_prefix("resume_decode_task")
-    projects_before = _inspect_projects(prefix)
-    try:
+    with checkpoint_docker_projects(tmp_path):
         # --- attempt #0: fresh eval, hard-killed at turn 2 (ck1/ck2) -----
         _run_interrupted_attempt(log_dir, None, tests_dir)
         source_log = _latest_log(log_dir)
@@ -729,9 +756,6 @@ def test_checkpoint_resume_survives_interrupted_hydration(
         # --- final resume: from the source log, in-process, to completion
         reset_generates()
         resume = eval_retry(read_eval_log(source_log), log_dir=log_dir)[0]
-    finally:
-        for name in _inspect_projects(prefix) - projects_before:
-            _force_remove_project(name)
 
     assert resume.status == "success"
     assert resume.samples is not None and len(resume.samples) == 1
@@ -797,9 +821,7 @@ def test_checkpoint_retry_preserves_queued_sample_checkpoints(
 
     tests_dir = Path(__file__).parent.parent
 
-    prefix = _project_prefix("resume_two_sample_task")
-    projects_before = _inspect_projects(prefix)
-    try:
+    with checkpoint_docker_projects(tmp_path):
         # --- attempt #0: both samples in flight, killed once B checkpointed
         _run_interrupted_attempt(log_dir, None, tests_dir)
         first_log = _latest_log(log_dir)
@@ -830,9 +852,6 @@ def test_checkpoint_retry_preserves_queued_sample_checkpoints(
         resume = eval_retry(read_eval_log(second_log), log_dir=log_dir, max_samples=1)[
             0
         ]
-    finally:
-        for name in _inspect_projects(prefix) - projects_before:
-            _force_remove_project(name)
 
     assert resume.status == "success"
     assert resume.samples is not None and len(resume.samples) == 2

@@ -1,3 +1,5 @@
+> Archived before the artifact-storage migration. See [current output locations](README.md). Raw snapshot references below are available in Git history.
+
 # PRs opened by the ci-perf skill
 
 Permanent ledger of every change and PR produced by the ci-perf skill

@@ -23,7 +23,7 @@ from tenacity import (
 
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
 
-from ._cli import SANDBOX_CLI
+from ._cli import SANDBOX_CLI, tools_user_param
 from ._json_rpc_transport import SandboxJSONRPCTransport
 
 if TYPE_CHECKING:
@@ -283,7 +283,7 @@ class ExecRemoteProcess:
             else self._options.poll_timeout,
             # Run the CLI wrapper as the same user that started the server.
             # When root is available, this is "root" (needed to access the
-            # protected server directory at /tmp/sandbox-tools/, mode 0o700).
+            # server's private state directory inside the 0700 tools tree).
             # When root isn't available, this is None (sandbox default user).
             user=self._sandbox._tools_user,
             concurrency=self._options.concurrency,
@@ -317,8 +317,8 @@ class ExecRemoteProcess:
             params["env"] = self._options.env
         if self._options.cwd:
             params["cwd"] = self._options.cwd
-        if self._options.user:
-            params["user"] = self._options.user
+        if (user := tools_user_param(self._sandbox, self._options.user)) is not None:
+            params["user"] = user
 
         result = await self._rpc("exec_remote_start", params, _StartResult)
         self._pid = result.pid

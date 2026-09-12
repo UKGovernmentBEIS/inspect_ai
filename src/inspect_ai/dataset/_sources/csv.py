@@ -58,7 +58,7 @@ def csv_dataset(
     name: str | None = None,
     fs_options: dict[str, Any] | None = None,
     fieldnames: list[str] | None = None,
-    delimiter: str = ",",
+    delimiter: str | None = None,
 ) -> Dataset:
     r"""Read dataset from CSV file.
 
@@ -86,7 +86,8 @@ def csv_dataset(
         fieldnames: Optional. A list of fieldnames to use for the CSV.
             If None, the values in the first row of the file will be used as the fieldnames.
             Useful for files without a header.
-        delimiter: Optional. The delimiter to use when parsing the file. Defaults to ",".
+        delimiter: Optional. Override the dialect's delimiter when parsing the file.
+            Defaults to the dialect's delimiter ("," for the default "unix" dialect).
 
     Returns:
         Dataset read from CSV file.
@@ -141,8 +142,9 @@ def csv_dataset_reader(
     file: TextIOWrapper,
     dialect: str = "unix",
     fieldnames: list[str] | None = None,
-    delimiter: str = ",",
+    delimiter: str | None = None,
 ) -> "csv.DictReader[str]":
-    return csv.DictReader(
-        file, dialect=dialect, fieldnames=fieldnames, delimiter=delimiter
+    fmtparams: dict[str, Any] = (
+        {"delimiter": delimiter} if delimiter is not None else {}
     )
+    return csv.DictReader(file, dialect=dialect, fieldnames=fieldnames, **fmtparams)

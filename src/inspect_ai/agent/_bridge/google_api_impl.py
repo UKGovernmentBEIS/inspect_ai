@@ -74,7 +74,13 @@ async def inspect_google_api_request_impl(
 ) -> dict[str, Any]:
     # resolve model
     bridge_model_name = str(json_data.get("model", "inspect"))
-    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
+    model = resolve_inspect_model(
+        bridge_model_name,
+        bridge.model_aliases,
+        bridge.model,
+        model_resolver=bridge.model_resolver,
+        provider="google",
+    )
 
     # extract request components
     contents: list[dict[str, Any]] = json_data.get("contents", [])
@@ -715,6 +721,28 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
         "usageMetadata": gemini_usage_metadata(output.usage),
         "modelVersion": model_name,
     }
+
+    logprobs = output.choices[0].logprobs
+    if logprobs and logprobs.content:
+        candidate = response["candidates"][0]
+        candidate["logprobsResult"] = {
+            "chosenCandidates": [
+                {"token": token.token, "logProbability": token.logprob}
+                for token in logprobs.content
+            ],
+            "topCandidates": [
+                {
+                    "candidates": [
+                        {"token": top.token, "logProbability": top.logprob}
+                        for top in token.top_logprobs or []
+                    ]
+                }
+                for token in logprobs.content
+            ],
+        }
+        candidate["avgLogprobs"] = sum(
+            token.logprob for token in logprobs.content
+        ) / len(logprobs.content)
 
     # Add convenience text field if there's text content (excluding embedded <think> tags)
     text_content = "".join(

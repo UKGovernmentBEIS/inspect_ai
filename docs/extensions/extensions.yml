@@ -100,6 +100,12 @@
   author: "[Ivan Skachek](https://github.com/IvanSFlowGit)"
   categories: ["Analysis"]
 
+- name: "[Hermes Rubric](https://github.com/hermes-labs-ai/hermes-rubric/blob/v1.2.1/docs/ADAPTERS.md#inspect-ai-scorer)"
+  description: |
+    Rubric-based scorer that preserves assessment details in Inspect score metadata and can report assessment failures as unscored.
+  author: "[Hermes Labs](https://hermes-labs.ai)"
+  categories: ["Analysis"]
+
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
   description: |
     Workflow orchestration for reproducibly running evals at scale.

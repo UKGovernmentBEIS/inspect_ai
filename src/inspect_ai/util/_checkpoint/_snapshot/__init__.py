@@ -26,20 +26,24 @@ from .registry import (
 )
 from .restic import ResticIncrementalStrategy
 from .types import (
+    CommittedSnapshot,
     SandboxSnapshotSession,
     SandboxSnapshotStrategy,
     SnapshotContext,
+    committed_snapshots_for,
     snapshot_strategy_name,
 )
 
 __all__ = [
     "ArchiveStrategy",
+    "CommittedSnapshot",
     "ResticIncrementalStrategy",
     "STRATEGY_ARCHIVE",
     "STRATEGY_RESTIC",
     "SandboxSnapshotSession",
     "SandboxSnapshotStrategy",
     "SnapshotContext",
+    "committed_snapshots_for",
     "create_strategy",
     "snapshot_strategy_name",
     "strategy_config_name",

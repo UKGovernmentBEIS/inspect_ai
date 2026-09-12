@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TypeVar
 
 import anyio.to_thread
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from inspect_ai._util.asyncfiles import (
     get_async_filesystem,
@@ -36,6 +36,7 @@ from inspect_ai._util.asyncfiles import (
 from inspect_ai._util.file import local_path
 
 from .._async_fs import async_mkdir
+from ._paths import sample_dir_segment
 from .schemas import Checkpoint, ResticConfig
 from .staging_dir import clear_sample_staging_dir, restic_config_path, restic_dir
 
@@ -44,7 +45,7 @@ logger = getLogger(__name__)
 _M = TypeVar("_M", bound=BaseModel)
 
 
-_CHECKPOINT_FILE_RE = re.compile(r"^ckpt-(\d+)\.json$")
+_CHECKPOINT_FILE_RE = re.compile(r"ckpt-([0-9]+)\.json")
 
 
 def checkpoint_file_id(name: str) -> int | None:
@@ -52,14 +53,33 @@ def checkpoint_file_id(name: str) -> int | None:
 
     The one predicate for "is this a checkpoint file" — the copy, the
     delete, host egress, hydrate's validation, and the id scan all use it.
+    Only the exact form ``write_checkpoint_file`` emits is accepted: ASCII
+    digits, zero-padded to at least five, so that ``checkpoint_file_name``
+    round-trips the id back to ``name``. ``ckpt-1.json`` and
+    ``ckpt-000001.json`` both parse as an int but are not checkpoint
+    files; a listing (an object store yields key names verbatim) cannot
+    smuggle in a second name for the same id.
     """
-    match = _CHECKPOINT_FILE_RE.match(name)
-    return int(match.group(1)) if match else None
+    match = _CHECKPOINT_FILE_RE.fullmatch(name)
+    if match is None:
+        return None
+    checkpoint_id = int(match.group(1))
+    return checkpoint_id if checkpoint_file_name(checkpoint_id) == name else None
+
+
+def checkpoint_file_name(checkpoint_id: int) -> str:
+    """The ``ckpt-NNNNN.json`` file name for ``checkpoint_id``."""
+    return f"ckpt-{checkpoint_id:05d}.json"
 
 
 def sample_dir_name(sample_id: int | str, epoch: int) -> str:
-    """The name of a sample's checkpoints dir within its eval checkpoints dir."""
-    return f"{sample_id}__{epoch}"
+    """The name of a sample's checkpoints dir within its eval checkpoints dir.
+
+    The sample id is dataset-supplied; ``sample_dir_segment`` reduces it
+    to one safe path component so an id containing ``/`` or ``..`` cannot
+    relocate the per-sample tree out of the eval checkpoints dir.
+    """
+    return f"{sample_dir_segment(sample_id)}__{epoch}"
 
 
 def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
@@ -129,19 +149,14 @@ async def scan_latest_committed_checkpoint(
     were present).
     """
     ids = await _list_checkpoint_ids(sample_checkpoints_dir)
-    async_fs = get_async_filesystem()
     for n in sorted(ids, reverse=True):
-        path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
         try:
-            raw = await async_fs.read_file(path)
-            return Checkpoint.model_validate_json(raw)
-        except (ValueError, FileNotFoundError):
-            # torn write (unparseable; ValidationError is a ValueError) or
-            # a file deleted since the listing — fall back to the next
-            # lower checkpoint. Anything else (e.g. a transient S3 error)
-            # propagates: this scan is a sample's only shot at resuming,
-            # and swallowing an I/O failure would silently run it fresh.
+            checkpoint = await _read_checkpoint_file(sample_checkpoints_dir, n)
+        except FileNotFoundError:
+            # Preserve latest-only scanning's tolerance for a concurrent delete.
             continue
+        if checkpoint is not None:
+            return checkpoint
     if ids:
         # checkpoint files present but none parse: callers treat the dir
         # as holding nothing committed, and that should not pass silently
@@ -152,6 +167,48 @@ async def scan_latest_committed_checkpoint(
             "committed checkpoint."
         )
     return None
+
+
+async def scan_committed_checkpoints(sample_checkpoints_dir: str) -> list[Checkpoint]:
+    """Return every checkpoint whose file parses cleanly, in ascending id order.
+
+    Same commit-point contract as :func:`scan_latest_committed_checkpoint`
+    (a torn-write file is silently skipped); the last element is that
+    function's result when files remain available during both scans.
+    Unlike the latest-only scan, a listed file disappearing is an error.
+    Resume uses the full list to decide which strategy
+    snapshots are acknowledged by a committed checkpoint — and deletes
+    the rest — so a file that cannot be *read* fails the scan rather
+    than passing as absent (see :func:`_read_checkpoint_file`).
+    """
+    ids = await _list_checkpoint_ids(sample_checkpoints_dir)
+    committed: list[Checkpoint] = []
+    for n in sorted(ids):
+        checkpoint = await _read_checkpoint_file(sample_checkpoints_dir, n)
+        if checkpoint is not None:
+            committed.append(checkpoint)
+    return committed
+
+
+async def _read_checkpoint_file(
+    sample_checkpoints_dir: str, n: int
+) -> Checkpoint | None:
+    """Read ``ckpt-NNNNN.json``; ``None`` if its contents don't validate.
+
+    Only a parse/validation failure is the torn-write case the commit
+    point contract skips. An I/O error (a throttled or reset remote GET)
+    propagates: treating an unreadable file as absent would present a
+    committed checkpoint as uncommitted to callers that act on the
+    result — orphan discard would delete its snapshot, the next fire
+    would reuse its id and overwrite it.
+    """
+    raw = await get_async_filesystem().read_file(
+        f"{sample_checkpoints_dir}/{checkpoint_file_name(n)}"
+    )
+    try:
+        return Checkpoint.model_validate_json(raw)
+    except ValidationError:
+        return None
 
 
 async def delete_sample_checkpoints_dir(
@@ -221,7 +278,7 @@ async def write_checkpoint_file(
     costs at most one checkpoint's progress — same as crashing before
     the file starts.
     """
-    path = f"{sample_checkpoints_dir}/ckpt-{checkpoint.checkpoint_id:05d}.json"
+    path = f"{sample_checkpoints_dir}/{checkpoint_file_name(checkpoint.checkpoint_id)}"
     await _write_model_json(path, checkpoint)
     return path
 

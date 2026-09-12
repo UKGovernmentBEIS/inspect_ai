@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
+from inspect_ai._util.asyncfiles import get_async_filesystem
+from inspect_ai.util._checkpoint._layout._paths import sample_dir_segment
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     _read_restic_config,
     checkpoint_file_id,
@@ -15,6 +20,7 @@ from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
     sample_checkpoints_dir,
+    scan_committed_checkpoints,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
 )
@@ -261,6 +267,91 @@ async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
     assert checkpoint.trigger == "agent_complete"
 
 
+async def test_scan_committed_checkpoints_skips_torn_files_in_order(
+    tmp_path: Path,
+) -> None:
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.checkpoints"), "s", 0
+    )
+    for checkpoint_id in (3, 1):
+        await write_checkpoint_file(
+            sample_checkpoints_dir=sample_dir,
+            checkpoint=_checkpoint(
+                checkpoint_id=checkpoint_id,
+                trigger="turn",
+                turn=checkpoint_id,
+                host=_info(f"snap-{checkpoint_id}"),
+            ),
+        )
+    (Path(sample_dir) / "ckpt-00002.json").write_text("{")
+    (Path(sample_dir) / "ckpt-00004.json").write_text("{")
+
+    committed = await scan_committed_checkpoints(sample_dir)
+
+    assert [c.checkpoint_id for c in committed] == [1, 3]
+    latest = await scan_latest_committed_checkpoint(sample_dir)
+    assert latest is not None and latest.checkpoint_id == committed[-1].checkpoint_id
+    assert await scan_committed_checkpoints(str(tmp_path / "missing")) == []
+
+
+@pytest.mark.parametrize("error_type", [OSError, FileNotFoundError])
+async def test_scan_committed_checkpoints_propagates_read_errors(
+    tmp_path: Path,
+    error_type: type[OSError],
+) -> None:
+    """An unreadable (not unparseable) file fails the scan instead of vanishing.
+
+    The list drives orphan discard on resume, which deletes every snapshot
+    not in it, so a transient remote read failure must not read as "this
+    checkpoint was never committed".
+    """
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.checkpoints"), "s", 0
+    )
+    for checkpoint_id in (1, 2, 3):
+        await write_checkpoint_file(
+            sample_checkpoints_dir=sample_dir,
+            checkpoint=_checkpoint(
+                checkpoint_id=checkpoint_id,
+                trigger="turn",
+                turn=checkpoint_id,
+                host=_info(f"snap-{checkpoint_id}"),
+            ),
+        )
+    real_fs = get_async_filesystem()
+
+    class _FlakyFs:
+        def __getattr__(self, name: str) -> Any:
+            return getattr(real_fs, name)
+
+        async def read_file(self, filename: str) -> bytes:
+            if filename.endswith("ckpt-00003.json"):
+                raise error_type("checkpoint read failed")
+            return await real_fs.read_file(filename)
+
+    # Resolve the submodule explicitly: the `_layout` package re-exports a
+    # *function* named `sample_checkpoints_dir`, so a dotted `patch` target
+    # (or `from _layout import sample_checkpoints_dir`) lands on that
+    # function instead of the module on Python 3.10.
+    module = importlib.import_module(
+        "inspect_ai.util._checkpoint._layout.sample_checkpoints_dir"
+    )
+    with patch.object(
+        module,
+        "get_async_filesystem",
+        return_value=_FlakyFs(),
+    ):
+        with pytest.raises(error_type, match="checkpoint read failed"):
+            await scan_committed_checkpoints(sample_dir)
+        if error_type is FileNotFoundError:
+            latest = await scan_latest_committed_checkpoint(sample_dir)
+            assert latest is not None and latest.checkpoint_id == 2
+        else:
+            # A transport failure must not make an existing checkpoint vanish.
+            with pytest.raises(error_type, match="checkpoint read failed"):
+                await scan_latest_committed_checkpoint(sample_dir)
+
+
 # -- resume resolution ---------------------------------------------------
 #
 # Detection looks only in a sample's own dir: the retry startup copy
@@ -310,6 +401,63 @@ def test_checkpoint_file_id() -> None:
     assert checkpoint_file_id("ckpt-00007.tar.zst") is None
     assert checkpoint_file_id("ckpt-00007.json.tmp") is None
     assert checkpoint_file_id("restic-config.json") is None
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "ckpt-1.json",  # int-parses, but not the zero-padded form the writer emits
+        "ckpt-000001.json",  # a second name for id 1
+        "ckpt-00007.json\n",  # `$` would accept a trailing newline
+        "ckpt-\u0663\u0663\u0663\u0663\u0663.json",  # non-ASCII digits: `\\d` accepts them
+        "ckpt- 0005.json",
+        "xckpt-00007.json",
+    ],
+)
+def test_checkpoint_file_id_accepts_only_the_written_form(name: str) -> None:
+    """One name per id: the file a listing offers must round-trip through the writer."""
+    assert checkpoint_file_id(name) is None
+
+
+@pytest.mark.parametrize("sample_id", ["../../escape", "a/b", "/abs", "..", ""])
+def test_sample_checkpoints_dir_contains_hostile_sample_id(sample_id: str) -> None:
+    """A dataset id with `/` or `..` cannot relocate the per-sample tree."""
+    eval_dir = "/logs/foo.checkpoints"
+    sample_dir = sample_checkpoints_dir(eval_dir, sample_id, 0)
+    assert sample_dir.startswith(f"{eval_dir}/")
+    segment = sample_dir.removeprefix(f"{eval_dir}/")
+    assert segment == f"{sample_dir_segment(sample_id)}__0"
+    assert "/" not in segment
+    assert segment.split("__")[0] not in (".", "..")
+
+
+async def test_ensure_with_hostile_sample_id_creates_dir_inside_eval_dir(
+    tmp_path: Path,
+) -> None:
+    eval_dir = tmp_path / "foo.checkpoints"
+    sample_dir = Path(await ensure_sample_checkpoints_dir(str(eval_dir), "../../x", 0))
+    assert sample_dir.is_dir()
+    assert sample_dir.parent == eval_dir
+    assert not (tmp_path / "x__0").exists()
+    assert not (tmp_path.parent / "x__0").exists()
+
+
+async def test_hostile_sample_id_write_and_resume_lookup_agree(tmp_path: Path) -> None:
+    """The write path and the resume lookup derive the same dir name."""
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    sample_id = "task/variant-3"
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, sample_id, 1)
+    lookup_dir = sample_checkpoints_dir(eval_dir, sample_id, 1)
+    assert lookup_dir == sample_dir
+    assert await scan_latest_committed_checkpoint(lookup_dir) is None
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1")
+        ),
+    )
+    checkpoint = await scan_latest_committed_checkpoint(lookup_dir)
+    assert checkpoint is not None and checkpoint.checkpoint_id == 1
 
 
 async def test_delete_sample_checkpoints_dir(tmp_path: Path) -> None:
