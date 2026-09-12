@@ -29,11 +29,15 @@ def parse_cli_args(
             parts = arg.split("=")
             if len(parts) > 1:
                 key = parts[0].replace("-", "_")
-                value = yaml.safe_load("=".join(parts[1:]))
-                if isinstance(value, str):
-                    value = value.split(",")
-                    value = value if len(value) > 1 else value[0]
-                params[key] = str(value) if force_str else value
+                raw_value = "=".join(parts[1:])
+                if force_str:
+                    value: Any = raw_value
+                else:
+                    value = yaml.safe_load(raw_value)
+                    if isinstance(value, str):
+                        value = value.split(",")
+                        value = value if len(value) > 1 else value[0]
+                params[key] = value
     return params
 
 
