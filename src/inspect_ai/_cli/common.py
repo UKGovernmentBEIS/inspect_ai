@@ -114,7 +114,7 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 def process_common_options(options: CommonOptions) -> None:
     # set environment variables
-    env_args = parse_cli_args(options["env"])
+    env_args = parse_cli_args(options["env"], force_str=True)
     init_cli_env(env_args)
 
     # set traceback locals env var
