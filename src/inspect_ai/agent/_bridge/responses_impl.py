@@ -1283,6 +1283,9 @@ def responses_output_items_from_assistant_message(
         elif tool_call.type == "custom":
             output.append(
                 ResponseCustomToolCall(
+                    # See note on `id` for function_call below: Responses output
+                    # items need a non-null item id for streaming clients.
+                    id=uuid(),
                     type="custom_tool_call",
                     call_id=tool_call.id,
                     name=tool_call.function,
@@ -1293,6 +1296,14 @@ def responses_output_items_from_assistant_message(
             namespace = (tool_namespaces or {}).get(tool_call.function)
             output.append(
                 ResponseFunctionToolCall(
+                    # A Responses output item must carry a non-null `id` (the
+                    # item id, distinct from `call_id`). Streaming clients such
+                    # as opencode's AI SDK key the emitted tool call on this
+                    # item id; when it is null the tool call is never registered
+                    # and the turn ends with `finish_reason=stop`, so the agent
+                    # stalls after one model call. Match the id convention used
+                    # by the other tool-call item types above.
+                    id=uuid(),
                     type="function_call",
                     call_id=tool_call.id,
                     name=tool_call.function,
