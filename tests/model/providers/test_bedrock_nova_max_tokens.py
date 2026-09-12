@@ -19,10 +19,12 @@ from inspect_ai.model._generate_config import GenerateConfig  # noqa: E402
 from inspect_ai.model._providers.bedrock import BedrockAPI  # noqa: E402
 
 
-def _make_nova_api() -> BedrockAPI:
+def _make_nova_api(
+    model_name: str = "amazon.nova-2-lite-v1:0",
+) -> BedrockAPI:
     """Build a BedrockAPI bound to a Nova model without instantiating a session."""
     api = BedrockAPI.__new__(BedrockAPI)
-    api.model_name = "amazon.nova-lite-v1:0"
+    api.model_name = model_name
     return api
 
 
@@ -68,6 +70,73 @@ def test_nova_no_reasoning_keeps_max_tokens():
     api = _make_nova_api()
     config = GenerateConfig(max_tokens=2048)
     assert _nova_high_effort_reasoning(api, config) is False
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "amazon.nova-2-lite-v1:0",
+        "us.amazon.nova-2-lite-v1:0",
+        "global.amazon.nova-2-lite-v1:0",
+        "amazon.nova-lite-1-5-v1:0",
+    ],
+)
+def test_reasoning_capable_nova_models_emit_reasoning_config(model_name: str):
+    api = _make_nova_api(model_name)
+
+    assert api.reasoning_config(GenerateConfig(reasoning_effort="medium")) == {
+        "reasoningConfig": {
+            "type": "enabled",
+            "maxReasoningEffort": "medium",
+        }
+    }
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "amazon.nova-lite-v1:0",
+        "us.amazon.nova-pro-v1:0",
+        "amazon.nova-micro-v1:0",
+        "amazon.nova-premier-v1:0",
+        "amazon.nova-2-sonic-v1:0",
+    ],
+)
+def test_unsupported_nova_models_omit_reasoning_config_with_warning(
+    model_name: str, monkeypatch: pytest.MonkeyPatch
+):
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.bedrock.warn_once",
+        lambda _logger, message: warnings.append(message),
+    )
+    api = _make_nova_api(model_name)
+
+    assert api.reasoning_config(GenerateConfig(reasoning_effort="high")) == {}
+    assert warnings == [
+        f"bedrock model '{model_name}' does not support "
+        "'reasoning_effort'; ignoring it."
+    ]
+    assert (
+        _nova_high_effort_reasoning(
+            api, GenerateConfig(reasoning_effort="high", max_tokens=2048)
+        )
+        is False
+    )
+
+
+def test_unsupported_nova_without_reasoning_effort_does_not_warn(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.bedrock.warn_once",
+        lambda _logger, message: warnings.append(message),
+    )
+    api = _make_nova_api("us.amazon.nova-pro-v1:0")
+
+    assert api.reasoning_config(GenerateConfig()) == {}
+    assert warnings == []
 
 
 def test_claude_high_effort_keeps_max_tokens():

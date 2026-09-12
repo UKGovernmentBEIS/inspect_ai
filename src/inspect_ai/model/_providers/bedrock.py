@@ -79,6 +79,10 @@ logger = getLogger(__name__)
 # Gemini's redacted thinking. See `redacted_content_bytes`.
 REDACTED_CONTENT_KEY = "bedrock_redacted_content"
 
+NOVA_REASONING_MODEL_PATTERN = re.compile(
+    r"(?:^|\.)amazon\.nova-(?:2-lite|lite-1-5)-v\d+(?::|$)"
+)
+
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
 
@@ -567,6 +571,10 @@ class BedrockAPI(ModelAPI):
     def is_nova(self) -> bool:
         return "nova" in self.model_family().lower()
 
+    def supports_nova_reasoning(self) -> bool:
+        """Whether the model accepts Amazon Nova's reasoningConfig field."""
+        return NOVA_REASONING_MODEL_PATTERN.search(self.model_name.lower()) is not None
+
     def supports_prompt_cache(self) -> bool:
         """Whether this model accepts Converse `cachePoint` blocks.
 
@@ -1012,12 +1020,18 @@ class BedrockAPI(ModelAPI):
             return self._claude_reasoning_config(config)
         elif self.is_nova():
             if config.reasoning_effort is not None:
-                return {
-                    "reasoningConfig": {
-                        "type": "enabled",
-                        "maxReasoningEffort": config.reasoning_effort,
+                if self.supports_nova_reasoning():
+                    return {
+                        "reasoningConfig": {
+                            "type": "enabled",
+                            "maxReasoningEffort": config.reasoning_effort,
+                        }
                     }
-                }
+                warn_once(
+                    logger,
+                    f"bedrock model '{self.model_name}' does not support "
+                    "'reasoning_effort'; ignoring it.",
+                )
 
         return {}
 
