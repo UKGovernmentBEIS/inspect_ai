@@ -132,9 +132,11 @@ from inspect_ai.model._openai_responses import (
     mcp_call_to_tool_use,
     mcp_list_tools_to_tool_use,
     parse_web_search_action,
+    read_reasoning_item_param,
     reasoning_from_responses_reasoning,
     responses_extra_body_fields,
     responses_model_usage,
+    responses_reasoning_from_reasoning,
     to_inspect_citation,
     tool_call_from_openai_tool_search_call,
     tool_use_to_code_interpreter_param,
@@ -148,7 +150,6 @@ from inspect_ai.model._providers._openai_computer_use import (
 )
 from inspect_ai.model._reasoning import (
     parse_content_with_reasoning,
-    reasoning_to_think_tag,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
@@ -1206,24 +1207,25 @@ def responses_output_items_from_assistant_message(
                 )
             )
         elif isinstance(content, ContentReasoning):
-            # Serialize reasoning as <think> tag with full attributes (signature, redacted, summary)
-            # so it travels through the scaffold as opaque text and can be restored on the way back
-            think_tag = reasoning_to_think_tag(content)
+            # Serialize reasoning as a native Responses `reasoning` item (matching
+            # real OpenAI output for a reasoning turn), NOT as a completed
+            # `message` / output_text `<think>` tag.
+            #
+            # Emitting reasoning as a completed `message` breaks tool dispatch for
+            # Responses streaming clients (e.g. opencode). When a turn is reasoning
+            # plus a tool call, the client sees
+            # `[message(status=completed), function_call]`, treats the completed
+            # message as the end of the assistant turn, and never dispatches the
+            # trailing `function_call` -- the agent stalls after one model call
+            # with no answer. Real OpenAI emits `[reasoning, function_call]`, which
+            # clients handle correctly.
+            #
+            # `responses_reasoning_from_reasoning` preserves the signature (as the
+            # item id) and redacted/encrypted content, so reasoning still
+            # round-trips on replay (parsed back via
+            # `reasoning_from_responses_reasoning`).
             output.append(
-                ResponseOutputMessage(
-                    type="message",
-                    id=uuid(),
-                    role="assistant",
-                    content=[
-                        ResponseOutputText(
-                            type="output_text",
-                            text=think_tag,
-                            annotations=[],
-                            logprobs=[],
-                        )
-                    ],
-                    status="completed",
-                )
+                read_reasoning_item_param(responses_reasoning_from_reasoning(content))
             )
 
         elif isinstance(content, ContentToolUse):
