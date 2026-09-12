@@ -42,6 +42,8 @@ def test_parse_task_spec_invalid():
         ({"label": 2}, "label", False, "2"),
         ({"value": "test"}, "literal:test", False, "test"),
         ({"value": "ignore"}, "literal:custom", False, "custom"),
+        ({}, "literal:12:30", False, "12:30"),
+        ({}, "literal:https://example.com/a:b", False, "https://example.com/a:b"),
     ],
 )
 def test_sanitize_target(record, target, is_choices, expected):
