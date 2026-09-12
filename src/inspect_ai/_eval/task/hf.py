@@ -220,7 +220,7 @@ def parse_task_spec(task_spec: str) -> tuple[str, str | None]:
 def _sanitize_target(record: DatasetRecord, target: str, is_choices: bool) -> str:
     # if the target is a literal, return the value after the colon without checking the record.
     if target.startswith("literal:"):
-        target = target.split(":")[1]
+        target = target.split(":", 1)[1]
         return target
 
     # otherwise, get the target from the record and convert to a letter if it's a number.
