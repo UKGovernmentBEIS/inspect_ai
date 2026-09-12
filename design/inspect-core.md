@@ -178,6 +178,22 @@ Three details:
   Literal down (harmless — it is strings) or type the leaf's field as `str`
   and keep the Literal in `inspect_ai` for checking.
 
+### Annotation-driven registration needs nothing extra
+
+`@monitor` deduces its stage from the type annotation on the monitor's second
+parameter (`monitor.md`). That adds no dependency: `typing.get_type_hints` is
+stdlib, and it is already how `@tool` works — `tool/_tool_info.py:118` builds
+the whole `ToolInfo` from annotations. The leaf needs `typing` and the payload
+types, both of which it has by construction.
+
+The related static pass — enumerating `@monitor` functions in a file without
+importing it, which a deployment bundler wants — is also nearly free, but not
+via the shipped helper. `_util/decorator.py::parse_decorators` is pure `ast`
+over top-level `FunctionDef` nodes, except that it imports `_util.file` for S3
+support, and `_util/file.py` pulls `fsspec` and `s3fs`. So the concept
+(~40 lines of stdlib `ast`) belongs in the leaf; the existing function does
+not, until that import is severed or a local-path-only variant is split out.
+
 ## Compatibility
 
 Prefer re-export shims over relocation: `inspect_ai.model.ChatMessage` keeps
@@ -315,8 +331,10 @@ risk from the interesting half. If only one gets built, build the corpus.
 
 **Measured:** the import closures (1501/1678ms; 505 → 27; the 12- and
 4-package floors), the `from inspect_ai.tool import ToolCall` cascade,
-`registry.py`'s runtime import set and TYPE_CHECKING-only references, the
-`ToolInfo | Tool` return type, the absence of discriminators on `Content` and
+`registry.py`'s runtime import set and TYPE_CHECKING-only references,
+`parse_decorators` being pure `ast` while reaching `_util.file` (and thence
+`fsspec` and `s3fs`), `tool/_tool_info.py:118` deriving `ToolInfo` from
+`get_type_hints`, the `ToolInfo | Tool` return type, the absence of discriminators on `Content` and
 `ChatMessage` alongside their existing Literal tags, and the
 `DiscriminatedEvent` precedent.
 

@@ -1,8 +1,8 @@
 # Running monitors outside the eval process
 
-Companion to `monitor.md`, which defines the `Monitor` protocol. This document
-covers deploying one where there is no eval: inside a proxy on the wire in
-front of a model API.
+Companion to `monitor.md`, which defines the `Monitor` protocol and the
+protocol layer above it. This document covers deploying one where there is no
+eval: inside a proxy on the wire in front of a model API.
 
 Status: measured where marked, reasoned elsewhere.
 
@@ -22,21 +22,20 @@ A proxy sits on one HTTP exchange: a request and a response. It never sees a
 tool execute, because tools execute client-side after the response is
 delivered.
 
-So the four affordances are two, with the tool affordances recovered as
-projections:
+So the four stages are two, with the tool stages recovered as projections:
 
-| Affordance | In a proxy | Fidelity |
+| Stage | In a proxy | Fidelity |
 |---|---|---|
-| `on_model_input` | the request body | full |
-| `on_model_output` | the response body | full |
-| `on_tool_call` | `tool_use` blocks in the response | good |
-| `on_tool_result` | `tool_result` blocks in the *next* request | **lossy** |
+| `BeforeGenerate` | the request body | full |
+| `AfterGenerate` | the response body | full |
+| `BeforeToolCall` | `tool_use` blocks in the response | good |
+| `AfterToolCall` | `tool_result` blocks in the *next* request | **lossy** |
 
 A proxy sees a tool result only if the agent makes another request carrying
 it. The final step of an episode is never seen, and by the time a result
 appears the model has already consumed it — verbatim the limitation #5355
 wrote the `Reviewer` protocol to escape. No vocabulary choice fixes this; it
-is a property of where the code runs, and `on_tool_result` should say so.
+is a property of where the code runs, and `AfterToolCall` should say so.
 
 ## Evidence from an analogous constraint
 
@@ -77,24 +76,61 @@ types, not registered Inspect objects.
 | `modify` | rewrite the body (arguments only, for a call) | ✓ |
 | `reject` | append and regenerate, bounded | ✓ |
 | `escalate` | defer to the next filter in the chain | ✓ |
-| `terminate` | — not an edit | **✗** |
+| `terminate` | not an edit — an effect | ✓, with caveats below |
 
-`terminate` is a statement about a sample lifecycle — cancel sibling calls,
-record an operator limit, end the epoch — and in a production deployment that
-lifecycle does not merely belong to someone else, it does not exist. Envoy has
-no word for it either: ext_authz is allow/deny, ext_proc is
-continue/modify/immediate-response.
+**`terminate` travels.** An earlier draft of this document claimed it did not,
+on the grounds that a production deployment has no sample lifecycle to end.
+That was wrong, and three pieces of evidence already collected here point the
+other way:
 
-The nearest honest equivalent is "refuse, and keep refusing" — `reject` plus
-the caller's own policy about what repeated refusal means. `_bridge/_approval.py`
-demonstrates the conversion in miniature: `MAX_CONSECUTIVE_REJECTIONS` is
-precisely "repeated rejection becomes termination, decided by the side that
-owns the lifecycle."
+- **ext_proc has the primitive.** Its vocabulary is
+  continue / modify / **immediate-response** — and immediate-response is
+  precisely "stop, do not forward upstream, return this instead." The earlier
+  draft listed that word and then concluded Envoy had no word for it.
+- **`_bridge/_approval.py` already does this out-of-band.** Restriction 4
+  above: `terminate` is "not in the response at all, but a side call,
+  `bridge.request_terminate(...)`." That is a working pattern for reaching a
+  lifecycle owner that is not the response path.
+- **The host ABI is exactly that channel.** `context.host` exists so a monitor
+  can reach the outside world through an enumerable surface. A lifecycle owner
+  is a thing in the outside world.
 
-So `PortableAction` is `MonitorAction` minus `terminate`. If `terminate` must
-survive the trip it needs a wire convention — a sentinel `stop_reason`, a
-distinguished status, a side channel — implemented at both ends. A small
-contract, but a contract, and the only one on this list.
+Three mechanisms, with different blast radii, and the distinction matters more
+than the word:
+
+| Mechanism | Ends | Notes |
+|---|---|---|
+| error response | this exchange | the agent's SDK raises; a retry-looping scaffold may retry |
+| `host.terminate()` | this session or agent | out-of-band call to whatever owns the lifecycle |
+| hanging the request | nothing, usefully | **don't** — see below |
+
+**An error response is not `reject` with more force.** `reject` is a
+*conversational* move: append a synthetic result, regenerate, let the model
+learn it was denied. An error is a *transport* move: the SDK raises and the
+loop breaks. They are genuinely different actions and a proxy can do both,
+which is what the earlier "refuse, and keep refusing" framing obscured. That
+framing is still the right answer for a *scaffold* that swallows errors, and
+`MAX_CONSECUTIVE_REJECTIONS` is still the miniature version of it — but it is
+a fallback, not the definition.
+
+**Never hang the request.** It is indistinguishable from a network failure, it
+holds a connection open, and it invites exactly the retry storm a safety
+mechanism should not cause. It is a denial-of-service pattern pointed at your
+own infrastructure.
+
+So there is no `PortableAction` subset — the vocabulary crosses whole, and
+what varies is a host capability rather than a set of words. Two honest
+caveats remain, and both are about *guarantee*, not expressibility:
+
+- **`host.terminate()` is an optional host capability.** A proxy in front of a
+  public API serving anonymous clients has no session to end, so the ABI has to
+  admit "not supported" and the protocol has to degrade to an error response.
+- **It is best-effort and asynchronous where the eval's is total and
+  synchronous.** In an eval, `terminate` cancels sibling tool calls, records an
+  operator limit and ends the epoch, all at once. In a proxy, signalling a
+  control plane takes time, in-flight work elsewhere is not cancelled, and
+  there is no single log to record it in. `terminate` crosses as an *effect*
+  requested, not as a state reached.
 
 ## The host ABI
 
@@ -103,7 +139,7 @@ plus a small declared effect surface. Then the compilation and transport
 strategy becomes a deployment detail rather than a design constraint.
 
 ```python
-class MonitorHost(Protocol):
+class Host(Protocol):
     async def generate(self, prompt: str, *, model: str | None = None) -> str: ...
     async def fetch(
         self,
@@ -118,6 +154,8 @@ class MonitorHost(Protocol):
     def get(self, key: str) -> dict | None: ...
     def put(self, key: str, value: dict) -> None: ...
     def record(self, event: dict) -> None: ...
+    async def terminate(self, reason: str) -> bool: ...
+    """End this session or agent out-of-band. False if unsupported."""
 
 
 class HostResponse(Protocol):
@@ -130,6 +168,11 @@ class HostResponse(Protocol):
 
 The same surface whether the host is Envoy via proxy-wasm, a Go runtime, or
 ordinary Python in-process where these are normal implementations.
+
+A monitor reaches it as `context.host` (`monitor.md`, "The context"), never by
+import. That is what keeps a monitor a pure function of its two arguments, and
+it is why the ABI is small enough to be worth specifying: everything a monitor
+can do to the outside world is enumerable from one Protocol.
 
 ### Why `fetch` is a primitive, not an escape hatch
 
@@ -153,7 +196,7 @@ JSON-RPC then needs no separate primitive — it is a POST with a
 helper over `fetch` rather than a second ABI function:
 
 ```python
-async def rpc(host: MonitorHost, endpoint: str, method: str, params: Any) -> Any:
+async def rpc(host: Host, endpoint: str, method: str, params: Any) -> Any:
     ...   # POST the envelope, raise on `error`, return `result`
 ```
 
@@ -227,6 +270,43 @@ name.
   So its design barely matters for the sidecar and matters a great deal for
   embedding: design it now even if the sidecar ships first.
 
+### Where the protocol runs
+
+`monitor.md` splits the monitor (observes, reports) from the protocol
+(authorizes, acts). That split survives the trip, and it is mostly good news
+here: the leaf monitor stays a pure function of one exchange, while everything
+stateful — thresholds, budget, aggregation — belongs to the protocol, which is
+also the thing that owns the keyed store described above.
+
+Note that the split is a layering of *roles*, not of types: a protocol is a
+monitor that takes monitors. That matters here in one specific way. The
+portability verdict is per function, and a protocol is a function, so the
+composition is exactly as portable as its least portable member — a leaf
+monitor calling `get_model()` disqualifies the protocol that wraps it, and a
+protocol reaching for task-scoped state disqualifies itself while leaving its
+leaves deployable. Both directions are visible to the same static check, which
+would not have been true had protocols been a separate kind of object with
+their own affordances.
+
+Three notes:
+
+- **`audit` travels most cleanly of all.** Routing a suspicious exchange to a
+  human review queue is an ordinary thing for a proxy to do, and arguably more
+  natural in production than in an eval. Unlike `terminate`, which crosses as
+  a best-effort effect, an audit request is fully honoured on the proxy side —
+  because auditing is a flag on a report rather than an action on the
+  exchange.
+- **Budget allocation needs an episode.** Ctrl-Z spends 1% of actions per
+  episode with exponential decay. A proxy has no episode boundary, only a
+  conversation, so the budget becomes per-conversation (keyed as above) or a
+  rate over time. That is a protocol design choice, not a framework one.
+- **Observe-only is the right proxy default for scores**, for the same reason
+  it is in an eval, and more so: a threshold nobody calibrated, acting on the
+  network boundary, can break production traffic. The asymmetry `monitor.md`
+  draws between declared and inferred actions holds here too — a deterministic
+  rule deployed to refuse a call is doing what a proxy filter has always done,
+  and does not need a protocol to authorise it.
+
 ## State
 
 A proxy has no ContextVar, no sample identity and no `Store`. Two mechanisms
@@ -273,6 +353,73 @@ fingerprint alone.
 So the store is as trustworthy as its key, and the key can be anchored in data
 the agent must send truthfully.
 
+### What backs `context.store`
+
+`StoreModel` itself is portable, and it should be Inspect's rather than a
+second one of our own. It is a genuinely odd class — it overrides
+`__getattribute__` to intercept every attribute read, overrides `__setattr__`
+to re-validate on every write, and namespaces store keys by class name — but
+none of that is WASM-hostile. It is pure-Python metaprogramming over Pydantic,
+and `pydantic-core`, the one native extension in the `inspect_core` floor,
+compiles to wasm32 (Pyodide ships it). Its state must be JSON-serializable
+either way, which the keyed store needs regardless.
+
+The argument against a second `StoreModel` is ecosystem rather than effort.
+Monitor state is read back by ordinary `store_as()` from a scorer, so both
+sides must agree on the storage format; two same-named classes with different
+namespacing would split that. The import cost of reusing Inspect's is
+negligible — `_store_model.py` imports only `typing`, `pydantic` and `._store`.
+
+**Measured overhead, native CPython, versus a plain `BaseModel`:**
+
+| Operation | `StoreModel` | plain | ratio |
+|---|---|---|---|
+| read a scalar field | 7.8 µs | 0.03 µs | ~260x |
+| read a `list[str]` field | 37 µs | 0.03 µs | ~1200x |
+| write a scalar field | 66 µs | 0.19 µs | ~350x |
+
+Two causes. `_coerce_value` constructs a fresh `TypeAdapter` on **every** read
+of a non-scalar field — the comment claiming this happens "once per field" is
+wrong, measured at 100 constructions for 100 reads — and `__setattr__`
+re-runs `model_validate` over the whole model on every write, measured at 100
+full validations for 100 writes.
+
+It is a large *constant*, not a complexity problem: read cost is flat in list
+length (35 µs at 10 elements, 46 µs at 1000), and a 400-step trajectory doing
+one read and one write per step totals 39 ms. Against 400 inference calls that
+is invisible, which is why this has never surfaced in an eval.
+
+It is more visible in a proxy, where a deterministic monitor has no inference
+to hide behind and ~100 µs of store access is a real share of what a
+rule-based filter should cost. Three local fixes, none WASM-specific and all of
+which pay off in-process too: cache the `TypeAdapter` per (class, field);
+validate the single changed field on write rather than the whole model; and
+skip the store write-back when coercion produced an equivalent value.
+
+What is open is the *backing*. In-process, `context.store` is the sample
+`Store`, and that buys transcript recording, checkpoint survival and
+`store_from_events_as()` reconstruction for free. In a proxy it is the keyed
+store described above, and none of that machinery applies.
+
+`Store` records itself to the transcript as a *diff stream*: `store_changes()`
+runs at span boundaries to emit a `StoreEvent`, and `jsonpatch.apply_patch`
+replays those events in `store_from_events()`. The diff is not an
+implementation whim — `store.get("items", [])` hands back a mutable container
+that callers mutate in place, so no write hook on `Store` could be complete,
+and snapshot-before/compare-after at a boundary is the only reliable way to
+learn what changed (full snapshots per span would also be O(spans × store
+size) in the log).
+
+That machinery is therefore coupled to the transcript, and a proxy has no
+transcript. So the cut is a natural one rather than a nicety: typing
+`context.store` as a Protocol lets a proxy back it with its keyed store and
+carry none of the diffing. `Store` is thin enough (a dict wrapper; writes are
+plain dict operations) that a proxy *could* simply use it, in which case the
+only cost is closure weight — `jsonpatch` and `jsonpointer` are imported at
+module level in `util/_store.py` but used only on the transcript path, so a
+lazy import inside those two functions would keep them out of a constrained
+build.
+
 ### Operational consequences
 
 - **No end-of-conversation signal.** Entries expire on a TTL rather than at a
@@ -287,10 +434,25 @@ the agent must send truthfully.
 
 ### Consequence for the protocol
 
-The two access paths in `monitor.md` are not equals here. `data.state`
-survives — the dispatcher hands the monitor whatever it loaded for the key.
-`monitor_store_as()` does not, because there is no ambient context to bind to.
-The argument form is primary; the global is an in-process convenience.
+State reaches a monitor as an argument and only as an argument.
+`context.store_as(...)` survives here — the dispatcher builds one context per
+conversation and hands the monitor whatever it loaded for the key. An ambient
+accessor would not, since a proxy has nothing to bind to, which is one reason
+`monitor.md` declines to provide one.
+
+The same holds for effects. `context.host` is how a monitor reaches inference,
+keyed storage and outbound JSON, and routing them through an argument rather
+than an import is what makes the monitor a pure function of
+`(context, step)` — which is the property everything in this document depends
+on. Since `monitor.md` made monitors annotated functions, that is now the
+literal signature rather than a description of one.
+
+The qualification is the factory closure. `@monitor` decorates a factory, and
+anything it captures is created once per configuration and shared by every
+invocation — which is fine for configuration (a threshold, a model name) and
+wrong for anything accumulated. In an eval that yields a silent cross-sample
+race; in a proxy, state that a second replica does not have. The keyed store
+is the only durable place, and it arrives through `context`.
 
 Scopes map cleanly: per-sample becomes per-conversation, per-task becomes
 per-principal — which a proxy is better placed to hold than the eval process,
@@ -324,8 +486,8 @@ this document: feed it the delta rather than the whole history.
 
 | `ext_proc` phase | Affordance |
 |---|---|
-| `request_body` (BUFFERED) | `on_model_input` |
-| `response_body` | `on_model_output` |
+| `request_body` (BUFFERED) | `BeforeGenerate` |
+| `response_body` | `AfterGenerate` |
 
 | `ProcessingResponse` | Action |
 |---|---|
@@ -334,7 +496,7 @@ this document: feed it the delta rather than the whole history.
 | `immediate_response` | `reject`, and the `terminate` wire convention |
 
 `ext_authz` is request-path only and cannot see the response body, so it
-cannot do `on_model_output`. `ext_proc` is the one.
+cannot do `AfterGenerate`. `ext_proc` is the one.
 
 The Python runs unchanged. What is new is an adapter on each side — and under
 the host-renders-core-JSON contract (`inspect-core.md`) the normalization half
@@ -399,6 +561,66 @@ Two residual costs:
   Genuinely small means a rule DSL, or monitors written in a language that
   compiles small.
 
+## What gets bundled
+
+Portability is two axes, and conflating them loses information:
+
+- **Affordance portability is per function** — which `context` members it
+  touches, whether it recommends `terminate`.
+- **Bundle portability is per module** — the import closure. One
+  `import requests` at the top of a file disqualifies every monitor in it,
+  whatever the functions themselves do.
+
+The class design could not express the first cleanly (a class with one
+portable method and one unportable one is an all-or-nothing verdict) and
+obscured the second. Annotated functions in modules give both.
+
+### Monitors are enumerable without importing anything
+
+`_util/decorator.py::parse_decorators` walks top-level `FunctionDef` nodes
+looking for a named decorator, using nothing but `ast`. A bundler gets two
+things from a source file with no code executed: which functions are monitors,
+and — from the file's own import statements — the closure to resolve.
+
+This works *only* because monitors are top-level functions. A class body is an
+`ast.ClassDef` with its methods nested inside, invisible to that walk.
+
+What is *not* statically available is the stage, since the annotation sits on
+the inner function a factory returns. That is fine and worth stating plainly
+so nobody designs around it: the bundler needs enumeration and the closure,
+both of which it has. Stages resolve at load time, once, inside the bundle.
+
+One caveat if the existing helper is reused: `_util/decorator.py` imports
+`_util.file` for S3 support, which pulls `fsspec` and `s3fs`. The concept is
+~40 lines of stdlib `ast`; a bundler-side scanner wants a local-path-only
+variant rather than the shipped helper.
+
+### The module is a manifest entry, not a bundle boundary
+
+One bundle per module is the wrong instinct. The Python runtime plus Pydantic
+plus `inspect_core` dominates the artifact (~10–20MB, above), so N bundles
+means N copies of the expensive part while the monitors themselves are
+kilobytes.
+
+So: one bundle holding every selected module, with the module as the unit of
+*inclusion* and of the portability verdict. A module whose closure fails the
+check is dropped by itself, and the report names it — which it can, because
+the verdict was computed per module rather than per bundle.
+
+### Selection stays an explicit list
+
+`monitor.md` declines to provide glob selection over registry names, on the
+grounds that grouping is rarer than it looks. That has a consequence here
+worth naming, because it runs the safe direction.
+
+Enablement is an explicit list in both deployments. A bundle may therefore
+contain a module whose monitors the proxy never wires up — benign, since that
+is unused code in an artifact rather than an unenabled monitor quietly
+running. The dangerous direction is the inverse: a selection mechanism that
+resolves to a monitor the bundle does not contain, so the eval tests five and
+the deployment runs four with nothing reporting the difference. A pattern
+language could do that. An explicit list cannot.
+
 ## Deployment recap
 
 | | Monitor runs | Host provides | Codegen | Effort | Main catch |
@@ -458,16 +680,27 @@ Mitigations, in order of how much they matter:
    should be a deliberate, visible choice that appears in code review and the
    registry, not the accidental result of writing normal Python.
    Default-permissive loses by construction; default-strict with no escape is
-   hostile to the in-process case.
+   hostile to the in-process case. Note the mismatch this creates: the flag is
+   per function, but the dependency half of the verdict is per module, so a
+   single `portable=False` monitor does not excuse its file — it means the
+   file cannot be bundled, and the portable monitors beside it go down with
+   it. The checker should say that rather than let it be discovered at build
+   time.
 3. **Make the WASM build a CI target before a deployment target.** Compile the
    portable monitor set and run the conformance corpus against it. Catches
-   drift the day it appears, at a fraction of deploying.
+   drift the day it appears, at a fraction of deploying. The static pass is
+   cheaper still and can run on every commit: enumerate `@monitor` functions
+   with `ast`, resolve each module's import closure, fail on anything outside
+   the allowlist. No build, no runtime, no WASM toolchain.
 4. **Decide `re` explicitly in the allowlist** — exclude it and route regex
    through the ABI, or include it and accept that non-CPython targets are
    foreclosed.
 5. **Docs shape this more than checkers.** Whatever the examples use is what
    people write.
-6. **Make the portable path not feel like a downgrade.** If it is painful,
+6. **Ban the ambient escapes.** Chiefly `get_model()`, which bypasses
+   `context.host` and is available today. There is no ambient store accessor
+   to ban, by design.
+7. **Make the portable path not feel like a downgrade.** If it is painful,
    authors escape and the checker becomes an obstacle to route around. This is
    where `inspect-core.md` pays off twice: portable monitors get the *real*
    `ChatMessage` and `Content`, not a stripped parallel API. The restriction
@@ -498,8 +731,11 @@ None of this has been built.
    extras visibly additive.
 2. **Does CPython-on-WASI have a working asyncio loop over `wasi:io/poll`?**
    The one prototype that resolves the WASM path.
-3. **What does the `terminate` wire convention look like**, if it needs to
-   exist at all?
+3. **What owns the lifecycle a proxy's `terminate` reaches?** The mechanism is
+   settled (an error response, or `host.terminate()` out-of-band); what is open
+   is who implements the latter — an orchestrator API, a session store, a
+   container control plane — and whether a monitor should be able to tell which
+   it got before deciding.
 4. **Streaming versus buffering.** `BUFFERED` gives a complete `ModelOutput`
    at the cost of time-to-first-token; `STREAMED` preserves TTFT but forces
    judgment on partial output, after some tokens have reached the agent. A
@@ -516,3 +752,11 @@ None of this has been built.
    credentialed payload may not be).
 8. **Fail open or closed** when the processor is down. A safety monitor wants
    closed, which makes it a hard dependency on the request path.
+9. **Does the portability checker run per module or per function?** The
+   affordance half is per function and the dependency half is per module, so
+   the answer is "both", and the open part is what it reports when they
+   disagree.
+10. **Should `context.store` be a Protocol** rather than the concrete `Store`?
+   The concrete class carries transcript diffing a proxy never uses; an
+   interface lets a proxy back it with the keyed store directly. The cost is
+   one more abstraction on a type authors already know.
