@@ -5,7 +5,7 @@ from inspect_ai.solver._multiple_choice import (
 )
 from inspect_ai.solver._task_state import Choices, TaskState
 
-from ._metric import CORRECT, INCORRECT, Score
+from ._metric import CORRECT, INCORRECT, NOANSWER, Score, ScoreReason
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
@@ -98,10 +98,21 @@ def choice() -> Scorer:
 
         target_matches_choices = generated_selected_choices == sorted(target_positions)
 
+        reason: ScoreReason | None = None
+        value = CORRECT if target_matches_choices else INCORRECT
+        if not generated_selected_choices and not target_matches_choices:
+            if not state.output.completion.strip():
+                value = NOANSWER
+                reason = "no_response"
+            else:
+                # something was emitted, but nothing parseable as a selection
+                reason = "invalid_response_format"
+
         return Score(
-            value=CORRECT if target_matches_choices else INCORRECT,
+            value=value,
             answer=", ".join(answers),
             explanation=explanation,
+            reason=reason,
         )
 
     return score
