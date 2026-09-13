@@ -29,8 +29,8 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
 from inspect_ai.util._json import (
     JSON_SCHEMA_EXTENDED_FIELDS,
-    JSONSchema,
     json_schema_dump,
+    set_additional_properties_false,
 )
 
 from .._chat_message import (
@@ -302,29 +302,6 @@ class ConverseClientConverseRequest(BaseModel):
         Union[dict[str, Any], list[Any], int, float, str, bool, None] | None
     ) = None
     additionalModelResponseFieldPaths: list[str] = []
-
-
-def _lock_object_additional_properties(schema: JSONSchema) -> None:
-    """Set `additionalProperties: false` on object nodes only.
-
-    Bedrock's structured-output grammar compiler requires objects to forbid
-    extra properties, but rejects `additionalProperties` on `anyOf` nodes (how
-    optional/union fields are expressed). Setting it only on objects keeps
-    optional fields working. This matches the object-only handling in the
-    OpenAI and Anthropic SDKs; it is done locally here rather than via the
-    shared `set_additional_properties_false` (which stamps every node) because
-    only Bedrock's compiler is strict enough to reject the looser shape.
-    """
-    if schema.type == "object" or schema.properties:
-        schema.additionalProperties = False
-    if schema.items:
-        _lock_object_additional_properties(schema.items)
-    if schema.properties:
-        for prop_schema in schema.properties.values():
-            _lock_object_additional_properties(prop_schema)
-    if schema.anyOf:
-        for any_schema in schema.anyOf:
-            _lock_object_additional_properties(any_schema)
 
 
 # Claude families AWS documents as not supporting Converse prompt caching.
@@ -959,7 +936,7 @@ class BedrockAPI(ModelAPI):
             return None
 
         schema = config.response_schema.json_schema.model_copy(deep=True)
-        _lock_object_additional_properties(schema)
+        set_additional_properties_false(schema)
         return {
             "type": "json_schema",
             "schema": json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS),
