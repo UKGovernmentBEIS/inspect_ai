@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
+import httpx
+
 from inspect_ai._util.appdirs import inspect_cache_dir
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import safe_filename
@@ -37,6 +39,19 @@ _TRANSIENT_HTTP_STATUSES = {429, 502}
 
 def _should_retry_hf_error(err: BaseException) -> bool:
     """Return True if `err` is a transient HF failure worth retrying."""
+    # datasets can discard the cause when reporting an unreachable Hub.
+    if isinstance(err, ConnectionError):
+        msg = str(err)
+        return (
+            "Couldn't reach" in msg
+            and "on the Hub" in msg
+            and not msg.endswith("(OfflineModeIsEnabled)")
+        )
+
+    # huggingface_hub >= 1.0 uses httpx rather than requests.
+    if isinstance(err, httpx.TimeoutException):
+        return True
+
     try:
         from huggingface_hub.errors import HfHubHTTPError, LocalEntryNotFoundError
 
