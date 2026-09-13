@@ -7,6 +7,7 @@ as the agent state. See meridianlabs-ai/inspect_ai#140 for the failure
 mode where a longer side call permanently displaced the real conversation.
 """
 
+import json
 from typing import Any
 
 from test_helpers.checkpoint import RecordingCheckpointer
@@ -15,7 +16,7 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, _Descent
 from inspect_ai.agent._bridge.util import (
     default_code_execution_providers,
     internal_web_search_providers,
@@ -926,6 +927,77 @@ async def test_bare_quoted_side_call_arriving_first_retains_tracking() -> None:
     assert bridge.state.output.completion == "Doctor Who"
 
 
+SHORT_TASK = "What is 2 + 2?"
+assert len(SHORT_TASK) < 20  # below the containment floor
+
+
+def newline_prefixed_title_input(text: str) -> list[ChatMessage]:
+    # opencode < 1.14.42 stores a prompt read from stdin as `"\n" + stdin`;
+    # the title call copies the stored message
+    return [
+        ChatMessageSystem(content="You are a title generator ..."),
+        ChatMessageUser(content="Generate a title for this conversation:\n"),
+        ChatMessageUser(content="\n" + text),
+    ]
+
+
+async def test_newline_prefixed_prompt_anchors_exact() -> None:
+    r"""Whitespace around the prompt is a delivery artifact, not a store transform.
+
+    opencode < 1.14.42 builds the message as `message += "\n" + stdin`, so a
+    prompt delivered on stdin (inspect_swe) crosses the bridge with a leading
+    newline. The fingerprint hashes raw text so it no longer matches; the
+    stripped text must still grade `EXACT` (not merely `CONTAINED`) so the
+    main loop keeps its rank against side calls.
+    """
+    bridge = task_bridge()
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content="\n" + TASK)], "Castle")
+    assert bridge._tracked_descends is _Descent.EXACT
+
+    await track(bridge, newline_prefixed_title_input(TASK), "Doctor Who")
+
+    assert bridge.state.output.completion == "Castle"
+    assert bridge.state.messages[-1].text == "Castle"
+
+
+async def test_newline_prefixed_prompt_title_call_first() -> None:
+    """Same newline-prefixed prompt with the title call landing first."""
+    bridge = task_bridge()
+
+    await track(bridge, newline_prefixed_title_input(TASK), "Doctor Who")
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content="\n" + TASK)], "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert bridge._tracked_descends is _Descent.EXACT
+
+
+async def test_short_newline_prefixed_prompt_anchors_exact() -> None:
+    """A short prompt below the containment floor still anchors when stripped.
+
+    Without whitespace-tolerant `EXACT` both threads grade `NO` (the prompt is
+    too short for containment) and the legacy length arm adopts the
+    4-message title call in either order.
+    """
+    for title_first in (False, True):
+        bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content=SHORT_TASK)]))
+        main: list[ChatMessage] = [
+            TASK_SYSTEM,
+            ChatMessageUser(content="\n" + SHORT_TASK),
+        ]
+        title = newline_prefixed_title_input(SHORT_TASK)
+
+        if title_first:
+            await track(bridge, title, "Arithmetic question")
+            await track(bridge, main, "4")
+        else:
+            await track(bridge, main, "4")
+            await track(bridge, title, "Arithmetic question")
+
+        assert bridge.state.output.completion == "4", f"{title_first=}"
+        assert bridge._tracked_descends is _Descent.EXACT
+
+
 async def test_contained_side_call_does_not_displace_quote_wrapped_main() -> None:
     """A longer prompt-embedding side call must not beat the quoted main call.
 
@@ -1611,24 +1683,40 @@ async def test_escaped_quote_wrapped_prompt_title_call_first() -> None:
     assert bridge.state.messages[-1].text == "right"
 
 
-async def test_escaped_quoted_prompt_decorated_anchors_by_containment() -> None:
-    """An escaped-quoted prompt embedded in other text still anchors (CONTAINED)."""
-    bridge = AgentBridge(
-        AgentState(messages=[ChatMessageUser(content=TASK_WITH_QUOTES)])
-    )
-    quoted = opencode_quote_wrap(TASK_WITH_QUOTES)
-    decorated = f"<task>\n{quoted[1:-1]}\n</task>"
+async def test_escaped_interior_does_not_anchor_by_containment() -> None:
+    r"""The `\"`-escaped rendering anchors only inside opencode's quote wrapper.
 
-    # the title side call carries the same escaped rendering
-    await track(
-        bridge,
-        [
-            ChatMessageSystem(content="You are a title generator ..."),
-            ChatMessageUser(content="Generate a title for this conversation:\n"),
-            ChatMessageUser(content=quoted),
-        ],
-        "Opposite of left",
-    )
-    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=decorated)], "right")
+    opencode escapes quotes only as part of quote-wrapping, so the escaped
+    interior never appears embedded in other text. Accepting it on the
+    `CONTAINED` arm would make `\"` (also JSON's quote escape) match a side
+    call that JSON-serializes a quote-bearing prompt: that side call would
+    grade `CONTAINED`, tie a decorated `CONTAINED` main, and win the legacy
+    length arm. The escaped form therefore stays on the `QUOTED` arm alone;
+    this side call must grade `NO` and lose in either order.
+    """
+    decorated = f"<task>\n{TASK_WITH_QUOTES}\n</task>"
+    summary_input: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a summarizer ..."),
+        ChatMessageUser(
+            content="Summarize: "
+            + json.dumps({"messages": [{"role": "user", "content": TASK_WITH_QUOTES}]})
+        ),
+        ChatMessageUser(content="be brief"),
+    ]
+    assert '\\"left\\"' in summary_input[1].text
 
-    assert bridge.state.output.completion == "right"
+    for side_call_first in (False, True):
+        bridge = AgentBridge(
+            AgentState(messages=[ChatMessageUser(content=TASK_WITH_QUOTES)])
+        )
+        main: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=decorated)]
+
+        if side_call_first:
+            await track(bridge, summary_input, "A question about reversal")
+            await track(bridge, main, "right")
+        else:
+            await track(bridge, main, "right")
+            await track(bridge, summary_input, "A question about reversal")
+
+        assert bridge.state.output.completion == "right", f"{side_call_first=}"
+        assert bridge._tracked_descends is _Descent.CONTAINED

@@ -540,13 +540,17 @@ def _position_descent(
     reference, since decoration composes with transcript condensation) in
     double quotes, and as `CONTAINED` when it contains the initial text
     inside other content. `initial_text` is pre-stripped (in `__init__`) and
-    the quote *interior* is stripped before comparison: the scaffold quotes
-    the original prompt, so whitespace around the task survives inside the
-    wrapper (`"  task  "`) while trimming by the scaffold removes it —
-    neither may defeat matching. The initial text is also accepted with its
-    embedded double quotes backslash-escaped (see `_escape_double_quotes`):
-    opencode escapes them as it quote-wraps, so a prompt that itself
-    contains `"` round-trips as `"...\"...\"..."`.
+    the message text and quote *interior* are stripped before comparison:
+    surrounding whitespace is a delivery artifact, not a store transform
+    (opencode < 1.14.42 stores a prompt read from stdin as `"\n" + stdin`;
+    the quote wrapper preserves whitespace around the original prompt while
+    trimming removes it), so a whitespace-padded verbatim message still
+    grades `EXACT`. The `QUOTED` arm alone also accepts the initial text
+    with its embedded double quotes backslash-escaped (see
+    `_escape_double_quotes`): opencode escapes only as it quote-wraps, so
+    the escaped interior never appears embedded in other text, and `\"` is
+    also JSON's quote escape — accepting it for containment would let a side
+    call that JSON-serializes the prompt grade `CONTAINED`.
 
     Generic containment requires `_ANCHOR_CONTAINMENT_MIN_CHARS` of initial
     text so a trivially short prompt can't match a side call by coincidence;
@@ -559,22 +563,20 @@ def _position_descent(
         return _Descent.EXACT
     if fp.role != initial.role:
         return _Descent.NO
-    # the renderings of the initial text a scaffold's store may produce (empty
-    # when there is no initial text, so an empty interior can't match)
-    initial_forms = (
-        {initial_text, _escape_double_quotes(initial_text)} if initial_text else set()
-    )
     stripped = message.text.strip()
+    if initial_text and stripped == initial_text:
+        return _Descent.EXACT
     if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
         interior = stripped[1:-1].strip()
-        if (
-            interior == f"{ATTACHMENT_PROTOCOL}{initial.text_hash}"
-            or interior in initial_forms
+        # an empty interior must not match an empty initial text
+        if interior == f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" or (
+            initial_text
+            and interior in (initial_text, _escape_double_quotes(initial_text))
         ):
             return _Descent.QUOTED
     if (
         len(initial_text) >= _ANCHOR_CONTAINMENT_MIN_CHARS
-        and any(form in message.text for form in initial_forms)
+        and initial_text in message.text
     ) or f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" in message.text:
         return _Descent.CONTAINED
     return _Descent.NO
@@ -587,9 +589,9 @@ def _escape_double_quotes(text: str) -> str:
     double quotes and backslash-escapes the double quotes inside it
     (`packages/opencode/src/cli/cmd/run.ts`), so a prompt that contains `"`
     reaches the model — and crosses the bridge — as `"...\"...\"..."`. The
-    quoted and containment anchors accept this rendering alongside the
-    verbatim text; it can't match by coincidence any more than the verbatim
-    text can, and is the identity transform for prompts without quotes.
+    `QUOTED` anchor accepts this rendering alongside the verbatim text; it
+    can't match by coincidence any more than the verbatim text can, and is
+    the identity transform for prompts without quotes.
     """
     return text.replace('"', '\\"')
 
