@@ -44,6 +44,7 @@ from inspect_ai.util._checkpoint._snapshot.registry import (
     KNOWN_STRATEGY_NAMES,
     STRATEGY_ARCHIVE,
     STRATEGY_RESTIC,
+    strategy_storage_subpath,
 )
 from inspect_ai.util._checkpoint._snapshot.types import (
     CommittedSnapshot,
@@ -779,3 +780,30 @@ def test_pin_mirror_case_resolution_failure_has_own_error() -> None:
             {"default": STRATEGY_RESTIC},
             live={"default", "web"},
         )
+
+
+# --- storage subpath: sandbox name containment -------------------------------
+
+
+@pytest.mark.parametrize("sandbox_name", ["default", "web-1", "db_2", "a.b"])
+def test_strategy_storage_subpath_layouts(sandbox_name: str) -> None:
+    assert (
+        strategy_storage_subpath(STRATEGY_RESTIC, sandbox_name)
+        == f"restic/sandboxes/{sandbox_name}"
+    )
+    assert (
+        strategy_storage_subpath(STRATEGY_ARCHIVE, sandbox_name)
+        == f"sandboxes/{sandbox_name}/{STRATEGY_ARCHIVE}"
+    )
+
+
+@pytest.mark.parametrize(
+    "sandbox_name", ["../host", "a/b", "/abs", "..", ".", "", "a\\b", "a\x00"]
+)
+def test_strategy_storage_subpath_rejects_non_component_sandbox_name(
+    sandbox_name: str,
+) -> None:
+    """A sandbox name must be one path component; it can't relocate storage."""
+    for strategy in (STRATEGY_RESTIC, STRATEGY_ARCHIVE):
+        with pytest.raises(ValueError, match="sandbox name"):
+            strategy_storage_subpath(strategy, sandbox_name)

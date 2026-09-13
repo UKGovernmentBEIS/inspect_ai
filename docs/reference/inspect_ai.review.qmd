@@ -1,0 +1,20 @@
+---
+reference: inspect_ai.review
+description: Reviewers and review policies.
+---
+
+## Reviewers
+
+### read_review_policies
+### review
+
+## Types
+
+### Reviewer
+### Review
+### ReviewDecision
+### ReviewPolicy
+
+## Decorator
+
+### reviewer

@@ -90,6 +90,7 @@ from inspect_ai.model._model_config import (
     model_roles_to_model_roles_config,
 )
 from inspect_ai.model._model_data.model_data import ModelCost
+from inspect_ai.review._policy import ReviewPolicy, ReviewPolicyConfig
 from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -137,7 +138,7 @@ from .eval_set_selection import (
 )
 from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
-from .task.resolved import ResolvedTask
+from .task.resolved import ResolvedTask, resolved_task_names
 from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
 from .task.task_source import TaskSource
@@ -252,6 +253,7 @@ def eval_set(
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     score: bool = True,
     score_display: bool | None = None,
@@ -371,6 +373,9 @@ def eval_set(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        review: Tool result review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -388,7 +393,7 @@ def eval_set(
             log files (defaults to "eval", the native high-performance format).
         limit: Limit evaluated samples
             (defaults to all samples).
-        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`).
+        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`); a prefix that names no task in the run is part of the id, and an empty list selects no samples.
         sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
@@ -510,11 +515,13 @@ def eval_set(
         tasks: list[ResolvedTask]
         | list[PreviousTask]
         | list[ResolvedTask | PreviousTask],
+        eval_set_tasks: list[str],
         selection_mode: bool = False,
     ) -> list[EvalLog]:
         # run evals
         results = eval(
             tasks=tasks,
+            eval_set_tasks=eval_set_tasks,
             model=None,  # ResolvedTask/PreviousTask already carries its model
             model_base_url=model_base_url,
             model_args=model_args,
@@ -531,6 +538,7 @@ def eval_set(
             trace=trace,
             display=display,
             approval=approval,
+            review=review,
             notification=notification,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -700,6 +708,7 @@ def eval_set(
         sandbox_prebuilt = _applied(sandbox_prebuilt, overrides.sandbox_prebuilt)
         checkpoint = _applied(checkpoint, overrides.checkpoint)
         approval = _applied(approval, overrides.approval)
+        review = _applied(review, overrides.review)
         retry_on_error = _applied(retry_on_error, overrides.retry_on_error)
         score_on_error = _applied(score_on_error, overrides.score_on_error)
         debug_errors = _applied(debug_errors, overrides.debug_errors)
@@ -749,7 +758,7 @@ def eval_set(
                 "with eval-set capture."
             )
         capture_config = GenerateConfig(**kwargs)
-        capture_tasks, _ = eval_resolve_tasks(
+        capture_tasks, _, _ = eval_resolve_tasks(
             tasks,
             task_args,
             models,
@@ -759,6 +768,7 @@ def eval_set(
             sandbox,
             sample_shuffle,
             notification=notification,
+            review=review,
             input_media_policy="trusted_pre_run",
         )
         if len(capture_tasks) == 0:
@@ -839,7 +849,7 @@ def eval_set(
         selection_config = GenerateConfig(**kwargs)
 
         def resolve_selection_tasks(selection_input: Tasks) -> list[ResolvedTask]:
-            resolved, _ = eval_resolve_tasks(
+            resolved, _, _ = eval_resolve_tasks(
                 selection_input,
                 task_args,
                 models,
@@ -849,6 +859,7 @@ def eval_set(
                 sandbox,
                 sample_shuffle,
                 notification=notification,
+                review=review,
                 input_media_policy="trusted_pre_run",
             )
             if len(resolved) == 0:
@@ -872,12 +883,16 @@ def eval_set(
         # below: the inner eval() runs with eval_set_id set, so it leaves both
         # the keep-alive park and the registry reset to its caller.
         def run_selection(selection_input: Tasks) -> tuple[bool, list[EvalLog]]:
+            resolved = resolve_selection_tasks(selection_input)
             return _run_eval_set_selection(
                 selection,
-                resolve_selection_tasks(selection_input),
+                resolved,
                 selection_args,
                 lambda worker_eval_set_id, worker_tasks: run_eval(
-                    worker_eval_set_id, worker_tasks, selection_mode=True
+                    worker_eval_set_id,
+                    worker_tasks,
+                    resolved_task_names(resolved),
+                    selection_mode=True,
                 ),
                 log_dir,
             )
@@ -997,7 +1012,7 @@ def eval_set(
     def try_eval() -> list[EvalLog]:
         config = GenerateConfig(**kwargs)
         # resolve tasks
-        resolved_tasks, _ = eval_resolve_tasks(
+        resolved_tasks, _, _ = eval_resolve_tasks(
             tasks,
             task_args,
             models,
@@ -1007,6 +1022,7 @@ def eval_set(
             sandbox,
             sample_shuffle,
             notification=notification,
+            review=review,
             input_media_policy="trusted_pre_run",
         )
 
@@ -1117,7 +1133,9 @@ def eval_set(
                 return [log.header for log in success_logs]
 
         # run the tasks
-        run_logs = run_eval(eval_set_id, tasks_to_run)
+        run_logs = run_eval(
+            eval_set_id, tasks_to_run, resolved_task_names(resolved_tasks)
+        )
 
         # if this was the entire list of resolved tasks, return results
         if len(tasks_to_run) == len(all_tasks):
@@ -1786,6 +1804,7 @@ def list_latest_eval_logs(
     # figure out which logs still need work
     complete_logs: list[Log] = []
     incomplete_logs: list[Log] = []
+    task_names = resolved_task_names([task for _, task in all_tasks])
     # epochs_changed is applied per task inside log_samples_complete, where
     # the eval-level epochs can be merged with the task's own reducer
     for log in latest_logs:
@@ -1794,7 +1813,12 @@ def list_latest_eval_logs(
         elif log.header.invalidated:
             incomplete_logs.append(log)
         elif not log_samples_complete(
-            log, all_tasks, epochs=epochs, limit=limit, sample_id=sample_id
+            log,
+            all_tasks,
+            task_names,
+            epochs=epochs,
+            limit=limit,
+            sample_id=sample_id,
         ):
             incomplete_logs.append(log)
         else:
@@ -1806,12 +1830,11 @@ def list_latest_eval_logs(
 def log_samples_complete(
     log: Log,
     all_tasks: list[tuple[str, ResolvedTask]],
+    task_names: list[str],
     epochs: Epochs | None,
     limit: int | tuple[int, int] | None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
 ) -> bool:
-    if not log.header.results:
-        return False
     id = task_identifier(log.header, None)
     task = next((task for tid, task in all_tasks if tid == id), None)
     if not task:
@@ -1824,8 +1847,17 @@ def log_samples_complete(
         return False
     epoch_count = epochs.epochs
 
-    count = samples_selected(task.task.dataset, limit, sample_id, task.task.name)
+    count = samples_selected(
+        task.task.dataset, limit, sample_id, task.task.name, task_names
+    )
     planned = count * epoch_count
+
+    # a task no `task:id` selector named ran no samples, so its success log
+    # holds none (and no results): nothing is outstanding
+    if planned == 0:
+        return True
+    if not log.header.results:
+        return False
 
     # a graceful cancel/drain abandons queued samples but still finishes with
     # a success log whose total_samples records the *planned* count — such

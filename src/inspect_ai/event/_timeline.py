@@ -1369,10 +1369,10 @@ def timeline_filter(
 ) -> Timeline:
     """Return a new timeline with only spans matching the predicate.
 
-    Recursively walks the span tree, keeping ``TimelineSpan`` items
-    where ``predicate(span)`` returns ``True``. Non-matching spans and
-    their entire subtrees are pruned. ``TimelineEvent`` items are always
-    kept (they belong to the parent span).
+    Recursively walks span content and branches, keeping ``TimelineSpan``
+    items where ``predicate(span)`` returns ``True``. Non-matching spans and
+    their entire subtrees are pruned. ``TimelineEvent`` items are always kept
+    because they belong to the parent span.
 
     Use this to pre-filter a timeline before passing it to
     ``timeline_messages()``.
@@ -1396,7 +1396,7 @@ def _filter_span_by_predicate(
     span: TimelineSpan,
     predicate: Callable[[TimelineSpan], bool],
 ) -> TimelineSpan:
-    """Recursively filter a span's content, pruning non-matching child spans."""
+    """Recursively filter a span's content and branches."""
     filtered_content: list[TimelineEvent | TimelineSpan] = []
     for item in span.content:
         if isinstance(item, TimelineSpan):
@@ -1404,4 +1404,12 @@ def _filter_span_by_predicate(
                 filtered_content.append(_filter_span_by_predicate(item, predicate))
         else:
             filtered_content.append(item)
-    return span.model_copy(update={"content": filtered_content})
+
+    filtered_branches: list[TimelineSpan] = []
+    for branch in span.branches:
+        if predicate(branch):
+            filtered_branches.append(_filter_span_by_predicate(branch, predicate))
+
+    return span.model_copy(
+        update={"content": filtered_content, "branches": filtered_branches}
+    )

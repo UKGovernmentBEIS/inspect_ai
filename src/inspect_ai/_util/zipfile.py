@@ -107,6 +107,10 @@ class _MultiFrameZstdDecompressObj:
     ``self._compress_left <= 0`` (all compressed bytes fed).  Meanwhile,
     ``decompress`` buffers leftover bytes from a completed frame and feeds them
     into the next inner decompressobj.
+
+    Since CPython gh-156002, ``_read1`` calls ``decompress(data, max_length)``
+    and reads more compressed bytes only while ``needs_input`` is True (draining
+    with ``decompress(b"")`` otherwise); both are provided here.
     """
 
     def __init__(self) -> None:
@@ -116,7 +120,10 @@ class _MultiFrameZstdDecompressObj:
         self._obj: zstandard.ZstdDecompressionObj = self._dctx.decompressobj()
         self._pending: bytes = b""
 
-    def decompress(self, data: bytes) -> bytes:
+    def decompress(self, data: bytes, max_length: int = -1) -> bytes:
+        # max_length is accepted but not enforced: the zstandard decompressobj has
+        # no output bound, so withholding bytes here would only copy an expansion
+        # that is already allocated. ZipExtFile buffers oversize returns anyway.
         self._pending += data
         out = b""
         while self._pending:
@@ -139,6 +146,11 @@ class _MultiFrameZstdDecompressObj:
     def eof(self) -> bool:
         # Always False: let compress_left drive the outer EOF check.
         return False
+
+    @property
+    def needs_input(self) -> bool:
+        # decompress() never leaves input or output pending; nothing to drain.
+        return True
 
 
 def _install_multiframe_patches() -> None:
