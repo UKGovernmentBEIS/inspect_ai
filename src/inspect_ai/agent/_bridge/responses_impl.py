@@ -1295,6 +1295,7 @@ def responses_output_items_from_assistant_message(
                         "call_id": tool_call.id,
                         "name": tool_call.function,
                         "input": next(iter(tool_call.arguments.values())),
+                        "namespace": (tool_namespaces or {}).get(tool_call.function),
                         # returned by the API (and required by the AI SDK) but
                         # not declared on the SDK type; kept as an extra field
                         "status": "completed",
