@@ -48,6 +48,7 @@
 - Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
 - Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
 - Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
+- Logging: `--log-level info` no longer prints a line for every OpenAI and Anthropic HTTP request.
 - Scoring: `math()` now raises an error when no reference answer can be parsed instead of silently excluding the sample from metrics.
 - Scoring: `choice()` now raises an error for samples without answer options instead of silently scoring them incorrect.
 - Bugfix: Anthropic prompt caching no longer fails every request after a turn served by a fallback model (`fallback_models`) with a 400 error.
