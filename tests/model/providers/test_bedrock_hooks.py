@@ -25,7 +25,7 @@ from inspect_ai.model._providers.util.hooks import (  # noqa: E402
 
 def _make_hooks() -> ConverseHooks:
     """Build a ConverseHooks instance without registering with a real session."""
-    # The constructor expects a session-like object with `_session.register`,
+    # The constructor expects a session-like object with `register`,
     # but we bypass it for unit testing.
     hooks = ConverseHooks.__new__(ConverseHooks)
     # run the base initializer (rather than ConverseHooks.__init__, which
