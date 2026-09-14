@@ -267,6 +267,26 @@ def test_multiline_shows_default_and_sentinel_hint(
     assert f"'{MULTILINE_END_TOKEN}'" in out
 
 
+@pytest.mark.parametrize(
+    "typed,expected",
+    [
+        # paste without trailing newline: Enter submits the last line
+        (["one", "two", EOFError()], "one\ntwo"),
+        # paste with trailing newline: Enter yields a blank line, dropped
+        (["one", "two", "", EOFError()], "one\ntwo"),
+        # inner blank lines are content
+        (["one", "", "two", "", EOFError()], "one\n\ntwo"),
+    ],
+)
+def test_multiline_tty_drops_the_blank_line_from_the_closing_enter(
+    monkeypatch: pytest.MonkeyPatch, typed: list[str | EOFError], expected: str
+) -> None:
+    _patch_tty(monkeypatch, True)
+    _patch_input_lines(monkeypatch, typed)
+    result = _ask_schema("paste", _multiline_schema(), _silent_console())
+    assert result == InputResult(outcome="accepted", content={"output": expected})
+
+
 def test_multiline_tty_hint_names_ctrl_d_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1159,9 +1179,11 @@ def test_pty_plain_display_paste_with_dot_line_ends_at_ctrl_d() -> None:
         wait_for(b"Files")
         # CR line endings, as a terminal sends them; no bracketed paste
         # wrappers, since the reader doesn't enable the mode.
-        os.write(master, b"first file\r . \rsecond file\r")
+        os.write(master, b"first file\r . \rsecond file")
         wait_for(b"second file")  # echoed by the tty
-        os.write(master, b"\x04")  # Ctrl-D: end of this answer only
+        # No trailing newline: the last line is still in readline's buffer,
+        # where Ctrl-D is delete-char. Enter submits it, then Ctrl-D ends.
+        os.write(master, b"\r\x04")
         wait_for(b"Name")
         os.write(master, b"alice\r")
         wait_for(b"RESULT:")

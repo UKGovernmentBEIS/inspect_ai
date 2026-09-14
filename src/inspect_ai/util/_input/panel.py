@@ -111,13 +111,6 @@ class QuestionInputPanel(InputPanel):
             actions.question = (question_id, pending)
             if action == "add":
                 self.activate()
-                # Focus the first form field rather than the Submit button so
-                # the user can immediately interact with the form. If we left
-                # focus on Submit, pressing Space (e.g. to toggle a
-                # SelectionList item) would activate the button and submit an
-                # empty form. Tab order naturally carries the user from the
-                # last field to Submit / Decline.
-                body.focus_first()
             self.visible = True
         else:
             self.title = self.DEFAULT_TITLE
@@ -187,6 +180,12 @@ class QuestionRequestBody(Vertical):
             form = ElicitationForm(request.request.schema)
             await self.mount(form)
             self._mounted = (question_id, form)
+            # Focus the first field, not Submit (Space there would submit an
+            # empty form). Has to happen here: the host's activate() has
+            # already parked focus on the tab bar, and this watcher runs
+            # after it, so focusing from on_questions_changed is a no-op.
+            # Deferred a refresh so the field is laid out (as inline.py).
+            self.call_after_refresh(form.focus_first)
 
     def form(self) -> ElicitationForm | None:
         return self._mounted[1] if self._mounted is not None else None

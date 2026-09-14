@@ -531,6 +531,31 @@ def _post_pending(manager: HumanQuestionManager, request: InputRequest) -> str:
 
 @skip_if_trio
 @pytest.mark.anyio
+async def test_panel_focuses_first_field_when_question_arrives() -> None:
+    """Keys and pastes must land in the form, not on the host's tab bar.
+
+    The form is mounted by an async reactive watcher, so focusing from
+    `on_questions_changed` is too early; a paste into an unfocused panel
+    was silently dropped (seen with `--display full`).
+    """
+    init_human_question_manager()
+    from inspect_ai.util._input.manager import human_question_manager
+
+    app = _PanelApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.set_focus(None)
+        human_question_manager().request_question(_request_string())
+        await pilot.pause()
+        await pilot.pause()
+
+        form = app.panel.query_one(QuestionRequestBody).form()
+        assert form is not None
+        assert app.focused is form.query_one(Input)
+
+
+@skip_if_trio
+@pytest.mark.anyio
 async def test_panel_submit_resolves_with_accepted() -> None:
     import anyio
 

@@ -269,9 +269,22 @@ def _ask_multiline(
     # has no other in-band way to end the first answer; a dot-only line
     # in the data terminates early there, acceptable when the writer
     # controls the bytes.
+    #
+    # "Enter, then Ctrl-D": input() goes through GNU readline here
+    # (util/_console.py imports it), and CPython leaves readline's
+    # bracketed paste off, so a paste streams in line by line and its
+    # last line sits unsubmitted in the buffer when it had no trailing
+    # newline. Ctrl-D on a non-empty readline buffer is delete-char, a
+    # no-op at end of line, so the answer would look hung. The Enter
+    # submits that line; when the buffer was already empty it yields
+    # one blank line, dropped below.
     tty = sys.stdin.isatty()
-    ending = "Ctrl-D" if tty else f"a line containing only '{MULTILINE_END_TOKEN}'"
-    console.print(f"[dim](Multi-line: end with {ending}.)[/dim]")
+    ending = (
+        "Enter, then Ctrl-D"
+        if tty
+        else f"a line containing only '{MULTILINE_END_TOKEN}'"
+    )
+    console.print(f"[dim](Multi-line: finish with {ending}.)[/dim]")
     while True:
         default_hint = (
             f" [dim](default: {escape(prop.default)})[/dim]" if prop.default else ""
@@ -294,6 +307,8 @@ def _ask_multiline(
             if not tty and line.strip() == MULTILINE_END_TOKEN:
                 break
             lines.append(line)
+        if tty and len(lines) > 1 and lines[-1] == "":
+            lines.pop()
         value = "\n".join(lines)
         if not value and prop.default is not None:
             value = prop.default
