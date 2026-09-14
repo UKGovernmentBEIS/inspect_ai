@@ -569,6 +569,67 @@ async def test_panel_submit_resolves_with_accepted() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
+async def test_panel_rapid_double_submit_does_not_leak_answers() -> None:
+    """A stale second submit can't answer the next queued question.
+
+    Completing a question advances the queue head synchronously while
+    the form remount is deferred, so a rapid second Enter (keyboard
+    auto-repeat) used to dispatch against the NEXT question's id with
+    the previous question's still-mounted form — answering it with the
+    wrong values, unseen by the operator.
+    """
+    import anyio
+
+    from inspect_ai._util.textual.form import ElicitationForm
+
+    init_human_question_manager()
+    from inspect_ai.util._input.manager import human_question_manager
+
+    manager = human_question_manager()
+    results: dict[str, InputResult] = {}
+
+    async def wait(qid: str) -> None:
+        results[qid] = await manager.wait_for_question(qid)
+
+    app = _PanelApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        q1 = manager.request_question(_request_string())
+        q2 = manager.request_question(_request_string())
+        await pilot.pause()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(wait, q1)
+            await anyio.sleep(0)
+
+            body = app.panel.query_one(QuestionRequestBody)
+            mounted = body.mounted()
+            assert mounted is not None and mounted[0] == q1
+            form = mounted[1]
+            _set_input_value(form.query_one(Input), "one")
+
+            # Two back-to-back submits, delivered before the deferred
+            # remount runs — what auto-repeat Enter produces.
+            app.panel.on_elicitation_form_submit_requested(
+                ElicitationForm.SubmitRequested(form)
+            )
+            app.panel.on_elicitation_form_submit_requested(
+                ElicitationForm.SubmitRequested(form)
+            )
+            await pilot.pause()
+
+        # Q1 answered exactly once; Q2 untouched and remounted fresh.
+        assert results == {q1: InputResult(outcome="accepted", content={"name": "one"})}
+        assert q2 in dict(manager.question_requests())
+        remounted = app.panel.query_one(QuestionRequestBody).mounted()
+        assert remounted is not None and remounted[0] == q2
+
+        # Resolve Q2 so nothing dangles.
+        manager.complete_question(q2, InputResult(outcome="declined"))
+
+
+@skip_if_trio
+@pytest.mark.anyio
 async def test_panel_decline_resolves_with_declined() -> None:
     import anyio
 

@@ -214,8 +214,14 @@ class RichTaskScreen(TaskScreen):
         if transient is None:
             transient = display_type() != "conversation"
 
-        # clear live task status and transient status
-        self.live.update("", refresh=True)
+        # Stop (not just clear) the live task status: `_update_display`
+        # gates on `live.is_started`, and the handlers that run inside this
+        # context can now await (the inline Textual question app), which
+        # would otherwise let the once-a-second repaint scribble over the
+        # form. The Live is transient so stop() also erases its content;
+        # the finally below restarts it when `transient` says to.
+        if self.live.is_started:
+            self.live.stop()
         self.status.stop()
 
         # show cursor for input

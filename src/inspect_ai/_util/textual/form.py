@@ -61,7 +61,7 @@ _REQUIRED_ERROR = "This field is required."
 
 
 class FormTextArea(TextArea):
-    """Multiline string control where Enter accepts the answer.
+    r"""Multiline string control where Enter accepts the answer.
 
     Enter posts :class:`Submitted` (the form dispatches it like
     :class:`Input.Submitted`: advance to the next empty required field or
@@ -70,13 +70,21 @@ class FormTextArea(TextArea):
     single :class:`~textual.events.Paste`, so pasted newlines never
     submit or spill into later fields.
 
-    Shift+Enter is only distinguishable from Enter on terminals that
-    speak the kitty keyboard protocol (Textual requests it); elsewhere it
-    arrives as plain Enter and submits. Ctrl+J is a literal LF and works
-    everywhere, so hints should lead with it.
+    Shift+Enter and Alt+Enter are only distinguishable from Enter on
+    terminals that speak the kitty keyboard protocol (Textual requests
+    it); elsewhere they arrive as plain Enter and submit. Ctrl+J is a
+    literal LF and works everywhere, so the hint leads with it. Unlike
+    the chat composers (`ComposerTextArea`, `InterjectTextArea`) this
+    deliberately omits their trailing-backslash+Enter newline heuristic:
+    form answers are data, and eating a legitimate trailing ``\`` (e.g.
+    a Windows path) is worse here than in a chat draft.
     """
 
     _NEWLINE_KEYS = ("shift+enter", "ctrl+j", "alt+enter")
+
+    # Rendered under every multiline field; kept beside _NEWLINE_KEYS so
+    # the advertised chords can't drift from the handled ones.
+    HINT = "Enter submits · Ctrl+J or Shift+Enter for a new line"
 
     class Submitted(Message):
         """Posted when the user presses Enter in the text area."""
@@ -322,6 +330,20 @@ class ElicitationForm(VerticalScroll):
             return None, errors
         return values, {}
 
+    def collect_or_show_errors(self) -> dict[str, Any] | None:
+        """Validate the form; return values, or surface errors and return `None`.
+
+        The submit half shared by every host's Submit button and the
+        Enter dispatch. Note `{}` (all optional fields blank) is a valid
+        success value — callers must test `is not None`, not truthiness.
+        """
+        self.clear_errors()
+        values, errors = self.collect()
+        if errors:
+            self.show_errors(errors)
+            return None
+        return values
+
     def clear_errors(self) -> None:
         for row in self._fields:
             row.clear_error()
@@ -421,10 +443,7 @@ class FieldRow(Vertical):
                 # Plain TextArea keeps tab_behavior="focus" so Tab still
                 # leaves the field; TextArea.code_editor() would indent.
                 yield FormTextArea(prop.default or "")
-                yield Static(
-                    "Enter submits · Ctrl+J or Shift+Enter for a new line",
-                    classes="field-hint",
-                )
+                yield Static(FormTextArea.HINT, classes="field-hint")
             else:
                 placeholder = prop.format or ""
                 yield Input(

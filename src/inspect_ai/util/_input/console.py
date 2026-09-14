@@ -1,8 +1,10 @@
 import sys
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+import anyio
 import rich
 from acp.schema import (
     ElicitationBooleanPropertySchema,
@@ -35,6 +37,14 @@ from ._validate import (
 DECLINE_TOKEN = ":decline"
 MULTILINE_END_TOKEN = "."
 
+# One console question at a time: two inline Textual apps would both put
+# the tty in raw mode and race stdin from separate reader threads (the old
+# blocking line reader serialized concurrent samples by accident, by
+# freezing the event loop). Safe to reuse across successive event loops:
+# anyio.Lock binds loop state only while held/waited, and it is always
+# released before an eval's loop exits.
+_console_lock = anyio.Lock()
+
 
 class _Declined(Exception):
     """User typed :decline at a prompt."""
@@ -48,26 +58,54 @@ async def console_handler(request: InputRequest) -> InputResult:
 
     On an interactive terminal, renders the request as an inline Textual
     form (see `InlineQuestionApp`) so pasted multiline answers stay
-    content. With non-tty stdin/stdout (pipes, scripted runs) — where raw
-    terminal input is unavailable — walks the schema property-by-property
-    using Rich prompts instead. Returns `accepted` with structured
-    content on success, `declined` if the user declines, or `cancelled`
-    on Ctrl+C / `KeyboardInterrupt`.
+    content. Where the Textual app can't run (see `_use_inline_app`) —
+    including non-tty stdin/stdout (pipes, scripted runs) — walks the
+    schema property-by-property using Rich prompts instead. Returns
+    `accepted` with structured content on success, `declined` if the
+    user declines, or `cancelled` on Ctrl+C / `KeyboardInterrupt`.
     """
     try:
-        if sys.stdin.isatty() and sys.stdout.isatty():
-            from .inline import InlineQuestionApp
+        async with _console_lock:
+            if _use_inline_app():
+                from .inline import InlineQuestionApp
 
-            with _ask_console():
-                result = await InlineQuestionApp(request).run_async(inline=True)
-                # None: the app exited without a result (e.g. ctrl+q quit).
-                return (
-                    result if result is not None else InputResult(outcome="cancelled")
-                )
-        with _ask_console() as console:
-            return _ask_schema(request.message, request.schema, console)
+                with _ask_console():
+                    result = await InlineQuestionApp(request).run_async(inline=True)
+                    # None: the app exited without a result (e.g. ctrl+q).
+                    return (
+                        result
+                        if result is not None
+                        else InputResult(outcome="cancelled")
+                    )
+            with _ask_console() as console:
+                return _ask_schema(request.message, request.schema, console)
     except KeyboardInterrupt:
         return InputResult(outcome="cancelled")
+
+
+def _use_inline_app() -> bool:
+    """`True` when the inline Textual app can own the terminal.
+
+    Textual is asyncio-only and installs signal handlers, so trio-backend
+    and background-thread evals fall back to the Rich line reader (the
+    same reasons `util/_display.py` throttles the task display). Its
+    drivers render to `sys.__stderr__` and read `sys.__stdin__`, so
+    stderr must be a tty too (with `2>err.log` the form would be
+    invisible while the terminal sits in raw mode). TERM=dumb terminals
+    (e.g. Emacs M-x shell) can't render the escape sequences at all —
+    Rich degrades there, Textual doesn't.
+    """
+    from inspect_ai._util._async import current_async_backend
+
+    return (
+        sys.stdin.isatty()
+        and sys.stdout.isatty()
+        and sys.__stderr__ is not None
+        and sys.__stderr__.isatty()
+        and threading.current_thread() is threading.main_thread()
+        and current_async_backend() != "trio"
+        and not rich.get_console().is_dumb_terminal
+    )
 
 
 @contextmanager
@@ -233,7 +271,7 @@ def _ask_multiline(
 
         accepted, error = validate_string(prop, value)
         if error is not None:
-            console.print(f"[red]{error}[/red]")
+            console.print(f"[red]{error}[/red]", soft_wrap=True)
             continue
         return accepted
 

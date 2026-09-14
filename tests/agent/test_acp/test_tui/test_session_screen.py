@@ -1168,6 +1168,43 @@ async def test_check_action_gates_prompt_letter_outside_approval(
 
 @skip_if_trio
 @pytest.mark.anyio
+async def test_check_action_releases_newline_keys_while_card_mounted(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Ctrl+J / Shift+Enter reach the elicitation form while a card is mounted.
+
+    The screen's ``newline`` / ``submit`` bindings are ``priority=True``,
+    so unless ``check_action`` closes them they consume the keys before
+    the focused widget sees them — and ``action_newline`` no-ops while a
+    request card is mounted, leaving the form's multiline TextArea unable
+    to insert a newline with the very chords its hint advertises.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # Interactive session, no card: composer owns the chords.
+        assert app.screen.check_action("newline", ()) is True
+        assert app.screen.check_action("submit", ()) is True
+
+        _seed_pending_elicitation(app.screen.state)
+        await pilot.pause()
+
+        # Card mounted: bindings must stand down so the keys forward to
+        # the focused form control.
+        assert app.screen.check_action("newline", ()) is False
+        assert app.screen.check_action("submit", ()) is False
+
+
+@skip_if_trio
+@pytest.mark.anyio
 async def test_composer_row_hidden_while_approval_card_mounted(
     sample_rows: list[SessionRow],
 ) -> None:

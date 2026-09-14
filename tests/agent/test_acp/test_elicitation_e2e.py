@@ -171,11 +171,15 @@ class _ElicitationClientRpcStub:
 
 
 def _trivial_schema() -> ElicitationSchema:
+    # One property with the multiline _meta flag and one plain optional
+    # string, so the socket round trip covers both wire shapes (the
+    # no-meta property must serialize with no "_meta" key at all).
     return ElicitationSchema(
         properties={
             "answer": ElicitationStringPropertySchema(
                 type="string", title="Answer", field_meta={MULTILINE_META_KEY: True}
-            )
+            ),
+            "note": ElicitationStringPropertySchema(type="string", title="Note"),
         },
         required=["answer"],
     )
@@ -279,6 +283,8 @@ async def test_elicitation_over_real_socket_accept_round_trip(
     assert params["requestedSchema"]["properties"]["answer"]["_meta"] == {
         MULTILINE_META_KEY: True
     }
+    # The no-meta property serializes without an "_meta" key (not null).
+    assert "_meta" not in params["requestedSchema"]["properties"]["note"]
 
 
 @skip_if_trio

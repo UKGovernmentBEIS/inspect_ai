@@ -202,13 +202,7 @@ class _ElicitationCard(InlineRequestCard):
         form = self._form
         if form is None:  # defensive — compose hasn't run yet
             return
-        values, errors = form.collect()
-        if errors:
-            form.show_errors(errors)
+        values = form.collect_or_show_errors()
+        if values is None:
             return
-        form.clear_errors()
-        # values is non-None when errors is empty (per ElicitationForm.collect
-        # contract); pass {} rather than None for type safety.
-        self.post_message(
-            ElicitationDecisionRequested(action="accept", content=values or {})
-        )
+        self.post_message(ElicitationDecisionRequested(action="accept", content=values))

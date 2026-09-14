@@ -109,11 +109,8 @@ class InlineQuestionApp(App[InputResult]):
             self.exit(InputResult(outcome="declined"))
 
     def _submit(self) -> None:
-        form = self.query_one(ElicitationForm)
-        form.clear_errors()
-        values, errors = form.collect()
-        if errors:
-            form.show_errors(errors)
+        values = self.query_one(ElicitationForm).collect_or_show_errors()
+        if values is None:
             return
         self.exit(InputResult(outcome="accepted", content=values))
 

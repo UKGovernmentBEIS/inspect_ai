@@ -744,11 +744,23 @@ async def test_inline_submit_empty_required_shows_error() -> None:
 # -- console_handler dispatch: tty → inline app, non-tty → line reader ----
 
 
+class _FakeTty:
+    """Stands in for sys.__stderr__, whose isatty can't be monkeypatched."""
+
+    def __init__(self, interactive: bool) -> None:
+        self._interactive = interactive
+
+    def isatty(self) -> bool:
+        return self._interactive
+
+
 def _patch_tty(monkeypatch: pytest.MonkeyPatch, interactive: bool) -> None:
     monkeypatch.setattr(sys.stdin, "isatty", lambda: interactive)
     monkeypatch.setattr(sys.stdout, "isatty", lambda: interactive)
+    monkeypatch.setattr(sys, "__stderr__", _FakeTty(interactive))
 
 
+@skip_if_trio  # under trio the gate correctly refuses the app (tested above)
 async def test_console_handler_tty_runs_inline_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -767,6 +779,7 @@ async def test_console_handler_tty_runs_inline_app(
     assert run_kwargs.get("inline") is True
 
 
+@skip_if_trio  # under trio the gate correctly refuses the app (tested above)
 async def test_console_handler_tty_maps_no_result_to_cancelled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -792,6 +805,80 @@ async def test_console_handler_non_tty_uses_line_reader(
     )
     result = await console_handler(InputRequest(message="hi", schema=schema))
     assert result == InputResult(outcome="accepted", content={"name": "alice"})
+
+
+async def test_console_handler_trio_uses_line_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Textual is asyncio-only: under trio the tty gate must not select it.
+
+    Runs under both backends (the trio variant needs --runtrio): on
+    asyncio the app path is taken, on trio the line reader — either way
+    the handler must not crash and must return the expected result.
+    """
+    import sniffio
+
+    _patch_tty(monkeypatch, True)
+
+    if sniffio.current_async_library() == "trio":
+        # Would raise RuntimeError('no running event loop') if the gate
+        # let the Textual app run.
+        _patch_prompt(monkeypatch, ["alice"])
+    else:
+
+        async def fake_run_async(self: InlineQuestionApp, **kwargs: Any) -> InputResult:
+            return InputResult(outcome="accepted", content={"name": "alice"})
+
+        monkeypatch.setattr(InlineQuestionApp, "run_async", fake_run_async)
+
+    schema = ElicitationSchema(
+        properties={"name": ElicitationStringPropertySchema(type="string")},
+        required=["name"],
+    )
+    result = await console_handler(InputRequest(message="hi", schema=schema))
+    assert result == InputResult(outcome="accepted", content={"name": "alice"})
+
+
+def test_use_inline_app_requires_stderr_tty(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The Textual driver renders the UI to sys.__stderr__; with stderr
+    # redirected the form would be invisible while the tty sits in raw mode.
+    _patch_tty(monkeypatch, True)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    assert console_module._use_inline_app()
+    monkeypatch.setattr(sys, "__stderr__", _FakeTty(False))
+    assert not console_module._use_inline_app()
+    monkeypatch.setattr(sys, "__stderr__", None)
+    assert not console_module._use_inline_app()
+
+
+def test_use_inline_app_rejects_dumb_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # TERM=dumb (e.g. Emacs M-x shell): isatty is True but escape
+    # sequences render as garbage; Rich prompts degrade gracefully there.
+    import rich
+
+    _patch_tty(monkeypatch, True)
+    monkeypatch.setenv("TERM", "dumb")
+    monkeypatch.setattr(rich.get_console(), "_force_terminal", True)
+    assert not console_module._use_inline_app()
+
+
+def test_use_inline_app_requires_main_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Textual's driver installs signal handlers, which raises off the
+    # main thread (same reason util/_display.py throttles to plain).
+    import threading
+
+    _patch_tty(monkeypatch, True)
+    result: list[bool] = []
+    thread = threading.Thread(
+        target=lambda: result.append(console_module._use_inline_app())
+    )
+    thread.start()
+    thread.join()
+    assert result == [False]
 
 
 # -- real PTY end-to-end ---------------------------------------------------
@@ -877,18 +964,24 @@ def test_pty_paste_with_dot_lines_and_typed_newline() -> None:
 
     try:
         wait_for(b"Enter submits")  # form rendered, bracketed paste enabled
-        pump(1.0)
+        pump(0.5)
         os.write(master, b"\x1b[200~first file\r . \rsecond file\x1b[201~")
-        pump(1.0)
+        wait_for(b"second file")  # paste rendered in the TextArea
         os.write(master, b"\ntail")  # Ctrl+J: newline as content, not submit
-        pump(1.0)
+        wait_for(b"tail")
         os.write(master, b"\r")  # Enter: accept files, advance to Name
-        pump(2.0)  # focus advance rides a posted message; give it a beat
+        # The focus advance rides a posted message and has no greppable
+        # render marker (it's only a style repaint), so a fixed settle is
+        # the one unavoidable sleep here.
+        pump(2.0)
         os.write(master, b"alice")
-        pump(1.0)
+        wait_for(b"alice")  # typed into the (focused) Name input
         os.write(master, b"\r")  # Enter: submit
         wait_for(b"RESULT:")
-        pump(1.0)
+        # The JSON tail may arrive in a later chunk than "RESULT:".
+        end = time.time() + 10
+        while not re.search(rb"RESULT:\{.*\}", buf) and time.time() < end:
+            pump(0.25)
     finally:
         try:
             os.close(master)
