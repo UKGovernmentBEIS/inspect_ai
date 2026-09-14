@@ -1,7 +1,10 @@
-from dataclasses import dataclass
-from typing import Any, Literal
+from __future__ import annotations
 
-from acp.schema import ElicitationSchema
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from acp.schema import ElicitationSchema
 
 InputOutcome = Literal["accepted", "declined", "cancelled"]
 """Outcome of an `ask_user` interaction.

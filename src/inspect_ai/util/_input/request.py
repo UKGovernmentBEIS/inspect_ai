@@ -1,7 +1,7 @@
+from __future__ import annotations
+
 from logging import getLogger
 from typing import TYPE_CHECKING, Literal, cast
-
-from acp.schema import ElicitationSchema
 
 from inspect_ai.util._notify import notify
 
@@ -9,6 +9,8 @@ from . import builtin
 from ._types import InputRequest, InputResult
 
 if TYPE_CHECKING:
+    from acp.schema import ElicitationSchema
+
     from inspect_ai.event._input import InputField
 
 logger = getLogger(__name__)
