@@ -1,3 +1,4 @@
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -45,11 +46,24 @@ _OMIT = object()  # sentinel: optional property left blank
 async def console_handler(request: InputRequest) -> InputResult:
     """Built-in console handler for `request_input`.
 
-    Walks the schema property-by-property using Rich prompts. Returns
-    `accepted` with structured content on success, `declined` if the
-    user types `:decline`, or `cancelled` on `KeyboardInterrupt`.
+    On an interactive terminal, renders the request as an inline Textual
+    form (see `InlineQuestionApp`) so pasted multiline answers stay
+    content. With non-tty stdin/stdout (pipes, scripted runs) — where raw
+    terminal input is unavailable — walks the schema property-by-property
+    using Rich prompts instead. Returns `accepted` with structured
+    content on success, `declined` if the user declines, or `cancelled`
+    on Ctrl+C / `KeyboardInterrupt`.
     """
     try:
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            from .inline import InlineQuestionApp
+
+            with _ask_console():
+                result = await InlineQuestionApp(request).run_async(inline=True)
+                # None: the app exited without a result (e.g. ctrl+q quit).
+                return (
+                    result if result is not None else InputResult(outcome="cancelled")
+                )
         with _ask_console() as console:
             return _ask_schema(request.message, request.schema, console)
     except KeyboardInterrupt:
@@ -177,9 +191,10 @@ def _ask_multiline(
     required: bool,
     console: Console,
 ) -> Any:
-    # A multi-line paste through input() only returns the first line; the
-    # rest is consumed by the next prompt. Bracketed paste isn't an option
-    # either (uv's CPython links libedit), so read line by line to a sentinel.
+    # Non-tty stdin only (interactive terminals get the inline Textual
+    # form): read line by line to a sentinel. A dot-only line in the data
+    # still terminates early — unavoidable with in-band framing, and
+    # acceptable for scripted input where the writer controls the bytes.
     console.print(
         f"[dim](Multi-line: end with a line containing only "
         f"'{MULTILINE_END_TOKEN}', or Ctrl-D.)[/dim]"

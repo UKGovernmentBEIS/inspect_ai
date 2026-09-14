@@ -444,6 +444,8 @@ async def test_form_multiline_string_renders_text_area() -> None:
         assert len(form.query(Select)) == 1  # enum wins over the meta flag
         text_area = form.query_one(TextArea)
         assert text_area.tab_behavior == "focus"
+        # Keyboard instructions render under the multiline control.
+        assert form.query(".field-hint")
 
         form.focus_first()
         await pilot.pause()
@@ -466,8 +468,13 @@ async def test_form_multiline_string_renders_text_area() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_form_multiline_enter_inserts_newline_without_submit() -> None:
-    """Enter in a TextArea adds a line and emits no ``Input.Submitted``."""
+async def test_form_multiline_enter_submits_newline_keys_insert() -> None:
+    """Enter in a TextArea requests submit; Ctrl+J / Shift+Enter insert a line.
+
+    Pins the paste-safe key scheme: no in-band terminator exists, so a
+    dot-only line can never end the answer, and typed Enter is the only
+    way to accept it.
+    """
     schema = ElicitationSchema(
         properties={
             "notes": ElicitationStringPropertySchema(
@@ -479,14 +486,16 @@ async def test_form_multiline_enter_inserts_newline_without_submit() -> None:
         },
         required=["notes"],
     )
-    submitted: list[Input.Submitted] = []
+    submit_requests: list[ElicitationForm.SubmitRequested] = []
 
     class FormApp(App[None]):
         def compose(self) -> ComposeResult:
             yield ElicitationForm(schema)
 
-        def on_input_submitted(self, event: Input.Submitted) -> None:
-            submitted.append(event)
+        def on_elicitation_form_submit_requested(
+            self, event: ElicitationForm.SubmitRequested
+        ) -> None:
+            submit_requests.append(event)
 
     app = FormApp()
     async with app.run_test() as pilot:
@@ -494,12 +503,21 @@ async def test_form_multiline_enter_inserts_newline_without_submit() -> None:
         form = app.query_one(ElicitationForm)
         form.focus_first()
         await pilot.pause()
-        await pilot.press("end", "enter", "b")
+
+        # Newline chords insert without submitting.
+        await pilot.press("end", "ctrl+j", "b", "shift+enter", "c")
         await pilot.pause()
         values, errors = form.collect()
         assert errors == {}
-        assert values == {"notes": "a\nb"}
-        assert submitted == []
+        assert values == {"notes": "a\nb\nc"}
+        assert submit_requests == []
+
+        # Enter accepts: submit requested, no newline added.
+        await pilot.press("enter")
+        await pilot.pause()
+        values, errors = form.collect()
+        assert values == {"notes": "a\nb\nc"}
+        assert len(submit_requests) == 1
 
 
 # ---------------------------------------------------------------------------

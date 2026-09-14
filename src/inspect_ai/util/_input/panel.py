@@ -82,6 +82,17 @@ class QuestionInputPanel(InputPanel):
         if self._unsubscribe is not None:
             self._unsubscribe()
 
+    def on_elicitation_form_submit_requested(
+        self, event: ElicitationForm.SubmitRequested
+    ) -> None:
+        """Enter dispatch exhausted the form's empty required fields.
+
+        Same path as clicking the Submit button; validation errors
+        short-circuit and surface inline on the form.
+        """
+        event.stop()
+        self.query_one(QuestionRequestActions).submit_current()
+
     def on_questions_changed(self, action: Literal["add", "remove"]) -> None:
         heading = self.query_one(QuestionRequestHeading)
         body = self.query_one(QuestionRequestBody)
@@ -204,6 +215,11 @@ class QuestionRequestActions(Horizontal):
     def activate(self) -> None:
         submit = self.query_one(f"#{self.SUBMIT_QUESTION}")
         submit.focus()
+
+    def submit_current(self) -> None:
+        """Submit the active question (Enter dispatch and Submit button)."""
+        if self.question is not None:
+            self._handle_submit(self.question[0])
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if self.question is None:

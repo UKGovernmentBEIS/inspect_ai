@@ -20,9 +20,11 @@ from acp.schema import (
     ElicitationStringPropertySchema,
 )
 from rich.segment import Segment
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.content import Content
+from textual.message import Message
 from textual.strip import Strip
 from textual.style import Style
 from textual.widget import Widget
@@ -56,6 +58,51 @@ from inspect_ai.util._input._validate import (
 # Keep the string itself in sync with the literals used inside
 # ``FieldRow._collect_string`` / ``_collect_integer`` / ``_collect_number``.
 _REQUIRED_ERROR = "This field is required."
+
+
+class FormTextArea(TextArea):
+    """Multiline string control where Enter accepts the answer.
+
+    Enter posts :class:`Submitted` (the form dispatches it like
+    :class:`Input.Submitted`: advance to the next empty required field or
+    request submit). Shift+Enter, Ctrl+J, or Alt+Enter insert a newline.
+    Pasted text is content — Textual's bracketed paste delivers it as a
+    single :class:`~textual.events.Paste`, so pasted newlines never
+    submit or spill into later fields.
+
+    Shift+Enter is only distinguishable from Enter on terminals that
+    speak the kitty keyboard protocol (Textual requests it); elsewhere it
+    arrives as plain Enter and submits. Ctrl+J is a literal LF and works
+    everywhere, so hints should lead with it.
+    """
+
+    _NEWLINE_KEYS = ("shift+enter", "ctrl+j", "alt+enter")
+
+    class Submitted(Message):
+        """Posted when the user presses Enter in the text area."""
+
+        def __init__(self, text_area: "FormTextArea") -> None:
+            super().__init__()
+            self.text_area = text_area
+
+        @property
+        def control(self) -> "FormTextArea":
+            return self.text_area
+
+    async def _on_key(self, event: events.Key) -> None:
+        # Unhandled keys (and pastes) fall through to TextArea's own private
+        # handlers — Textual dispatches along the MRO, so no super() call.
+        # prevent_default() is what halts that walk for the keys we claim.
+        if event.key == "enter":
+            event.stop()
+            event.prevent_default()
+            self.post_message(self.Submitted(self))
+        elif event.key in self._NEWLINE_KEYS:
+            event.stop()
+            event.prevent_default()
+            start, end = self.selection
+            result = self.replace("\n", start, end, maintain_selection_offset=False)
+            self.move_cursor(result.end_location)
 
 
 class _CleanCheckbox(Checkbox):
@@ -153,6 +200,9 @@ class ElicitationForm(VerticalScroll):
         width: 1fr;
         margin-left: 2;
     }
+    ElicitationForm FieldRow .field-hint {
+        color: $text-muted;
+    }
     ElicitationForm FieldRow .field-error {
         color: $error;
         display: none;
@@ -197,10 +247,46 @@ class ElicitationForm(VerticalScroll):
     }
     """
 
+    class SubmitRequested(Message):
+        """Posted when Enter dispatch exhausts the empty required fields.
+
+        Hosts handle this the same way as their Submit button: call
+        :meth:`collect` and either complete the request or surface the
+        validation errors.
+        """
+
+        def __init__(self, form: "ElicitationForm") -> None:
+            super().__init__()
+            self.form = form
+
+        @property
+        def control(self) -> "ElicitationForm":
+            return self.form
+
     def __init__(self, schema: ElicitationSchema) -> None:
         super().__init__()
         self._schema = schema
         self._fields: list[FieldRow] = []
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        self._advance_or_submit(event.input)
+
+    def on_form_text_area_submitted(self, event: FormTextArea.Submitted) -> None:
+        event.stop()
+        self._advance_or_submit(event.text_area)
+
+    def _advance_or_submit(self, control: Widget) -> None:
+        """Enter on a control → advance to next empty required, or submit.
+
+        Multi-field UX ("advance, then submit"): if a later required
+        field is still empty, focus it and do NOT submit — operators can
+        fill multi-field forms by typing + Enter through each row, the
+        same Tab-then-Enter flow they expect from web forms. Otherwise
+        post :class:`SubmitRequested` for the host to action.
+        """
+        if not self.focus_next_empty_required(after=control):
+            self.post_message(self.SubmitRequested(self))
 
     @override
     def compose(self) -> ComposeResult:
@@ -259,12 +345,12 @@ class ElicitationForm(VerticalScroll):
     def focus_next_empty_required(self, *, after: Widget) -> bool:
         """Focus the next empty-required field after the one owning ``after``.
 
-        ``after`` is typically the :class:`Input` widget that
-        emitted :class:`Input.Submitted` (Enter on the focused
-        input). The control widgets the form composes — ``Input``,
-        ``Select``, ``Checkbox``, ``SelectionList`` — are yielded
-        directly from :meth:`FieldRow._compose_control`, so
-        ``after.parent`` is the owning :class:`FieldRow`.
+        ``after`` is the control widget that requested submission
+        (an :class:`Input` emitting :class:`Input.Submitted`, or a
+        :class:`FormTextArea` emitting its ``Submitted``). The
+        control widgets the form composes are yielded directly from
+        :meth:`FieldRow._compose_control`, so ``after.parent`` is
+        the owning :class:`FieldRow`.
 
         Returns:
             ``True`` if focus moved to a later empty-required
@@ -334,7 +420,11 @@ class FieldRow(Vertical):
             elif is_multiline(prop):
                 # Plain TextArea keeps tab_behavior="focus" so Tab still
                 # leaves the field; TextArea.code_editor() would indent.
-                yield TextArea(prop.default or "")
+                yield FormTextArea(prop.default or "")
+                yield Static(
+                    "Enter submits · Ctrl+J or Shift+Enter for a new line",
+                    classes="field-hint",
+                )
             else:
                 placeholder = prop.format or ""
                 yield Input(

@@ -1,4 +1,5 @@
 import io
+import sys
 from contextlib import contextmanager
 from typing import Any, Iterator
 
@@ -17,8 +18,11 @@ from acp.schema import (
 )
 from rich.console import Console
 from rich.prompt import Prompt
+from test_helpers.utils import skip_if_trio
+from textual import events
+from textual.widgets import Button, Input, TextArea
 
-from inspect_ai.util import InputRequest
+from inspect_ai.util import InputRequest, InputResult
 from inspect_ai.util._input import console as console_module
 from inspect_ai.util._input._validate import MULTILINE_META_KEY
 from inspect_ai.util._input.console import (
@@ -27,6 +31,7 @@ from inspect_ai.util._input.console import (
     _ask_schema,
     console_handler,
 )
+from inspect_ai.util._input.inline import InlineQuestionApp
 
 
 def _silent_console() -> Console:
@@ -609,6 +614,301 @@ def test_custom_property_type_rejected() -> None:
     )
     with pytest.raises(ValueError, match="Unsupported property type"):
         _ask_schema("hi", schema, _silent_console())
+
+
+# -- inline Textual app (interactive tty) ---------------------------------
+
+
+def _two_field_request() -> InputRequest:
+    return InputRequest(
+        message="Run the command and paste its output.",
+        schema=ElicitationSchema(
+            properties={
+                "files": ElicitationStringPropertySchema(
+                    type="string",
+                    title="Files",
+                    field_meta={MULTILINE_META_KEY: True},
+                ),
+                "name": ElicitationStringPropertySchema(type="string", title="Name"),
+            },
+            required=["files", "name"],
+        ),
+    )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_inline_paste_with_dot_lines_then_second_field() -> None:
+    r"""A paste containing dot-only lines is one answer; the next field is separate.
+
+    Regression for the dot-sentinel reader, where pasting
+    ``first file\n . \nsecond file`` ended the first answer at the dot
+    and consumed ``second file`` as the next field's answer.
+    """
+    pasted = "first file\n . \nsecond file"
+    app = InlineQuestionApp(_two_field_request())
+    async with app.run_test() as pilot:
+        # Two pauses: mount, then the call_after_refresh focus pass.
+        await pilot.pause()
+        await pilot.pause()
+        text_area = app.query_one(TextArea)
+        assert app.focused is text_area
+
+        # A terminal paste arrives at the App, which forwards it to the
+        # focused widget; newlines and dot-lines are content.
+        app.post_message(events.Paste(pasted))
+        await pilot.pause()
+        assert text_area.text == pasted
+
+        # Enter accepts the first answer and advances to the empty
+        # required Name field; it must not submit or leak paste content.
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.focused, Input)
+        assert app.focused.value == ""
+
+        await pilot.press(*"alice")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert app.return_value == InputResult(
+        outcome="accepted", content={"files": pasted, "name": "alice"}
+    )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_inline_typed_newlines_and_enter_submit() -> None:
+    """Typed Ctrl+J / Shift+Enter insert newlines; Enter submits the form."""
+    request = InputRequest(
+        message="Notes?",
+        schema=_multiline_schema(),
+    )
+    app = InlineQuestionApp(request)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.press("a", "ctrl+j", ".", "shift+enter", "b")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert app.return_value == InputResult(
+        outcome="accepted", content={"output": "a\n.\nb"}
+    )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_inline_decline_button() -> None:
+    app = InlineQuestionApp(_two_field_request())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        decline = app.query_one(f"#{InlineQuestionApp.DECLINE_QUESTION}", Button)
+        decline.press()
+        await pilot.pause()
+
+    assert app.return_value == InputResult(outcome="declined")
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_inline_ctrl_c_cancels() -> None:
+    app = InlineQuestionApp(_two_field_request())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.press("ctrl+c")
+        await pilot.pause()
+
+    assert app.return_value == InputResult(outcome="cancelled")
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_inline_submit_empty_required_shows_error() -> None:
+    """Submit with a blank required field surfaces the error, app stays up."""
+    from inspect_ai._util.textual.form import FieldRow
+
+    app = InlineQuestionApp(_two_field_request())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        submit = app.query_one(f"#{InlineQuestionApp.SUBMIT_QUESTION}", Button)
+        submit.press()
+        await pilot.pause()
+        rows = list(app.query(FieldRow))
+        assert any("has-error" in r.classes for r in rows)
+        assert app.return_value is None
+        app.exit(None)
+
+
+# -- console_handler dispatch: tty → inline app, non-tty → line reader ----
+
+
+def _patch_tty(monkeypatch: pytest.MonkeyPatch, interactive: bool) -> None:
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: interactive)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: interactive)
+
+
+async def test_console_handler_tty_runs_inline_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_tty(monkeypatch, True)
+    sentinel = InputResult(outcome="accepted", content={"name": "alice"})
+    run_kwargs: dict[str, Any] = {}
+
+    async def fake_run_async(self: InlineQuestionApp, **kwargs: Any) -> InputResult:
+        run_kwargs.update(kwargs)
+        return sentinel
+
+    monkeypatch.setattr(InlineQuestionApp, "run_async", fake_run_async)
+
+    result = await console_handler(_two_field_request())
+    assert result is sentinel
+    assert run_kwargs.get("inline") is True
+
+
+async def test_console_handler_tty_maps_no_result_to_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_tty(monkeypatch, True)
+
+    async def fake_run_async(self: InlineQuestionApp, **kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(InlineQuestionApp, "run_async", fake_run_async)
+
+    result = await console_handler(_two_field_request())
+    assert result == InputResult(outcome="cancelled")
+
+
+async def test_console_handler_non_tty_uses_line_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_tty(monkeypatch, False)
+    _patch_prompt(monkeypatch, ["alice"])
+    schema = ElicitationSchema(
+        properties={"name": ElicitationStringPropertySchema(type="string")},
+        required=["name"],
+    )
+    result = await console_handler(InputRequest(message="hi", schema=schema))
+    assert result == InputResult(outcome="accepted", content={"name": "alice"})
+
+
+# -- real PTY end-to-end ---------------------------------------------------
+
+_PTY_CHILD = """
+import asyncio, json
+from acp.schema import ElicitationSchema, ElicitationStringPropertySchema
+from inspect_ai.util import InputRequest
+from inspect_ai.util._input.console import console_handler
+
+schema = ElicitationSchema(
+    properties={
+        "files": ElicitationStringPropertySchema(
+            type="string", title="Files", field_meta={"inspect.multiline": True}
+        ),
+        "name": ElicitationStringPropertySchema(type="string", title="Name"),
+    },
+    required=["files", "name"],
+)
+result = asyncio.run(
+    console_handler(InputRequest(message="paste the output", schema=schema))
+)
+print(
+    "RESULT:" + json.dumps({"outcome": result.outcome, "content": result.content}),
+    flush=True,
+)
+"""
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX pty")
+def test_pty_paste_with_dot_lines_and_typed_newline() -> None:
+    """Full-stack repro of the dot-sentinel bug, through a real terminal.
+
+    Drives `console_handler` on a pty: a bracketed paste whose newlines
+    are CR (as real terminals send them) and which contains a ` . ` line,
+    then a typed Ctrl+J (LF byte) newline, Enter to accept, and a
+    separately answered second field. Exercises the inline Textual
+    driver, the escape-sequence parser, and the tty dispatch in
+    `console_handler` — none of which the Pilot tests touch.
+    """
+    import json
+    import os
+    import pty
+    import re
+    import select
+    import time
+
+    pid, master = pty.fork()
+    if pid == 0:  # child: never returns
+        os.environ["TERM"] = "xterm-256color"
+        os.execv(sys.executable, [sys.executable, "-c", _PTY_CHILD])
+
+    buf = b""
+
+    def pump(seconds: float) -> None:
+        """Read output for `seconds`, answering cursor-position queries."""
+        nonlocal buf
+        end = time.time() + seconds
+        while time.time() < end:
+            ready, _, _ = select.select([master], [], [], 0.1)
+            if ready:
+                try:
+                    chunk = os.read(master, 65536)
+                except OSError:
+                    return
+                if not chunk:
+                    return
+                buf += chunk
+                # Minimal terminal emulation: the inline driver asks where
+                # the cursor is (CSI 6n) and blocks layout on the answer.
+                while b"\x1b[6n" in buf:
+                    buf = buf.replace(b"\x1b[6n", b"", 1)
+                    os.write(master, b"\x1b[10;1R")
+
+    def wait_for(pattern: bytes, timeout: float = 30) -> None:
+        end = time.time() + timeout
+        while pattern not in buf:
+            assert time.time() < end, (
+                f"timed out waiting for {pattern!r}; tail: {buf[-1000:]!r}"
+            )
+            pump(0.25)
+
+    try:
+        wait_for(b"Enter submits")  # form rendered, bracketed paste enabled
+        pump(1.0)
+        os.write(master, b"\x1b[200~first file\r . \rsecond file\x1b[201~")
+        pump(1.0)
+        os.write(master, b"\ntail")  # Ctrl+J: newline as content, not submit
+        pump(1.0)
+        os.write(master, b"\r")  # Enter: accept files, advance to Name
+        pump(2.0)  # focus advance rides a posted message; give it a beat
+        os.write(master, b"alice")
+        pump(1.0)
+        os.write(master, b"\r")  # Enter: submit
+        wait_for(b"RESULT:")
+        pump(1.0)
+    finally:
+        try:
+            os.close(master)
+        except OSError:
+            pass
+        try:
+            os.kill(pid, 9)
+        except ProcessLookupError:
+            pass
+        os.waitpid(pid, 0)
+
+    match = re.search(rb"RESULT:(\{.*\})", buf)
+    assert match, f"no RESULT line; tail: {buf[-1000:]!r}"
+    assert json.loads(match.group(1)) == {
+        "outcome": "accepted",
+        "content": {
+            "files": "first file\n . \nsecond file\ntail",
+            "name": "alice",
+        },
+    }
 
 
 def test_long_lines_not_hard_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
