@@ -2,6 +2,7 @@ import asyncio
 import functools
 import io
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, cast
@@ -12,6 +13,7 @@ import pytest
 from anyio import EndOfStream
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError, ResponseStreamingError
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
@@ -426,6 +428,125 @@ async def test_write_file_streaming_s3(
         small = io.BytesIO(b"small payload")
         await fs.write_file_streaming(f"{s3_path}.small", small)
         assert not small.closed
+
+
+class _ThreadRecordingBytesIO(io.BytesIO):
+    """BytesIO that records the thread each ``read`` runs on."""
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.read_threads: list[int] = []
+
+    def read(self, size: int | None = -1) -> bytes:
+        self.read_threads.append(threading.get_ident())
+        return super().read(size)
+
+
+@pytest.mark.parametrize(
+    "size",
+    [
+        pytest.param(1024, id="single-put"),
+        pytest.param(10 * 1024 * 1024, id="multipart"),
+    ],
+)
+async def test_write_file_streaming_s3_reads_source_off_event_loop(
+    mock_s3: None, size: int
+) -> None:
+    """S3 streaming uploads must never read the source on the event loop.
+
+    The asyncio path assembles PUT bodies and multipart parts from
+    ``io_chunksize`` reads of the source; a plain sync handle read on the loop
+    would block it for every chunk. Both the single-PUT and multipart paths
+    must hop to a worker thread for the read. The asyncio variant is the one
+    that guards this; under trio the whole upload already runs in a worker
+    thread.
+    """
+    test_data = b"\xcd" * size
+    s3_path = f"{S3_BUCKET}/streaming_test/off_loop_{size}.bin"
+    loop_thread = threading.get_ident()
+
+    source = _ThreadRecordingBytesIO(test_data)
+    async with AsyncFilesystem() as fs:
+        await fs.write_file_streaming(s3_path, source)
+        assert await fs.read_file(s3_path) == test_data
+
+    assert source.read_threads, "source was never read"
+    assert loop_thread not in source.read_threads
+
+
+class _BlockingReadBytesIO(io.BytesIO):
+    """BytesIO whose ``read`` signals ``read_started`` then waits on ``unblock``."""
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.read_started = threading.Event()
+        self.unblock = threading.Event()
+        self.read_finished = False
+
+    def read(self, size: int | None = -1) -> bytes:
+        self.read_started.set()
+        self.unblock.wait()
+        data = super().read(size)
+        self.read_finished = True
+        return data
+
+
+class _PutObjectClient:
+    """Fake async S3 client for sub-threshold uploads."""
+
+    async def put_object(self, **kwargs: Any) -> dict[str, Any]:
+        return {"ETag": '"etag-1"'}
+
+
+@skip_if_trio
+async def test_write_file_streaming_s3_cancel_waits_for_in_progress_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cancelled S3 upload must not return while a source read is in flight.
+
+    ``EvalRecorder.flush()`` reopens its temp-file zip right after the upload
+    (even on cancellation), so a worker-thread read left running would race
+    that reopen and corrupt the log. The read hop must therefore not abandon
+    its thread on cancellation.
+    """
+
+    async def s3_client_async(self: AsyncFilesystem) -> Any:
+        return _PutObjectClient()
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+
+    source = _BlockingReadBytesIO(b"contents")
+    read_finished_on_return: bool | None = None
+    upload_exited = anyio.Event()
+
+    async with AsyncFilesystem() as fs:
+        scope = anyio.CancelScope()
+
+        async def upload() -> None:
+            nonlocal read_finished_on_return
+            try:
+                with scope:
+                    await fs.write_file_streaming("s3://bucket/path/log.eval", source)
+            finally:
+                read_finished_on_return = source.read_finished
+                upload_exited.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(upload)
+            await anyio.to_thread.run_sync(source.read_started.wait)
+            # The read is blocked in its worker thread. Cancel the upload and
+            # give the cancellation time to land while the read is still
+            # blocked: a hop that abandons its thread unwinds here at once
+            # (and the assertion below catches it); the correct one cannot
+            # unwind until the read completes, so the wait times out and the
+            # read is then released.
+            scope.cancel()
+            with anyio.move_on_after(1):
+                await upload_exited.wait()
+            source.unblock.set()
+
+    assert scope.cancelled_caught
+    assert read_finished_on_return is True
 
 
 def test_write_file_streaming_s3_small_upload_leaves_source_open(

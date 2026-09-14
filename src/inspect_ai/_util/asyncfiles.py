@@ -212,13 +212,24 @@ class _S3ETagCapture:
 
 
 async def _read_exactly(source: BinaryIO, size: int, io_chunksize: int) -> bytearray:
+    """Read up to ``size`` bytes from ``source`` without blocking the event loop.
+
+    Each chunk is read in a worker thread: ``EvalRecorder.flush()`` and
+    checkpoint egress stream from disk, and a blocking read on the loop stalls
+    every other sample for its duration. ``run_sync`` is left non-abandoning
+    (the default), so a cancelled upload does not unwind while a read is still
+    in flight; callers reuse or close the source right after the upload
+    (``flush()`` reopens its temp-file zip in a ``finally``), and an abandoned
+    read would race that.
+    """
     data = bytearray()
     while len(data) < size:
-        chunk = source.read(min(io_chunksize, size - len(data)))
+        chunk = await anyio.to_thread.run_sync(
+            source.read, min(io_chunksize, size - len(data))
+        )
         if not chunk:
             break
         data += chunk
-        await anyio.sleep(0)
 
     return data
 
