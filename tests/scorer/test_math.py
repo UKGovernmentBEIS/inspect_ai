@@ -96,18 +96,22 @@ async def test_math_scorer_uses_valid_target_alternative() -> None:
     assert result.value == CORRECT
 
 
-async def test_invalid_target_is_unscored() -> None:
+@pytest.mark.parametrize(
+    "targets",
+    [
+        pytest.param([], id="no_targets"),
+        pytest.param([""], id="empty_target"),
+        pytest.param(["   "], id="blank_target"),
+        pytest.param(["__import__('os').system('false')"], id="rejected_target"),
+        pytest.param(["", "__import__('os').system('false')"], id="all_unusable"),
+    ],
+)
+async def test_unusable_targets_raise(targets: list[str]) -> None:
     scorer = math()
     state = simple_task_state(model_output=r"\boxed{42}")
-    result = await scorer(
-        state,
-        Target([r"__import__('os').system('false')"]),
-    )
 
-    assert result is not None
-    assert isinstance(result.value, float)
-    assert stdlib_math.isnan(result.value)
-    assert result.metadata == {"math_scorer_status": "target_parse_error"}
+    with pytest.raises(ValueError, match="Could not parse any mathematical target:"):
+        await scorer(state, Target(targets))
 
 
 async def test_model_complexity_rejection_is_incorrect() -> None:

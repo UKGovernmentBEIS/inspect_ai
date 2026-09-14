@@ -158,6 +158,7 @@ def publish(
 
     The workflow serializes runs. Markers make retries skip completed writes.
     Closed findings are left closed, and deferred findings are left untouched.
+    Returns the URLs of the open, non-deferred finding issues only.
     """
     match = re.fullmatch(
         r"https://github.com/meridianlabs-ai/actions/actions/runs/(\d+)", run_url
@@ -176,6 +177,7 @@ def publish(
     known = issues()
     tracking = tracking_issue(known)
     urls = []
+    active_urls = []
     findings_complete = False
     try:
         for finding in findings:
@@ -211,6 +213,7 @@ def publish(
                 label["name"] == "deferred" for label in issue.get("labels", [])
             ):
                 continue
+            active_urls.append(issue["html_url"])
             existing = comments(number)
             if evidence_marker not in (issue.get("body") or "") and not any(
                 evidence_marker in comment["body"] for comment in existing
@@ -264,7 +267,7 @@ def publish(
             if not findings_complete:
                 links += "\n\nFinding publication failed; see the workflow run for the error."
             api(f"issues/{number}/comments", {"body": summary_body + links})
-    return urls
+    return active_urls
 
 
 def main() -> None:
