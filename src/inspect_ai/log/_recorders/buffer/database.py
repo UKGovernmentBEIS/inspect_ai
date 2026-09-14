@@ -2127,6 +2127,31 @@ def cleanup_sample_buffer_db(path: Path) -> None:
         logger.warning(f"Error cleaning up sample buffer database at {path}: {ex}")
 
 
+def sample_buffer_dbs(location: str, db_dir: Path | None = None) -> list[Path]:
+    """Buffer databases opened for the log at ``location``, one per process.
+
+    Args:
+        location: Eval log location the buffers belong to.
+        db_dir: Override the database directory (defaults to the inspect
+            data dir).
+
+    Returns:
+        Paths of the ``<log file>.<pid>.db`` files, in no particular order.
+    """
+    dir, file = location_dir_and_file(filesystem(location).path_as_uri(location))
+    return list((resolve_db_dir(db_dir) / dir).glob(f"{file}.*.db"))
+
+
+def sample_buffer_db_pid(path: Path) -> int | None:
+    """Id of the process that created the buffer database at ``path``.
+
+    Buffer databases are named ``<log file>.<pid>.db``; returns ``None``
+    when the name doesn't carry a pid.
+    """
+    _, pid_str, _ = path.name.rsplit(".", 2)
+    return int(pid_str) if pid_str.isdigit() else None
+
+
 def resolve_db_dir(db_dir: Path | None = None) -> Path:
     return db_dir or inspect_data_dir("samplebuffer")
 

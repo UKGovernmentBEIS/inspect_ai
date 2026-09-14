@@ -214,7 +214,7 @@ class SampleBufferFilestore(SampleBuffer):
         update_interval: int = DEFAULT_LOG_SHARED,
     ) -> None:
         self._fs = filesystem(location)
-        self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{os.path.splitext(basename(location))[0]}{self._fs.sep}"
+        self._dir = f"{sample_buffer_filestore_dir(location, self._fs)}{self._fs.sep}"
         self.update_interval = update_interval
 
         # Tag the ephemeral buffer objects synced to S3 (see _write_bytes for the
@@ -663,3 +663,8 @@ def sample_buffer_dir(log_dir: str, fs: FileSystem | None = None) -> str:
     log_dir = log_dir.rstrip("/\\")
     fs = fs or filesystem(log_dir)
     return f"{log_dir}{fs.sep}.buffer"
+
+
+def sample_buffer_filestore_dir(location: str, fs: FileSystem) -> str:
+    """Filestore directory for the log at ``location`` (under the log dir's `.buffer`)."""
+    return f"{sample_buffer_dir(dirname(location), fs)}{fs.sep}{os.path.splitext(basename(location))[0]}"

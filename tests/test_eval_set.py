@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import anyio
 import pytest
-from test_helpers.buffer import simulate_crashed_buffer_db
+from test_helpers.buffer import DEAD_PID, simulate_crashed_buffer_db
 from test_helpers.utils import (
     failing_solver,
     failing_task,
@@ -30,6 +30,7 @@ from inspect_ai import Epochs, Task, eval, task
 from inspect_ai._eval.evalset import (
     GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     EvalSetArgsInTaskIdentifier,
+    Log,
     _embed_viewer,
     epochs_changed,
     eval_set,
@@ -54,6 +55,7 @@ from inspect_ai.log._file import (
     write_eval_log,
 )
 from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
+from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
@@ -215,6 +217,110 @@ def test_latest_completed_task_eval_logs() -> None:
         assert len(list_eval_logs(clean_dir.as_posix())) == 1
     finally:
         shutil.rmtree(clean_dir, ignore_errors=True)
+
+
+def _sweep_log(path: Path, eval_id: str, mtime: float, status: str) -> Log:
+    """A `Log` carrying only the fields the retry-cleanup sweep consults."""
+    from types import SimpleNamespace
+
+    return Log(
+        info=EvalLogInfo(
+            name=str(path),
+            type="file",
+            size=0,
+            mtime=mtime,
+            task="t",
+            task_id="tid",
+            suffix=None,
+        ),
+        header=cast(
+            EvalLog,
+            SimpleNamespace(
+                status=status, eval=SimpleNamespace(task_id="tid", eval_id=eval_id)
+            ),
+        ),
+        task_identifier="tid",
+    )
+
+
+def test_retry_cleanup_removes_older_started_logs_and_their_buffers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Older `started` logs are swept like any other older log, buffers included.
+
+    Every attempt's log is seeded from the prior log, so an interrupted
+    attempt's `started` log holds nothing the task's newest log lacks. The
+    sweep removes it together with the sample buffer its attempt never
+    cleaned up: the buffer db this process left closed (the eval-set pass
+    loop keeps it when `log_finish` fails), one a crashed process left
+    behind, and a `.buffer` filestore directory.
+    """
+    db_dir = tmp_path / "db"
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    kept_open = log_dir / "a.eval"
+    crashed = log_dir / "b.eval"
+    newest = log_dir / "c.eval"
+    for log in (kept_open, crashed, newest):
+        log.touch()
+
+    SampleBufferDatabase(str(kept_open), create=True).close()
+    simulate_crashed_buffer_db(
+        SampleBufferDatabase(str(crashed), create=True), pid=DEAD_PID
+    )
+    filestore_dir = log_dir / ".buffer" / "b"
+    filestore_dir.mkdir(parents=True)
+    (filestore_dir / "manifest.json").write_text("{}")
+    assert len(list(db_dir.rglob("*.db"))) == 2
+
+    latest = latest_completed_task_eval_logs(
+        logs=[
+            _sweep_log(kept_open, "attempt-1", mtime=1.0, status="started"),
+            _sweep_log(crashed, "attempt-2", mtime=2.0, status="started"),
+            _sweep_log(newest, "attempt-3", mtime=3.0, status="success"),
+        ],
+        cleanup_older=True,
+    )
+
+    assert [log.header.eval.eval_id for log in latest] == ["attempt-3"]
+    assert sorted(p.name for p in log_dir.glob("*.eval")) == ["c.eval"]
+    assert list(db_dir.rglob("*.db")) == []
+    assert not filestore_dir.exists()
+
+
+def test_retry_cleanup_keeps_started_log_another_process_is_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A `started` log whose buffer db belongs to a live process is left alone.
+
+    Another process holding the log's buffer may still be writing it; the
+    sweep keeps both the log and the buffer and says so.
+    """
+    db_dir = tmp_path / "db"
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
+    live = tmp_path / "live.eval"
+    newest = tmp_path / "newest.eval"
+    live.touch()
+    newest.touch()
+    # the test runner's parent is another process that outlives this test
+    simulate_crashed_buffer_db(
+        SampleBufferDatabase(str(live), create=True), pid=os.getppid()
+    )
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        latest = latest_completed_task_eval_logs(
+            logs=[
+                _sweep_log(live, "attempt-1", mtime=1.0, status="started"),
+                _sweep_log(newest, "attempt-2", mtime=2.0, status="success"),
+            ],
+            cleanup_older=True,
+        )
+
+    assert [log.header.eval.eval_id for log in latest] == ["attempt-2"]
+    assert live.exists()
+    assert len(list(db_dir.rglob("*.db"))) == 1
+    assert any("still holds its sample buffer" in r.message for r in caplog.records)
 
 
 def test_validate_eval_set_prerequisites_ok() -> None:
@@ -2527,9 +2633,13 @@ def test_retry_seed_failure_writes_no_log_and_next_attempt_reuses(
         assert {s.id for s in log.samples} == {"s1", "s2", "s3", "s4"}
 
 
+@pytest.mark.parametrize("retry_cleanup", [False, True])
 @pytest.mark.parametrize("retry_immediate", [True, False])
 def test_retry_log_finish_failure_keeps_partial_log_as_next_source(
-    retry_immediate: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    retry_immediate: bool,
+    retry_cleanup: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An attempt whose final log write fails leaves a `started` log the next attempt reuses.
 
@@ -2538,8 +2648,12 @@ def test_retry_log_finish_failure_keeps_partial_log_as_next_source(
     then its ``log_finish`` write fails. Its destination — a ``started`` log
     holding all four completed samples — stays on disk and is attempt 3's
     sample source, so attempt 3 runs nothing. Sample progress outranks the
-    header the unfinished log lacks.
+    header the unfinished log lacks. With ``retry_cleanup`` the final sweep
+    then removes that `started` log, and the buffer db the pass loop's
+    attempt left behind, along with attempt 1's errored log.
     """
+    db_dir = tmp_path / "db"
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
     original_flush = ZipLogFile.flush
     finished_files: list[str] = []
 
@@ -2569,7 +2683,7 @@ def test_retry_log_finish_failure_keeps_partial_log_as_next_source(
         retry_attempts=3,
         retry_wait=0.1,
         retry_immediate=retry_immediate,
-        retry_cleanup=False,
+        retry_cleanup=retry_cleanup,
         retry_on_error=0,
         max_samples=1,
         log_buffer=1,
@@ -2582,8 +2696,15 @@ def test_retry_log_finish_failure_keeps_partial_log_as_next_source(
         (read_eval_log(info.name) for info in list_eval_logs(log_dir)),
         key=lambda log: log.eval.created,
     )
-    # attempt 2's unfinished log stays, under its `started` header
-    assert [log.status for log in all_logs] == ["error", "started", "success"]
+    if retry_cleanup:
+        assert [log.status for log in all_logs] == ["success"]
+        assert list(db_dir.rglob("*.db")) == []
+    else:
+        # attempt 2's unfinished log stays, under its `started` header
+        assert [log.status for log in all_logs] == ["error", "started", "success"]
+        # the immediate path deletes attempt 2's buffer db at reinit; the pass
+        # loop keeps it (closed) alongside the unfinished log
+        assert len(list(db_dir.rglob("*.db"))) == (0 if retry_immediate else 1)
     for log in all_logs:
         assert log.samples is not None
         assert {s.id for s in log.samples} == {"s1", "s2", "s3", "s4"}
@@ -2994,8 +3115,10 @@ def test_eval_set_incomplete_action_error_finalizes() -> None:
 
             # a second invocation (with the default retry_cleanup) must select
             # the finalized recovered log over the still-present "started"
-            # log and neither re-run the task nor write a new log file
+            # log, neither re-run the task nor write a new log file, and
+            # sweep that superseded "started" log
             log_files_before = sorted(os.listdir(log_dir))
+            assert basename(started_log.location) in log_files_before
             success, logs = eval_set(
                 tasks=resume_task,
                 log_dir=log_dir,
@@ -3008,7 +3131,9 @@ def test_eval_set_incomplete_action_error_finalizes() -> None:
             assert len(logs) == 1
             assert logs[0].location is not None
             assert local_path(logs[0].location) == local_path(final.location)
-            assert sorted(os.listdir(log_dir)) == log_files_before
+            assert sorted(os.listdir(log_dir)) == [
+                f for f in log_files_before if f != basename(started_log.location)
+            ]
         finally:
             buffer.cleanup()
 

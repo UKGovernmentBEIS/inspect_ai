@@ -78,6 +78,7 @@ from inspect_ai.log._file import (
     write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig
+from inspect_ai.log._recorders.buffer.buffer import cleanup_sample_buffers_for_log
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -1955,17 +1956,28 @@ def latest_completed_task_eval_logs(
         # take the most recent
         latest_completed_logs.append(id_logs[0])
 
-        # remove the rest if requested
-        # (don't remove 'started' in case its needed for post-mortum debugging)
+        # remove the rest if requested. every attempt's log is seeded from the
+        # task's prior log, so an older log holds nothing the newest lacks --
+        # including a 'started' one an interrupted attempt left behind, which
+        # is removed along with the sample buffer it never cleaned up (unless
+        # another live process still holds that buffer and may be writing it)
         if cleanup_older:
             fs = filesystem(id_logs[0][0].name)
             for id_log in id_logs[1:]:
                 try:
-                    if id_log.header.status != "started":
-                        fs.rm(id_log.info.name)
-                        # the attempt's EvalState may have memoized this log's
-                        # sample summaries; the memo must not outlive the file
-                        invalidate_log_sample_summaries(id_log.header.eval.eval_id)
+                    if (
+                        id_log.header.status == "started"
+                        and not cleanup_sample_buffers_for_log(id_log.info.name)
+                    ):
+                        logger.warning(
+                            f"Not removing '{id_log.info.name}': a running "
+                            "process still holds its sample buffer"
+                        )
+                        continue
+                    fs.rm(id_log.info.name)
+                    # the attempt's EvalState may have memoized this log's
+                    # sample summaries; the memo must not outlive the file
+                    invalidate_log_sample_summaries(id_log.header.eval.eval_id)
                 except Exception as ex:
                     logger.warning(f"Error attempt to remove '{id_log[0].name}': {ex}")
 
