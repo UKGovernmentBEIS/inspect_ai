@@ -36,6 +36,9 @@ from inspect_ai.util._sandbox._framework_directory import (
     FrameworkDirectoryUserError,
     ensure_framework_directory,
     exec_in_framework_directory,
+    expected_uid_for,
+    stat_in_framework_directory,
+    try_ensure_framework_directory_as_root,
     verify_framework_directory,
 )
 from inspect_ai.util._sandbox.context import (
@@ -224,53 +227,29 @@ async def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None
     sandbox._tools_default_user = default_user
 
 
-def _expected_uid(user: str | None) -> int | None:
-    """The uid the helper must actually run as for ``user``.
-
-    Only root has a uid known to the host. Pinning it makes a provider that ignores
-    or downgrades ``user`` (``LocalSandboxEnvironment`` does) fail the root probe
-    instead of passing off the default user's directory as root's.
-    """
-    return 0 if user == "root" else None
-
-
 async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> bool:
     """Check for a trustworthy installation from ``user``'s point of view.
 
     Returns False when the tools directory is missing, violates the contract, or
     does not hold a regular-file launcher (injection then creates it, fails loudly,
-    or re-extracts). Raises when the check did not run (the provider cannot exec
-    as ``user``) or could not be performed.
+    or re-extracts; a symlink at the launcher name reports its own type and is
+    rejected). Raises when the check did not run (the provider cannot exec as
+    ``user``) or could not be performed.
     """
     try:
-        result = await exec_in_framework_directory(
+        st_mode = await stat_in_framework_directory(
             sandbox,
             SANDBOX_TOOLS_DIR,
-            ["stat", "-c", "%f", SANDBOX_TOOLS_BASE_NAME],
+            SANDBOX_TOOLS_BASE_NAME,
             user=user,
-            expected_uid=_expected_uid(user),
+            expected_uid=expected_uid_for(user),
         )
     except FrameworkDirectoryNotFoundError:
         return False
     except FrameworkDirectoryError as ex:
         trace_message(logger, TRACE_SANDBOX_TOOLS, f"tools dir not reusable: {ex}")
         return False
-    return result.success and _is_regular_file_mode(result.stdout)
-
-
-def _is_regular_file_mode(stat_output: str) -> bool:
-    """Whether ``stat -c %f`` output (raw st_mode in hex) denotes a regular file.
-
-    The raw mode is used instead of ``%F`` because GNU ``stat`` localizes the
-    latter's type names, so a container with a non-C locale would never match
-    "regular file". ``stat`` does not follow symlinks, so a symlink at the launcher
-    path reports its own type and is rejected.
-    """
-    try:
-        mode = int(stat_output.strip(), 16)
-    except ValueError:
-        return False
-    return stat.S_ISREG(mode)
+    return st_mode is not None and stat.S_ISREG(st_mode)
 
 
 async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
@@ -307,7 +286,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
             sandbox,
             SANDBOX_TOOLS_DIR,
             user=sandbox._tools_user,
-            expected_uid=_expected_uid(sandbox._tools_user),
+            expected_uid=expected_uid_for(sandbox._tools_user),
         )
 
         # Start the server as root so it can setuid to any user for exec_remote.
@@ -338,56 +317,20 @@ _SWITCH_USER_CAPS = (1 << 6) | (1 << 7)  # CAP_SETGID | CAP_SETUID
 
 
 async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
-    """Prepare the tools dir as root; False if the sandbox cannot exec as root.
+    """Prepare the tools dir as root; False if the tools cannot run as root.
 
-    "Cannot exec as root" includes a provider that accepts ``user="root"`` but runs
-    the command as someone else (``LocalSandboxEnvironment`` ignores ``user``): the
-    helper is told to expect uid 0 and reports the mismatch before creating
-    anything, so the rootless path is taken and the tools user is recorded
-    truthfully.
-
-    A contract violation reported by the helper (the entry exists but is a symlink,
-    is owned by another uid, has the wrong mode, ...) is re-raised rather than
-    treated as "no root": falling back to the default user there would let whoever
-    planted the entry decide which user the tools run as.
+    Root is unusable for the tools when the sandbox cannot exec as root at all or
+    when root there cannot switch users (the server must setuid for
+    ``exec_remote``), so the capability probe runs first and nothing is created
+    when it fails. Once root is known usable the directory is created or adopted
+    through :func:`try_ensure_framework_directory_as_root`, which pins uid 0 and
+    re-raises a contract violation rather than reading it as "no root".
     """
     try:
         probe = await sandbox.exec(["/bin/sh", "-c", _ROOT_PROBE_CMD], user="root")
         fields = _fields(probe.stdout)
         if not probe.success or not fields.keys() >= {"Uid", "CapEff", "setgroups"}:
             raise RuntimeError(f"root probe failed: {probe.stderr or probe.stdout!r}")
-        if fields["Uid"].split()[0] != "0":
-            trace_message(
-                logger,
-                TRACE_SANDBOX_TOOLS,
-                "sandbox does not run commands as root; using default user",
-            )
-            return False
-        cap_eff, setgroups = fields["CapEff"].strip(), fields["setgroups"].strip()
-        if (
-            int(cap_eff, 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
-            or setgroups != "allow"
-        ):
-            trace_message(
-                logger,
-                TRACE_SANDBOX_TOOLS,
-                f"root cannot switch users (CapEff {cap_eff}, setgroups {setgroups}); "
-                "falling back to default user",
-            )
-            return False
-        await ensure_framework_directory(
-            sandbox, SANDBOX_TOOLS_DIR, user="root", expected_uid=0
-        )
-        return True
-    except (FrameworkDirectoryError, FrameworkDirectoryUnavailableError):
-        raise
-    except FrameworkDirectoryUserError as ex:
-        trace_message(
-            logger,
-            TRACE_SANDBOX_TOOLS,
-            f"sandbox does not run commands as root; using default user: {ex}",
-        )
-        return False
     except Exception as ex:
         # Broad catch is deliberate: providers signal "cannot exec as root" by
         # raising provider-specific exception types (or a failing exit status), so
@@ -399,6 +342,28 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
             f"root sandbox tools dir probe failed; falling back to default user: {ex}",
         )
         return False
+    if fields["Uid"].split()[0] != "0":
+        trace_message(
+            logger,
+            TRACE_SANDBOX_TOOLS,
+            "sandbox does not run commands as root; using default user",
+        )
+        return False
+    cap_eff, setgroups = fields["CapEff"].strip(), fields["setgroups"].strip()
+    if (
+        int(cap_eff, 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
+        or setgroups != "allow"
+    ):
+        trace_message(
+            logger,
+            TRACE_SANDBOX_TOOLS,
+            f"root cannot switch users (CapEff {cap_eff}, setgroups {setgroups}); "
+            "falling back to default user",
+        )
+        return False
+    return await try_ensure_framework_directory_as_root(
+        sandbox, SANDBOX_TOOLS_DIR, trace_tag=TRACE_SANDBOX_TOOLS
+    )
 
 
 # Shell builtins only: numeric ids from /proc so uids with no passwd entry work.
@@ -481,7 +446,7 @@ async def _extract_tools_tree(
         SANDBOX_TOOLS_DIR,
         ["sh", "-c", "tar xzf - || { cat >/dev/null; exit 1; }"],
         user=user,
-        expected_uid=_expected_uid(user),
+        expected_uid=expected_uid_for(user),
         input=gz_bytes,
         timeout=_EXTRACT_TIMEOUT,
     )
@@ -499,7 +464,7 @@ async def _extract_tools_tree(
         SANDBOX_TOOLS_DIR,
         ["sh", "-c", "tar xf - || { cat >/dev/null; exit 1; }"],
         user=user,
-        expected_uid=_expected_uid(user),
+        expected_uid=expected_uid_for(user),
         input=_uncompressed_tar_bytes(name, gz_bytes),
         timeout=_EXTRACT_TIMEOUT,
     )

@@ -1183,7 +1183,7 @@ def math(*, timeout: float = _DEFAULT_TIMEOUT_SECONDS) -> Scorer:
 
     Extracts a bounded final answer from model output, parses it without
     evaluating Python, and compares it to each target under bounded symbolic
-    work.
+    work. Raises a scoring error if none of the reference answers can be parsed.
 
     Args:
         timeout: Active-work budget in seconds for each parsing phase (target
@@ -1216,9 +1216,8 @@ def math(*, timeout: float = _DEFAULT_TIMEOUT_SECONDS) -> Scorer:
             )
 
         if target_error is not None:
-            return Score.unscored(
-                explanation=f"Could not parse mathematical target: {target_error}.",
-                metadata=_status_metadata("target_parse_error"),
+            raise ValueError(
+                f"Could not parse any mathematical target: {target_error}."
             )
 
         try:
