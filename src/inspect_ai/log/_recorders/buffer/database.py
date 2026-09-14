@@ -2144,16 +2144,6 @@ def sample_buffer_dbs(location: str, db_dir: Path | None = None) -> list[Path]:
     return list((resolve_db_dir(db_dir) / dir).glob(f"{glob.escape(file)}.*.db"))
 
 
-def sample_buffer_db_pid(path: Path) -> int | None:
-    """Id of the process that created the buffer database at ``path``.
-
-    Buffer databases are named ``<log file>.<pid>.db``; returns ``None``
-    when the name doesn't carry a pid.
-    """
-    _, pid_str, _ = path.name.rsplit(".", 2)
-    return int(pid_str) if pid_str.isdigit() else None
-
-
 def resolve_db_dir(db_dir: Path | None = None) -> Path:
     return db_dir or inspect_data_dir("samplebuffer")
 
