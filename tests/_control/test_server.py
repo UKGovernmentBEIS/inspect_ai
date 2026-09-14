@@ -1189,6 +1189,60 @@ def test_eval_honours_ctl_server_env(
     assert published == [1]
 
 
+def test_eval_set_honours_ctl_server_env_from_dotenv(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir: Path, tmp_path: Path
+) -> None:
+    """The first ``eval_set()`` in a process honours ``INSPECT_EVAL_CTL_SERVER`` from ``.env``.
+
+    ``eval_set()`` resolves the setting up front and hands the inner
+    ``eval()`` an explicit value, so it has to load the project ``.env``
+    itself: before the fix the first call bound the server (nothing had
+    loaded ``.env`` yet) and only the second call, seeing the variable the
+    first call's ``eval()`` had loaded, skipped it. An explicit argument
+    still wins over the ``.env`` value.
+    """
+    from inspect_ai import Task, eval_set
+    from inspect_ai._control.discovery import list_discovered_servers
+    from inspect_ai._control.server import CTL_SERVER_ENV_VAR
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    published: list[int] = []
+
+    @solver
+    def probe() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            published.append(len(list_discovered_servers()))
+            return state
+
+        return solve
+
+    # the variable must come from the .env file alone (the autouse fixture
+    # sets it in the process environment; load_dotenv doesn't override)
+    monkeypatch.delenv(CTL_SERVER_ENV_VAR, raising=False)
+    (tmp_path / ".env").write_text(f"{CTL_SERVER_ENV_VAR}=false\n")
+    monkeypatch.chdir(tmp_path)
+
+    task = Task(dataset=[Sample(input="hi")], solver=probe(), name="probe")
+    eval_set(
+        task,
+        model="mockllm/model",
+        display="none",
+        log_dir=str(tmp_path / "logs-env"),
+    )
+    assert published == [0]
+
+    published.clear()
+    eval_set(
+        task,
+        model="mockllm/model",
+        display="none",
+        log_dir=str(tmp_path / "logs-explicit"),
+        ctl_server=True,
+    )
+    assert published == [1]
+
+
 def test_stop_is_prompt_when_idle(short_data_dir: Path) -> None:
     """Tearing down an idle server takes milliseconds, not uvicorn's polls.
 
