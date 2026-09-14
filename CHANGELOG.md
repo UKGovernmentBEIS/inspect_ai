@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: `cache_ttl` now defaults to "auto", which switches a sample's prompt-cache TTL from 5 minutes to 1 hour after a >5 minute gap between its requests; pass "5m" or "1h" to pin.
 - OpenAI-compatible token-counting and compaction endpoints that return 405 are now handled the same as those that return 404.
 - Bedrock and SageMaker now require `aiobotocore` instead of `aioboto3`, which is no longer installed, and Inspect no longer holds `botocore` back to an old release.
 - Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.

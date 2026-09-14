@@ -2,6 +2,8 @@ import functools
 import json
 import os
 import re
+import time
+from collections import OrderedDict
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
@@ -149,7 +151,11 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import (
+    active_samples,
+    sample_active,
+    set_active_model_event_call,
+)
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
     is_result_cleared,
@@ -268,6 +274,28 @@ _REMINDER_SYSTEM_HOISTED_WARNING = (
     "(tool results map to user-role messages), which strips prior thinking and "
     "cache context on tool-use continuations."
 )
+# The 5m cache entry's TTL clock starts at prefill of the previous request, so
+# a gap since the previous request start exceeding the TTL means the cache has
+# expired and this request rewrites the full prefix regardless of the TTL we
+# choose — writing it at 1h then costs only the write premium on tokens already
+# being repaid, and protects the rest of the sample from further expiry.
+CACHE_TTL_ESCALATION_GAP = 300.0  # seconds (= the default 5m cache TTL)
+
+# backstop only — the active-sample registry prune in _resolve_cache_ttl is the
+# real cleanup; this should never fire unless a code path bypasses
+# sample-completion removal from the registry
+_CACHE_TTL_STATE_MAX_SAMPLES = 10_000
+
+
+@dataclass
+class _SampleCacheTtlState:
+    last_request_start: float
+    """`time.monotonic()` at the start of the sample's previous generate()."""
+
+    escalated: bool = False
+    """Sticky flag: sample observed a >5m gap and now uses the 1h TTL."""
+
+
 _CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
 _THINKING_BINDING_BETA = "thinking-binding-controls-2026-08-01"
 _CACHE_MISS_WARNING = (
@@ -293,7 +321,7 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         streaming: bool | Literal["auto"] = "auto",
         betas: str | list[str] = [],
-        cache_ttl: Literal["5m", "1h"] | None = None,
+        cache_ttl: Literal["5m", "1h", "auto"] | None = None,
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -307,12 +335,20 @@ class AnthropicAPI(ModelAPI):
         self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
         self.betas = betas if isinstance(betas, list) else [str(betas)]
 
-        # validate and record prompt cache ttl
-        if cache_ttl is not None and cache_ttl not in ("5m", "1h"):
+        # validate and record prompt cache ttl (None is equivalent to "auto")
+        if cache_ttl is not None and cache_ttl not in ("5m", "1h", "auto"):
             raise ValueError(
-                f"Invalid cache_ttl '{cache_ttl}': valid values are '5m' and '1h'."
+                f"Invalid cache_ttl '{cache_ttl}': valid values are '5m', '1h', "
+                "and 'auto'."
             )
         self.cache_ttl = cache_ttl
+
+        # per-sample cache-ttl escalation state for "auto" mode. Plain dict, no
+        # lock: inspect runs a single event loop and _resolve_cache_ttl never
+        # awaits between read and write. Keyed by sample uuid; entries are
+        # pruned against the active-sample registry when new samples arrive
+        # (created here, not in initialize(), which re-runs on auth retry).
+        self._cache_ttl_state: OrderedDict[str, _SampleCacheTtlState] = OrderedDict()
 
         # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
@@ -497,6 +533,79 @@ class AnthropicAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
+    def _resolve_cache_ttl(self, config: GenerateConfig) -> Literal["5m", "1h"] | None:
+        """Resolve the prompt-cache TTL for this request.
+
+        An explicit `cache_ttl` of "5m" or "1h" pins the TTL unconditionally.
+        Otherwise ("auto", the default) requests start on the standard 5m TTL
+        (returned as None so the `ttl` key is omitted from `cache_control`) and
+        the active sample is escalated to the 1h TTL — permanently, for the
+        remainder of the sample — once the gap between two of its requests
+        exceeds the 5m TTL. At that point the cache has already expired and the
+        full prefix is being rewritten regardless, so the 1h write premium
+        applies only to tokens already being repaid while protecting the rest
+        of the sample (whose gaps have proven able to outlive the 5m TTL).
+
+        Auto mode never escalates on Bedrock/Vertex (block-level `ttl` support
+        there is unverified, and auto is the default — explicit "1h" still
+        applies everywhere), for batched requests (batch queuing has no
+        meaningful inter-request gap), or outside a sample context.
+        """
+        if self.cache_ttl in ("5m", "1h"):
+            return self.cache_ttl
+        if self.is_bedrock() or self.is_vertex():
+            return None
+        if normalized_batch_config(config.batch):
+            return None
+        active = sample_active()
+        if active is None:
+            return None
+
+        now = time.monotonic()
+        state = self._cache_ttl_state.get(active.sample_uuid)
+        if state is None:
+            # prune state for samples that have completed (they are removed
+            # from the active-sample registry); once per sample, not per request
+            live = {sample.sample_uuid for sample in active_samples()}
+            for uuid in [k for k in self._cache_ttl_state if k not in live]:
+                del self._cache_ttl_state[uuid]
+            state = _SampleCacheTtlState(last_request_start=now)
+            self._cache_ttl_state[active.sample_uuid] = state
+        else:
+            gap = now - state.last_request_start
+            state.last_request_start = now
+            if not state.escalated and gap > CACHE_TTL_ESCALATION_GAP:
+                state.escalated = True
+                logger.info(
+                    f"anthropic prompt cache: gap of {gap:.0f}s between requests "
+                    f"exceeded the {CACHE_TTL_ESCALATION_GAP:.0f}s cache TTL for "
+                    f"sample {active.sample_uuid}; using the 1h cache TTL for the "
+                    "remainder of the sample (cache writes billed at 2x base "
+                    "input price rather than 1.25x)."
+                )
+            self._cache_ttl_state.move_to_end(active.sample_uuid)
+
+        while len(self._cache_ttl_state) > _CACHE_TTL_STATE_MAX_SAMPLES:
+            self._cache_ttl_state.popitem(last=False)
+
+        return "1h" if state.escalated else None
+
+    @override
+    def cache_write_ttl(self) -> str | None:
+        # Read-side counterpart of _resolve_cache_ttl for cost accounting: usage
+        # is recorded in the same sample context and escalation is sticky, so
+        # this matches the TTL resolved before the call. Bounded imprecision:
+        # if a sample runs parallel model calls, a request in flight at the
+        # escalation instant is billed at the 1h rate though sent at 5m.
+        if self.cache_ttl in ("5m", "1h"):
+            return self.cache_ttl
+        active = sample_active()
+        if active is not None:
+            state = self._cache_ttl_state.get(active.sample_uuid)
+            if state is not None and state.escalated:
+                return "1h"
+        return None
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -511,13 +620,15 @@ class AnthropicAPI(ModelAPI):
 
         # generate
         try:
+            cache_ttl = self._resolve_cache_ttl(config)
+
             (
                 system_param,
                 tools_param,
                 mcp_servers_param,
                 messages,
                 cache_prompt,
-            ) = await self.resolve_chat_input(input, tools, config)
+            ) = await self.resolve_chat_input(input, tools, config, cache_ttl)
 
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
@@ -531,7 +642,7 @@ class AnthropicAPI(ModelAPI):
             # per-block markers added in resolve_chat_input on those services.
             # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
             if cache_prompt and not (self.is_bedrock() or self.is_vertex()):
-                request["cache_control"] = cache_control_param(self.cache_ttl)
+                request["cache_control"] = cache_control_param(cache_ttl)
 
             # system messages and tools
             if system_param is not None:
@@ -1610,6 +1721,7 @@ class AnthropicAPI(ModelAPI):
         input: list[ChatMessage],
         tools: list[ToolInfo],
         config: GenerateConfig,
+        cache_ttl: Literal["5m", "1h"] | None = None,
     ) -> Tuple[
         list[TextBlockParam] | None,
         list["ToolParamDef"],
@@ -1687,10 +1799,10 @@ class AnthropicAPI(ModelAPI):
         if cache_prompt:
             # system
             if system_param:
-                add_cache_control(system_param[-1], self.cache_ttl)
+                add_cache_control(system_param[-1], cache_ttl)
             # tools
             if tools_params:
-                add_cache_control(tools_params[-1], self.cache_ttl)
+                add_cache_control(tools_params[-1], cache_ttl)
             # mark the second-to-last cacheable block. auto-cache marks the
             # last; this write gives lookback a fallback when that block
             # changes (RAG, scorers, approvers, branching evals). harmless
@@ -1698,7 +1810,7 @@ class AnthropicAPI(ModelAPI):
             # suffices. Skip thinking/redacted_thinking blocks — the API
             # rejects cache_control on those.
             if message_params:
-                add_lookback_cache_control(message_params, self.cache_ttl)
+                add_lookback_cache_control(message_params, cache_ttl)
 
         normalize_document_citations(message_params)
 

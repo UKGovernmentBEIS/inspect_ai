@@ -913,8 +913,6 @@ async def test_anthropic_cache_marks_penultimate_block() -> None:
     api = create_autospec(AnthropicAPI, instance=True)
     api.service_model_name.return_value = "claude-sonnet-4-6"
     api.partition_tools.return_value = ([], [])
-    # instance attribute set in __init__, not captured by create_autospec
-    api.cache_ttl = None
     api.resolve_chat_input = types.MethodType(AnthropicAPI.resolve_chat_input, api)
 
     def marked(content: Any) -> list[int]:
@@ -1014,6 +1012,87 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
     )
 
     assert ("cache_control" in captured) is expects_top_level_cache_control
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("escalated", [False, True])
+async def test_anthropic_auto_cache_ttl_threads_into_request(
+    escalated: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Auto cache TTL threads the resolved ttl through the request.
+
+    An escalated sample's requests carry ttl "1h" on the top-level
+    cache_control and every breakpoint, while a non-escalated sample's
+    requests omit the ttl key entirely (byte-identical to the pre-auto
+    wire format).
+    """
+    import inspect_ai.model._providers.anthropic as anthropic_module
+    from inspect_ai.model._providers.anthropic import _SampleCacheTtlState
+
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+
+    sample = types.SimpleNamespace(sample_uuid="sample-1")
+    monkeypatch.setattr(anthropic_module, "sample_active", lambda: sample)
+    monkeypatch.setattr(anthropic_module, "active_samples", lambda: [sample])
+    if escalated:
+        import time
+
+        api._cache_ttl_state["sample-1"] = _SampleCacheTtlState(
+            last_request_start=time.monotonic(), escalated=True
+        )
+
+    captured: dict[str, Any] = {}
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    api._perform_request_and_continuations = fake_perform  # type: ignore[method-assign]
+
+    await api.generate(
+        input=[
+            ChatMessageSystem(content="be helpful"),
+            ChatMessageUser(
+                content=[
+                    ContentText(text="context block"),
+                    ContentText(text="question block"),
+                ]
+            ),
+        ],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(cache_prompt=True),
+    )
+
+    def cache_controls(request: dict[str, Any]) -> list[dict[str, Any]]:
+        controls = [request["cache_control"], request["system"][-1]["cache_control"]]
+        for message in request["messages"]:
+            if isinstance(message["content"], list):
+                controls.extend(
+                    block["cache_control"]
+                    for block in message["content"]
+                    if isinstance(block, dict) and "cache_control" in block
+                )
+        return controls
+
+    controls = cache_controls(captured)
+    assert len(controls) >= 3  # top-level, system, lookback message block
+    if escalated:
+        assert all(c == {"type": "ephemeral", "ttl": "1h"} for c in controls)
+    else:
+        assert all(c == {"type": "ephemeral"} for c in controls)
 
 
 @pytest.mark.anyio
