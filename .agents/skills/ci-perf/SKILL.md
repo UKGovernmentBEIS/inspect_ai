@@ -35,10 +35,10 @@ For an interactive run, create an output directory outside the repository:
 
 ```bash
 export CI_PERF_OUTPUT_DIR="$(mktemp -d /tmp/ci-perf.XXXXXX)"
-python .claude/skills/ci-perf/scripts/collect_ci_data.py \
+python .agents/skills/ci-perf/scripts/collect_ci_data.py \
   --out "$CI_PERF_OUTPUT_DIR/raw.json" \
   --summary-out "$CI_PERF_OUTPUT_DIR/summary.json"
-python .claude/skills/ci-perf/scripts/publish_ci_findings.py \
+python .agents/skills/ci-perf/scripts/publish_ci_findings.py \
   --directory "$CI_PERF_OUTPUT_DIR" --read-history
 ```
 
@@ -116,9 +116,10 @@ Write `$CI_PERF_OUTPUT_DIR/findings.json` as a JSON list, at most five items:
 ]
 ```
 
-Set `human_implementation` to true only when the only proposed change requires
-a human (for example workflow edits or node/pnpm work). The publisher records
-that need and omits the automation label. Otherwise set it to false.
+Set `human_implementation` to true only when the proposed change edits files
+under `.github/workflows/` or requires node or pnpm (builds, type generation,
+ts-mono). Python-only changes, including this skill's own scripts and tests,
+are false. The publisher records that need and omits the automation label.
 
 When reusing an issue, copy its current title exactly into `title`; the publisher
 checks it before adding evidence or a trigger. Do not put automation mentions
@@ -137,7 +138,7 @@ actionable findings, write `[]`, not an absent file.
 Validate locally with:
 
 ```bash
-python .claude/skills/ci-perf/scripts/publish_ci_findings.py \
+python .agents/skills/ci-perf/scripts/publish_ci_findings.py \
   --directory "$CI_PERF_OUTPUT_DIR"
 ```
 

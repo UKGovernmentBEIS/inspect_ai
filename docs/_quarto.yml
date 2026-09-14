@@ -112,6 +112,7 @@ inspect-docs:
         - href: tools-custom.qmd
         - href: sandboxing.qmd
         - href: approval.qmd
+        - href: review.qmd
     - text: Running
       href: running.qmd
       contents:
