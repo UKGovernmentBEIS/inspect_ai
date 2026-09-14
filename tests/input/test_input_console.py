@@ -34,6 +34,16 @@ from inspect_ai.util._input.console import (
 from inspect_ai.util._input.inline import InlineQuestionApp
 
 
+@pytest.fixture(autouse=True)
+def pin_display_type(monkeypatch: pytest.MonkeyPatch) -> None:
+    # `_use_inline_app` reads the process-global display type, which an
+    # earlier test in the same worker may have latched (any eval run with
+    # display="none"/"plain"). Pin it so the tty gate is deterministic.
+    from inspect_ai.util import _display as display_mod
+
+    monkeypatch.setattr(display_mod, "_display_type", "full")
+
+
 def _silent_console() -> Console:
     return Console(file=io.StringIO(), width=80, force_terminal=False)
 
@@ -254,7 +264,22 @@ def test_multiline_shows_default_and_sentinel_hint(
     _ask_schema("paste", _multiline_schema(default="x [y]"), console)
     out = buf.getvalue()
     assert "default: x [y]" in out
-    assert f"'{MULTILINE_END_TOKEN}'" in out and "Ctrl-D" in out
+    assert f"'{MULTILINE_END_TOKEN}'" in out
+
+
+def test_multiline_tty_hint_names_ctrl_d_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The sentinel isn't offered at a terminal, so don't advertise it: a
+    # dot-only line there is content.
+    _patch_tty(monkeypatch, True)
+    _patch_input_lines(monkeypatch, [EOFError()])
+    buf = io.StringIO()
+    console = Console(file=buf, width=80, force_terminal=False)
+    _ask_schema("paste", _multiline_schema(default="x"), console)
+    out = buf.getvalue()
+    assert "Ctrl-D" in out
+    assert f"'{MULTILINE_END_TOKEN}'" not in out
 
 
 def test_enum_with_multiline_meta_stays_single_line(
@@ -870,16 +895,18 @@ def test_use_inline_app_rejects_dumb_terminal(
         ("full", True),
         ("rich", True),
         ("conversation", True),
+        # rich's console is quiet under "none", so the line reader would
+        # ask the question with nothing on screen
+        ("none", True),
         ("plain", False),
         ("log", False),
-        ("none", False),
     ],
 )
 def test_use_inline_app_follows_display_type(
     monkeypatch: pytest.MonkeyPatch, display: str, inline: bool
 ) -> None:
-    # --display plain/log/none promise line-oriented output, so an
-    # interactive tty is not on its own enough to take over the terminal.
+    # --display plain/log promise line-oriented output, so an interactive
+    # tty is not on its own enough to take over the terminal.
     from inspect_ai.util import _display as display_mod
 
     _patch_tty(monkeypatch, True)
@@ -888,9 +915,15 @@ def test_use_inline_app_follows_display_type(
     assert console_module._use_inline_app() is inline
 
 
-async def test_console_handler_plain_display_uses_line_reader(
+async def test_console_handler_plain_display_reads_lines_to_ctrl_d(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """--display plain at a tty: line reader, but Ctrl-D ends the answer.
+
+    The dot sentinel would end a pasted answer early at the very
+    terminal the operator pasted into, so it applies to non-tty stdin
+    only (`test_multiline_dot_sentinel_*` cover that).
+    """
     from inspect_ai.util import _display as display_mod
 
     _patch_tty(monkeypatch, True)
@@ -900,12 +933,23 @@ async def test_console_handler_plain_display_uses_line_reader(
         raise AssertionError("inline app must not run under --display plain")
 
     monkeypatch.setattr(InlineQuestionApp, "run_async", fail)
-    _patch_input_lines(monkeypatch, ["one", "two", MULTILINE_END_TOKEN])
+    _patch_input_lines(monkeypatch, ["one", MULTILINE_END_TOKEN, "two", EOFError()])
+    _patch_prompt(monkeypatch, ["second"])
 
-    result = await console_handler(
-        InputRequest(message="hi", schema=_multiline_schema())
+    schema = ElicitationSchema(
+        properties={
+            "output": ElicitationStringPropertySchema(
+                type="string", field_meta={MULTILINE_META_KEY: True}
+            ),
+            "name": ElicitationStringPropertySchema(type="string"),
+        },
+        required=["output", "name"],
     )
-    assert result == InputResult(outcome="accepted", content={"output": "one\ntwo"})
+    result = await console_handler(InputRequest(message="hi", schema=schema))
+    assert result == InputResult(
+        outcome="accepted",
+        content={"output": f"one\n{MULTILINE_END_TOKEN}\ntwo", "name": "second"},
+    )
 
 
 def test_use_inline_app_requires_main_thread(

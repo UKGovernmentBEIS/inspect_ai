@@ -158,7 +158,9 @@ ElicitationStringPropertySchema(
 )
 ```
 
-This renders a text area in both the Textual display and the console (on an interactive terminal, the console question is an inline form). Pasted text is kept verbatim, newlines and dot-only lines included; Enter accepts the answer, and Ctrl+J (or Shift+Enter, on terminals that can distinguish it from Enter) inserts a newline. When the form can't be shown — stdin is not a terminal (scripted input), or `--display` is `plain`, `log`, or `none` — the console instead reads lines until a line containing only `.` or a Ctrl-D. The value is not stripped, so leading whitespace in pasted output survives.
+This renders a text area in both the Textual display and the console (on an interactive terminal, the console question is an inline form). Pasted text is kept verbatim, newlines and dot-only lines included; Enter accepts the answer, and Ctrl+J (or Shift+Enter, on terminals that can distinguish it from Enter) inserts a newline. The value is not stripped, so leading whitespace in pasted output survives.
+
+`--display plain` and `--display log` keep the console line-oriented, so the question is asked with prompts rather than a form: the answer is read line by line and ended with Ctrl-D, leaving dot-only lines in a paste as content. When stdin is not a terminal (scripted input) the answer instead ends at a line containing only `.`, because EOF from a pipe can't be read past to ask the next field.
 
 The flag is a presentation hint, so it can be combined with a semantic `format` such as `uri`. It is an Inspect extension key (see [Writing an ACP Client](#writing-an-acp-client)): an external ACP client that doesn't recognise it falls back to its ordinary string control. Note also that a `pattern` constraint is matched with `re.fullmatch` and without `DOTALL`, so a pattern over multi-line text needs a leading `(?s)`.
 

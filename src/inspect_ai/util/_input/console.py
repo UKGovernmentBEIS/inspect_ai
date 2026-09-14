@@ -60,8 +60,9 @@ async def console_handler(request: InputRequest) -> InputResult:
     form (see `InlineQuestionApp`) so pasted multiline answers stay
     content. Where the Textual app can't run or isn't wanted (see
     `_use_inline_app`) — non-tty stdin/stdout (pipes, scripted runs),
-    `--display plain`/`log`/`none` — walks the schema
-    property-by-property using Rich prompts instead. Returns
+    `--display plain`/`log` — walks the schema property-by-property
+    using Rich prompts instead; a multiline answer there is still
+    paste-safe at a terminal (see `_ask_multiline`). Returns
     `accepted` with structured content on success, `declined` if the
     user declines, or `cancelled` on Ctrl+C / `KeyboardInterrupt`.
     """
@@ -87,10 +88,12 @@ async def console_handler(request: InputRequest) -> InputResult:
 def _use_inline_app() -> bool:
     """`True` when the inline Textual app can own the terminal.
 
-    Only for the displays that already paint a terminal UI: `--display
-    plain`/`log`/`none` promise line-oriented output (and get selected
-    precisely where a live UI isn't wanted — CI logs, redirected output,
-    nohup), so they get the Rich line reader even on a tty.
+    Not under `--display plain`/`log`, which promise line-oriented
+    output and get chosen precisely where a live UI isn't wanted (CI
+    logs, redirected output, nohup): those get the Rich line reader even
+    on a tty. `--display none` does keep the form — the question is the
+    one thing it still has to show, and rich's `quiet=True` console
+    would print neither the prompt nor the hint.
 
     Textual is asyncio-only and installs signal handlers, so trio-backend
     and background-thread evals fall back to the Rich line reader (the
@@ -102,7 +105,7 @@ def _use_inline_app() -> bool:
     Rich degrades there, Textual doesn't.
     """
     from inspect_ai._util._async import current_async_backend
-    from inspect_ai.util._display import display_type
+    from inspect_ai.util._display import display_type_plain
 
     return (
         sys.stdin.isatty()
@@ -111,9 +114,9 @@ def _use_inline_app() -> bool:
         and sys.__stderr__.isatty()
         and threading.current_thread() is threading.main_thread()
         and current_async_backend() != "trio"
-        # after the thread check: an uninitialised display_type() resolves
-        # itself, and off the main thread it would latch to "plain"
-        and display_type() in ("full", "conversation", "rich")
+        # after the thread check: an uninitialised display type resolves
+        # itself here, and off the main thread it would latch to "plain"
+        and not display_type_plain()
         and not rich.get_console().is_dumb_terminal
     )
 
@@ -239,14 +242,16 @@ def _ask_multiline(
     required: bool,
     console: Console,
 ) -> Any:
-    # Read line by line to a sentinel. A dot-only line in pasted data
-    # still terminates early — unavoidable with in-band framing, and
-    # acceptable for the cases that land here (scripted input, where the
-    # writer controls the bytes, and the line-oriented displays).
-    console.print(
-        f"[dim](Multi-line: end with a line containing only "
-        f"'{MULTILINE_END_TOKEN}', or Ctrl-D.)[/dim]"
-    )
+    # Read line by line to end-of-answer. At a terminal that is Ctrl-D
+    # only: a dot-only line in a paste is content, and the answer can't
+    # spill into the next field (#5291 review). The `.` sentinel is for
+    # non-tty stdin, where EOF is sticky so a form with a second field
+    # has no other in-band way to end the first answer; a dot-only line
+    # in the data terminates early there, acceptable when the writer
+    # controls the bytes.
+    tty = sys.stdin.isatty()
+    ending = "Ctrl-D" if tty else f"a line containing only '{MULTILINE_END_TOKEN}'"
+    console.print(f"[dim](Multi-line: end with {ending}.)[/dim]")
     while True:
         default_hint = (
             f" [dim](default: {escape(prop.default)})[/dim]" if prop.default else ""
@@ -257,16 +262,16 @@ def _ask_multiline(
             try:
                 line = console.input()
             except EOFError:
-                # Ctrl-D with nothing typed, or stdin closed: EOF from a
-                # pipe is sticky and re-prompting would spin forever, so
-                # propagate like Prompt.ask does.
-                if not lines:
-                    raise
-                break
+                # A tty re-reads after EOF, so an immediate Ctrl-D is just
+                # an empty answer. From a pipe EOF is sticky: re-prompting
+                # would spin, so propagate like Prompt.ask does.
+                if lines or tty:
+                    break
+                raise
             if not lines:
                 # Only the first line can decline; pasted content can't.
                 _check_decline(line)
-            if line.strip() == MULTILINE_END_TOKEN:
+            if not tty and line.strip() == MULTILINE_END_TOKEN:
                 break
             lines.append(line)
         value = "\n".join(lines)
