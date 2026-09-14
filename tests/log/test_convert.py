@@ -20,6 +20,7 @@ from inspect_ai.log._file import read_eval_log, write_eval_log
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders.chunked import convert_eval_logs_to_chunked
 from inspect_ai.log._recorders.chunked.format import (
+    CHUNKED_LOG_VERSION,
     attachment_chunk_boundaries,
     boundary_ranges,
     chunk_boundaries,
@@ -35,6 +36,7 @@ from inspect_ai.log._recorders.chunked.format import (
     skeleton_entry_name,
 )
 from inspect_ai.log._recorders.chunked.stats import event_stats
+from inspect_ai.log._recorders.version import MAX_LOG_FILE_VERSION_VAR
 from inspect_ai.log._resolve import resolve_sample_events_data
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
@@ -418,9 +420,16 @@ def test_convert_chunked_layout(tmp_path: pathlib.Path):
         assert "header.json" in names
         assert "summaries.json" in names
 
-        # _journal/ entries pass through unchanged
+        # the version-bearing entries are stamped with the chunked version
+        assert json.loads(zf.read("header.json"))["version"] == CHUNKED_LOG_VERSION
+        assert (
+            json.loads(zf.read("_journal/start.json"))["version"] == CHUNKED_LOG_VERSION
+        )
+
+        # _journal/ entries pass through unchanged (except the stamped start.json)
         for name, content in journal_entries.items():
-            assert zf.read(name) == content
+            if name != "_journal/start.json":
+                assert zf.read(name) == content
 
         # every sample entry lives under the per-sample prefix (no
         # monolith entries remain)
@@ -662,6 +671,27 @@ def test_chunked_corpus_round_trip(
     assert checked_samples >= 20
     if corpus.chunk_size <= CORPUS_SMALL_CHUNK_SIZE:
         assert multi_chunk_samples > 0
+
+
+def test_chunked_log_version_gate(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Converted (version 3) logs are refused unless the dev ceiling is raised."""
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+    convert_eval_logs_to_chunked(str(input_file), str(tmp_path))
+    output_file = tmp_path / input_file.name
+
+    monkeypatch.delenv(MAX_LOG_FILE_VERSION_VAR, raising=False)
+    with pytest.raises(ValueError, match=f"version {CHUNKED_LOG_VERSION}"):
+        read_eval_log(str(output_file), header_only=True)
+
+    monkeypatch.setenv(MAX_LOG_FILE_VERSION_VAR, str(CHUNKED_LOG_VERSION))
+    log = read_eval_log(str(output_file), header_only=True)
+    assert log.version == CHUNKED_LOG_VERSION
+    assert log.status == "success"
 
 
 def test_convert_chunked_overwrite(tmp_path: pathlib.Path):

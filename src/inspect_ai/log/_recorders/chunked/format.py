@@ -1,11 +1,13 @@
 """Entry naming, chunk math, and per-sample dispatch for chunked samples.
 
 A chunked sample is an additive per-sample shape inside the ``.eval`` zip
-(same extension, no format version bump — the shape is detected
-structurally off the zip central directory). The sample lives under a
-per-sample prefix as a small "shell" entry plus four flat,
-index-addressed sequences, enabling random access within a sample. See
-``design/large-samples.md`` (Part I) for the ratified format design.
+(same extension; the shape is detected structurally off the zip central
+directory). A log containing chunked samples stamps
+``CHUNKED_LOG_VERSION`` into its header so version-gated readers refuse
+it rather than misread it. The sample lives under a per-sample prefix as
+a small "shell" entry plus four flat, index-addressed sequences,
+enabling random access within a sample. See ``design/large-samples.md``
+(Part I) for the ratified format design.
 
 Layout (per sample)::
 
@@ -47,6 +49,15 @@ sample off central-directory entry names (`classify_sample_shape`).
 
 from collections.abc import Container
 from typing import Literal, NamedTuple
+
+CHUNKED_LOG_VERSION = 3
+"""Log format version stamped into logs containing chunked samples.
+
+`LOG_SCHEMA_VERSION` stays 2 until the live recorder writes the chunked
+shape by default; until then only the converter writes version 3, and
+readers refuse it unless `INSPECT_MAX_LOG_FILE_VERSION` raises their
+ceiling (see `.._recorders.version`).
+"""
 
 DEFAULT_CHUNK_SIZE = 1000
 DEFAULT_ATTACHMENTS_CHUNK_BYTES = 10 * 1024 * 1024
