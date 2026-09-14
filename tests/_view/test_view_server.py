@@ -4094,21 +4094,23 @@ def test_mounted_scout_routes_go_through_the_resolver(
             client.post("/scout/transcripts/not*base64/t1/search", json={}).status_code
             == 400
         )
-        # non-canonical encodings (padding in the middle, stray bits) are refused
+        # non-canonical encodings are refused: padding in the middle, stray bits
+        # in the last character ("YQx" is "a" plus bits that no byte round-trips
+        # to), or a path that decodes to bytes that are not UTF-8
         assert (
             client.post("/scout/transcripts/YQ==YQ/t1/search", json={}).status_code
             == 400
         )
         assert (
-            client.post(
-                f"/scout/transcripts/{_b64(str(logs))}x/t1/search", json={}
-            ).status_code
-            == 400
+            client.post("/scout/transcripts/YQx/t1/search", json={}).status_code == 400
         )
         assert (
-            client.post(
-                f"/scout/transcripts/{_b64(str(logs))}=/t1/search", json={}
-            ).status_code
+            client.post("/scout/transcripts/_w/t1/search", json={}).status_code == 400
+        )
+        # the padded spelling of a valid segment is accepted
+        padded = base64.urlsafe_b64encode(str(logs).encode()).decode()
+        assert (
+            client.post(f"/scout/transcripts/{padded}/t1/search", json={}).status_code
             == 200
         )
 
