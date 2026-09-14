@@ -1179,11 +1179,15 @@ async def test_check_action_releases_newline_keys_while_card_mounted(
     request card is mounted, leaving the form's multiline TextArea unable
     to insert a newline with the very chords its hint advertises.
     """
+    from inspect_ai.agent._acp.tui.picker_screen import PickerScreen
+
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
         await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        picker._on_select(sample_rows[0])
         for _ in range(20):
             await pilot.pause()
             if isinstance(app.screen, SessionScreen):
