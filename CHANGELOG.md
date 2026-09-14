@@ -1,23 +1,28 @@
 ## Unreleased
 
+- OpenAI-compatible token-counting and compaction endpoints that return 405 are now handled the same as those that return 404.
 - Bedrock and SageMaker now require `aiobotocore` instead of `aioboto3`, which is no longer installed, and Inspect no longer holds `botocore` back to an old release.
 - Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.
 - Review: New `Reviewer` protocol and `review` policies (`Task(review=)`, `eval(review=)`, `--review`) run after a tool call executes and before the model sees its result, and can `continue`, `terminate`, or `escalate`; each decision is recorded as a `ReviewEvent`.
 - Cancelling an unfinished tool result review stops the sample and preserves the completed tool output in the transcript.
 - Tool result reviewers now inspect parsing and approval errors raised by tools that executed.
 - Fixed Linux evaluations slowing down as model clients open more HTTPS connections.
+- Bugfix: The OpenAI Responses provider no longer raises `ValueError("Unexpected output type: ResponseToolSearchOutputItem")` when an agent uses native OpenAI deferred tool search; the response-item handler now recognises the `tool_search_output` item without overwriting the cached `tool_search_call`. (#4968)
 - Sample selection: `--sample-id` now accepts ids containing colons (e.g. `user:cybergym/arvo_6008`); a `task:` prefix is stripped only when it names a task in the run.
 - Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
 - Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
 - Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.
 - Datasets: `csv_dataset()` now honors the dialect's delimiter when no explicit delimiter is supplied, including tab-separated and registered custom dialects.
+- Datasets: `csv_dataset()` now loads UTF-8 files with a byte-order mark, including Excel CSV exports, without requiring an explicit encoding.
 - Datasets: `file_dataset()` now reads `.tsv` and `.tab` files as tab-delimited instead of rejecting them.
 - Elicitation: long lines in `ask_user` prompts are no longer hard-wrapped by the console, so long commands copy out of the terminal intact.
 - Compaction: summary compaction now produces a more detailed, structured summary that preserves code snippets, user messages, and any security-relevant constraints stated earlier in the conversation.
 - Control Channel: `inspect ctl sample cancel` now works on a sample that is still initializing (e.g. waiting on sandbox provisioning) — the cancel applies the moment the sample starts, and `inspect ctl sample list` marks the pending cancel.
 - Sample and Task Sources: `sample_complete()` now fires for a running sample cancelled individually, so a source waiting on that sample no longer stalls; a blocking callback can no longer hang a task cancel.
 - Agent Bridge: Google clients now receive token log probabilities and top candidates returned by the host model.
+- Google: OAuth/ADC requests to the Gemini Developer API no longer send the placeholder API-key header alongside bearer authentication.
 - Scoring: `math()` now records `reason="invalid_response_format"` when no answer can be extracted, so format failures are distinguishable from wrong answers.
+- Scoring: `choice()` now tags empty completions as `NOANSWER` with `reason="no_response"` and records `reason="invalid_response_format"` when no choice can be parsed, so format failures are distinguishable from wrong answers.
 - Scorer: metrics that own a degenerate shape (e.g. `grouped()`) now report it on an all-unscored run instead of collapsing to a synthesized flat NaN, on both the list and dict metric paths; metrics that raise on empty input still report NaN, with a one-time warning. (#5150)
 - Approval: Policy files given as percent-encoded `file://` URIs (e.g. paths with spaces, as `Path.as_uri()` produces) are now accepted by `eval()`, `Task()`, and `--approval`.
 - Checkpoints: Invalidating a sample now re-runs it from scratch on retry (its checkpoints are discarded) instead of resuming from its last checkpoint.
@@ -47,6 +52,7 @@
 - Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
 - Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
 - Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
+- Logging: `--log-level info` no longer prints a line for every OpenAI and Anthropic HTTP request.
 - Scoring: `math()` now raises an error when no reference answer can be parsed instead of silently excluding the sample from metrics.
 - Scoring: `choice()` now raises an error for samples without answer options instead of silently scoring them incorrect.
 - Bugfix: Anthropic prompt caching no longer fails every request after a turn served by a fallback model (`fallback_models`) with a 400 error.

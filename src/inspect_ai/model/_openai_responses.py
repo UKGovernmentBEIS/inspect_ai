@@ -39,6 +39,7 @@ from openai.types.responses import (
     ResponseReasoningItem,
     ResponseReasoningItemParam,
     ResponseToolSearchCall,
+    ResponseToolSearchOutputItem,
     ResponseUsage,
     ToolChoiceFunctionParam,
     ToolChoiceTypesParam,
@@ -1025,6 +1026,11 @@ def _process_response_output_items(
                     ToolSearchCall, output.model_dump(exclude_none=True)
                 )
                 tool_calls.append(tool_call)
+            case ResponseToolSearchOutputItem():
+                # Companion result of a ResponseToolSearchCall. Tool-message replay
+                # rebuilds this from the cached call and ChatMessageTool content, so
+                # do not cache it under call_id or it will overwrite the call.
+                pass
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
 
