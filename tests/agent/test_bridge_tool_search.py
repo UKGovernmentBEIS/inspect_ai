@@ -514,6 +514,69 @@ def test_process_response_output_items_tool_search_call() -> None:
     assert cached["type"] == "tool_search_call"
 
 
+def test_process_response_output_items_tool_search_output_does_not_clobber_call() -> (
+    None
+):
+    from openai.types.responses import (
+        ResponseToolSearchCall,
+        ResponseToolSearchOutputItem,
+    )
+
+    from inspect_ai.model._openai_responses import assistant_internal
+
+    init_sample_openai_assistant_internal()
+
+    _process_response_output_items(
+        [
+            ResponseToolSearchCall(
+                id="x1",
+                call_id="ts_1",
+                arguments={"query": "file tools"},
+                execution="client",
+                status="completed",
+                type="tool_search_call",
+            ),
+            ResponseToolSearchOutputItem(
+                id="o1",
+                call_id="ts_1",
+                execution="client",
+                status="completed",
+                tools=[],
+                type="tool_search_output",
+            ),
+        ],
+        [],
+    )
+
+    cached = assistant_internal().tool_calls.get("ts_1")
+    assert cached is not None
+    assert cached["type"] == "tool_search_call"
+
+
+def test_process_response_output_items_tool_search_output() -> None:
+    from openai.types.responses import ResponseToolSearchOutputItem
+
+    from inspect_ai.model._openai_responses import assistant_internal
+
+    init_sample_openai_assistant_internal()
+
+    output = ResponseToolSearchOutputItem(
+        id="o1",
+        call_id="ts_1",
+        execution="client",
+        status="completed",
+        tools=[],
+        type="tool_search_output",
+    )
+    # Before the fix, this raised ValueError("Unexpected output type: ...").
+    _content, tool_calls, _logprobs, has_tool_calls = _process_response_output_items(
+        [output], []
+    )
+    assert has_tool_calls is False
+    assert tool_calls == []
+    assert "ts_1" not in assistant_internal().tool_calls
+
+
 # 7b. tool-message replay only emits native tool_search_output when the original
 # call was a tool_search_call. A user/function tool named "tool_search" (cached as
 # a function_call, or uncached) must replay as a normal function_call_output.
