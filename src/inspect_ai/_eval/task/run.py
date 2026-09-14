@@ -1509,7 +1509,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         )
                         return sample, state
 
-                    return await task_run_sample(
+                    result = await task_run_sample(
                         task=task,
                         task_name=task.name,
                         log_location=profile.log_location,
@@ -1554,6 +1554,44 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         task_id=logger.eval.eval_id,
                         scan_id=options.scan_id,
                     )
+
+                    # a DISCARDED run was cancelled without ever being logged
+                    # (cancelled while queued, abandoned at queue exit by a
+                    # graceful task cancel, or an interrupt in an errored
+                    # attempt's pre-retry drain window), so sample_complete
+                    # has nothing to deliver: the run's sources hear it via
+                    # sample_abandoned instead -- the task keeps running, and
+                    # a source waiting on the sample would otherwise wait
+                    # forever. Not while the task is unwinding (no follow-up
+                    # could run; the sample_complete delivery rule), and not
+                    # for a re-run (a withdrawn or abandoned requeue leaves
+                    # the prior, already-reported outcome standing). Runs
+                    # here, outside the semaphore and any shield, so user
+                    # callback code holds no sample slot and stays
+                    # cancellable.
+                    task_unwinding = task_cancel is not None and (
+                        task_cancel.cancel_type in ("abort", "retry")
+                    )
+                    if (
+                        result is DISCARDED
+                        and requeue_prior is None
+                        and not task_unwinding
+                        and (sample_feed is not None or options.task_source is not None)
+                    ):
+                        # a copy, as materialization would have handed the
+                        # run: the store's own object must not reach user code
+                        abandoned = deepcopy(get_sample(sample_index))
+                        if sample_feed is not None:
+                            _enqueue_source_samples(
+                                await sample_feed.sample_abandoned(abandoned, epoch)
+                            )
+                        if options.task_source is not None:
+                            _enqueue_source_tasks(
+                                await options.task_source.sample_abandoned(
+                                    abandoned, epoch, task
+                                )
+                            )
+                    return result
 
                 async def run_samples_dynamic(
                     feed: SampleSource,

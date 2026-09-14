@@ -19,6 +19,7 @@
 - Compaction: summary compaction now produces a more detailed, structured summary that preserves code snippets, user messages, and any security-relevant constraints stated earlier in the conversation.
 - Control Channel: `inspect ctl sample cancel` now works on a sample that is still initializing (e.g. waiting on sandbox provisioning) — the cancel applies the moment the sample starts, and `inspect ctl sample list` marks the pending cancel.
 - Sample and Task Sources: `sample_complete()` now fires for a running sample cancelled individually, so a source waiting on that sample no longer stalls; a blocking callback can no longer hang a task cancel.
+- Sample and Task Sources: a new `sample_abandoned()` hook reports a sample cancelled before anything was logged (cancelled while queued, or before its `retry_on_error` re-run), so a source waiting on it no longer stalls.
 - Agent Bridge: Google clients now receive token log probabilities and top candidates returned by the host model.
 - Google: OAuth/ADC requests to the Gemini Developer API no longer send the placeholder API-key header alongside bearer authentication.
 - Scoring: `math()` now records `reason="invalid_response_format"` when no answer can be extracted, so format failures are distinguishable from wrong answers.

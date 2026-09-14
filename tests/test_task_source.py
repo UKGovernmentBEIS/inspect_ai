@@ -224,6 +224,69 @@ def test_sample_complete_skipped_for_task_cancel() -> None:
     assert tasks_completed == ["task_cancel"]
 
 
+def test_sample_abandoned_fires_for_queued_sample_cancel() -> None:
+    """Cancelling a sample still parked in the queue notifies the TaskSource.
+
+    With one slot, whichever seed wins it cancels the parked sibling before it
+    starts. Nothing is ever logged for the sibling, so the source hears about
+    it via `sample_abandoned` (with the sample, epoch and task) rather than
+    `sample_complete`, which fires only for the sample that ran.
+    """
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai._control.eval_state import get_eval_states
+
+    completed: list[str] = []
+    abandoned: list[tuple[str, int, str]] = []
+    ran: list[str] = []
+
+    async def on_complete(sample: EvalSample, task: Task) -> list[Task] | None:
+        completed.append(str(sample.id))
+        return None
+
+    async def on_abandoned(sample: Sample, epoch: int, task: Task) -> None:
+        abandoned.append((str(sample.id), epoch, task.name))
+
+    @solver(name="task_source_queued_cancel_solver")
+    def cancel_parked_sibling() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            ran.append(str(state.sample_id))
+            parked = "b" if state.sample_id == "a" else "a"
+            eval_id = get_eval_states()[0].eval_id
+            with anyio.fail_after(60):
+                while True:
+                    probe = await cancel_sample(
+                        eval_id, parked, 1, action="cancel", dry_run=True
+                    )
+                    if probe is not None and probe.get("status") == "cancelled":
+                        break
+                    await anyio.sleep(0.01)
+            result = await cancel_sample(eval_id, parked, 1, action="cancel")
+            assert result is not None
+            assert result["ok"] is True and result["changed"] is True
+            return state
+
+        return solve
+
+    source = TaskSource.from_tasks(
+        [
+            Task(
+                dataset=[Sample(id="a", input="x"), Sample(id="b", input="x")],
+                solver=cancel_parked_sibling(),
+                name="queued_cancel",
+            )
+        ],
+        sample_complete=on_complete,
+        sample_abandoned=on_abandoned,
+    )
+    logs = eval(tasks=source, model="mockllm/model", display="none", max_samples=1)
+    assert logs[0].status == "success"
+    (running,) = ran
+    parked = "b" if running == "a" else "a"
+    assert completed == [running]
+    assert abandoned == [(parked, 1, "queued_cancel")]
+    assert [str(s.id) for s in (logs[0].samples or [])] == [running]
+
+
 def test_task_source_factory_seed_and_callbacks() -> None:
     # task_source() builds a TaskSource from a seed + callbacks (no subclass).
     # next_tasks closes over shared state to produce two more generations.
