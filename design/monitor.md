@@ -590,6 +590,25 @@ Task(monitor=defer_to_trusted(network_suspicion(), trusted="openai/gpt-4o-mini")
 
 This is the same move as shipping `react()` and `basic_agent()` rather than making everyone write a tool loop. It converts "understand the control literature" into "pick from a list", and the papers become an explanation of *why* each protocol exists rather than required reading.
 
+#### What the names mean {#what-the-names-mean}
+
+The literature's protocols are all arrangements of three resources with different trust levels: an **untrusted model** (capable, possibly scheming — it does the work), a **trusted model** (weaker, believed not to be scheming), and **trusted human labour** (scarce; this is the audit budget).
+
+| Protocol | The arrangement |
+|------------------------|------------------------|
+| `observe_only` | score and record; never act. Also how a benign distribution gets collected |
+| `trusted_monitoring` | the trusted model scores the untrusted model's output; the most suspicious slice goes to human audit, the rest is accepted |
+| `defer_to_trusted` | above a lower threshold but below the audit threshold, substitute the trusted model's action for the untrusted one's |
+| `trusted_editing` | the trusted model rewrites the suspicious parts rather than replacing the whole action |
+| `untrusted_monitoring` | the *untrusted* model scores — more capable, but it may collude, so it needs honeypots and lie detection |
+| `resample` | draw further samples, score each, execute the least suspicious (Ctrl-Z; multi-step settings only) |
+
+Two things follow that a reader should not have to infer.
+
+**The threshold comes from the budget, not from the score.** "Audit the most suspicious 1%" rather than "audit anything above 0.8". That is the whole reason [thresholds cannot live inside a monitor](#two-kinds-and-how-to-choose): you need the benign score distribution to know which value *is* the 99th percentile, and a monitor looking at one step has never seen a distribution.
+
+**"Trusted" describes the monitor, not the protocol — and the protocol name is a statement about what it omits.** `trusted_monitoring(some_untrusted_judge())` type-checks perfectly well; nothing verifies the claim in the name. What the word actually buys at the protocol level is an *assumption*: this protocol trusts its monitor and therefore does nothing to check it. `untrusted_monitoring` is a separate protocol rather than a flag precisely because dropping that assumption means adding machinery — honeypot injection, and comparing reports against known-bad inputs.
+
 A protocol owns:
 
 - **thresholds** — calibrated against benign score distributions, per dimension where scores are structured
