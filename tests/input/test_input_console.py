@@ -1092,6 +1092,84 @@ def test_pty_paste_with_dot_lines_and_typed_newline() -> None:
     }
 
 
+@pytest.mark.slow
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX pty")
+def test_pty_plain_display_paste_with_dot_line_ends_at_ctrl_d() -> None:
+    """The same paste through the line reader `--display plain` selects.
+
+    No Textual app here: the paste goes through the tty line discipline
+    into `Console.input`, so the guarantee has to come from the
+    terminator. A ` . ` line stays content, Ctrl-D ends the answer, and
+    the second field reads its own answer rather than the paste's tail.
+    """
+    import json
+    import os
+    import pty
+    import re
+    import select
+    import time
+
+    child = 'import os\nos.environ["INSPECT_DISPLAY"] = "plain"\n' + _PTY_CHILD
+    pid, master = pty.fork()
+    if pid == 0:  # child: never returns
+        os.environ["TERM"] = "xterm-256color"
+        os.execv(sys.executable, [sys.executable, "-c", child])
+
+    buf = b""
+
+    def wait_for(pattern: bytes, timeout: float = 30) -> None:
+        nonlocal buf
+        end = time.time() + timeout
+        while pattern not in buf:
+            assert time.time() < end, (
+                f"timed out waiting for {pattern!r}; tail: {buf[-1000:]!r}"
+            )
+            ready, _, _ = select.select([master], [], [], 0.25)
+            if ready:
+                try:
+                    chunk = os.read(master, 65536)
+                except OSError:
+                    return
+                if not chunk:
+                    return
+                buf += chunk
+
+    try:
+        wait_for(b"Ctrl-D")  # the multiline hint: reader is up
+        wait_for(b"Files")
+        # CR line endings, as a terminal sends them; no bracketed paste
+        # wrappers, since the reader doesn't enable the mode.
+        os.write(master, b"first file\r . \rsecond file\r")
+        wait_for(b"second file")  # echoed by the tty
+        os.write(master, b"\x04")  # Ctrl-D: end of this answer only
+        wait_for(b"Name")
+        os.write(master, b"alice\r")
+        wait_for(b"RESULT:")
+        end = time.time() + 10
+        while not re.search(rb"RESULT:\{.*\}", buf) and time.time() < end:
+            # The JSON tail may arrive in a later chunk than "RESULT:".
+            ready, _, _ = select.select([master], [], [], 0.25)
+            if ready:
+                buf += os.read(master, 65536)
+    finally:
+        try:
+            os.close(master)
+        except OSError:
+            pass
+        try:
+            os.kill(pid, 9)
+        except ProcessLookupError:
+            pass
+        os.waitpid(pid, 0)
+
+    match = re.search(rb"RESULT:(\{.*\})", buf)
+    assert match, f"no RESULT line; tail: {buf[-1000:]!r}"
+    assert json.loads(match.group(1)) == {
+        "outcome": "accepted",
+        "content": {"files": "first file\n . \nsecond file", "name": "alice"},
+    }
+
+
 def test_long_lines_not_hard_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
     # Rich would otherwise break the command at the console width, which
     # inserts newlines into whatever the user copies from the terminal.
