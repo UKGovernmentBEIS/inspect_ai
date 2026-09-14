@@ -2,6 +2,7 @@ import base64
 import binascii
 import json
 import logging
+import math
 import os
 import secrets
 import time
@@ -32,7 +33,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from typing_extensions import override
 
 from inspect_ai._display.core.active import display
-from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
+from inspect_ai._eval.evalset import EvalSet, read_eval_set_manifest
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
@@ -69,7 +70,7 @@ from .common import (
     get_logs,
     normalize_uri,
     parse_log_token,
-    read_eval_set_info_async,
+    read_eval_set_manifest_async,
     stream_log_bytes,
 )
 from .network import (
@@ -328,56 +329,115 @@ def view_server_app(
         return file
 
     resolver: ResolvingAccessPolicy
-    unchecked_child_base: str | None
+    plain_policy = not isinstance(access_policy, ResolvingAccessPolicy)
     if isinstance(access_policy, ResolvingAccessPolicy):
         resolver = access_policy
-        unchecked_child_base = None
     else:
         resolver = CanonicalizingAdapter(access_policy, default_dir)
-        unchecked_child_base = default_dir
 
-    def _decode_location(location: str, encoding: LocationEncoding | None) -> str:
+    def _compatibility_locations(request: Request) -> bool:
+        """Whether this request keeps the pre-resolver location handling.
+
+        True for a plain ``AccessPolicy`` (wrapped in the adapter) and for the
+        legacy shared-secret credential in token mode: those callers get
+        ``normalize_uri`` on path locations and the directory-only contract
+        for derived files, exactly as before. Every other resolving policy
+        gets the literal decode-once rule and derived-file confinement.
+        """
+        if plain_policy:
+            return True
+        if isinstance(resolver, TokenModeAccessPolicy):
+            return not resolver.is_scoped(request)
+        return False
+
+    def _decode_location(
+        location: str, encoding: LocationEncoding | None, compatibility: bool
+    ) -> str:
         """Percent-decode a request location exactly once.
 
-        This is the only place a route's location is decoded (the decode-once
-        rule of design section 3, enforced by a static test): path-segment
-        routes and ``/log-headers`` decode through ``normalize_uri``, the
-        query-string sample routes through ``unquote``; ``None`` means the
-        value is already the once-decoded spelling.
+        This is the only place a route's location is decoded (enforced by a
+        static test). Resolving policies get a literal single ``unquote`` and
+        every remaining character, ``#`` and ``?`` included, is part of the
+        name (the decode-once rule of design section 3). The compatibility
+        path keeps ``normalize_uri`` on path-segment routes and
+        ``/log-headers``, which re-parses a decoded ``file:`` URI, because
+        plain policies and legacy clients were written against it. ``None``
+        means the value is already the once-decoded spelling.
         """
-        if encoding == "path":
+        if encoding == "path" and compatibility:
             return normalize_uri(location)
-        if encoding == "query":
+        if encoding in ("path", "query"):
             return urllib.parse.unquote(location)
         return location
-
-    def _io_location(caller: str, resolved: str) -> str:
-        # A mapping policy owns the translation to storage and is given the
-        # caller's (now authorized) spelling, as before the resolver layer;
-        # otherwise the resolver's canonical location is used for I/O.
-        return caller if mapping_policy is not None else resolved
 
     async def _resolve_read(
         request: Request, location: str, encoding: LocationEncoding | None = "path"
     ) -> str:
-        decoded = _decode_location(location, encoding)
-        return _io_location(decoded, await resolver.resolve_read(request, decoded))
+        decoded = _decode_location(
+            location, encoding, _compatibility_locations(request)
+        )
+        return await resolver.resolve_read(request, decoded)
 
     async def _resolve_write(
         request: Request, location: str, encoding: LocationEncoding | None = "path"
     ) -> str:
-        decoded = _decode_location(location, encoding)
-        return _io_location(decoded, await resolver.resolve_write(request, decoded))
+        decoded = _decode_location(
+            location, encoding, _compatibility_locations(request)
+        )
+        return await resolver.resolve_write(request, decoded)
 
     async def _resolve_delete(
         request: Request, location: str, encoding: LocationEncoding | None = "path"
     ) -> str:
-        decoded = _decode_location(location, encoding)
-        return _io_location(decoded, await resolver.resolve_delete(request, decoded))
+        decoded = _decode_location(
+            location, encoding, _compatibility_locations(request)
+        )
+        return await resolver.resolve_delete(request, decoded)
 
     async def _resolve_list(request: Request, location: str | None) -> str:
-        resolved = await resolver.resolve_list(request, location)
-        return resolved if location is None else _io_location(location, resolved)
+        return await resolver.resolve_list(request, location)
+
+    async def _derived_file(request: Request, directory: str, name: str) -> str:
+        """The mapped location of a file the server derives from an authorized directory.
+
+        ``/eval-set`` and ``/flow`` read ``eval-set.json`` and ``flow.yaml``
+        under the directory they resolved. On the compatibility path the file
+        is joined onto the mapped directory as before (plain policies were
+        never asked about it). Otherwise the derived file is itself resolved
+        for listing, so a symlink planted at that name cannot lead outside
+        the scope, and the resolver's location is what gets mapped and read.
+        """
+        if _compatibility_locations(request):
+            mapped_dir = await _map_file(request, directory)
+            sep = filesystem(mapped_dir).sep
+            return f"{mapped_dir.rstrip('/').rstrip(sep)}{sep}{name}"
+        resolved = await resolver.resolve_list(
+            request, f"{directory.rstrip('/')}/{name}"
+        )
+        return await _map_file(request, resolved)
+
+    async def _confine_sample_buffer(request: Request, file: str) -> None:
+        """Refuse a sample buffer directory that escapes the log file's directory.
+
+        The filestore buffer for ``<dir>/<name>.eval`` lives at
+        ``<dir>/.buffer/<name>/``, a location derived from the authorized file
+        rather than named by the request. It is not authorized against the
+        scope (a ``file`` root must still see its own buffer) but must stay
+        under the file's directory, so a symlink planted at ``.buffer`` or the
+        buffer name cannot lead elsewhere. Compatibility callers are left as
+        before.
+        """
+        if _compatibility_locations(request):
+            return
+        parent = file.rstrip("/").rsplit("/", 1)[0] if "/" in file else "."
+        stem = os.path.splitext(file.rstrip("/").rsplit("/", 1)[-1])[0]
+        buffer_dir = f"{parent}/.buffer/{stem}"
+        try:
+            anchor = ScopeRoot.parse(parent, "dir", ["read"])
+        except ValueError:
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        if PathScope((anchor,)).resolve(buffer_dir, "read") is None:
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
 
     async def _resolve_list_child(
         request: Request, log_dir: str | None, sub_dir: str | None
@@ -394,8 +454,8 @@ def view_server_app(
             return await _resolve_list(request, log_dir or None)
         if log_dir:
             base = log_dir
-        elif unchecked_child_base is not None:
-            base = unchecked_child_base
+        elif plain_policy:
+            base = default_dir
         else:
             base = await resolver.resolve_list(request, None)
         try:
@@ -619,14 +679,13 @@ def view_server_app(
         sub_dir: str = Query(None, alias="dir"),
     ) -> EvalSet | None:
         eval_set_dir = await _resolve_list_child(request, log_dir, sub_dir)
+        manifest = await _derived_file(request, eval_set_dir, "eval-set.json")
 
-        # return the eval set info for this directory (async fs, not to_thread —
-        # see the fsspec/to_thread warning in AGENTS.md)
-        mapped = await _map_file(request, eval_set_dir)
+        # async fs, not to_thread — see the fsspec/to_thread warning in AGENTS.md
         if fs_options:
-            return read_eval_set_info(mapped, fs_options=fs_options)
+            return read_eval_set_manifest(manifest, fs_options=fs_options)
         async with AsyncFilesystem() as afs:
-            return await read_eval_set_info_async(mapped, afs)
+            return await read_eval_set_manifest_async(manifest, afs)
 
     @app.get("/flow")
     async def flow(
@@ -635,10 +694,7 @@ def view_server_app(
         sub_dir: str = Query(None, alias="dir"),
     ) -> Response:
         flow_dir = await _resolve_list_child(request, log_dir, sub_dir)
-
-        mapped_dir = await _map_file(request, flow_dir)
-        sep = filesystem(mapped_dir).sep
-        flow_file = f"{mapped_dir.rstrip('/').rstrip(sep)}{sep}flow.yaml"
+        flow_file = await _derived_file(request, flow_dir, "flow.yaml")
 
         # async fs, not to_thread — see the fsspec/to_thread warning in AGENTS.md
         async with AsyncFilesystem() as afs:
@@ -690,6 +746,7 @@ def view_server_app(
         request: Request, log: str = Query(...)
     ) -> Samples | Response:
         file = await _resolve_read(request, log, encoding="query")
+        await _confine_sample_buffer(request, file)
 
         client_etag = request.headers.get("If-None-Match")
 
@@ -736,6 +793,7 @@ def view_server_app(
         after_call_pool_id: int | None = Query(None, alias="after-call-pool-id"),
     ) -> SampleData | Response:
         file = await _resolve_read(request, log, encoding="query")
+        await _confine_sample_buffer(request, file)
 
         # NOTE: sync on the event loop. The sample buffer can be filestore-backed
         # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
@@ -774,6 +832,7 @@ def view_server_app(
         tail: bool = Query(False),
     ) -> PendingSampleUrls | Response:
         file = await _resolve_read(request, log, encoding="query")
+        await _confine_sample_buffer(request, file)
 
         mapped = await _map_file(request, file)
         body = await build_pending_sample_urls(
@@ -904,6 +963,10 @@ class TokenModeAccessPolicy:
         self._scoped = ScopedAccessPolicy()
         self._unscoped = UnscopedResolvingPolicy(default_dir)
 
+    def is_scoped(self, request: Request) -> bool:
+        """Whether the request authenticated with a scoped JWT (vs the legacy secret)."""
+        return getattr(request.state, "view_scope", None) is not None
+
     def _select(self, request: Request) -> ResolvingAccessPolicy:
         if not hasattr(request.state, "view_scope"):
             raise HTTPException(status_code=HTTP_403_FORBIDDEN)
@@ -1030,24 +1093,32 @@ class ViewAuthorizationMiddleware:
                 options={"require": ["exp"]},
             )
             view_scope = scope_from_claims(claims)
-        except (jwt.PyJWTError, ValueError, TypeError) as ex:
+            exp = _numeric_date(claims["exp"])
+        except (jwt.PyJWTError, ValueError, TypeError, OverflowError) as ex:
             logger.debug(f"Rejected scoped authorization token: {ex}")
-            return None
-        exp = claims["exp"]
-        if not isinstance(exp, (int, float)):
             return None
         if len(self._cache) >= self._cache_size:
             for key in [k for k, (e, _) in self._cache.items() if e <= now]:
                 del self._cache[key]
             if len(self._cache) >= self._cache_size:
                 del self._cache[next(iter(self._cache))]
-        self._cache[token] = (float(exp), view_scope)
+        self._cache[token] = (exp, view_scope)
         return view_scope
 
     async def _reject(self, scope: Scope, receive: Receive, send: Send) -> None:
         await PlainTextResponse("Unauthorized", status_code=HTTP_401_UNAUTHORIZED)(
             scope, receive, send
         )
+
+
+def _numeric_date(value: object) -> float:
+    """A JWT NumericDate as a finite float; raises for anything else."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError("exp must be a number")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError("exp must be finite")
+    return result
 
 
 def _bearer_token(header: str) -> str | None:

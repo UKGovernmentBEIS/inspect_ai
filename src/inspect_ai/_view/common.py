@@ -133,19 +133,17 @@ def get_log_dir(log_dir: str) -> LogDirResponse:
     return LogDirResponse(log_dir=aliased_path(log_dir))
 
 
-async def read_eval_set_info_async(
-    eval_set_dir: str, afs: AsyncFilesystem
+async def read_eval_set_manifest_async(
+    manifest: str, afs: AsyncFilesystem
 ) -> EvalSet | None:
-    """Read the `eval-set.json` manifest for `eval_set_dir` via the async filesystem.
+    """Read an `eval-set.json` manifest at `manifest` via the async filesystem.
 
-    Async counterpart to `read_eval_set_info`. Reads the manifest through
+    Async counterpart to `read_eval_set_manifest`. Reads through
     `AsyncFilesystem` (riding the shared client) rather than bouncing sync fsspec
     through a threadpool — see the fsspec/`to_thread` warning in AGENTS.md.
     Returns None when the manifest is absent, or (matching `read_eval_set_info`)
     when the check/read fails with an Azure auth error.
     """
-    sep = filesystem(eval_set_dir).sep
-    manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
     try:
         if not await afs.exists(manifest):
             return None
@@ -154,6 +152,15 @@ async def read_eval_set_info_async(
         if is_azure_auth_error(ex):
             return None
         raise
+
+
+async def read_eval_set_info_async(
+    eval_set_dir: str, afs: AsyncFilesystem
+) -> EvalSet | None:
+    """Read the `eval-set.json` manifest for `eval_set_dir` via the async filesystem."""
+    sep = filesystem(eval_set_dir).sep
+    manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
+    return await read_eval_set_manifest_async(manifest, afs)
 
 
 async def get_log_files(

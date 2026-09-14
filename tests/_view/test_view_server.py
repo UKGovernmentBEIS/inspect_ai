@@ -1110,11 +1110,15 @@ def test_api_eval_set_uses_fs_options_reader(
 ) -> None:
     calls: list[tuple[str, dict[str, Any]]] = []
 
-    def fake_read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> None:
-        calls.append((log_dir, fs_options))
+    def fake_read_eval_set_manifest(
+        manifest: str, fs_options: dict[str, Any] = {}
+    ) -> None:
+        calls.append((manifest, fs_options))
         return None
 
-    monkeypatch.setattr(fastapi_server, "read_eval_set_info", fake_read_eval_set_info)
+    monkeypatch.setattr(
+        fastapi_server, "read_eval_set_manifest", fake_read_eval_set_manifest
+    )
     app = fastapi_server.view_server_app(fs_options={"anon": True})
     with fastapi.testclient.TestClient(app) as client:
         resp = client.request(
@@ -1124,7 +1128,7 @@ def test_api_eval_set_uses_fs_options_reader(
 
     resp.raise_for_status()
     assert resp.json() is None
-    assert calls == [("s3://bucket/logs", {"anon": True})]
+    assert calls == [("s3://bucket/logs/eval-set.json", {"anon": True})]
 
 
 def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1696,21 +1700,17 @@ def test_fastapi_only_dir_access_policy_accepts_listed_file_uri(
 
 
 def test_fastapi_only_dir_policy_integration(mock_s3_eval_file: str) -> None:
-    class mapping_policy(FileMappingPolicy):
-        async def map(self, request: Request, file: str) -> str:
-            return f"memory://{file}"
-
-        async def unmap(self, request: Request, file: str) -> str:
-            return file.removeprefix("memory://")
-
+    """OnlyDirAccessPolicy over a remote root, driven through the routes."""
+    root = "memory://mocked_eval_set"
     with fastapi.testclient.TestClient(
         fastapi_server.view_server_app(
-            mapping_policy=mapping_policy(),
-            access_policy=fastapi_server.OnlyDirAccessPolicy("mocked_eval_set"),
+            default_dir=root, access_policy=fastapi_server.OnlyDirAccessPolicy(root)
         )
     ) as client:
-        assert client.request("GET", f"/logs/{mock_s3_eval_file}").status_code == 200
-        assert client.request("GET", "/logs/other_dir/file.eval").status_code == 403
+        inside = urllib.parse.quote(f"memory://{mock_s3_eval_file}", safe="")
+        assert client.request("GET", f"/logs/{inside}").status_code == 200
+        outside = urllib.parse.quote("memory://other_dir/file.eval", safe="")
+        assert client.request("GET", f"/logs/{outside}").status_code == 403
 
 
 def test_fastapi_inspect_json_response_nan() -> None:
@@ -3032,18 +3032,29 @@ def test_resolving_policy_is_used_directly_and_its_location_is_read() -> None:
 
 def test_resolving_policy_default_binding_for_absent_listing(tmp_path: Path) -> None:
     write_eval_log(tmp_path, "2025-01-01T00-00-00+00-00_task_taskid.eval")
-    policy = _AliasResolvingPolicy(str(tmp_path))
+
+    class _DefaultBindingPolicy(_AliasResolvingPolicy):
+        async def resolve_list(self, request: Request, location: str | None) -> str:
+            self.resolved.append(("list", location))
+            # derived files resolve to themselves; everything else to the root
+            if location is not None and location.endswith("eval-set.json"):
+                return location
+            return self.canonical
+
+    policy = _DefaultBindingPolicy(str(tmp_path))
     app = fastapi_server.view_server_app(access_policy=policy, default_dir="/ignored")
     with fastapi.testclient.TestClient(app) as client:
         assert client.get("/logs").status_code == 200
         assert client.get("/log-dir").status_code == 200
-        # a child under an absent base joins onto the policy's default binding
+        # a child under an absent base joins onto the policy's default binding,
+        # and the derived manifest is resolved under the resolved directory
         assert client.get("/eval-set?dir=sub").status_code == 200
     assert policy.resolved == [
         ("list", None),
         ("list", None),
         ("list", None),
         ("list", f"{tmp_path}/sub"),
+        ("list", f"{tmp_path}/eval-set.json"),
     ]
 
 
@@ -3505,9 +3516,14 @@ def _mint(
     return jwt.encode(claims, secret, algorithm=algorithm)
 
 
+def _file_uri(path: Path) -> str:
+    """A root's spelling: the unencoded file: URI (roots are literal, not percent-decoded)."""
+    return f"file://{path.as_posix()}"
+
+
 def _dir_root(path: Path, *permissions: str) -> dict[str, Any]:
     return {
-        "uri": path.as_uri(),
+        "uri": _file_uri(path),
         "kind": "dir",
         "permissions": list(permissions or ("read", "list")),
     }
@@ -3515,7 +3531,7 @@ def _dir_root(path: Path, *permissions: str) -> dict[str, Any]:
 
 def _file_root(path: Path, *permissions: str) -> dict[str, Any]:
     return {
-        "uri": str(path),
+        "uri": _file_uri(path),
         "kind": "file",
         "permissions": list(permissions or ("read", "list")),
     }
@@ -4146,3 +4162,256 @@ def test_mounted_scout_routes_are_confined_by_a_scope(
             ).status_code
             == 200
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Round-1 review fixes: derived files, literal decoding, mapper input,
+# claim wire schema, exp handling
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _derived_layout(tmp_path: Path) -> tuple[Path, Path]:
+    """logs/ with flow.yaml, eval-set.json and .buffer all symlinked outside."""
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret-flow.yaml").write_text("outside secret", encoding="utf-8")
+    (outside / "secret-eval-set.json").write_text(
+        json.dumps({"eval_set_id": "outside", "tasks": []}), encoding="utf-8"
+    )
+    log = write_eval_log(logs, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    _create_sample_buffer(str(outside / "2025-01-01T00-00-00+00-00_task_taskid.eval"))
+    try:
+        (logs / "flow.yaml").symlink_to(outside / "secret-flow.yaml")
+        (logs / "eval-set.json").symlink_to(outside / "secret-eval-set.json")
+        (logs / ".buffer").symlink_to(outside / ".buffer", target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are not supported here")
+    assert (outside / ".buffer").is_dir()
+    return logs, Path(log)
+
+
+def test_derived_files_are_confined_tokenless(tmp_path: Path) -> None:
+    logs, log = _derived_layout(tmp_path)
+    app = fastapi_server.view_server_app(
+        default_dir=str(logs),
+        access_policy=fastapi_server.OnlyDirAccessPolicy(str(logs)),
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get("/flow").status_code == 403
+        assert client.get(f"/flow?log_dir={logs}").status_code == 403
+        assert client.get("/eval-set").status_code == 403
+        assert client.get(f"/pending-samples?log={_q(log)}").status_code == 403
+        assert (
+            client.get(
+                f"/pending-sample-data?log={_q(log)}&id=sample1&epoch=0"
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/pending-sample-data-urls?log={_q(log)}&id=sample1&epoch=0"
+            ).status_code
+            == 403
+        )
+        # a real derived file inside the directory still works
+        (logs / "flow.yaml").unlink()
+        (logs / "flow.yaml").write_text("name: inside", encoding="utf-8")
+        assert client.get("/flow").text == "name: inside"
+        (logs / "eval-set.json").unlink()
+        assert client.get("/eval-set").status_code == 200
+        (logs / ".buffer").unlink()
+        _create_sample_buffer(str(log))
+        assert client.get(f"/pending-samples?log={_q(log)}").status_code == 200
+
+
+def test_derived_files_are_confined_under_a_scope(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    outside = tmp_path / "outside"
+    (outside / "secret-flow.yaml").write_text("outside secret", encoding="utf-8")
+    (outside / "secret-eval-set.json").write_text(
+        json.dumps({"eval_set_id": "outside", "tasks": []}), encoding="utf-8"
+    )
+    (logs / "flow.yaml").symlink_to(outside / "secret-flow.yaml")
+    (logs / "eval-set.json").symlink_to(outside / "secret-eval-set.json")
+    token = _mint([_dir_root(logs)])
+    with client:
+        assert client.get("/api/flow", headers=_bearer(token)).status_code == 403
+        assert client.get("/api/eval-set", headers=_bearer(token)).status_code == 403
+        # the legacy credential keeps the pre-resolver behaviour (unscoped)
+        assert client.get("/api/flow", headers=_legacy()).text == "outside secret"
+
+
+def test_derived_files_keep_the_plain_policy_contract() -> None:
+    """A plain policy is asked about the directory only; the mapper sees the directory."""
+    policy = _RecordingAccessPolicy(allow=True)
+    mapping = _RecordingMappingPolicy()
+    app = fastapi_server.view_server_app(mapping_policy=mapping, access_policy=policy)
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get("/flow?log_dir=some/dir").status_code == 404
+        assert client.get("/eval-set?log_dir=some/dir").status_code == 200
+    assert policy.calls == [("list", "some/dir"), ("list", "some/dir")]
+    assert mapping.mapped == ["some/dir", "some/dir"]
+
+
+def test_resolving_policy_result_reaches_the_mapper() -> None:
+    """The mapper and I/O receive the resolver's location, not the caller's spelling."""
+    canonical = "canonical/dir/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_fake_eval_log(canonical)
+    policy = _AliasResolvingPolicy(canonical)
+    mapping = _RecordingMappingPolicy()
+    app = fastapi_server.view_server_app(mapping_policy=mapping, access_policy=policy)
+    with fastapi.testclient.TestClient(app) as client:
+        response = client.get("/logs/alias%2Fx.eval")
+        assert response.status_code == 200
+        assert client.get("/log-size/alias%2Fx.eval").status_code == 200
+    assert policy.resolved == [("read", "alias/x.eval"), ("read", "alias/x.eval")]
+    assert mapping.mapped == [canonical, canonical]
+
+
+@pytest.mark.parametrize(
+    "name", ["a#b.eval", "a?b.eval", "a%b.eval", "a;b.eval", "a b.eval"]
+)
+def test_literal_file_uri_names_end_to_end(tmp_path: Path, name: str) -> None:
+    """A once-decoded file: URI names the file literally, on read, write and delete."""
+    client, logs = _standalone(tmp_path)
+    target = logs / name
+    write_eval_log(logs, name)
+    decoy = logs / name.split("#")[0].split("?")[0].split(";")[0]
+    if decoy != target:
+        decoy.write_text("decoy", encoding="utf-8")
+    dir_token = _mint([_dir_root(logs, "read", "list", "write", "delete")])
+    file_token = _mint([_file_root(target, "read", "list", "write", "delete")])
+    encoded = urllib.parse.quote(target.as_uri(), safe="")
+    with client:
+        for token in (dir_token, file_token):
+            size = client.get(f"/api/log-size/{encoded}", headers=_bearer(token))
+            assert size.status_code == 200
+            assert size.json() == target.stat().st_size
+            assert (
+                client.get(f"/api/logs/{encoded}", headers=_bearer(token)).status_code
+                == 200
+            )
+            assert (
+                client.get(
+                    f"/api/log-headers?file={encoded}", headers=_bearer(token)
+                ).status_code
+                == 200
+            )
+        edited = client.post(
+            f"/api/log-edit/{encoded}",
+            headers={**_bearer(dir_token), **FRONTEND_REQUEST_HEADERS},
+            json=_LOG_EDIT_BODY,
+        )
+        assert edited.status_code == 200
+        if decoy != target:
+            assert decoy.read_text(encoding="utf-8") == "decoy"
+        deleted = client.request(
+            "DELETE",
+            f"/api/log-delete/{encoded}",
+            headers={**_bearer(file_token), **FRONTEND_REQUEST_HEADERS},
+        )
+        assert deleted.status_code == 200
+        assert not target.exists()
+        if decoy != target:
+            assert decoy.exists()
+
+
+def test_literal_decoding_only_for_resolving_policies(tmp_path: Path) -> None:
+    """The legacy credential and plain policies keep normalize_uri's file: URI handling."""
+    client, logs = _standalone(tmp_path)
+    write_eval_log(logs, "x.eval")
+    (logs / "x.eval#suffix").write_text("suffix", encoding="utf-8")
+    encoded = urllib.parse.quote((logs / "x.eval#suffix").as_uri(), safe="")
+    with client:
+        # normalize_uri drops the fragment: the legacy credential reads x.eval
+        legacy = client.get(f"/api/log-size/{encoded}", headers=_legacy())
+        assert legacy.status_code == 200
+        assert legacy.json() == (logs / "x.eval").stat().st_size
+        scoped = client.get(
+            f"/api/log-size/{encoded}", headers=_bearer(_mint([_dir_root(logs)]))
+        )
+        assert scoped.status_code == 200
+        assert scoped.json() == len("suffix")
+
+
+@pytest.mark.parametrize(
+    ("name", "root"),
+    [
+        (
+            "relative-path",
+            {"uri": "relative/path", "kind": "dir", "permissions": ["read", "list"]},
+        ),
+        (
+            "bare-absolute-path",
+            {"uri": "/w/logs", "kind": "dir", "permissions": ["read", "list"]},
+        ),
+        (
+            "unsupported-scheme",
+            {"uri": "ftp://host/path", "kind": "dir", "permissions": ["read", "list"]},
+        ),
+        (
+            "file-uri-other-host",
+            {"uri": "file://evil.test/w/logs", "kind": "dir", "permissions": ["read"]},
+        ),
+    ],
+)
+def test_scoped_jwt_root_wire_schema_is_401(
+    tmp_path: Path, name: str, root: dict[str, Any]
+) -> None:
+    client, logs = _standalone(tmp_path)
+    token = _mint([root])
+    with client:
+        assert (
+            client.get("/api/app-config", headers=_bearer(token)).status_code == 401
+        ), name
+        assert client.get("/api/logs", headers=_bearer(token)).status_code == 401, name
+
+
+def _hand_signed(payload_json: str, secret: str = _SECRET) -> str:
+    import hashlib
+    import hmac
+
+    def b64(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+    signing_input = (
+        b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+        + "."
+        + b64(payload_json.encode())
+    )
+    signature = hmac.new(
+        secret.encode(), signing_input.encode(), hashlib.sha256
+    ).digest()
+    return signing_input + "." + b64(signature)
+
+
+@pytest.mark.parametrize(
+    ("name", "exp_json"),
+    [
+        ("huge-integer", str(10**400)),
+        ("overflowing-exponent", "1e400"),
+        ("negative-infinity-exponent", "-1e400"),
+        ("string", '"9999999999"'),
+        ("boolean", "true"),
+    ],
+)
+def test_scoped_jwt_unrepresentable_exp_is_401(
+    tmp_path: Path, name: str, exp_json: str
+) -> None:
+    client, logs = _standalone(tmp_path)
+    scope = json.dumps({"v": 1, "roots": [_dir_root(logs)]})
+    payload = f'{{"aud": "{fastapi_server.VIEW_JWT_AUDIENCE}", "exp": {exp_json}, "inspect_view_scope": {scope}}}'
+    token = _hand_signed(payload)
+    with client:
+        response = client.get("/api/logs", headers=_bearer(token))
+        assert response.status_code == 401, name
+    middleware = fastapi_server.ViewAuthorizationMiddleware(cast(Any, None), _SECRET)
+    assert middleware._verify(token) is None
+    # a large but representable exp is fine and cached as given
+    ok = _hand_signed(
+        f'{{"aud": "{fastapi_server.VIEW_JWT_AUDIENCE}", "exp": {2**53}, "inspect_view_scope": {scope}}}'
+    )
+    assert middleware._verify(ok) is not None
+    assert middleware._cache[ok][0] == float(2**53)

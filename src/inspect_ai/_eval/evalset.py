@@ -2370,10 +2370,15 @@ def read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> EvalSet
     log_dir = _resolve_log_dir(fs, log_dir)
 
     # form target path and read
-    manifest = f"{log_dir}{fs.sep}eval-set.json"
-    exists = _manifest_exists(fs, manifest)
+    return read_eval_set_manifest(f"{log_dir}{fs.sep}eval-set.json", fs_options)
 
-    if not exists:
+
+def read_eval_set_manifest(
+    manifest: str, fs_options: dict[str, Any] = {}
+) -> EvalSet | None:
+    """Read an `eval-set.json` manifest at `manifest`; None if absent."""
+    fs = filesystem(manifest, fs_options)
+    if not _manifest_exists(fs, manifest):
         return None
 
     eval_set_json = _read_manifest_bytes(manifest, fs_options)
