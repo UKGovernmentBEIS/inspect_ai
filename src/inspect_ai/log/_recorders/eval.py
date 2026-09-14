@@ -389,9 +389,12 @@ class EvalRecorder(FileRecorder):
             etag: str | None = None
             fs = filesystem(location)
 
-            if not fs.is_local() and header_only is False:
-                with tempfile.NamedTemporaryFile(delete=False) as temp:
-                    temp_log = temp.name
+            # the downloads await, so the temp file is removed in the finally
+            # below when one is cancelled or fails, not only after the read
+            try:
+                if not fs.is_local() and header_only is False:
+                    with tempfile.NamedTemporaryFile(delete=False) as temp:
+                        temp_log = temp.name
                     if fs.is_s3():
                         # download file and get ETag so it matches the content
                         etag = await _s3_download_with_etag(
@@ -403,8 +406,7 @@ class EvalRecorder(FileRecorder):
                         with open(temp_log, "wb") as dest:
                             await async_fs.read_file_into(location, dest)
 
-            # read log (use temp_log if we have it)
-            try:
+                # read log (use temp_log if we have it)
                 read_location = temp_log or location
                 reader = AsyncZipReader(async_fs, read_location)
                 cd = await reader.entries()
