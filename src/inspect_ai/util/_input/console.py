@@ -58,9 +58,10 @@ async def console_handler(request: InputRequest) -> InputResult:
 
     On an interactive terminal, renders the request as an inline Textual
     form (see `InlineQuestionApp`) so pasted multiline answers stay
-    content. Where the Textual app can't run (see `_use_inline_app`) —
-    including non-tty stdin/stdout (pipes, scripted runs) — walks the
-    schema property-by-property using Rich prompts instead. Returns
+    content. Where the Textual app can't run or isn't wanted (see
+    `_use_inline_app`) — non-tty stdin/stdout (pipes, scripted runs),
+    `--display plain`/`log`/`none` — walks the schema
+    property-by-property using Rich prompts instead. Returns
     `accepted` with structured content on success, `declined` if the
     user declines, or `cancelled` on Ctrl+C / `KeyboardInterrupt`.
     """
@@ -86,6 +87,11 @@ async def console_handler(request: InputRequest) -> InputResult:
 def _use_inline_app() -> bool:
     """`True` when the inline Textual app can own the terminal.
 
+    Only for the displays that already paint a terminal UI: `--display
+    plain`/`log`/`none` promise line-oriented output (and get selected
+    precisely where a live UI isn't wanted — CI logs, redirected output,
+    nohup), so they get the Rich line reader even on a tty.
+
     Textual is asyncio-only and installs signal handlers, so trio-backend
     and background-thread evals fall back to the Rich line reader (the
     same reasons `util/_display.py` throttles the task display). Its
@@ -96,6 +102,7 @@ def _use_inline_app() -> bool:
     Rich degrades there, Textual doesn't.
     """
     from inspect_ai._util._async import current_async_backend
+    from inspect_ai.util._display import display_type
 
     return (
         sys.stdin.isatty()
@@ -104,6 +111,9 @@ def _use_inline_app() -> bool:
         and sys.__stderr__.isatty()
         and threading.current_thread() is threading.main_thread()
         and current_async_backend() != "trio"
+        # after the thread check: an uninitialised display_type() resolves
+        # itself, and off the main thread it would latch to "plain"
+        and display_type() in ("full", "conversation", "rich")
         and not rich.get_console().is_dumb_terminal
     )
 
@@ -229,10 +239,10 @@ def _ask_multiline(
     required: bool,
     console: Console,
 ) -> Any:
-    # Non-tty stdin only (interactive terminals get the inline Textual
-    # form): read line by line to a sentinel. A dot-only line in the data
+    # Read line by line to a sentinel. A dot-only line in pasted data
     # still terminates early — unavoidable with in-band framing, and
-    # acceptable for scripted input where the writer controls the bytes.
+    # acceptable for the cases that land here (scripted input, where the
+    # writer controls the bytes, and the line-oriented displays).
     console.print(
         f"[dim](Multi-line: end with a line containing only "
         f"'{MULTILINE_END_TOKEN}', or Ctrl-D.)[/dim]"

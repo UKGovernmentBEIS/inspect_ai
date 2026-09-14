@@ -1,6 +1,7 @@
 """Inline Textual app for console `ask_user` on an interactive terminal.
 
-Replaces the dot-sentinel line reader whenever stdin/stdout are a tty.
+Replaces the dot-sentinel line reader on an interactive tty under the
+displays that paint a terminal UI (see `console._use_inline_app`).
 Textual enables bracketed paste (and, where the terminal supports it, the
 kitty keyboard protocol), so a pasted answer containing newlines or
 dot-only lines arrives as one Paste event and stays content — it can no

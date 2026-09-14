@@ -864,6 +864,50 @@ def test_use_inline_app_rejects_dumb_terminal(
     assert not console_module._use_inline_app()
 
 
+@pytest.mark.parametrize(
+    "display,inline",
+    [
+        ("full", True),
+        ("rich", True),
+        ("conversation", True),
+        ("plain", False),
+        ("log", False),
+        ("none", False),
+    ],
+)
+def test_use_inline_app_follows_display_type(
+    monkeypatch: pytest.MonkeyPatch, display: str, inline: bool
+) -> None:
+    # --display plain/log/none promise line-oriented output, so an
+    # interactive tty is not on its own enough to take over the terminal.
+    from inspect_ai.util import _display as display_mod
+
+    _patch_tty(monkeypatch, True)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setattr(display_mod, "_display_type", display)
+    assert console_module._use_inline_app() is inline
+
+
+async def test_console_handler_plain_display_uses_line_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.util import _display as display_mod
+
+    _patch_tty(monkeypatch, True)
+    monkeypatch.setattr(display_mod, "_display_type", "plain")
+
+    def fail(self: InlineQuestionApp, **kwargs: Any) -> None:
+        raise AssertionError("inline app must not run under --display plain")
+
+    monkeypatch.setattr(InlineQuestionApp, "run_async", fail)
+    _patch_input_lines(monkeypatch, ["one", "two", MULTILINE_END_TOKEN])
+
+    result = await console_handler(
+        InputRequest(message="hi", schema=_multiline_schema())
+    )
+    assert result == InputResult(outcome="accepted", content={"output": "one\ntwo"})
+
+
 def test_use_inline_app_requires_main_thread(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
