@@ -3,7 +3,7 @@ import logging
 import tempfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Callable, Literal, cast
 from unittest import mock
 
 import anyio
@@ -22,9 +22,11 @@ from inspect_ai import (
 )
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_now_utc
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 
 def test_eval_epochs_sample_count():
@@ -634,6 +636,207 @@ def test_failed_log_start_returns_errored_log(
     assert logs[0].location  # the path the failed write was destined for
 
 
+async def test_running_sample_buffer_row_carries_its_start(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The realtime row opened for a running sample records when it started.
+
+    Crash recovery dates a still-running sample from its row, and decides by
+    that start whether the row is newer than a record the log inherited, so
+    a row without one would lose to the inherited record (#5343 review).
+    """
+    from inspect_ai.log._recorders.buffer import database as database_module
+    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: tmp_path / "db")
+    buffers: list[SampleBufferDatabase] = []
+    init = TaskLogger.init
+
+    async def track_init(logger: TaskLogger) -> None:
+        await init(logger)
+        assert logger.buffer_db is not None
+        buffers.append(logger.buffer_db)
+
+    monkeypatch.setattr(TaskLogger, "init", track_init)
+    rows_while_running: list[str | None] = []
+
+    @solver
+    def inspect_row() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            samples = buffers[-1].get_samples()
+            assert samples is not None and samples != "NotModified"
+            (row,) = samples.samples
+            assert row.completed_at is None
+            rows_while_running.append(row.started_at)
+            return state
+
+        return solve
+
+    try:
+        admitted_no_earlier_than = datetime_now_utc()
+        logs = await eval_async(
+            Task(dataset=[Sample(id=1, input="x", target="x")], solver=inspect_row()),
+            model="mockllm/model",
+            log_dir=str(tmp_path / "logs"),
+            ctl_server=False,
+        )
+        assert logs[0].status == "success"
+        (started_at,) = rows_while_running
+        assert started_at is not None
+        # sub-second precision: a start truncated to the second would read
+        # earlier than the moment the eval was launched
+        assert datetime_from_iso_format_safe(started_at) >= admitted_no_earlier_than
+        assert logs[0].samples is not None
+        (sample,) = logs[0].samples
+        assert sample.started_at is not None and started_at <= sample.started_at
+    finally:
+        for buffer in buffers:
+            buffer.cleanup()
+
+
+async def test_sample_failing_before_it_starts_keeps_its_admission_time(
+    tmp_path: Path,
+) -> None:
+    """A sample whose input cannot be materialized is still dated.
+
+    Execution never began, so there is no run start to record; the logged
+    failure takes the sample's admission time instead, so crash recovery can
+    order it against a record the log inherited for the same key.
+    """
+    from inspect_ai.model import ChatMessageUser, ContentImage
+
+    admitted_no_earlier_than = datetime_now_utc()
+    logs = await eval_async(
+        Task(
+            dataset=[
+                Sample(
+                    id=1,
+                    input=[
+                        ChatMessageUser(
+                            content=[ContentImage(image=str(tmp_path / "missing.png"))]
+                        )
+                    ],
+                    target="x",
+                )
+            ]
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        fail_on_error=False,
+        ctl_server=False,
+    )
+    assert logs[0].status == "success"
+    assert logs[0].samples is not None
+    (sample,) = logs[0].samples
+    assert sample.error is not None
+    assert sample.started_at is not None
+    assert datetime_from_iso_format_safe(sample.started_at) >= admitted_no_earlier_than
+
+
+@pytest.mark.parametrize("task_retry_attempts", [0, 1])
+@pytest.mark.parametrize("recovery_source", ["database", "filestore"])
+async def test_terminal_log_write_failure_preserves_recovery(
+    task_retry_attempts: int,
+    recovery_source: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from test_helpers.buffer import simulate_crashed_buffer_db
+
+    from inspect_ai.log import read_eval_log_async
+    from inspect_ai.log._recorders.buffer import database as database_module
+    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+    from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
+    from inspect_ai.log._recover import recover_eval_log_async
+    from inspect_ai.model import ModelOutput, get_model
+
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: tmp_path / "db")
+    loggers: list[TaskLogger] = []
+    buffers: list[SampleBufferDatabase] = []
+    entries: list[ZipLogFile] = []
+    init = TaskLogger.init
+    flush = ZipLogFile.flush
+
+    async def track_init(logger: TaskLogger) -> None:
+        await init(logger)
+        loggers.append(logger)
+        assert logger.buffer_db is not None
+        buffers.append(logger.buffer_db)
+        assert isinstance(logger.recorder, EvalRecorder)
+        entries.extend(logger.recorder.data.values())
+
+    async def fail_final_write(log: ZipLogFile, fsync: bool = False) -> None:
+        # the completion's shared-buffer upload is requested but not yet due
+        # (log_shared=3600): the terminal close must drain it, or another
+        # host has nothing to recover from
+        if fsync:
+            await anyio.lowlevel.checkpoint()
+            raise OSError("persistent final write failure")
+        await flush(log, fsync=fsync)
+
+    monkeypatch.setattr(TaskLogger, "init", track_init)
+    monkeypatch.setattr(ZipLogFile, "flush", fail_final_write)
+    try:
+        logs = await eval_async(
+            Task(dataset=[Sample(id=1, input="x", target="saved")], scorer=match()),
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[ModelOutput.from_content("mockllm/model", "saved")]
+                * (task_retry_attempts + 1),
+            ),
+            log_dir=str(tmp_path / "logs"),
+            log_buffer=100,
+            log_shared=3600 if recovery_source == "filestore" else 0,
+            task_retry_attempts=task_retry_attempts,
+            ctl_server=False,
+        )
+        assert logs[0].status == "error"
+        assert logs[0].error is not None
+        assert "persistent final write failure" in logs[0].error.message
+        assert len(buffers) == task_retry_attempts + 1
+        logger = loggers[-1]
+        written = await read_eval_log_async(logger.location)
+        assert written.status == "started"
+        assert not written.samples
+        assert logger.buffer_db is None
+        assert isinstance(logger.recorder, EvalRecorder)
+        assert not logger.recorder.data
+        assert not logger._stale_flush_stops
+        assert all(entry._temp_file.closed and entry._zip is None for entry in entries)
+        buffer = buffers[-1]
+        assert buffer._closed and not buffer._connections
+        assert buffer._sync_thread is None
+        assert buffer.db_path.exists()
+        filestore = buffer._sync_filestore
+
+        if recovery_source == "database":
+            assert filestore is None
+            # Recovery ignores databases owned by a still-live process.
+            simulate_crashed_buffer_db(buffer)
+        else:
+            assert filestore is not None and filestore.read_manifest() is not None
+        # Restore storage for recovery; the missing DB simulates another machine.
+        monkeypatch.setattr(ZipLogFile, "flush", flush)
+        recovered_log = await recover_eval_log_async(
+            logger.location,
+            _db_dir=tmp_path
+            / ("db" if recovery_source == "database" else "missing-db"),
+        )
+        assert recovered_log.location is not None
+        recovered = await read_eval_log_async(recovered_log.location)
+        assert recovered.samples is not None
+        (sample,) = recovered.samples
+        assert sample.id == 1
+        assert sample.completed_at is not None
+        assert sample.error is None
+        assert sample.output.completion == "saved"
+        assert sample.scores is not None and sample.scores["match"].value == "C"
+        assert sample.events
+    finally:
+        for buffer in buffers:
+            buffer.cleanup()
+
+
 @pytest.mark.parametrize("log_format", ["eval", "json"])
 def test_unserializable_score_metadata_does_not_abort_eval(
     tmp_path: Path, log_format: Literal["eval", "json"]
@@ -681,6 +884,206 @@ def test_unserializable_score_metadata_does_not_abort_eval(
     (reduced,) = log.reductions[0].samples
     assert reduced.value == 1
     assert reduced.metadata is None
+
+
+@pytest.mark.parametrize("sample_id", ["²", "①"])
+async def test_json_retry_preserves_unicode_sample_id(
+    sample_id: str, tmp_path: Path
+) -> None:
+    attempts = 0
+
+    @solver
+    def fail_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("first attempt fails")
+            return state
+
+        return solve
+
+    logs = await eval_async(
+        Task(dataset=[Sample(id=sample_id, input="x")], solver=fail_once()),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        log_format="json",
+        task_retry_attempts=1,
+        ctl_server=False,
+    )
+    assert attempts == 2
+    assert logs[0].status == "success"
+    assert logs[0].samples is not None
+    (sample,) = logs[0].samples
+    assert sample.id == sample_id
+    assert sample.error_retries is not None and len(sample.error_retries) == 1
+    assert "first attempt fails" in sample.error_retries[0].message
+
+
+@pytest.mark.parametrize("failure_stage", ["seed", "checkpoint", "start", "flush"])
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("failure_mode", ["error", "cancel", "debug"])
+async def test_terminal_retry_startup_releases_recorder(
+    failure_stage: str,
+    log_format: Literal["eval", "json"],
+    failure_mode: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import inspect_ai._eval.task.run as task_run_module
+    import inspect_ai.log._samples as samples_module
+    from inspect_ai._eval.task import PreviousTask
+    from inspect_ai.log import EvalSample, EvalSpec, list_eval_logs, read_eval_log_async
+    from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
+    from inspect_ai.log._recorders.json import JSONRecorder
+    from inspect_ai.log._recorders.recorder import Recorder, SeedSamples
+    from inspect_ai.util import CheckpointConfig, TurnInterval
+    from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+    monkeypatch.setattr(
+        samples_module, "create_checkpointer", lambda **kwargs: _NoopCheckpointer()
+    )
+    loaded: list[SeedSamples] = []
+    closed: list[SeedSamples] = []
+    failed_loggers: list[TaskLogger] = []
+    entries: list[ZipLogFile | JSONRecorder.JSONLogFile] = []
+    load = SeedSamples.load
+    close = SeedSamples.close
+    seed = Recorder.log_seed_samples
+    start = TaskLogger.log_start
+    init = TaskLogger.init
+
+    async def track_init(logger: TaskLogger) -> None:
+        await init(logger)
+        failed_loggers.append(logger)
+        assert isinstance(logger.recorder, EvalRecorder | JSONRecorder)
+        entries.extend(logger.recorder.data.values())
+
+    async def track_load(source: SeedSamples, prior: str | list[EvalSample]) -> None:
+        await load(source, prior)
+        loaded.append(source)
+
+    async def track_close(source: SeedSamples) -> None:
+        await anyio.lowlevel.checkpoint()
+        await close(source)
+        closed.append(source)
+
+    async def fail_startup() -> None:
+        assert loaded
+        if failure_mode == "cancel":
+            scope.cancel()
+            await anyio.lowlevel.checkpoint()
+        raise OSError("simulated terminal startup failure")
+
+    async def seed_and_fail(
+        recorder: Recorder,
+        spec: EvalSpec,
+        prior: str | list[EvalSample],
+        keep: set[tuple[str | int, int]] | None,
+        *,
+        on_sample: Callable[[str | int, int], None] | None = None,
+    ) -> None:
+        await seed(recorder, spec, prior, keep, on_sample=on_sample)
+        if failure_stage == "seed":
+            await fail_startup()
+
+    async def copy_checkpoints(
+        *, source_eval_dir: str, destination_eval_dir: str
+    ) -> None:
+        if failure_stage == "checkpoint":
+            await fail_startup()
+
+    async def start_and_fail(logger: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        if logger.prior_seeded and failure_stage == "start":
+            await fail_startup()
+        await start(logger, *args, **kwargs)
+        if logger.prior_seeded and failure_stage == "flush":
+            await fail_startup()
+
+    @solver
+    def fail_sample() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            raise RuntimeError("first attempt fails")
+
+        return solve
+
+    def retry_startup_task() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="x" * 100_000, target="y")],
+            solver=fail_sample(),
+            checkpoint=CheckpointConfig(trigger=TurnInterval(every=1)),
+        )
+
+    monkeypatch.setattr(SeedSamples, "load", track_load)
+    monkeypatch.setattr(SeedSamples, "close", track_close)
+    monkeypatch.setattr(Recorder, "log_seed_samples", seed_and_fail)
+    monkeypatch.setattr(task_run_module, "copy_resume_payloads", copy_checkpoints)
+    monkeypatch.setattr(TaskLogger, "log_start", start_and_fail)
+    # JSON priors exercise the cached-body path for both destination formats.
+    prior = (
+        await eval_async(
+            retry_startup_task(),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            log_format="json",
+            ctl_server=False,
+        )
+    )[0]
+    assert prior.location is not None
+    monkeypatch.setattr(TaskLogger, "init", track_init)
+
+    async def retry() -> None:
+        result = await eval_async(
+            PreviousTask(
+                id=prior.eval.task_id,
+                task=retry_startup_task(),
+                task_args={},
+                model=None,
+                model_roles=None,
+                log=await read_eval_log_async(prior.location, header_only=True),
+                log_info=list_eval_logs(str(tmp_path))[0],
+            ),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            log_format=log_format,
+            debug_errors=failure_mode == "debug",
+            ctl_server=False,
+        )
+        if failure_mode == "error":
+            assert result[0].status == "error"
+            assert result[0].error is not None
+            assert "simulated terminal startup failure" in result[0].error.message
+
+    with anyio.CancelScope() as scope:
+        if failure_mode == "debug":
+            error_type = RuntimeError if failure_stage == "checkpoint" else OSError
+            with pytest.raises(error_type, match="simulated terminal startup failure"):
+                await retry()
+        else:
+            await retry()
+
+    assert scope.cancel_called == (failure_mode == "cancel")
+    assert len(loaded) == 1
+    assert closed == loaded
+    assert not loaded[0]._samples and not loaded[0].keys
+    assert loaded[0]._reader is None
+    assert len(failed_loggers) == len(entries) == 1
+    for logger in failed_loggers:
+        assert isinstance(logger.recorder, EvalRecorder | JSONRecorder)
+        assert not logger.recorder._seed_sources
+        assert not logger.recorder.data
+        assert logger.buffer_db is None
+    for entry in entries:
+        if isinstance(entry, ZipLogFile):
+            assert entry._temp_file.closed
+            assert entry._zip is None
+    logs = list_eval_logs(str(tmp_path))
+    assert len(logs) == (2 if failure_stage == "flush" else 1)
+    if failure_stage == "flush":
+        written = await read_eval_log_async(failed_loggers[0].location)
+        assert written.status == "started"
+        assert written.samples is not None and len(written.samples) == 1
+        assert written.samples[0].error == (prior.samples or [])[0].error
 
 
 def test_failed_log_start_is_retried(
@@ -798,190 +1201,156 @@ def _retry_source_log_info(location: str) -> Any:
         type="file",
         size=0,
         mtime=None,
-        task="retry_probe_task",
+        task="retry_seed_task",
         task_id="task-id",
         suffix=None,
     )
 
 
-def _write_prior_eval_log(log_dir: Path) -> tuple[Any, bytes]:
-    """Run a one-sample eval and return its log plus the .eval file bytes."""
+def _write_prior_eval_log(log_dir: Path) -> Any:
+    """Run a one-sample eval and return its log."""
     task = Task(
         dataset=[Sample(id=1, input="Say hello", target="hello")], scorer=match()
     )
     log = eval(task, model="mockllm/model", log_dir=str(log_dir))[0]
     assert log.status == "success" and log.location
-    from inspect_ai._util.file import local_path
-
-    return log, Path(local_path(log.location)).read_bytes()
+    return log
 
 
-def test_retry_presence_probe_retries_transient_failure(tmp_path: Path) -> None:
-    """A failed central-directory fetch is retried on the next probe.
+def test_unseeded_retry_bounds_concurrent_prior_lookups(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unseeded retry attempt's prior-log lookups stay bounded.
 
-    A transient failure must not be cached as "no presence" — that would
-    silently disable the reuse read throttle for the whole sweep.
+    With sample logging off nothing is seeded, so the reuse sweep falls back
+    to reading the prior log per planned sample. Every planned sample's
+    run_sample starts at once, so without a bound a large remote retry opens
+    one body read per sample concurrently (61 for 61 prior records).
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai.log._file import read_eval_log_sample_async as original_read
+
+    monkeypatch.setattr(task_run_module, "PRIOR_LOOKUP_CONCURRENCY", 2)
+    reads = {"in_flight": 0, "max_in_flight": 0, "total": 0}
+
+    async def slow_read(*args: Any, **kwargs: Any) -> Any:
+        reads["in_flight"] += 1
+        reads["total"] += 1
+        reads["max_in_flight"] = max(reads["max_in_flight"], reads["in_flight"])
+        try:
+            await anyio.sleep(0.02)
+            return await original_read(*args, **kwargs)
+        finally:
+            reads["in_flight"] -= 1
+
+    monkeypatch.setattr(task_run_module, "read_eval_log_sample_async", slow_read)
+
+    runs: list[int] = []
+
+    @solver(name=f"unseeded_lookup_solver_{id(runs)}")
+    def fail_last_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(int(str(state.sample_id)))
+            if state.sample_id == 8 and runs.count(8) == 1:
+                raise RuntimeError("first run fails")
+            return state
+
+        return solve
+
+    unseeded_task = Task(
+        dataset=[Sample(id=i, input="x", target="y") for i in range(1, 9)],
+        solver=[fail_last_once()],
+        name="unseeded_lookup_task",
+    )
+    logs = eval(
+        unseeded_task,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=1,
+        retry_on_error=0,
+        log_samples=False,
+        max_samples=8,
+    )
+    assert len(logs) == 1 and logs[0].status == "success"
+    # the retry looked every planned sample up in the prior log ...
+    assert reads["total"] == 8
+    # ... at most PRIOR_LOOKUP_CONCURRENCY at a time
+    assert reads["max_in_flight"] <= 2, reads
+
+
+def test_retry_sample_source_seed_set_only_when_eligible(tmp_path: Path) -> None:
+    """The seed a retry attempt's log is filled from follows the reuse eligibility checks.
+
+    A prior log file that passes them seeds by location; an in-memory prior
+    log seeds from its samples; a prior that fails a check (dataset size
+    changed, shuffled without ids) yields no seed at all — the attempt then
+    runs everything fresh, as it reuses nothing.
     """
     from inspect_ai._eval.task.run import eval_log_sample_source
-    from inspect_ai._util.asyncfiles import AsyncFilesystem
     from inspect_ai.dataset import MemoryDataset
 
-    prior_log, real_bytes = _write_prior_eval_log(tmp_path / "logs")
-    probe_path = tmp_path / "prior.eval"
-    probe_path.write_bytes(b"not a zip")
+    prior_log = _write_prior_eval_log(tmp_path / "logs")
+    log_info = _retry_source_log_info(prior_log.location)
+    dataset = MemoryDataset([Sample(id=1, input="x", target="y")])
 
+    file_source = eval_log_sample_source(prior_log, log_info, dataset)
+    assert file_source.seed is not None
+    assert file_source.seed.source == prior_log.location
+
+    memory_source = eval_log_sample_source(prior_log, None, dataset)
+    assert memory_source.seed is not None
+    assert isinstance(memory_source.seed.source, list)
+    assert [s.id for s in memory_source.seed.source] == [1]
+
+    bigger = MemoryDataset(
+        [Sample(id=1, input="x", target="y"), Sample(id=2, input="x", target="y")]
+    )
+    assert eval_log_sample_source(prior_log, log_info, bigger).seed is None
+
+    shuffled = MemoryDataset([Sample(input="x", target="y")], shuffled=True)
+    assert eval_log_sample_source(prior_log, log_info, shuffled).seed is None
+
+
+def test_retry_sample_source_classify_resolves_seeded_records(tmp_path: Path) -> None:
+    """`seed.classify` resolves a record read back from the seeded log like `lookup` does."""
+    from inspect_ai._eval.task.run import (
+        InvalidatedPrior,
+        PreviousError,
+        eval_log_sample_source,
+    )
+    from inspect_ai.dataset import MemoryDataset
+    from inspect_ai.log import EvalError, EvalSample
+    from inspect_ai.log._edit import ProvenanceData
+
+    prior_log = _write_prior_eval_log(tmp_path / "logs")
     source = eval_log_sample_source(
         prior_log,
-        _retry_source_log_info(str(probe_path)),
+        _retry_source_log_info(prior_log.location),
         MemoryDataset([Sample(id=1, input="x", target="y")]),
+    )
+    seed = source.seed
+    assert seed is not None
+
+    clean = EvalSample(id=1, epoch=1, input="x", target="y")
+    errored = clean.model_copy(
+        update={
+            "error": EvalError(
+                message="RuntimeError('boom')", traceback="", traceback_ansi=""
+            )
+        }
+    )
+    invalidated = clean.model_copy(
+        update={"invalidation": ProvenanceData(author="test", reason="bad")}
     )
 
     async def check() -> None:
-        async with AsyncFilesystem():
-            assert await source.prior_exists(1, 1) is False
-            probe_path.write_bytes(real_bytes)
-            assert await source.prior_exists(1, 1) is True
-            assert await source.prior_exists(2, 1) is False
+        assert await seed.classify(1, 1, clean) is clean
+        resolution = await seed.classify(1, 1, errored)
+        assert isinstance(resolution, PreviousError) and resolution.sample is errored
+        assert isinstance(await seed.classify(1, 1, invalidated), InvalidatedPrior)
+        assert await seed.classify(1, 1, None) is None
 
     anyio.run(check)
-
-
-def test_retry_presence_probe_gives_up_after_max_failures(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Persistent fetch failures stop being retried after the cap, with a warning."""
-    from inspect_ai._eval.task.run import (
-        PRIOR_PROBE_MAX_FAILURES,
-        eval_log_sample_source,
-    )
-    from inspect_ai._util.asyncfiles import AsyncFilesystem
-    from inspect_ai.dataset import MemoryDataset
-
-    prior_log, real_bytes = _write_prior_eval_log(tmp_path / "logs")
-    probe_path = tmp_path / "prior.eval"
-    probe_path.write_bytes(b"not a zip")
-
-    source = eval_log_sample_source(
-        prior_log,
-        _retry_source_log_info(str(probe_path)),
-        MemoryDataset([Sample(id=1, input="x", target="y")]),
-    )
-
-    async def check() -> None:
-        async with AsyncFilesystem():
-            for _ in range(PRIOR_PROBE_MAX_FAILURES + 2):
-                assert await source.prior_exists(1, 1) is False
-            # gave up: even a now-valid log is no longer probed
-            probe_path.write_bytes(real_bytes)
-            assert await source.prior_exists(1, 1) is False
-
-    with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
-        anyio.run(check)
-
-    warnings = [r for r in caplog.records if "central directory" in r.message]
-    assert len(warnings) == 1
-
-
-def test_retry_presence_probe_concurrent_failures_respect_cap(
-    tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Concurrent probes share the failure cap: fetch attempts and the warning stay bounded.
-
-    All run_sample coroutines probe at eval start; each must not get its own
-    fetch attempt (and warning) just because it passed the cap check while the
-    failure count was still 0.
-    """
-    from inspect_ai._eval.task.run import (
-        PRIOR_PROBE_MAX_FAILURES,
-        eval_log_sample_source,
-    )
-    from inspect_ai._util import async_zip
-    from inspect_ai._util._async import tg_collect
-    from inspect_ai._util.asyncfiles import AsyncFilesystem
-    from inspect_ai.dataset import MemoryDataset
-
-    prior_log, _ = _write_prior_eval_log(tmp_path / "logs")
-    probe_path = tmp_path / "prior.eval"
-    probe_path.write_bytes(b"not a zip")
-
-    source = eval_log_sample_source(
-        prior_log,
-        _retry_source_log_info(str(probe_path)),
-        MemoryDataset([Sample(id=1, input="x", target="y")]),
-    )
-
-    fetches = 0
-    parse_central_directory = async_zip._parse_central_directory
-
-    async def counting_parse(*args: Any, **kwargs: Any) -> Any:
-        nonlocal fetches
-        fetches += 1
-        return await parse_central_directory(*args, **kwargs)
-
-    monkeypatch.setattr(async_zip, "_parse_central_directory", counting_parse)
-
-    async def check() -> None:
-        async with AsyncFilesystem():
-            results = await tg_collect(
-                [
-                    functools.partial(source.prior_exists, 1, 1)
-                    for _ in range(PRIOR_PROBE_MAX_FAILURES + 7)
-                ]
-            )
-            assert all(result is False for result in results)
-
-    with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
-        anyio.run(check)
-
-    assert fetches == PRIOR_PROBE_MAX_FAILURES
-    warnings = [r for r in caplog.records if "central directory" in r.message]
-    assert len(warnings) == 1
-
-
-def test_retry_presence_probe_missing_log_cached_without_warning(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A missing prior log caches no-presence on the first probe, silently."""
-    from inspect_ai._eval.task.run import eval_log_sample_source
-    from inspect_ai._util.asyncfiles import AsyncFilesystem
-    from inspect_ai.dataset import MemoryDataset
-
-    prior_log, real_bytes = _write_prior_eval_log(tmp_path / "logs")
-    probe_path = tmp_path / "never-written.eval"
-
-    source = eval_log_sample_source(
-        prior_log,
-        _retry_source_log_info(str(probe_path)),
-        MemoryDataset([Sample(id=1, input="x", target="y")]),
-    )
-
-    async def check() -> None:
-        async with AsyncFilesystem():
-            assert await source.prior_exists(1, 1) is False
-            # cached as definitively absent — not re-fetched even if written
-            probe_path.write_bytes(real_bytes)
-            assert await source.prior_exists(1, 1) is False
-
-    with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
-        anyio.run(check)
-
-    assert not [r for r in caplog.records if "central directory" in r.message]
-
-
-def test_retry_presence_probe_not_used_for_json_logs(tmp_path: Path) -> None:
-    """A .json prior log keeps the default never-probe (no zip index to read)."""
-    from inspect_ai._eval.task.run import _never_prior_exists, eval_log_sample_source
-    from inspect_ai.dataset import MemoryDataset
-
-    prior_log, _ = _write_prior_eval_log(tmp_path / "logs")
-    source = eval_log_sample_source(
-        prior_log,
-        _retry_source_log_info(str(tmp_path / "prior.json")),
-        MemoryDataset([Sample(id=1, input="x", target="y")]),
-    )
-    assert source.prior_exists is _never_prior_exists
 
 
 def test_eval_raising_early_stopping_hook_keeps_sample_counted() -> None:
