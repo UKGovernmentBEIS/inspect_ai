@@ -287,6 +287,76 @@ def test_sample_abandoned_fires_for_queued_sample_cancel() -> None:
     assert [str(s.id) for s in (logs[0].samples or [])] == [running]
 
 
+def test_task_cancel_reaches_suspended_sample_abandoned() -> None:
+    """A task stays cancellable while its `sample_abandoned` callback blocks.
+
+    The hook fires after the run's terminal count, so for the task's last
+    sample the counters already read complete when the callback runs. A
+    TaskSource-driven eval must therefore not stamp itself finished on the
+    counters alone (it registers as dynamic, like a SampleSource task):
+    otherwise `ctl task cancel` would no-op as "task already finished" while
+    the callback held the fanout open. The cancel is issued from inside the
+    suspended callback; it must be accepted, unwind the callback (its cleanup
+    runs) and end the eval.
+    """
+    from inspect_ai._control.cancel import CancelTaskResult, cancel_sample
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import get_eval_states
+
+    attempts = 0
+    cancel_results: list[CancelTaskResult | None] = []
+    callback_cleanup: list[str] = []
+
+    @solver(name="task_source_drain_window_error_solver")
+    def erroring_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal attempts
+            attempts += 1
+            raise RuntimeError("boom")
+
+        return solve
+
+    async def cleanup(state: TaskState) -> None:
+        # per-sample cancel in the errored attempt's drain window: the retry
+        # is suppressed and the run abandoned without a log record
+        if attempts == 1:
+            eval_id = get_eval_states()[0].eval_id
+            result = await cancel_sample(eval_id, "a", 1, action="cancel")
+            assert result is not None and result["ok"] is True
+
+    async def on_abandoned(sample: Sample, epoch: int, task: Task) -> None:
+        # the task's only sample is counted terminal by now; the task-level
+        # cancel must still be accepted and reach this suspended callback
+        cancel_results.append(
+            ctl_cancel_task(get_eval_states()[0].task_id, action="cancel")
+        )
+        try:
+            await anyio.sleep(10)
+        finally:
+            callback_cleanup.append(str(sample.id))
+
+    source = TaskSource.from_tasks(
+        [
+            Task(
+                dataset=[Sample(id="a", input="x")],
+                solver=erroring_solver(),
+                cleanup=cleanup,
+                name="cancel_during_abandoned",
+            )
+        ],
+        sample_abandoned=on_abandoned,
+    )
+    logs = eval(tasks=source, model="mockllm/model", display="none", retry_on_error=2)
+    assert attempts == 1
+    (cancel,) = cancel_results
+    assert cancel is not None and cancel["ok"] is True
+    assert cancel["changed"] is True, cancel
+    assert callback_cleanup == ["a"]
+    log = logs[0]
+    assert log.status == "error"
+    assert log.error is not None and "cancelled by user" in log.error.message
+
+
 def test_task_source_factory_seed_and_callbacks() -> None:
     # task_source() builds a TaskSource from a seed + callbacks (no subclass).
     # next_tasks closes over shared state to produce two more generations.

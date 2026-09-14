@@ -136,7 +136,11 @@ unwinds the attempt from there, so that run is logged but never counted or
 released. The task is ending and the eval finishes errored/cancelled
 regardless, so the missing count is only visible in the dead task's listing.
 (`sample_abandoned` has no such gap: it fires after the terminal report, once
-`task_run_sample` has returned.)
+`task_run_sample` has returned. The flip side is that the last run's count
+can land before its callback finishes, which would stamp `completed_at` and
+make `ctl task cancel` a no-op while the callback blocks — so every
+source-driven eval, `TaskSource` included, registers as `dynamic` and is
+stamped finished only by `finalize_eval`.)
 
 Column meanings:
 

@@ -1175,10 +1175,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # the cancel handle the control channel's task-cancel
                 # directive fires (with "abort" — the display's user-cancel)
                 task_cancel=task_cancel,
-                # a SampleSource-driven eval's totals grow while it runs, so
-                # counters reaching total must not read as "finished" (e.g.
-                # while blocked in next_samples() with an empty seed)
-                dynamic=sample_feed is not None,
+                # a source-driven eval's counters reaching total must not
+                # read as "finished": a SampleSource's totals grow while it
+                # runs (e.g. blocked in next_samples() with an empty seed),
+                # and either source's sample_abandoned callback runs after
+                # the run's terminal count -- a task that read finished
+                # there could not be cancelled while the callback blocks
+                dynamic=sample_feed is not None or options.task_source is not None,
             )
 
             # call hook (after the retry-abandon check above: every task

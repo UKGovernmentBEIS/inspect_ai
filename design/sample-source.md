@@ -56,7 +56,13 @@ The asymmetry mirrors `TaskSource`:
   already-reported terminal outcome standing. A separate hook was chosen
   over synthesizing an `EvalSample` with a cancellation `error`: the source
   would otherwise be handed a record that exists nowhere in the log and
-  cannot be distinguished from a logged operator cancel. Timing: a
+  cannot be distinguished from a logged operator cancel. Because the hook
+  runs *after* the run's terminal count (unlike `sample_complete`, which
+  precedes it), the last sample's count can land while the source is still
+  being told — so a `TaskSource`-driven eval also registers as `dynamic`
+  (its `completed_at` is stamped by `finalize_eval`, as a `SampleSource`
+  task's already is), keeping `ctl task cancel` effective while a callback
+  is suspended rather than reading the task as finished. Timing: a
   queued-sample cancel is *counted* at accept but the parked coroutine
   discards only when it next acquires a slot, so the notification arrives
   when the sample would otherwise have started — an orchestrator waiting on

@@ -116,7 +116,10 @@ Key locations:
   `DISCARDED` — cancelled without ever being logged (queued-sample cancel,
   graceful task-cancel abandon at queue exit, pre-retry drain-window abandon;
   same delivery rule, see [sample-source.md](sample-source.md) and
-  [sample-lifecycle.md](sample-lifecycle.md)); and `task_run` calls
+  [sample-lifecycle.md](sample-lifecycle.md)) — and, because that hook runs
+  after the run's terminal count, a `TaskSource`-driven eval registers as
+  `dynamic` in the control-channel state so `ctl task cancel` still works
+  while a callback is suspended; and `task_run` calls
   `task_source.task_complete(eval_log)` just before returning the log. Whatever
   a callback **returns** is passed to `_enqueue_source_tasks`, which pushes it
   onto the run enqueuer (`get_task_enqueuer().enqueue(...)`) — so returned tasks
