@@ -467,6 +467,15 @@ def test_framework_exec_calls_never_pass_a_literal_argv() -> None:
     ``pinned_*`` builders) are ``Call`` nodes, so anything they build passes; an
     argv whose first element is a name such as ``SHELL_PATH`` or ``SANDBOX_CLI``
     passes too, and reviewers must check that its script pins ``PATH`` itself.
+
+    The name-first sites in ``src`` at this writing, each checked by hand:
+    ``agent/_human/install.py`` (its script pins ``PATH`` and passes ``pinned_env``),
+    ``util/_sandbox/_framework_directory.py`` (``@PATH@`` substituted at import,
+    ``pinned_env`` passed), ``tool/_sandbox_tools_utils/sandbox.py`` and
+    ``util/_sandbox/local.py`` (absolute ``SANDBOX_CLI``), the computer, grep and
+    list_files tools (agent-facing, allowlisted), and
+    ``util/_sandbox/_json_rpc_transport.py`` (the legacy ``inspect-tool-support``
+    launcher by bare name, tracked as a follow-up with the k8s and proxmox wrappers).
     """
     assert _SRC.is_dir(), _SRC
     offenders: list[str] = []

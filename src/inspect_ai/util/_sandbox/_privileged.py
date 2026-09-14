@@ -32,8 +32,9 @@ Docker provider launches its ``timeout`` wrapper by absolute path.
 Image requirements: ``/bin/sh`` must exist, and every utility a host-issued command
 names must live in one of the four system directories. Environment variables the
 shell honours before its first line runs (``BASH_ENV`` when ``/bin/sh`` is bash,
-``LD_PRELOAD``) are part of the image configuration like ``PATH`` is, but cannot be
-neutralised from inside the shell and are out of scope here.
+``LD_PRELOAD``) are part of the image configuration like ``PATH`` is; the shell
+cannot neutralise them from inside, this module does not clear them through the
+provider's ``env``, and they are out of scope here.
 
 Use :func:`privileged_exec` for an argv and :func:`privileged_shell` for a script.
 Use them for any command that runs as ``root`` or as the sandbox default user on
