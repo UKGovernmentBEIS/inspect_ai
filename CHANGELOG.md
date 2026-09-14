@@ -64,6 +64,7 @@
 - Bugfix: Anthropic prompt caching no longer fails every request after a turn served by a fallback model (`fallback_models`) with a 400 error.
 - S3: Streaming uploads of eval logs and checkpoint files no longer block the event loop while reading the source file, so other samples keep running during slow disk reads.
 - Model refusals: New `fail_on_refusal` generate config option (`--fail-on-refusal`) fails a sample with a `ModelRefusalError` when a model refuses a request, settable eval-wide, per task, per model, per model role, or per call.
+- Sandbox Services: Service directories are now private to the service user, and a service refuses to start if its directory or the shared `/var/tmp/sandbox-services` parent already exists with the wrong owner, mode, or type.
 
 ## 0.3.263 (03 September 2026)
 
