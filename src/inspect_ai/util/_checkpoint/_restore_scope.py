@@ -167,6 +167,15 @@ tar stream can be padded with members indefinitely. A generous ceiling
 hundred thousand nodes) bounds the host work to a deterministic
 failure instead of an open-ended walk."""
 
+MAX_LONG_HEADER_BYTES = 64 * 1024
+"""Ceiling on the ``size`` of a GNU long-name or long-link header.
+
+``tarfile`` reads a long header's data into memory whole, so an
+archive could claim gigabytes of name before the node count bounds
+anything; no path a sandbox can hold comes near this (Linux
+``PATH_MAX`` is 4096), and the egress side bounds its tar metadata
+the same way."""
+
 _RESTIC_GLOB_CHARS = "\\*?["
 
 RESTORED_XATTRS = "user.*"
@@ -455,7 +464,9 @@ class TarHeaderScan:
     The scan stays aligned with ``tarfile`` on every archive that is
     accepted: sizes are parsed as a strict subset of ``tarfile``'s forms
     (anything else is refused outright); the only members with data are
-    regular files and long headers, which every tar skips identically;
+    regular files and long headers, which every tar skips identically
+    (a long header's data is bounded by :data:`MAX_LONG_HEADER_BYTES`
+    before ``tarfile`` reads it whole);
     directories, symlinks and hard links carry none (a non-zero size on
     them is refused by :func:`tar_member_node`); and a header of any
     other type — PAX, sparse, device, fifo, unknown — is refused
@@ -515,6 +526,12 @@ class TarHeaderScan:
             self._long_seen.add(typeflag)
         if typeflag in _TAR_DATA_TYPES:
             size = _tar_octal(header[124:136], label=self._label, what="size")
+            if long_kind is not None and size > MAX_LONG_HEADER_BYTES:
+                raise RestoreScopeError(
+                    f"{self._label}: archive holds a GNU {long_kind} header of "
+                    f"{size} bytes; at most {MAX_LONG_HEADER_BYTES} bytes of name "
+                    f"or link target are read"
+                )
             self._skip = -(-size // tarfile.BLOCKSIZE) * tarfile.BLOCKSIZE
         elif typeflag not in _TAR_NO_DATA_TYPES:
             name = header[:100].split(b"\0", 1)[0].decode("utf-8", "replace")

@@ -62,9 +62,10 @@
 >    host's `tarfile` and the image's `tar` must also agree on member
 >    boundaries: the raw header stream is scanned alongside `tarfile`
 >    and refused on a PAX, sparse, device or fifo header (`tarfile`
->    consumes a PAX header without listing it) or a repeated GNU long
->    header, members carrying PAX records are refused, only zero
->    padding may follow the last parsed member, and
+>    consumes a PAX header without listing it), a repeated GNU long
+>    header or one claiming more than 64 KiB (which `tarfile` would
+>    read into memory whole), members carrying PAX records are refused,
+>    only zero padding may follow the last parsed member, and
 >    a `find` over the roots after extraction fails the restore on any
 >    special file or device node the sandbox's tar produced anyway.
 >    Each root is then restored individually (`restic restore

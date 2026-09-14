@@ -21,6 +21,7 @@ import pytest
 from inspect_ai.util._checkpoint import _restore_scope as restore_scope
 from inspect_ai.util._checkpoint._layout.schemas import SnapshotDetails
 from inspect_ai.util._checkpoint._restore_scope import (
+    MAX_LONG_HEADER_BYTES,
     MAX_RESTORE_NODES,
     RestoreNode,
     RestoreRoots,
@@ -530,6 +531,40 @@ def test_tar_header_scan_reads_base256_sizes_like_tarfile() -> None:
     hardlink = _member("home/user/pw", tarfile.LNKTYPE).tobuf(tarfile.USTAR_FORMAT)
     with pytest.raises(RestoreScopeError, match="two GNU long-link"):
         TarHeaderScan(label=LABEL).feed(header + b"\1" * 1024 + two_k + hardlink)
+
+
+@pytest.mark.parametrize(
+    "type",
+    [
+        pytest.param(tarfile.GNUTYPE_LONGNAME, id="L"),
+        pytest.param(tarfile.GNUTYPE_LONGLINK, id="K"),
+    ],
+)
+def test_tar_header_scan_refuses_an_oversized_long_header_on_its_header_alone(
+    type: bytes,
+) -> None:
+    """A long header claiming more than ``MAX_LONG_HEADER_BYTES`` is refused before its data.
+
+    ``tarfile`` reads a long header's data into memory whole, so the
+    refusal must come from the 512-byte header, with none of the declared
+    bytes read; a header at the limit is skipped like any other.
+    """
+    over = _member("././@LongLink", type, size=MAX_LONG_HEADER_BYTES + 1).tobuf(
+        tarfile.USTAR_FORMAT
+    )
+    with pytest.raises(
+        RestoreScopeError,
+        match=rf"long-(name|link) \([LK]\) header of {MAX_LONG_HEADER_BYTES + 1} bytes",
+    ):
+        TarHeaderScan(label=LABEL).feed(over)
+
+    at_limit = _member("././@LongLink", type, size=MAX_LONG_HEADER_BYTES).tobuf(
+        tarfile.USTAR_FORMAT
+    )
+    member = _member("home/user/x", tarfile.LNKTYPE, linkname="home/user/y")
+    scanner = TarHeaderScan(label=LABEL)
+    scanner.feed(at_limit + b"n" * MAX_LONG_HEADER_BYTES)
+    scanner.feed(member.tobuf(tarfile.USTAR_FORMAT) + b"\0" * (2 * tarfile.BLOCKSIZE))
 
 
 @pytest.mark.parametrize("type", [tarfile.DIRTYPE, tarfile.SYMTYPE, tarfile.LNKTYPE])

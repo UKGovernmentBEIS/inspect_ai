@@ -4,7 +4,7 @@ File APIs map to host paths and ``user="root"`` is ignored, so code whose
 in-sandbox side is plain ``sh`` (tar, dd, find, comm, restic-as-a-binary)
 executes for real against a temp dir — no Docker required. The ``tar``
 first on the fake's ``PATH`` writes what a Linux sandbox's tar writes
-(see :func:`sandbox_path`).
+(see :func:`linux_like_path`).
 """
 
 from __future__ import annotations
@@ -36,33 +36,42 @@ exec {tar} "$@"
 """
 
 
-@functools.lru_cache(maxsize=None)
-def sandbox_path() -> str:
-    """The ``PATH`` the fake runs ``exec`` with.
+def linux_like_path(host_path: str, shim_dir: Path) -> str:
+    """``host_path``, with a ``tar`` in ``shim_dir`` first when the host tar is bsdtar.
 
     A Linux sandbox's tar (GNU or busybox) writes plain ustar and GNU
     long headers. macOS ships bsdtar, whose default format adds a PAX
     header to any member with a nanosecond mtime or an extended
     attribute (every file on macOS carries ``com.apple.provenance``),
-    which the restore-scope header scan refuses. When the host tar is
-    bsdtar, a shim that creates archives in GNU format without xattrs
-    or AppleDouble members goes first on the path; otherwise the host's
-    ``PATH`` is returned unchanged. Tests that shim ``tar`` themselves
-    should resolve the real one from this path, not the host's.
+    which the restore-scope header scan refuses. When the ``tar`` on
+    ``host_path`` reports itself as bsdtar, a shim that creates archives
+    in GNU format without xattrs or AppleDouble members and passes every
+    other invocation through is written to ``shim_dir``; otherwise
+    ``host_path`` comes back unchanged and nothing is written.
     """
-    host_path = os.environ.get("PATH", os.defpath)
     tar = shutil.which("tar", path=host_path)
     if tar is None:
         return host_path
     version = subprocess.run([tar, "--version"], capture_output=True, text=True)
     if not version.stdout.startswith("bsdtar"):
         return host_path
-    shim_dir = tempfile.mkdtemp(prefix="inspect-linux-like-tar-")
-    atexit.register(shutil.rmtree, shim_dir, ignore_errors=True)
-    shim = Path(shim_dir) / "tar"
+    shim_dir.mkdir(parents=True, exist_ok=True)
+    shim = shim_dir / "tar"
     shim.write_text(_BSDTAR_SHIM.format(tar=shlex.quote(tar)))
     shim.chmod(0o755)
     return f"{shim_dir}{os.pathsep}{host_path}"
+
+
+@functools.lru_cache(maxsize=None)
+def sandbox_path() -> str:
+    """The ``PATH`` the fake runs ``exec`` with: :func:`linux_like_path` over the host's.
+
+    Built once per process. Tests that shim ``tar`` themselves should
+    resolve the real one from this path, not the host's.
+    """
+    shim_dir = Path(tempfile.mkdtemp(prefix="inspect-linux-like-tar-"))
+    atexit.register(shutil.rmtree, shim_dir, ignore_errors=True)
+    return linux_like_path(os.environ.get("PATH", os.defpath), shim_dir)
 
 
 class LocalShellSandbox(SandboxEnvironment):

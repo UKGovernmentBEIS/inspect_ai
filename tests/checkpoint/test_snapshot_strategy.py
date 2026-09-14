@@ -18,7 +18,9 @@ import hashlib
 import io
 import os
 import re
+import shlex
 import shutil
+import subprocess
 import tarfile
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -29,11 +31,16 @@ from unittest.mock import patch
 import anyio
 import pytest
 import zstandard
-from test_helpers.local_shell_sandbox import LocalShellSandbox, sandbox_path
+from test_helpers.local_shell_sandbox import (
+    LocalShellSandbox,
+    linux_like_path,
+    sandbox_path,
+)
 
 from inspect_ai.util._checkpoint._copy import copy_out, copy_out_partial_path
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint._restore_scope import (
+    MAX_LONG_HEADER_BYTES,
     RestoreRoots,
     RestoreScopeError,
     remove_existing_symlinks,
@@ -464,7 +471,9 @@ def _boundary_tricks(root: str) -> dict[str, tuple[bytes, str]]:
     not read (base-256, signed), or a PAX header with no records, which
     ``tarfile`` consumes without yielding — must be refused rather than
     end the scan, or the chain behind it would go unscanned while the
-    walk kept accepting members.
+    walk kept accepting members. A long header claiming more than
+    :data:`MAX_LONG_HEADER_BYTES` is refused on its header alone, since
+    ``tarfile`` would read that many bytes into memory.
     """
     dir_ = _ustar(root, tarfile.DIRTYPE, 0o755)
     ok = _ustar(f"{root}/ok")
@@ -530,6 +539,17 @@ def _boundary_tricks(root: str) -> dict[str, tuple[bytes, str]]:
             dir_ + _bad_checksum(f"{root}/junk") + ok + hidden + _TAR_END,
             "holds data after the last member",
         ),
+        "oversized_long_name_header": (
+            dir_
+            + _member(
+                "././@LongLink",
+                tarfile.GNUTYPE_LONGNAME,
+                size=MAX_LONG_HEADER_BYTES + 1,
+            ).tobuf(tarfile.USTAR_FORMAT)
+            + hidden
+            + _TAR_END,
+            f"long-name (L) header of {MAX_LONG_HEADER_BYTES + 1} bytes",
+        ),
     }
 
 
@@ -553,9 +573,10 @@ def _header_name(path: Path) -> str:
     """The name a raw header carries for ``path``: its first 100 bytes.
 
     A longer name (a macOS ``tmp_path``) lives in the GNU long-name header
-    before it, and the header scan's diagnostic quotes the header's own field.
+    before it, and the header scan's diagnostic quotes the header's own
+    field, decoded as the scan decodes it.
     """
-    return _rel(path)[:100]
+    return _rel(path).encode()[:100].decode("utf-8", "replace")
 
 
 _HOSTILE_MEMBERS: dict[str, Callable[[Path, Path], tuple[tarfile.TarInfo, str]]] = {
@@ -1224,6 +1245,72 @@ async def test_archive_snapshot_rejects_oversized_archive(tmp_path: Path) -> Non
     storage = Path(ctx.storage_dir)
     assert not storage.exists() or list(storage.iterdir()) == []
     assert not (Path(strategy._staging_root)).exists()
+
+
+# --- LocalShellSandbox: a Linux-like tar on PATH ------------------------
+
+
+def _fake_tar(bin_dir: Path, version: str) -> Path:
+    """A ``tar`` in ``bin_dir`` answering ``--version`` with ``version``; every other call's arguments go to the returned log."""
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    log = bin_dir / "calls.log"
+    tar = bin_dir / "tar"
+    tar.write_text(
+        "#!/bin/sh\n"
+        f'[ "$1" = "--version" ] && {{ echo {shlex.quote(version)}; exit 0; }}\n'
+        f'printf "%s\\n" "$*" >> {shlex.quote(str(log))}\n'
+    )
+    tar.chmod(0o755)
+    return log
+
+
+def _run_tar(path: str, *args: str) -> None:
+    """Run ``tar`` as a script would, resolved through ``path``."""
+    subprocess.run(
+        ["sh", "-c", 'tar "$@"', "sh", *args],
+        env={**os.environ, "PATH": path},
+        check=True,
+        capture_output=True,
+    )
+
+
+def test_linux_like_path_shims_bsdtar_to_create_gnu_archives(tmp_path: Path) -> None:
+    """With bsdtar on the host, ``tar -c`` gets the GNU-format flags and everything else passes through."""
+    log = _fake_tar(tmp_path / "bin", "bsdtar 3.5.3 - libarchive 3.7.4 zlib/1.2.12")
+    host = f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}"
+    shim_dir = tmp_path / "shim"
+
+    path = linux_like_path(host, shim_dir)
+
+    assert path == f"{shim_dir}{os.pathsep}{host}"
+    assert shutil.which("tar", path=path) == str(shim_dir / "tar")
+    _run_tar(path, "-cf", "-", "--exclude=.cache", "/data")
+    _run_tar(path, "-xzf", "staged.tar.gz", "-C", "/", "--", "data")
+    _run_tar(path, "-tf", "-")
+    assert log.read_text().splitlines() == [
+        "--format gnutar --no-xattrs --no-mac-metadata -cf - --exclude=.cache /data",
+        "-xzf staged.tar.gz -C / -- data",
+        "-tf -",
+    ]
+
+
+@pytest.mark.parametrize(
+    "version", ["tar (GNU tar) 1.35", "BusyBox v1.36.1 multi-call binary."]
+)
+def test_linux_like_path_leaves_a_linux_tar_alone(tmp_path: Path, version: str) -> None:
+    _fake_tar(tmp_path / "bin", version)
+    host = f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}"
+
+    assert linux_like_path(host, tmp_path / "shim") == host
+    assert not (tmp_path / "shim").exists()
+
+
+def test_linux_like_path_without_a_tar_is_unchanged(tmp_path: Path) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+
+    assert linux_like_path(str(empty), tmp_path / "shim") == str(empty)
+    assert not (tmp_path / "shim").exists()
 
 
 # --- shared chunked copy-out -----------------------------------------
