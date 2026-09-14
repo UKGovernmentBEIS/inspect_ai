@@ -122,14 +122,6 @@
     }
   },
   "src/inspect_ai/_control/server.py": {
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[method-assign]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[misc]": {
       "count": 1,
       "undescribed": 1
