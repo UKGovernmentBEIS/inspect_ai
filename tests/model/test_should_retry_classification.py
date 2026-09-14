@@ -430,6 +430,26 @@ def test_anthropic_429_classifies_as_rate_limit() -> None:
     assert decision.retry_after == 20.0
 
 
+def test_anthropic_429_with_overloaded_message_is_still_a_rate_limit() -> None:
+    """The status is the provider's classification, whatever the message says."""
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = APIStatusError(
+        message="overloaded, slow down",
+        response=_httpx2_response(429),
+        body={
+            "type": "error",
+            "error": {"type": "rate_limit_error", "message": "overloaded, slow down"},
+        },
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.kind == "rate_limit"
+
+
 def test_anthropic_503_classifies_as_transient() -> None:
     from anthropic import APIStatusError
 

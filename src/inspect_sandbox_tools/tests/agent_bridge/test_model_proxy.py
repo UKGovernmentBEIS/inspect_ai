@@ -5,9 +5,10 @@ import json
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, AsyncIterator
 
+import httpx2
 import pytest
 from aiohttp import ClientSession
-from anthropic import AsyncAnthropic
+from anthropic import APIStatusError, AsyncAnthropic
 from anthropic.types import ToolParam
 from google import genai
 from inspect_sandbox_tools._agent_bridge.proxy import (
@@ -15,7 +16,7 @@ from inspect_sandbox_tools._agent_bridge.proxy import (
     AsyncHTTPServer,
     model_proxy_server,
 )
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 from openai.types.responses import (
     FunctionToolParam,
     ResponseOutputText,
@@ -2664,11 +2665,18 @@ async def _proxy_with_service(mock_service: Any) -> AsyncGenerator[str, None]:
             await server.server.wait_closed()
 
 
-def _error_service(status: int | None, message: str) -> Any:
+def _error_service(
+    status: int | None,
+    message: str,
+    body: dict[str, Any] | None = None,
+) -> Any:
     """A mock bridge service that always returns a forwarded provider error."""
+    payload: dict[str, Any] = {"status": status, "message": message}
+    if body is not None:
+        payload["body"] = body
 
     async def mock_service(method: str, **params: Any) -> dict[str, Any]:
-        return {PROVIDER_ERROR_KEY: {"status": status, "message": message}}
+        return {PROVIDER_ERROR_KEY: payload}
 
     return mock_service
 
@@ -2735,6 +2743,82 @@ async def test_provider_error_forwarded_non_streaming(
             async with session.post(f"{base_url}{path}", json=body) as response:
                 assert response.status == status
                 assert assert_body(await response.json())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "request_body"),
+    [
+        (
+            "/v1/chat/completions",
+            {"model": "gpt-5.6", "messages": [{"role": "user", "content": "hi"}]},
+        ),
+        ("/v1/responses", {"model": "gpt-5.6", "input": "hi"}),
+    ],
+)
+async def test_openai_retry_error_forwards_provider_envelope(
+    path: str, request_body: dict[str, Any]
+) -> None:
+    """Codex receives the original insufficient_quota body, not a RetryError repr."""
+    from tenacity import Future, RetryError
+
+    message = "You have no credits remaining..."
+    body = {
+        "message": message,
+        "type": "insufficient_quota",
+        "code": "credit_balance_exhausted",
+    }
+    provider_error = RateLimitError(
+        message=message,
+        response=httpx2.Response(
+            429,
+            request=httpx2.Request("POST", "https://api.openai.com/v1/responses"),
+        ),
+        body=body,
+    )
+    attempt = Future(1)
+    attempt.set_exception(provider_error)
+    retry_error = RetryError(attempt)
+    error = retry_error.last_attempt.exception()
+    assert isinstance(error, RateLimitError)
+    assert isinstance(error.body, dict)
+
+    async with _proxy_with_service(
+        _error_service(429, str(retry_error), error.body)
+    ) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}{path}", json=request_body) as response:
+                assert response.status == 429
+                # the provider's keys win; the dialect's guaranteed keys stay present
+                assert await response.json() == {"error": {"param": None, **body}}
+
+
+@pytest.mark.asyncio
+async def test_openai_provider_body_without_message_keeps_the_dialect_keys() -> None:
+    """A provider body lacking `message` does not cost the client the recovered one.
+
+    An OpenAI-compatible endpoint (a FastAPI service, a local proxy) can answer a
+    429 with `{"detail": ...}`. The host still recovers a message; the client must
+    receive it, plus the dialect's `type`, with the provider's keys alongside.
+    """
+    request_body = {"model": "gpt-5.6", "messages": [{"role": "user", "content": "hi"}]}
+    async with _proxy_with_service(
+        _error_service(429, "rate limited", {"detail": "Too Many Requests"})
+    ) as base_url:
+        async with ClientSession() as session:
+            async with session.post(
+                f"{base_url}/v1/chat/completions", json=request_body
+            ) as response:
+                assert response.status == 429
+                assert await response.json() == {
+                    "error": {
+                        "message": "rate limited",
+                        "type": "invalid_request_error",
+                        "param": None,
+                        "code": None,
+                        "detail": "Too Many Requests",
+                    }
+                }
 
 
 @pytest.mark.asyncio
@@ -2825,3 +2909,55 @@ async def test_anthropic_streaming_provider_error_emits_sse_error() -> None:
     assert "event: error" in text
     assert "rate_limit_error" in text
     assert "overloaded" in text
+
+
+# (forwarded provider HTTP status, the Anthropic error type a bridged client must
+# observe). 409 conflicts and 504 deadlines were surfacing as `api_error`, i.e. as
+# server failures, which a streaming client can only read from this type because
+# the HTTP status is already 200 by then. 422 pins the unlisted-4xx fallback; 503
+# is the control that a real server error still reports `api_error`.
+_ANTHROPIC_WIRE_ERROR_TYPES: list[tuple[int, str]] = [
+    (409, "conflict_error"),
+    (504, "timeout_error"),
+    (402, "billing_error"),
+    (422, "invalid_request_error"),
+    (503, "api_error"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("status", "expected_type"), _ANTHROPIC_WIRE_ERROR_TYPES)
+@pytest.mark.parametrize("stream", [False, True], ids=["non-streaming", "streaming"])
+async def test_anthropic_sdk_observes_the_providers_error_type(
+    status: int, expected_type: str, stream: bool
+) -> None:
+    """A real Anthropic SDK client reads the provider's own error classification.
+
+    The proxy serializes the error body itself, so the host-side tests cannot see
+    what a client is told. Non-streaming clients also see the HTTP status; a
+    streaming client has already received a 200 and `message_start`, so the SSE
+    `error` event's `type` is the only classification it gets -- an `api_error`
+    there turns a conflict or a deadline into a server failure.
+    """
+    message = f"provider said {status}"
+    async with _proxy_with_service(_error_service(status, message)) as base_url:
+        client = AsyncAnthropic(api_key="test", base_url=base_url, max_retries=0)
+        request: dict[str, Any] = {
+            "model": "claude-x",
+            "max_tokens": 8,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        with pytest.raises(APIStatusError) as exc_info:
+            if stream:
+                async with client.messages.stream(**request) as events:
+                    async for _ in events:
+                        pass
+            else:
+                await client.messages.create(**request)
+
+    body = exc_info.value.body
+    assert isinstance(body, dict)
+    assert body["error"]["type"] == expected_type
+    assert body["error"]["message"] == message
+    if not stream:
+        assert exc_info.value.status_code == status
