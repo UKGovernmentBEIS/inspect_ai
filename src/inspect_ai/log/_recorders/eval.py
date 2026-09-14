@@ -398,7 +398,10 @@ class EvalRecorder(FileRecorder):
                             location, temp_log, async_fs
                         )
                     else:
-                        fs.get_file(location, temp_log)
+                        # chunked, yielding between chunks (a sync fsspec
+                        # download would block the loop for the whole file)
+                        with open(temp_log, "wb") as dest:
+                            await async_fs.read_file_into(location, dest)
 
             # read log (use temp_log if we have it)
             try:
