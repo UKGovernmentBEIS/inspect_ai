@@ -1374,9 +1374,17 @@ async def model_proxy_server(
 
                         # 3d. response.output_item.done
                         seq_num += 1
-                        # Update status to completed
+                        # Update status to completed. custom_tool_call is a
+                        # special case: the installed OpenAI SDK's
+                        # ResponseCustomToolCall model omits "status" from its
+                        # dict entirely, even though clients such as opencode's
+                        # AI SDK require it on the done item to dispatch the
+                        # call, so it's added even when not already present.
                         item_dict_completed = dict(output_item)
-                        if "status" in item_dict_completed:
+                        if (
+                            "status" in item_dict_completed
+                            or item_type == "custom_tool_call"
+                        ):
                             item_dict_completed["status"] = "completed"
 
                         yield _sse_event(

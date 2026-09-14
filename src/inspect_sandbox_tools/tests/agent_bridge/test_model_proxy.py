@@ -738,6 +738,31 @@ async def proxy_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
                         "total_tokens": 50,
                     },
                 }
+            elif "test_custom_tool_call" in str(input_data):
+                # Return a ResponseCustomToolCall. The installed OpenAI SDK's
+                # ResponseCustomToolCall has no `status` field, so — unlike the
+                # other mocked output items above — this dict intentionally
+                # omits "status" to mirror what real host serialization produces.
+                return {
+                    "id": "resp_custom_tool_call",
+                    "object": "response",
+                    "created_at": 1234567890,
+                    "model": json_data.get("model", "gpt-4o"),
+                    "output": [
+                        {
+                            "id": "custom_1",
+                            "type": "custom_tool_call",
+                            "call_id": "call_custom123",
+                            "name": "my_custom_tool",
+                            "input": "custom tool input payload",
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 10,
+                        "total_tokens": 30,
+                    },
+                }
             elif "test_mcp_call" in str(input_data):
                 # Return an McpCall
                 return {
@@ -1172,6 +1197,90 @@ async def test_model_proxy_responses_streaming_with_tool_calls(
 
     # Verify the function arguments were streamed correctly
     assert json.loads(function_arguments) == {"location": "San Francisco"}
+
+
+def _parse_sse_events(body: str) -> list[dict[str, Any]]:
+    """Parse raw SSE wire text into a list of decoded `data:` JSON payloads.
+
+    Used where a real client SDK's typed event models would silently drop a
+    field they don't declare (as the installed OpenAI SDK's
+    ``ResponseCustomToolCall`` does for ``status``), which would mask the
+    exact regression this fix addresses.
+    """
+    events = []
+    for chunk in body.split("\n\n"):
+        for line in chunk.splitlines():
+            if line.startswith("data:"):
+                events.append(json.loads(line[len("data:") :].strip()))
+    return events
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("input_trigger", "item_type", "item_id", "call_id"),
+    [
+        ("test_web_search: dispatch me", "function_call", "web_search_1", "call_ws123"),
+        (
+            "test_custom_tool_call: dispatch me",
+            "custom_tool_call",
+            "custom_1",
+            "call_custom123",
+        ),
+    ],
+)
+async def test_model_proxy_responses_streaming_output_item_done_is_completed(
+    proxy_server: tuple[AsyncHTTPServer, str],
+    input_trigger: str,
+    item_type: str,
+    item_id: str,
+    call_id: str,
+) -> None:
+    """`response.output_item.done` must carry `status: "completed"` on the wire.
+
+    A streaming client such as opencode's AI SDK requires this field to
+    register and dispatch the tool call; without it, the call is silently
+    ignored and the agent stalls. The OpenAI Python SDK's typed
+    `ResponseCustomToolCall` model has no `status` field, so parsing this
+    response through that client would hide a regression here -- this test
+    reads the raw SSE payload instead so the actual wire shape is checked,
+    for both the function-call and custom-tool-call item types.
+    """
+    _server, base_url = proxy_server
+
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1/responses",
+            json={"model": "gpt-4o", "input": input_trigger, "stream": True},
+        ) as response:
+            assert response.status == 200
+            body = await response.text()
+
+    events = _parse_sse_events(body)
+    done_events = [
+        e["item"]
+        for e in events
+        if e.get("type") == "response.output_item.done"
+        and e.get("item", {}).get("type") == item_type
+    ]
+
+    assert len(done_events) == 1
+    done_item = done_events[0]
+    assert done_item["status"] == "completed"
+    # Item identity and call_id (used to match the eventual tool result) must
+    # survive unchanged -- the completion status is added, not substituted
+    # for `call_id` or the item `id`.
+    assert done_item["id"] == item_id
+    assert done_item["call_id"] == call_id
+
+    if item_type == "custom_tool_call":
+        # The custom tool's input must also make it through unmodified so the
+        # dispatched call actually runs with the model's real arguments.
+        input_done = [
+            e for e in events if e.get("type") == "response.custom_tool_call_input.done"
+        ]
+        assert len(input_done) == 1
+        assert input_done[0]["item_id"] == item_id
+        assert input_done[0]["input"] == "custom tool input payload"
 
 
 @pytest.mark.asyncio
