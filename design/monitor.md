@@ -22,7 +22,7 @@ All four are the same idea seen from different points in the loop. Inspect has n
 | Point in the loop | Primitive | Gaps |
 |------------------------|------------------------|------------------------|
 | Before a tool call | `@approver` | Sees nothing but the call. Fires only when the model calls a tool. |
-| After a tool result | `@reviewer` (#5356, open) | New; not yet merged. |
+| After a tool result | `@reviewer` (#5356, merged 2026-09-11) | Decision vocabulary is `continue` / `terminate` / `escalate` only — no score, no rewrite. Ships as a parallel subsystem to approval rather than sharing one. |
 | Before generate | `Hooks.on_before_model_generate` | Process-global and env-enabled, so not per-eval or per-task; exceptions swallowed; no transcript record; no way to terminate. |
 | After generate | — | Nothing. |
 
@@ -165,7 +165,7 @@ A monitor never annotates `Step`, since [its annotation is what selects the stag
 
 **Everything in `step` is agent-influenced; nothing in `context` is.** `call`, `message`, `history`, `view`, `result` and `output` are all written or shaped by the agent under observation and are therefore injection-bearing; the briefing is author-written, the store is the monitor's own, the host is the framework's. Splitting them across two arguments makes that boundary structural rather than a matter of field ordering, which is the most useful thing the framework can do about injection (see [It is the only input the agent did not write](#it-is-the-only-input-the-agent-did-not-write)).
 
-`BeforeToolCall` and `AfterToolCall` are the `Approver` and `Reviewer` payloads from #5356. The before/after naming earns its keep here: `BeforeToolCall` carries a `call: ToolCall` and `AfterGenerate` an `output: ModelOutput`, so a payload named for the object it wraps would collide with a field inside itself.
+`BeforeToolCall` and `AfterToolCall` are the `Approver` and `Reviewer` payloads. `AfterToolCall` is a faithful dataclass-ification of the merged `Reviewer.__call__`, which takes exactly `message`, `call`, `result`, `output`, `view` and `history` — this document predicted the shape from the PR and it survived contact with the merged code unchanged. The before/after naming earns its keep here: `BeforeToolCall` carries a `call: ToolCall` and `AfterGenerate` an `output: ModelOutput`, so a payload named for the object it wraps would collide with a field inside itself.
 
 ### The context
 
@@ -430,7 +430,9 @@ A scalar is accepted, but the multi-dimensional form is the one to encourage: Tr
 
 Auditing — spending scarce human review — is orthogonal to what happens to the action. You can continue-and-audit or reject-and-audit. Ctrl-Z's deferral and auditing are two thresholds over one score, not two values in one enum.
 
-`audit` lives on `Recommendation` rather than `Observation`, because "spend human review on this" is itself a policy statement; a scorer flags something by scoring it high. The budget is the protocol's, not the monitor's: a monitor *requests* an audit, the protocol grants it if budget remains. This is the first concrete consumer of the per-task state left open under [State](#state).
+`audit` lives on `Recommendation` rather than `Observation`, because "spend human review on this" is itself a policy statement; a scorer flags something by scoring it high. The budget is the protocol's, not the monitor's: a monitor *requests* an audit, the protocol grants it if budget remains.
+
+An earlier draft called this the first concrete consumer of per-task state. It is not. Ctrl-Z's budget is **1% of actions per episode** ([Prior art](#prior-art)), and an episode is one agent trajectory — one sample. So the canonical audit budget is per-*sample* state, which `context.store_as(BudgetState)` already handles with no new machinery. A budget pooled across samples is a different and also defensible design, but it is not what the literature specifies, and [Per-task](#per-task) is not on the critical path because of it.
 
 #### Two audiences
 
@@ -451,7 +453,24 @@ This is a different axis from the two kinds above. `Observation` and `Recommenda
 
 `continue`, `terminate` and `escalate` are universal. `reject` generalises further than it looks: at `BeforeGenerate` it means "do not run this generate, and tell the agent why"; at `AfterGenerate`, "discard this completion". It is genuinely excluded only at `AfterToolCall`, and for a *policy* reason — #5355's argument that withholding output tells the model its command failed when it did not, so the model's picture of the sandbox diverges from the sandbox. The same reasoning excludes `modify` on a result.
 
-`modify` is the one action that is tool-call-shaped, because `modified` must carry something and only `BeforeToolCall` has a single object for it. Rewriting a generate's input is three things — messages, tools, config — so `modify` at `BeforeGenerate` is left open; the likely answer is in-place mutation of the payload, which is what `Hooks.on_before_model_generate` does today, and never a recommendation at all.
+**`modified` carries a replacement for the *subject* of the step**, and the subject is stage-determined exactly as the payload type is:
+
+| Stage | Subject | `modified` carries |
+|------------------------|------------------------|------------------------|
+| `BeforeGenerate` | the request | a `BeforeGenerate`, built with `dataclasses.replace(step, input=...)`; `model` unchanged |
+| `AfterGenerate` | the assistant message | `ChatMessageAssistant` — **not** `ModelOutput` |
+| `BeforeToolCall` | the call | `ToolCall` |
+| `AfterToolCall` | — | `modify` is not legal, per the policy reason above |
+
+The `AfterGenerate` row is the one that needed working out, and it is what unblocks resampling and trusted editing. `ModelOutput` is `model`, `choices`, `completion`, `usage`, `fallback`, `time`, `metadata`, `error` — of which only `choices[0].message` is substitutable *content*. `usage`, `time` and `model` describe the call that actually happened. If a protocol draws three completions and executes the least suspicious, three completions' worth of tokens really were spent, and swapping the whole `ModelOutput` would either discard that or falsify it. So the framework substitutes the message and leaves the accounting alone.
+
+Only `choices[0]` is monitored and substitutable, matching `_bridge/_approval.py`'s `n = 1` restriction — alternate choices carrying tool calls that no monitor saw are the thing that restriction exists to prevent.
+
+#### Why not in-place mutation, given the hook does exactly that {#why-not-in-place-mutation}
+
+`Hooks.on_before_model_generate(data) -> None` mutates its payload, and its docstring promises those mutations reach the cache key and the API call. Worth understanding how, because it looks like it contradicts our frozen payloads: `BeforeModelGenerate` *is* `@dataclass(frozen=True)`. Frozen protects the *binding*, not the contents — and `input: list[ChatMessage]` and `tools: list[ToolInfo]` are mutable containers, so a hook appends to `data.input` rather than reassigning it.
+
+We deliberately don't follow that precedent. A monitor that mutates its payload is side-effecting, which forfeits being a pure function of `(context, step)` — the property `monitor-deployment.md` depends on end to end. A proxy deserializes the payload, hands it to the monitor, and has no way to notice that a list was mutated in place; it can only look at what was returned. Returning a replacement costs one `dataclasses.replace()` and keeps every deployment honest.
 
 #### This is not the `stage` flag #5355 rejected
 
@@ -461,7 +480,7 @@ That argument was against a `stage` parameter on a single `Approver.__call__`, w
 
 Six places want uniform handling: the precedence rule under [Composition](#composition); the escalation chain's fall-through; `MonitorEvent`, whose decision field would otherwise be a union or stringly typed; policy and YAML config parsing; the TUI transcript renderer; and `analysis` dataframe columns.
 
-The cost of not sharing is already visible — #5356 had to make the approval system generic over the protocol to share glob matching, the ordered chain, decision recording, registry lookup and config parsing between two decision types. A third type makes that worse.
+The cost of not sharing is already paid, and it is larger than an earlier draft of this document guessed. That draft assumed #5356 would generalise the approval system over the decision type. It did not: `approval/` was not touched at all, and `review/` ships a parallel `_policy.py`, `_registry.py`, `_apply.py` and `_call.py` — **413 lines, 20–62% textually similar to their approval counterparts.** Glob matching, the ordered chain with escalate fall-through, registry lookup and config parsing all exist twice. A third decision type would make it three times.
 
 #### Rejected: a generic parameterised on the action set
 
@@ -503,7 +522,7 @@ Applying the split shrinks the monitor surface rather than growing it. Every con
 | `trusted_edit` | protocol | has the trusted model rewrite, then substitutes |
 | `resample` | protocol | draws more samples, scores each, picks or incriminates |
 
-None are expressible by something looking at one exchange, so `Action` does not grow. Resampling is the one that needs more than a wider vocabulary — it needs a way to substitute a whole `ModelOutput`, which is [open question 9](#open-questions).
+None are expressible by something looking at one exchange, so `Action` does not grow. Resampling is the one that needs more than a wider vocabulary — it needs a way to substitute a whole `ModelOutput`, which is the [open question on generate-stage `modified`](#open-questions).
 
 The collusion countermeasures land here too: paraphrasing and minification are a transform between agent output and monitor input; honeypots are synthetic inputs injected into the monitor's stream. Pipeline stages, not monitor logic.
 
@@ -547,7 +566,7 @@ One rule then covers the bimodality: **a wrapping monitor may override advisory 
 
 It is the safe default for that kind, and for a specific reason rather than a general caution about safety: a threshold nobody set is a threshold nobody calibrated, so acting on one is acting on a number whose meaning is unestablished. A scoring monitor whose scores nobody reads is a safety mechanism failing open, and under observe-only that is a *declared mode* rather than an accident.
 
-**It is not the default for `Recommendation` monitors**, per [Two philosophies](#two-philosophies-both-first-class). There the action was declared by the author, not inferred from an uncalibrated number, and defaulting to silence would mean a monitor that does nothing until you learn about a layer you had no reason to need. That is the answer to what was open question 18, and the deciding evidence is that `@approver` has worked this way for years.
+**It is not the default for `Recommendation` monitors**, per [Two philosophies](#two-philosophies-both-first-class). There the action was declared by the author, not inferred from an uncalibrated number, and defaulting to silence would mean a monitor that does nothing until you learn about a layer you had no reason to need. That question is now settled, and the deciding evidence is that `@approver` has worked this way for years.
 
 Either way a config-time check makes the dead configurations visible, and the [declared kind](#the-kind-comes-from-the-return-annotation) is what lets it be specific rather than generic:
 
@@ -613,10 +632,10 @@ A combinator is `[Monitor] -> Monitor`, and Inspect answers that shape the same 
 
 Two consequences worth stating plainly, because both remove things this document previously carried:
 
-- **`@monitor` is the only new `RegistryType` value.** One decorator, one config surface, one set of plumbing. This answers what was open question 3 by dissolving it.
+- **`@monitor` is the only new `RegistryType` value.** One decorator, one config surface, one set of plumbing. This dissolves the question of whether a second registry type was affordable.
 - **The naming problem disappears.** An earlier draft needed `ControlProtocol` because bare `Protocol` collides with `typing.Protocol`, which this codebase imports constantly. With no type to name, "protocol" goes back to being what the literature uses it for — a word for a role — and nothing collides. (`Policy` would still have been wrong, for what it is worth: in the control literature the *policy is the untrusted agent*, so reusing it for the thing doing the monitoring would invert the term.)
 
-Protocols nest, which the previous design forbade. A budget-owning protocol can wrap a paraphrasing protocol wrapping the leaf monitors, so the [pipeline stages](#the-extension-surface) become composable pieces rather than features one monolithic protocol has to anticipate. What still needs a rule is *budget ownership* under nesting — see [open question 3](#open-questions).
+Protocols nest, which the previous design forbade. A budget-owning protocol can wrap a paraphrasing protocol wrapping the leaf monitors, so the [pipeline stages](#the-extension-surface) become composable pieces rather than features one monolithic protocol has to anticipate. What still needs a rule is *budget ownership* under nesting — see the [open questions](#open-questions).
 
 ### `run_monitors` is where the guarantees live {#run-monitors-is-where-the-guarantees-live}
 
@@ -650,8 +669,8 @@ Everything else a protocol does is **ordinary Python over `Reports` plus task-sc
 
 Two things it is not quite arbitrary code over, both of which are existing open questions the collapse makes load-bearing:
 
-- **Task-scoped state has to actually work.** The audit budget is its first real consumer, and `scope="task"` currently has three unresolved problems under [State](#state) — the read-modify-write race across `await`, persistence across `eval_retry`, and whether the scope is really task or run.
-- **Resampling needs generate-stage substitution.** Drawing alternative completions and executing the least suspicious means replacing a whole `ModelOutput`, which is [open question 9](#open-questions). The previous design could defer this as "a protocol concern the monitor never sees"; with one type that dodge is gone, and either the protocol calls `context.host.generate()` and substitutes, or resampling is not expressible.
+- **Per-sample state has to actually work**, which it does — the audit budget is per-episode and therefore per-sample (see [`audit` is a flag](#audit-is-a-flag-not-an-action)). Only a budget deliberately pooled across samples reaches [Per-task](#per-task), and that is a choice rather than a requirement.
+- **Resampling needs generate-stage substitution.** Drawing alternative completions and executing the least suspicious means replacing a whole `ModelOutput`, which is the [open question on generate-stage `modified`](#open-questions). The previous design could defer this as "a protocol concern the monitor never sees"; with one type that dodge is gone, and either the protocol calls `context.host.generate()` and substitutes, or resampling is not expressible.
 
 ### What the collapse costs {#what-the-collapse-costs}
 
@@ -824,17 +843,21 @@ state = context.store_as(RunTotals, scope="task")                         # argu
 
 Three things are unresolved:
 
-**Concurrency.** Samples share one event loop and interleave at every `await`. A single `Store` operation is atomic under the GIL and no lock is warranted (per AGENTS.md), but a read-modify-write spanning an `await` is a real race:
+**Concurrency.** Samples share one event loop and interleave at every `await`. A single `Store` operation is atomic and no lock is warranted (per AGENTS.md, Inspect runs on one event loop thread), but a read-modify-write *spanning an `await`* is a real race:
 
 ``` python
 count = state.terminated          # read
-await self._classify(...)         # another sample runs here
+await classify(step)              # another sample runs here
 state.terminated = count + 1      # write clobbers
 ```
 
-Per-sample state never had this problem because each sample owns its store. Task state needs either a documented "don't do that" or an atomic helper.
+This is less alarming than it looks, because the canonical critical section is naturally await-free. A protocol's decision — compare score to threshold, check remaining budget, decrement — is pure arithmetic; the `await` happened earlier, when `run_monitors` ran. An await-free read-modify-write is atomic under the single-loop-thread invariant, so it needs no lock and no helper.
 
-**Persistence.** In-memory only is the simple answer, and it means task state starts empty on `eval_retry` and on eval-set resume — so a monitor that gates on a cross-sample total behaves differently on a resumed run than on a fresh one. Writing it somewhere durable means picking a home (`EvalSpec.metadata`? a new `EvalLog` field? a task-level event stream, which doesn't exist) and deciding when it's flushed.
+So the rule is a documented "don't `await` between reading and writing shared state", with the reason attached rather than asserted. A helper that makes the critical section syntactically obvious would be a nicety, not a fix.
+
+**Persistence.** In-memory only is the simple answer, and it means task state starts empty on `eval_retry` and on eval-set resume — so a monitor that gates on a cross-sample total behaves differently on a resumed run than on a fresh one.
+
+For a budget that asymmetry has a direction worth naming: a reset budget means *more* auditing than intended, not less. Erring toward more human review is the safe side of that error, which makes in-memory defensible for v1 on a principle rather than on convenience. A monitor that gates the other way — "terminate once 3 samples have been flagged" — resets toward *less* intervention, and that one genuinely needs durability. Writing it somewhere durable means picking a home (`EvalSpec.metadata`? a new `EvalLog` field? a task-level event stream, which doesn't exist) and deciding when it's flushed.
 
 **Scope.** "Task" is right for cross-sample aggregation within one task. It is the wrong scope for anything that wants to span an `eval()` over several tasks, and for `eval_set`. Whether there's a third scope, or whether the task scope is really a run scope, is open.
 
@@ -877,6 +900,25 @@ monitors:
 What the schema must not do is let `monitors:` under a leaf monitor parse silently. A monitor that takes no monitors and is handed some is a configuration error, and it is only catchable at config time because the factory signature is introspectable.
 
 `tools` is a wart. It scopes the tool stages the way `ApprovalPolicy` does, but a `BeforeGenerate` monitor is not tool-scoped and would fire regardless — so the key means "which tools this applies to, if it watches a tool point at all", not "when this monitor runs". Alternatives: a separate `stages:` key, or no globs at all (the monitor filters internally on `step.call.function`, which it can already do and which is more honest about the fact that a monitor is not a per-tool policy).
+
+## Failure semantics {#failure-semantics}
+
+**A monitor that raises fails loud, unless nothing was consuming its report.**
+
+The precedent is unanimous once you look at the code rather than the docs. Neither `apply_tool_approval` nor review's `_apply.py` wraps the call itself — each has exactly one `try/except`, and it is around the *viewer*, falling back to default rendering. An approver or reviewer that raises propagates and ends the sample. Only `Hooks` swallows and warns, and `Hooks` is process-global, observational, and outside any single eval's control.
+
+The obvious objection is flakiness: LLM monitors 429 and time out, and an eval that dies because a monitor's model hiccuped is a bad trade for a safety mechanism most people run in observe-only. That objection is weaker than it looks, because **the transients are already absorbed below**. `GenerateConfig.max_retries` and `timeout` retry model calls before anything reaches the monitor boundary, so an exception arriving here has survived the retry policy — it is a persistent outage or a bug in the monitor, not a blip. Neither should be swallowed.
+
+The exception is the case the [kind declaration](#the-kind-comes-from-the-return-annotation) makes visible:
+
+| Configuration | On exception |
+|------------------------|------------------------|
+| report has a consumer — honoured, or thresholded by a wrapper | **propagate**; ending the sample beats silently losing the protection |
+| report has no consumer — an `Observation` nothing reads | **warn and continue**; killing a sample over a report that was going nowhere is absurd |
+
+That is the "safety mechanism with no consumer" rule from [Observe-only](#observe-only-is-the-default), applied to failures instead of to configurations, and it needs no new machinery — the same config-time analysis answers both.
+
+The escape hatch is per-monitor and declared, following `portable=False`: `@monitor(fail="open")` makes tolerating a failure a visible choice that appears in code review and the registry, rather than something a monitor gets by default for being flaky. Failing open silently is the one behavior with no configuration that produces it.
 
 ## Composition {#composition}
 
@@ -947,6 +989,27 @@ Open: whether `MonitorEvent` replaces `ApprovalEvent`/`ReviewEvent` when the rep
 - **Model role.** `get_model(role="monitor")` is the natural default, and `"monitor"` is already the example role name in `docs/models.qmd`. Monitor usage should be separable from agent usage in `ModelUsage`.
 - **Injection.** A monitor reads model completions, tool arguments, and tool output, all of which are agent-controlled text. `docs/control-channel.qmd` already makes this point for monitoring agents reading the control channel; it applies with more force here, because this monitor's output decides whether the sample stops. Worth a docs section, and worth thinking about whether the framework should structurally help (for example by defaulting to delivering tool output to the monitor in a delimited, clearly-untrusted envelope) rather than only warning.
 
+## Bridged agents are the proxy case {#bridged-agents-are-the-proxy-case}
+
+An agent that runs its own tool loop — `claude_code`, `codex` — never reaches `execute_tools()`. An earlier draft called this a gap that leaves monitors "silently covering half a bridged agent." It is narrower than that, and it is a case this design already characterizes in full.
+
+`agent/_bridge/util.py:587` calls `apply_bridge_tool_approval(bridge, output, input_messages)` inside the bridge generate path. That function recovers tool calls from the model's *response* and applies approval to them — with `with_modified_arguments` for rewrites, `rejection_messages()` building the append-and-regenerate, and `terminate_for_repeated_rejections()` going out-of-band through the bridge. So tool-stage policy already reaches bridged agents, by projection rather than by interception.
+
+Which is exactly the deployment table from `monitor-deployment.md`, evaluated in-process:
+
+| Stage | Bridged agent | Fidelity |
+|------------------------|------------------------|------------------------|
+| `BeforeGenerate` | `bridge_generate` is the universal choke point | full |
+| `AfterGenerate` | same | full |
+| `BeforeToolCall` | projected from `tool_use` blocks in the response | good |
+| `AfterToolCall` | appears only in the *next* request | **lossy** |
+
+So **a bridged agent is the proxy deployment running in-process**, and everything `monitor-deployment.md` establishes transfers without restatement: the five restrictions `_bridge/_approval.py` arrived at, why `reject` must be a replay rather than a response edit, why rejection needs a bound, why `modify` narrows to arguments, and why `terminate` is a side call.
+
+That reframes what has to be communicated. Not "monitors cover half a bridged agent" but "bridged agents get the portable subset, which is specified" — and the same remedy applies as for a proxy: `AfterToolCall` should say it cannot fire here, rather than let it be discovered.
+
+It also means the portability discipline pays off twice in-process, before any proxy exists. A monitor written to the portable subset works under a bridged agent unchanged; one that relies on `AfterToolCall` does not, and the [per-function portability verdict](#what-the-function-shape-buys) already says which is which.
+
 ## Deployment beyond the eval process
 
 A monitor is useful outside an eval — enforced at a network boundary in front of a model API, where the agent cannot bypass it and the coverage is all agent traffic rather than one task's samples. `monitor-deployment.md` works that through. Four constraints from it bear on the protocol itself, so they are recorded here:
@@ -969,31 +1032,45 @@ The types a monitor works with also want to be importable without the eval frame
 
 ## Relationship to approval and review
 
-Two ways to fit `Monitor` next to `Approver` and the `Reviewer` proposed in #5356.
+`Reviewer` merged on 2026-09-11 (#5356), so this is no longer a question about an open PR. Three concepts now exist for one idea, with two config keys, two event types and two decision vocabularies:
 
-**A. Monitor as a façade.** `Approver` and `Reviewer` stay as they are. `@monitor` is a new registry type whose `BeforeToolCall` monitors are adapted into `Approver`s and whose `AfterToolCall` monitors are adapted into `Reviewer`s, both slotted into the existing policy chains. The genuinely new code is the two generate stages, the state model, and the composition rules.
+``` python
+ApprovalDecision = Literal["approve",  "modify", "reject", "terminate", "escalate"]
+ReviewDecision   = Literal["continue",                     "terminate", "escalate"]
+```
 
-- Nothing existing breaks; #5356 lands on its own terms and is not blocked.
-- Cost: `Report` has to be adapted to `Approval` and `Review` at the boundary (field-for-field, plus mapping `continue` to `approve`), and, depending on the transcript answer, possibly two events per decision.
+**Chosen: monitor subsumes `Reviewer`; `@approver` survives.**
 
-**B. Monitor as the primitive.** `Monitor` subsumes both. `@approver` and `@reviewer` become thin wrappers, or `@reviewer` is never introduced and #5356's post-execution hook ships as an `AfterToolCall` monitor.
+An `AfterToolCall` monitor *is* a `Reviewer` with a richer return type — the payloads are identical field for field, and `Action` is a superset of `ReviewDecision`. `@reviewer` is deprecated with a warning pointing adopters at `@monitor`, and `review/`'s 413 lines of parallel policy machinery retire with it rather than becoming a third copy.
 
-- One concept, one event, one decision vocabulary, one config key.
-- Cost: it makes #5356 a prerequisite negotiation rather than a merge, and it turns on whether `@approver` should survive as a first-class concept.
+The reason to consolidate *this* one and not approval is adoption, not elegance: `review` is days old, while `@approver` has been public for years and is used in shipped evals and extension packages. Deprecating a freshly-landed contribution has a real cost, and it is smaller than the cost of a third parallel subsystem.
 
-**Two later decisions moved this fork, both toward B.**
+Two alternatives, recorded because the choice could be revisited:
 
-The function shape removed the ergonomic argument. Under the class design, A's advantage was that a single-purpose approver stayed a single function while B forced it into a class with three no-op methods. With monitors as annotated functions that difference is gone — a `BeforeToolCall` monitor and an `Approver` are the same shape.
+- **Façade.** `Approver` and `Reviewer` both stay; `@monitor` adapts into each. Nothing is deprecated, and the parallel machinery stays forever. Rejected: it takes the cost without the consolidation.
+- **Primitive.** `Monitor` subsumes both, and `@approver` goes too. The remaining gap is narrow and nameable — `Approval` is authoritative where a `Recommendation` is overridable — but it means deprecating a mature concept people have working code against, to gain uniformity they did not ask for. Not now; better answered once monitors have users.
 
-[Two philosophies](#two-philosophies-both-first-class) then removed most of what was left. A `Recommendation` monitor with no protocol configured *is* an approver: it decides, its decision is honoured, nothing calibrates it. The remaining gap is narrow and nameable — `Approval` is authoritative where a `Recommendation` is overridable by a protocol that happens to be configured — which is a difference in what a protocol may do to it, not in what the monitor is.
+#### `approve` and `continue` are not the same word for the same thing {#approve-and-continue-are-not-the-same-word-for-the-same-thing}
 
-So the fork now turns on #5356's timing and on whether that authoritative/advisory distinction deserves its own type, rather than on the floor for the simple case. Worth stating the cost of B plainly all the same: it would deprecate a concept people have working code against, to gain uniformity they did not ask for.
+The obvious tidy-up is to reconcile the vocabularies — rename `ApprovalDecision.approve` to `continue` and have one word. Don't.
 
-The fork matters now because #5356 is open. Under A it merges unchanged.
+Mechanically it is expensive and incomplete: every `@approver` ever written says `decision="approve"`, so a rename breaks them all; accepting both leaves two *legal* spellings, which is strictly worse than two words in two subsystems; and logs already written pin `approve` forever regardless.
+
+But the better reason is that the difference tracks a real distinction:
+
+| Word | Where | Means |
+|------------------------|------------------------|------------------------|
+| `approve` | approver, pre-execution | I authorize this action |
+| `continue` | reviewer, post-execution | nothing to authorize; the tool already ran |
+| `continue` | monitor, advisory | I decline to object |
+
+`Reviewer` reached for `continue` independently, for a decision where there is nothing left to authorize. That is evidence *for* the distinction rather than against it — and it is exactly why subsuming review into monitor is clean while subsuming approval is not. Both are `continue`-shaped; `approve` is not.
+
+So: `@monitor` uses `continue`, `Approval` keeps `approve`, and the adapter maps between them at the boundary, which it always had to do. If monitor ever subsumes approval, `approve` retires with `@approver` — reconciliation by attrition rather than by rename.
 
 ### A protocol layer for approval too
 
-The façade leaves a thin spot: approvers are authoritative today, so a monitor adapted into the approval chain effectively runs under an honour-everything protocol while a configured monitor runs under a real one. Two layerings for one concept.
+Keeping `@approver` leaves a thin spot: approvers are authoritative today, so a monitor adapted into the approval chain effectively runs under an honour-everything protocol while a configured monitor runs under a real one. Two layerings for one concept.
 
 `policy_approver()` is already a proto-protocol — it does the chaining, the escalate fall-through and the no-approver-means-reject default. It just isn't configurable, and approver decisions map straight to effects.
 
@@ -1012,7 +1089,7 @@ Three constraints:
 
 - **Human approvers stay authoritative.** Same rule as [Recommendations are advisory](#recommendations-are-advisory): a protocol may override advisory reports, never authoritative decisions. A threshold overriding a human rejection would be a safety regression.
 - **Don't grow `Approval` with a score field.** A protocol can consume both shapes — decisions from approvers, reports from monitors — and an approver that wants to score should be a monitor. `Approval` reaches the transcript, the log schema, the viewer and the dataframe, and AGENTS.md wants every producer and consumer named before one of those changes.
-- **Probably a separate PR.** This is the same concept rather than a tangential fix, so it is defensible — but it turns "add a Monitor registry type" into "add a Monitor registry type and introduce a protocol layer to approval". The protocol layer could land first, as an additive alternative to the policy list, with monitors arriving into a slot that already exists.
+- **Probably a separate PR.** This is the same concept rather than a tangential fix, so it is defensible — but it turns "add a Monitor registry type" into "add a Monitor registry type and introduce a protocol layer to approval". Note that [protocols are monitors](#protocols-are-monitors), so the "protocol layer" here is not new machinery: it is permitting `Task(approval=)` to accept a `Recommendation`-kind monitor alongside a policy list, and compiling it down to an `Approver`.
 
 The win is not tidiness. Someone running an LLM approver today has no way to express "reject only the top 1% most suspicious" — the threshold has to be baked inside the approver, where it cannot be calibrated against a benign distribution or traded against a budget. A protocol layer fixes that for approval users whether or not they ever write a monitor.
 
@@ -1066,22 +1143,25 @@ It is rejected on scope. Core would have to know about trusted models, resamplin
 
 ## Open questions
 
-1.  **Façade or primitive** — `Monitor` as a façade over `Approver`/`Reviewer`, or the primitive that replaces them. The function shape removed the ergonomic argument that previously favoured the façade, so this is genuinely open again.
-2.  **Does the protocol layer land first?** It is useful to approval users on its own, and monitors then arrive into a slot that already exists. It also makes each change reviewable separately.
-3.  **Who owns the budget when protocols nest?** [Protocols are monitors](#protocols-are-monitors), so a budget-owning protocol can wrap a paraphrasing one wrapping leaf monitors — which is the point, but two nested budget-owning protocols need a rule. Outermost wins is the obvious answer; whether an inner one should be an error is open.
-4.  **Which protocols ship in core?** `observe_only` and something like `trusted_monitoring` seem clear. `defer_to_trusted`, `resample` and the collusion-resistant variants are candidates for an extension package.
-5.  **Score aggregation.** Max across monitors is the obvious default; per-dimension max when scores are structured. Weighted combination and requiring agreement are protocol policy — but the framework has to pick a default and say so.
-6.  **Where does threshold calibration get its benign distribution?** Ctrl-Z calibrates against known-benign runs. In an eval that could be a warm-up pass, a prior run's transcripts, or a static configuration. This is the least-specified part of the protocol layer.
-7.  **Audit budget is the first concrete consumer of per-task state.** Is that state in-memory for v1, with the resume asymmetry that implies? Does its scope want to be task, run, or eval-set?
-8.  **Does a `modify` compose?** Concurrent dispatch makes two rewrites incoherent. At most one modifying monitor per configuration is the simplest answer; last-wins in protocol order and "two is an error" are the alternatives.
-9.  **What `modified` carries at the generate points.** At `BeforeToolCall` it is a `ToolCall`; a generate rewrite is three things (messages, tools, config). Either input rewriting is in-place mutation of the payload — what `Hooks.on_before_model_generate` does today — or `modify` becomes an attachment rather than a recommendation. This is now load-bearing rather than cosmetic: **resampling and trusted editing both require substituting a whole `ModelOutput`**, so until it is answered, two of the five control-literature actions are not expressible.
-10. **Does the monitor see `ContentReasoning`?** The CoT-monitorability literature says reasoning is a distinct signal and TraceGuard scores it as its own dimension. Defaulting it visible seems right; the question is whether a protocol should be able to withhold it.
-11. **`Report` versus `Decision`.** `Report` encodes the layering in the API — a monitor reports, a protocol decides — at the cost of being the less obvious word. The naming is settled; the semantic question it encodes is what is still open, and it is the same fork as [Recommendations are advisory](#recommendations-are-advisory).
-12. **Lifecycle stages**: `SampleStart` / `SampleEnd` payloads would give per-sample state a place to initialise and a monitor a place to file a final verdict on a trajectory it watched but never interrupted. Natural, and cheap now that adding a stage means adding a payload type rather than a method to a base class — but it starts to overlap `Hooks`, and neither travels to a proxy.
-13. **Can a monitor produce a `Score`?** A suspicion score over a trajectory is a metric people want beside the task's own scores. If yes, this touches scoring rather than only the agent loop, and the scope grows considerably.
-14. **Bridged agents.** An agent that runs its own tool loop (`claude_code`, `codex`) never reaches `execute_tools()`, so `BeforeToolCall` and `AfterToolCall` monitors never fire — the gap #5356 documents for reviewers. The generate stages *do* fire, since bridged agents route through `bridge_generate`. A monitor that silently covers half a bridged agent is worse than one that says so.
-15. **Is proxy portability a goal or an observation?** If a goal, the portable core should be the shape the protocol is designed around and the in-process extras visibly additive. See `monitor-deployment.md`.
-16. **Does `Task` / `Sample` grow a `description` field?** A public API change for a general-purpose affordance monitors happen to need first. If not, monitor context comes from `metadata` by convention and is correspondingly undiscoverable.
-17. **Does a union annotation register two stages?** `step: BeforeToolCall | AfterToolCall` could mean "call me at both", or be rejected as ambiguous. Registering both is the more useful reading and costs nothing structurally; the argument against is that it quietly reintroduces the multi-stage monitor [One function, one point](#one-function-one-point) says is rare.
-18. **What happens in a mixed configuration with no protocol?** Recommendations act, scores only record — coherent, and surprising enough to warrant a warning. Whether it should instead be an error, forcing an explicit `observe_only()` or a real protocol, is open.
-19. **Failure semantics.** An approver exception ends the sample; a hook exception is swallowed and warned. A monitor is a safety mechanism, so failing closed matches the approver precedent — but that makes a flaky monitor model a source of eval errors. Configurable per monitor, or per protocol?
+Retired as answered by later decisions: whether a union annotation registers
+several stages (yes — a protocol annotates `Step`, so it is load-bearing);
+`Report` versus `Decision` (settled, and the semantics it encoded are settled
+too); whether the protocol layer lands first (there is no separate layer after
+[the collapse](#protocols-are-monitors)); and whether proxy portability is a
+goal or an observation, which now lives only in `monitor-deployment.md`.
+
+1.  **Does `@approver` eventually fold in too?** [Settled for now](#relationship-to-approval-and-review): monitor subsumes the merged `Reviewer`, `@approver` survives. What is open is whether the authoritative/advisory distinction deserves its own type permanently, or whether `@approver` becomes a `Recommendation` monitor once monitors have users. Deliberately deferred rather than answered.
+2.  **Who owns the budget when protocols nest?** [Protocols are monitors](#protocols-are-monitors), so a budget-owning protocol can wrap a paraphrasing one wrapping leaf monitors — which is the point, but two nested budget-owning protocols need a rule. Outermost wins is the obvious answer; whether an inner one should be an error is open.
+3.  **Which protocols ship in core?** `observe_only` and something like `trusted_monitoring` seem clear. `defer_to_trusted`, `resample` and the collusion-resistant variants are candidates for an extension package.
+4.  **Score aggregation.** Max across monitors is the obvious default; per-dimension max when scores are structured. Weighted combination and requiring agreement are protocol policy — but the framework has to pick a default and say so.
+5.  **Where does threshold calibration get its benign distribution?** Ctrl-Z calibrates against known-benign runs. In an eval that could be a warm-up pass, a prior run's transcripts, or a static configuration. This is the least-specified part of the protocol layer.
+6.  **Does anything in v1 actually need per-task state?** The audit budget does not — it is per-episode, hence per-sample. Cross-sample gating ("terminate once 3 samples are flagged") does, and it is the case where in-memory state resets in the *unsafe* direction. If nothing in v1 needs it, [Per-task](#per-task) can be deferred whole; if something does, its scope wants deciding between task, run and eval-set.
+7.  **Does a `modify` compose?** Concurrent dispatch makes two rewrites incoherent. At most one modifying monitor per configuration is the simplest answer; last-wins in protocol order and "two is an error" are the alternatives.
+8.  **Does substituting `choices[0].message` need a usage convention?** [Settled](#one-vocabulary-across-stages) that `modified` carries a `ChatMessageAssistant` at `AfterGenerate`, leaving `usage` untouched. Open is whether a protocol that spent extra inference resampling should be able to *add* to the recorded usage, so cost accounting reflects what the protocol really cost.
+9.  **Does the monitor see `ContentReasoning`?** The CoT-monitorability literature says reasoning is a distinct signal and TraceGuard scores it as its own dimension. Defaulting it visible seems right; the question is whether a protocol should be able to withhold it.
+10.  **Lifecycle stages**: `SampleStart` / `SampleEnd` payloads would give per-sample state a place to initialise and a monitor a place to file a final verdict on a trajectory it watched but never interrupted. Natural, and cheap now that adding a stage means adding a payload type rather than a method to a base class — but it starts to overlap `Hooks`, and neither travels to a proxy.
+11.  **Can a monitor produce a `Score`?** A suspicion score over a trajectory is a metric people want beside the task's own scores. If yes, this touches scoring rather than only the agent loop, and the scope grows considerably.
+12.  **Does `AfterToolCall` get a bridged-agent fallback?** [Bridged agents are the in-process proxy case](#bridged-agents-are-the-proxy-case), so three of the four stages already work. Whether the lossy fourth — reconstructing a result from the *next* request — is worth building, or whether `AfterToolCall` should simply decline to fire and say why, is open.
+13.  **Does `Task` / `Sample` grow a `description` field?** A public API change for a general-purpose affordance monitors happen to need first. If not, monitor context comes from `metadata` by convention and is correspondingly undiscoverable.
+14.  **What happens in a mixed configuration with no protocol?** Recommendations act, scores only record — coherent, and surprising enough to warrant a warning. Whether it should instead be an error, forcing an explicit `observe_only()` or a real protocol, is open.
+15.  **Failure tolerance across many samples.** [Failing loud](#failure-semantics) is settled for the single-sample case. What is open is whether a monitor that fails on 3 samples in 500 should fail the eval, and whether that reuses `fail_on_error`'s existing shape (`True` / `False` / a proportion / a count) or needs a monitor-specific knob.
