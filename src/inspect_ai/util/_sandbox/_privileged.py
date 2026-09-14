@@ -1,13 +1,19 @@
 """Run host-issued sandbox commands without consulting the image's ``PATH``.
 
-Inspect issues commands inside sandboxes with authority the agent does not have:
-as ``root`` (installing tools, snapshotting for checkpoints) or as the sandbox
-default user, which is root in most images even when the agent's own tools run as
-someone else. The provider resolves a bare command name (``sh``, ``rm``, ``tar``)
-through the *image's* configured ``PATH`` before anything of ours runs, so an image
-that puts a default-user-writable directory ahead of the system directories (a
-``~/.local/bin`` set up for ``pip install --user``, say) lets the agent plant a
-forged utility and have it executed with that authority on the next host command.
+Inspect issues commands inside sandboxes on its own behalf: as ``root`` (installing
+tools, snapshotting for checkpoints), as the sandbox default user, which is root in
+most images even when the agent's own tools run as someone else, and sometimes as the
+agent's own user (a sandbox service given ``user=``). The provider resolves a bare
+command name (``sh``, ``rm``, ``tar``) through the *image's* configured ``PATH``
+before anything of ours runs, so an image that puts a user-writable directory ahead
+of the system directories (a ``~/.local/bin`` set up for ``pip install --user``, say)
+lets that user decide what our next command runs.
+
+Two things go wrong, and only the first is an escalation. A command that runs as
+``root`` runs the planted program as ``root``. A command that runs as the agent's own
+user returns the planted program's answer, which defeats the checks that exist to
+catch that user: ``test -O`` on a service directory is what rejects a squatted one,
+and it is worthless if the agent supplies ``test``.
 
 This module is the one place that knows how to avoid that. Every helper here:
 
@@ -30,16 +36,17 @@ Providers remain responsible for the commands they insert themselves; see the
 Docker provider launches its ``timeout`` wrapper by absolute path.
 
 Image requirements: ``/bin/sh`` must exist, and every utility a host-issued command
-names must live in one of the four system directories. Environment variables the
-shell honours before its first line runs (``BASH_ENV`` when ``/bin/sh`` is bash,
-``LD_PRELOAD``) are part of the image configuration like ``PATH`` is; the shell
-cannot neutralise them from inside, this module does not clear them through the
-provider's ``env``, and they are out of scope here.
+names must live in one of the four system directories. ``LD_PRELOAD`` is out of
+scope: the dynamic linker acts before any program starts, so the shell cannot
+neutralise it from inside, and this module does not clear it through the provider's
+``env`` either. It reaches us only on an image that points it at a path the sandbox
+user can write. ``BASH_ENV`` does not reach us at all: bash invoked under the name
+``sh``, which is what :data:`SHELL_PATH` does, reads no startup file.
 
 Use :func:`privileged_exec` for an argv and :func:`privileged_shell` for a script.
-Use them for any command that runs as ``root`` or as the sandbox default user on
-the framework's behalf; the agent's own commands (tool calls) are not in scope and
-keep the image's ``PATH`` so the agent's environment behaves as the image intends.
+Use them for any command Inspect issues on its own behalf, whatever user it runs as;
+the agent's own commands (tool calls) are not in scope and keep the image's ``PATH``
+so the agent's environment behaves as the image intends.
 Use :func:`image_path_lookup` for the one question that is *about* the image's
 ``PATH``: whether it offers a given program (``python3``, an installed tool). A
 guard test (``tests/util/sandbox/test_privileged.py``) fails on any ``exec`` call
