@@ -331,6 +331,254 @@ def test_model_scoring_prompt_labels_task_and_submission_media():
     ]
 
 
+def test_model_scoring_prompt_preserves_interleaving_for_multiple_captions():
+    # A single caption followed by a run of media stays a bare media list
+    # (paired with the caption already folded into question/answer) -- this
+    # is the pre-existing "attached once" behavior and must not regress.
+    image_a = ContentImage(image="data:image/png;base64,YQ==")
+    image_b = ContentImage(image="data:image/png;base64,Yg==")
+    single_caption_prompt = model_scoring_prompt(
+        template="{question} {answer}",
+        question="Question",
+        output=ModelOutput.from_content("mockllm/model", "Answer"),
+        criterion="Criterion",
+        instructions="Instructions",
+        metadata={},
+        input_media=[image_a, image_b],
+        input_content=[ContentText(text="Question"), image_a, image_b],
+    )
+    assert isinstance(single_caption_prompt.content, list)
+    assert single_caption_prompt.content[1:] == [
+        ContentText(text="[Task media]"),
+        image_a,
+        image_b,
+    ]
+
+    # Two distinct captions, each introducing its own image, lose their
+    # correspondence once flattened to a bare media list -- the block must
+    # reproduce the original interleaved sequence (text and media in
+    # original order) instead.
+    submission_a = ContentImage(image="data:image/png;base64,c2Eg")
+    submission_b = ContentImage(image="data:image/png;base64,c2Ig")
+    interleaved_prompt = model_scoring_prompt(
+        template="{question} {answer}",
+        question="First, a circle. Then, a square.",
+        output=ModelOutput.from_content(
+            "mockllm/model",
+            [
+                ContentText(text="Circle reply:"),
+                submission_a,
+                ContentText(text="Square reply:"),
+                submission_b,
+            ],
+        ),
+        criterion="Criterion",
+        instructions="Instructions",
+        metadata={},
+        input_media=[image_a, image_b],
+        input_content=[
+            ContentText(text="First, a circle:"),
+            image_a,
+            ContentText(text="Then, a square:"),
+            image_b,
+        ],
+    )
+    assert isinstance(interleaved_prompt.content, list)
+    assert interleaved_prompt.content[1:] == [
+        ContentText(text="[Task media]"),
+        ContentText(text="First, a circle:"),
+        image_a,
+        ContentText(text="Then, a square:"),
+        image_b,
+        ContentText(text="[Submission media]"),
+        ContentText(text="Circle reply:"),
+        submission_a,
+        ContentText(text="Square reply:"),
+        submission_b,
+    ]
+
+    # Omitting input_content (the shape existing direct callers use) keeps
+    # the prior bare-media-list behavior even with multiple captions --
+    # reconstruction only activates when the caller supplies the ordered
+    # original content.
+    no_content_prompt = model_scoring_prompt(
+        template="{question} {answer}",
+        question="First, a circle. Then, a square.",
+        output=ModelOutput.from_content("mockllm/model", "Answer"),
+        criterion="Criterion",
+        instructions="Instructions",
+        metadata={},
+        input_media=[image_a, image_b],
+    )
+    assert isinstance(no_content_prompt.content, list)
+    assert no_content_prompt.content[1:] == [
+        ContentText(text="[Task media]"),
+        image_a,
+        image_b,
+    ]
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.anyio
+async def test_model_graded_multiple_interleaved_images_preserve_order(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    # Regression for preserving text/media interleaving with *multiple*
+    # media items in both the task input and the submission: each image is
+    # introduced by its own caption, so a bare trailing media list would
+    # lose which image illustrates which passage.
+    image_1 = ContentImage(image="data:image/png;base64,dGFzazE=")
+    image_2 = ContentImage(image="data:image/png;base64,dGFzazI=")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(
+            content=[
+                ContentText(text="First, a red circle:"),
+                image_1,
+                ContentText(text="Then, a blue square:"),
+                image_2,
+            ]
+        )
+    ]
+    submission_1 = ContentImage(image="data:image/png;base64,c3ViMQ==")
+    submission_2 = ContentImage(image="data:image/png;base64,c3ViMg==")
+    subject_model = get_model(
+        "mockllm/subject",
+        custom_outputs=[
+            ModelOutput.from_content(
+                "mockllm/subject",
+                [
+                    ContentText(text="Here is the circle:"),
+                    submission_1,
+                    ContentText(text="Here is the square:"),
+                    submission_2,
+                ],
+            )
+        ],
+    )
+    requests: list[list[ChatMessage]] = []
+
+    def capture(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        requests.append(deepcopy(messages))
+        return ModelOutput.from_content("mockllm/grader", "GRADE: C")
+
+    grader_model = get_model("mockllm/grader", custom_outputs=capture)
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(input=sample_input, target="Answer")],
+                scorer=scorer_factory(model=grader_model),
+            ),
+            model=subject_model,
+        )
+    )[0]
+
+    assert log.status == "success"
+    assert len(requests) == 1
+    request = requests[0][0]
+    content = request.content
+    assert isinstance(content, list)
+
+    task_start = content.index(ContentText(text="[Task media]"))
+    submission_start = content.index(ContentText(text="[Submission media]"))
+    assert content[task_start:submission_start] == [
+        ContentText(text="[Task media]"),
+        ContentText(text="First, a red circle:"),
+        image_1,
+        ContentText(text="Then, a blue square:"),
+        image_2,
+    ]
+    assert content[submission_start:] == [
+        ContentText(text="[Submission media]"),
+        ContentText(text="Here is the circle:"),
+        submission_1,
+        ContentText(text="Here is the square:"),
+        submission_2,
+    ]
+
+    # grading metadata still holds no media, only text -- the interleaved
+    # reconstruction must not defeat the existing sanitization safeguard.
+    assert log.samples
+    assert log.samples[0].scores
+    score = log.samples[0].scores[scorer_factory.__name__]
+    assert score.metadata
+    grading_prompt, _grading_response = score.metadata["grading"]
+    assert "base64" not in score.model_dump_json()
+    assert "First, a red circle:" in grading_prompt["content"]
+    assert "Here is the circle:" in grading_prompt["content"]
+
+
+@pytest.mark.parametrize(
+    "include_history",
+    [
+        pytest.param(True, id="history"),
+        pytest.param(lambda state: "Custom flattened history", id="callable"),
+    ],
+)
+@pytest.mark.anyio
+async def test_model_graded_multiple_images_fallback_for_flattened_history(
+    include_history: bool | Callable[[TaskState], str],
+) -> None:
+    # Documented fallback: when include_history produces a flattened string
+    # (True uses chat_history(), or a custom callable returns its own
+    # string) there is no structure in that string to interleave media
+    # back into, so the [Task media] block reconstruction is based solely
+    # on the original sample input -- independent of include_history -- and
+    # still preserves interleaving there.
+    image_1 = ContentImage(image="data:image/png;base64,dGFzazE=")
+    image_2 = ContentImage(image="data:image/png;base64,dGFzazI=")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(
+            content=[
+                ContentText(text="First:"),
+                image_1,
+                ContentText(text="Second:"),
+                image_2,
+            ]
+        )
+    ]
+    requests: list[list[ChatMessage]] = []
+
+    def capture(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        requests.append(deepcopy(messages))
+        return ModelOutput.from_content("mockllm/grader", "GRADE: C")
+
+    state = TaskState(
+        model=ModelName("mockllm/subject"),
+        sample_id=1,
+        epoch=1,
+        input=sample_input,
+        messages=[*sample_input, ChatMessageAssistant(content="Answer")],
+    )
+    state.output = ModelOutput.from_content("mockllm/subject", "Answer")
+
+    result = await model_graded_qa(
+        model=get_model("mockllm/grader", custom_outputs=capture),
+        include_history=include_history,
+    )(state, Target("Answer"))
+
+    assert result is not None and result.value == CORRECT
+    content = requests[0][0].content
+    assert isinstance(content, list)
+    task_start = content.index(ContentText(text="[Task media]"))
+    assert content[task_start:] == [
+        ContentText(text="[Task media]"),
+        ContentText(text="First:"),
+        image_1,
+        ContentText(text="Second:"),
+        image_2,
+    ]
+
+
 @pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
 @pytest.mark.parametrize("log_format", ["eval", "json"])
 @pytest.mark.parametrize(

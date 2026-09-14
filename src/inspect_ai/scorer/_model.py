@@ -300,7 +300,12 @@ def _model_graded_qa_single(
             state.metadata, ["question", "answer", "criterion", "instructions"]
         )
 
-        input_media = _model_grader_input_media(state.input)
+        input_content = _model_grader_input_content(state.input)
+        input_media = [
+            content
+            for content in input_content
+            if isinstance(content, _ModelGraderMedia)
+        ]
         input_media_text = " ".join(f"[{media.type}]" for media in input_media)
 
         # present the question
@@ -316,6 +321,12 @@ def _model_graded_qa_single(
             ):
                 question = f"{input_media_text}{question}"
         elif callable(include_history):
+            # a custom callback already returns a flattened string with no
+            # structure to interleave media back into, so it is used as-is;
+            # the [Task media] block built below (from the original sample
+            # input, independent of this callback) still preserves media
+            # order and, for multiple media items, their original placement
+            # relative to the task text.
             question = include_history(state)
         else:
             try:
@@ -342,6 +353,7 @@ def _model_graded_qa_single(
             instructions=instructions,
             metadata=metadata,
             input_media=input_media,
+            input_content=input_content,
         )
 
         # query the model for the score
@@ -583,6 +595,7 @@ def model_scoring_prompt(
     instructions: str,
     metadata: dict[str, Any],
     input_media: Sequence[_ModelGraderMedia] = (),
+    input_content: Sequence[Content] | None = None,
 ) -> ChatMessageUser:
     # Neutralize structural delimiters in all dataset-controlled inputs so a model
     # cannot inject fake [END DATA] / [BEGIN DATA] markers into the judge prompt.
@@ -602,15 +615,16 @@ def model_scoring_prompt(
         )
 
     # we need to remove media objects from output and reference them as attachements in the answer
-    output_media: list[Content] = (
-        [
-            content
-            for content in output.message.content
-            if content.type in ["image", "audio", "video"]
-        ]
+    output_content: list[Content] = (
+        list(output.message.content)
         if len(output.choices) > 0 and isinstance(output.message.content, list)
         else []
     )
+    output_media: list[Content] = [
+        content
+        for content in output_content
+        if content.type in ["image", "audio", "video"]
+    ]
     if len(output_media) > 0:
         if len(answer) > 0:
             answer = f"{answer} (see [Submission media])"
@@ -630,12 +644,49 @@ def model_scoring_prompt(
     if len(input_media) > 0 or len(output_media) > 0:
         content: list[Content] = [ContentText(text=prompt)]
         if len(input_media) > 0:
-            content.extend([ContentText(text="[Task media]"), *input_media])
+            content.append(ContentText(text="[Task media]"))
+            content.extend(_media_block_content(input_media, input_content))
         if len(output_media) > 0:
-            content.extend([ContentText(text="[Submission media]"), *output_media])
+            content.append(ContentText(text="[Submission media]"))
+            content.extend(_media_block_content(output_media, output_content))
         return ChatMessageUser(content=content)
     else:
         return ChatMessageUser(content=prompt)
+
+
+def _media_block_content(
+    media: Sequence[Content],
+    ordered_content: Sequence[Content] | None,
+) -> list[Content]:
+    """Content for a ``[Task media]``/``[Submission media]`` block.
+
+    Media introduced by a single caption (one text run followed by one or
+    more media items, e.g. "here are the reference files: <img> <audio>")
+    is unambiguous once paired with that caption, already folded into the
+    surrounding question/answer text -- so the block stays the bare media
+    list, in original order (preserves prior behavior/tests). Multiple
+    *distinct* captions each introducing their own media (e.g. "first,
+    <img1>. second, <img2>.") lose that correspondence once flattened into
+    a trailing list, so when the original interleaved content is available
+    (it is not for a custom ``include_history`` callback result, which is
+    already a flattened string) the block instead reproduces that content
+    verbatim -- text and media in original order -- so the grader can tell
+    which passage each item illustrates.
+    """
+    if ordered_content is None:
+        return list(media)
+    text_runs = [
+        content
+        for content in ordered_content
+        if isinstance(content, ContentText) and content.text.strip()
+    ]
+    if len(text_runs) <= 1:
+        return list(media)
+    return [
+        content
+        for content in ordered_content
+        if not (isinstance(content, ContentText) and not content.text.strip())
+    ]
 
 
 def _model_grading_metadata_message(message: ChatMessage) -> ChatMessage:
@@ -646,9 +697,15 @@ def _model_grading_metadata_message(message: ChatMessage) -> ChatMessage:
     return message
 
 
-def _model_grader_input_media(
+def _model_grader_input_content(
     sample_input: str | list[ChatMessage],
-) -> list[_ModelGraderMedia]:
+) -> list[Content]:
+    """Original task content (text and media) in original message/content order.
+
+    Used to reconstruct the original interleaving of text and media under
+    ``[Task media]`` when the task input mixes multiple media items with
+    surrounding text (see ``_media_block_content``).
+    """
     if isinstance(sample_input, str):
         return []
     return [
@@ -656,6 +713,15 @@ def _model_grader_input_media(
         for message in sample_input
         if isinstance(message.content, list)
         for content in message.content
+    ]
+
+
+def _model_grader_input_media(
+    sample_input: str | list[ChatMessage],
+) -> list[_ModelGraderMedia]:
+    return [
+        content
+        for content in _model_grader_input_content(sample_input)
         if isinstance(
             content, ContentImage | ContentAudio | ContentVideo | ContentDocument
         )
