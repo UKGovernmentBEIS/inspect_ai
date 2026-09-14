@@ -1,6 +1,7 @@
 import textwrap
 import uuid
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 from test_helpers.tool_call_utils import (
@@ -263,15 +264,40 @@ for line in sys.stdin:
 """
 
 
-def _compose(
-    tmp_path: Path, user: str | None, group_add: str | None, cap_drop: bool = False
-) -> tuple[str, str]:
+class _IdentityCase(NamedTuple):
+    """One compose identity form, run as its own sample of the parity eval."""
+
+    id: str
+    user: str | None
+    group_add: str | None
+    cap_drop: bool = False
+    # Also run the chunk-root and explicit-root half of the check. That half only
+    # branches on whether the default uid is 0, so two forms carry it.
+    check_root: bool = False
+
+
+_IDENTITY_CASES = [
+    _IdentityCase("root-default", user=None, group_add=None, check_root=True),
+    _IdentityCase("named-user", user="nonroot", group_add=None, check_root=True),
+    _IdentityCase("numeric-uid-gid", user="1234:5678", group_add=None),
+    _IdentityCase("uid-0-other-gid", user="0:1000", group_add=None),
+    _IdentityCase("root-plus-group-add", user=None, group_add="2000"),
+    _IdentityCase("named-plus-group-add", user="nonroot", group_add="2000"),
+    # `cap_drop: [ALL]` leaves root unable to switch users, so injection must take
+    # the rootless path: the server runs as the default user and no user switching
+    # happens (hence no `check_root` half here).
+    _IdentityCase("no-setuid-caps", user="nonroot", group_add=None, cap_drop=True),
+]
+_IDENTITY_CASES_BY_ID = {case.id: case for case in _IDENTITY_CASES}
+
+
+def _compose(tmp_path: Path, case: _IdentityCase) -> tuple[str, str]:
     extra = (
-        (f"    user: '{user}'\n" if user else "")
-        + (f"    group_add: ['{group_add}']\n" if group_add else "")
-        + ("    cap_drop: [ALL]\n" if cap_drop else "")
+        (f"    user: '{case.user}'\n" if case.user else "")
+        + (f"    group_add: ['{case.group_add}']\n" if case.group_add else "")
+        + ("    cap_drop: [ALL]\n" if case.cap_drop else "")
     )
-    compose = tmp_path / "compose.yaml"
+    compose = tmp_path / f"compose-{case.id}.yaml"
     compose.write_text(
         f"services:\n  default:\n    build: {_CONTEXT}\n    command: tail -f /dev/null\n"
         f"{extra}    init: true\n    network_mode: none\n    stop_grace_period: 1s\n"
@@ -280,8 +306,9 @@ def _compose(
 
 
 @solver
-def _identity_parity(check_root: bool = True) -> Solver:
+def _identity_parity() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        check_root = _IDENTITY_CASES_BY_ID[str(state.sample_id)].check_root
         sb = sandbox()
         ref = (await sb.exec(["sh", "-c", _ID_CMD])).stdout
         uid, gid = ref.split()[:2]
@@ -363,40 +390,26 @@ _AGENT_SOCKET_PROBE = (
 
 # Every injected tool must run as the same identity as `sandbox().exec()` with no
 # user: uid, gid, supplementary groups and HOME, across the compose `user:` forms.
-@pytest.mark.parametrize(
-    "user,group_add",
-    [
-        (None, None),
-        ("nonroot", None),
-        ("1234:5678", None),
-        ("0:1000", None),
-        (None, "2000"),
-        ("nonroot", "2000"),
-    ],
-)
+# Each form is a sample with its own sandbox rather than a parametrization, so the
+# containers start concurrently under one eval instead of one eval (with its own
+# image build and cleanup) per form. `fail_on_error=False` keeps a failing form
+# from cancelling the others, so one run reports every form that broke.
 @pytest.mark.slow
-def test_tools_match_default_exec_identity(
-    tmp_path: Path, user: str | None, group_add: str | None
-) -> None:
+def test_tools_match_default_exec_identity(tmp_path: Path) -> None:
     task = Task(
-        dataset=[Sample(input="x")],
+        dataset=[
+            Sample(input="x", id=case.id, sandbox=_compose(tmp_path, case))
+            for case in _IDENTITY_CASES
+        ],
         solver=_identity_parity(),
-        sandbox=_compose(tmp_path, user, group_add),
     )
-    log = eval(task, model=get_model("mockllm/model"))[0]
-    assert log.status == "success", log.error
-
-
-# `cap_drop: [ALL]` leaves root unable to switch users, so injection must take the
-# rootless path: the server runs as the default user and no user switching happens.
-@pytest.mark.slow
-def test_tools_match_default_exec_identity_without_setuid_caps(tmp_path: Path) -> None:
-    task = Task(
-        dataset=[Sample(input="x")],
-        solver=_identity_parity(check_root=False),
-        sandbox=_compose(tmp_path, "nonroot", None, cap_drop=True),
-    )
-    log = eval(task, model=get_model("mockllm/model"))[0]
+    log = eval(task, model=get_model("mockllm/model"), fail_on_error=False)[0]
+    assert log.samples, log.error
+    errors = {
+        sample.id: sample.error.traceback for sample in log.samples if sample.error
+    }
+    assert not errors, "\n".join(f"{id}:\n{tb}" for id, tb in errors.items())
+    assert {sample.id for sample in log.samples} == set(_IDENTITY_CASES_BY_ID)
     assert log.status == "success", log.error
 
 
