@@ -1,7 +1,9 @@
 """Fake ``SandboxEnvironment`` for tests that script ``exec`` results."""
 
-from typing import Callable, Literal, overload
+from pathlib import PurePosixPath
+from typing import Callable, Literal, NamedTuple, overload
 
+from inspect_ai.util._sandbox._framework_directory import _SCRIPT, SHELL_PATH
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
@@ -15,9 +17,10 @@ ExecPolicy = Callable[[list[str], str | None], ExecResult[str]]
 class CannedSandbox(SandboxEnvironment):
     """Sandbox whose ``exec`` results are decided by a per-test policy.
 
-    Every ``exec`` is recorded as ``(cmd, user)`` in ``exec_calls`` and its stdin in
-    ``inputs`` (same order). ``write_file`` records the path in ``written`` and
-    stores nothing; ``read_file`` is not supported.
+    Every ``exec`` is recorded as ``(cmd, user)`` in ``exec_calls``, its stdin in
+    ``inputs`` and its ``concurrency`` flag in ``concurrency`` (same order).
+    ``write_file`` records the path in ``written`` and stores nothing; ``read_file``
+    is not supported.
     """
 
     def __init__(self, policy: ExecPolicy) -> None:
@@ -25,6 +28,7 @@ class CannedSandbox(SandboxEnvironment):
         self.policy = policy
         self.exec_calls: list[tuple[list[str], str | None]] = []
         self.inputs: list[str | bytes | None] = []
+        self.concurrency: list[bool] = []
         self.written: list[str] = []
 
     @classmethod
@@ -45,6 +49,7 @@ class CannedSandbox(SandboxEnvironment):
     ) -> ExecResult[str]:
         self.exec_calls.append((cmd, user))
         self.inputs.append(input)
+        self.concurrency.append(concurrency)
         return self.policy(cmd, user)
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
@@ -68,3 +73,32 @@ class CannedSandbox(SandboxEnvironment):
         interrupted: bool,
     ) -> None:
         pass
+
+
+class FrameworkDirectoryCall(NamedTuple):
+    """A framework-directory helper invocation, decoded from its argv."""
+
+    path: str
+    expected_uid: str
+    """Uid the script must run as ("" when unconstrained)."""
+    create: bool
+    repair: bool
+    mode: str
+    """Required mode as `stat -c %a` prints it ("700", "1777")."""
+    cmd: tuple[str, ...]
+    """The wrapped command (empty when only ensuring or verifying the directory)."""
+
+
+def framework_directory_call(cmd: list[str]) -> FrameworkDirectoryCall | None:
+    """Decode a framework-directory helper invocation; None for any other command."""
+    if cmd[:3] != [SHELL_PATH, "-c", _SCRIPT]:
+        return None
+    _, expected_uid, create, repair, mode, parent, leaf, *wrapped = cmd[3:]
+    return FrameworkDirectoryCall(
+        path=str(PurePosixPath(parent, leaf)),
+        expected_uid=expected_uid,
+        create=create == "1",
+        repair=repair == "1",
+        mode=mode,
+        cmd=tuple(wrapped),
+    )
