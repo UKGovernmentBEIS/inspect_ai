@@ -664,7 +664,7 @@ class AsyncFilesystemMiddleware:
     Pure-ASGI (not BaseHTTPMiddleware) so the ContextVar set here propagates to
     the route handler and into its `tg_collect` fan-out tasks — BaseHTTPMiddleware
     runs the endpoint in a separate task and would drop it. The single instance
-    keeps one warm aioboto3 client + connection pool across all requests, so S3
+    keeps one warm aiobotocore client + connection pool across all requests, so S3
     reads don't re-pay the credential/connection cold-start on every request.
     """
 
@@ -842,7 +842,7 @@ def view_server(
             # concurrently with server startup, so the first request doesn't
             # pay the cold-start but slow credential resolution doesn't delay
             # listening. Only relevant for S3; other backends don't use the
-            # aioboto3 client.
+            # aiobotocore client.
             try:
                 await shared_fs.exists(log_dir)
             except Exception:
