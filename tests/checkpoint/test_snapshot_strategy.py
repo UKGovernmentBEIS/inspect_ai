@@ -29,7 +29,7 @@ from unittest.mock import patch
 import anyio
 import pytest
 import zstandard
-from test_helpers.local_shell_sandbox import LocalShellSandbox
+from test_helpers.local_shell_sandbox import LocalShellSandbox, sandbox_path
 
 from inspect_ai.util._checkpoint._copy import copy_out, copy_out_partial_path
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
@@ -224,7 +224,7 @@ async def test_archive_snapshot_tolerates_tar_exit_1(tmp_path: Path) -> None:
     the snapshot with a blank status. A shim ``tar`` that produces a
     valid archive but exits 1 makes the case deterministic.
     """
-    real_tar = shutil.which("tar")
+    real_tar = shutil.which("tar", path=sandbox_path())
     assert real_tar is not None
     shim_dir = tmp_path / "shim"
     shim_dir.mkdir()
@@ -379,9 +379,14 @@ async def test_archive_restore_rejects_digest_mismatch_before_copy_in(
 def _crafted_archive(
     path: Path, members: list[tarfile.TarInfo], contents: dict[str, bytes]
 ) -> str:
-    """Write ``members`` as a ``.tar.gz``/``.tar.zst`` at ``path``; return its sha256."""
+    """Write ``members`` as a ``.tar.gz``/``.tar.zst`` at ``path``; return its sha256.
+
+    GNU format, as a Linux tar writes: ``tarfile``'s default PAX format
+    puts any name over 100 bytes (a macOS ``tmp_path``) in a PAX header,
+    which the restore-scope scan refuses.
+    """
     raw = io.BytesIO()
-    with tarfile.open(fileobj=raw, mode="w") as tar:
+    with tarfile.open(fileobj=raw, mode="w", format=tarfile.GNU_FORMAT) as tar:
         for info in members:
             data = contents.get(info.name)
             if data is not None:
@@ -544,6 +549,15 @@ def _rel(path: Path) -> str:
     return str(path).lstrip("/")
 
 
+def _header_name(path: Path) -> str:
+    """The name a raw header carries for ``path``: its first 100 bytes.
+
+    A longer name (a macOS ``tmp_path``) lives in the GNU long-name header
+    before it, and the header scan's diagnostic quotes the header's own field.
+    """
+    return _rel(path)[:100]
+
+
 _HOSTILE_MEMBERS: dict[str, Callable[[Path, Path], tuple[tarfile.TarInfo, str]]] = {
     # (member, substring the error must name)
     "outside_root": lambda root, outside: (
@@ -566,15 +580,15 @@ _HOSTILE_MEMBERS: dict[str, Callable[[Path, Path], tuple[tarfile.TarInfo, str]]]
     # before tarfile yields the member the walk would also refuse.
     "sparse_under_root": lambda root, outside: (
         _member(_rel(root / "sp"), tarfile.GNUTYPE_SPARSE),
-        f"holds a GNU sparse file header ('{_rel(root / 'sp')}')",
+        f"holds a GNU sparse file header ('{_header_name(root / 'sp')}')",
     ),
     "fifo_under_root": lambda root, outside: (
         _member(_rel(root / "pipe"), tarfile.FIFOTYPE),
-        f"holds a fifo header ('{_rel(root / 'pipe')}')",
+        f"holds a fifo header ('{_header_name(root / 'pipe')}')",
     ),
     "chardev_under_root": lambda root, outside: (
         _member(_rel(root / "null"), tarfile.CHRTYPE),
-        f"holds a character device header ('{_rel(root / 'null')}')",
+        f"holds a character device header ('{_header_name(root / 'null')}')",
     ),
     "hardlink_outside": lambda root, outside: (
         _member(_rel(root / "pw"), tarfile.LNKTYPE, linkname="etc/passwd"),
@@ -750,7 +764,7 @@ async def test_archive_restore_decodes_gzip_like_the_sandbox_does(
 
 
 def _tar_shim(tmp_path: Path, implementation: str) -> dict[str, str] | None:
-    """``extra_env`` putting ``implementation``'s tar first on ``PATH`` (``None`` = host tar)."""
+    """``extra_env`` putting ``implementation``'s tar first on ``PATH`` (``None`` = the fake's own)."""
     if implementation == "host":
         return None
     if shutil.which(implementation) is None:

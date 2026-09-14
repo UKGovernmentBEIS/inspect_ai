@@ -28,6 +28,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import IO, Any, Callable
 from unittest.mock import patch
@@ -768,7 +769,8 @@ def _hostile_snapshots() -> dict[str, tuple[Callable[[_Repos, Path], list[str]],
         return [str(repos.src), str(other)]
 
     def etc(repos: _Repos, other: Path) -> list[str]:
-        return [str(repos.src), "/etc/hostname"]
+        # A file every host running the tests has (Linux and macOS).
+        return [str(repos.src), "/etc/hosts"]
 
     def setuid(repos: _Repos, other: Path) -> list[str]:
         (repos.src / "sh").write_text("#!/bin/sh\n")
@@ -788,7 +790,7 @@ def _hostile_snapshots() -> dict[str, tuple[Callable[[_Repos, Path], list[str]],
     # first one outside the scope: the planted dir / `/etc` itself.
     return {
         "outside_root": (outside, "/other lies outside"),
-        "etc_hostname": (etc, "/etc lies outside"),
+        "etc_hosts": (etc, "/etc lies outside"),
         "setuid_under_root": (setuid, "sh is a regular file with mode 4755"),
         "setgid_file_under_root": (setgid, "gsh is a regular file with mode 2755"),
         "fifo_under_root": (fifo, "pipe is a fifo"),
@@ -906,6 +908,8 @@ async def test_ingress_restores_only_user_xattrs(repos: _Repos, tmp_path: Path) 
     otherwise reapply a recorded ``security.capability`` the same way it
     reapplies this ACL.
     """
+    if sys.platform != "linux":
+        pytest.skip("Linux extended attributes")
     target = repos.src / "notes.txt"
     subprocess.run(["setfacl", "-m", "u:nobody:r", str(target)], check=True)
     os.setxattr(target, "user.note", b"kept")

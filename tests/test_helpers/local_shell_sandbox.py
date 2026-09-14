@@ -2,13 +2,20 @@
 
 File APIs map to host paths and ``user="root"`` is ignored, so code whose
 in-sandbox side is plain ``sh`` (tar, dd, find, comm, restic-as-a-binary)
-executes for real against a temp dir — no Docker required.
+executes for real against a temp dir — no Docker required. The ``tar``
+first on the fake's ``PATH`` writes what a Linux sandbox's tar writes
+(see :func:`sandbox_path`).
 """
 
 from __future__ import annotations
 
+import atexit
+import functools
 import os
+import shlex
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Literal, Union, overload
 
@@ -17,6 +24,45 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentConfigType,
 )
 from inspect_ai.util._subprocess import ExecResult
+
+_BSDTAR_SHIM = """#!/bin/sh
+# bsdtar's default format adds PAX headers (nanosecond mtimes, extended
+# attributes) and AppleDouble members that GNU and busybox tar never write;
+# create archives the way a Linux sandbox's tar does.
+case "$1" in
+  -c*|c*|--create) exec {tar} --format gnutar --no-xattrs --no-mac-metadata "$@" ;;
+esac
+exec {tar} "$@"
+"""
+
+
+@functools.lru_cache(maxsize=None)
+def sandbox_path() -> str:
+    """The ``PATH`` the fake runs ``exec`` with.
+
+    A Linux sandbox's tar (GNU or busybox) writes plain ustar and GNU
+    long headers. macOS ships bsdtar, whose default format adds a PAX
+    header to any member with a nanosecond mtime or an extended
+    attribute (every file on macOS carries ``com.apple.provenance``),
+    which the restore-scope header scan refuses. When the host tar is
+    bsdtar, a shim that creates archives in GNU format without xattrs
+    or AppleDouble members goes first on the path; otherwise the host's
+    ``PATH`` is returned unchanged. Tests that shim ``tar`` themselves
+    should resolve the real one from this path, not the host's.
+    """
+    host_path = os.environ.get("PATH", os.defpath)
+    tar = shutil.which("tar", path=host_path)
+    if tar is None:
+        return host_path
+    version = subprocess.run([tar, "--version"], capture_output=True, text=True)
+    if not version.stdout.startswith("bsdtar"):
+        return host_path
+    shim_dir = tempfile.mkdtemp(prefix="inspect-linux-like-tar-")
+    atexit.register(shutil.rmtree, shim_dir, ignore_errors=True)
+    shim = Path(shim_dir) / "tar"
+    shim.write_text(_BSDTAR_SHIM.format(tar=shlex.quote(tar)))
+    shim.chmod(0o755)
+    return f"{shim_dir}{os.pathsep}{host_path}"
 
 
 class LocalShellSandbox(SandboxEnvironment):
@@ -42,12 +88,12 @@ class LocalShellSandbox(SandboxEnvironment):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         input_bytes = input.encode() if isinstance(input, str) else input
-        # macOS bsdtar emits AppleDouble ``._*`` members for files with
-        # extended attributes; a Linux sandbox never does, and the egress
-        # member validation rightly rejects them. COPYFILE_DISABLE is a no-op
-        # elsewhere.
+        # COPYFILE_DISABLE keeps macOS bsdtar from adding AppleDouble ``._*``
+        # members even when a test's own ``PATH`` bypasses the tar shim; a
+        # no-op elsewhere.
         run_env = {
             **os.environ,
+            "PATH": sandbox_path(),
             "COPYFILE_DISABLE": "1",
             **(self._extra_env or {}),
             **(env or {}),

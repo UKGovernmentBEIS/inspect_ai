@@ -87,6 +87,7 @@ from __future__ import annotations
 import posixpath
 import re
 import shlex
+import stat
 import tarfile
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -648,16 +649,21 @@ def find_special_nodes_command(roots: Sequence[str]) -> str:
     setgid or sticky bit, or a fifo, character or block device node.
     Sockets are not looked for — no tar can create one from an archive.
     ``-xdev`` keeps it off anything mounted under a root. Uses only
-    predicates busybox find shares with GNU find (``-perm /MODE``,
-    ``-type``), and ``head`` rather than ``-quit`` for the same reason.
+    predicates GNU, busybox and BSD find share: ``-perm -MODE`` once per
+    bit rather than ``-perm /MODE`` (BSD find, which the tests run this
+    on, rejects the ``/`` form), ``-type``, and ``head`` rather than
+    ``-quit``.
     Nodes that were under a root before the restore are examined too;
     an honest capture already includes them, so they have passed the
     host-side walk.
     """
     quoted = " ".join(shlex.quote(root) for root in roots)
+    special = " -o ".join(
+        f"-perm -{bit:o}" for bit in (stat.S_ISUID, stat.S_ISGID, stat.S_ISVTX)
+    )
     return (
         f"find {quoted} -xdev "
-        f"\\( \\( -type f -perm /{_SPECIAL_MODE_BITS:o} \\) -o -type p -o -type c "
+        f"\\( \\( -type f \\( {special} \\) \\) -o -type p -o -type c "
         f"-o -type b \\) -print | head -n 1"
     )
 
