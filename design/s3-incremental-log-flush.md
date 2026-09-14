@@ -601,19 +601,24 @@ compose-prefix invalidation (a failed flush, a changed source) leaves
 no flush outcome changes until the bytes are materialised.
 
 **Conditional reads.** Every read of the prior during a sparse seed and
-afterwards carries `IfMatch` = `SparseSource.etag`: `read_file_bytes` and
-`read_file_bytes_fully` gain an optional `if_match: str | None` that the
-asyncio S3 path passes to `GetObject` (a `412 PreconditionFailed` is raised
-as a new `SourceChangedError`, sibling of `ComposeSourceChangedError`), and
-`AsyncZipReader` gains a matching constructor argument it forwards on every
-range read. This is new: `AsyncZipReader`'s reads are unconditional today
-(`async_zip.py:448-461` call `read_file_bytes_fully` with no condition;
-`asyncfiles.py:535-556`), and only the whole-file `get_file` download is
-guarded (`_s3_download_file_async`, `:358-363`). The HEAD that starts the
-seed fixes the ETag; the central directory, summaries, local headers and
-later bodies are all read against it, so a prior rewritten under us (a
-viewer header edit changes member offsets, `_rewrite_eval_zip_with_new_header`
-`eval.py:592-607`) fails the read instead of mixing two versions.
+afterwards carries `IfMatch` = `SparseSource.etag`. Three `AsyncFilesystem`
+readers gain an optional `if_match: str | None` that the asyncio S3 path
+passes to `GetObject` (a `412 PreconditionFailed` is raised as a new
+`SourceChangedError`, sibling of `ComposeSourceChangedError`; other
+backends ignore the argument, and the sparse path only runs on asyncio S3):
+`read_file_suffix` (`asyncfiles.py:634`, its own `Range=bytes=-N` GET),
+`read_file_bytes_fully` and `read_file_bytes` (`:535-581`). `AsyncZipReader`
+gains a matching constructor argument and forwards it on **every** read it
+makes: the end-of-central-directory suffix read (`async_zip.py:76`), the
+ZIP64 locator and central-directory reads (`:140`, `:170`), member streams
+(`:279`) and local-header/data reads (`:449`, `:464`, `:482`). This is new:
+all of those are unconditional today, and only the whole-file `get_file`
+download is guarded (`_s3_download_file_async`, `asyncfiles.py:358-363`).
+The `HeadObject` that starts the seed fixes the ETag; the suffix, central
+directory, summaries, local headers and later bodies are all read against
+it, so a prior rewritten under us (a viewer header edit changes member
+offsets, `_rewrite_eval_zip_with_new_header` `eval.py:592-607`) fails the
+read instead of mixing two versions.
 
 **Eligibility, decided before adoption.** The sparse path is taken only
 when *all* hold; otherwise the seed downloads and proceeds exactly as today:
@@ -630,11 +635,20 @@ when *all* hold; otherwise the seed downloads and proceeds exactly as today:
    and no unverifiable layout, and `seed_from_prior_log` applies it whenever
    `keep` is given (`eval.py:1463-1477`) even when every listed sample is
    kept. The sparse seed makes the same decision from the same evidence,
-   read remotely: for each central-directory entry, a conditional range
-   read of `[header_offset, header_offset + 30 + name_len + 65535)` capped
-   at the next entry's offset (one request per member, `PRIOR_LOOKUP_CONCURRENCY`-bounded),
-   parsed as `zip_needs_rewrite` parses it (signature, name and extra
-   lengths, `flag_bits & 0x08`). Any entry outside the keep set, any gap,
+   read remotely, over the same member set: `zip_needs_rewrite` iterates
+   `NameToInfo.values()` (`:295`), i.e. the **last entry per name**, so a
+   superseded member (a requeued sample's earlier record, a re-logged
+   duplicate) is not live and its bytes count as a gap. The sparse check
+   therefore first dedupes the central directory last-entry-wins by name
+   (the rule `CentralDirectory.entry()` already applies, `async_zip.py:50`),
+   sorts the survivors by `header_offset`, and for each issues a
+   conditional range read of `[header_offset, header_offset + 30 + name_len
+   + 65535)` capped at the next survivor's offset (one request per member,
+   `PRIOR_LOOKUP_CONCURRENCY`-bounded), parsed as `zip_needs_rewrite` parses
+   it (signature, name and extra lengths, `flag_bits & 0x08`), requiring
+   each survivor to start exactly where the previous one ended and the
+   last to end at `start_dir`. Any duplicate name (its earlier entry is
+   dead bytes by construction), any entry outside the keep set, any gap,
    any descriptor flag or malformed header → download-and-rewrite, as
    today. Central-directory pruning alone is never accepted as exclusion:
    an excluded or dead payload in `[0, start_dir)` would otherwise reach the
@@ -692,10 +706,19 @@ bytes is redirected:
    in #481. Whenever it would instead upload the whole temp file — no
    compose prefix (a prior flush failed or was cancelled), `_compose_disabled`,
    a `ComposeSourceChangedError` — and `_sparse_source` is set, it first
-   **materialises**: downloads `[0, length)` from the prior key with
-   `IfMatch` = the descriptor's ETag into the hole (`read_file_into` with
-   a range, the `_copy_prior_log` retry idiom), verifies the byte count,
-   then clears `_sparse_source` and uploads whole. If the prior is gone or
+   **materialises**: a new `_materialise_prefix(source, dest)` in `eval.py`
+   pumps the conditioned stream `read_file_bytes(source.filename, 0,
+   source.length, if_match=source.etag)` into the hole chunk by chunk
+   (`dest.seek(0)` then inline writes, as `read_file_into`'s asyncio S3
+   branch does, `asyncfiles.py:613-623`), fails with `SourceChangedError`
+   if the stream ends before `length` bytes, and is retried with the
+   `_copy_prior_log` backoff (`eval.py:863-881`) but **not** its reset:
+   that reset truncates `dest` (`:860-862`), which here would destroy the
+   local tail — the members and directory this attempt has written — so
+   each retry only seeks back to 0 and overwrites the hole. `read_file_into`
+   itself is not extended (it copies whole files to a file position and is
+   the seed's whole-copy tool). On success `_sparse_source` is cleared and
+   the flush uploads whole. If the prior is gone or
    changed (412/404) and a flush has succeeded, the same bytes are read
    from the **destination** `[0, length)` with `IfMatch` = `self._etag` of
    the last successful flush — identical by the compose invariant. If
@@ -916,17 +939,20 @@ Unit, #482 (only on a go; `tests/log/test_eval_log.py` and
 `tests/util/test_async_zip.py`):
 
 - Eligibility: a prior with an excluded sample member, a gap (a member
-  pruned from the directory), a data-descriptor member, or a size under
-  `S3_COMPOSE_MIN_PREFIX`, and a local or trio destination, each take the
-  download path; the excluded payload never appears in the destination
-  object (the physical-exclusion assertion of
-  `test_restricted_seed_physically_excludes_private_payloads`, `:1798`,
-  re-run over the sparse path).
+  pruned from the directory), a **duplicate name** (a superseded sample
+  record whose entries tile the member area perfectly), a data-descriptor
+  member, or a size under `S3_COMPOSE_MIN_PREFIX`, and a local or trio
+  destination, each take the download path; the excluded or superseded
+  payload never appears in the destination object (the physical-exclusion
+  assertion of `test_restricted_seed_physically_excludes_private_payloads`,
+  `:1798`, re-run over the sparse path, plus a byte search for the
+  superseded record's payload in the rewritten result).
 - Version consistency: replace the prior object between the seed's HEAD
-  and its directory read, and between adoption and a body read → the read
-  fails with `SourceChangedError`, nothing is written; `AsyncZipReader`
-  passes `IfMatch` on every range read (fake filesystem asserting the
-  argument).
+  and its suffix read, between the suffix read and the directory read, and
+  between adoption and a body read → the read fails with
+  `SourceChangedError`, nothing is written; a fake filesystem asserts that
+  `AsyncZipReader` passes `if_match` on the suffix read, the ZIP64 and
+  directory reads, and every member and local-header read.
 - Materialisation: cancel the first compose mid-tail, then flush again →
   the second flush downloads `[0, length)` conditionally and uploads whole;
   the object equals the full-copy log. Prior replaced before
@@ -934,9 +960,11 @@ Unit, #482 (only on a go; `tests/log/test_eval_log.py` and
   destination under `IfMatch`; with no successful flush → the flush raises
   and the destination is absent/unchanged. Cancellation mid-materialisation
   followed by a flush → the download restarts at 0 and the object is
-  correct. No test path uploads a temp file whose descriptor is set
-  (assert on the spy that `upload_part`/`put_object` bodies never start
-  with zero bytes at offset 0).
+  correct, and the local tail written before the interruption (members,
+  journal, directory) is byte-for-byte intact afterwards — the retry seeks,
+  it never truncates. No test path uploads a temp file whose descriptor is
+  set (assert on the spy that `upload_part`/`put_object` bodies never
+  start with zero bytes at offset 0).
 - Superseded names: seed a sample, complete its re-run via the streaming
   path, read it through `buffered_sample` before and after the next flush
   → the re-run's body both times, read locally, while an un-superseded
@@ -991,12 +1019,13 @@ size.
 5. **#482 — measure, then decide.** Re-run the benchmark with the seed
    download split out (both links). No-go: close #482 citing the numbers.
    Go: implement the #482 section as its own PR — `asyncfiles.py`
-   (`if_match` on `read_file_bytes`/`read_file_bytes_fully`,
-   `SourceChangedError`), `async_zip.py` (`AsyncZipReader(if_match=)`),
-   `eval.py` (`SparseSource`, remote eligibility check, sparse adoption in
-   `seed_from_prior_log`, the remote tier and entry selection in
-   `buffered_sample`, the `compact()` guard, materialisation in
-   `_write_remote`, reader ownership in `close()`/`discard()`),
+   (`if_match` on `read_file_suffix`/`read_file_bytes`/`read_file_bytes_fully`,
+   `SourceChangedError`), `async_zip.py` (`AsyncZipReader(if_match=)`
+   forwarded on every read), `eval.py` (`SparseSource`, the deduped remote
+   eligibility check, sparse adoption in `seed_from_prior_log`, the remote
+   tier and entry selection in `buffered_sample`, the `compact()` guard,
+   `_materialise_prefix` and its use in `_write_remote`, reader ownership
+   in `close()`/`discard()`),
    `run.py`/`_eval/task/log.py` (`read_prior_sample` failure fails the
    attempt) — with the #482 tests listed above.
 
