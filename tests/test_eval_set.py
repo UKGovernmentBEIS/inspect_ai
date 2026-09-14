@@ -219,7 +219,9 @@ def test_latest_completed_task_eval_logs() -> None:
         shutil.rmtree(clean_dir, ignore_errors=True)
 
 
-def _sweep_log(path: Path, eval_id: str, mtime: float, status: str) -> Log:
+def _sweep_log(
+    path: Path, eval_id: str, mtime: float, status: str, run_id: str = "run-other"
+) -> Log:
     """A `Log` carrying only the fields the retry-cleanup sweep consults."""
     from types import SimpleNamespace
 
@@ -236,7 +238,8 @@ def _sweep_log(path: Path, eval_id: str, mtime: float, status: str) -> Log:
         header=cast(
             EvalLog,
             SimpleNamespace(
-                status=status, eval=SimpleNamespace(task_id="tid", eval_id=eval_id)
+                status=status,
+                eval=SimpleNamespace(task_id="tid", eval_id=eval_id, run_id=run_id),
             ),
         ),
         task_identifier="tid",
@@ -249,11 +252,13 @@ def test_retry_cleanup_removes_older_started_logs_and_their_buffers(
     """Older `started` logs are swept like any other older log, buffers included.
 
     Every attempt's log is seeded from the prior log, so an interrupted
-    attempt's `started` log holds nothing the task's newest log lacks. The
-    sweep removes it together with the sample buffer its attempt never
-    cleaned up: the buffer db this process left closed (the eval-set pass
-    loop keeps it when `log_finish` fails), one a crashed process left
-    behind, and a `.buffer` filestore directory.
+    attempt's `started` log holds nothing the task's newest log lacks. Once
+    its writer is known to have ended, the sweep removes it together with
+    the sample buffer its attempt never cleaned up: the buffer db this
+    process left closed (the eval-set pass loop keeps it when `log_finish`
+    fails), one a crashed process left behind, and a `.buffer` filestore
+    directory. An attempt of the run that wrote the newest log needs no
+    buffer evidence at all (the immediate-retry path deletes its buffer).
     """
     db_dir = tmp_path / "db"
     monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
@@ -261,8 +266,9 @@ def test_retry_cleanup_removes_older_started_logs_and_their_buffers(
     log_dir.mkdir()
     kept_open = log_dir / "a.eval"
     crashed = log_dir / "b.eval"
-    newest = log_dir / "c.eval"
-    for log in (kept_open, crashed, newest):
+    same_run = log_dir / "c.eval"
+    newest = log_dir / "d.eval"
+    for log in (kept_open, crashed, same_run, newest):
         log.touch()
 
     SampleBufferDatabase(str(kept_open), create=True).close()
@@ -278,13 +284,14 @@ def test_retry_cleanup_removes_older_started_logs_and_their_buffers(
         logs=[
             _sweep_log(kept_open, "attempt-1", mtime=1.0, status="started"),
             _sweep_log(crashed, "attempt-2", mtime=2.0, status="started"),
-            _sweep_log(newest, "attempt-3", mtime=3.0, status="success"),
+            _sweep_log(same_run, "attempt-3", mtime=3.0, status="started", run_id="r"),
+            _sweep_log(newest, "attempt-4", mtime=4.0, status="success", run_id="r"),
         ],
         cleanup_older=True,
     )
 
-    assert [log.header.eval.eval_id for log in latest] == ["attempt-3"]
-    assert sorted(p.name for p in log_dir.glob("*.eval")) == ["c.eval"]
+    assert [log.header.eval.eval_id for log in latest] == ["attempt-4"]
+    assert sorted(p.name for p in log_dir.glob("*.eval")) == ["d.eval"]
     assert list(db_dir.rglob("*.db")) == []
     assert not filestore_dir.exists()
 
@@ -312,7 +319,9 @@ def test_retry_cleanup_keeps_started_log_another_process_is_writing(
         latest = latest_completed_task_eval_logs(
             logs=[
                 _sweep_log(live, "attempt-1", mtime=1.0, status="started"),
-                _sweep_log(newest, "attempt-2", mtime=2.0, status="success"),
+                _sweep_log(
+                    newest, "attempt-2", mtime=2.0, status="success", run_id="r"
+                ),
             ],
             cleanup_older=True,
         )
@@ -321,6 +330,42 @@ def test_retry_cleanup_keeps_started_log_another_process_is_writing(
     assert live.exists()
     assert len(list(db_dir.rglob("*.db"))) == 1
     assert any("still holds its sample buffer" in r.message for r in caplog.records)
+
+
+def test_retry_cleanup_keeps_started_log_whose_writer_is_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A `started` log from another run with no local buffer db is left alone.
+
+    Its writer may have run with a different data directory or on another
+    machine (or without a realtime buffer), so nothing local shows it has
+    ended; the sweep keeps the log, and its `.buffer` filestore, quietly.
+    """
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: tmp_path / "db")
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    foreign = log_dir / "foreign.eval"
+    newest = log_dir / "newest.eval"
+    foreign.touch()
+    newest.touch()
+    filestore_dir = log_dir / ".buffer" / "foreign"
+    filestore_dir.mkdir(parents=True)
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        latest = latest_completed_task_eval_logs(
+            logs=[
+                _sweep_log(foreign, "attempt-1", mtime=1.0, status="started"),
+                _sweep_log(
+                    newest, "attempt-2", mtime=2.0, status="success", run_id="r"
+                ),
+            ],
+            cleanup_older=True,
+        )
+
+    assert [log.header.eval.eval_id for log in latest] == ["attempt-2"]
+    assert foreign.exists()
+    assert filestore_dir.exists()
+    assert not any(r.levelno >= logging.WARNING for r in caplog.records)
 
 
 def test_validate_eval_set_prerequisites_ok() -> None:
@@ -2655,16 +2700,18 @@ def test_retry_log_finish_failure_keeps_partial_log_as_next_source(
     db_dir = tmp_path / "db"
     monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
     original_flush = ZipLogFile.flush
-    finished_files: list[str] = []
+    # one ZipLogFile per attempt; not keyed by filename, which cleanup frees
+    # for reuse when attempts start within the same second
+    finished_logs: list[ZipLogFile] = []
 
     async def flaky_final_flush(self: ZipLogFile, fsync: bool = False) -> None:
         # every durable (finish) write of the second attempt's log fails: the
         # success write and the error-status write the runner attempts after
         # it (storage unreachable at finish). The intermediate flushes land.
         if fsync:
-            if self._file not in finished_files:
-                finished_files.append(self._file)
-            if finished_files.index(self._file) == 1:
+            if not any(log is self for log in finished_logs):
+                finished_logs.append(self)
+            if len(finished_logs) > 1 and finished_logs[1] is self:
                 raise OSError("simulated storage failure at finish")
         await original_flush(self, fsync=fsync)
 
@@ -2689,7 +2736,7 @@ def test_retry_log_finish_failure_keeps_partial_log_as_next_source(
         log_buffer=1,
     )
     assert success
-    assert len(finished_files) == 3
+    assert len(finished_logs) == 3
     assert calls == ["s1", "s2", "s3", "s4", "s4"], calls
 
     all_logs = sorted(

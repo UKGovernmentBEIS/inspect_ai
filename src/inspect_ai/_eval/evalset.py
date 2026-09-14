@@ -78,7 +78,10 @@ from inspect_ai.log._file import (
     write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig
-from inspect_ai.log._recorders.buffer.buffer import cleanup_sample_buffers_for_log
+from inspect_ai.log._recorders.buffer.buffer import (
+    cleanup_sample_buffers_for_log,
+    sample_buffer_writer_state,
+)
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -1959,21 +1962,34 @@ def latest_completed_task_eval_logs(
         # remove the rest if requested. every attempt's log is seeded from the
         # task's prior log, so an older log holds nothing the newest lacks --
         # including a 'started' one an interrupted attempt left behind, which
-        # is removed along with the sample buffer it never cleaned up (unless
-        # another live process still holds that buffer and may be writing it)
+        # goes along with the sample buffer it never cleaned up. A 'started'
+        # log is only removed once its writer is known to have ended: it is a
+        # superseded attempt of the run that wrote the newest log (a run's
+        # attempts of a task run one at a time, and a recovered log keeps the
+        # crashed log's run), or the local buffer db says so. With no such
+        # evidence another process may still be writing it, so it stays.
         if cleanup_older:
             fs = filesystem(id_logs[0][0].name)
             for id_log in id_logs[1:]:
                 try:
-                    if (
-                        id_log.header.status == "started"
-                        and not cleanup_sample_buffers_for_log(id_log.info.name)
-                    ):
-                        logger.warning(
-                            f"Not removing '{id_log.info.name}': a running "
-                            "process still holds its sample buffer"
-                        )
-                        continue
+                    if id_log.header.status == "started":
+                        if id_log.header.eval.run_id == id_logs[0].header.eval.run_id:
+                            writer = "ended"
+                        else:
+                            writer = sample_buffer_writer_state(id_log.info.name)
+                        if writer == "live":
+                            logger.warning(
+                                f"Not removing '{id_log.info.name}': a running "
+                                "process still holds its sample buffer"
+                            )
+                            continue
+                        if writer == "unknown":
+                            logger.info(
+                                f"Not removing '{id_log.info.name}': nothing "
+                                "shows the process that wrote it has ended"
+                            )
+                            continue
+                        cleanup_sample_buffers_for_log(id_log.info.name)
                     fs.rm(id_log.info.name)
                     # the attempt's EvalState may have memoized this log's
                     # sample summaries; the memo must not outlive the file

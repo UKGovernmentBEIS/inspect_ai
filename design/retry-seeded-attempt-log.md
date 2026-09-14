@@ -1244,9 +1244,13 @@ second or two and the local numbers apply.
   samples no other log had. Every finished attempt's log is now a superset
   of the `started` logs before it, and only a task's newest log is ever
   recovered, so the sweep removes older `started` logs like errored ones,
-  together with the sample buffer their attempt left behind. A `started`
-  log whose buffer database belongs to another live process is kept: that
-  process may still be writing it.
+  together with the sample buffer their attempt left behind — once their
+  writer is known to have ended: the log is a superseded attempt of the
+  run that wrote the task's newest log (attempts run one at a time, and a
+  recovered log keeps the crashed log's run), or its local buffer database
+  belongs to this process or to one that has exited. A `started` log with
+  neither (written elsewhere, or without a realtime buffer) is kept, as is
+  one whose buffer database belongs to another live process.
 - **Server-side compose for remote logs** (see Performance). #479: the
   seeded start flush composes the destination from the prior object's
   member area plus a small uploaded tail instead of re-uploading the seeded

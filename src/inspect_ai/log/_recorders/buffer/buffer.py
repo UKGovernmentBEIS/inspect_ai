@@ -1,5 +1,6 @@
 import os
 from logging import getLogger
+from typing import Literal
 
 import psutil
 
@@ -38,34 +39,52 @@ def running_tasks(log_dir: str) -> list[str]:
         return SampleBufferFilestore.running_tasks(log_dir) or []
 
 
-def cleanup_sample_buffers_for_log(location: str) -> bool:
-    """Remove the sample buffers of a log no other process is writing.
+SampleBufferWriterState = Literal["live", "ended", "unknown"]
+"""What the local buffer databases say about the process writing a log."""
 
-    Deletes the log's buffer databases and its filestore directory. A
-    database created by another process that is still alive means that
-    process may still be writing the log, so nothing is removed. Databases
-    this process created are removed regardless: the caller is the process
-    that opened them and runs only once the attempt that did so has ended.
+
+def sample_buffer_writer_state(location: str) -> SampleBufferWriterState:
+    """Whether the process writing the log at ``location`` is still running.
+
+    Decided from the local buffer databases, which are named by the pid of
+    the process that created them: ``"live"`` when one belongs to another
+    process that is still running, ``"ended"`` when every one belongs to
+    this process or to a process that has exited (the same test crash
+    recovery applies before it takes over a log), and ``"unknown"`` when
+    there is none. A log without a local buffer database may have been
+    written without a realtime buffer, or by a process with a different
+    data directory or on another machine, so nothing local says whether
+    its writer has stopped.
 
     Args:
-        location: Eval log location whose buffers to remove.
-
-    Returns:
-        ``True`` when the log's buffers were removed (or it had none),
-        ``False`` when another live process holds a buffer database for it.
+        location: Eval log location.
     """
     dbs = sample_buffer_dbs(location)
+    if not dbs:
+        return "unknown"
     for db in dbs:
         pid = sample_buffer_db_pid(db)
         if pid is not None and pid != os.getpid() and psutil.pid_exists(pid):
-            return False
-    for db in dbs:
+            return "live"
+    return "ended"
+
+
+def cleanup_sample_buffers_for_log(location: str) -> None:
+    """Remove the sample buffers of the log at ``location``.
+
+    Deletes the log's local buffer databases and its filestore directory.
+    The caller establishes that the log's writer has ended first (see
+    :func:`sample_buffer_writer_state`).
+
+    Args:
+        location: Eval log location whose buffers to remove.
+    """
+    for db in sample_buffer_dbs(location):
         cleanup_sample_buffer_db(db)
     fs = filesystem(location)
     filestore_dir = sample_buffer_filestore_dir(location, fs)
     if fs.exists(filestore_dir):
         cleanup_sample_buffer_filestore(filestore_dir, fs)
-    return True
 
 
 async def cleanup_sample_buffers(log_dir: str) -> None:

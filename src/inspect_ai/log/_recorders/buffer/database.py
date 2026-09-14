@@ -1,4 +1,5 @@
 import datetime
+import glob
 import hashlib
 import json
 import os
@@ -2139,7 +2140,8 @@ def sample_buffer_dbs(location: str, db_dir: Path | None = None) -> list[Path]:
         Paths of the ``<log file>.<pid>.db`` files, in no particular order.
     """
     dir, file = location_dir_and_file(filesystem(location).path_as_uri(location))
-    return list((resolve_db_dir(db_dir) / dir).glob(f"{file}.*.db"))
+    # the log file name is a literal, not a pattern (it may contain brackets)
+    return list((resolve_db_dir(db_dir) / dir).glob(f"{glob.escape(file)}.*.db"))
 
 
 def sample_buffer_db_pid(path: Path) -> int | None:
