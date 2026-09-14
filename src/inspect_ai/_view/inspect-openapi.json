@@ -140,6 +140,22 @@
             "title": "Inspect Version",
             "type": "string"
           },
+          "scope_claim": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Claim"
+          },
+          "scoped_authorization": {
+            "default": false,
+            "title": "Scoped Authorization",
+            "type": "boolean"
+          },
           "scout_version": {
             "anyOf": [
               {
@@ -153,7 +169,8 @@
           }
         },
         "required": [
-          "inspect_version"
+          "inspect_version",
+          "scoped_authorization"
         ],
         "title": "AppConfig",
         "type": "object"

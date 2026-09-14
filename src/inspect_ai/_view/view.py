@@ -32,6 +32,7 @@ def view(
     trusted_origins: tuple[str, ...] = (),
     trusted_hosts: tuple[str, ...] = (),
     unsafe_allow_unauthenticated: bool = False,
+    require_scoped_authorization: bool = False,
 ) -> None:
     """Run the Inspect View server.
 
@@ -51,6 +52,8 @@ def view(
             clients.
         unsafe_allow_unauthenticated: Allow a non-loopback bind without request
             authorization.
+        require_scoped_authorization: Accept only scoped bearer JWTs (refuse the
+            raw shared secret) on every route except app-config.
     """
     init_dotenv()
     init_logger(log_level)
@@ -80,6 +83,7 @@ def view(
         port=port,
         network_policy=network_policy,
         fs_options=fs_options,
+        require_scoped_authorization=require_scoped_authorization,
     )
 
 

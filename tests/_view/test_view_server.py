@@ -1,6 +1,7 @@
 """Tests for the inspect view server."""
 
 import asyncio
+import base64
 import contextlib
 import json
 import logging
@@ -10,7 +11,16 @@ import urllib.parse
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import IO, Any, AsyncIterator, ContextManager, Generator, TextIO, cast
+from typing import (
+    IO,
+    Any,
+    AsyncIterator,
+    Callable,
+    ContextManager,
+    Generator,
+    TextIO,
+    cast,
+)
 
 import anyio
 import fastapi.testclient
@@ -1100,11 +1110,15 @@ def test_api_eval_set_uses_fs_options_reader(
 ) -> None:
     calls: list[tuple[str, dict[str, Any]]] = []
 
-    def fake_read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> None:
-        calls.append((log_dir, fs_options))
+    def fake_read_eval_set_manifest(
+        manifest: str, fs_options: dict[str, Any] = {}
+    ) -> None:
+        calls.append((manifest, fs_options))
         return None
 
-    monkeypatch.setattr(fastapi_server, "read_eval_set_info", fake_read_eval_set_info)
+    monkeypatch.setattr(
+        fastapi_server, "read_eval_set_manifest", fake_read_eval_set_manifest
+    )
     app = fastapi_server.view_server_app(fs_options={"anon": True})
     with fastapi.testclient.TestClient(app) as client:
         resp = client.request(
@@ -1114,7 +1128,7 @@ def test_api_eval_set_uses_fs_options_reader(
 
     resp.raise_for_status()
     assert resp.json() is None
-    assert calls == [("s3://bucket/logs", {"anon": True})]
+    assert calls == [("s3://bucket/logs/eval-set.json", {"anon": True})]
 
 
 def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1590,9 +1604,9 @@ def test_fastapi_authorization_middleware() -> None:
     api = fastapi_server.view_server_app(mapping_policy=mapping_policy())
     from fastapi import FastAPI
 
-    app = FastAPI()
-    app.mount("/api", api)
-    app.add_middleware(fastapi_server.authorization_middleware("Bearer secret123"))
+    inner = FastAPI()
+    inner.mount("/api", api)
+    app = fastapi_server.ViewAuthorizationMiddleware(inner, "Bearer secret123")
 
     with fastapi.testclient.TestClient(app) as client:
         assert client.request("GET", "/api/events").status_code == 401
@@ -1686,21 +1700,17 @@ def test_fastapi_only_dir_access_policy_accepts_listed_file_uri(
 
 
 def test_fastapi_only_dir_policy_integration(mock_s3_eval_file: str) -> None:
-    class mapping_policy(FileMappingPolicy):
-        async def map(self, request: Request, file: str) -> str:
-            return f"memory://{file}"
-
-        async def unmap(self, request: Request, file: str) -> str:
-            return file.removeprefix("memory://")
-
+    """OnlyDirAccessPolicy over a remote root, driven through the routes."""
+    root = "memory://mocked_eval_set"
     with fastapi.testclient.TestClient(
         fastapi_server.view_server_app(
-            mapping_policy=mapping_policy(),
-            access_policy=fastapi_server.OnlyDirAccessPolicy("mocked_eval_set"),
+            default_dir=root, access_policy=fastapi_server.OnlyDirAccessPolicy(root)
         )
     ) as client:
-        assert client.request("GET", f"/logs/{mock_s3_eval_file}").status_code == 200
-        assert client.request("GET", "/logs/other_dir/file.eval").status_code == 403
+        inside = urllib.parse.quote(f"memory://{mock_s3_eval_file}", safe="")
+        assert client.request("GET", f"/logs/{inside}").status_code == 200
+        outside = urllib.parse.quote("memory://other_dir/file.eval", safe="")
+        assert client.request("GET", f"/logs/{outside}").status_code == 403
 
 
 def test_fastapi_inspect_json_response_nan() -> None:
@@ -2662,3 +2672,1746 @@ def test_api_log_download_encodes_non_latin1_filename(
     resp.raise_for_status()
     assert "utf-8''" in resp.headers["content-disposition"]
     assert [body.released for body in bodies] == [1]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Resolver layer: plain-policy compatibility, resolving policies, standalone
+# containment, route coverage (design/viewer-scoped-authorization.md §3, §7)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class _RecordingAccessPolicy(AccessPolicy):
+    """A plain policy that records every string it is asked about."""
+
+    def __init__(self, allow: bool) -> None:
+        self.allow = allow
+        self.calls: list[tuple[str, str]] = []
+
+    async def can_read(self, request: Request, file: str) -> bool:
+        self.calls.append(("read", file))
+        return self.allow
+
+    async def can_delete(self, request: Request, file: str) -> bool:
+        self.calls.append(("delete", file))
+        return self.allow
+
+    async def can_list(self, request: Request, dir: str) -> bool:
+        self.calls.append(("list", dir))
+        return self.allow
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        self.calls.append(("write", file))
+        return self.allow
+
+
+class _RecordingMappingPolicy(FileMappingPolicy):
+    def __init__(self, prefix: str = "memory://") -> None:
+        self.prefix = prefix
+        self.mapped: list[str] = []
+
+    async def map(self, request: Request, file: str) -> str:
+        self.mapped.append(file)
+        return f"{self.prefix}{file}"
+
+    async def unmap(self, request: Request, file: str) -> str:
+        return file.removeprefix(self.prefix)
+
+
+_LOG_EDIT_BODY = {"edits": [], "provenance": {"author": "alice"}}
+
+# (method, url, headers, json body) -> the (operation, string) pairs a plain
+# AccessPolicy received on `main` at 18b1348be for that request. The strings
+# are written out by hand from main's route code (normalize_uri on path
+# segments and /log-headers, urllib.parse.unquote on the sample query routes,
+# default_dir for an absent listing location) rather than computed, so a
+# change to either the routes or the helpers shows up here.
+_MAIN_POLICY_STRINGS: list[
+    tuple[str, str, dict[str, str], Any, list[tuple[str, str]]]
+] = [
+    (
+        "GET",
+        "/logs/mocked_eval_set/x.eval",
+        {},
+        None,
+        [("read", "mocked_eval_set/x.eval")],
+    ),
+    ("GET", "/logs/s3%3A%2F%2Fb%2Fx%20y.eval", {}, None, [("read", "s3://b/x y.eval")]),
+    (
+        "GET",
+        "/logs/file%3A%2F%2F%2Fw%2Flogs%2Fx.eval",
+        {},
+        None,
+        [("read", "file:///w/logs/x.eval")],
+    ),
+    ("GET", "/logs/a%252Fb.eval", {}, None, [("read", "a/b.eval")]),
+    ("GET", "/log-size/a/b.eval", {}, None, [("read", "a/b.eval")]),
+    ("GET", "/log-info/a/b.eval", {}, None, [("read", "a/b.eval")]),
+    ("GET", "/log-bytes/a/b.eval?start=0&end=1", {}, None, [("read", "a/b.eval")]),
+    ("GET", "/log-download/a/b.eval", {}, None, [("read", "a/b.eval")]),
+    (
+        "DELETE",
+        "/log-delete/a/b.eval",
+        FRONTEND_REQUEST_HEADERS,
+        None,
+        [("delete", "a/b.eval")],
+    ),
+    (
+        "POST",
+        "/log-edit/a/b.eval",
+        FRONTEND_REQUEST_HEADERS,
+        _LOG_EDIT_BODY,
+        [("write", "a/b.eval")],
+    ),
+    ("GET", "/log-dir", {}, None, [("list", "default/dir")]),
+    ("GET", "/log-dir?log_dir=x/y", {}, None, [("list", "x/y")]),
+    ("GET", "/log-files", {}, None, [("list", "default/dir")]),
+    ("GET", "/log-files?log_dir=x%2Fy", {}, None, [("list", "x/y")]),
+    ("GET", "/logs", {}, None, [("list", "default/dir")]),
+    ("GET", "/logs?log_dir=x/y", {}, None, [("list", "x/y")]),
+    ("GET", "/eval-set", {}, None, [("list", "default/dir")]),
+    ("GET", "/eval-set?dir=sub", {}, None, [("list", "default/dir/sub")]),
+    ("GET", "/eval-set?log_dir=x&dir=/sub", {}, None, [("list", "x/sub")]),
+    ("GET", "/eval-set?log_dir=x", {}, None, [("list", "x")]),
+    ("GET", "/flow", {}, None, [("list", "default/dir")]),
+    ("GET", "/flow?dir=sub", {}, None, [("list", "default/dir/sub")]),
+    ("GET", "/flow?log_dir=x&dir=sub", {}, None, [("list", "x/sub")]),
+    (
+        "GET",
+        "/log-headers?file=a%2Fb.eval&file=c%2520d.eval",
+        {},
+        None,
+        [("read", "a/b.eval"), ("read", "c d.eval")],
+    ),
+    ("GET", "/pending-samples?log=a%2520b.eval", {}, None, [("read", "a b.eval")]),
+    (
+        "POST",
+        "/log-message?log_file=a%2520b.eval&message=hi",
+        FRONTEND_REQUEST_HEADERS,
+        None,
+        [("read", "a b.eval")],
+    ),
+    (
+        "GET",
+        "/pending-sample-data?log=a%2520b.eval&id=1&epoch=0",
+        {},
+        None,
+        [("read", "a b.eval")],
+    ),
+    (
+        "GET",
+        "/pending-sample-data-urls?log=a%2520b.eval&id=1&epoch=0",
+        {},
+        None,
+        [("read", "a b.eval")],
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("method", "url", "headers", "body", "expected"),
+    _MAIN_POLICY_STRINGS,
+    ids=[f"{m} {u}" for m, u, _, _, _ in _MAIN_POLICY_STRINGS],
+)
+def test_plain_policy_receives_main_strings(
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    body: Any,
+    expected: list[tuple[str, str]],
+) -> None:
+    """A plain AccessPolicy gets byte-for-byte the strings it got before the resolver."""
+    policy = _RecordingAccessPolicy(allow=False)
+    app = fastapi_server.view_server_app(
+        mapping_policy=_RecordingMappingPolicy(),
+        access_policy=policy,
+        default_dir="default/dir",
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        kwargs: dict[str, Any] = {"headers": headers}
+        if body is not None:
+            kwargs["json"] = body
+        response = client.request(method, url, **kwargs)
+    assert response.status_code == 403
+    assert sorted(policy.calls) == sorted(expected)
+
+
+def test_plain_policy_io_string_is_the_caller_string(mock_s3_eval_file: str) -> None:
+    """With a plain policy the mapping policy receives the once-decoded caller string."""
+    policy = _RecordingAccessPolicy(allow=True)
+    mapping = _RecordingMappingPolicy()
+    app = fastapi_server.view_server_app(mapping_policy=mapping, access_policy=policy)
+    with fastapi.testclient.TestClient(app) as client:
+        encoded = urllib.parse.quote(mock_s3_eval_file, safe="")
+        assert client.get(f"/logs/{encoded}").status_code == 200
+        assert client.get("/logs?log_dir=mocked_eval_set").status_code == 200
+        assert client.get("/eval-set?dir=mocked_eval_set").status_code == 200
+    assert policy.calls == [
+        ("read", mock_s3_eval_file),
+        ("list", "mocked_eval_set"),
+        ("list", "mocked_eval_set"),
+    ]
+    assert mapping.mapped == [mock_s3_eval_file, "mocked_eval_set", "mocked_eval_set"]
+
+
+def test_plain_policy_eval_set_rejects_escaping_child() -> None:
+    """The one tightening a plain-policy deployment observes: a `..` child is 400."""
+    policy = _RecordingAccessPolicy(allow=True)
+    app = fastapi_server.view_server_app(
+        mapping_policy=_RecordingMappingPolicy(), access_policy=policy
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get("/eval-set?dir=valid/../other").status_code == 400
+        assert client.get("/flow?log_dir=x&dir=..").status_code == 400
+        assert client.get("/eval-set?dir=a%5Cb").status_code == 400
+    assert policy.calls == []
+
+
+class _StateSettingMiddleware:
+    """Outer pure-ASGI middleware leaving an auth context on request.state, as Hawk does."""
+
+    def __init__(self, app: Any, auth: Any) -> None:
+        self.app = app
+        self.auth = auth
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] == "http":
+            scope.setdefault("state", {})["auth"] = self.auth
+        await self.app(scope, receive, send)
+
+
+class _HawkShapedMappingPolicy(FileMappingPolicy):
+    base_uri = "memory://hawk-bucket"
+
+    async def map(self, request: Request, file: str) -> str:
+        return f"{self.base_uri}/{file.lstrip('/')}"
+
+    async def unmap(self, request: Request, file: str) -> str:
+        # the memory filesystem lists names as memory:///bucket/...
+        return file.removeprefix(f"{self.base_uri}/").removeprefix(
+            self.base_uri.replace("://", ":///") + "/"
+        )
+
+
+class _HawkShapedAccessPolicy(AccessPolicy):
+    """Keyed on the top-level folder, reads request.state, denies listing "" and "/"."""
+
+    def __init__(self) -> None:
+        self.folders: list[str] = []
+
+    def _folder(self, file: str) -> str:
+        import posixpath
+
+        without_bucket = file.removeprefix(f"{_HawkShapedMappingPolicy.base_uri}/")
+        return posixpath.normpath(without_bucket).strip("/").split("/", 1)[0]
+
+    async def _check(self, request: Request, file: str) -> bool:
+        folder = self._folder(file)
+        self.folders.append(folder)
+        return folder in request.state.auth["folders"]
+
+    async def can_read(self, request: Request, file: str) -> bool:
+        return await self._check(request, file)
+
+    async def can_delete(self, request: Request, file: str) -> bool:
+        return False
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        return False
+
+    async def can_list(self, request: Request, dir: str) -> bool:
+        if not dir or dir == "/":
+            return False
+        return await self._check(request, dir)
+
+
+def test_hawk_shaped_embedder_outcomes_unchanged() -> None:
+    write_fake_eval_log("hawk-bucket/valid/2025-01-01T00-00-00+00-00_task_taskid.eval")
+    write_fake_eval_log(
+        "hawk-bucket/invalid/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    )
+    policy = _HawkShapedAccessPolicy()
+    api = fastapi_server.view_server_app(
+        mapping_policy=_HawkShapedMappingPolicy(),
+        access_policy=policy,
+        recursive=False,
+    )
+    app = _StateSettingMiddleware(api, {"folders": {"valid"}})
+    log = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get(f"/logs/valid/{log}").status_code == 200
+        assert client.get(f"/logs//valid/{log}").status_code == 200
+        assert client.get(f"/logs/invalid/{log}").status_code == 403
+        assert client.get(f"/logs/valid/../invalid/{log}").status_code == 403
+        # an absent listing location binds to default_dir "", which Hawk denies
+        assert client.get("/logs").status_code == 403
+        assert client.get("/log-dir").status_code == 403
+        assert client.get("/eval-set").status_code == 403
+        listing = client.get("/logs?log_dir=valid")
+        assert listing.status_code == 200
+        assert [f["name"] for f in listing.json()["files"]] == [f"valid/{log}"]
+        assert client.get("/logs?log_dir=invalid").status_code == 403
+        assert client.get("/eval-set?dir=valid").status_code == 200
+        assert client.get("/eval-set?dir=/valid").status_code == 200
+        assert client.get("/eval-set?dir=invalid").status_code == 403
+        assert client.get("/eval-set?dir=valid/../invalid").status_code == 400
+        # (the headers reader has no memory:// path, so a permitted request 404s)
+        assert client.get(f"/log-headers?file=valid/{log}").status_code != 403
+        assert (
+            client.get(f"/log-headers?file=valid/{log}&file=invalid/{log}").status_code
+            == 403
+        )
+        assert (
+            client.request(
+                "DELETE", f"/log-delete/valid/{log}", headers=FRONTEND_REQUEST_HEADERS
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                f"/log-edit/valid/{log}",
+                headers=FRONTEND_REQUEST_HEADERS,
+                json=_LOG_EDIT_BODY,
+            ).status_code
+            == 403
+        )
+        config = client.get("/app-config").json()
+        assert config["scoped_authorization"] is False
+        assert config["scope_claim"] is None
+    # the policy saw bucket-relative folders, never the mapped storage location
+    assert set(policy.folders) <= {"valid", "invalid"}
+
+
+class _AliasResolvingPolicy:
+    """Both protocols: the server must use resolve_* and never call can_*."""
+
+    def __init__(self, canonical: str) -> None:
+        self.canonical = canonical
+        self.resolved: list[tuple[str, str | None]] = []
+
+    async def can_read(self, request: Request, file: str) -> bool:
+        raise AssertionError("can_read must not be called on a resolving policy")
+
+    async def can_delete(self, request: Request, file: str) -> bool:
+        raise AssertionError("can_delete must not be called on a resolving policy")
+
+    async def can_list(self, request: Request, dir: str) -> bool:
+        raise AssertionError("can_list must not be called on a resolving policy")
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        raise AssertionError("can_write must not be called on a resolving policy")
+
+    async def resolve_read(self, request: Request, location: str) -> str:
+        self.resolved.append(("read", location))
+        return self.canonical
+
+    async def resolve_write(self, request: Request, location: str) -> str:
+        self.resolved.append(("write", location))
+        return self.canonical
+
+    async def resolve_delete(self, request: Request, location: str) -> str:
+        self.resolved.append(("delete", location))
+        return self.canonical
+
+    async def resolve_list(self, request: Request, location: str | None) -> str:
+        self.resolved.append(("list", location))
+        return self.canonical
+
+
+def test_resolving_policy_is_used_directly_and_its_location_is_read() -> None:
+    canonical = "memory://canonical/dir/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_fake_eval_log(canonical.removeprefix("memory://"))
+    policy = _AliasResolvingPolicy(canonical)
+    assert isinstance(policy, fastapi_server.ResolvingAccessPolicy)
+    app = fastapi_server.view_server_app(access_policy=policy)
+    with fastapi.testclient.TestClient(app) as client:
+        response = client.get("/logs/alias%2Fx.eval")
+        assert response.status_code == 200
+        assert response.json()["eval"]["task"] == "task"
+    assert policy.resolved == [("read", "alias/x.eval")]
+
+
+def test_resolving_policy_default_binding_for_absent_listing(tmp_path: Path) -> None:
+    write_eval_log(tmp_path, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+
+    class _DefaultBindingPolicy(_AliasResolvingPolicy):
+        async def resolve_list(self, request: Request, location: str | None) -> str:
+            self.resolved.append(("list", location))
+            # derived files resolve to themselves; everything else to the root
+            if location is not None and location.endswith("eval-set.json"):
+                return location
+            return self.canonical
+
+    policy = _DefaultBindingPolicy(str(tmp_path))
+    app = fastapi_server.view_server_app(access_policy=policy, default_dir="/ignored")
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get("/logs").status_code == 200
+        assert client.get("/log-dir").status_code == 200
+        # a child under an absent base joins onto the policy's default binding,
+        # and the derived manifest is resolved under the resolved directory
+        assert client.get("/eval-set?dir=sub").status_code == 200
+    assert policy.resolved == [
+        ("list", None),
+        ("list", None),
+        ("list", None),
+        ("list", f"{tmp_path}/sub"),
+        ("list", f"{tmp_path}/eval-set.json"),
+    ]
+
+
+def test_access_policy_none_still_means_no_checks(tmp_path: Path) -> None:
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    log = write_eval_log(elsewhere, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    app = fastapi_server.view_server_app(default_dir=str(tmp_path / "default"))
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get(f"/logs/{log}").status_code == 200
+        assert client.get(f"/logs?log_dir={elsewhere}").status_code == 200
+
+
+def _standalone_layout(tmp_path: Path) -> tuple[Path, str]:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    (logs / "sub").mkdir()
+    (tmp_path / "logs-evil").mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    write_eval_log(outside, "2025-01-01T00-00-00+00-00_secret_secretid.eval")
+    write_eval_log(tmp_path / "logs-evil", "2025-01-01T00-00-00+00-00_evil_evilid.eval")
+    log = write_eval_log(logs, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    try:
+        (logs / "link-out").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are not supported here")
+    return logs, log
+
+
+def test_standalone_only_dir_policy_contains_requests(tmp_path: Path) -> None:
+    """Standalone `inspect view` keeps working inside log_dir and refuses escapes."""
+    logs, log = _standalone_layout(tmp_path)
+    app = fastapi_server.view_server_app(
+        default_dir=str(logs),
+        access_policy=fastapi_server.OnlyDirAccessPolicy(str(logs)),
+    )
+    secret = tmp_path / "outside" / "2025-01-01T00-00-00+00-00_secret_secretid.eval"
+    evil = tmp_path / "logs-evil" / "2025-01-01T00-00-00+00-00_evil_evilid.eval"
+    with fastapi.testclient.TestClient(app) as client:
+        # everything the viewer does inside log_dir still works
+        assert client.get(f"/logs/{log}").status_code == 200
+        assert (
+            client.get(
+                f"/logs/{urllib.parse.quote(Path(log).as_uri(), safe='')}"
+            ).status_code
+            == 200
+        )
+        assert client.get(f"/log-size/{log}").status_code == 200
+        assert client.get(f"/log-info/{log}").status_code == 200
+        assert client.get(f"/log-bytes/{log}?start=0&end=10").status_code == 200
+        assert client.get(f"/log-download/{log}").status_code == 200
+        assert (
+            client.get(
+                f"/log-headers?file={urllib.parse.quote(log, safe='')}"
+            ).status_code
+            == 200
+        )
+        assert client.get("/logs").status_code == 200
+        assert client.get(f"/logs?log_dir={logs}").status_code == 200
+        assert client.get(f"/logs?log_dir={logs}/").status_code == 200
+        single = client.get(f"/logs?log_dir={urllib.parse.quote(log, safe='')}")
+        assert single.status_code == 200 and len(single.json()["files"]) == 1
+        assert client.get("/log-dir").status_code == 200
+        assert client.get("/log-files").status_code == 200
+        assert client.get("/eval-set").status_code == 200
+        assert client.get("/eval-set?dir=sub").status_code == 200
+        assert client.get("/flow?dir=sub").status_code == 404
+        assert (
+            client.get(
+                f"/pending-samples?log={urllib.parse.quote(log, safe='')}"
+            ).status_code
+            == 404
+        )
+        assert client.get(f"/logs?log_dir={logs}/not-yet-created").status_code != 403
+        edited = client.post(
+            f"/log-edit/{log}", headers=FRONTEND_REQUEST_HEADERS, json=_LOG_EDIT_BODY
+        )
+        assert edited.status_code == 200
+
+        # escapes are refused
+        assert client.get(f"/logs/{secret}").status_code == 403
+        assert client.get(f"/logs/{evil}").status_code == 403
+        assert client.get(f"/logs/{logs}/link-out/{secret.name}").status_code == 403
+        assert client.get(f"/logs/{logs}/../outside/{secret.name}").status_code == 403
+        assert client.get(f"/logs?log_dir={tmp_path / 'logs-evil'}").status_code == 403
+        assert client.get(f"/logs?log_dir={logs}/link-out").status_code == 403
+        assert (
+            client.get(
+                f"/log-headers?file={urllib.parse.quote(log, safe='')}&file={urllib.parse.quote(str(secret), safe='')}"
+            ).status_code
+            == 403
+        )
+        assert client.get("/eval-set?dir=../outside").status_code == 400
+        assert client.get("/flow?dir=../outside").status_code == 400
+        assert client.get(f"/eval-set?log_dir={tmp_path}").status_code == 403
+        assert (
+            client.request(
+                "DELETE", f"/log-delete/{secret}", headers=FRONTEND_REQUEST_HEADERS
+            ).status_code
+            == 403
+        )
+        assert secret.exists()
+        assert (
+            client.request(
+                "DELETE", f"/log-delete/{log}", headers=FRONTEND_REQUEST_HEADERS
+            ).status_code
+            == 200
+        )
+        assert not Path(log).exists()
+
+
+def test_only_dir_policy_can_methods_use_the_canonicalizer(tmp_path: Path) -> None:
+    logs, log = _standalone_layout(tmp_path)
+    policy = fastapi_server.OnlyDirAccessPolicy(str(logs))
+    request = cast(Request, None)
+    assert asyncio.run(policy.can_read(request, log))
+    assert asyncio.run(policy.can_list(request, str(logs)))
+    assert not asyncio.run(policy.can_read(request, str(logs / "link-out" / "x.eval")))
+    assert not asyncio.run(
+        policy.can_read(request, str(tmp_path / "logs-evil" / "x.eval"))
+    )
+    assert not asyncio.run(policy.can_write(request, str(logs / ".." / "x.eval")))
+
+
+def test_standalone_only_dir_policy_over_s3(mock_s3: None) -> None:
+    """The canonicalizer confines an S3 log_dir; one permitted read, then denials.
+
+    A single S3 I/O per TestClient: a second aiobotocore call in this harness
+    trips over a client bound to a closed loop. Listing over a remote root is
+    covered by the memory:// test below.
+    """
+    root = "s3://test-bucket/scoped-logs"
+    inside = f"{root}/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    sibling = (
+        "s3://test-bucket/scoped-logs-evil/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    )
+    _write_eval_log_to_s3(inside)
+    _write_eval_log_to_s3(sibling)
+    app = fastapi_server.view_server_app(
+        default_dir=root, access_policy=fastapi_server.OnlyDirAccessPolicy(root)
+    )
+
+    def q(location: str) -> str:
+        return urllib.parse.quote(location, safe="")
+
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get(f"/logs/{q(inside)}").status_code == 200
+        assert client.get(f"/logs/{q(sibling)}").status_code == 403
+        assert client.get(f"/log-bytes/{q(sibling)}?start=0&end=10").status_code == 403
+        assert (
+            client.get(f"/logs/{q(root + '/../scoped-logs-evil/x.eval')}").status_code
+            == 403
+        )
+        assert (
+            client.get(f"/logs/{q('s3://other-bucket/scoped-logs/x.eval')}").status_code
+            == 403
+        )
+        assert (
+            client.get("/logs?log_dir=s3://test-bucket/scoped-logs-evil").status_code
+            == 403
+        )
+        assert client.get("/logs?log_dir=s3://test-bucket").status_code == 403
+
+
+def test_standalone_only_dir_policy_over_remote_listing() -> None:
+    """Listing and reading a remote root go through the canonicalizer too (memory://)."""
+    root = "memory://scoped/logs"
+    log = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_fake_eval_log(f"scoped/logs/{log}")
+    write_fake_eval_log(f"scoped/logs-evil/{log}")
+    app = fastapi_server.view_server_app(
+        default_dir=root, access_policy=fastapi_server.OnlyDirAccessPolicy(root)
+    )
+
+    def q(location: str) -> str:
+        return urllib.parse.quote(location, safe="")
+
+    with fastapi.testclient.TestClient(app) as client:
+        listing = client.get("/logs")
+        assert listing.status_code == 200
+        assert len(listing.json()["files"]) == 1
+        assert client.get(f"/logs?log_dir={root}").status_code == 200
+        assert client.get(f"/logs?log_dir={root}/").status_code == 200
+        assert client.get("/logs?log_dir=memory://SCOPED/logs//").status_code == 200
+        assert client.get(f"/logs/{q(root + '/' + log)}").status_code == 200
+        assert client.get(f"/logs/{q(root + '//' + log)}").status_code == 200
+        assert client.get("/eval-set?dir=sub").status_code == 200
+        assert client.get("/logs?log_dir=memory://scoped/logs-evil").status_code == 403
+        assert client.get("/logs?log_dir=memory://scoped").status_code == 403
+        assert (
+            client.get(f"/logs/{q('memory://scoped/logs-evil/' + log)}").status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/logs/{q('memory://scoped/logs/../logs-evil/' + log)}"
+            ).status_code
+            == 403
+        )
+        assert client.get(f"/logs/{q(root + '/' + log + '?v=1')}").status_code == 403
+
+
+class _DenyAllRecordingResolver:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def _deny(self) -> str:
+        self.calls += 1
+        raise fastapi.HTTPException(status_code=403)
+
+    async def resolve_read(self, request: Request, location: str) -> str:
+        return await self._deny()
+
+    async def resolve_write(self, request: Request, location: str) -> str:
+        return await self._deny()
+
+    async def resolve_delete(self, request: Request, location: str) -> str:
+        return await self._deny()
+
+    async def resolve_list(self, request: Request, location: str | None) -> str:
+        return await self._deny()
+
+
+# Routes that carry no location and therefore never consult the resolver.
+ROUTES_WITHOUT_LOCATION: set[tuple[str, str]] = {
+    ("GET", "/user-info"),
+    ("GET", "/events"),
+    ("GET", "/app-config"),
+    ("GET", "/scout/searches"),
+}
+
+_SOME_DIR_B64 = base64.urlsafe_b64encode(b"some/dir").decode().rstrip("=")
+
+# How to send each location-bearing route a syntactically valid location.
+_ROUTE_REQUESTS: dict[tuple[str, str], tuple[str, dict[str, str], Any]] = {
+    ("GET", "/logs/{log:path}"): ("/logs/some/file.eval", {}, None),
+    ("GET", "/log-size/{log:path}"): ("/log-size/some/file.eval", {}, None),
+    ("GET", "/log-info/{log:path}"): ("/log-info/some/file.eval", {}, None),
+    ("DELETE", "/log-delete/{log:path}"): (
+        "/log-delete/some/file.eval",
+        FRONTEND_REQUEST_HEADERS,
+        None,
+    ),
+    ("POST", "/log-edit/{log:path}"): (
+        "/log-edit/some/file.eval",
+        FRONTEND_REQUEST_HEADERS,
+        _LOG_EDIT_BODY,
+    ),
+    ("GET", "/log-bytes/{log:path}"): (
+        "/log-bytes/some/file.eval?start=0&end=1",
+        {},
+        None,
+    ),
+    ("GET", "/log-download/{log:path}"): ("/log-download/some/file.eval", {}, None),
+    ("GET", "/log-dir"): ("/log-dir?log_dir=some/dir", {}, None),
+    ("GET", "/log-files"): ("/log-files?log_dir=some/dir", {}, None),
+    ("GET", "/logs"): ("/logs?log_dir=some/dir", {}, None),
+    ("GET", "/eval-set"): ("/eval-set?log_dir=some/dir", {}, None),
+    ("GET", "/flow"): ("/flow?log_dir=some/dir", {}, None),
+    ("GET", "/log-headers"): ("/log-headers?file=some/file.eval", {}, None),
+    ("GET", "/pending-samples"): ("/pending-samples?log=some/file.eval", {}, None),
+    ("POST", "/log-message"): (
+        "/log-message?log_file=some/file.eval&message=hi",
+        FRONTEND_REQUEST_HEADERS,
+        None,
+    ),
+    ("GET", "/pending-sample-data"): (
+        "/pending-sample-data?log=some/file.eval&id=1&epoch=0",
+        {},
+        None,
+    ),
+    ("GET", "/pending-sample-data-urls"): (
+        "/pending-sample-data-urls?log=some/file.eval&id=1&epoch=0",
+        {},
+        None,
+    ),
+    ("POST", "/scout/transcripts/{dir}/{id}/search"): (
+        f"/scout/transcripts/{_SOME_DIR_B64}/some-id/search",
+        {},
+        {},
+    ),
+    ("GET", "/scout/transcripts/{dir}/{id}/searches/{search_id}"): (
+        f"/scout/transcripts/{_SOME_DIR_B64}/some-id/searches/search-1",
+        {},
+        None,
+    ),
+}
+
+
+def _api_routes(app: fastapi.FastAPI) -> list[tuple[str, str]]:
+    """Every (method, path) the app serves, flattening lazily included routers."""
+    found: list[tuple[str, str]] = []
+
+    def visit(routes: list[Any], prefix: str) -> None:
+        for route in routes:
+            original = getattr(route, "original_router", None)
+            if original is not None:
+                context = getattr(route, "include_context", None)
+                visit(original.routes, prefix + getattr(context, "prefix", ""))
+                continue
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", None)
+            if (
+                path is None
+                or not methods
+                or not isinstance(route, fastapi.routing.APIRoute)
+            ):
+                continue
+            for method in methods:
+                found.append((method, prefix + path))
+
+    visit(list(app.routes), "")
+    return sorted(found)
+
+
+def test_every_route_is_classified_and_consults_the_resolver() -> None:
+    """Every route either carries no location or consults the resolver.
+
+    Adding a route forces a decision: put it in ROUTES_WITHOUT_LOCATION or
+    give it a request recipe here and make it call `_resolve_*`.
+    """
+    resolver = _DenyAllRecordingResolver()
+    app = fastapi_server.view_server_app(access_policy=resolver)
+    unclassified: list[tuple[str, str]] = []
+    with fastapi.testclient.TestClient(app) as client:
+        for key in _api_routes(app):
+            if key in ROUTES_WITHOUT_LOCATION:
+                continue
+            recipe = _ROUTE_REQUESTS.get(key)
+            if recipe is None:
+                unclassified.append(key)
+                continue
+            url, headers, body = recipe
+            resolver.calls = 0
+            kwargs: dict[str, Any] = {"headers": headers}
+            if body is not None:
+                kwargs["json"] = body
+            response = client.request(key[0], url, **kwargs)
+            assert response.status_code == 403, (key, response.status_code)
+            assert resolver.calls >= 1, key
+    assert not unclassified, (
+        "routes carrying a location must consult the resolver and have a request "
+        f"recipe in _ROUTE_REQUESTS, or be listed in ROUTES_WITHOUT_LOCATION: {unclassified}"
+    )
+    stale = {key for key in _ROUTE_REQUESTS if key not in set(_api_routes(app))}
+    assert not stale, f"recipes for routes that no longer exist: {stale}"
+
+
+def test_locations_are_decoded_only_in_the_resolver_helpers() -> None:
+    """Static guard for the decode-once rule.
+
+    `normalize_uri(` and `unquote(` may be called only inside `_decode_location`
+    in fastapi_server.py; a route decoding on its own would reintroduce the
+    check/use divergence the resolver layer exists to remove.
+    """
+    import ast
+
+    source_path = Path(fastapi_server.__file__)
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    offenders: list[str] = []
+
+    def callee_name(call: ast.Call) -> str | None:
+        func = call.func
+        if isinstance(func, ast.Name):
+            return func.id
+        if isinstance(func, ast.Attribute):
+            return func.attr
+        return None
+
+    def visit(node: ast.AST, enclosing: str | None) -> None:
+        for child in ast.iter_child_nodes(node):
+            name = enclosing
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                name = child.name
+            if isinstance(child, ast.Call) and callee_name(child) in (
+                "normalize_uri",
+                "unquote",
+            ):
+                if enclosing != "_decode_location":
+                    offenders.append(f"{source_path.name}:{child.lineno}")
+            visit(child, name)
+
+    visit(tree, None)
+    assert not offenders, (
+        "locations must be decoded only by _decode_location (decode-once rule): "
+        f"{offenders}"
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Scoped authorization: HS256 bearer JWTs on the standalone server
+# (design/viewer-scoped-authorization.md §1, §2, §5, §7)
+# ═══════════════════════════════════════════════════════════════════════════
+
+_SECRET = "d1e4c2a0-7f3b-4c9e-9a1d-2b6f8e0c5a7f"
+_BASE_URL = "http://localhost:7575"
+
+
+def _standalone(
+    tmp_path: Path,
+    *,
+    secret: str | None = _SECRET,
+    require_scoped: bool = False,
+) -> tuple[TestClient, Path]:
+    """A standalone token-mode server over tmp_path/logs, with fixture logs.
+
+    Layout: logs/run.eval, logs/sub/inner.eval, logs/other.eval and a log
+    outside the log dir at tmp_path/outside/secret.eval.
+    """
+    from inspect_ai._view.network import resolve_viewer_network_policy
+
+    logs = tmp_path / "logs"
+    (logs / "sub").mkdir(parents=True)
+    (tmp_path / "outside").mkdir()
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html>viewer</html>", encoding="utf-8")
+    write_eval_log(logs, "2025-01-01T00-00-00+00-00_run_runid.eval")
+    write_eval_log(logs, "2025-01-01T00-00-00+00-00_other_otherid.eval")
+    write_eval_log(logs / "sub", "2025-01-01T00-00-00+00-00_inner_innerid.eval")
+    write_eval_log(
+        tmp_path / "outside", "2025-01-01T00-00-00+00-00_secret_secretid.eval"
+    )
+    policy = resolve_viewer_network_policy(
+        bind_host="127.0.0.1", port=7575, authorization=secret
+    )
+    app = fastapi_server.standalone_view_app(
+        log_dir=str(logs),
+        network_policy=policy,
+        dist_dir=dist,
+        require_scoped_authorization=require_scoped,
+    )
+    return TestClient(app, base_url=_BASE_URL), logs
+
+
+def _mint(
+    roots: list[dict[str, Any]] | None,
+    *,
+    secret: str = _SECRET,
+    exp: int | None = int(time.time()) + 3600,
+    aud: str | None = fastapi_server.VIEW_JWT_AUDIENCE,
+    algorithm: str = "HS256",
+    scope_override: Any = None,
+    extra: dict[str, Any] | None = None,
+) -> str:
+    import jwt
+
+    claims: dict[str, Any] = {"sub": "logview:test"}
+    if exp is not None:
+        claims["exp"] = exp
+    if aud is not None:
+        claims["aud"] = aud
+    if scope_override is not None:
+        claims["inspect_view_scope"] = scope_override
+    elif roots is not None:
+        claims["inspect_view_scope"] = {"v": 1, "roots": roots}
+    claims.update(extra or {})
+    return jwt.encode(claims, secret, algorithm=algorithm)
+
+
+def _file_uri(path: Path) -> str:
+    """A root's spelling: the unencoded file: URI (roots are literal, not percent-decoded)."""
+    return f"file://{path.as_posix()}"
+
+
+def _dir_root(path: Path, *permissions: str) -> dict[str, Any]:
+    return {
+        "uri": _file_uri(path),
+        "kind": "dir",
+        "permissions": list(permissions or ("read", "list")),
+    }
+
+
+def _file_root(path: Path, *permissions: str) -> dict[str, Any]:
+    return {
+        "uri": _file_uri(path),
+        "kind": "file",
+        "permissions": list(permissions or ("read", "list")),
+    }
+
+
+def _bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _legacy() -> dict[str, str]:
+    return {"Authorization": _SECRET}
+
+
+def _q(location: str | Path) -> str:
+    return urllib.parse.quote(str(location), safe="")
+
+
+def test_scoped_legacy_credential_keeps_unscoped_behaviour(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    outside = tmp_path / "outside" / "2025-01-01T00-00-00+00-00_secret_secretid.eval"
+    with client:
+        assert client.get("/api/logs").status_code == 401
+        assert (
+            client.get("/api/logs", headers={"Authorization": "wrong"}).status_code
+            == 401
+        )
+        assert (
+            client.get(
+                "/api/logs", headers={"Authorization": f"Bearer {_SECRET}"}
+            ).status_code
+            == 401
+        )
+        listing = client.get("/api/logs", headers=_legacy())
+        assert listing.status_code == 200
+        assert len(listing.json()["files"]) == 3
+        # the legacy credential is not confined (today's token mode)
+        assert (
+            client.get(f"/api/logs/{_q(outside)}", headers=_legacy()).status_code == 200
+        )
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(tmp_path / 'outside')}", headers=_legacy()
+            ).status_code
+            == 200
+        )
+        assert client.get("/api/events", headers=_legacy()).status_code == 200
+        config = client.get("/api/app-config", headers=_legacy()).json()
+        assert config["scoped_authorization"] is True
+        assert config["scope_claim"] == "inspect_view_scope"
+        assert client.get("/", headers=_legacy()).status_code == 200
+        assert client.get("/").status_code == 401
+
+
+def test_scoped_jwt_directory_root_confines_requests(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs / "sub")])
+    inner = logs / "sub" / "2025-01-01T00-00-00+00-00_inner_innerid.eval"
+    other = logs / "2025-01-01T00-00-00+00-00_other_otherid.eval"
+    with client:
+        assert (
+            client.get(f"/api/logs/{_q(inner)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/logs/{_q(inner.as_uri())}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+        assert (
+            client.get(f"/api/log-size/{_q(inner)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/log-headers?file={_q(inner)}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+        # the server's own log_dir is not the scope: an absent location binds to the root
+        listing = client.get("/api/logs", headers=_bearer(token))
+        assert listing.status_code == 200
+        assert [Path(f["name"]).name for f in listing.json()["files"]] == [inner.name]
+        assert (
+            client.get("/api/log-dir", headers=_bearer(token))
+            .json()["log_dir"]
+            .endswith("sub")
+        )
+        assert client.get("/api/eval-set", headers=_bearer(token)).status_code == 200
+        assert (
+            client.get("/api/eval-set?dir=deeper", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(logs / 'sub')}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+        # outside the claimed root, inside the server's log_dir: refused
+        assert (
+            client.get(f"/api/logs/{_q(other)}", headers=_bearer(token)).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(logs)}", headers=_bearer(token)
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/api/eval-set?log_dir={_q(logs)}", headers=_bearer(token)
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/api/log-headers?file={_q(inner)}&file={_q(other)}",
+                headers=_bearer(token),
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/api/logs/{_q(logs / 'sub' / '..' / other.name)}",
+                headers=_bearer(token),
+            ).status_code
+            == 403
+        )
+        # permissions not granted
+        assert (
+            client.post(
+                f"/api/log-edit/{_q(inner)}",
+                headers={**_bearer(token), **FRONTEND_REQUEST_HEADERS},
+                json=_LOG_EDIT_BODY,
+            ).status_code
+            == 403
+        )
+        assert (
+            client.request(
+                "DELETE",
+                f"/api/log-delete/{_q(inner)}",
+                headers={**_bearer(token), **FRONTEND_REQUEST_HEADERS},
+            ).status_code
+            == 403
+        )
+        assert inner.exists()
+        # routes without a location still need a credential but no scope
+        assert client.get("/api/events", headers=_bearer(token)).status_code == 200
+        assert client.get("/api/app-config", headers=_bearer(token)).status_code == 200
+
+
+def test_scoped_jwt_write_and_delete_permissions(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    inner = logs / "sub" / "2025-01-01T00-00-00+00-00_inner_innerid.eval"
+    writer = _mint([_dir_root(logs / "sub", "read", "list", "write")])
+    deleter = _mint([_dir_root(logs / "sub", "read", "list", "delete")])
+    headers = {**FRONTEND_REQUEST_HEADERS}
+    with client:
+        assert (
+            client.post(
+                f"/api/log-edit/{_q(inner)}",
+                headers={**_bearer(writer), **headers},
+                json=_LOG_EDIT_BODY,
+            ).status_code
+            == 200
+        )
+        assert (
+            client.request(
+                "DELETE",
+                f"/api/log-delete/{_q(inner)}",
+                headers={**_bearer(writer), **headers},
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                f"/api/log-edit/{_q(inner)}",
+                headers={**_bearer(deleter), **headers},
+                json=_LOG_EDIT_BODY,
+            ).status_code
+            == 403
+        )
+        assert (
+            client.request(
+                "DELETE",
+                f"/api/log-delete/{_q(inner)}",
+                headers={**_bearer(deleter), **headers},
+            ).status_code
+            == 200
+        )
+        assert not inner.exists()
+
+
+def test_scoped_jwt_file_root(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    other = logs / "2025-01-01T00-00-00+00-00_other_otherid.eval"
+    token = _mint([_file_root(run)])
+    with client:
+        assert (
+            client.get(f"/api/logs/{_q(run)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/logs/{_q(run.as_uri())}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+        assert (
+            client.get(f"/api/logs/{_q(other)}", headers=_bearer(token)).status_code
+            == 403
+        )
+        # a file root's default binding is the single-file listing the viewer probes
+        listing = client.get("/api/logs", headers=_bearer(token))
+        assert listing.status_code == 200
+        assert [Path(f["name"]).name for f in listing.json()["files"]] == [run.name]
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(logs)}", headers=_bearer(token)
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(run)}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+
+
+def test_scoped_jwt_several_roots_have_no_default(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs / "sub"), _dir_root(tmp_path / "outside")])
+    secret = tmp_path / "outside" / "2025-01-01T00-00-00+00-00_secret_secretid.eval"
+    with client:
+        assert client.get("/api/logs", headers=_bearer(token)).status_code == 403
+        assert (
+            client.get(f"/api/logs/{_q(secret)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(logs / 'sub')}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+
+
+def _alg_none_token(claims: dict[str, Any]) -> str:
+    def b64(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+    return (
+        b64(json.dumps({"alg": "none", "typ": "JWT"}).encode())
+        + "."
+        + b64(json.dumps(claims).encode())
+        + "."
+    )
+
+
+def _rs256_headed_token(claims: dict[str, Any]) -> str:
+    def b64(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+    return (
+        b64(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
+        + "."
+        + b64(json.dumps(claims).encode())
+        + "."
+        + b64(b"not-a-real-signature")
+    )
+
+
+def _scope_claims(logs: Path) -> dict[str, Any]:
+    return {
+        "exp": int(time.time()) + 3600,
+        "aud": fastapi_server.VIEW_JWT_AUDIENCE,
+        "inspect_view_scope": {"v": 1, "roots": [_dir_root(logs)]},
+    }
+
+
+@pytest.mark.parametrize(
+    ("name", "make_token"),
+    [
+        ("wrong-secret", lambda logs: _mint([_dir_root(logs)], secret="x" * 40)),
+        ("alg-none", lambda logs: _alg_none_token(_scope_claims(logs))),
+        ("rs256-header", lambda logs: _rs256_headed_token(_scope_claims(logs))),
+        ("missing-exp", lambda logs: _mint([_dir_root(logs)], exp=None)),
+        ("expired", lambda logs: _mint([_dir_root(logs)], exp=int(time.time()) - 10)),
+        ("wrong-aud", lambda logs: _mint([_dir_root(logs)], aud="other-service")),
+        ("missing-aud", lambda logs: _mint([_dir_root(logs)], aud=None)),
+        ("missing-scope-claim", lambda logs: _mint(None)),
+        ("malformed-scope-claim", lambda logs: _mint(None, scope_override="file:///w")),
+        ("empty-roots", lambda logs: _mint([])),
+        (
+            "unknown-version",
+            lambda logs: _mint(
+                None, scope_override={"v": 2, "roots": [_dir_root(logs)]}
+            ),
+        ),
+        (
+            "unknown-kind",
+            lambda logs: _mint(
+                [{"uri": logs.as_uri(), "kind": "folder", "permissions": ["read"]}]
+            ),
+        ),
+        (
+            "http-dir-root",
+            lambda logs: _mint(
+                [
+                    {
+                        "uri": "https://example.test/logs",
+                        "kind": "dir",
+                        "permissions": ["read"],
+                    }
+                ]
+            ),
+        ),
+        ("not-a-jwt", lambda logs: "abc"),
+        ("two-segments", lambda logs: "abc.def"),
+        ("garbage-segments", lambda logs: "a.b.c"),
+    ],
+)
+def test_scoped_jwt_rejections_are_401(
+    tmp_path: Path, name: str, make_token: Callable[[Path], str]
+) -> None:
+    client, logs = _standalone(tmp_path)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    with client:
+        response = client.get(f"/api/logs/{_q(run)}", headers=_bearer(make_token(logs)))
+        assert response.status_code == 401, name
+        # nothing about a bad token lets a location-less route through either
+        assert (
+            client.get("/api/events", headers=_bearer(make_token(logs))).status_code
+            == 401
+        ), name
+
+
+def test_scoped_jwt_duplicate_authorization_header_is_401(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs)])
+    with client:
+        response = client.get(
+            "/api/events",
+            headers=[("Authorization", f"Bearer {token}"), ("Authorization", _SECRET)],
+        )
+        assert response.status_code == 401
+
+
+def test_scoped_jwt_tolerant_claim_handling(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    # unknown claim fields are ignored; unknown permissions are ignored and never grant
+    token = _mint(
+        None,
+        scope_override={
+            "v": 1,
+            "roots": [
+                {
+                    "uri": logs.as_uri(),
+                    "kind": "dir",
+                    "permissions": ["read", "list", "admin"],
+                }
+            ],
+            "future": {"x": 1},
+        },
+        extra={"custom": "claim", "iat": int(time.time()) - 5},
+    )
+    with client:
+        assert (
+            client.get(f"/api/logs/{_q(run)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                f"/api/log-edit/{_q(run)}",
+                headers={**_bearer(token), **FRONTEND_REQUEST_HEADERS},
+                json=_LOG_EDIT_BODY,
+            ).status_code
+            == 403
+        )
+
+
+def test_scoped_jwt_verified_once_then_cached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import jwt
+
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs)])
+    calls = 0
+    real_decode = jwt.decode
+
+    def counting_decode(*args: Any, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return real_decode(*args, **kwargs)
+
+    monkeypatch.setattr(jwt, "decode", counting_decode)
+    with client:
+        for _ in range(3):
+            assert client.get("/api/logs", headers=_bearer(token)).status_code == 200
+    assert calls == 1
+
+
+def test_scoped_jwt_cache_is_bounded() -> None:
+    middleware = fastapi_server.ViewAuthorizationMiddleware(
+        cast(Any, None), _SECRET, cache_size=2
+    )
+    tokens = [
+        _mint([_dir_root(Path("/w/logs"))], extra={"sub": f"panel:{i}"})
+        for i in range(3)
+    ]
+    for token in tokens:
+        assert middleware._verify(token) is not None
+    assert len(middleware._cache) == 2
+    assert tokens[0] not in middleware._cache
+
+
+def test_scoped_jwt_expired_cache_entry_is_reverified() -> None:
+    middleware = fastapi_server.ViewAuthorizationMiddleware(cast(Any, None), _SECRET)
+    token = _mint([_dir_root(Path("/w/logs"))])
+    assert middleware._verify(token) is not None
+    exp, scope = middleware._cache[token]
+    middleware._cache[token] = (time.time() - 1, scope)
+    assert middleware._verify(token) is not None
+    assert middleware._cache[token][0] == exp
+
+
+def test_tokenless_server_rejects_jwt_and_ignores_other_headers(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path, secret=None)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    outside = tmp_path / "outside" / "2025-01-01T00-00-00+00-00_secret_secretid.eval"
+    token = _mint([_dir_root(tmp_path)])
+    with client:
+        assert client.get(f"/api/logs/{_q(run)}").status_code == 200
+        assert (
+            client.get(f"/api/logs/{_q(run)}", headers=_bearer(token)).status_code
+            == 401
+        )
+        assert (
+            client.get(
+                f"/api/logs/{_q(run)}", headers={"Authorization": "Basic abc"}
+            ).status_code
+            == 200
+        )
+        # token-less containment stays log_dir, JWT or not
+        assert client.get(f"/api/logs/{_q(outside)}").status_code == 403
+        config = client.get("/api/app-config").json()
+        assert config["scoped_authorization"] is False
+        assert config["scope_claim"] is None
+
+
+def test_require_scoped_authorization_refuses_legacy_except_app_config(
+    tmp_path: Path,
+) -> None:
+    client, logs = _standalone(tmp_path, require_scoped=True)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    token = _mint([_dir_root(logs)])
+    with client:
+        assert client.get("/api/app-config", headers=_legacy()).status_code == 200
+        assert client.get("/api/logs", headers=_legacy()).status_code == 401
+        assert client.get(f"/api/logs/{_q(run)}", headers=_legacy()).status_code == 401
+        assert client.get("/api/events", headers=_legacy()).status_code == 401
+        assert client.get("/", headers=_legacy()).status_code == 401
+        assert (
+            client.get(f"/api/logs/{_q(run)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert client.get("/api/events", headers=_bearer(token)).status_code == 200
+
+
+def test_require_scoped_authorization_needs_a_secret(tmp_path: Path) -> None:
+    from inspect_ai._view.network import ViewerNetworkPolicyError
+
+    with pytest.raises(
+        ViewerNetworkPolicyError, match="INSPECT_VIEW_AUTHORIZATION_TOKEN"
+    ):
+        _standalone(tmp_path, secret=None, require_scoped=True)
+
+
+def test_token_mode_policy_without_middleware_state_is_forbidden(
+    tmp_path: Path,
+) -> None:
+    log = write_eval_log(tmp_path, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    app = fastapi_server.view_server_app(
+        access_policy=fastapi_server.TokenModeAccessPolicy(str(tmp_path)),
+        default_dir=str(tmp_path),
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get(f"/logs/{_q(log)}").status_code == 403
+        assert client.get("/logs").status_code == 403
+        assert client.get("/app-config").json()["scoped_authorization"] is True
+
+
+def test_scoped_policy_reaches_log_headers_fan_out(tmp_path: Path) -> None:
+    """State set by the pure-ASGI middleware reaches tg_collect subtasks."""
+    client, logs = _standalone(tmp_path)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    other = logs / "2025-01-01T00-00-00+00-00_other_otherid.eval"
+    token = _mint([_dir_root(logs)])
+    with client:
+        response = client.get(
+            f"/api/log-headers?file={_q(run)}&file={_q(other)}", headers=_bearer(token)
+        )
+        assert response.status_code == 200
+        assert len(response.json()) == 2
+
+
+def _fake_scout_router() -> fastapi.APIRouter:
+    router = fastapi.APIRouter()
+
+    @router.get("/searches")
+    async def searches() -> list[str]:
+        return []
+
+    @router.post("/transcripts/{dir}/{id}/search")
+    async def search(dir: str, id: str) -> dict[str, str]:
+        return {"dir": dir, "id": id}
+
+    @router.get("/transcripts/{dir}/{id}/searches/{search_id}")
+    async def search_result(dir: str, id: str, search_id: str) -> dict[str, str]:
+        return {"dir": dir, "id": id, "search_id": search_id}
+
+    return router
+
+
+def _b64(value: str) -> str:
+    return base64.urlsafe_b64encode(value.encode()).decode().rstrip("=")
+
+
+def test_mounted_scout_routes_go_through_the_resolver(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fastapi_server, "get_scout_search_router", _fake_scout_router)
+    logs = tmp_path / "logs"
+    (logs / "sub").mkdir(parents=True)
+    alias = tmp_path / "alias"
+    alias.symlink_to(logs, target_is_directory=True)
+    app = fastapi_server.view_server_app(
+        default_dir=str(logs),
+        access_policy=fastapi_server.OnlyDirAccessPolicy(str(logs)),
+    )
+    canonical = str(logs.resolve())
+    with fastapi.testclient.TestClient(app) as client:
+        # the root itself may be searched (list semantics) ...
+        response = client.post(
+            f"/scout/transcripts/{_b64(str(logs))}/t1/search", json={}
+        )
+        assert response.status_code == 200
+        assert response.json() == {"dir": _b64(canonical), "id": "t1"}
+        # ... and the route sees the canonical location, not the alias
+        response = client.get(
+            f"/scout/transcripts/{_b64(str(alias / 'sub'))}/t1/searches/s1"
+        )
+        assert response.status_code == 200
+        assert response.json()["dir"] == _b64(f"{canonical}/sub")
+        assert client.get("/scout/searches").status_code == 200
+        # escapes and malformed segments
+        assert (
+            client.post(
+                f"/scout/transcripts/{_b64(str(tmp_path))}/t1/search", json={}
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                f"/scout/transcripts/{_b64(str(logs / '..'))}/t1/search", json={}
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post("/scout/transcripts/not*base64/t1/search", json={}).status_code
+            == 400
+        )
+        # non-canonical encodings are refused: padding in the middle, stray bits
+        # in the last character ("YQx" is "a" plus bits that no byte round-trips
+        # to), or a path that decodes to bytes that are not UTF-8
+        assert (
+            client.post("/scout/transcripts/YQ==YQ/t1/search", json={}).status_code
+            == 400
+        )
+        assert (
+            client.post("/scout/transcripts/YQx/t1/search", json={}).status_code == 400
+        )
+        assert (
+            client.post("/scout/transcripts/_w/t1/search", json={}).status_code == 400
+        )
+        # the padded spelling of a valid segment is accepted
+        padded = base64.urlsafe_b64encode(str(logs).encode()).decode()
+        assert (
+            client.post(f"/scout/transcripts/{padded}/t1/search", json={}).status_code
+            == 200
+        )
+
+
+def test_mounted_scout_routes_are_confined_by_a_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fastapi_server, "get_scout_search_router", _fake_scout_router)
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs / "sub")])
+    with client:
+        assert (
+            client.post(
+                f"/api/scout/transcripts/{_b64(str(logs / 'sub'))}/t/search",
+                headers=_bearer(token),
+                json={},
+            ).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                f"/api/scout/transcripts/{_b64(str(logs))}/t/search",
+                headers=_bearer(token),
+                json={},
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                f"/api/scout/transcripts/{_b64(str(logs))}/t/search",
+                headers=_legacy(),
+                json={},
+            ).status_code
+            == 200
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Round-1 review fixes: derived files, literal decoding, mapper input,
+# claim wire schema, exp handling
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _derived_layout(tmp_path: Path) -> tuple[Path, Path]:
+    """logs/ with flow.yaml, eval-set.json and .buffer all symlinked outside."""
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret-flow.yaml").write_text("outside secret", encoding="utf-8")
+    (outside / "secret-eval-set.json").write_text(
+        json.dumps({"eval_set_id": "outside", "tasks": []}), encoding="utf-8"
+    )
+    log = write_eval_log(logs, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    _create_sample_buffer(str(outside / "2025-01-01T00-00-00+00-00_task_taskid.eval"))
+    try:
+        (logs / "flow.yaml").symlink_to(outside / "secret-flow.yaml")
+        (logs / "eval-set.json").symlink_to(outside / "secret-eval-set.json")
+        (logs / ".buffer").symlink_to(outside / ".buffer", target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are not supported here")
+    assert (outside / ".buffer").is_dir()
+    return logs, Path(log)
+
+
+def test_derived_files_are_confined_tokenless(tmp_path: Path) -> None:
+    logs, log = _derived_layout(tmp_path)
+    app = fastapi_server.view_server_app(
+        default_dir=str(logs),
+        access_policy=fastapi_server.OnlyDirAccessPolicy(str(logs)),
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get("/flow").status_code == 403
+        assert client.get(f"/flow?log_dir={logs}").status_code == 403
+        assert client.get("/eval-set").status_code == 403
+        assert client.get(f"/pending-samples?log={_q(log)}").status_code == 403
+        assert (
+            client.get(
+                f"/pending-sample-data?log={_q(log)}&id=sample1&epoch=0"
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/pending-sample-data-urls?log={_q(log)}&id=sample1&epoch=0"
+            ).status_code
+            == 403
+        )
+        # a real derived file inside the directory still works
+        (logs / "flow.yaml").unlink()
+        (logs / "flow.yaml").write_text("name: inside", encoding="utf-8")
+        assert client.get("/flow").text == "name: inside"
+        (logs / "eval-set.json").unlink()
+        assert client.get("/eval-set").status_code == 200
+        (logs / ".buffer").unlink()
+        _create_sample_buffer(str(log))
+        assert client.get(f"/pending-samples?log={_q(log)}").status_code == 200
+
+
+def test_derived_files_are_confined_under_a_scope(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    outside = tmp_path / "outside"
+    (outside / "secret-flow.yaml").write_text("outside secret", encoding="utf-8")
+    (outside / "secret-eval-set.json").write_text(
+        json.dumps({"eval_set_id": "outside", "tasks": []}), encoding="utf-8"
+    )
+    (logs / "flow.yaml").symlink_to(outside / "secret-flow.yaml")
+    (logs / "eval-set.json").symlink_to(outside / "secret-eval-set.json")
+    token = _mint([_dir_root(logs)])
+    with client:
+        assert client.get("/api/flow", headers=_bearer(token)).status_code == 403
+        assert client.get("/api/eval-set", headers=_bearer(token)).status_code == 403
+        # the legacy credential keeps the pre-resolver behaviour (unscoped)
+        assert client.get("/api/flow", headers=_legacy()).text == "outside secret"
+
+
+def test_derived_files_keep_the_plain_policy_contract() -> None:
+    """A plain policy is asked about the directory only; the mapper sees the directory."""
+    policy = _RecordingAccessPolicy(allow=True)
+    mapping = _RecordingMappingPolicy()
+    app = fastapi_server.view_server_app(mapping_policy=mapping, access_policy=policy)
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get("/flow?log_dir=some/dir").status_code == 404
+        assert client.get("/eval-set?log_dir=some/dir").status_code == 200
+    assert policy.calls == [("list", "some/dir"), ("list", "some/dir")]
+    assert mapping.mapped == ["some/dir", "some/dir"]
+
+
+def test_resolving_policy_result_reaches_the_mapper() -> None:
+    """The mapper and I/O receive the resolver's location, not the caller's spelling."""
+    canonical = "canonical/dir/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_fake_eval_log(canonical)
+    policy = _AliasResolvingPolicy(canonical)
+    mapping = _RecordingMappingPolicy()
+    app = fastapi_server.view_server_app(mapping_policy=mapping, access_policy=policy)
+    with fastapi.testclient.TestClient(app) as client:
+        response = client.get("/logs/alias%2Fx.eval")
+        assert response.status_code == 200
+        assert client.get("/log-size/alias%2Fx.eval").status_code == 200
+    assert policy.resolved == [("read", "alias/x.eval"), ("read", "alias/x.eval")]
+    assert mapping.mapped == [canonical, canonical]
+
+
+@pytest.mark.parametrize(
+    "name", ["a#b.eval", "a?b.eval", "a%b.eval", "a;b.eval", "a b.eval"]
+)
+def test_literal_file_uri_names_end_to_end(tmp_path: Path, name: str) -> None:
+    """A once-decoded file: URI names the file literally, on read, write and delete."""
+    client, logs = _standalone(tmp_path)
+    target = logs / name
+    write_eval_log(logs, name)
+    decoy = logs / name.split("#")[0].split("?")[0].split(";")[0]
+    if decoy != target:
+        decoy.write_text("decoy", encoding="utf-8")
+    dir_token = _mint([_dir_root(logs, "read", "list", "write", "delete")])
+    file_token = _mint([_file_root(target, "read", "list", "write", "delete")])
+    encoded = urllib.parse.quote(target.as_uri(), safe="")
+    with client:
+        for token in (dir_token, file_token):
+            size = client.get(f"/api/log-size/{encoded}", headers=_bearer(token))
+            assert size.status_code == 200
+            assert size.json() == target.stat().st_size
+            assert (
+                client.get(f"/api/logs/{encoded}", headers=_bearer(token)).status_code
+                == 200
+            )
+            assert (
+                client.get(
+                    f"/api/log-headers?file={encoded}", headers=_bearer(token)
+                ).status_code
+                == 200
+            )
+        edited = client.post(
+            f"/api/log-edit/{encoded}",
+            headers={**_bearer(dir_token), **FRONTEND_REQUEST_HEADERS},
+            json=_LOG_EDIT_BODY,
+        )
+        assert edited.status_code == 200
+        if decoy != target:
+            assert decoy.read_text(encoding="utf-8") == "decoy"
+        deleted = client.request(
+            "DELETE",
+            f"/api/log-delete/{encoded}",
+            headers={**_bearer(file_token), **FRONTEND_REQUEST_HEADERS},
+        )
+        assert deleted.status_code == 200
+        assert not target.exists()
+        if decoy != target:
+            assert decoy.exists()
+
+
+def test_literal_decoding_only_for_resolving_policies(tmp_path: Path) -> None:
+    """The legacy credential and plain policies keep normalize_uri's file: URI handling."""
+    client, logs = _standalone(tmp_path)
+    write_eval_log(logs, "x.eval")
+    (logs / "x.eval#suffix").write_text("suffix", encoding="utf-8")
+    encoded = urllib.parse.quote((logs / "x.eval#suffix").as_uri(), safe="")
+    with client:
+        # normalize_uri drops the fragment: the legacy credential reads x.eval
+        legacy = client.get(f"/api/log-size/{encoded}", headers=_legacy())
+        assert legacy.status_code == 200
+        assert legacy.json() == (logs / "x.eval").stat().st_size
+        scoped = client.get(
+            f"/api/log-size/{encoded}", headers=_bearer(_mint([_dir_root(logs)]))
+        )
+        assert scoped.status_code == 200
+        assert scoped.json() == len("suffix")
+
+
+@pytest.mark.parametrize(
+    ("name", "root"),
+    [
+        (
+            "relative-path",
+            {"uri": "relative/path", "kind": "dir", "permissions": ["read", "list"]},
+        ),
+        (
+            "bare-absolute-path",
+            {"uri": "/w/logs", "kind": "dir", "permissions": ["read", "list"]},
+        ),
+        (
+            "unsupported-scheme",
+            {"uri": "ftp://host/path", "kind": "dir", "permissions": ["read", "list"]},
+        ),
+        (
+            "file-uri-other-host",
+            {"uri": "file://evil.test/w/logs", "kind": "dir", "permissions": ["read"]},
+        ),
+    ],
+)
+def test_scoped_jwt_root_wire_schema_is_401(
+    tmp_path: Path, name: str, root: dict[str, Any]
+) -> None:
+    client, logs = _standalone(tmp_path)
+    token = _mint([root])
+    with client:
+        assert (
+            client.get("/api/app-config", headers=_bearer(token)).status_code == 401
+        ), name
+        assert client.get("/api/logs", headers=_bearer(token)).status_code == 401, name
+
+
+def _hand_signed(payload_json: str, secret: str = _SECRET) -> str:
+    import hashlib
+    import hmac
+
+    def b64(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+    signing_input = (
+        b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+        + "."
+        + b64(payload_json.encode())
+    )
+    signature = hmac.new(
+        secret.encode(), signing_input.encode(), hashlib.sha256
+    ).digest()
+    return signing_input + "." + b64(signature)
+
+
+@pytest.mark.parametrize(
+    ("name", "exp_json"),
+    [
+        ("huge-integer", str(10**400)),
+        ("overflowing-exponent", "1e400"),
+        ("negative-infinity-exponent", "-1e400"),
+        ("string", '"9999999999"'),
+        ("boolean", "true"),
+    ],
+)
+def test_scoped_jwt_unrepresentable_exp_is_401(
+    tmp_path: Path, name: str, exp_json: str
+) -> None:
+    client, logs = _standalone(tmp_path)
+    scope = json.dumps({"v": 1, "roots": [_dir_root(logs)]})
+    payload = f'{{"aud": "{fastapi_server.VIEW_JWT_AUDIENCE}", "exp": {exp_json}, "inspect_view_scope": {scope}}}'
+    token = _hand_signed(payload)
+    with client:
+        response = client.get("/api/logs", headers=_bearer(token))
+        assert response.status_code == 401, name
+    middleware = fastapi_server.ViewAuthorizationMiddleware(cast(Any, None), _SECRET)
+    assert middleware._verify(token) is None
+    # a large but representable exp is fine and cached as given
+    ok = _hand_signed(
+        f'{{"aud": "{fastapi_server.VIEW_JWT_AUDIENCE}", "exp": {2**53}, "inspect_view_scope": {scope}}}'
+    )
+    assert middleware._verify(ok) is not None
+    assert middleware._cache[ok][0] == float(2**53)

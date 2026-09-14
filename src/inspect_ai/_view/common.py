@@ -24,6 +24,7 @@ from inspect_ai._util.azure import is_azure_auth_error
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import normalize_azure_listing_name
+from inspect_ai._view.scope import SCOPE_CLAIM
 from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -77,8 +78,14 @@ class AppConfig(BaseModel):
     inspect_version: str
     scout_version: str | None = None
 
+    scoped_authorization: bool = False
+    """Whether this server confines a bearer JWT to the scope in its claims."""
 
-def get_app_config() -> AppConfig:
+    scope_claim: str | None = None
+    """Name of the JWT claim carrying the scope, when `scoped_authorization` is set."""
+
+
+def get_app_config(scoped_authorization: bool = False) -> AppConfig:
     """Return app config, including installed inspect and scout versions.
 
     `inspect_scout` is an optional dependency, so `scout_version` is None when
@@ -91,6 +98,8 @@ def get_app_config() -> AppConfig:
     return AppConfig(
         inspect_version=version(PKG_NAME),
         scout_version=scout_version,
+        scoped_authorization=scoped_authorization,
+        scope_claim=SCOPE_CLAIM if scoped_authorization else None,
     )
 
 
@@ -124,19 +133,17 @@ def get_log_dir(log_dir: str) -> LogDirResponse:
     return LogDirResponse(log_dir=aliased_path(log_dir))
 
 
-async def read_eval_set_info_async(
-    eval_set_dir: str, afs: AsyncFilesystem
+async def read_eval_set_manifest_async(
+    manifest: str, afs: AsyncFilesystem
 ) -> EvalSet | None:
-    """Read the `eval-set.json` manifest for `eval_set_dir` via the async filesystem.
+    """Read an `eval-set.json` manifest at `manifest` via the async filesystem.
 
-    Async counterpart to `read_eval_set_info`. Reads the manifest through
+    Async counterpart to `read_eval_set_manifest`. Reads through
     `AsyncFilesystem` (riding the shared client) rather than bouncing sync fsspec
     through a threadpool — see the fsspec/`to_thread` warning in AGENTS.md.
     Returns None when the manifest is absent, or (matching `read_eval_set_info`)
     when the check/read fails with an Azure auth error.
     """
-    sep = filesystem(eval_set_dir).sep
-    manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
     try:
         if not await afs.exists(manifest):
             return None
@@ -145,6 +152,15 @@ async def read_eval_set_info_async(
         if is_azure_auth_error(ex):
             return None
         raise
+
+
+async def read_eval_set_info_async(
+    eval_set_dir: str, afs: AsyncFilesystem
+) -> EvalSet | None:
+    """Read the `eval-set.json` manifest for `eval_set_dir` via the async filesystem."""
+    sep = filesystem(eval_set_dir).sep
+    manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
+    return await read_eval_set_manifest_async(manifest, afs)
 
 
 async def get_log_files(
