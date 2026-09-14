@@ -2662,3 +2662,756 @@ def test_api_log_download_encodes_non_latin1_filename(
     resp.raise_for_status()
     assert "utf-8''" in resp.headers["content-disposition"]
     assert [body.released for body in bodies] == [1]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Resolver layer: plain-policy compatibility, resolving policies, standalone
+# containment, route coverage (design/viewer-scoped-authorization.md §3, §7)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class _RecordingAccessPolicy(AccessPolicy):
+    """A plain policy that records every string it is asked about."""
+
+    def __init__(self, allow: bool) -> None:
+        self.allow = allow
+        self.calls: list[tuple[str, str]] = []
+
+    async def can_read(self, request: Request, file: str) -> bool:
+        self.calls.append(("read", file))
+        return self.allow
+
+    async def can_delete(self, request: Request, file: str) -> bool:
+        self.calls.append(("delete", file))
+        return self.allow
+
+    async def can_list(self, request: Request, dir: str) -> bool:
+        self.calls.append(("list", dir))
+        return self.allow
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        self.calls.append(("write", file))
+        return self.allow
+
+
+class _RecordingMappingPolicy(FileMappingPolicy):
+    def __init__(self, prefix: str = "memory://") -> None:
+        self.prefix = prefix
+        self.mapped: list[str] = []
+
+    async def map(self, request: Request, file: str) -> str:
+        self.mapped.append(file)
+        return f"{self.prefix}{file}"
+
+    async def unmap(self, request: Request, file: str) -> str:
+        return file.removeprefix(self.prefix)
+
+
+_LOG_EDIT_BODY = {"edits": [], "provenance": {"author": "alice"}}
+
+# (method, url, headers, json body) -> the (operation, string) pairs a plain
+# AccessPolicy received on `main` at 18b1348be for that request. The strings
+# are written out by hand from main's route code (normalize_uri on path
+# segments and /log-headers, urllib.parse.unquote on the sample query routes,
+# default_dir for an absent listing location) rather than computed, so a
+# change to either the routes or the helpers shows up here.
+_MAIN_POLICY_STRINGS: list[
+    tuple[str, str, dict[str, str], Any, list[tuple[str, str]]]
+] = [
+    (
+        "GET",
+        "/logs/mocked_eval_set/x.eval",
+        {},
+        None,
+        [("read", "mocked_eval_set/x.eval")],
+    ),
+    ("GET", "/logs/s3%3A%2F%2Fb%2Fx%20y.eval", {}, None, [("read", "s3://b/x y.eval")]),
+    (
+        "GET",
+        "/logs/file%3A%2F%2F%2Fw%2Flogs%2Fx.eval",
+        {},
+        None,
+        [("read", "file:///w/logs/x.eval")],
+    ),
+    ("GET", "/logs/a%252Fb.eval", {}, None, [("read", "a/b.eval")]),
+    ("GET", "/log-size/a/b.eval", {}, None, [("read", "a/b.eval")]),
+    ("GET", "/log-info/a/b.eval", {}, None, [("read", "a/b.eval")]),
+    ("GET", "/log-bytes/a/b.eval?start=0&end=1", {}, None, [("read", "a/b.eval")]),
+    ("GET", "/log-download/a/b.eval", {}, None, [("read", "a/b.eval")]),
+    (
+        "DELETE",
+        "/log-delete/a/b.eval",
+        FRONTEND_REQUEST_HEADERS,
+        None,
+        [("delete", "a/b.eval")],
+    ),
+    (
+        "POST",
+        "/log-edit/a/b.eval",
+        FRONTEND_REQUEST_HEADERS,
+        _LOG_EDIT_BODY,
+        [("write", "a/b.eval")],
+    ),
+    ("GET", "/log-dir", {}, None, [("list", "default/dir")]),
+    ("GET", "/log-dir?log_dir=x/y", {}, None, [("list", "x/y")]),
+    ("GET", "/log-files", {}, None, [("list", "default/dir")]),
+    ("GET", "/log-files?log_dir=x%2Fy", {}, None, [("list", "x/y")]),
+    ("GET", "/logs", {}, None, [("list", "default/dir")]),
+    ("GET", "/logs?log_dir=x/y", {}, None, [("list", "x/y")]),
+    ("GET", "/eval-set", {}, None, [("list", "default/dir")]),
+    ("GET", "/eval-set?dir=sub", {}, None, [("list", "default/dir/sub")]),
+    ("GET", "/eval-set?log_dir=x&dir=/sub", {}, None, [("list", "x/sub")]),
+    ("GET", "/eval-set?log_dir=x", {}, None, [("list", "x")]),
+    ("GET", "/flow", {}, None, [("list", "default/dir")]),
+    ("GET", "/flow?dir=sub", {}, None, [("list", "default/dir/sub")]),
+    ("GET", "/flow?log_dir=x&dir=sub", {}, None, [("list", "x/sub")]),
+    (
+        "GET",
+        "/log-headers?file=a%2Fb.eval&file=c%2520d.eval",
+        {},
+        None,
+        [("read", "a/b.eval"), ("read", "c d.eval")],
+    ),
+    ("GET", "/pending-samples?log=a%2520b.eval", {}, None, [("read", "a b.eval")]),
+    (
+        "POST",
+        "/log-message?log_file=a%2520b.eval&message=hi",
+        FRONTEND_REQUEST_HEADERS,
+        None,
+        [("read", "a b.eval")],
+    ),
+    (
+        "GET",
+        "/pending-sample-data?log=a%2520b.eval&id=1&epoch=0",
+        {},
+        None,
+        [("read", "a b.eval")],
+    ),
+    (
+        "GET",
+        "/pending-sample-data-urls?log=a%2520b.eval&id=1&epoch=0",
+        {},
+        None,
+        [("read", "a b.eval")],
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("method", "url", "headers", "body", "expected"),
+    _MAIN_POLICY_STRINGS,
+    ids=[f"{m} {u}" for m, u, _, _, _ in _MAIN_POLICY_STRINGS],
+)
+def test_plain_policy_receives_main_strings(
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    body: Any,
+    expected: list[tuple[str, str]],
+) -> None:
+    """A plain AccessPolicy gets byte-for-byte the strings it got before the resolver."""
+    policy = _RecordingAccessPolicy(allow=False)
+    app = fastapi_server.view_server_app(
+        mapping_policy=_RecordingMappingPolicy(),
+        access_policy=policy,
+        default_dir="default/dir",
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        kwargs: dict[str, Any] = {"headers": headers}
+        if body is not None:
+            kwargs["json"] = body
+        response = client.request(method, url, **kwargs)
+    assert response.status_code == 403
+    assert sorted(policy.calls) == sorted(expected)
+
+
+def test_plain_policy_io_string_is_the_caller_string(mock_s3_eval_file: str) -> None:
+    """With a plain policy the mapping policy receives the once-decoded caller string."""
+    policy = _RecordingAccessPolicy(allow=True)
+    mapping = _RecordingMappingPolicy()
+    app = fastapi_server.view_server_app(mapping_policy=mapping, access_policy=policy)
+    with fastapi.testclient.TestClient(app) as client:
+        encoded = urllib.parse.quote(mock_s3_eval_file, safe="")
+        assert client.get(f"/logs/{encoded}").status_code == 200
+        assert client.get("/logs?log_dir=mocked_eval_set").status_code == 200
+        assert client.get("/eval-set?dir=mocked_eval_set").status_code == 200
+    assert policy.calls == [
+        ("read", mock_s3_eval_file),
+        ("list", "mocked_eval_set"),
+        ("list", "mocked_eval_set"),
+    ]
+    assert mapping.mapped == [mock_s3_eval_file, "mocked_eval_set", "mocked_eval_set"]
+
+
+def test_plain_policy_eval_set_rejects_escaping_child() -> None:
+    """The one tightening a plain-policy deployment observes: a `..` child is 400."""
+    policy = _RecordingAccessPolicy(allow=True)
+    app = fastapi_server.view_server_app(
+        mapping_policy=_RecordingMappingPolicy(), access_policy=policy
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get("/eval-set?dir=valid/../other").status_code == 400
+        assert client.get("/flow?log_dir=x&dir=..").status_code == 400
+        assert client.get("/eval-set?dir=a%5Cb").status_code == 400
+    assert policy.calls == []
+
+
+class _StateSettingMiddleware:
+    """Outer pure-ASGI middleware leaving an auth context on request.state, as Hawk does."""
+
+    def __init__(self, app: Any, auth: Any) -> None:
+        self.app = app
+        self.auth = auth
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] == "http":
+            scope.setdefault("state", {})["auth"] = self.auth
+        await self.app(scope, receive, send)
+
+
+class _HawkShapedMappingPolicy(FileMappingPolicy):
+    base_uri = "memory://hawk-bucket"
+
+    async def map(self, request: Request, file: str) -> str:
+        return f"{self.base_uri}/{file.lstrip('/')}"
+
+    async def unmap(self, request: Request, file: str) -> str:
+        # the memory filesystem lists names as memory:///bucket/...
+        return file.removeprefix(f"{self.base_uri}/").removeprefix(
+            self.base_uri.replace("://", ":///") + "/"
+        )
+
+
+class _HawkShapedAccessPolicy(AccessPolicy):
+    """Keyed on the top-level folder, reads request.state, denies listing "" and "/"."""
+
+    def __init__(self) -> None:
+        self.folders: list[str] = []
+
+    def _folder(self, file: str) -> str:
+        import posixpath
+
+        without_bucket = file.removeprefix(f"{_HawkShapedMappingPolicy.base_uri}/")
+        return posixpath.normpath(without_bucket).strip("/").split("/", 1)[0]
+
+    async def _check(self, request: Request, file: str) -> bool:
+        folder = self._folder(file)
+        self.folders.append(folder)
+        return folder in request.state.auth["folders"]
+
+    async def can_read(self, request: Request, file: str) -> bool:
+        return await self._check(request, file)
+
+    async def can_delete(self, request: Request, file: str) -> bool:
+        return False
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        return False
+
+    async def can_list(self, request: Request, dir: str) -> bool:
+        if not dir or dir == "/":
+            return False
+        return await self._check(request, dir)
+
+
+def test_hawk_shaped_embedder_outcomes_unchanged() -> None:
+    write_fake_eval_log("hawk-bucket/valid/2025-01-01T00-00-00+00-00_task_taskid.eval")
+    write_fake_eval_log(
+        "hawk-bucket/invalid/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    )
+    policy = _HawkShapedAccessPolicy()
+    api = fastapi_server.view_server_app(
+        mapping_policy=_HawkShapedMappingPolicy(),
+        access_policy=policy,
+        recursive=False,
+    )
+    app = _StateSettingMiddleware(api, {"folders": {"valid"}})
+    log = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get(f"/logs/valid/{log}").status_code == 200
+        assert client.get(f"/logs//valid/{log}").status_code == 200
+        assert client.get(f"/logs/invalid/{log}").status_code == 403
+        assert client.get(f"/logs/valid/../invalid/{log}").status_code == 403
+        # an absent listing location binds to default_dir "", which Hawk denies
+        assert client.get("/logs").status_code == 403
+        assert client.get("/log-dir").status_code == 403
+        assert client.get("/eval-set").status_code == 403
+        listing = client.get("/logs?log_dir=valid")
+        assert listing.status_code == 200
+        assert [f["name"] for f in listing.json()["files"]] == [f"valid/{log}"]
+        assert client.get("/logs?log_dir=invalid").status_code == 403
+        assert client.get("/eval-set?dir=valid").status_code == 200
+        assert client.get("/eval-set?dir=/valid").status_code == 200
+        assert client.get("/eval-set?dir=invalid").status_code == 403
+        assert client.get("/eval-set?dir=valid/../invalid").status_code == 400
+        # (the headers reader has no memory:// path, so a permitted request 404s)
+        assert client.get(f"/log-headers?file=valid/{log}").status_code != 403
+        assert (
+            client.get(f"/log-headers?file=valid/{log}&file=invalid/{log}").status_code
+            == 403
+        )
+        assert (
+            client.request(
+                "DELETE", f"/log-delete/valid/{log}", headers=FRONTEND_REQUEST_HEADERS
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                f"/log-edit/valid/{log}",
+                headers=FRONTEND_REQUEST_HEADERS,
+                json=_LOG_EDIT_BODY,
+            ).status_code
+            == 403
+        )
+    # the policy saw bucket-relative folders, never the mapped storage location
+    assert set(policy.folders) <= {"valid", "invalid"}
+
+
+class _AliasResolvingPolicy:
+    """Both protocols: the server must use resolve_* and never call can_*."""
+
+    def __init__(self, canonical: str) -> None:
+        self.canonical = canonical
+        self.resolved: list[tuple[str, str | None]] = []
+
+    async def can_read(self, request: Request, file: str) -> bool:
+        raise AssertionError("can_read must not be called on a resolving policy")
+
+    async def can_delete(self, request: Request, file: str) -> bool:
+        raise AssertionError("can_delete must not be called on a resolving policy")
+
+    async def can_list(self, request: Request, dir: str) -> bool:
+        raise AssertionError("can_list must not be called on a resolving policy")
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        raise AssertionError("can_write must not be called on a resolving policy")
+
+    async def resolve_read(self, request: Request, location: str) -> str:
+        self.resolved.append(("read", location))
+        return self.canonical
+
+    async def resolve_write(self, request: Request, location: str) -> str:
+        self.resolved.append(("write", location))
+        return self.canonical
+
+    async def resolve_delete(self, request: Request, location: str) -> str:
+        self.resolved.append(("delete", location))
+        return self.canonical
+
+    async def resolve_list(self, request: Request, location: str | None) -> str:
+        self.resolved.append(("list", location))
+        return self.canonical
+
+
+def test_resolving_policy_is_used_directly_and_its_location_is_read() -> None:
+    canonical = "memory://canonical/dir/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_fake_eval_log(canonical.removeprefix("memory://"))
+    policy = _AliasResolvingPolicy(canonical)
+    assert isinstance(policy, fastapi_server.ResolvingAccessPolicy)
+    app = fastapi_server.view_server_app(access_policy=policy)
+    with fastapi.testclient.TestClient(app) as client:
+        response = client.get("/logs/alias%2Fx.eval")
+        assert response.status_code == 200
+        assert response.json()["eval"]["task"] == "task"
+    assert policy.resolved == [("read", "alias/x.eval")]
+
+
+def test_resolving_policy_default_binding_for_absent_listing(tmp_path: Path) -> None:
+    write_eval_log(tmp_path, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    policy = _AliasResolvingPolicy(str(tmp_path))
+    app = fastapi_server.view_server_app(access_policy=policy, default_dir="/ignored")
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get("/logs").status_code == 200
+        assert client.get("/log-dir").status_code == 200
+        # a child under an absent base joins onto the policy's default binding
+        assert client.get("/eval-set?dir=sub").status_code == 200
+    assert policy.resolved == [
+        ("list", None),
+        ("list", None),
+        ("list", None),
+        ("list", f"{tmp_path}/sub"),
+    ]
+
+
+def test_access_policy_none_still_means_no_checks(tmp_path: Path) -> None:
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    log = write_eval_log(elsewhere, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    app = fastapi_server.view_server_app(default_dir=str(tmp_path / "default"))
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get(f"/logs/{log}").status_code == 200
+        assert client.get(f"/logs?log_dir={elsewhere}").status_code == 200
+
+
+def _standalone_layout(tmp_path: Path) -> tuple[Path, str]:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    (logs / "sub").mkdir()
+    (tmp_path / "logs-evil").mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    write_eval_log(outside, "2025-01-01T00-00-00+00-00_secret_secretid.eval")
+    write_eval_log(tmp_path / "logs-evil", "2025-01-01T00-00-00+00-00_evil_evilid.eval")
+    log = write_eval_log(logs, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    try:
+        (logs / "link-out").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are not supported here")
+    return logs, log
+
+
+def test_standalone_only_dir_policy_contains_requests(tmp_path: Path) -> None:
+    """Standalone `inspect view` keeps working inside log_dir and refuses escapes."""
+    logs, log = _standalone_layout(tmp_path)
+    app = fastapi_server.view_server_app(
+        default_dir=str(logs),
+        access_policy=fastapi_server.OnlyDirAccessPolicy(str(logs)),
+    )
+    secret = tmp_path / "outside" / "2025-01-01T00-00-00+00-00_secret_secretid.eval"
+    evil = tmp_path / "logs-evil" / "2025-01-01T00-00-00+00-00_evil_evilid.eval"
+    with fastapi.testclient.TestClient(app) as client:
+        # everything the viewer does inside log_dir still works
+        assert client.get(f"/logs/{log}").status_code == 200
+        assert (
+            client.get(
+                f"/logs/{urllib.parse.quote(Path(log).as_uri(), safe='')}"
+            ).status_code
+            == 200
+        )
+        assert client.get(f"/log-size/{log}").status_code == 200
+        assert client.get(f"/log-info/{log}").status_code == 200
+        assert client.get(f"/log-bytes/{log}?start=0&end=10").status_code == 200
+        assert client.get(f"/log-download/{log}").status_code == 200
+        assert (
+            client.get(
+                f"/log-headers?file={urllib.parse.quote(log, safe='')}"
+            ).status_code
+            == 200
+        )
+        assert client.get("/logs").status_code == 200
+        assert client.get(f"/logs?log_dir={logs}").status_code == 200
+        assert client.get(f"/logs?log_dir={logs}/").status_code == 200
+        single = client.get(f"/logs?log_dir={urllib.parse.quote(log, safe='')}")
+        assert single.status_code == 200 and len(single.json()["files"]) == 1
+        assert client.get("/log-dir").status_code == 200
+        assert client.get("/log-files").status_code == 200
+        assert client.get("/eval-set").status_code == 200
+        assert client.get("/eval-set?dir=sub").status_code == 200
+        assert client.get("/flow?dir=sub").status_code == 404
+        assert (
+            client.get(
+                f"/pending-samples?log={urllib.parse.quote(log, safe='')}"
+            ).status_code
+            == 404
+        )
+        assert client.get(f"/logs?log_dir={logs}/not-yet-created").status_code != 403
+        edited = client.post(
+            f"/log-edit/{log}", headers=FRONTEND_REQUEST_HEADERS, json=_LOG_EDIT_BODY
+        )
+        assert edited.status_code == 200
+
+        # escapes are refused
+        assert client.get(f"/logs/{secret}").status_code == 403
+        assert client.get(f"/logs/{evil}").status_code == 403
+        assert client.get(f"/logs/{logs}/link-out/{secret.name}").status_code == 403
+        assert client.get(f"/logs/{logs}/../outside/{secret.name}").status_code == 403
+        assert client.get(f"/logs?log_dir={tmp_path / 'logs-evil'}").status_code == 403
+        assert client.get(f"/logs?log_dir={logs}/link-out").status_code == 403
+        assert (
+            client.get(
+                f"/log-headers?file={urllib.parse.quote(log, safe='')}&file={urllib.parse.quote(str(secret), safe='')}"
+            ).status_code
+            == 403
+        )
+        assert client.get("/eval-set?dir=../outside").status_code == 400
+        assert client.get("/flow?dir=../outside").status_code == 400
+        assert client.get(f"/eval-set?log_dir={tmp_path}").status_code == 403
+        assert (
+            client.request(
+                "DELETE", f"/log-delete/{secret}", headers=FRONTEND_REQUEST_HEADERS
+            ).status_code
+            == 403
+        )
+        assert secret.exists()
+        assert (
+            client.request(
+                "DELETE", f"/log-delete/{log}", headers=FRONTEND_REQUEST_HEADERS
+            ).status_code
+            == 200
+        )
+        assert not Path(log).exists()
+
+
+def test_only_dir_policy_can_methods_use_the_canonicalizer(tmp_path: Path) -> None:
+    logs, log = _standalone_layout(tmp_path)
+    policy = fastapi_server.OnlyDirAccessPolicy(str(logs))
+    request = cast(Request, None)
+    assert asyncio.run(policy.can_read(request, log))
+    assert asyncio.run(policy.can_list(request, str(logs)))
+    assert not asyncio.run(policy.can_read(request, str(logs / "link-out" / "x.eval")))
+    assert not asyncio.run(
+        policy.can_read(request, str(tmp_path / "logs-evil" / "x.eval"))
+    )
+    assert not asyncio.run(policy.can_write(request, str(logs / ".." / "x.eval")))
+
+
+def test_standalone_only_dir_policy_over_s3(mock_s3: None) -> None:
+    """The canonicalizer confines an S3 log_dir; one permitted read, then denials.
+
+    A single S3 I/O per TestClient: a second aiobotocore call in this harness
+    trips over a client bound to a closed loop. Listing over a remote root is
+    covered by the memory:// test below.
+    """
+    root = "s3://test-bucket/scoped-logs"
+    inside = f"{root}/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    sibling = (
+        "s3://test-bucket/scoped-logs-evil/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    )
+    _write_eval_log_to_s3(inside)
+    _write_eval_log_to_s3(sibling)
+    app = fastapi_server.view_server_app(
+        default_dir=root, access_policy=fastapi_server.OnlyDirAccessPolicy(root)
+    )
+
+    def q(location: str) -> str:
+        return urllib.parse.quote(location, safe="")
+
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get(f"/logs/{q(inside)}").status_code == 200
+        assert client.get(f"/logs/{q(sibling)}").status_code == 403
+        assert client.get(f"/log-bytes/{q(sibling)}?start=0&end=10").status_code == 403
+        assert (
+            client.get(f"/logs/{q(root + '/../scoped-logs-evil/x.eval')}").status_code
+            == 403
+        )
+        assert (
+            client.get(f"/logs/{q('s3://other-bucket/scoped-logs/x.eval')}").status_code
+            == 403
+        )
+        assert (
+            client.get("/logs?log_dir=s3://test-bucket/scoped-logs-evil").status_code
+            == 403
+        )
+        assert client.get("/logs?log_dir=s3://test-bucket").status_code == 403
+
+
+def test_standalone_only_dir_policy_over_remote_listing() -> None:
+    """Listing and reading a remote root go through the canonicalizer too (memory://)."""
+    root = "memory://scoped/logs"
+    log = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_fake_eval_log(f"scoped/logs/{log}")
+    write_fake_eval_log(f"scoped/logs-evil/{log}")
+    app = fastapi_server.view_server_app(
+        default_dir=root, access_policy=fastapi_server.OnlyDirAccessPolicy(root)
+    )
+
+    def q(location: str) -> str:
+        return urllib.parse.quote(location, safe="")
+
+    with fastapi.testclient.TestClient(app) as client:
+        listing = client.get("/logs")
+        assert listing.status_code == 200
+        assert len(listing.json()["files"]) == 1
+        assert client.get(f"/logs?log_dir={root}").status_code == 200
+        assert client.get(f"/logs?log_dir={root}/").status_code == 200
+        assert client.get("/logs?log_dir=memory://SCOPED/logs//").status_code == 200
+        assert client.get(f"/logs/{q(root + '/' + log)}").status_code == 200
+        assert client.get(f"/logs/{q(root + '//' + log)}").status_code == 200
+        assert client.get("/eval-set?dir=sub").status_code == 200
+        assert client.get("/logs?log_dir=memory://scoped/logs-evil").status_code == 403
+        assert client.get("/logs?log_dir=memory://scoped").status_code == 403
+        assert (
+            client.get(f"/logs/{q('memory://scoped/logs-evil/' + log)}").status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/logs/{q('memory://scoped/logs/../logs-evil/' + log)}"
+            ).status_code
+            == 403
+        )
+        assert client.get(f"/logs/{q(root + '/' + log + '?v=1')}").status_code == 403
+
+
+class _DenyAllRecordingResolver:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def _deny(self) -> str:
+        self.calls += 1
+        raise fastapi.HTTPException(status_code=403)
+
+    async def resolve_read(self, request: Request, location: str) -> str:
+        return await self._deny()
+
+    async def resolve_write(self, request: Request, location: str) -> str:
+        return await self._deny()
+
+    async def resolve_delete(self, request: Request, location: str) -> str:
+        return await self._deny()
+
+    async def resolve_list(self, request: Request, location: str | None) -> str:
+        return await self._deny()
+
+
+# Routes that carry no location and therefore never consult the resolver.
+ROUTES_WITHOUT_LOCATION: set[tuple[str, str]] = {
+    ("GET", "/user-info"),
+    ("GET", "/events"),
+    ("GET", "/app-config"),
+    ("GET", "/scout/searches"),
+}
+
+# Mounted inspect_scout routes that carry a directory but are not yet routed
+# through the resolver (they come under it with the scoped-authorization
+# middleware in the next commit).
+ROUTES_PENDING_RESOLVER: set[tuple[str, str]] = {
+    ("POST", "/scout/transcripts/{dir}/{id}/search"),
+    ("GET", "/scout/transcripts/{dir}/{id}/searches/{search_id}"),
+}
+
+# How to send each location-bearing route a syntactically valid location.
+_ROUTE_REQUESTS: dict[tuple[str, str], tuple[str, dict[str, str], Any]] = {
+    ("GET", "/logs/{log:path}"): ("/logs/some/file.eval", {}, None),
+    ("GET", "/log-size/{log:path}"): ("/log-size/some/file.eval", {}, None),
+    ("GET", "/log-info/{log:path}"): ("/log-info/some/file.eval", {}, None),
+    ("DELETE", "/log-delete/{log:path}"): (
+        "/log-delete/some/file.eval",
+        FRONTEND_REQUEST_HEADERS,
+        None,
+    ),
+    ("POST", "/log-edit/{log:path}"): (
+        "/log-edit/some/file.eval",
+        FRONTEND_REQUEST_HEADERS,
+        _LOG_EDIT_BODY,
+    ),
+    ("GET", "/log-bytes/{log:path}"): (
+        "/log-bytes/some/file.eval?start=0&end=1",
+        {},
+        None,
+    ),
+    ("GET", "/log-download/{log:path}"): ("/log-download/some/file.eval", {}, None),
+    ("GET", "/log-dir"): ("/log-dir?log_dir=some/dir", {}, None),
+    ("GET", "/log-files"): ("/log-files?log_dir=some/dir", {}, None),
+    ("GET", "/logs"): ("/logs?log_dir=some/dir", {}, None),
+    ("GET", "/eval-set"): ("/eval-set?log_dir=some/dir", {}, None),
+    ("GET", "/flow"): ("/flow?log_dir=some/dir", {}, None),
+    ("GET", "/log-headers"): ("/log-headers?file=some/file.eval", {}, None),
+    ("GET", "/pending-samples"): ("/pending-samples?log=some/file.eval", {}, None),
+    ("POST", "/log-message"): (
+        "/log-message?log_file=some/file.eval&message=hi",
+        FRONTEND_REQUEST_HEADERS,
+        None,
+    ),
+    ("GET", "/pending-sample-data"): (
+        "/pending-sample-data?log=some/file.eval&id=1&epoch=0",
+        {},
+        None,
+    ),
+    ("GET", "/pending-sample-data-urls"): (
+        "/pending-sample-data-urls?log=some/file.eval&id=1&epoch=0",
+        {},
+        None,
+    ),
+}
+
+
+def _api_routes(app: fastapi.FastAPI) -> list[tuple[str, str]]:
+    """Every (method, path) the app serves, flattening lazily included routers."""
+    found: list[tuple[str, str]] = []
+
+    def visit(routes: list[Any], prefix: str) -> None:
+        for route in routes:
+            original = getattr(route, "original_router", None)
+            if original is not None:
+                context = getattr(route, "include_context", None)
+                visit(original.routes, prefix + getattr(context, "prefix", ""))
+                continue
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", None)
+            if (
+                path is None
+                or not methods
+                or not isinstance(route, fastapi.routing.APIRoute)
+            ):
+                continue
+            for method in methods:
+                found.append((method, prefix + path))
+
+    visit(list(app.routes), "")
+    return sorted(found)
+
+
+def test_every_route_is_classified_and_consults_the_resolver() -> None:
+    """Every route either carries no location or consults the resolver.
+
+    Adding a route forces a decision: put it in ROUTES_WITHOUT_LOCATION or
+    give it a request recipe here and make it call `_resolve_*`.
+    """
+    resolver = _DenyAllRecordingResolver()
+    app = fastapi_server.view_server_app(access_policy=resolver)
+    unclassified: list[tuple[str, str]] = []
+    with fastapi.testclient.TestClient(app) as client:
+        for key in _api_routes(app):
+            if key in ROUTES_WITHOUT_LOCATION or key in ROUTES_PENDING_RESOLVER:
+                continue
+            recipe = _ROUTE_REQUESTS.get(key)
+            if recipe is None:
+                unclassified.append(key)
+                continue
+            url, headers, body = recipe
+            resolver.calls = 0
+            kwargs: dict[str, Any] = {"headers": headers}
+            if body is not None:
+                kwargs["json"] = body
+            response = client.request(key[0], url, **kwargs)
+            assert response.status_code == 403, (key, response.status_code)
+            assert resolver.calls >= 1, key
+    assert not unclassified, (
+        "routes carrying a location must consult the resolver and have a request "
+        f"recipe in _ROUTE_REQUESTS, or be listed in ROUTES_WITHOUT_LOCATION: {unclassified}"
+    )
+    stale = {key for key in _ROUTE_REQUESTS if key not in set(_api_routes(app))}
+    assert not stale, f"recipes for routes that no longer exist: {stale}"
+
+
+def test_locations_are_decoded_only_in_the_resolver_helpers() -> None:
+    """Static guard for the decode-once rule.
+
+    `normalize_uri(` and `unquote(` may be called only inside `_decode_location`
+    in fastapi_server.py; a route decoding on its own would reintroduce the
+    check/use divergence the resolver layer exists to remove.
+    """
+    import ast
+
+    source_path = Path(fastapi_server.__file__)
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    offenders: list[str] = []
+
+    def callee_name(call: ast.Call) -> str | None:
+        func = call.func
+        if isinstance(func, ast.Name):
+            return func.id
+        if isinstance(func, ast.Attribute):
+            return func.attr
+        return None
+
+    def visit(node: ast.AST, enclosing: str | None) -> None:
+        for child in ast.iter_child_nodes(node):
+            name = enclosing
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                name = child.name
+            if isinstance(child, ast.Call) and callee_name(child) in (
+                "normalize_uri",
+                "unquote",
+            ):
+                if enclosing != "_decode_location":
+                    offenders.append(f"{source_path.name}:{child.lineno}")
+            visit(child, name)
+
+    visit(tree, None)
+    assert not offenders, (
+        "locations must be decoded only by _decode_location (decode-once rule): "
+        f"{offenders}"
+    )

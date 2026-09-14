@@ -45,6 +45,7 @@ inspect_ai = [
     "_view/dist/**/*",
     "**/*.jsonl",
     "_view/log-schema.json",
+    "_view/scope_conformance.json",
     "py.typed",
 ]
 

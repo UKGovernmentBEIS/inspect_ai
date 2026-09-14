@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Inspect View: the standalone viewer now refuses log paths that escape the log directory through symlinks or same-prefix sibling directories and rejects `..` in the eval-set and flow `dir` parameter; embedders gain an optional `ResolvingAccessPolicy` protocol, and existing `AccessPolicy` implementations need no change.
 - OpenAI-compatible token-counting and compaction endpoints that return 405 are now handled the same as those that return 404.
 - Bedrock and SageMaker now require `aiobotocore` instead of `aioboto3`, which is no longer installed, and Inspect no longer holds `botocore` back to an old release.
 - Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.

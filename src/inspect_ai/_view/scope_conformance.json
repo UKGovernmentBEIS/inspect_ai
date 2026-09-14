@@ -1,0 +1,4057 @@
+{
+  "$schema_note": "Conformance corpus for inspect_ai._view.scope (design/viewer-scoped-authorization.md section 7). cases: resolve `location` (null = absent, default binding) for `permission` under `scope`; `decode` names the route-layer decode applied first (path = normalize_uri, query = urllib.parse.unquote, null = none); `platform` restricts a case (posix, windows, null = any). {tmp} is the resolved fixture root, {tmp_uri} its file: URI. claims: scope_from_claims validity. children: resolve_child.",
+  "version": 1,
+  "fixture": {
+    "dirs": [
+      "logs",
+      "logs/sub",
+      "logs/x",
+      "logs-evil",
+      "outside"
+    ],
+    "files": [
+      "logs/run.eval",
+      "logs-evil/x.eval",
+      "outside/secret.eval"
+    ],
+    "symlinks": {
+      "logs/link-out": "outside",
+      "logs/file-link": "outside/secret.eval",
+      "alias": "logs"
+    }
+  },
+  "cases": [
+    {
+      "id": "local-dir-read-descendant",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-read-file-uri",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-root-spelled-as-uri",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-read-self-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix",
+      "notes": "a directory root refuses itself for read"
+    },
+    {
+      "id": "local-dir-list-self",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-list-self-trailing-slash",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-list-descendant-file",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-list-descendant-dir",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/sub",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/sub"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-write-descendant",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "write",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-delete-descendant",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "delete",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-prefix-sibling",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs-evil/x.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-prefix-sibling-list",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs-evil",
+      "permission": "list",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-symlink-dir-escape",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/link-out/secret.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-symlink-file-escape",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/file-link",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-symlink-dir-escape-list",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/link-out",
+      "permission": "list",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-missing-suffix-allowed",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/new/sub/x.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/new/sub/x.eval"
+      },
+      "platform": "posix",
+      "notes": "a not-yet-existing subdirectory resolves through the nearest existing ancestor"
+    },
+    {
+      "id": "local-dir-dotdot-inside",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/sub/../run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-dotdot-escape",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/../outside/secret.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-dotdot-then-back",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/../logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-bare-relative-escape",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "../x",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix",
+      "notes": "cwd is {tmp} during the test"
+    },
+    {
+      "id": "local-dir-bare-relative-inside",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix",
+      "notes": "cwd is {tmp} during the test"
+    },
+    {
+      "id": "local-dir-duplicate-separators",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs//sub///run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/sub/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-single-dot",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/./run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-posix-backslash-is-a-name",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/a\\b.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/a\\b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-file-uri-backslash",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs\\..\\outside/secret.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-empty-location",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-nul-byte",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/a\u0000b.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-other-scheme",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-unsupported-scheme",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "unsupported://dir/file.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-http-candidate",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-file-uri-localhost",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "file://localhost{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-file-uri-other-host",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "file://evil.test{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-file-uri-userinfo",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "file://user@localhost{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-file-uri-port",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "file://localhost:80{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-file-uri-no-path",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "file://",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-file-scheme-uppercase",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "FILE://{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-permission-not-granted-write",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "write",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-permission-not-granted-delete",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "delete",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-unknown-permission-ignored",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "admin"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-unknown-permission-grants-nothing",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "admin"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-query-char-in-bare-path",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/a?b.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/a?b.eval"
+      },
+      "platform": "posix",
+      "notes": "after decode-once, ? is a file-name character in a bare path"
+    },
+    {
+      "id": "local-dir-hash-char-in-bare-path",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/a#b.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/a#b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-percent-literal",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/a%2Fb.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/a%2Fb.eval"
+      },
+      "platform": "posix",
+      "notes": "no second decode: %2F stays literal"
+    },
+    {
+      "id": "route-path-encoded-slash",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/a%2Fb.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "{tmp}/logs/a/b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "route-path-double-encoded-slash",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/a%252Fb.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "{tmp}/logs/a%2Fb.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "route-path-encoded-dotdot-slash",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/..%2Foutside/secret.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "route-path-encoded-dots",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/%2e%2e/outside/secret.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "route-path-finding-4304664-raw-hash",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/x#/../../etc/passwd",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "{tmp}/logs/x"
+      },
+      "platform": "posix",
+      "notes": "normalize_uri drops the fragment; the server reads exactly what it checked"
+    },
+    {
+      "id": "route-path-finding-4304664-encoded-hash",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/x%23/../../etc/passwd",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "{tmp}/logs/x"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "route-path-finding-4304664-literal",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/x#/../../etc/passwd",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix",
+      "notes": "the same string with no route decoding is a literal path that escapes"
+    },
+    {
+      "id": "route-path-encoded-question",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/a%3Fb.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "{tmp}/logs/a?b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "route-path-file-uri-question-is-query",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/a%3Fb.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "{tmp}/logs/a"
+      },
+      "platform": "posix",
+      "notes": "normalize_uri parses a file: URI and drops its query; still inside the root"
+    },
+    {
+      "id": "route-query-encoded-space",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/a%20b.eval",
+      "permission": "read",
+      "decode": "query",
+      "expect": {
+        "resolved": "{tmp}/logs/a b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "route-query-double-encoded",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/a%2520b.eval",
+      "permission": "read",
+      "decode": "query",
+      "expect": {
+        "resolved": "{tmp}/logs/a%20b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "route-query-encoded-dotdot",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/%2e%2e/outside/secret.eval",
+      "permission": "read",
+      "decode": "query",
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "route-path-remote-encoded-dots",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/%2e%2e/private/run.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "route-path-remote-encoded-slash",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/a%2Fb.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "s3://bucket/logs/a/b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-symlinked-root-target-path",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/alias",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix",
+      "notes": "a root given as a symlink is canonicalized to its target when the token is parsed"
+    },
+    {
+      "id": "local-symlinked-root-alias-path",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/alias",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/alias/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-symlinked-root-list-self",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/alias",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/alias",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-file-read-exact",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs/run.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-file-read-via-alias",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs/run.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/alias/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-file-read-via-uri",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs/run.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-file-list-exact",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs/run.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix",
+      "notes": "list on a file root means list exactly this file"
+    },
+    {
+      "id": "local-file-parent-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs/run.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs",
+      "permission": "list",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-file-sibling-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs/run.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/other.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-file-descendant-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs/run.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval/x",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-file-dotdot-inside",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs/run.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/sub/../run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "default-single-dir-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": null,
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "default-single-file-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs/run.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": null,
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "default-two-roots",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          },
+          {
+            "uri": "{tmp}/outside",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": null,
+      "permission": "list",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "default-permission-not-granted",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read"
+            ]
+          }
+        ]
+      },
+      "location": null,
+      "permission": "list",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "default-symlinked-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/alias",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": null,
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "multi-first-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          },
+          {
+            "uri": "{tmp}/outside",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "multi-second-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          },
+          {
+            "uri": "{tmp}/outside",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/outside/secret.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/outside/secret.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "multi-permission-per-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          },
+          {
+            "uri": "{tmp}/outside",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval",
+      "permission": "write",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "multi-permission-per-root-granted",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          },
+          {
+            "uri": "{tmp}/outside",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/outside/secret.eval",
+      "permission": "write",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/outside/secret.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "multi-neither",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          },
+          {
+            "uri": "{tmp}/outside",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs-evil/x.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "remote-dir-read-descendant",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs/run.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-read-nested",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/nested/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs/nested/run.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-read-self-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-list-self",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-list-self-trailing-slash",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-prefix-sibling",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs-archive/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-other-authority",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://other/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-dotdot",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/../private/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-dotdot-inside-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/sub/../run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null,
+      "notes": "remote paths reject .. components outright rather than normalizing them"
+    },
+    {
+      "id": "remote-dir-literal-percent-dots",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/%2e%2e/private/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs/%2e%2e/private/run.eval"
+      },
+      "platform": null,
+      "notes": "no second decode: %2e%2e is a literal key component inside the root"
+    },
+    {
+      "id": "remote-dir-case-folds-scheme-and-authority",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "S3://Bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs/run.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-duplicate-separators",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs//run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs/run.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-single-dot",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/./run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs/run.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-query-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/run.eval?versionId=1",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-fragment-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/run.eval#frag",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-backslash-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/a\\b.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-space-literal",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/a b.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs/a b.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-userinfo-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://user@bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-file-scheme-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "file:///bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-https-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-bare-path-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-no-authority",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3:///logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-gs",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "gs://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "gs://bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "gs://bucket/logs/run.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-az",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "az://container/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "az://container/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "az://container/logs/run.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-authority-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/run.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-authority-root-list-self",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-default-single-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": null,
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-file-alias-resolves",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "memory://bucket/logs/secret.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "memory://bucket/logs//secret.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "memory://bucket/logs/secret.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-file-exact",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "memory://bucket/logs/secret.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "memory://bucket/logs/secret.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "memory://bucket/logs/secret.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-file-list-exact",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "memory://bucket/logs/secret.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "memory://bucket/logs/secret.eval",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "memory://bucket/logs/secret.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-file-sibling",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "memory://bucket/logs/secret.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "memory://bucket/logs/other.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-file-parent",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "memory://bucket/logs/secret.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "memory://bucket/logs",
+      "permission": "list",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-file-query-canonical",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/run.eval?credential=team%2Fmember&label=hello%20world",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/run.eval?credential=team/member&label=hello world",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/run.eval?credential=team%2Fmember&label=hello%20world"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-file-query-exact",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/run.eval?credential=team%2Fmember&label=hello%20world",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/run.eval?credential=team%2Fmember&label=hello%20world",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/run.eval?credential=team%2Fmember&label=hello%20world"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-file-query-missing",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/run.eval?credential=team%2Fmember&label=hello%20world",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-file-query-different",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/run.eval?credential=team%2Fmember&label=hello%20world",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/run.eval?credential=other&label=hello%20world",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-file-query-reordered-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/run.eval?credential=team%2Fmember&label=hello%20world",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/run.eval?label=hello%20world&credential=team%2Fmember",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-exact",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/logs/run.eval?expires=60&signature=selected",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "https://example.test/logs/run.eval?expires=60&signature=selected"
+      },
+      "platform": null
+    },
+    {
+      "id": "http-list-exact",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/logs/run.eval?expires=60&signature=selected",
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "https://example.test/logs/run.eval?expires=60&signature=selected"
+      },
+      "platform": null
+    },
+    {
+      "id": "http-other-signature",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/logs/run.eval?expires=60&signature=other",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-no-query",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-reordered-query",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/logs/run.eval?signature=selected&expires=60",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-duplicate-param",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/logs/run.eval?expires=60&signature=selected&signature=selected",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-other-host",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://other.test/logs/run.eval?expires=60&signature=selected",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-scheme-case-differs",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "HTTPS://example.test/logs/run.eval?expires=60&signature=selected",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-encoded-ampersand-exact",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/run.eval?token=a%26b&credential=team%2Fmember",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/run.eval?token=a%26b&credential=team%2Fmember",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "https://example.test/run.eval?token=a%26b&credential=team%2Fmember"
+      },
+      "platform": null
+    },
+    {
+      "id": "http-encoded-ampersand-decoded-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/run.eval?token=a%26b&credential=team%2Fmember",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/run.eval?token=a&b&credential=team%2Fmember",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-encoded-slash-decoded-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/run.eval?token=a%26b&credential=team%2Fmember",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/run.eval?token=a%26b&credential=team/member",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-encoded-delimiters-exact",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/a%3Fb%23c.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/logs/a%3Fb%23c.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "https://example.test/logs/a%3Fb%23c.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "http-fragment-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/a%3Fb%23c.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/logs/a%3Fb%23c.eval#x",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-write-not-granted",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "https://example.test/logs/run.eval?expires=60&signature=selected",
+      "permission": "write",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-candidate-against-s3-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "https://bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "http-default-single-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": null,
+      "permission": "list",
+      "decode": null,
+      "expect": {
+        "resolved": "https://example.test/logs/run.eval?expires=60&signature=selected"
+      },
+      "platform": null
+    },
+    {
+      "id": "windows-drive-backslash-path",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "file:///C:/w/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "C:\\w\\logs\\run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "C:\\w\\logs\\run.eval"
+      },
+      "platform": "windows"
+    },
+    {
+      "id": "windows-drive-forward-slash-path",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "file:///C:/w/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "C:/w/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "C:\\w\\logs\\run.eval"
+      },
+      "platform": "windows"
+    },
+    {
+      "id": "windows-normalize-uri-drive-authority",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "file:///C:/w/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "file://C:/w/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "C:\\w\\logs\\run.eval"
+      },
+      "platform": "windows",
+      "notes": "the file://C:/... spelling normalize_uri emits"
+    },
+    {
+      "id": "windows-lowercase-drive-folds",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "file:///C:/w/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "file:///c:/w/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "C:\\w\\logs\\run.eval"
+      },
+      "platform": "windows"
+    },
+    {
+      "id": "windows-prefix-sibling",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "file:///C:/w/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "C:\\w\\logs-evil\\run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "windows"
+    },
+    {
+      "id": "windows-dotdot-escape",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "file:///C:/w/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "C:\\w\\logs\\..\\other\\run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "windows"
+    },
+    {
+      "id": "windows-unc-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "file://server/share/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "file://server/share/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "\\\\server\\share\\logs\\run.eval"
+      },
+      "platform": "windows"
+    }
+  ],
+  "claims": [
+    {
+      "id": "valid-basic",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "valid"
+    },
+    {
+      "id": "valid-remote",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "s3://bucket/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "valid"
+    },
+    {
+      "id": "valid-http-file",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "https://example.test/logs/run.eval?expires=60&signature=selected",
+              "kind": "file",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "valid"
+    },
+    {
+      "id": "valid-unknown-claim-field",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ],
+          "future": {
+            "x": 1
+          }
+        }
+      },
+      "expect": "valid",
+      "notes": "unknown fields inside the claim are ignored"
+    },
+    {
+      "id": "valid-unknown-permission",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "admin"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "valid"
+    },
+    {
+      "id": "valid-empty-roots-with-project",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [],
+          "project": {
+            "uri": "{tmp}/proj",
+            "permissions": [
+              "read"
+            ]
+          }
+        }
+      },
+      "expect": "valid"
+    },
+    {
+      "id": "valid-reserved-fields",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ],
+          "transcripts": [
+            {
+              "uri": "s3://team/transcripts",
+              "kind": "dir"
+            }
+          ],
+          "project": {
+            "uri": "{tmp}/proj",
+            "permissions": [
+              "read",
+              "write"
+            ]
+          },
+          "actions": [
+            "start-scan"
+          ]
+        }
+      },
+      "expect": "valid"
+    },
+    {
+      "id": "valid-other-jwt-claims-ignored",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        },
+        "sub": "logview:1",
+        "iat": 1,
+        "custom": true
+      },
+      "expect": "valid"
+    },
+    {
+      "id": "invalid-missing-claim",
+      "claim": {
+        "sub": "x"
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-claim-not-object",
+      "claim": {
+        "inspect_view_scope": "file:///w/logs"
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-empty-roots",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": []
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-version-2",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 2,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-version-missing",
+      "claim": {
+        "inspect_view_scope": {
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-roots-not-list",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": {
+            "uri": "{tmp}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-root-not-object",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            "{tmp}/logs"
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-root-kind",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "folder",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-root-kind-missing",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-root-uri-missing",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-root-uri-empty",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-root-uri-unparseable",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "s3:///no-authority",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-permissions-not-list",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": "read"
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-permission-not-string",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                1
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-http-dir-root",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "https://example.test/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-remote-dir-root-with-query",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "s3://bucket/logs?version=1",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-transcripts-not-list",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ],
+          "transcripts": "s3://team/transcripts"
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-transcript-entry",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ],
+          "transcripts": [
+            {
+              "kind": "dir"
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-transcript-kind",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ],
+          "transcripts": [
+            {
+              "uri": "s3://team/t",
+              "kind": "bucket"
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-project-shape",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ],
+          "project": "{tmp}/proj"
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-actions-shape",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list",
+                "write",
+                "delete"
+              ]
+            }
+          ],
+          "actions": "start-scan"
+        }
+      },
+      "expect": "invalid"
+    }
+  ],
+  "children": [
+    {
+      "id": "child-empty-base",
+      "base": "",
+      "child": "/a/b",
+      "expect": {
+        "joined": "a/b"
+      }
+    },
+    {
+      "id": "child-plain",
+      "base": "s3://bucket/logs",
+      "child": "x",
+      "expect": {
+        "joined": "s3://bucket/logs/x"
+      }
+    },
+    {
+      "id": "child-leading-slash-tolerated",
+      "base": "base",
+      "child": "/x",
+      "expect": {
+        "joined": "base/x"
+      }
+    },
+    {
+      "id": "child-nested",
+      "base": "base",
+      "child": "a/b/c",
+      "expect": {
+        "joined": "base/a/b/c"
+      }
+    },
+    {
+      "id": "child-slash-only",
+      "base": "base",
+      "child": "/",
+      "expect": {
+        "joined": "base/"
+      }
+    },
+    {
+      "id": "child-dotdot-middle",
+      "base": "base",
+      "child": "a/../b",
+      "expect": "rejected"
+    },
+    {
+      "id": "child-dotdot-only",
+      "base": "base",
+      "child": "..",
+      "expect": "rejected"
+    },
+    {
+      "id": "child-dotdot-leading",
+      "base": "",
+      "child": "../b",
+      "expect": "rejected"
+    },
+    {
+      "id": "child-backslash",
+      "base": "base",
+      "child": "a\\b",
+      "expect": "rejected"
+    },
+    {
+      "id": "child-finding-4363242-once-decoded",
+      "base": "base",
+      "child": "%2Fhome%2Fvictim%2Fother",
+      "expect": {
+        "joined": "base/%2Fhome%2Fvictim%2Fother"
+      },
+      "notes": "dir=%252Fhome%252Fvictim%252Fother after the server's single query decode; no second decode"
+    },
+    {
+      "id": "child-dotdot-literal-encoded-kept",
+      "base": "base",
+      "child": "%2e%2e/x",
+      "expect": {
+        "joined": "base/%2e%2e/x"
+      }
+    },
+    {
+      "id": "child-dot-kept",
+      "base": "base",
+      "child": "./x",
+      "expect": {
+        "joined": "base/./x"
+      }
+    }
+  ]
+}

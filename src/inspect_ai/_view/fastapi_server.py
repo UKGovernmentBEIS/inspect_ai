@@ -8,7 +8,7 @@ from functools import partial
 from io import BytesIO
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol, runtime_checkable
 
 import anyio
 import uvicorn
@@ -76,6 +76,13 @@ from .network import (
     unsafe_network_warning,
 )
 from .notify import view_last_eval_time
+from .scope import (
+    PERMISSIONS,
+    PathScope,
+    Permission,
+    ScopeRoot,
+    resolve_child,
+)
 from .scout_routes import get_scout_search_router
 from .user_info import UserInfo, user_info
 
@@ -85,6 +92,9 @@ VIEW_REQUEST_HEADER = "X-Inspect-View-Request"
 VIEW_REQUEST_HEADER_VALUE = "true"
 
 SHARED_FS_CLIENT_TTL_SECONDS = 15 * 60
+
+LocationEncoding = Literal["path", "query"]
+"""How a route's location arrives: percent-encoded in the path or in a query value."""
 
 
 class AccessPolicy(Protocol):
@@ -101,6 +111,114 @@ class FileMappingPolicy(Protocol):
     async def map(self, request: Request, file: str) -> str: ...
 
     async def unmap(self, request: Request, file: str) -> str: ...
+
+
+@runtime_checkable
+class ResolvingAccessPolicy(Protocol):
+    """An access policy that returns the location the server must use for I/O.
+
+    Each method authorizes ``location`` for one operation and returns the
+    string the route hands to the filesystem layer, or raises
+    ``HTTPException(403)``. ``resolve_list`` receives ``None`` for an absent
+    listing location and decides what that binds to. ``view_server_app`` uses
+    a policy satisfying this protocol as is; a plain ``AccessPolicy`` is
+    wrapped in ``CanonicalizingAdapter``. See
+    ``design/viewer-scoped-authorization.md`` section 3.
+    """
+
+    async def resolve_read(self, request: Request, location: str) -> str: ...
+
+    async def resolve_write(self, request: Request, location: str) -> str: ...
+
+    async def resolve_delete(self, request: Request, location: str) -> str: ...
+
+    async def resolve_list(self, request: Request, location: str | None) -> str: ...
+
+
+class CanonicalizingAdapter:
+    """Present a plain ``AccessPolicy`` (or ``None``) as a ``ResolvingAccessPolicy``.
+
+    Despite the name, the adapter itself canonicalizes nothing: a plain policy
+    may be keyed on a relative or bucket-relative spelling and a mapping
+    policy owns the translation to storage, so the caller-supplied
+    once-decoded string is what ``can_*`` receives and what is returned for
+    I/O, exactly as the routes behaved before the resolver layer existed. An
+    absent listing location binds to ``default_dir``. With ``policy=None``
+    every location is permitted (``view_server_app(access_policy=None)``
+    still means no checks).
+    """
+
+    def __init__(self, policy: AccessPolicy | None, default_dir: str) -> None:
+        self._policy = policy
+        self._default_dir = default_dir
+
+    async def resolve_read(self, request: Request, location: str) -> str:
+        if self._policy is not None and not await self._policy.can_read(
+            request, location
+        ):
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        return location
+
+    async def resolve_write(self, request: Request, location: str) -> str:
+        if self._policy is not None and not await self._policy.can_write(
+            request, location
+        ):
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        return location
+
+    async def resolve_delete(self, request: Request, location: str) -> str:
+        if self._policy is not None and not await self._policy.can_delete(
+            request, location
+        ):
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        return location
+
+    async def resolve_list(self, request: Request, location: str | None) -> str:
+        if location is None:
+            location = self._default_dir
+        if self._policy is not None and not await self._policy.can_list(
+            request, location
+        ):
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        return location
+
+
+def _resolve_in_scope(
+    scope: PathScope, location: str | None, permission: Permission
+) -> str:
+    """Resolve ``location`` (or the scope's default when absent) or raise 403."""
+    resolved = (
+        scope.default_location(permission)
+        if location is None
+        else scope.resolve(location, permission)
+    )
+    if resolved is None:
+        raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+    return resolved.io_path
+
+
+class UnscopedResolvingPolicy:
+    """Permit everything and return locations unchanged (the legacy credential path).
+
+    Installed for requests that authenticate with the raw shared secret, so a
+    client that predates scoped authorization sees exactly the behaviour of
+    the policy-less token mode it was written against.
+    """
+
+    def __init__(self, default_dir: str) -> None:
+        self._default_dir = default_dir
+
+    async def resolve_read(self, request: Request, location: str) -> str:
+        return location
+
+    async def resolve_write(self, request: Request, location: str) -> str:
+        return location
+
+    async def resolve_delete(self, request: Request, location: str) -> str:
+        return location
+
+    async def resolve_list(self, request: Request, location: str | None) -> str:
+        return self._default_dir if location is None else location
 
 
 class InspectJsonResponse(JSONResponse):
@@ -147,7 +265,7 @@ class ReleasingStreamingResponse(StreamingResponse):
 
 def view_server_app(
     mapping_policy: FileMappingPolicy | None = None,
-    access_policy: AccessPolicy | None = None,
+    access_policy: AccessPolicy | ResolvingAccessPolicy | None = None,
     default_dir: str = "",
     recursive: bool = True,
     fs_options: dict[str, Any] = {},
@@ -169,25 +287,82 @@ def view_server_app(
             return await mapping_policy.unmap(request, file)
         return file
 
-    async def _validate_read(request: Request, file: str) -> None:
-        if access_policy is not None:
-            if not await access_policy.can_read(request, file):
-                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+    resolver: ResolvingAccessPolicy
+    unchecked_child_base: str | None
+    if isinstance(access_policy, ResolvingAccessPolicy):
+        resolver = access_policy
+        unchecked_child_base = None
+    else:
+        resolver = CanonicalizingAdapter(access_policy, default_dir)
+        unchecked_child_base = default_dir
 
-    async def _validate_delete(request: Request, file: str) -> None:
-        if access_policy is not None:
-            if not await access_policy.can_delete(request, file):
-                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+    def _decode_location(location: str, encoding: LocationEncoding | None) -> str:
+        """Percent-decode a request location exactly once.
 
-    async def _validate_write(request: Request, file: str) -> None:
-        if access_policy is not None:
-            if not await access_policy.can_write(request, file):
-                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        This is the only place a route's location is decoded (the decode-once
+        rule of design section 3, enforced by a static test): path-segment
+        routes and ``/log-headers`` decode through ``normalize_uri``, the
+        query-string sample routes through ``unquote``; ``None`` means the
+        value is already the once-decoded spelling.
+        """
+        if encoding == "path":
+            return normalize_uri(location)
+        if encoding == "query":
+            return urllib.parse.unquote(location)
+        return location
 
-    async def _validate_list(request: Request, file: str) -> None:
-        if access_policy is not None:
-            if not await access_policy.can_list(request, file):
-                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+    def _io_location(caller: str, resolved: str) -> str:
+        # A mapping policy owns the translation to storage and is given the
+        # caller's (now authorized) spelling, as before the resolver layer;
+        # otherwise the resolver's canonical location is used for I/O.
+        return caller if mapping_policy is not None else resolved
+
+    async def _resolve_read(
+        request: Request, location: str, encoding: LocationEncoding | None = "path"
+    ) -> str:
+        decoded = _decode_location(location, encoding)
+        return _io_location(decoded, await resolver.resolve_read(request, decoded))
+
+    async def _resolve_write(
+        request: Request, location: str, encoding: LocationEncoding | None = "path"
+    ) -> str:
+        decoded = _decode_location(location, encoding)
+        return _io_location(decoded, await resolver.resolve_write(request, decoded))
+
+    async def _resolve_delete(
+        request: Request, location: str, encoding: LocationEncoding | None = "path"
+    ) -> str:
+        decoded = _decode_location(location, encoding)
+        return _io_location(decoded, await resolver.resolve_delete(request, decoded))
+
+    async def _resolve_list(request: Request, location: str | None) -> str:
+        resolved = await resolver.resolve_list(request, location)
+        return resolved if location is None else _io_location(location, resolved)
+
+    async def _resolve_list_child(
+        request: Request, log_dir: str | None, sub_dir: str | None
+    ) -> str:
+        """Resolve the directory named by ``/eval-set`` and ``/flow``.
+
+        With a child, the base is the caller's ``log_dir``; when absent it is
+        the server default for a plain policy (unchecked, as before: the
+        joined string is what gets checked) or the scope's default binding for
+        a resolving policy. The child is joined by ``resolve_child`` (400 if it
+        escapes) and the result resolved for listing.
+        """
+        if not sub_dir:
+            return await _resolve_list(request, log_dir or None)
+        if log_dir:
+            base = log_dir
+        elif unchecked_child_base is not None:
+            base = unchecked_child_base
+        else:
+            base = await resolver.resolve_list(request, None)
+        try:
+            joined = resolve_child(base, sub_dir)
+        except ValueError as ex:
+            raise HTTPException(status_code=400, detail=str(ex))
+        return await _resolve_list(request, joined)
 
     def _validate_mutating_request(request: Request) -> None:
         if request.headers.get(VIEW_REQUEST_HEADER) != VIEW_REQUEST_HEADER_VALUE:
@@ -203,22 +378,19 @@ def view_server_app(
         log: str,
         header_only: str | None = Query(None, alias="header-only"),
     ) -> Response:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
+        file = await _resolve_read(request, log)
         body, etag = await get_log_file(await _map_file(request, file), header_only)
         headers = {"ETag": etag} if etag is not None else {}
         return Response(content=body, media_type="application/json", headers=headers)
 
     @app.get("/log-size/{log:path}")
     async def api_log_size(request: Request, log: str) -> int:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
+        file = await _resolve_read(request, log)
         return await get_log_size(await _map_file(request, file))
 
     @app.get("/log-info/{log:path}", response_model_exclude_none=True)
     async def api_log_info(request: Request, log: str) -> LogInfo:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
+        file = await _resolve_read(request, log)
         return await get_log_info(
             await _map_file(request, file),
             generate_direct_url=generate_direct_urls,
@@ -227,16 +399,14 @@ def view_server_app(
     @app.delete("/log-delete/{log:path}")
     async def api_log_delete(request: Request, log: str) -> bool:
         _validate_mutating_request(request)
-        file = normalize_uri(log)
-        await _validate_delete(request, file)
+        file = await _resolve_delete(request, log)
         await delete_log(await _map_file(request, file))
         return True
 
     @app.post("/log-edit/{log:path}", response_model=EvalLog)
     async def api_log_edit(request: Request, log: str, update: LogUpdate) -> Response:
         _validate_mutating_request(request)
-        file = normalize_uri(log)
-        await _validate_write(request, file)
+        file = await _resolve_write(request, log)
         if_match = request.headers.get("If-Match")
         try:
             contents, new_etag = await apply_log_edits(
@@ -262,8 +432,7 @@ def view_server_app(
         start: int = Query(...),
         end: int = Query(...),
     ) -> Response:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
+        file = await _resolve_read(request, log)
         mapped_file = await _map_file(request, file)
 
         # Get actual file size to clamp the requested range
@@ -304,8 +473,7 @@ def view_server_app(
         request: Request,
         log: str,
     ) -> Response:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
+        file = await _resolve_read(request, log)
 
         mapped_file = await _map_file(request, file)
 
@@ -352,9 +520,7 @@ def view_server_app(
         request: Request,
         log_dir: str | None = Query(None, alias="log_dir"),
     ) -> LogDirResponse:
-        if log_dir is None:
-            log_dir = default_dir
-        await _validate_list(request, log_dir)
+        log_dir = await _resolve_list(request, log_dir)
         return get_log_dir(log_dir)
 
     @app.get("/log-files", response_class=InspectJsonResponse)
@@ -362,9 +528,7 @@ def view_server_app(
         request: Request,
         log_dir: str | None = Query(None, alias="log_dir"),
     ) -> LogFilesResponse:
-        if log_dir is None:
-            log_dir = default_dir
-        await _validate_list(request, log_dir)
+        log_dir = await _resolve_list(request, log_dir)
 
         client_etag = request.headers.get("If-None-Match")
         mtime = 0.0
@@ -389,9 +553,7 @@ def view_server_app(
         request: Request,
         log_dir: str | None = Query(None, alias="log_dir"),
     ) -> LogListingResponse | Response:
-        if log_dir is None:
-            log_dir = default_dir
-        await _validate_list(request, log_dir)
+        log_dir = await _resolve_list(request, log_dir)
         listing = await get_logs(
             await _map_file(request, log_dir),
             recursive=recursive,
@@ -416,17 +578,7 @@ def view_server_app(
         log_dir: str = Query(None, alias="log_dir"),
         sub_dir: str = Query(None, alias="dir"),
     ) -> EvalSet | None:
-        # resolve the eval-set directory (using the log_dir and dir params)
-        base_dir = log_dir if log_dir else default_dir
-        if sub_dir and base_dir:
-            eval_set_dir = base_dir + "/" + sub_dir.lstrip("/")
-        elif sub_dir:
-            eval_set_dir = sub_dir.lstrip("/")
-        else:
-            eval_set_dir = base_dir
-
-        # validate that the directory can be listed
-        await _validate_list(request, eval_set_dir)
+        eval_set_dir = await _resolve_list_child(request, log_dir, sub_dir)
 
         # return the eval set info for this directory (async fs, not to_thread —
         # see the fsspec/to_thread warning in AGENTS.md)
@@ -442,17 +594,7 @@ def view_server_app(
         log_dir: str = Query(None, alias="log_dir"),
         sub_dir: str = Query(None, alias="dir"),
     ) -> Response:
-        # resolve the eval-set directory (using the log_dir and dir params)
-        base_dir = log_dir if log_dir else default_dir
-        if sub_dir and base_dir:
-            flow_dir = base_dir + "/" + sub_dir.lstrip("/")
-        elif sub_dir:
-            flow_dir = sub_dir.lstrip("/")
-        else:
-            flow_dir = base_dir
-
-        # validate that the directory can be listed
-        await _validate_list(request, flow_dir)
+        flow_dir = await _resolve_list_child(request, log_dir, sub_dir)
 
         mapped_dir = await _map_file(request, flow_dir)
         sep = filesystem(mapped_dir).sep
@@ -480,13 +622,10 @@ def view_server_app(
     async def api_log_headers(
         request: Request, file: list[str] = Query([])
     ) -> list[EvalLog]:
-        files = [normalize_uri(f) for f in file]
+        async def _resolve_and_map(f: str) -> str:
+            return await _map_file(request, await _resolve_read(request, f))
 
-        async def _validate_and_map(f: str) -> str:
-            await _validate_read(request, f)
-            return await _map_file(request, f)
-
-        mapped_files = await tg_collect([partial(_validate_and_map, f) for f in files])
+        mapped_files = await tg_collect([partial(_resolve_and_map, f) for f in file])
 
         return await read_eval_log_headers_async(mapped_files)
 
@@ -510,8 +649,7 @@ def view_server_app(
     async def api_pending_samples(
         request: Request, log: str = Query(...)
     ) -> Samples | Response:
-        file = urllib.parse.unquote(log)
-        await _validate_read(request, file)
+        file = await _resolve_read(request, log, encoding="query")
 
         client_etag = request.headers.get("If-None-Match")
 
@@ -535,8 +673,7 @@ def view_server_app(
         request: Request, log_file: str, message: str
     ) -> Response:
         _validate_mutating_request(request)
-        file = urllib.parse.unquote(log_file)
-        await _validate_read(request, file)
+        file = await _resolve_read(request, log_file, encoding="query")
 
         logger = logging.getLogger(__name__)
         logger.warning(f"[CLIENT MESSAGE] ({file}): {message}")
@@ -558,8 +695,7 @@ def view_server_app(
         after_message_pool_id: int | None = Query(None, alias="after-message-pool-id"),
         after_call_pool_id: int | None = Query(None, alias="after-call-pool-id"),
     ) -> SampleData | Response:
-        file = urllib.parse.unquote(log)
-        await _validate_read(request, file)
+        file = await _resolve_read(request, log, encoding="query")
 
         # NOTE: sync on the event loop. The sample buffer can be filestore-backed
         # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
@@ -597,8 +733,7 @@ def view_server_app(
         max_segments: int | None = Query(None, alias="max-segments"),
         tail: bool = Query(False),
     ) -> PendingSampleUrls | Response:
-        file = urllib.parse.unquote(log)
-        await _validate_read(request, file)
+        file = await _resolve_read(request, log, encoding="query")
 
         mapped = await _map_file(request, file)
         body = await build_pending_sample_urls(
@@ -700,46 +835,42 @@ class _InspectStaticFiles(StaticFiles):
 
 
 class OnlyDirAccessPolicy(AccessPolicy):
+    """Confine every request to one directory (standalone ``inspect view`` without a token).
+
+    Containment is judged by ``scope.py``'s canonicalizer, so symlink and
+    prefix-sibling escapes are refused and the location returned by the
+    ``resolve_*`` methods is canonical. The ``can_*`` methods remain for
+    callers that consult the policy directly and answer on the same rule.
+    """
+
     def __init__(self, dir: str) -> None:
         super().__init__()
         self.dir = dir
-        self._dir_uri = self._canonical_uri(dir)
-
-    def _canonical_uri(self, path: str) -> str:
-        fs = filesystem(path)
-        stripped_path = fs.fs._strip_protocol(path)
-        if fs.is_local():
-            # Case-fold for case-insensitive local filesystems, but keep "/"
-            # separators: on Windows normcase also flips "/" to "\", which
-            # would defeat the "/" directory-boundary check below.
-            stripped_path = os.path.normcase(stripped_path).replace(os.sep, "/")
-        return fs.path_as_uri(stripped_path).rstrip("/")
-
-    def _validate_log_dir(self, file: str) -> bool:
-        # This guard is load-bearing: canonicalization below does not resolve
-        # ".." segments, so a traversal like `dir/../../etc` would otherwise
-        # pass the directory-boundary prefix check.
-        if ".." in file:
-            return False
-
-        try:
-            file_uri = self._canonical_uri(file)
-        except Exception:
-            # Access validation must fail closed for malformed filesystem URIs.
-            return False
-        return file_uri == self._dir_uri or file_uri.startswith(f"{self._dir_uri}/")
+        self._scope = PathScope((ScopeRoot.parse(dir, "dir", sorted(PERMISSIONS)),))
 
     async def can_read(self, request: Request, file: str) -> bool:
-        return self._validate_log_dir(file)
+        return self._scope.resolve(file, "read") is not None
 
     async def can_delete(self, request: Request, file: str) -> bool:
-        return self._validate_log_dir(file)
+        return self._scope.resolve(file, "delete") is not None
 
     async def can_list(self, request: Request, dir: str) -> bool:
-        return self._validate_log_dir(dir)
+        return self._scope.resolve(dir, "list") is not None
 
     async def can_write(self, request: Request, file: str) -> bool:
-        return self._validate_log_dir(file)
+        return self._scope.resolve(file, "write") is not None
+
+    async def resolve_read(self, request: Request, location: str) -> str:
+        return _resolve_in_scope(self._scope, location, "read")
+
+    async def resolve_write(self, request: Request, location: str) -> str:
+        return _resolve_in_scope(self._scope, location, "write")
+
+    async def resolve_delete(self, request: Request, location: str) -> str:
+        return _resolve_in_scope(self._scope, location, "delete")
+
+    async def resolve_list(self, request: Request, location: str | None) -> str:
+        return _resolve_in_scope(self._scope, location, "list")
 
 
 def standalone_view_app(
@@ -756,7 +887,7 @@ def standalone_view_app(
         access_policy=(
             OnlyDirAccessPolicy(log_dir)
             if network_policy.authorization is None
-            else None
+            else UnscopedResolvingPolicy(log_dir)
         ),
         default_dir=log_dir,
         recursive=recursive,
