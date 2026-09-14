@@ -111,6 +111,32 @@ def sandbox_task():
 
 A `review` passed to `eval()` or `--review` overrides the task's reviewers.
 
+## Agent Reviewers
+
+The `execute_tools()` function and the `react()` agent also accept a `review` parameter for convenience, which applies review policies for the duration of tool execution:
+
+``` python
+from inspect_ai.model import execute_tools
+from inspect_ai.review import ReviewPolicy
+
+result = await execute_tools(
+    messages, tools,
+    review=[ReviewPolicy(no_network(), tools="*")]
+)
+```
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.review import ReviewPolicy
+
+agent = react(
+    tools=[bash(), python()],
+    review=[ReviewPolicy(no_network(), tools="*")]
+)
+```
+
+These policies replace the eval-level and task-level reviewers for the duration of tool execution, and the previous policies are restored when it completes. The replacement is total: a tool the agent's own policies do not cover is not reviewed, even when an eval-level policy covers it. A react agent that hands off to another agent carries its policies into the sub-agent's tool calls.
+
 ## Bridged Agents
 
 Agents integrated via the [Agent Bridge](agent-bridge.qmd) run their own tool loop, so their tool results never pass through Inspect's tool execution and are not reviewed. Approval policies are applied to bridged agents' tool calls (see [Bridged Agents](approval.qmd#bridged-agents)); the equivalent for review is not yet implemented.
