@@ -324,8 +324,13 @@ async def current_sample_summaries(
 
     Merged and deduped by ``(sample_id, epoch)``; a terminal record
     (completed / error) supersedes a running one, which supersedes a
-    pending one. Sorted running → terminal → pending. Returns an empty
-    list when the eval isn't in this process.
+    pending one. A retry attempt's log is seeded with the prior attempt's
+    records (``TaskLogger.seed_from_prior``), but the live source withholds
+    a seeded record until the reuse sweep accepts it or its re-run
+    completes (``TaskLogger.sample_summaries``), so a sample awaiting or
+    running its re-run has no terminal row here and reads pending or
+    running like any other. Sorted running → terminal → pending. Returns
+    an empty list when the eval isn't in this process.
 
     Each entry has: ``sample_id``, ``epoch``, ``status`` (a
     :data:`SAMPLE_STATUSES` member), ``started_at``, ``completed_at``,
@@ -358,6 +363,8 @@ async def current_sample_summaries(
         existing = by_key.get(key)
         # Keep the first record for a key, except let a terminal record
         # supersede a still-running one (a sample that has since finished).
+        # A seeded prior record for a re-running sample never reaches here:
+        # the live source withholds it until the re-run completes.
         if existing is None or (
             existing["status"] == "running" and summary["status"] != "running"
         ):
