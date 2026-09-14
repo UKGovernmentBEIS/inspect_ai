@@ -269,15 +269,9 @@ def _ask_multiline(
     # has no other in-band way to end the first answer; a dot-only line
     # in the data terminates early there, acceptable when the writer
     # controls the bytes.
-    #
-    # "Enter, then Ctrl-D": input() goes through GNU readline here
-    # (util/_console.py imports it), and CPython leaves readline's
-    # bracketed paste off, so a paste streams in line by line and its
-    # last line sits unsubmitted in the buffer when it had no trailing
-    # newline. Ctrl-D on a non-empty readline buffer is delete-char, a
-    # no-op at end of line, so the answer would look hung. The Enter
-    # submits that line; when the buffer was already empty it yields
-    # one blank line, dropped below.
+    # "Enter, then Ctrl-D": input() is readline here with bracketed paste
+    # off, so a paste's last line sits unsubmitted and Ctrl-D on a
+    # non-empty buffer is delete-char. The Enter's blank line is dropped below.
     tty = sys.stdin.isatty()
     ending = (
         "Enter, then Ctrl-D"

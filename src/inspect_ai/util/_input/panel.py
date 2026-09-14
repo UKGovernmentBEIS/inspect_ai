@@ -111,6 +111,7 @@ class QuestionInputPanel(InputPanel):
             actions.question = (question_id, pending)
             if action == "add":
                 self.activate()
+                body.focus_on_mount = True
             self.visible = True
         else:
             self.title = self.DEFAULT_TITLE
@@ -170,9 +171,26 @@ class QuestionRequestBody(Vertical):
 
     _mounted: tuple[str, ElicitationForm] | None = None
 
+    focus_on_mount: bool = False
+    """Set by the panel when a question arrives (it has just activated
+    the tab). Consumed by the next mount."""
+
     async def watch_pending(
         self, pending: tuple[str, PendingQuestionRequest] | None
     ) -> None:
+        # Focus the first field, not Submit (Space there would submit an
+        # empty form). It has to happen here, after the mount: the host's
+        # activate() has already parked focus on the tab bar by the time
+        # this deferred watcher runs. Also when the form being replaced
+        # held focus (the next queued question), but not otherwise: a
+        # form on a hidden tab is still focusable and would swallow keys.
+        focused = self.app.focused
+        refocus = self.focus_on_mount or (
+            self._mounted is not None
+            and focused is not None
+            and self._mounted[1] in focused.ancestors_with_self
+        )
+        self.focus_on_mount = False
         self._mounted = None
         await self.remove_children()
         if pending is not None:
@@ -180,12 +198,8 @@ class QuestionRequestBody(Vertical):
             form = ElicitationForm(request.request.schema)
             await self.mount(form)
             self._mounted = (question_id, form)
-            # Focus the first field, not Submit (Space there would submit an
-            # empty form). Has to happen here: the host's activate() has
-            # already parked focus on the tab bar, and this watcher runs
-            # after it, so focusing from on_questions_changed is a no-op.
-            # Deferred a refresh so the field is laid out (as inline.py).
-            self.call_after_refresh(form.focus_first)
+            if refocus:
+                self.call_after_refresh(form.focus_first)
 
     def form(self) -> ElicitationForm | None:
         return self._mounted[1] if self._mounted is not None else None
@@ -201,10 +215,6 @@ class QuestionRequestBody(Vertical):
         targets an already-completed id, which the manager ignores.
         """
         return self._mounted
-
-    def focus_first(self) -> None:
-        if self._mounted is not None:
-            self._mounted[1].focus_first()
 
 
 class QuestionRequestActions(Horizontal):

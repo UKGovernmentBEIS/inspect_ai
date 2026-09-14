@@ -287,18 +287,19 @@ def test_multiline_tty_drops_the_blank_line_from_the_closing_enter(
     assert result == InputResult(outcome="accepted", content={"output": expected})
 
 
-def test_multiline_tty_hint_names_ctrl_d_only(
+def test_multiline_tty_hint_asks_for_enter_then_ctrl_d(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The sentinel isn't offered at a terminal, so don't advertise it: a
-    # dot-only line there is content.
+    # Not the sentinel (a dot-only line at a terminal is content), and not
+    # a bare Ctrl-D: readline ignores it while a pasted last line is
+    # unsubmitted, which reads as a hang.
     _patch_tty(monkeypatch, True)
     _patch_input_lines(monkeypatch, [EOFError()])
     buf = io.StringIO()
     console = Console(file=buf, width=80, force_terminal=False)
     _ask_schema("paste", _multiline_schema(default="x"), console)
     out = buf.getvalue()
-    assert "Ctrl-D" in out
+    assert "Enter, then Ctrl-D" in out
     assert f"'{MULTILINE_END_TOKEN}'" not in out
 
 

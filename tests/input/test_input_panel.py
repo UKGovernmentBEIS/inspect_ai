@@ -556,6 +556,50 @@ async def test_panel_focuses_first_field_when_question_arrives() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
+@pytest.mark.parametrize("operator_in_form", [True, False])
+async def test_panel_next_queued_question_follows_focus(
+    operator_in_form: bool,
+) -> None:
+    """Focus follows the next queued question only if it was in the form.
+
+    A hidden tab's form is still focusable, so grabbing focus
+    unconditionally would swallow keys typed elsewhere.
+    """
+    init_human_question_manager()
+    from inspect_ai.util._input.manager import human_question_manager
+
+    manager = human_question_manager()
+    app = _PanelApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        q1 = manager.request_question(_request_string())
+        q2 = manager.request_question(_request_string())
+        await pilot.pause()
+        await pilot.pause()
+
+        body = app.panel.query_one(QuestionRequestBody)
+        mounted = body.mounted()
+        assert mounted is not None and mounted[0] == q1
+        if operator_in_form:
+            assert app.focused is mounted[1].query_one(Input)
+        else:
+            app.set_focus(None)
+
+        manager.complete_question(q1, InputResult(outcome="declined"))
+        await pilot.pause()
+        await pilot.pause()
+
+        remounted = body.mounted()
+        assert remounted is not None and remounted[0] == q2
+        if operator_in_form:
+            assert app.focused is remounted[1].query_one(Input)
+        else:
+            assert app.focused is None
+        manager.complete_question(q2, InputResult(outcome="declined"))
+
+
+@skip_if_trio
+@pytest.mark.anyio
 async def test_panel_submit_resolves_with_accepted() -> None:
     import anyio
 
