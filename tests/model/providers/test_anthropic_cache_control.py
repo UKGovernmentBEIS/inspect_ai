@@ -3,8 +3,9 @@
 These exercise `add_lookback_cache_control` directly with hand-built
 `MessageParam` dicts — no API calls. The function must place
 `cache_control: {type: "ephemeral"}` on the second-to-last *cacheable*
-content block, skipping `thinking` / `redacted_thinking` blocks (which the
-API rejects with `'thinking.cache_control: Extra inputs are not permitted'`).
+content block, skipping `thinking` / `redacted_thinking` blocks and
+server-side `fallback` blocks (which the API rejects with
+`'<type>.cache_control: Extra inputs are not permitted'`).
 """
 
 from __future__ import annotations
@@ -42,6 +43,16 @@ def thinking(s: str = "hmm") -> dict[str, Any]:
 
 def redacted() -> dict[str, Any]:
     return {"type": "redacted_thinking", "data": "xxx"}
+
+
+def fallback() -> dict[str, Any]:
+    # the server-side fallback beta records a refused turn served by another
+    # model as a content block; it carries no text and cannot be cached
+    return {
+        "type": "fallback",
+        "from": {"model": "claude-opus-5"},
+        "to": {"model": "claude-opus-4-8"},
+    }
 
 
 def tool_use(tid: str = "t1") -> dict[str, Any]:
@@ -162,8 +173,32 @@ def test_thinking_then_tool_use_tags_prev_tool_result() -> None:
 
 
 # ---------------------------------------------------------------------------
-# (e) edge cases
+# server-side fallback blocks: must be skipped like thinking blocks
 # ---------------------------------------------------------------------------
+
+
+def test_fallback_at_minus_two_skipped() -> None:
+    # a mid-output decline served by the fallback model leaves the assistant
+    # message as [text, fallback, text]; the fallback sits exactly where the
+    # lookback tag lands and the API rejects cache_control on it
+    msgs: list[dict[str, Any]] = [
+        {"role": "assistant", "content": [text("a"), fallback(), text("b")]},
+    ]
+    add_lookback_cache_control(msgs)
+    assert tagged(msgs) == [(0, 0)]
+    assert "cache_control" not in msgs[0]["content"][1]
+
+
+def test_fallback_at_prev_minus_one_skipped() -> None:
+    # the fallback block closes the assistant message and the tool result
+    # that follows is the only later cacheable block
+    msgs: list[dict[str, Any]] = [
+        {"role": "assistant", "content": [text("x"), tool_use(), fallback()]},
+        {"role": "user", "content": [tool_result()]},
+    ]
+    add_lookback_cache_control(msgs)
+    assert tagged(msgs) == [(0, 1)]
+    assert "cache_control" not in msgs[0]["content"][2]
 
 
 def test_single_cacheable_block_no_tag() -> None:
