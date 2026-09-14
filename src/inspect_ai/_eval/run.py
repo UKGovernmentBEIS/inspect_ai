@@ -59,6 +59,7 @@ from inspect_ai.log._log import eval_error
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import Model, ModelName, ensure_model_controller
+from inspect_ai.review._policy import ReviewPolicy, config_from_review_policies
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -82,7 +83,7 @@ from .loader import (
     solver_from_spec,
 )
 from .task.log import TaskLogger
-from .task.resolved import ResolvedTask
+from .task.resolved import ResolvedTask, resolved_task_names
 from .task.run import (
     EvalSampleSource,
     TaskRunOptions,
@@ -144,6 +145,7 @@ async def eval_run(
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
     approval: list[ApprovalPolicy] | None = None,
+    review: list[ReviewPolicy] | None = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
@@ -155,10 +157,17 @@ async def eval_run(
     task_retry_attempts: int | None = 0,
     task_source: "TaskSource | None" = None,
     inject: TaskInjection | None = None,
+    eval_set_tasks: list[str] | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     # get cwd before any switching
     eval_wd = os.getcwd()
+
+    # names of every task in the run, for resolving `task:id` sample selectors
+    # the same way in every batch: seeded from the enclosing eval set (a retry
+    # runs only a subset of its tasks) and extended as batches are prepared, so
+    # injected tasks see the ones before them
+    task_names: list[str] = list(eval_set_tasks or [])
 
     # resolve solver and solver spec
     if isinstance(solver, Solver):
@@ -186,6 +195,12 @@ async def eval_run(
     async def prepare_options(
         resolved_tasks: list[ResolvedTask],
     ) -> list[TaskRunOptions]:
+        task_names.extend(
+            name
+            for name in resolved_task_names(resolved_tasks)
+            if name not in task_names
+        )
+
         # ensure sample ids
         for resolved_task in resolved_tasks:
             # add sample ids to dataset if they aren't there (start at 1 not 0)
@@ -210,7 +225,7 @@ async def eval_run(
 
         # run startup pass for the sandbox environments these tasks need
         if run_samples and any(t.has_sandbox for t in resolved_tasks):
-            await sandbox_manager.start(resolved_tasks)
+            await sandbox_manager.start(resolved_tasks, task_names)
 
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
@@ -230,8 +245,13 @@ async def eval_run(
 
                 # sample_ids can be specified per task
                 task_eval_config.sample_id = resolve_task_sample_ids(
-                    resolved_task.task.name, task_eval_config.sample_id
+                    resolved_task.task.name, task_eval_config.sample_id, task_names
                 )
+                if task_eval_config.sample_id == [] and eval_config.sample_id != []:
+                    log.warning(
+                        f"No sample_id selector names task '{task.name}'; "
+                        "it will run no samples."
+                    )
 
                 # reject options that assume a fixed sample set for a
                 # SampleSource-driven task — here, before the task's logger
@@ -356,6 +376,12 @@ async def eval_run(
                     task_eval_config.approval = config_from_approval_policies(
                         task.approval
                     )
+
+                # review
+                if review:
+                    task.review = review
+                elif task.review:
+                    task_eval_config.review = config_from_review_policies(task.review)
 
                 # merge eval-level and task-level tags
                 merged_tags = list(set(tags or []) | set(task.tags or [])) or None
@@ -626,6 +652,14 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
             error=eval_error(inner, type(inner), inner, inner.__traceback__),
             location=options.logger.location,
         )
+    finally:
+        # Startup can fail before log_finish owns teardown. Release the
+        # cached prior on every exit without removing a written destination.
+        with anyio.CancelScope(shield=True):
+            try:
+                await options.logger.recorder.close_seed_source(options.logger.eval)
+            except Exception as ex:
+                log.warning(f"Error closing prior log source: {exception_message(ex)}")
     return TaskRunResult(result, cancel_type)
 
 
@@ -784,7 +818,17 @@ async def run_task_retry_attempts(
                 async def run_one(item: PendingTask) -> None:
                     nonlocal in_flight, cancelled
                     options = item.options
-                    run = await _run_task(options, can_retry=item.retries_remaining > 0)
+                    try:
+                        run = await _run_task(
+                            options, can_retry=item.retries_remaining > 0
+                        )
+                    except BaseException:
+                        with anyio.CancelScope(shield=True):
+                            if not options.logger.finished:
+                                await options.logger.discard(
+                                    keep_destination=True, keep_buffer=True
+                                )
+                        raise
                     result = run.log
 
                     # a drain/cancel abandoned this queued retry between the
@@ -871,17 +915,23 @@ async def run_task_retry_attempts(
 
                         # build sample_source from the failed log so completed
                         # samples are reused on retry (mirrors legacy eval_set
-                        # retry). An attempt that died before anything reached
-                        # its destination log (e.g. its checkpoint startup copy
-                        # failed pre-log_start) left no file — chain the retry
-                        # from whatever *it* was retrying instead, so reuse and
-                        # checkpoints fall back a hop rather than sourcing an
-                        # attempt that holds nothing. The logger knows whether
-                        # it wrote anything; no storage probe is needed.
+                        # retry). The attempt's destination is the newest
+                        # record on disk whenever a flush reached it, finished
+                        # or not: it holds the seeded prior set plus every
+                        # live completion flushed since. An unfinished one
+                        # (log_finish failed) sits under a `started` header,
+                        # which reinit() below leaves in place — sample
+                        # progress outranks the header it lacks. Only an
+                        # attempt that wrote nothing (its prior-log seed or
+                        # log_start flush failed) has nothing newer to offer:
+                        # the retry keeps the source this attempt ran with
+                        # (the same prior log). Decided from recorder state,
+                        # with no filesystem probe on the dispatcher's loop.
+                        failed_location = options.logger.location
                         sample_source: EvalSampleSource | None
                         if options.logger.destination_written:
                             failed_log_info = EvalLogInfo(
-                                name=options.logger.location,
+                                name=failed_location,
                                 type="file",
                                 size=0,
                                 mtime=None,
@@ -894,12 +944,17 @@ async def run_task_retry_attempts(
                                 failed_log_info,
                                 options.task.dataset,
                                 eval_checkpoints_dir_from_config(
-                                    options.logger.location,
+                                    failed_location,
                                     options.checkpoint,
                                     options.eval_checkpoint,
                                 ),
                             )
                         else:
+                            log.info(
+                                f"Task '{options.task.name}' wrote no log for this "
+                                "attempt; retrying with the prior attempt's sample "
+                                "source"
+                            )
                             sample_source = options.sample_source
 
                         # reinit logger for a fresh eval entry
@@ -927,6 +982,15 @@ async def run_task_retry_attempts(
                         # was already cleared by the directive; this is a no-op
                         # then)
                         clear_eval_retry_pending(result.eval.eval_id)
+
+                    # Retry source selection needs the recorder's write state.
+                    # Once no retry follows, release any unfinished entry even
+                    # if startup failed after seeding an entire prior log.
+                    if not retry and not options.logger.finished:
+                        with anyio.CancelScope(shield=True):
+                            await options.logger.discard(
+                                keep_destination=True, keep_buffer=True
+                            )
 
                     # finalize atomically (no awaits below) so the dispatcher sees
                     # a consistent (in_flight, pending) snapshot
@@ -1053,12 +1117,18 @@ class SandboxManager:
             tuple[Task, SandboxEnvironmentSpec], TaskSandboxEnvironment
         ] = {}
 
-    async def start(self, tasks: list[ResolvedTask]) -> None:
+    async def start(self, tasks: list[ResolvedTask], task_names: list[str]) -> None:
+        """Start the sandboxenvs of `tasks`' selected samples.
+
+        `task_names` is every task name known to the run so far (not just this
+        batch), so `task:id` sample selectors resolve here exactly as they do
+        when the tasks run.
+        """
         # find unique sandboxenvs to start
         sandboxenvs: Set[TaskSandboxEnvironment] = set()
         for task in tasks:
             resolved_task_sample_ids = resolve_task_sample_ids(
-                task.task.name, self._config.sample_id
+                task.task.name, self._config.sample_id, task_names
             )
             dataset = slice_dataset(
                 task.task.dataset,
@@ -1192,7 +1262,7 @@ async def startup_sandbox_environments(
     cleanup: bool,
 ) -> Callable[[], Awaitable[None]]:
     manager = SandboxManager(config, cleanup)
-    await manager.start(tasks)
+    await manager.start(tasks, resolved_task_names(tasks))
     return manager.shutdown
 
 

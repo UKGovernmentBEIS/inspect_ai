@@ -5,7 +5,7 @@ import re
 import sqlite3
 import tempfile
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Generator, Iterator, cast
 
@@ -739,6 +739,41 @@ def test_cleanup_closes_all_connections(
     for conn in tracked:
         with pytest.raises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")
+
+
+@pytest.mark.parametrize("reader_fails", [False, True])
+def test_close_preserves_data_until_readers_finish(
+    db: SampleBufferDatabase, sample: EvalSampleSummary, reader_fails: bool
+) -> None:
+    db.start_sample(sample)
+    tracked = list(db._connections)
+    with (
+        pytest.raises(ValueError, match="reader failed")
+        if reader_fails
+        else nullcontext()
+    ):
+        with db._acquire_sample_read_lease(sample.id, sample.epoch):
+            with db._acquire_sample_read_lease(sample.id, sample.epoch):
+                db.close()
+                assert not db._closed
+                assert get_samples(db).samples == [sample]
+            assert not db._closed
+            if reader_fails:
+                raise ValueError("reader failed")
+
+    assert db._closed and not db._connections
+    for conn in tracked:
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn.execute("SELECT 1")
+    db.close()
+    assert db.db_path.exists()
+    reopened = SampleBufferDatabase(
+        db.location, create=False, read_only=True, db_dir=db.db_path.parent.parent
+    )
+    try:
+        assert get_samples(reopened).samples == [sample]
+    finally:
+        reopened.close()
 
 
 def test_use_after_cleanup_raises_and_does_not_resurrect_db(

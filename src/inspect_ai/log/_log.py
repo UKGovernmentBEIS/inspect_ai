@@ -35,6 +35,7 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.model._model_config import ModelConfig
+from inspect_ai.review._policy import ReviewPolicyConfig
 from inspect_ai.scorer import Score
 from inspect_ai.util._concurrency import LimitChangeReason
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
@@ -112,6 +113,9 @@ class EvalConfig(BaseModel):
 
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
+
+    review: ReviewPolicyConfig | None = Field(default=None)
+    """Review policy for tool results."""
 
     notification: bool | str | None = Field(default=None)
     """Notification routing for human-in-the-loop interactions.

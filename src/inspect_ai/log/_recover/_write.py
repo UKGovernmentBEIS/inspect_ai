@@ -179,10 +179,14 @@ async def write_recovered_eval_log(
             await recorder.flush(crashed.eval)
 
     # Stream flushed samples from the crashed .eval file one at a time
+    # (only the authoritative ones: a seeded record the buffer supersedes is
+    # left out, its key written from the buffer below)
     if crashed.sample_entries:
         async with AsyncFilesystem() as fs:
             reader = AsyncZipReader(fs, crashed.location)
             for entry_name in crashed.sample_entries:
+                if flushed_keys is not None and entry_name not in flushed_keys:
+                    continue
                 sample = await read_flushed_sample(reader, entry_name)
                 await _write_sample(sample)
 
