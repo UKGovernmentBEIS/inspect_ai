@@ -5,10 +5,12 @@ import json
 import os
 import pickle
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import inspect_sandbox_tools._in_process_tools._text_editor._run as run_module
 import inspect_sandbox_tools._in_process_tools._text_editor.text_editor as text_editor_module
 import pytest
 from inspect_sandbox_tools._in_process_tools._text_editor.text_editor import (
@@ -64,6 +66,9 @@ async def test_view_directory_treats_path_as_literal(
 async def test_view_directory_preserves_find_output(
     tmp_path: Path, hidden_root: bool
 ) -> None:
+    # With a hidden root every path matches `*/\.*`, so find prints nothing and
+    # the view is a lone "." (normpath of the empty line). Pre-existing; that case
+    # pins equivalence with the old shell command, not that the output is desirable.
     target = tmp_path / (".hidden" if hidden_root else "visible")
     target.mkdir()
     (target / "file.txt").touch()
@@ -110,6 +115,27 @@ async def test_view_directory_rejects_stderr(
         await text_editor_module.view(str(tmp_path))
 
 
+async def test_view_directory_ignores_find_on_inherited_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sentinel = tmp_path / "sentinel"
+    forged_dir = tmp_path / "bin"
+    forged_dir.mkdir()
+    forged = forged_dir / "find"
+    forged.write_text(f"#!/bin/sh\ntouch {shlex.quote(str(sentinel))}\n")
+    forged.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{forged_dir}{os.pathsep}{os.environ['PATH']}")
+    assert shutil.which("find") == str(forged), "forgery not first on PATH"
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "child.txt").touch()
+
+    result = await text_editor_module.view(str(target))
+
+    assert f"{target.resolve()}/child.txt" in result
+    assert not sentinel.exists(), "find resolved from the inherited PATH"
+
+
 @pytest.mark.parametrize("missing", [False, True])
 def test_view_directory_launch_failure_is_tool_error(
     tmp_path: Path,
@@ -119,7 +145,7 @@ def test_view_directory_launch_failure_is_tool_error(
 ) -> None:
     from inspect_sandbox_tools._cli.main import _exec
 
-    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.setattr(run_module, "SYSTEM_PATH", str(tmp_path))
     if not missing:
         (tmp_path / "find").write_text("not executable")
     request = {
@@ -135,6 +161,7 @@ def test_view_directory_launch_failure_is_tool_error(
     assert response["error"]["code"] == -32099
     assert "find" in response["error"]["message"]
     assert str(tmp_path.resolve()) in response["error"]["message"]
+    assert f"PATH={tmp_path}" in response["error"]["message"]
 
 
 def test_view_directory_timeout_preserves_rpc_failure(
