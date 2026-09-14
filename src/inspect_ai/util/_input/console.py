@@ -88,12 +88,12 @@ async def console_handler(request: InputRequest) -> InputResult:
 def _use_inline_app() -> bool:
     """`True` when the inline Textual app can own the terminal.
 
-    Not under `--display plain`/`log`, which promise line-oriented
-    output and get chosen precisely where a live UI isn't wanted (CI
-    logs, redirected output, nohup): those get the Rich line reader even
-    on a tty. `--display none` does keep the form — the question is the
-    one thing it still has to show, and rich's `quiet=True` console
-    would print neither the prompt nor the hint.
+    Only the displays that already paint a terminal UI. `--display
+    plain`/`log`/`none` promise line-oriented output, and get chosen
+    precisely where a live UI isn't wanted (CI logs, redirected output,
+    nohup), so they take the Rich line reader even on a tty — see
+    `_ask_console` for how the question still reaches the screen under
+    `none`.
 
     Textual is asyncio-only and installs signal handlers, so trio-backend
     and background-thread evals fall back to the Rich line reader (the
@@ -105,7 +105,7 @@ def _use_inline_app() -> bool:
     Rich degrades there, Textual doesn't.
     """
     from inspect_ai._util._async import current_async_backend
-    from inspect_ai.util._display import display_type_plain
+    from inspect_ai.util._display import display_type
 
     return (
         sys.stdin.isatty()
@@ -116,7 +116,7 @@ def _use_inline_app() -> bool:
         and current_async_backend() != "trio"
         # after the thread check: an uninitialised display type resolves
         # itself here, and off the main thread it would latch to "plain"
-        and not display_type_plain()
+        and display_type() in ("full", "conversation", "rich")
         and not rich.get_console().is_dumb_terminal
     )
 
@@ -132,9 +132,29 @@ def _ask_console() -> Iterator[Console]:
         # request_input emits the structured InputEvent itself; opt out of
         # input_screen's text-dump emission to avoid double-logging.
         with input_screen(record_event=False) as console:
-            yield console
+            with _audible(console):
+                yield console
     else:
-        yield rich.get_console()
+        console = rich.get_console()
+        with _audible(console):
+            yield console
+
+
+@contextmanager
+def _audible(console: Console) -> Iterator[None]:
+    """Let the question print on a console silenced by `--display none`.
+
+    `rich_initialise` sets `quiet=True` there, which would swallow the
+    prompt and the field labels and leave the eval looking hung while it
+    blocks on stdin. Safe for the duration of a question: the caller has
+    suspended the display (`input_screen` stops the Live), so nothing
+    else is painting.
+    """
+    quiet, console.quiet = console.quiet, False
+    try:
+        yield
+    finally:
+        console.quiet = quiet
 
 
 def _ask_schema(

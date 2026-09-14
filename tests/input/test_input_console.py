@@ -618,6 +618,28 @@ async def test_keyboard_interrupt_returns_cancelled(
     assert result.outcome == "cancelled"
 
 
+async def test_question_prints_on_a_console_silenced_by_display_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Otherwise the eval blocks on stdin with nothing on screen.
+    import rich
+
+    buf = io.StringIO()
+    console = Console(file=buf, width=80, force_terminal=False, quiet=True)
+    monkeypatch.setattr(rich, "get_console", lambda: console)
+    _patch_tty(monkeypatch, False)
+    _patch_prompt(monkeypatch, ["alice"])
+
+    schema = ElicitationSchema(
+        properties={"name": ElicitationStringPropertySchema(type="string")},
+        required=["name"],
+    )
+    result = await console_handler(InputRequest(message="describe it", schema=schema))
+    assert result == InputResult(outcome="accepted", content={"name": "alice"})
+    assert "describe it" in buf.getvalue()
+    assert console.quiet is True  # restored
+
+
 def test_multiple_properties_collected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -895,18 +917,16 @@ def test_use_inline_app_rejects_dumb_terminal(
         ("full", True),
         ("rich", True),
         ("conversation", True),
-        # rich's console is quiet under "none", so the line reader would
-        # ask the question with nothing on screen
-        ("none", True),
         ("plain", False),
         ("log", False),
+        ("none", False),
     ],
 )
 def test_use_inline_app_follows_display_type(
     monkeypatch: pytest.MonkeyPatch, display: str, inline: bool
 ) -> None:
-    # --display plain/log promise line-oriented output, so an interactive
-    # tty is not on its own enough to take over the terminal.
+    # --display plain/log/none promise line-oriented output, so an
+    # interactive tty is not on its own enough to take over the terminal.
     from inspect_ai.util import _display as display_mod
 
     _patch_tty(monkeypatch, True)
