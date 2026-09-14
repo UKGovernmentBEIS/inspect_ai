@@ -38,6 +38,20 @@ from .._metric import Metric, SampleScore, metric
 logger = logging.getLogger(__name__)
 
 
+def _safe_exp(x: float) -> float:
+    """``math.exp`` that returns +inf instead of raising OverflowError.
+
+    ``math.exp`` raises above ~709.78, so a single pathological NLL would
+    otherwise take down the whole metric or scorer.  Infinite perplexity is
+    the meaningful answer there.  Only the positive side raises; a very
+    negative input underflows to ``0.0``.
+    """
+    try:
+        return math.exp(x)
+    except OverflowError:
+        return float("inf")
+
+
 def _get_perplexity_metadata(
     sample: SampleScore,
 ) -> tuple[int, float]:
@@ -82,10 +96,7 @@ def perplexity_per_token() -> Metric:
             total_tokens += n
         if total_tokens == 0:
             return float("nan")
-        try:
-            return math.exp(-total_log_probs / total_tokens)
-        except OverflowError:
-            return float("inf")
+        return _safe_exp(-total_log_probs / total_tokens)
 
     return metric_fn
 
@@ -114,9 +125,6 @@ def perplexity_per_seq() -> Metric:
                 nll_per_seq.append(-s / n)
         if not nll_per_seq:
             return float("nan")
-        try:
-            return math.exp(sum(nll_per_seq) / len(nll_per_seq))
-        except OverflowError:
-            return float("inf")
+        return _safe_exp(sum(nll_per_seq) / len(nll_per_seq))
 
     return metric_fn

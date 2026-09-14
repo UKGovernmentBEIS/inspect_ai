@@ -276,3 +276,18 @@ async def test_target_perplexity_unscorable_states_carry_reason() -> None:
     result = await scorer(state, Target(["x"]))
     assert result is not None
     assert result.reason == "scoring_failed"
+
+
+@pytest.mark.anyio
+async def test_target_perplexity_overflow_returns_inf() -> None:
+    """Very large negative log-likelihood scores inf without OverflowError."""
+    state = _state_with_prompt_logprobs(
+        [Logprob(token="x", logprob=-710.0)],
+        metadata={"num_target_tokens": 1},
+    )
+    result = await target_perplexity()(state, Target(["x"]))
+    assert result is not None
+    assert result.as_float() == pytest.approx(710.0)
+    assert result.metadata is not None
+    assert result.metadata["perplexity"] == math.inf
+    assert "perplexity=inf" in (result.explanation or "")
