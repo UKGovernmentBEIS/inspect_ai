@@ -250,6 +250,56 @@ def test_closed_and_deferred_findings_are_not_retriggered(
     )
 
 
+def test_only_open_non_deferred_issues_are_returned(
+    snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    issues_by_number = {
+        1: {"state": "open", "labels": []},
+        2: {"state": "closed", "labels": []},
+        3: {"state": "open", "labels": [{"name": "deferred"}]},
+    }
+    writes: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(publisher, "issues", lambda: [])
+    monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 8})
+    monkeypatch.setattr(publisher, "comments", lambda number: [])
+    monkeypatch.setattr(
+        publisher,
+        "gh",
+        lambda *args: {
+            "number": int(args[1].rsplit("/", 1)[1]),
+            "html_url": f"https://github.com/meridianlabs-ai/inspect_ai/issues/{args[1].rsplit('/', 1)[1]}",
+            "title": "Slow job",
+            **issues_by_number[int(args[1].rsplit("/", 1)[1])],
+        },
+    )
+    monkeypatch.setattr(
+        publisher, "api", lambda path, fields: writes.append((path, fields))
+    )
+    urls = publish(
+        [
+            {
+                "key": f"slow-job-{number}",
+                "title": "Slow job",
+                "body": "Evidence",
+                "existing_issue": number,
+            }
+            for number in issues_by_number
+        ],
+        summarize(snapshot),
+        "Report",
+        "https://github.com/meridianlabs-ai/actions/actions/runs/123",
+    )
+    assert urls == ["https://github.com/meridianlabs-ai/inspect_ai/issues/1"]
+    tracking_comment = next(
+        fields["body"] for path, fields in writes if path == "issues/8/comments"
+    )
+    for number in issues_by_number:
+        assert (
+            f"https://github.com/meridianlabs-ai/inspect_ai/issues/{number}"
+            in tracking_comment
+        )
+
+
 @pytest.mark.parametrize("title", ["Slow job", "Unrelated issue"])
 def test_existing_issue_identity_and_empty_body(
     title: str, snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch

@@ -43,11 +43,13 @@ queue time. Workflow wall uses updated_at, not push-to-all-checks-green. Pytest
 outcomes are per job, and unavailable logs are missing observations.
 
 See [the CI skill](../../.claude/skills/ci-perf/SKILL.md) for collection,
-analysis, and issue publication. For a branch proof, dispatch the actions
-workflow with `dry_run=true`, `inspect_ai_ref=main`, and `ci_perf_ref` set to the
-fork's tooling branch. `ci_perf_ref` executes that branch's code; workflow
-dispatch requires collaborator write access. The dry-run creates only workflow
-outputs and artifacts.
+analysis, and issue publication. The actions workflow has two dispatch inputs:
+`inspect_ai_ref`, an upstream branch, tag, or commit (default `main`), and
+`dry_run` (default `true`). The skill's tooling and the analyzed source both
+come from that one upstream checkout. For a tooling branch proof, set
+`inspect_ai_ref` to an upstream branch or `refs/pull/NNN/head` with `dry_run=true`;
+workflow dispatch requires collaborator write access. A dry run creates only
+workflow outputs and artifacts.
 
 Analysis and publication run in one job. Their separation is between tokens:
 analysis uses the read-only workflow token, and publication uses the fork write
