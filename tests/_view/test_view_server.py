@@ -1,6 +1,7 @@
 """Tests for the inspect view server."""
 
 import asyncio
+import base64
 import contextlib
 import json
 import logging
@@ -10,7 +11,16 @@ import urllib.parse
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import IO, Any, AsyncIterator, ContextManager, Generator, TextIO, cast
+from typing import (
+    IO,
+    Any,
+    AsyncIterator,
+    Callable,
+    ContextManager,
+    Generator,
+    TextIO,
+    cast,
+)
 
 import anyio
 import fastapi.testclient
@@ -1590,9 +1600,9 @@ def test_fastapi_authorization_middleware() -> None:
     api = fastapi_server.view_server_app(mapping_policy=mapping_policy())
     from fastapi import FastAPI
 
-    app = FastAPI()
-    app.mount("/api", api)
-    app.add_middleware(fastapi_server.authorization_middleware("Bearer secret123"))
+    inner = FastAPI()
+    inner.mount("/api", api)
+    app = fastapi_server.ViewAuthorizationMiddleware(inner, "Bearer secret123")
 
     with fastapi.testclient.TestClient(app) as client:
         assert client.request("GET", "/api/events").status_code == 401
@@ -2964,6 +2974,9 @@ def test_hawk_shaped_embedder_outcomes_unchanged() -> None:
             ).status_code
             == 403
         )
+        config = client.get("/app-config").json()
+        assert config["scoped_authorization"] is False
+        assert config["scope_claim"] is None
     # the policy saw bucket-relative folders, never the mapped storage location
     assert set(policy.folders) <= {"valid", "invalid"}
 
@@ -3263,13 +3276,7 @@ ROUTES_WITHOUT_LOCATION: set[tuple[str, str]] = {
     ("GET", "/scout/searches"),
 }
 
-# Mounted inspect_scout routes that carry a directory but are not yet routed
-# through the resolver (they come under it with the scoped-authorization
-# middleware in the next commit).
-ROUTES_PENDING_RESOLVER: set[tuple[str, str]] = {
-    ("POST", "/scout/transcripts/{dir}/{id}/search"),
-    ("GET", "/scout/transcripts/{dir}/{id}/searches/{search_id}"),
-}
+_SOME_DIR_B64 = base64.urlsafe_b64encode(b"some/dir").decode().rstrip("=")
 
 # How to send each location-bearing route a syntactically valid location.
 _ROUTE_REQUESTS: dict[tuple[str, str], tuple[str, dict[str, str], Any]] = {
@@ -3314,6 +3321,16 @@ _ROUTE_REQUESTS: dict[tuple[str, str], tuple[str, dict[str, str], Any]] = {
         {},
         None,
     ),
+    ("POST", "/scout/transcripts/{dir}/{id}/search"): (
+        f"/scout/transcripts/{_SOME_DIR_B64}/some-id/search",
+        {},
+        {},
+    ),
+    ("GET", "/scout/transcripts/{dir}/{id}/searches/{search_id}"): (
+        f"/scout/transcripts/{_SOME_DIR_B64}/some-id/searches/search-1",
+        {},
+        None,
+    ),
 }
 
 
@@ -3354,7 +3371,7 @@ def test_every_route_is_classified_and_consults_the_resolver() -> None:
     unclassified: list[tuple[str, str]] = []
     with fastapi.testclient.TestClient(app) as client:
         for key in _api_routes(app):
-            if key in ROUTES_WITHOUT_LOCATION or key in ROUTES_PENDING_RESOLVER:
+            if key in ROUTES_WITHOUT_LOCATION:
                 continue
             recipe = _ROUTE_REQUESTS.get(key)
             if recipe is None:
@@ -3415,3 +3432,715 @@ def test_locations_are_decoded_only_in_the_resolver_helpers() -> None:
         "locations must be decoded only by _decode_location (decode-once rule): "
         f"{offenders}"
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Scoped authorization: HS256 bearer JWTs on the standalone server
+# (design/viewer-scoped-authorization.md §1, §2, §5, §7)
+# ═══════════════════════════════════════════════════════════════════════════
+
+_SECRET = "d1e4c2a0-7f3b-4c9e-9a1d-2b6f8e0c5a7f"
+_BASE_URL = "http://localhost:7575"
+
+
+def _standalone(
+    tmp_path: Path,
+    *,
+    secret: str | None = _SECRET,
+    require_scoped: bool = False,
+) -> tuple[TestClient, Path]:
+    """A standalone token-mode server over tmp_path/logs, with fixture logs.
+
+    Layout: logs/run.eval, logs/sub/inner.eval, logs/other.eval and a log
+    outside the log dir at tmp_path/outside/secret.eval.
+    """
+    from inspect_ai._view.network import resolve_viewer_network_policy
+
+    logs = tmp_path / "logs"
+    (logs / "sub").mkdir(parents=True)
+    (tmp_path / "outside").mkdir()
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html>viewer</html>", encoding="utf-8")
+    write_eval_log(logs, "2025-01-01T00-00-00+00-00_run_runid.eval")
+    write_eval_log(logs, "2025-01-01T00-00-00+00-00_other_otherid.eval")
+    write_eval_log(logs / "sub", "2025-01-01T00-00-00+00-00_inner_innerid.eval")
+    write_eval_log(
+        tmp_path / "outside", "2025-01-01T00-00-00+00-00_secret_secretid.eval"
+    )
+    policy = resolve_viewer_network_policy(
+        bind_host="127.0.0.1", port=7575, authorization=secret
+    )
+    app = fastapi_server.standalone_view_app(
+        log_dir=str(logs),
+        network_policy=policy,
+        dist_dir=dist,
+        require_scoped_authorization=require_scoped,
+    )
+    return TestClient(app, base_url=_BASE_URL), logs
+
+
+def _mint(
+    roots: list[dict[str, Any]] | None,
+    *,
+    secret: str = _SECRET,
+    exp: int | None = int(time.time()) + 3600,
+    aud: str | None = fastapi_server.VIEW_JWT_AUDIENCE,
+    algorithm: str = "HS256",
+    scope_override: Any = None,
+    extra: dict[str, Any] | None = None,
+) -> str:
+    import jwt
+
+    claims: dict[str, Any] = {"sub": "logview:test"}
+    if exp is not None:
+        claims["exp"] = exp
+    if aud is not None:
+        claims["aud"] = aud
+    if scope_override is not None:
+        claims["inspect_view_scope"] = scope_override
+    elif roots is not None:
+        claims["inspect_view_scope"] = {"v": 1, "roots": roots}
+    claims.update(extra or {})
+    return jwt.encode(claims, secret, algorithm=algorithm)
+
+
+def _dir_root(path: Path, *permissions: str) -> dict[str, Any]:
+    return {
+        "uri": path.as_uri(),
+        "kind": "dir",
+        "permissions": list(permissions or ("read", "list")),
+    }
+
+
+def _file_root(path: Path, *permissions: str) -> dict[str, Any]:
+    return {
+        "uri": str(path),
+        "kind": "file",
+        "permissions": list(permissions or ("read", "list")),
+    }
+
+
+def _bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _legacy() -> dict[str, str]:
+    return {"Authorization": _SECRET}
+
+
+def _q(location: str | Path) -> str:
+    return urllib.parse.quote(str(location), safe="")
+
+
+def test_scoped_legacy_credential_keeps_unscoped_behaviour(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    outside = tmp_path / "outside" / "2025-01-01T00-00-00+00-00_secret_secretid.eval"
+    with client:
+        assert client.get("/api/logs").status_code == 401
+        assert (
+            client.get("/api/logs", headers={"Authorization": "wrong"}).status_code
+            == 401
+        )
+        assert (
+            client.get(
+                "/api/logs", headers={"Authorization": f"Bearer {_SECRET}"}
+            ).status_code
+            == 401
+        )
+        listing = client.get("/api/logs", headers=_legacy())
+        assert listing.status_code == 200
+        assert len(listing.json()["files"]) == 3
+        # the legacy credential is not confined (today's token mode)
+        assert (
+            client.get(f"/api/logs/{_q(outside)}", headers=_legacy()).status_code == 200
+        )
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(tmp_path / 'outside')}", headers=_legacy()
+            ).status_code
+            == 200
+        )
+        assert client.get("/api/events", headers=_legacy()).status_code == 200
+        config = client.get("/api/app-config", headers=_legacy()).json()
+        assert config["scoped_authorization"] is True
+        assert config["scope_claim"] == "inspect_view_scope"
+        assert client.get("/", headers=_legacy()).status_code == 200
+        assert client.get("/").status_code == 401
+
+
+def test_scoped_jwt_directory_root_confines_requests(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs / "sub")])
+    inner = logs / "sub" / "2025-01-01T00-00-00+00-00_inner_innerid.eval"
+    other = logs / "2025-01-01T00-00-00+00-00_other_otherid.eval"
+    with client:
+        assert (
+            client.get(f"/api/logs/{_q(inner)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/logs/{_q(inner.as_uri())}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+        assert (
+            client.get(f"/api/log-size/{_q(inner)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/log-headers?file={_q(inner)}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+        # the server's own log_dir is not the scope: an absent location binds to the root
+        listing = client.get("/api/logs", headers=_bearer(token))
+        assert listing.status_code == 200
+        assert [Path(f["name"]).name for f in listing.json()["files"]] == [inner.name]
+        assert (
+            client.get("/api/log-dir", headers=_bearer(token))
+            .json()["log_dir"]
+            .endswith("sub")
+        )
+        assert client.get("/api/eval-set", headers=_bearer(token)).status_code == 200
+        assert (
+            client.get("/api/eval-set?dir=deeper", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(logs / 'sub')}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+        # outside the claimed root, inside the server's log_dir: refused
+        assert (
+            client.get(f"/api/logs/{_q(other)}", headers=_bearer(token)).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(logs)}", headers=_bearer(token)
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/api/eval-set?log_dir={_q(logs)}", headers=_bearer(token)
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/api/log-headers?file={_q(inner)}&file={_q(other)}",
+                headers=_bearer(token),
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/api/logs/{_q(logs / 'sub' / '..' / other.name)}",
+                headers=_bearer(token),
+            ).status_code
+            == 403
+        )
+        # permissions not granted
+        assert (
+            client.post(
+                f"/api/log-edit/{_q(inner)}",
+                headers={**_bearer(token), **FRONTEND_REQUEST_HEADERS},
+                json=_LOG_EDIT_BODY,
+            ).status_code
+            == 403
+        )
+        assert (
+            client.request(
+                "DELETE",
+                f"/api/log-delete/{_q(inner)}",
+                headers={**_bearer(token), **FRONTEND_REQUEST_HEADERS},
+            ).status_code
+            == 403
+        )
+        assert inner.exists()
+        # routes without a location still need a credential but no scope
+        assert client.get("/api/events", headers=_bearer(token)).status_code == 200
+        assert client.get("/api/app-config", headers=_bearer(token)).status_code == 200
+
+
+def test_scoped_jwt_write_and_delete_permissions(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    inner = logs / "sub" / "2025-01-01T00-00-00+00-00_inner_innerid.eval"
+    writer = _mint([_dir_root(logs / "sub", "read", "list", "write")])
+    deleter = _mint([_dir_root(logs / "sub", "read", "list", "delete")])
+    headers = {**FRONTEND_REQUEST_HEADERS}
+    with client:
+        assert (
+            client.post(
+                f"/api/log-edit/{_q(inner)}",
+                headers={**_bearer(writer), **headers},
+                json=_LOG_EDIT_BODY,
+            ).status_code
+            == 200
+        )
+        assert (
+            client.request(
+                "DELETE",
+                f"/api/log-delete/{_q(inner)}",
+                headers={**_bearer(writer), **headers},
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                f"/api/log-edit/{_q(inner)}",
+                headers={**_bearer(deleter), **headers},
+                json=_LOG_EDIT_BODY,
+            ).status_code
+            == 403
+        )
+        assert (
+            client.request(
+                "DELETE",
+                f"/api/log-delete/{_q(inner)}",
+                headers={**_bearer(deleter), **headers},
+            ).status_code
+            == 200
+        )
+        assert not inner.exists()
+
+
+def test_scoped_jwt_file_root(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    other = logs / "2025-01-01T00-00-00+00-00_other_otherid.eval"
+    token = _mint([_file_root(run)])
+    with client:
+        assert (
+            client.get(f"/api/logs/{_q(run)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/logs/{_q(run.as_uri())}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+        assert (
+            client.get(f"/api/logs/{_q(other)}", headers=_bearer(token)).status_code
+            == 403
+        )
+        # a file root's default binding is the single-file listing the viewer probes
+        listing = client.get("/api/logs", headers=_bearer(token))
+        assert listing.status_code == 200
+        assert [Path(f["name"]).name for f in listing.json()["files"]] == [run.name]
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(logs)}", headers=_bearer(token)
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(run)}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+
+
+def test_scoped_jwt_several_roots_have_no_default(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs / "sub"), _dir_root(tmp_path / "outside")])
+    secret = tmp_path / "outside" / "2025-01-01T00-00-00+00-00_secret_secretid.eval"
+    with client:
+        assert client.get("/api/logs", headers=_bearer(token)).status_code == 403
+        assert (
+            client.get(f"/api/logs/{_q(secret)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/logs?log_dir={_q(logs / 'sub')}", headers=_bearer(token)
+            ).status_code
+            == 200
+        )
+
+
+def _alg_none_token(claims: dict[str, Any]) -> str:
+    def b64(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+    return (
+        b64(json.dumps({"alg": "none", "typ": "JWT"}).encode())
+        + "."
+        + b64(json.dumps(claims).encode())
+        + "."
+    )
+
+
+def _rs256_headed_token(claims: dict[str, Any]) -> str:
+    def b64(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+    return (
+        b64(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
+        + "."
+        + b64(json.dumps(claims).encode())
+        + "."
+        + b64(b"not-a-real-signature")
+    )
+
+
+def _scope_claims(logs: Path) -> dict[str, Any]:
+    return {
+        "exp": int(time.time()) + 3600,
+        "aud": fastapi_server.VIEW_JWT_AUDIENCE,
+        "inspect_view_scope": {"v": 1, "roots": [_dir_root(logs)]},
+    }
+
+
+@pytest.mark.parametrize(
+    ("name", "make_token"),
+    [
+        ("wrong-secret", lambda logs: _mint([_dir_root(logs)], secret="x" * 40)),
+        ("alg-none", lambda logs: _alg_none_token(_scope_claims(logs))),
+        ("rs256-header", lambda logs: _rs256_headed_token(_scope_claims(logs))),
+        ("missing-exp", lambda logs: _mint([_dir_root(logs)], exp=None)),
+        ("expired", lambda logs: _mint([_dir_root(logs)], exp=int(time.time()) - 10)),
+        ("wrong-aud", lambda logs: _mint([_dir_root(logs)], aud="other-service")),
+        ("missing-aud", lambda logs: _mint([_dir_root(logs)], aud=None)),
+        ("missing-scope-claim", lambda logs: _mint(None)),
+        ("malformed-scope-claim", lambda logs: _mint(None, scope_override="file:///w")),
+        ("empty-roots", lambda logs: _mint([])),
+        (
+            "unknown-version",
+            lambda logs: _mint(
+                None, scope_override={"v": 2, "roots": [_dir_root(logs)]}
+            ),
+        ),
+        (
+            "unknown-kind",
+            lambda logs: _mint(
+                [{"uri": logs.as_uri(), "kind": "folder", "permissions": ["read"]}]
+            ),
+        ),
+        (
+            "http-dir-root",
+            lambda logs: _mint(
+                [
+                    {
+                        "uri": "https://example.test/logs",
+                        "kind": "dir",
+                        "permissions": ["read"],
+                    }
+                ]
+            ),
+        ),
+        ("not-a-jwt", lambda logs: "abc"),
+        ("two-segments", lambda logs: "abc.def"),
+        ("garbage-segments", lambda logs: "a.b.c"),
+    ],
+)
+def test_scoped_jwt_rejections_are_401(
+    tmp_path: Path, name: str, make_token: Callable[[Path], str]
+) -> None:
+    client, logs = _standalone(tmp_path)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    with client:
+        response = client.get(f"/api/logs/{_q(run)}", headers=_bearer(make_token(logs)))
+        assert response.status_code == 401, name
+        # nothing about a bad token lets a location-less route through either
+        assert (
+            client.get("/api/events", headers=_bearer(make_token(logs))).status_code
+            == 401
+        ), name
+
+
+def test_scoped_jwt_duplicate_authorization_header_is_401(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs)])
+    with client:
+        response = client.get(
+            "/api/events",
+            headers=[("Authorization", f"Bearer {token}"), ("Authorization", _SECRET)],
+        )
+        assert response.status_code == 401
+
+
+def test_scoped_jwt_tolerant_claim_handling(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    # unknown claim fields are ignored; unknown permissions are ignored and never grant
+    token = _mint(
+        None,
+        scope_override={
+            "v": 1,
+            "roots": [
+                {
+                    "uri": logs.as_uri(),
+                    "kind": "dir",
+                    "permissions": ["read", "list", "admin"],
+                }
+            ],
+            "future": {"x": 1},
+        },
+        extra={"custom": "claim", "iat": int(time.time()) - 5},
+    )
+    with client:
+        assert (
+            client.get(f"/api/logs/{_q(run)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                f"/api/log-edit/{_q(run)}",
+                headers={**_bearer(token), **FRONTEND_REQUEST_HEADERS},
+                json=_LOG_EDIT_BODY,
+            ).status_code
+            == 403
+        )
+
+
+def test_scoped_jwt_verified_once_then_cached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import jwt
+
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs)])
+    calls = 0
+    real_decode = jwt.decode
+
+    def counting_decode(*args: Any, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return real_decode(*args, **kwargs)
+
+    monkeypatch.setattr(jwt, "decode", counting_decode)
+    with client:
+        for _ in range(3):
+            assert client.get("/api/logs", headers=_bearer(token)).status_code == 200
+    assert calls == 1
+
+
+def test_scoped_jwt_cache_is_bounded() -> None:
+    middleware = fastapi_server.ViewAuthorizationMiddleware(
+        cast(Any, None), _SECRET, cache_size=2
+    )
+    tokens = [
+        _mint([_dir_root(Path("/w/logs"))], extra={"sub": f"panel:{i}"})
+        for i in range(3)
+    ]
+    for token in tokens:
+        assert middleware._verify(token) is not None
+    assert len(middleware._cache) == 2
+    assert tokens[0] not in middleware._cache
+
+
+def test_scoped_jwt_expired_cache_entry_is_reverified() -> None:
+    middleware = fastapi_server.ViewAuthorizationMiddleware(cast(Any, None), _SECRET)
+    token = _mint([_dir_root(Path("/w/logs"))])
+    assert middleware._verify(token) is not None
+    exp, scope = middleware._cache[token]
+    middleware._cache[token] = (time.time() - 1, scope)
+    assert middleware._verify(token) is not None
+    assert middleware._cache[token][0] == exp
+
+
+def test_tokenless_server_rejects_jwt_and_ignores_other_headers(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path, secret=None)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    outside = tmp_path / "outside" / "2025-01-01T00-00-00+00-00_secret_secretid.eval"
+    token = _mint([_dir_root(tmp_path)])
+    with client:
+        assert client.get(f"/api/logs/{_q(run)}").status_code == 200
+        assert (
+            client.get(f"/api/logs/{_q(run)}", headers=_bearer(token)).status_code
+            == 401
+        )
+        assert (
+            client.get(
+                f"/api/logs/{_q(run)}", headers={"Authorization": "Basic abc"}
+            ).status_code
+            == 200
+        )
+        # token-less containment stays log_dir, JWT or not
+        assert client.get(f"/api/logs/{_q(outside)}").status_code == 403
+        config = client.get("/api/app-config").json()
+        assert config["scoped_authorization"] is False
+        assert config["scope_claim"] is None
+
+
+def test_require_scoped_authorization_refuses_legacy_except_app_config(
+    tmp_path: Path,
+) -> None:
+    client, logs = _standalone(tmp_path, require_scoped=True)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    token = _mint([_dir_root(logs)])
+    with client:
+        assert client.get("/api/app-config", headers=_legacy()).status_code == 200
+        assert client.get("/api/logs", headers=_legacy()).status_code == 401
+        assert client.get(f"/api/logs/{_q(run)}", headers=_legacy()).status_code == 401
+        assert client.get("/api/events", headers=_legacy()).status_code == 401
+        assert client.get("/", headers=_legacy()).status_code == 401
+        assert (
+            client.get(f"/api/logs/{_q(run)}", headers=_bearer(token)).status_code
+            == 200
+        )
+        assert client.get("/api/events", headers=_bearer(token)).status_code == 200
+
+
+def test_require_scoped_authorization_needs_a_secret(tmp_path: Path) -> None:
+    from inspect_ai._view.network import ViewerNetworkPolicyError
+
+    with pytest.raises(
+        ViewerNetworkPolicyError, match="INSPECT_VIEW_AUTHORIZATION_TOKEN"
+    ):
+        _standalone(tmp_path, secret=None, require_scoped=True)
+
+
+def test_token_mode_policy_without_middleware_state_is_forbidden(
+    tmp_path: Path,
+) -> None:
+    log = write_eval_log(tmp_path, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    app = fastapi_server.view_server_app(
+        access_policy=fastapi_server.TokenModeAccessPolicy(str(tmp_path)),
+        default_dir=str(tmp_path),
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get(f"/logs/{_q(log)}").status_code == 403
+        assert client.get("/logs").status_code == 403
+        assert client.get("/app-config").json()["scoped_authorization"] is True
+
+
+def test_scoped_policy_reaches_log_headers_fan_out(tmp_path: Path) -> None:
+    """State set by the pure-ASGI middleware reaches tg_collect subtasks."""
+    client, logs = _standalone(tmp_path)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    other = logs / "2025-01-01T00-00-00+00-00_other_otherid.eval"
+    token = _mint([_dir_root(logs)])
+    with client:
+        response = client.get(
+            f"/api/log-headers?file={_q(run)}&file={_q(other)}", headers=_bearer(token)
+        )
+        assert response.status_code == 200
+        assert len(response.json()) == 2
+
+
+def _fake_scout_router() -> fastapi.APIRouter:
+    router = fastapi.APIRouter()
+
+    @router.get("/searches")
+    async def searches() -> list[str]:
+        return []
+
+    @router.post("/transcripts/{dir}/{id}/search")
+    async def search(dir: str, id: str) -> dict[str, str]:
+        return {"dir": dir, "id": id}
+
+    @router.get("/transcripts/{dir}/{id}/searches/{search_id}")
+    async def search_result(dir: str, id: str, search_id: str) -> dict[str, str]:
+        return {"dir": dir, "id": id, "search_id": search_id}
+
+    return router
+
+
+def _b64(value: str) -> str:
+    return base64.urlsafe_b64encode(value.encode()).decode().rstrip("=")
+
+
+def test_mounted_scout_routes_go_through_the_resolver(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fastapi_server, "get_scout_search_router", _fake_scout_router)
+    logs = tmp_path / "logs"
+    (logs / "sub").mkdir(parents=True)
+    alias = tmp_path / "alias"
+    alias.symlink_to(logs, target_is_directory=True)
+    app = fastapi_server.view_server_app(
+        default_dir=str(logs),
+        access_policy=fastapi_server.OnlyDirAccessPolicy(str(logs)),
+    )
+    canonical = str(logs.resolve())
+    with fastapi.testclient.TestClient(app) as client:
+        # the root itself may be searched (list semantics) ...
+        response = client.post(
+            f"/scout/transcripts/{_b64(str(logs))}/t1/search", json={}
+        )
+        assert response.status_code == 200
+        assert response.json() == {"dir": _b64(canonical), "id": "t1"}
+        # ... and the route sees the canonical location, not the alias
+        response = client.get(
+            f"/scout/transcripts/{_b64(str(alias / 'sub'))}/t1/searches/s1"
+        )
+        assert response.status_code == 200
+        assert response.json()["dir"] == _b64(f"{canonical}/sub")
+        assert client.get("/scout/searches").status_code == 200
+        # escapes and malformed segments
+        assert (
+            client.post(
+                f"/scout/transcripts/{_b64(str(tmp_path))}/t1/search", json={}
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                f"/scout/transcripts/{_b64(str(logs / '..'))}/t1/search", json={}
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post("/scout/transcripts/not*base64/t1/search", json={}).status_code
+            == 400
+        )
+        # non-canonical encodings (padding in the middle, stray bits) are refused
+        assert (
+            client.post("/scout/transcripts/YQ==YQ/t1/search", json={}).status_code
+            == 400
+        )
+        assert (
+            client.post(
+                f"/scout/transcripts/{_b64(str(logs))}x/t1/search", json={}
+            ).status_code
+            == 400
+        )
+        assert (
+            client.post(
+                f"/scout/transcripts/{_b64(str(logs))}=/t1/search", json={}
+            ).status_code
+            == 200
+        )
+
+
+def test_mounted_scout_routes_are_confined_by_a_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fastapi_server, "get_scout_search_router", _fake_scout_router)
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs / "sub")])
+    with client:
+        assert (
+            client.post(
+                f"/api/scout/transcripts/{_b64(str(logs / 'sub'))}/t/search",
+                headers=_bearer(token),
+                json={},
+            ).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                f"/api/scout/transcripts/{_b64(str(logs))}/t/search",
+                headers=_bearer(token),
+                json={},
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                f"/api/scout/transcripts/{_b64(str(logs))}/t/search",
+                headers=_legacy(),
+                json={},
+            ).status_code
+            == 200
+        )

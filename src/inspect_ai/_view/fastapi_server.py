@@ -1,7 +1,10 @@
+import base64
+import binascii
 import json
 import logging
 import os
 import secrets
+import time
 import urllib.parse
 from collections.abc import Callable
 from functools import partial
@@ -11,15 +14,17 @@ from pathlib import Path
 from typing import Any, Literal, Protocol, runtime_checkable
 
 import anyio
+import jwt
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.staticfiles import StaticFiles
 from starlette.status import (
     HTTP_204_NO_CONTENT,
     HTTP_304_NOT_MODIFIED,
+    HTTP_400_BAD_REQUEST,
+    HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
 )
@@ -72,6 +77,7 @@ from .network import (
     HostValidationMiddleware,
     SecurityHeadersMiddleware,
     ViewerNetworkPolicy,
+    ViewerNetworkPolicyError,
     resolve_viewer_network_policy,
     unsafe_network_warning,
 )
@@ -81,7 +87,9 @@ from .scope import (
     PathScope,
     Permission,
     ScopeRoot,
+    ViewScope,
     resolve_child,
+    scope_from_claims,
 )
 from .scout_routes import get_scout_search_router
 from .user_info import UserInfo, user_info
@@ -95,6 +103,14 @@ SHARED_FS_CLIENT_TTL_SECONDS = 15 * 60
 
 LocationEncoding = Literal["path", "query"]
 """How a route's location arrives: percent-encoded in the path or in a query value."""
+
+VIEW_JWT_AUDIENCE = "inspect-view"
+"""The `aud` every scoped bearer JWT must carry."""
+
+VIEW_JWT_ALGORITHMS = ["HS256"]
+"""The only JWT algorithm the standalone server verifies (the token's `alg` never chooses)."""
+
+APP_CONFIG_PATH = "/api/app-config"
 
 
 class AccessPolicy(Protocol):
@@ -271,6 +287,30 @@ def view_server_app(
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
 ) -> "FastAPI":
+    """Build the Inspect View API app (the bare routes, no authentication).
+
+    Embedding contract. This app does no authentication of its own: an
+    embedder wraps it in its own middleware, leaves whatever it needs on
+    ``request.state``, and supplies authorization through ``access_policy``
+    and storage mapping through ``mapping_policy``, both of which receive the
+    ``Request`` and can read that state. ``access_policy`` may be a plain
+    ``AccessPolicy`` (its ``can_*`` methods receive the caller's once-decoded
+    location and the same string is used for I/O) or a
+    ``ResolvingAccessPolicy`` (used as is; its ``resolve_*`` results are the
+    locations used for I/O). ``access_policy=None`` means no checks. The
+    mounted inspect_scout search routes under ``/scout`` go through the same
+    policy; an embedder that removes them by path prefix and mounts its own
+    is unaffected. ``standalone_view_app`` is the one place inspect_ai adds
+    authentication itself. See ``design/viewer-scoped-authorization.md``.
+
+    Args:
+        mapping_policy: Translates caller locations to storage locations and back.
+        access_policy: Authorizes each location (see above).
+        default_dir: Listing location used when a request names none (plain policies).
+        recursive: Recursively list files in a log directory.
+        fs_options: Extra arguments for the filesystem provider.
+        generate_direct_urls: Include presigned direct URLs where the storage supports them.
+    """
     app = FastAPI()
 
     @app.exception_handler(FileNotFoundError)
@@ -753,13 +793,57 @@ def view_server_app(
 
     @app.get("/app-config", response_model=AppConfig)
     async def api_app_config() -> AppConfig:
-        return get_app_config()
+        return get_app_config(
+            scoped_authorization=isinstance(resolver, TokenModeAccessPolicy)
+        )
 
     scout_router = get_scout_search_router()
     if scout_router is not None:
-        app.include_router(scout_router, prefix="/scout")
+
+        async def _resolve_scout_transcript_dir(request: Request) -> None:
+            """Route the mounted inspect_scout search routes through the resolver.
+
+            ``{dir}`` is a base64url-encoded transcript directory; it must
+            re-encode to exactly the received segment (400 otherwise). It is
+            resolved for listing (a search reads a directory's transcripts)
+            and the canonical location is re-encoded into ``path_params`` so
+            the route reads what was authorized. Attached per route rather
+            than to the app because embedders drop these routes by prefix and
+            mount their own.
+            """
+            encoded_dir = request.path_params.get("dir")
+            if encoded_dir is None:
+                return
+            transcript_dir = _decode_base64url_strict(encoded_dir)
+            resolved = await _resolve_list(request, transcript_dir)
+            request.path_params["dir"] = (
+                base64.urlsafe_b64encode(resolved.encode("utf-8"))
+                .decode("ascii")
+                .rstrip("=")
+            )
+
+        app.include_router(
+            scout_router,
+            prefix="/scout",
+            dependencies=[Depends(_resolve_scout_transcript_dir)],
+        )
 
     return app
+
+
+def _decode_base64url_strict(value: str) -> str:
+    """Decode a base64url path segment that must round-trip exactly, else 400."""
+    try:
+        padded = value + "=" * (-len(value) % 4)
+        decoded = base64.b64decode(
+            padded.replace("-", "+").replace("_", "/"), validate=True
+        ).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError, ValueError):
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Invalid path")
+    re_encoded = base64.urlsafe_b64encode(decoded.encode("utf-8")).decode("ascii")
+    if re_encoded.rstrip("=") != value.rstrip("="):
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Invalid path")
+    return decoded
 
 
 def filter_fastapi_log() -> None:
@@ -778,19 +862,201 @@ def filter_fastapi_log() -> None:
     access_logger.addFilter(RequestFilter())
 
 
-def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
-    class AuthorizationMiddleware(BaseHTTPMiddleware):
-        async def dispatch(
-            self, request: Request, call_next: RequestResponseEndpoint
-        ) -> Response:
-            auth_header = request.headers.get("authorization", None)
-            if auth_header is None or not secrets.compare_digest(
-                auth_header.encode(), authorization.encode()
-            ):
-                return Response("Unauthorized", status_code=401)
-            return await call_next(request)
+class ScopedAccessPolicy:
+    """Resolve locations against the scope of the request's verified bearer JWT.
 
-    return AuthorizationMiddleware
+    Structurally a Hawk-style policy: it reads ``request.state.view_scope``
+    (a ``ViewScope`` left there by ``ViewAuthorizationMiddleware``) the way
+    an embedder's policy reads its own auth context. A request with no scope
+    on its state is refused.
+    """
+
+    def _scope(self, request: Request) -> PathScope:
+        view_scope = getattr(request.state, "view_scope", None)
+        if not isinstance(view_scope, ViewScope):
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        return view_scope.path_scope
+
+    async def resolve_read(self, request: Request, location: str) -> str:
+        return _resolve_in_scope(self._scope(request), location, "read")
+
+    async def resolve_write(self, request: Request, location: str) -> str:
+        return _resolve_in_scope(self._scope(request), location, "write")
+
+    async def resolve_delete(self, request: Request, location: str) -> str:
+        return _resolve_in_scope(self._scope(request), location, "delete")
+
+    async def resolve_list(self, request: Request, location: str | None) -> str:
+        return _resolve_in_scope(self._scope(request), location, "list")
+
+
+class TokenModeAccessPolicy:
+    """The policy of a token-mode standalone server, dispatching per request.
+
+    ``ViewAuthorizationMiddleware`` leaves ``request.state.view_scope`` as a
+    ``ViewScope`` for a verified JWT (resolved by ``ScopedAccessPolicy``) or
+    ``None`` for the legacy shared-secret credential (``UnscopedResolvingPolicy``,
+    today's behaviour). A request that reached the routes without the
+    middleware having classified it is refused.
+    """
+
+    def __init__(self, default_dir: str) -> None:
+        self._scoped = ScopedAccessPolicy()
+        self._unscoped = UnscopedResolvingPolicy(default_dir)
+
+    def _select(self, request: Request) -> ResolvingAccessPolicy:
+        if not hasattr(request.state, "view_scope"):
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        return self._scoped if request.state.view_scope is not None else self._unscoped
+
+    async def resolve_read(self, request: Request, location: str) -> str:
+        return await self._select(request).resolve_read(request, location)
+
+    async def resolve_write(self, request: Request, location: str) -> str:
+        return await self._select(request).resolve_write(request, location)
+
+    async def resolve_delete(self, request: Request, location: str) -> str:
+        return await self._select(request).resolve_delete(request, location)
+
+    async def resolve_list(self, request: Request, location: str | None) -> str:
+        return await self._select(request).resolve_list(request, location)
+
+
+def _is_jwt_shaped(value: str) -> bool:
+    parts = value.split(".")
+    return (
+        len(parts) == 3
+        and all(parts[:2])
+        and all(
+            all(c.isalnum() or c in "-_" for c in part) and part.isascii()
+            for part in parts
+        )
+    )
+
+
+class ViewAuthorizationMiddleware:
+    """Authenticate requests to the standalone view server.
+
+    Pure ASGI (like ``AsyncFilesystemMiddleware``) so the state set here
+    reaches the route handler and its ``tg_collect`` fan-out. Exactly one
+    ``Authorization`` header is read (a duplicate is 401) and classified:
+
+    - equal to the configured shared secret (constant-time comparison): the
+      legacy credential, meaning today's unscoped behaviour;
+      ``request.state.view_scope`` is ``None``. Refused when
+      ``require_scoped`` is set, except on the app-config route so a client
+      can still discover the server's capabilities.
+    - ``Bearer <jwt>``: verified with the shared secret, ``algorithms``
+      pinned to HS256, ``aud`` fixed to ``inspect-view`` and ``exp``
+      required; the ``inspect_view_scope`` claim becomes
+      ``request.state.view_scope``. Any verification or claim failure is 401.
+    - anything else, or no header, is 401.
+
+    With no secret configured (a token-less server) requests pass through
+    untouched, except a bearer JWT, which is 401 since nothing can verify it.
+    Verified tokens are cached by token string until their ``exp``.
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        secret: str | None,
+        *,
+        require_scoped: bool = False,
+        cache_size: int = 256,
+    ) -> None:
+        self.app = app
+        self._secret = secret
+        self._require_scoped = require_scoped
+        self._cache_size = cache_size
+        self._cache: dict[str, tuple[float, ViewScope]] = {}
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        values = [
+            value
+            for name, value in scope.get("headers", [])
+            if name.lower() == b"authorization"
+        ]
+        if len(values) > 1:
+            await self._reject(scope, receive, send)
+            return
+        header = values[0].decode("latin-1") if values else None
+
+        if self._secret is None:
+            if header is not None and _bearer_token(header) is not None:
+                await self._reject(scope, receive, send)
+            else:
+                await self.app(scope, receive, send)
+            return
+
+        if header is None:
+            await self._reject(scope, receive, send)
+            return
+
+        if secrets.compare_digest(header.encode(), self._secret.encode()):
+            if self._require_scoped and scope.get("path") != APP_CONFIG_PATH:
+                await self._reject(scope, receive, send)
+                return
+            scope.setdefault("state", {})["view_scope"] = None
+            await self.app(scope, receive, send)
+            return
+
+        token = _bearer_token(header)
+        view_scope = self._verify(token) if token is not None else None
+        if view_scope is None:
+            await self._reject(scope, receive, send)
+            return
+        scope.setdefault("state", {})["view_scope"] = view_scope
+        await self.app(scope, receive, send)
+
+    def _verify(self, token: str) -> ViewScope | None:
+        assert self._secret is not None
+        now = time.time()
+        cached = self._cache.get(token)
+        if cached is not None:
+            if cached[0] > now:
+                return cached[1]
+            del self._cache[token]
+        try:
+            claims = jwt.decode(
+                token,
+                self._secret,
+                algorithms=VIEW_JWT_ALGORITHMS,
+                audience=VIEW_JWT_AUDIENCE,
+                options={"require": ["exp"]},
+            )
+            view_scope = scope_from_claims(claims)
+        except (jwt.PyJWTError, ValueError, TypeError) as ex:
+            logger.debug(f"Rejected scoped authorization token: {ex}")
+            return None
+        exp = claims["exp"]
+        if not isinstance(exp, (int, float)):
+            return None
+        if len(self._cache) >= self._cache_size:
+            for key in [k for k, (e, _) in self._cache.items() if e <= now]:
+                del self._cache[key]
+            if len(self._cache) >= self._cache_size:
+                del self._cache[next(iter(self._cache))]
+        self._cache[token] = (float(exp), view_scope)
+        return view_scope
+
+    async def _reject(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await PlainTextResponse("Unauthorized", status_code=HTTP_401_UNAUTHORIZED)(
+            scope, receive, send
+        )
+
+
+def _bearer_token(header: str) -> str | None:
+    """The JWT in a ``Bearer`` header, or None when the header is not JWT-shaped."""
+    scheme, _, credentials = header.partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+    credentials = credentials.strip()
+    return credentials if _is_jwt_shaped(credentials) else None
 
 
 class AsyncFilesystemMiddleware:
@@ -881,13 +1147,30 @@ def standalone_view_app(
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
     dist_dir: Path | None = None,
+    require_scoped_authorization: bool = False,
 ) -> ASGIApp:
+    """The app served by ``inspect view``: API under ``/api``, viewer assets at ``/``.
+
+    Without a shared secret every request is confined to ``log_dir``
+    (``OnlyDirAccessPolicy``). With one, ``ViewAuthorizationMiddleware``
+    authenticates each request and ``TokenModeAccessPolicy`` confines a
+    scoped bearer JWT to its claimed roots while the legacy credential keeps
+    today's unscoped behaviour; ``require_scoped_authorization`` refuses the
+    legacy credential everywhere but the app-config route.
+    """
+    authorization = network_policy.authorization
+    if require_scoped_authorization and authorization is None:
+        raise ViewerNetworkPolicyError(
+            "Requiring scoped authorization needs a shared secret: set "
+            "INSPECT_VIEW_AUTHORIZATION_TOKEN."
+        )
+
     api = view_server_app(
         mapping_policy=None,
         access_policy=(
             OnlyDirAccessPolicy(log_dir)
-            if network_policy.authorization is None
-            else UnscopedResolvingPolicy(log_dir)
+            if authorization is None
+            else TokenModeAccessPolicy(log_dir)
         ),
         default_dir=log_dir,
         recursive=recursive,
@@ -909,10 +1192,10 @@ def standalone_view_app(
         name="static",
     )
 
-    if network_policy.authorization:
-        app.add_middleware(authorization_middleware(network_policy.authorization))
-
-    protected_app: ASGIApp = HostValidationMiddleware(app, network_policy)
+    protected_app: ASGIApp = ViewAuthorizationMiddleware(
+        app, authorization, require_scoped=require_scoped_authorization
+    )
+    protected_app = HostValidationMiddleware(protected_app, network_policy)
     return SecurityHeadersMiddleware(protected_app)
 
 
@@ -928,6 +1211,7 @@ def view_server(
     trusted_hosts: tuple[str, ...] = (),
     unsafe_allow_unauthenticated: bool = False,
     network_policy: ViewerNetworkPolicy | None = None,
+    require_scoped_authorization: bool = False,
 ) -> None:
     network_policy = network_policy or resolve_viewer_network_policy(
         bind_host=host,
@@ -950,6 +1234,7 @@ def view_server(
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
+        require_scoped_authorization=require_scoped_authorization,
     )
 
     # one server-lifetime async filesystem (shared client + connection pool)

@@ -42,6 +42,12 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help="Acknowledge unauthenticated access when binding beyond loopback.",
     )
+    @click.option(
+        "--require-scoped-authorization",
+        is_flag=True,
+        envvar="INSPECT_VIEW_REQUIRE_SCOPED_AUTHORIZATION",
+        help="Accept only scoped bearer JWTs signed with INSPECT_VIEW_AUTHORIZATION_TOKEN; refuse the raw token (except on /api/app-config).",
+    )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
         return cast(click.Context, func(*args, **kwargs))
@@ -75,6 +81,7 @@ def start(
     trusted_origin: tuple[str, ...],
     trusted_host: tuple[str, ...],
     unsafe_allow_unauthenticated: bool,
+    require_scoped_authorization: bool,
     **common: Unpack[CommonOptions],
 ) -> None:
     """View evaluation logs."""
@@ -103,6 +110,7 @@ def start(
             trusted_hosts=trusted_host,
             authorization=authorization,
             unsafe_allow_unauthenticated=unsafe_allow_unauthenticated,
+            require_scoped_authorization=require_scoped_authorization,
             log_level=common["log_level"],
         )
     except ViewerNetworkPolicyError as ex:

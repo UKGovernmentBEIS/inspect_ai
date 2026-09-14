@@ -24,6 +24,7 @@ from inspect_ai._util.azure import is_azure_auth_error
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import normalize_azure_listing_name
+from inspect_ai._view.scope import SCOPE_CLAIM
 from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -77,8 +78,14 @@ class AppConfig(BaseModel):
     inspect_version: str
     scout_version: str | None = None
 
+    scoped_authorization: bool = False
+    """Whether this server confines a bearer JWT to the scope in its claims."""
 
-def get_app_config() -> AppConfig:
+    scope_claim: str | None = None
+    """Name of the JWT claim carrying the scope, when `scoped_authorization` is set."""
+
+
+def get_app_config(scoped_authorization: bool = False) -> AppConfig:
     """Return app config, including installed inspect and scout versions.
 
     `inspect_scout` is an optional dependency, so `scout_version` is None when
@@ -91,6 +98,8 @@ def get_app_config() -> AppConfig:
     return AppConfig(
         inspect_version=version(PKG_NAME),
         scout_version=scout_version,
+        scoped_authorization=scoped_authorization,
+        scope_claim=SCOPE_CLAIM if scoped_authorization else None,
     )
 
 

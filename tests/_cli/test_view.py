@@ -75,3 +75,33 @@ def test_view_policy_errors_are_usage_errors(monkeypatch: Any) -> None:
 
     assert isinstance(result.exception, click.UsageError)
     assert "unsafe viewer configuration" in str(result.exception)
+
+
+def test_view_require_scoped_authorization_flag_and_env(monkeypatch: Any) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_view(**kwargs: Any) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(view_cli, "view", fake_view)
+    monkeypatch.setattr(view_cli, "process_common_options", lambda _options: None)
+
+    result = CliRunner().invoke(view_cli.view_command, [], standalone_mode=False)
+    assert result.exit_code == 0, result.output
+    assert captured["require_scoped_authorization"] is False
+
+    result = CliRunner().invoke(
+        view_cli.view_command, ["--require-scoped-authorization"], standalone_mode=False
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["require_scoped_authorization"] is True
+
+    captured.clear()
+    result = CliRunner().invoke(
+        view_cli.view_command,
+        [],
+        env={"INSPECT_VIEW_REQUIRE_SCOPED_AUTHORIZATION": "1"},
+        standalone_mode=False,
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["require_scoped_authorization"] is True
