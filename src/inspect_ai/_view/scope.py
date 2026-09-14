@@ -448,8 +448,9 @@ def scope_from_claims(
 
     project = claim.get("project")
     if project is not None:
-        if not isinstance(project, Mapping) or not isinstance(project.get("uri"), str):
+        if not isinstance(project, Mapping):
             raise ValueError("Scope project must be an object with a uri")
+        _check_wire_uri(project.get("uri"), windows=windows)
         _check_permissions(project.get("permissions", []))
     if not roots and project is None:
         raise ValueError("Scope has no roots")
@@ -459,8 +460,9 @@ def scope_from_claims(
         if not isinstance(transcripts, list):
             raise ValueError("Scope transcripts must be a list")
         for item in transcripts:
-            if not isinstance(item, Mapping) or not isinstance(item.get("uri"), str):
+            if not isinstance(item, Mapping):
                 raise ValueError("Scope transcript entries must be objects with a uri")
+            _check_wire_uri(item.get("uri"), windows=windows)
             if item.get("kind", "dir") not in ROOT_KINDS:
                 raise ValueError("Unknown scope transcript kind")
 
@@ -473,14 +475,54 @@ def scope_from_claims(
     return ViewScope(roots=roots)
 
 
+WIRE_SCHEMES: frozenset[str] = frozenset({"file", "s3", "gs", "az", "http", "https"})
+"""URI schemes a claim may name a root with (design section 2)."""
+
+
+def _check_wire_uri(uri: object, *, windows: bool | None = None) -> str:
+    """Enforce the claim schema: an absolute URI with one of ``WIRE_SCHEMES``.
+
+    Applied to every location in a claim before canonicalization. Bare paths
+    (which ``ScopeRoot.parse`` accepts for the server's own ``log_dir``) and
+    other schemes are refused so a malformed claim never binds to the
+    server's working directory or an unexpected filesystem.
+    """
+    if not isinstance(uri, str) or not uri:
+        raise ValueError("Scope uri must be a non-empty string")
+    scheme, _ = _split_protocol(uri)
+    if scheme is None or scheme.lower() not in WIRE_SCHEMES:
+        raise ValueError(
+            f"Scope uri must be an absolute file, s3, gs, az or http(s) URI: {uri}"
+        )
+    scheme = scheme.lower()
+    windows = os.name == "nt" if windows is None else windows
+    if scheme == "file":
+        path = _local_path_from_file_uri(uri, windows=windows)
+        if path is None or not (
+            PureWindowsPath(path).is_absolute()
+            if windows
+            else PurePosixPath(path).is_absolute()
+        ):
+            raise ValueError(f"Scope file URI must name an absolute path: {uri}")
+    elif scheme in ("http", "https"):
+        if _parse_opaque_http_file(uri) is None:
+            raise ValueError(f"Invalid scope http(s) URI: {uri}")
+    elif _canonical_remote_path(uri) is None:
+        raise ValueError(f"Invalid scope {scheme} URI: {uri}")
+    return uri
+
+
 def _parse_root(item: Any, *, windows: bool | None) -> ScopeRoot:
     if not isinstance(item, Mapping):
         raise ValueError("Scope root must be an object")
+    uri = _check_wire_uri(item.get("uri"), windows=windows)
     return ScopeRoot.parse(
-        item.get("uri"), item.get("kind"), item.get("permissions", []), windows=windows
+        uri, item.get("kind"), item.get("permissions", []), windows=windows
     )
 
 
 def _check_permissions(permissions: Any) -> None:
-    if not isinstance(permissions, list):
-        raise ValueError("Scope permissions must be a list")
+    if not isinstance(permissions, list) or not all(
+        isinstance(p, str) for p in permissions
+    ):
+        raise ValueError("Scope permissions must be a list of strings")

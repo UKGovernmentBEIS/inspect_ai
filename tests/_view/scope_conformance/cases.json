@@ -1,5 +1,5 @@
 {
-  "$schema_note": "Conformance corpus for inspect_ai._view.scope (design/viewer-scoped-authorization.md section 7). cases: resolve `location` (null = absent, default binding) for `permission` under `scope`; `decode` names the route-layer decode applied first (path = normalize_uri, query = urllib.parse.unquote, null = none); `platform` restricts a case (posix, windows, null = any). {tmp} is the resolved fixture root, {tmp_uri} its file: URI. claims: scope_from_claims validity. children: resolve_child.",
+  "$schema_note": "Conformance corpus for inspect_ai._view.scope (design/viewer-scoped-authorization.md section 7). cases: resolve `location` (null = absent, default binding) for `permission` under `scope`; `decode` names the route-layer decode applied first (path and query = one urllib.parse.unquote, the built-in resolving policies' rule; null = none); `platform` restricts a case (posix, windows, null = any). {tmp} is the resolved fixture root, {tmp_uri} its file: URI. claims: scope_from_claims validity. children: resolve_child. Claim root URIs must be absolute file/s3/gs/az/http(s) URIs; bare paths are accepted only by ScopeRoot.parse for the server's own log_dir.",
   "version": 1,
   "fixture": {
     "dirs": [
@@ -27,7 +27,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -52,7 +52,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -102,7 +102,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -126,7 +126,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -151,7 +151,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -176,7 +176,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -201,7 +201,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -226,7 +226,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -251,7 +251,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -276,7 +276,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -299,7 +299,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -322,7 +322,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -345,7 +345,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -368,7 +368,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -391,7 +391,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -417,7 +417,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -442,7 +442,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -465,7 +465,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -490,7 +490,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -514,7 +514,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -540,7 +540,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -565,7 +565,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -590,7 +590,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -615,7 +615,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -638,7 +638,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -661,7 +661,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -684,7 +684,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -707,7 +707,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -730,7 +730,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -753,7 +753,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -778,7 +778,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -801,7 +801,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -824,7 +824,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -847,7 +847,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -870,7 +870,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -895,7 +895,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -916,7 +916,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -937,7 +937,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -960,7 +960,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "admin"
@@ -980,7 +980,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1006,7 +1006,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1031,7 +1031,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1057,7 +1057,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1082,7 +1082,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1107,7 +1107,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1130,7 +1130,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1153,7 +1153,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1167,11 +1167,9 @@
       "location": "{tmp_uri}/logs/x#/../../etc/passwd",
       "permission": "read",
       "decode": "path",
-      "expect": {
-        "resolved": "{tmp}/logs/x"
-      },
+      "expect": "denied",
       "platform": "posix",
-      "notes": "normalize_uri drops the fragment; the server reads exactly what it checked"
+      "notes": "route decoding is a single unquote; the literal path escapes and is refused (host and server can no longer disagree)"
     },
     {
       "id": "route-path-finding-4304664-encoded-hash",
@@ -1179,7 +1177,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1193,9 +1191,7 @@
       "location": "{tmp_uri}/logs/x%23/../../etc/passwd",
       "permission": "read",
       "decode": "path",
-      "expect": {
-        "resolved": "{tmp}/logs/x"
-      },
+      "expect": "denied",
       "platform": "posix"
     },
     {
@@ -1204,7 +1200,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1228,7 +1224,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1248,12 +1244,12 @@
       "platform": "posix"
     },
     {
-      "id": "route-path-file-uri-question-is-query",
+      "id": "route-path-file-uri-question-literal",
       "scope": {
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1268,10 +1264,10 @@
       "permission": "read",
       "decode": "path",
       "expect": {
-        "resolved": "{tmp}/logs/a"
+        "resolved": "{tmp}/logs/a?b.eval"
       },
       "platform": "posix",
-      "notes": "normalize_uri parses a file: URI and drops its query; still inside the root"
+      "notes": "after the single decode, ? in a file: URI is a file-name character too"
     },
     {
       "id": "route-query-encoded-space",
@@ -1279,7 +1275,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1304,7 +1300,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1329,7 +1325,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1400,7 +1396,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/alias",
+            "uri": "{tmp_uri}/alias",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1426,7 +1422,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/alias",
+            "uri": "{tmp_uri}/alias",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1451,7 +1447,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/alias",
+            "uri": "{tmp_uri}/alias",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1476,7 +1472,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs/run.eval",
+            "uri": "{tmp_uri}/logs/run.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -1501,7 +1497,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs/run.eval",
+            "uri": "{tmp_uri}/logs/run.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -1526,7 +1522,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs/run.eval",
+            "uri": "{tmp_uri}/logs/run.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -1551,7 +1547,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs/run.eval",
+            "uri": "{tmp_uri}/logs/run.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -1577,7 +1573,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs/run.eval",
+            "uri": "{tmp_uri}/logs/run.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -1600,7 +1596,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs/run.eval",
+            "uri": "{tmp_uri}/logs/run.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -1623,7 +1619,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs/run.eval",
+            "uri": "{tmp_uri}/logs/run.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -1646,7 +1642,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs/run.eval",
+            "uri": "{tmp_uri}/logs/run.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -1671,7 +1667,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1696,7 +1692,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs/run.eval",
+            "uri": "{tmp_uri}/logs/run.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -1721,7 +1717,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1731,7 +1727,7 @@
             ]
           },
           {
-            "uri": "{tmp}/outside",
+            "uri": "{tmp_uri}/outside",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1754,7 +1750,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read"
@@ -1774,7 +1770,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/alias",
+            "uri": "{tmp_uri}/alias",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1799,7 +1795,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1807,7 +1803,7 @@
             ]
           },
           {
-            "uri": "{tmp}/outside",
+            "uri": "{tmp_uri}/outside",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1831,7 +1827,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1839,7 +1835,7 @@
             ]
           },
           {
-            "uri": "{tmp}/outside",
+            "uri": "{tmp_uri}/outside",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1863,7 +1859,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1871,7 +1867,7 @@
             ]
           },
           {
-            "uri": "{tmp}/outside",
+            "uri": "{tmp_uri}/outside",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1893,7 +1889,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1901,7 +1897,7 @@
             ]
           },
           {
-            "uri": "{tmp}/outside",
+            "uri": "{tmp_uri}/outside",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1925,7 +1921,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "{tmp}/logs",
+            "uri": "{tmp_uri}/logs",
             "kind": "dir",
             "permissions": [
               "read",
@@ -1933,7 +1929,7 @@
             ]
           },
           {
-            "uri": "{tmp}/outside",
+            "uri": "{tmp_uri}/outside",
             "kind": "dir",
             "permissions": [
               "read",
@@ -2606,7 +2602,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "memory://bucket/logs/secret.eval",
+            "uri": "s3://bucket/logs/secret.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -2617,11 +2613,11 @@
           }
         ]
       },
-      "location": "memory://bucket/logs//secret.eval",
+      "location": "s3://bucket/logs//secret.eval",
       "permission": "read",
       "decode": null,
       "expect": {
-        "resolved": "memory://bucket/logs/secret.eval"
+        "resolved": "s3://bucket/logs/secret.eval"
       },
       "platform": null
     },
@@ -2631,7 +2627,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "memory://bucket/logs/secret.eval",
+            "uri": "s3://bucket/logs/secret.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -2642,11 +2638,11 @@
           }
         ]
       },
-      "location": "memory://bucket/logs/secret.eval",
+      "location": "s3://bucket/logs/secret.eval",
       "permission": "read",
       "decode": null,
       "expect": {
-        "resolved": "memory://bucket/logs/secret.eval"
+        "resolved": "s3://bucket/logs/secret.eval"
       },
       "platform": null
     },
@@ -2656,7 +2652,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "memory://bucket/logs/secret.eval",
+            "uri": "s3://bucket/logs/secret.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -2667,11 +2663,11 @@
           }
         ]
       },
-      "location": "memory://bucket/logs/secret.eval",
+      "location": "s3://bucket/logs/secret.eval",
       "permission": "list",
       "decode": null,
       "expect": {
-        "resolved": "memory://bucket/logs/secret.eval"
+        "resolved": "s3://bucket/logs/secret.eval"
       },
       "platform": null
     },
@@ -2681,7 +2677,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "memory://bucket/logs/secret.eval",
+            "uri": "s3://bucket/logs/secret.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -2692,7 +2688,7 @@
           }
         ]
       },
-      "location": "memory://bucket/logs/other.eval",
+      "location": "s3://bucket/logs/other.eval",
       "permission": "read",
       "decode": null,
       "expect": "denied",
@@ -2704,7 +2700,7 @@
         "v": 1,
         "roots": [
           {
-            "uri": "memory://bucket/logs/secret.eval",
+            "uri": "s3://bucket/logs/secret.eval",
             "kind": "file",
             "permissions": [
               "read",
@@ -2715,7 +2711,7 @@
           }
         ]
       },
-      "location": "memory://bucket/logs",
+      "location": "s3://bucket/logs",
       "permission": "list",
       "decode": null,
       "expect": "denied",
@@ -3387,6 +3383,104 @@
         "resolved": "\\\\server\\share\\logs\\run.eval"
       },
       "platform": "windows"
+    },
+    {
+      "id": "route-path-file-uri-hash-literal",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/a%23b.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "{tmp}/logs/a#b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "route-path-file-uri-semicolon-literal",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/a%3Bb.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "{tmp}/logs/a;b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "route-path-file-uri-percent-literal",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/a%2525b.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "{tmp}/logs/a%25b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "exact-file-root-with-hash-name",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs/a#b.eval",
+            "kind": "file",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp_uri}/logs/a%23b.eval",
+      "permission": "read",
+      "decode": "path",
+      "expect": {
+        "resolved": "{tmp}/logs/a#b.eval"
+      },
+      "platform": "posix"
     }
   ],
   "claims": [
@@ -3397,7 +3491,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3460,7 +3554,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3485,7 +3579,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3504,7 +3598,7 @@
           "v": 1,
           "roots": [],
           "project": {
-            "uri": "{tmp}/proj",
+            "uri": "{tmp_uri}/proj",
             "permissions": [
               "read"
             ]
@@ -3520,7 +3614,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3537,7 +3631,7 @@
             }
           ],
           "project": {
-            "uri": "{tmp}/proj",
+            "uri": "{tmp_uri}/proj",
             "permissions": [
               "read",
               "write"
@@ -3557,7 +3651,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3605,7 +3699,7 @@
           "v": 2,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3625,7 +3719,7 @@
         "inspect_view_scope": {
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3677,7 +3771,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "folder",
               "permissions": [
                 "read",
@@ -3698,7 +3792,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "permissions": [
                 "read"
               ]
@@ -3774,7 +3868,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": "read"
             }
@@ -3790,7 +3884,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 1
@@ -3850,7 +3944,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3872,7 +3966,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3898,7 +3992,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3925,7 +4019,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3947,7 +4041,7 @@
           "v": 1,
           "roots": [
             {
-              "uri": "{tmp}/logs",
+              "uri": "{tmp_uri}/logs",
               "kind": "dir",
               "permissions": [
                 "read",
@@ -3961,6 +4055,226 @@
         }
       },
       "expect": "invalid"
+    },
+    {
+      "id": "invalid-root-relative-path",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "relative/path",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid",
+      "notes": "a claim root must be an absolute URI; bare paths never bind to the server cwd"
+    },
+    {
+      "id": "invalid-root-bare-absolute-path",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-root-unsupported-scheme",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "ftp://host/path",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-root-file-uri-no-path",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "file://localhost",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-root-file-uri-other-host",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "file://evil.test/w/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-transcript-relative-uri",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp_uri}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list"
+              ]
+            }
+          ],
+          "transcripts": [
+            {
+              "uri": "relative/t",
+              "kind": "dir"
+            }
+          ]
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-project-relative-uri",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp_uri}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list"
+              ]
+            }
+          ],
+          "project": {
+            "uri": "relative/proj",
+            "permissions": [
+              "read"
+            ]
+          }
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "invalid-project-permissions-not-strings",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "{tmp_uri}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read",
+                "list"
+              ]
+            }
+          ],
+          "project": {
+            "uri": "{tmp_uri}/proj",
+            "permissions": [
+              1
+            ]
+          }
+        }
+      },
+      "expect": "invalid"
+    },
+    {
+      "id": "valid-gs-root",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "gs://bucket/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "valid"
+    },
+    {
+      "id": "valid-az-root",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "az://container/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "valid"
+    },
+    {
+      "id": "valid-scheme-case-insensitive",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "S3://bucket/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "valid"
     }
   ],
   "children": [

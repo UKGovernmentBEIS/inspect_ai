@@ -16,7 +16,6 @@ from typing import Any
 import pytest
 
 import inspect_ai._view
-from inspect_ai._view.common import normalize_uri
 from inspect_ai._view.scope import (
     Location,
     PathScope,
@@ -79,9 +78,8 @@ def _substitute(value: Any, root: Path) -> Any:
 
 
 def _decode(location: str, decode: str | None) -> str:
-    if decode == "path":
-        return normalize_uri(location)
-    if decode == "query":
+    """The route layer's single decode for resolving policies (path and query alike)."""
+    if decode in ("path", "query"):
         return urllib.parse.unquote(location)
     assert decode is None, decode
     return location
@@ -146,6 +144,27 @@ def test_corpus_ids_are_unique() -> None:
     for section in ("cases", "claims", "children"):
         ids = _ids(CORPUS[section])
         assert len(ids) == len(set(ids)), section
+
+
+def test_bare_path_root_is_for_the_server_only(fixture_root: Path) -> None:
+    """ScopeRoot.parse takes the server's own log_dir as a bare path; a claim may not."""
+    root = ScopeRoot.parse(str(fixture_root / "logs"), "dir", ["read"])
+    assert root.permissions == frozenset({"read"})
+    with pytest.raises(ValueError, match="absolute"):
+        scope_from_claims(
+            {
+                "inspect_view_scope": {
+                    "v": 1,
+                    "roots": [
+                        {
+                            "uri": str(fixture_root / "logs"),
+                            "kind": "dir",
+                            "permissions": ["read"],
+                        }
+                    ],
+                }
+            }
+        )
 
 
 def test_unknown_permission_never_grants(fixture_root: Path) -> None:
