@@ -336,12 +336,22 @@ def _auto_api(**kwargs: Any) -> AnthropicAPI:
     return AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key", **kwargs)
 
 
+def _resolve(
+    api: AnthropicAPI, config: GenerateConfig | None = None, succeed: bool = True
+) -> Literal["5m", "1h"] | None:
+    """Resolve the TTL as generate() does, recording the refresh on success."""
+    resolved = api._resolve_cache_ttl(config or GenerateConfig())
+    if succeed:
+        api._record_cache_ttl_refresh(resolved)
+    return resolved.ttl
+
+
 def test_resolve_cache_ttl_no_active_sample(
     clock: _Clock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     api = _auto_api()
     _set_samples(monkeypatch, None)
-    assert api._resolve_cache_ttl(GenerateConfig()) is None
+    assert _resolve(api) is None
     assert api._cache_ttl_state == {}
 
 
@@ -350,13 +360,27 @@ def test_resolve_cache_ttl_escalates_after_gap_and_sticks(
 ) -> None:
     api = _auto_api()
     _set_samples(monkeypatch, _sample("s1"))
-    assert api._resolve_cache_ttl(GenerateConfig()) is None
+    assert _resolve(api) is None
     clock.advance(299)
-    assert api._resolve_cache_ttl(GenerateConfig()) is None
+    assert _resolve(api) is None
     clock.advance(301)
-    assert api._resolve_cache_ttl(GenerateConfig()) == "1h"
+    assert _resolve(api) == "1h"
     clock.advance(1)
-    assert api._resolve_cache_ttl(GenerateConfig()) == "1h"
+    assert _resolve(api) == "1h"
+
+
+def test_resolve_cache_ttl_failed_attempts_do_not_reset_gap(
+    clock: _Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a failed attempt (rate limit, connection error) neither writes nor
+    # refreshes the server-side cache, so it must not advance the gap baseline
+    api = _auto_api()
+    _set_samples(monkeypatch, _sample("s1"))
+    assert _resolve(api) is None
+    clock.advance(250)
+    assert _resolve(api, succeed=False) is None  # 250s gap, attempt fails
+    clock.advance(250)
+    assert _resolve(api) == "1h"  # 500s since the last *successful* request
 
 
 def test_resolve_cache_ttl_samples_escalate_independently(
@@ -365,17 +389,17 @@ def test_resolve_cache_ttl_samples_escalate_independently(
     api = _auto_api()
     s1, s2 = _sample("s1"), _sample("s2")
     _set_samples(monkeypatch, s1, [s1, s2])
-    api._resolve_cache_ttl(GenerateConfig())
+    _resolve(api)
     _set_samples(monkeypatch, s2, [s1, s2])
-    api._resolve_cache_ttl(GenerateConfig())
+    _resolve(api)
     clock.advance(301)
     _set_samples(monkeypatch, s1, [s1, s2])
-    assert api._resolve_cache_ttl(GenerateConfig()) == "1h"
+    assert _resolve(api) == "1h"
     _set_samples(monkeypatch, s2, [s1, s2])
     clock.advance(1)
-    assert api._resolve_cache_ttl(GenerateConfig()) == "1h"  # 302s gap for s2
+    assert _resolve(api) == "1h"  # 302s gap for s2
     _set_samples(monkeypatch, _sample("s3"), [s1, s2, _sample("s3")])
-    assert api._resolve_cache_ttl(GenerateConfig()) is None
+    assert _resolve(api) is None
 
 
 @pytest.mark.parametrize("ttl", ["5m", "1h"])
@@ -384,17 +408,21 @@ def test_resolve_cache_ttl_pinned_disables_escalation(
 ) -> None:
     api = _auto_api(cache_ttl=ttl)
     _set_samples(monkeypatch, _sample("s1"))
-    assert api._resolve_cache_ttl(GenerateConfig()) == ttl
+    assert _resolve(api) == ttl
     clock.advance(10_000)
-    assert api._resolve_cache_ttl(GenerateConfig()) == ttl
+    assert _resolve(api) == ttl
     assert api._cache_ttl_state == {}
 
 
 @pytest.mark.parametrize(
     "model_name",
-    ["bedrock/us.anthropic.claude-sonnet-4-6", "vertex/claude-sonnet-4-6@20250929"],
+    [
+        "bedrock/us.anthropic.claude-sonnet-4-6",
+        "vertex/claude-sonnet-4-6@20250929",
+        "azure/claude-sonnet-4-6",
+    ],
 )
-def test_resolve_cache_ttl_auto_skips_bedrock_vertex(
+def test_resolve_cache_ttl_auto_skips_non_first_party(
     model_name: str, clock: _Clock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from test_helpers.utils import setenv_if_unset
@@ -404,12 +432,13 @@ def test_resolve_cache_ttl_auto_skips_bedrock_vertex(
     setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
     setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
     setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
+    setenv_if_unset("AZUREAI_ANTHROPIC_BASE_URL", "https://fake-azure.example.com")
 
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     _set_samples(monkeypatch, _sample("s1"))
-    assert api._resolve_cache_ttl(GenerateConfig()) is None
+    assert _resolve(api) is None
     clock.advance(10_000)
-    assert api._resolve_cache_ttl(GenerateConfig()) is None
+    assert _resolve(api) is None
     assert api._cache_ttl_state == {}
 
 
@@ -418,7 +447,16 @@ def test_resolve_cache_ttl_auto_skips_batch(
 ) -> None:
     api = _auto_api()
     _set_samples(monkeypatch, _sample("s1"))
-    assert api._resolve_cache_ttl(GenerateConfig(batch=True)) is None
+    assert _resolve(api, GenerateConfig(batch=True)) is None
+    assert api._cache_ttl_state == {}
+
+
+def test_resolve_cache_ttl_auto_skips_disabled_cache_prompt(
+    clock: _Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api = _auto_api()
+    _set_samples(monkeypatch, _sample("s1"))
+    assert _resolve(api, GenerateConfig(cache_prompt=False)) is None
     assert api._cache_ttl_state == {}
 
 
@@ -428,13 +466,13 @@ def test_resolve_cache_ttl_prunes_completed_samples(
     api = _auto_api()
     s1, s2, s3 = _sample("s1"), _sample("s2"), _sample("s3")
     _set_samples(monkeypatch, s1, [s1, s2])
-    api._resolve_cache_ttl(GenerateConfig())
+    _resolve(api)
     _set_samples(monkeypatch, s2, [s1, s2])
-    api._resolve_cache_ttl(GenerateConfig())
+    _resolve(api)
     assert set(api._cache_ttl_state) == {"s1", "s2"}
     # s1 completes; a new sample's first request prunes it
     _set_samples(monkeypatch, s3, [s2, s3])
-    api._resolve_cache_ttl(GenerateConfig())
+    _resolve(api)
     assert set(api._cache_ttl_state) == {"s2", "s3"}
 
 
@@ -448,7 +486,7 @@ def test_resolve_cache_ttl_backstop_evicts_oldest(
         # registry reports all samples live, so the prune keeps them and only
         # the backstop cap bounds the dict
         _set_samples(monkeypatch, sample, samples)
-        api._resolve_cache_ttl(GenerateConfig())
+        _resolve(api)
     assert set(api._cache_ttl_state) == {"s1", "s2", "s3"}
 
 
@@ -460,11 +498,11 @@ def test_resolve_cache_ttl_logs_escalation_once(
     api = _auto_api()
     _set_samples(monkeypatch, _sample("s1"))
     with caplog.at_level(logging.INFO, logger=anthropic_module.logger.name):
-        api._resolve_cache_ttl(GenerateConfig())
+        _resolve(api)
         clock.advance(301)
-        api._resolve_cache_ttl(GenerateConfig())
+        _resolve(api)
         clock.advance(301)
-        api._resolve_cache_ttl(GenerateConfig())
+        _resolve(api)
     escalations = [r for r in caplog.records if "1h cache TTL" in r.message]
     assert len(escalations) == 1
 
@@ -480,18 +518,22 @@ def test_cache_write_ttl_auto(clock: _Clock, monkeypatch: pytest.MonkeyPatch) ->
     _set_samples(monkeypatch, None)
     assert api.cache_write_ttl() is None
     _set_samples(monkeypatch, _sample("s1"))
-    api._resolve_cache_ttl(GenerateConfig())
+    _resolve(api)
     assert api.cache_write_ttl() is None
     clock.advance(301)
-    api._resolve_cache_ttl(GenerateConfig())
+    _resolve(api)
     assert api.cache_write_ttl() == "1h"
 
 
 def test_model_api_cache_write_ttl_default() -> None:
     from inspect_ai.model import get_model
 
-    # base ModelAPI falls back to a static cache_ttl attribute (absent → None)
-    assert get_model("mockllm/model").api.cache_write_ttl() is None
+    # base ModelAPI falls back to a static cache_ttl attribute (absent → None);
+    # use a dedicated model name since get_model caches instances
+    api = get_model("mockllm/cache-write-ttl-default").api
+    assert api.cache_write_ttl() is None
+    setattr(api, "cache_ttl", "1h")
+    assert api.cache_write_ttl() == "1h"
 
 
 @pytest.mark.parametrize("block_type", ["thinking", "redacted_thinking"])

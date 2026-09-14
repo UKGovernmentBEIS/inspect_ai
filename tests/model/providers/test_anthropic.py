@@ -1096,6 +1096,63 @@ async def test_anthropic_auto_cache_ttl_threads_into_request(
 
 
 @pytest.mark.anyio
+async def test_anthropic_auto_cache_ttl_escalates_via_generate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A >5m gap between a sample's generate() calls escalates to the 1h TTL."""
+    import inspect_ai.model._providers.anthropic as anthropic_module
+
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+
+    sample = types.SimpleNamespace(sample_uuid="sample-gap")
+    monkeypatch.setattr(anthropic_module, "sample_active", lambda: sample)
+    monkeypatch.setattr(anthropic_module, "active_samples", lambda: [sample])
+
+    clock = types.SimpleNamespace(now=1000.0)
+    monkeypatch.setattr(
+        anthropic_module, "time", types.SimpleNamespace(monotonic=lambda: clock.now)
+    )
+
+    requests: list[dict[str, Any]] = []
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        requests.append(dict(request))
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    api._perform_request_and_continuations = fake_perform  # type: ignore[method-assign]
+
+    async def call() -> None:
+        await api.generate(
+            input=[ChatMessageUser(content="hello")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(cache_prompt=True),
+        )
+
+    await call()
+    clock.now += 250
+    await call()
+    clock.now += 301
+    await call()
+
+    assert requests[0]["cache_control"] == {"type": "ephemeral"}
+    assert requests[1]["cache_control"] == {"type": "ephemeral"}
+    assert requests[2]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+
+
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_prompt_caching_changing_suffix() -> None:
     """Verify caching when only the last content block changes.

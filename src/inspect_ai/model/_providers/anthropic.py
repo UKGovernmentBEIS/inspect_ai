@@ -12,6 +12,7 @@ from typing import (
     Any,
     Iterable,
     Literal,
+    NamedTuple,
     Sequence,
     Tuple,
     TypeGuard,
@@ -290,10 +291,18 @@ _CACHE_TTL_STATE_MAX_SAMPLES = 10_000
 @dataclass
 class _SampleCacheTtlState:
     last_request_start: float
-    """`time.monotonic()` at the start of the sample's previous generate()."""
+    """`time.monotonic()` at the start of the sample's last successful request."""
 
     escalated: bool = False
     """Sticky flag: sample observed a >5m gap and now uses the 1h TTL."""
+
+
+class _ResolvedCacheTtl(NamedTuple):
+    ttl: Literal["5m", "1h"] | None
+    """TTL for this request's cache_control (None omits the ttl key = 5m)."""
+
+    request_start: float | None
+    """`time.monotonic()` at resolve time when sample gap tracking applied."""
 
 
 _CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
@@ -533,7 +542,7 @@ class AnthropicAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
-    def _resolve_cache_ttl(self, config: GenerateConfig) -> Literal["5m", "1h"] | None:
+    def _resolve_cache_ttl(self, config: GenerateConfig) -> _ResolvedCacheTtl:
         """Resolve the prompt-cache TTL for this request.
 
         An explicit `cache_ttl` of "5m" or "1h" pins the TTL unconditionally.
@@ -546,20 +555,29 @@ class AnthropicAPI(ModelAPI):
         applies only to tokens already being repaid while protecting the rest
         of the sample (whose gaps have proven able to outlive the 5m TTL).
 
-        Auto mode never escalates on Bedrock/Vertex (block-level `ttl` support
-        there is unverified, and auto is the default — explicit "1h" still
-        applies everywhere), for batched requests (batch queuing has no
-        meaningful inter-request gap), or outside a sample context.
+        Auto mode never escalates on non-first-party services (block-level
+        `ttl` support on Bedrock/Vertex/Azure is unverified, and auto is the
+        default — explicit "1h" still applies everywhere), when prompt caching
+        is disabled, for batched requests (batch queuing has no meaningful
+        inter-request gap), or outside a sample context.
+
+        The returned `request_start` is set only when gap tracking applied;
+        pass it to `_record_cache_ttl_refresh` once the request succeeds. A
+        failed attempt (rate limit, connection error) neither writes nor
+        refreshes the server-side cache, so it must not advance the gap
+        baseline — otherwise sub-TTL retry storms would mask real expiry.
         """
         if self.cache_ttl in ("5m", "1h"):
-            return self.cache_ttl
-        if self.is_bedrock() or self.is_vertex():
-            return None
-        if normalized_batch_config(config.batch):
-            return None
+            return _ResolvedCacheTtl(ttl=self.cache_ttl, request_start=None)
+        if (
+            self.service is not None
+            or config.cache_prompt is False
+            or normalized_batch_config(config.batch)
+        ):
+            return _ResolvedCacheTtl(ttl=None, request_start=None)
         active = sample_active()
         if active is None:
-            return None
+            return _ResolvedCacheTtl(ttl=None, request_start=None)
 
         now = time.monotonic()
         state = self._cache_ttl_state.get(active.sample_uuid)
@@ -573,7 +591,6 @@ class AnthropicAPI(ModelAPI):
             self._cache_ttl_state[active.sample_uuid] = state
         else:
             gap = now - state.last_request_start
-            state.last_request_start = now
             if not state.escalated and gap > CACHE_TTL_ESCALATION_GAP:
                 state.escalated = True
                 logger.info(
@@ -588,15 +605,35 @@ class AnthropicAPI(ModelAPI):
         while len(self._cache_ttl_state) > _CACHE_TTL_STATE_MAX_SAMPLES:
             self._cache_ttl_state.popitem(last=False)
 
-        return "1h" if state.escalated else None
+        return _ResolvedCacheTtl(
+            ttl="1h" if state.escalated else None, request_start=now
+        )
+
+    def _record_cache_ttl_refresh(self, resolved: _ResolvedCacheTtl) -> None:
+        """Advance the sample's gap baseline after a successful request.
+
+        The cache entry the next request reads is written/refreshed at prefill
+        (near request start), so the baseline is the request's start time — not
+        its completion — and only requests that actually reached the API move
+        it.
+        """
+        if resolved.request_start is None:
+            return
+        active = sample_active()
+        if active is not None:
+            state = self._cache_ttl_state.get(active.sample_uuid)
+            # ignore out-of-order completions from parallel calls in one sample
+            if state is not None and resolved.request_start > state.last_request_start:
+                state.last_request_start = resolved.request_start
 
     @override
     def cache_write_ttl(self) -> str | None:
         # Read-side counterpart of _resolve_cache_ttl for cost accounting: usage
         # is recorded in the same sample context and escalation is sticky, so
-        # this matches the TTL resolved before the call. Bounded imprecision:
-        # if a sample runs parallel model calls, a request in flight at the
-        # escalation instant is billed at the 1h rate though sent at 5m.
+        # this matches the TTL resolved before the call. Bounded imprecision in
+        # an escalated sample: a parallel request in flight at the escalation
+        # instant, or a per-call batch=True request (whose resolve skips
+        # escalation), is billed at the 1h rate though sent at 5m.
         if self.cache_ttl in ("5m", "1h"):
             return self.cache_ttl
         active = sample_active()
@@ -620,7 +657,8 @@ class AnthropicAPI(ModelAPI):
 
         # generate
         try:
-            cache_ttl = self._resolve_cache_ttl(config)
+            resolved_cache_ttl = self._resolve_cache_ttl(config)
+            cache_ttl = resolved_cache_ttl.ttl
 
             (
                 system_param,
@@ -784,6 +822,8 @@ class AnthropicAPI(ModelAPI):
                 output.metadata = (
                     output.metadata or {}
                 ) | forced_tool_choice_degraded_metadata(tool_choice)
+
+            self._record_cache_ttl_refresh(resolved_cache_ttl)
 
             return output, model_call
 

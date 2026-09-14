@@ -281,7 +281,7 @@ Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/b
 inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
 ```
 
-Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API and Azure AI Foundry (not Bedrock or Vertex) and does not apply in [batch mode](models-batch.qmd).
+Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API (not Bedrock, Vertex, or Azure) and does not apply in [batch mode](models-batch.qmd).
 
 ### Streaming
 
