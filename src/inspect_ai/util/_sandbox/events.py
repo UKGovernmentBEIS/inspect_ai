@@ -18,7 +18,7 @@ from .environment import (
     SandboxEnvironmentConfigType,
 )
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
-from .service import SERVICES_DIR
+from .service import is_sandbox_service_command
 
 
 class SandboxTimeoutError(TimeoutError):
@@ -78,7 +78,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             ) from ex
 
         # skip sandbox service events
-        if any(SERVICES_DIR in c for c in cmd):
+        if is_sandbox_service_command(cmd):
             return result
 
         # yield event
