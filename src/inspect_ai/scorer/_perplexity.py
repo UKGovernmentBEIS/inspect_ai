@@ -58,14 +58,15 @@ def perplexity() -> Scorer:
             )
         sum_log_probs = sum(log_probs)
         nll = -sum_log_probs / num_tokens
+        perplexity_value = _exp_or_inf(nll)
 
         return Score(
             value=nll,
-            explanation=f"Per-token NLL: {nll:.4f}, perplexity: {_exp_or_inf(nll):.4f}",
+            explanation=f"Per-token NLL: {nll:.4f}, perplexity: {perplexity_value:.4f}",
             metadata={
                 "num_tokens": num_tokens,
                 "sum_log_probs": sum_log_probs,
-                "perplexity": _exp_or_inf(nll),
+                "perplexity": perplexity_value,
             },
         )
 

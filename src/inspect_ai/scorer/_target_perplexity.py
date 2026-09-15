@@ -121,18 +121,19 @@ def target_perplexity(
         target_lps = all_lps[-n:]
         sum_log_probs = sum(lp.logprob for lp in target_lps)
         nll = -sum_log_probs / n
+        perplexity_value = _exp_or_inf(nll)
 
         return Score(
             value=nll,
             explanation=(
                 f"target tokens={n}, "
                 f"per-token NLL={nll:.4f}, "
-                f"perplexity={_exp_or_inf(nll):.4f}"
+                f"perplexity={perplexity_value:.4f}"
             ),
             metadata={
                 "num_tokens": n,
                 "sum_log_probs": sum_log_probs,
-                "perplexity": _exp_or_inf(nll),
+                "perplexity": perplexity_value,
             },
         )
 
