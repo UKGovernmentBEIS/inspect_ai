@@ -51,6 +51,7 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 TASK = "Tidy up the working directory."
@@ -532,7 +533,10 @@ async def test_sandbox_terminate_monitor_raises_for_the_task_group() -> None:
 
 
 def sandbox_bridge_with_tool(
-    tool: AsyncMock, approval: list[ApprovalPolicy] | None
+    tool: AsyncMock,
+    approval: list[ApprovalPolicy] | None,
+    *,
+    require_proposal: bool = True,
 ) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
@@ -543,6 +547,7 @@ def sandbox_bridge_with_tool(
         model=None,
         approval=approval,
         bridged_tools={"host": {"read_file": tool}},
+        proposal_exempt_servers=set() if require_proposal else {"host"},
     )
 
 
@@ -552,7 +557,7 @@ async def test_forged_host_tool_call_is_rejected_before_execution() -> None:
         tool, [ApprovalPolicy(auto_approver("approve"), "*")]
     )
 
-    with pytest.raises(PermissionError, match="was not approved for execution"):
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
         await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
 
     tool.assert_not_awaited()
@@ -571,7 +576,7 @@ async def test_approved_host_tool_call_has_one_exact_execution_grant() -> None:
 
     execute = call_host_tool(bridge)
     assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
-    with pytest.raises(PermissionError, match="was not approved for execution"):
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
         await execute("host", "read_file", {"path": "notes.txt"})
 
     tool.assert_awaited_once_with(path="notes.txt")
@@ -588,7 +593,7 @@ async def test_host_tool_execution_grant_binds_arguments() -> None:
 
     await run_bridge([tool_calls_output(call)], bridge=bridge)
 
-    with pytest.raises(PermissionError, match="was not approved for execution"):
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
         await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
 
     tool.assert_not_awaited()
@@ -615,8 +620,13 @@ async def test_host_tool_grant_matches_regardless_of_argument_key_order() -> Non
 
 @pytest.mark.parametrize(
     "function",
-    ["mcp__host__read_file", "host__read_file"],
-    ids=["claude-code-style", "server-qualified"],
+    [
+        "mcp__host__read_file",
+        "host__read_file",
+        "mcp_host_read_file",
+        "host_read_file",
+    ],
+    ids=["claude-code-style", "server-qualified", "gemini-cli-style", "opencode-style"],
 )
 async def test_host_tool_grant_matches_namespaced_tool_names(function: str) -> None:
     """Scaffolds declare MCP tools to the model under qualified names."""
@@ -659,6 +669,136 @@ async def test_ambiguous_host_tool_name_registers_no_grant() -> None:
 
     assert not bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+
+
+def sandbox_bridge_with_servers(
+    bridged_tools: dict[str, dict[str, Tool]],
+) -> SandboxAgentBridge:
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        bridged_tools=bridged_tools,
+    )
+
+
+@pytest.mark.parametrize(
+    ("server", "function"),
+    [
+        ("host.tools", "mcp__host_tools__read_file"),
+        ("host-tools", "mcp__host_tools__read_file"),
+        ("host.tools", "mcp_host.tools_read_file"),
+        ("host.tools", "host_tools_read_file"),
+    ],
+    ids=["claude-code", "codex-cli-flat", "gemini-cli", "opencode"],
+)
+async def test_host_tool_grant_matches_scaffold_rewritten_names(
+    server: str, function: str
+) -> None:
+    """A server name the scaffold rewrites for its model API still resolves.
+
+    Claude Code and OpenCode replace '.' with '_' and keep '-'; Codex CLI replaces
+    both; Gemini CLI allows '.' and keeps the name as is.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers({server: {"read_file": tool}})
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function=function, arguments={"path": "x"})]
+    )
+
+    assert bridge.consume_tool_execution_grant(server, "read_file", {"path": "x"})
+
+
+@pytest.mark.parametrize(
+    ("server", "tool", "function"),
+    [
+        # mcp__ + 60 s (65) + __ + 61 t is exactly 128 bytes: the name is untouched
+        ("s" * 60, "t" * 61, "t" * 61),
+        # one byte over: the name is cut and given the identity hash suffix
+        ("s" * 60, "t" * 62, "t" * 48 + "_9f2b038d5e15"),
+        ("s" * 80, "t" * 60, "t" * 28 + "_ad31d8f69652"),
+        # a namespace that leaves no room for the suffix is cut instead
+        ("s" * 120, "t" * 5, "_797a814e6ef0"),
+        # the flat form for the hashed case
+        ("s" * 80, "t" * 60, "mcp__" + "s" * 80 + "__" + "t" * 28 + "_ad31d8f69652"),
+    ],
+    ids=["fits-128", "129-hashed", "long-hashed", "namespace-cut", "flat-hashed"],
+)
+async def test_host_tool_grant_matches_codex_cli_length_normalized_name(
+    server: str, tool: str, function: str
+) -> None:
+    """Codex CLI keeps namespace + '__' + name within 128 bytes with a hash suffix."""
+    mock = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers({server: {tool: mock}})
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function=function, arguments={})]
+    )
+
+    assert bridge.consume_tool_execution_grant(server, tool, {})
+
+
+async def test_host_tool_grant_matches_gemini_cli_truncated_name() -> None:
+    """Gemini CLI collapses a model-facing name over 63 characters to 30...30."""
+    tool = AsyncMock(return_value="contents")
+    server = "s" * 60
+    bridge = sandbox_bridge_with_servers({server: {"read_file": tool}})
+    # mcp_ + 60 s + _read_file is 74 characters: the first 30 and the last 30 survive
+    truncated = "mcp_" + "s" * 26 + "..." + "s" * 20 + "_read_file"
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function=truncated, arguments={})]
+    )
+
+    assert bridge.consume_tool_execution_grant(server, "read_file", {})
+
+
+async def test_host_tool_grant_does_not_double_gemini_cli_prefix() -> None:
+    """A server already named mcp_... gets no second mcp_ prefix from Gemini CLI."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers({"mcp_host": {"read_file": tool}})
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="mcp_host_read_file", arguments={})]
+    )
+
+    assert bridge.consume_tool_execution_grant("mcp_host", "read_file", {})
+
+
+async def test_names_that_rewrite_to_the_same_string_register_no_grant() -> None:
+    """Servers 'a.b' and 'a_b' both present tool 'c' as a_b_c to OpenCode."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a.b": {"c": AsyncMock(return_value="a")},
+            "a_b": {"c": AsyncMock(return_value="b")},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="a_b_c", arguments={})]
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_single_underscore_name_denoting_two_tools_registers_no_grant() -> None:
+    """`<server>_<tool>` can collide across servers; the collision fails closed."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"b_c": AsyncMock(return_value="a")},
+            "a_b": {"c": AsyncMock(return_value="b")},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="a_b_c", arguments={})]
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
 
 
 async def test_qualified_name_binds_grant_to_exact_server() -> None:
@@ -733,7 +873,7 @@ async def test_host_tool_grant_distinguishes_bool_from_number() -> None:
     await run_bridge([tool_calls_output(call)], bridge=bridge)
 
     execute = call_host_tool(bridge)
-    with pytest.raises(PermissionError, match="was not approved for execution"):
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
         await execute("host", "read_file", {"raw": 1})
     assert await execute("host", "read_file", {"raw": True}) == "contents"
 
@@ -808,16 +948,80 @@ async def test_host_tool_grant_binds_to_approver_modified_arguments() -> None:
 
     execute = call_host_tool(bridge)
     # the model's original arguments are not what the approver approved
-    with pytest.raises(PermissionError, match="was not approved for execution"):
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
         await execute("host", "read_file", {"path": "original.txt"})
     # the modified arguments are the approved action
     assert await execute("host", "read_file", {"path": "rewritten.txt"}) == "contents"
     tool.assert_awaited_once_with(path="rewritten.txt")
 
 
-async def test_host_tool_call_without_approval_policy_remains_available() -> None:
+# ---------------------------------------------------------------------------
+# sandbox host-tool execution boundary without an approval policy
+# ---------------------------------------------------------------------------
+
+
+async def test_unproposed_host_tool_call_is_denied_without_approval_policy() -> None:
+    """A host tool runs only for a call the model proposed, policy or no policy."""
     tool = AsyncMock(return_value="contents")
     bridge = sandbox_bridge_with_tool(tool, None)
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    tool.assert_not_awaited()
+
+
+async def test_proposed_host_tool_call_executes_once_without_approval_policy() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(
+        id="proposed", function="read_file", arguments={"path": "notes.txt"}
+    )
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    # a second call for the same proposal (e.g. a scaffold retrying after a
+    # transport failure) is denied; the model has to propose the call again
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "notes.txt"})
+
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+async def test_host_tool_call_with_other_arguments_is_denied_without_approval_policy() -> (
+    None
+):
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(
+        id="proposed", function="read_file", arguments={"path": "notes.txt"}
+    )
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+
+    tool.assert_not_awaited()
+
+
+async def test_host_tool_grants_are_stored_without_approval_policy() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "a"})]
+    )
+
+    assert len(bridge._tool_execution_grants) == 1
+
+
+async def test_opted_out_server_executes_without_a_proposal() -> None:
+    """`require_proposal=False` gives up the correspondence for that server."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
 
     result = await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
 
@@ -825,15 +1029,38 @@ async def test_host_tool_call_without_approval_policy_remains_available() -> Non
     tool.assert_awaited_once_with(path="notes.txt")
 
 
-async def test_host_tool_grants_are_not_stored_without_approval_policy() -> None:
+async def test_opted_out_server_stores_no_grants() -> None:
+    """Grants nothing will consume must not fill the bounded store."""
     tool = AsyncMock(return_value="contents")
-    bridge = sandbox_bridge_with_tool(tool, None)
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="unused", function="read_file", arguments={"path": "a"})]
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "a"})]
     )
 
     assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_multi_choice_alternates_with_tool_calls_dropped_without_approval() -> (
+    None
+):
+    """Alternates' calls would have no execution grant, so they must not reach the scaffold."""
+    ungranted = ToolCall(id="alt", function="bash", arguments={"cmd": "rm -rf /"})
+    output = tool_calls_output(
+        ToolCall(id="main", function="bash", arguments={"cmd": "ls"})
+    )
+    output.choices.append(
+        ChatCompletionChoice(
+            message=ChatMessageAssistant(content="", tool_calls=[ungranted]),
+            stop_reason="tool_calls",
+        )
+    )
+
+    run = await run_bridge([output])
+
+    assert len(run.output.choices) == 1
+    assert run.output.message.tool_calls is not None
+    assert run.output.message.tool_calls[0].id == "main"
 
 
 async def test_host_tool_execution_grants_are_bounded() -> None:

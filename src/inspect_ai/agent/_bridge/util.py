@@ -596,7 +596,8 @@ async def bridge_generate(
         # Approve the tool calls the scaffold is about to run. A rejection comes back
         # as the messages to replay to the model (the rejected call plus a result for
         # every call in the response) so it can propose something else; the scaffold
-        # never sees the rejected response.
+        # never sees the rejected response. The calls in the response handed over
+        # are the only ones the scaffold may run as host tools, once each.
         reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
         if reviewed.rejection is None:
             bridge.register_tool_execution_grants(
