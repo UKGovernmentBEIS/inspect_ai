@@ -53,7 +53,7 @@ Goals:
   the task text asked for an error here).
 - The event behaves like a native `ToolEvent` for live surfaces: pending
   while running, cancellable by the operator, visible to the execution
-  observer, exactly one terminal update.
+  observer, finalised exactly once by the host runner.
 - Recorded results follow the eval's image-logging policy, as message
   content does.
 - No change to what the scaffold receives for calls that execute today,
@@ -134,9 +134,13 @@ Non-goals:
   `transcript().info()`: the stream is `span_begin(tool)`, `tool`, nested
   events, `span_end`; the `ToolEvent.span_id` equals the tool span's
   `parent_id`, not the tool span's id; the nested `InfoEvent.span_id`
-  equals the tool span's id. The viewer renders the span's events as the
-  tool panel's children (`ToolEventView` takes `childNodes`,
-  `packages/inspect-components/src/transcript/TranscriptVirtualList.tsx:233-238`).
+  equals the tool span's id. In the viewer this layout renders as a tool
+  panel with an empty child list plus a sibling `tool` span node holding
+  the nested events: `elevateChildNode` only lifts a `ToolEvent` that is a
+  child of its span, and keeps the span as its own node when, as here, the
+  event is a sibling
+  (`packages/inspect-components/src/transcript/transform/transform.ts:196-198`).
+  That is how every native tool call with nested events renders today.
 - `ToolEvent._set_result` computes `completed` and `working_time = wall −
   waiting_time` (`src/inspect_ai/event/_tool.py:70-115`); the caller
   measures waiting time from `sample_waiting_time()` before and after
@@ -236,7 +240,8 @@ strings, same denial) for every call that executes today, and gains one
 responsibility: record a `ToolEvent` for the request. The event is emitted
 directly to the sample transcript from the service task, in the native
 shape (event stamped with its parent span, emitted inside a `tool` span,
-nested events inside that span), placed under the span of the proposing
+nested events inside that span, which the viewer shows as a sibling span
+node beside the tool panel), placed under the span of the proposing
 `ModelEvent`. Pairing and placement come from the grant record, which is
 extended to hold the proposing `ToolCall` and that event's span, and is now
 written whether or not an approval policy is active (the denial decision is
@@ -273,10 +278,15 @@ class _ToolExecutionGrant(NamedTuple):
     means "the span current when the call executes"."""
 ```
 
-- `register_tool_execution_grants(calls, *, span_id: str | None)` drops the
-  early return at `types.py:107` and records a grant for every approved
-  (or, without a policy, every returned) call that resolves to exactly one
-  bridged tool. The record is what lets an execution be attributed to its
+- `register_tool_execution_grants(calls, *, span_id: str | None = None)`
+  drops the early return at `types.py:107` and records a grant for every
+  approved (or, without a policy, every returned) call that resolves to
+  exactly one bridged tool. The base no-op hook on `AgentBridge`
+  (`src/inspect_ai/agent/_bridge/types.py:202`) gains the same keyword,
+  because `bridge_generate` is shared by in-process and sandbox bridges and
+  calls the hook for every generation, including ones without tool calls
+  (`util.py:602-604`); without the base change every in-process generation
+  would raise `TypeError`. The record is what lets an execution be attributed to its
   proposal; the denial decision stays where it is (below). The ambiguity and
   eviction warnings (`types.py:114-123`, `:124-131`) are reworded so they do
   not say "the call will be denied" when no policy is active ("no execution
@@ -565,11 +575,12 @@ A host tool that uses `sandbox()` produces `SandboxEvent`s from the same
 task; their `span_id` is taken from `current_span_id()` at construction
 (`_base.py:35-48`), which inside the `async with span(...)` block is the
 host tool's span. The `ToolEvent` itself carries the tool span's parent.
-That is the native shape verified above, so the viewer renders them as the
-tool panel's children exactly as for a native tool. The timeline turns a
-`tool` span that contains model events into a tool-spawned agent
-(`transcript/timeline/core.ts:989`), the same classification a native tool
-that generates gets.
+That is the native shape verified above, and it renders as native tool
+calls do: the tool panel, then a sibling `tool` span node containing the
+nested events (`transform/transform.ts:196-198`), not as children of the
+panel. The timeline turns a `tool` span that contains model events into a
+tool-spawned agent (`transcript/timeline/core.ts:989`), the same
+classification a native tool that generates gets.
 
 ### Message linkage
 
@@ -622,9 +633,20 @@ re-delivers it to hooks; that is left out (see "Not this design").
   turn-cancel bookkeeping, so `cancel_current_turn` stamps the host event
   cancelled and records `interrupted_tool_call_id`
   (`src/inspect_ai/agent/_acp/transport_live.py:350-363`, `:1503-1536`).
-- Exactly one terminal `_event_updated` per event, on every path (success,
-  mapped failure, unmapped failure, limit, operator cancel, outer cancel),
-  so hooks (`_hooks.py:757`) and ACP see one completion.
+- The host runner finalises each event exactly once, on every path
+  (success, mapped failure, unmapped failure, limit, operator cancel, outer
+  cancel). That is not the only update a consumer can see: ACP's
+  `cancel_current_turn` clears `pending`, stamps
+  `ToolCallError("cancelled")` and `failed=True` on every tool event the
+  observer tracked, and publishes them with `_event_updated`
+  (`transport_live.py:1451`, `:450-455`, `:1485`), then interrupts the
+  agent's turn scope through the channel; it does not fire the per-call
+  cancel scope, so the host tool keeps running. When it later finishes, the
+  runner's finalisation records the result and timing while `_set_result`
+  keeps the sticky cancel marker (`_tool.py:96-115`). Hooks (`_hooks.py:757`)
+  and ACP therefore see two non-pending updates for an ACP-cancelled host
+  call, the same sequence a native tool produces under
+  `cancel_current_turn`.
 
 ### Configuration surface
 
@@ -671,8 +693,9 @@ actions, and the native path has no switch either.
 The viewer needs no change to render a host tool event: `ToolEventView`
 shows a `Tool: <name>` panel with the function-call rendering of
 `arguments`, the result, an error unless its type is `approval`, the
-working time, a running indicator while pending, nested events as children,
-and any `ApprovalEvent` whose `call.id` matches
+working time, a running indicator while pending, and any `ApprovalEvent`
+whose `call.id` matches; nested events appear in the sibling `tool` span
+node
 (`transcript/ToolEventView.tsx:67`, `:106`, `:179`;
 `transform/toolApprovals.ts:44`). Approvals of paired host calls therefore
 move from flat rows into the tool panel. Denials render as a failed tool
@@ -785,13 +808,18 @@ viewer it is a failed tool panel; in `events_df` it is a row with
 - **Generated TypeScript types.** None to regenerate; `metadata` is already
   typed as an open object.
 - **Public API and CLI.** `SandboxAgentBridge.consume_tool_execution_grant`
-  returns the record instead of `bool`, `register_tool_execution_grants`
-  gains a keyword and records without a policy; both are only called from
-  `service.py`, `util.py` and tests. `call_tool`'s signature and wire
+  returns the record instead of `bool`; `register_tool_execution_grants`
+  gains a defaulted keyword on both `AgentBridge` and the sandbox override
+  and records without a policy; all are only called from `service.py`,
+  `util.py` and tests. A third-party `AgentBridge` subclass overriding the
+  hook with the old signature would break at the shared call site; none is
+  known. `call_tool`'s signature and wire
   behaviour are unchanged except as listed above. `util/_span.py` gains a
   private helper. No CLI change.
 - **Hooks.** `on_sample_event` receives a new event type for bridged
-  samples, once per host call, at completion.
+  samples, once per host call at completion, plus ACP's early cancellation
+  update when `cancel_current_turn` catches the call in flight (the same
+  two deliveries a native tool produces in that case).
 - **Dataframes.** `events_df` gains `tool` rows for bridged samples. A count
   of tool events per sample now includes host calls but still not
   scaffold-run calls; documented in `docs/agent-bridge.qmd`.
@@ -856,10 +884,13 @@ tests do, and subscribe a recorder to count emissions):
   `metadata.bridge` with `proposed=True`, `approval="granted"`, `completed`
   and `working_time` set, `pending is None`.
 - Event tree: run the call inside an outer `span()`; assert the stream is
-  `span_begin(tool)`, `tool`, `span_end`; `ToolEvent.span_id` equals the
-  outer span; the tool span's `parent_id` equals the outer span; an
-  `InfoEvent` the tool emits carries the tool span's id. The same
+  `span_begin(tool)`, `tool`, `info`, `span_end`; `ToolEvent.span_id`
+  equals the outer span; the tool span's `parent_id` equals the outer span;
+  the `InfoEvent` the tool emits carries the tool span's id. The same
   assertions for a denial (single-shot event inside its own tool span).
+  This is the native layout, and the viewer fixture below asserts its
+  native presentation (tool panel with no children, sibling span node
+  holding the nested event).
 - Span attribution: a stub `ModelEventSink` that stamps `event.span_id =
   "agent-sub"` in `on_pending`; run `bridge_generate`, then execute the
   matching host call; assert the grant stored `"agent-sub"`, the
@@ -887,6 +918,17 @@ tests do, and subscribe a recorder to count emissions):
   non-pending update for the event. Outer cancel: cancel the enclosing task
   group mid-await; assert `error.type == "cancelled"`, `pending is None`,
   and again exactly one non-pending update.
+- ACP turn cancel (`tests/agent/test_acp/`, using the `_capture.py` helper
+  that installs a `LiveAcpTransport` as the active sample's
+  `execution_observer`, `:66`): start a host call whose tool awaits an
+  `anyio.Event`, call `cancel_current_turn()`, assert the event immediately
+  shows `error.type == "cancelled"`, `failed is True`, `pending is None`
+  and the `InterruptEvent` names its id; then release the tool and assert
+  the marker is retained, `result` and `completed` are recorded, and the
+  recorder saw exactly two non-pending updates (ACP's, then the runner's).
+- In-process regression: the existing in-process `bridge_generate` tests
+  with and without tool calls (`tests/agent/test_bridge_approval.py:171`,
+  `:191`) keep passing, proving the base hook accepts the `span_id` keyword.
 - Observer: a recording `ExecutionObserver` on `sample_active()` sees the
   call id and event.
 - Run the new async tests with `--runtrio` as well as the default backend.
@@ -938,22 +980,27 @@ level mixing a paired host tool event and a scaffold-run call, and an
 event, and the next `ModelEvent` whose input carries the result message.
 Assert: the scaffold-run call still renders inline, its result is still
 surfaced, the host call is omitted inline and rendered once as a tool
-panel, and navigation from the host result message resolves to the host
-event inside the agent span. A native fixture proves no change.
+panel with an empty child list followed by a sibling `tool` span node
+holding its nested `SandboxEvent`, and navigation from the host result
+message resolves to the host event inside the agent span. A native fixture
+proves no change.
 
 ## Implementation plan
 
 1. **Grant record carries the proposal and span**
-   (`src/inspect_ai/agent/_bridge/sandbox/types.py`,
+   (`src/inspect_ai/agent/_bridge/types.py`,
+   `src/inspect_ai/agent/_bridge/sandbox/types.py`,
    `src/inspect_ai/agent/_bridge/util.py`,
-   `tests/agent/test_bridge_approval.py`). Add `call` and `span_id` to
+   `tests/agent/test_bridge_approval.py`). Add the `span_id: str | None =
+   None` keyword to the base `AgentBridge.register_tool_execution_grants`
+   hook and the sandbox override; add `call` and `span_id` to
    `_ToolExecutionGrant`, return the record from
-   `consume_tool_execution_grant`, drop the policy early-return in
-   `register_tool_execution_grants` and add the `span_id` keyword, reword
+   `consume_tool_execution_grant`, drop the policy early-return, reword
    the two warnings, add `_SpanCapturingSink` and the capture in
    `bridge_generate`, update `service.py:234` to the new return type.
    Rewrite `test_host_tool_grants_are_not_stored_without_approval_policy`;
-   add the span-capture tests.
+   add the span-capture tests; confirm the in-process `bridge_generate`
+   tests still pass.
 2. **Span parent helper** (`src/inspect_ai/util/_span.py`, `tests/util/`):
    `parent_span()` with a test that a constructed event and a nested
    `span()` take the given parent and the previous value is restored.
@@ -969,8 +1016,8 @@ event inside the agent span. A native fixture proves no change.
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`; `service.py`
    delegates; `src/inspect_ai/event/_tool.py` docstring for
    `metadata.bridge`; `util.py:365-369` docstring). Unit tests from the
-   Testing section, including the event tree, cancellation counts, RPC text
-   preservation and trio.
+   Testing section, including the event tree, cancellation counts (direct,
+   outer, and ACP `cancel_current_turn`), RPC text preservation and trio.
 6. **ACP mapping** (`src/inspect_ai/agent/_acp/event_mapping.py`,
    `tests/agent/test_acp/test_router_bridge_tools.py`). Pop `pending` in
    `_map_tool_event`, update docstrings, add the three tests.
