@@ -713,6 +713,35 @@ async def test_host_tool_grant_matches_scaffold_rewritten_names(
     assert bridge.consume_tool_execution_grant(server, "read_file", {"path": "x"})
 
 
+@pytest.mark.parametrize(
+    ("server", "tool", "function"),
+    [
+        # mcp__ + 60 s (65) + __ + 61 t is exactly 128 bytes: the name is untouched
+        ("s" * 60, "t" * 61, "t" * 61),
+        # one byte over: the name is cut and given the identity hash suffix
+        ("s" * 60, "t" * 62, "t" * 48 + "_9f2b038d5e15"),
+        ("s" * 80, "t" * 60, "t" * 28 + "_ad31d8f69652"),
+        # a namespace that leaves no room for the suffix is cut instead
+        ("s" * 120, "t" * 5, "_797a814e6ef0"),
+        # the flat form for the hashed case
+        ("s" * 80, "t" * 60, "mcp__" + "s" * 80 + "__" + "t" * 28 + "_ad31d8f69652"),
+    ],
+    ids=["fits-128", "129-hashed", "long-hashed", "namespace-cut", "flat-hashed"],
+)
+async def test_host_tool_grant_matches_codex_cli_length_normalized_name(
+    server: str, tool: str, function: str
+) -> None:
+    """Codex CLI keeps namespace + '__' + name within 128 bytes with a hash suffix."""
+    mock = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers({server: {tool: mock}})
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function=function, arguments={})]
+    )
+
+    assert bridge.consume_tool_execution_grant(server, tool, {})
+
+
 async def test_host_tool_grant_matches_gemini_cli_truncated_name() -> None:
     """Gemini CLI collapses a model-facing name over 63 characters to 30...30."""
     tool = AsyncMock(return_value="contents")

@@ -1,3 +1,4 @@
+import hashlib
 import re
 from collections import deque
 from logging import getLogger
@@ -219,6 +220,9 @@ class _ToolExecutionGrant(NamedTuple):
 
 _CLAUDE_CODE_INVALID = re.compile(r"[^a-zA-Z0-9_-]")
 _CODEX_CLI_INVALID = re.compile(r"[^a-zA-Z0-9_]")
+_CODEX_CLI_MAX_LENGTH = 128
+_CODEX_CLI_SEPARATOR = "__"
+_CODEX_CLI_HASH_LENGTH = 12
 _GEMINI_CLI_INVALID = re.compile(r"[^a-zA-Z0-9_.:-]")
 _GEMINI_CLI_MAX_LENGTH = 63
 _OPENCODE_INVALID = re.compile(r"[^a-zA-Z0-9_-]")
@@ -234,8 +238,10 @@ def _candidate_functions(server: str, tool: str) -> set[str]:
     - Claude Code: ``mcp__<server>__<tool>``, characters outside ``[A-Za-z0-9_-]``
       in either part replaced with ``_``.
     - Codex CLI: the tool name inside a ``mcp__<server>`` Responses API namespace,
-      so the call carries the bare name, or the flat ``mcp__<server>__<tool>``;
-      characters outside ``[A-Za-z0-9_]`` replaced with ``_``.
+      so the call carries the bare name (older releases sent the flat
+      ``mcp__<server>__<tool>``); characters outside ``[A-Za-z0-9_]`` replaced
+      with ``_``, and when namespace, separator and name exceed 128 bytes the
+      name is cut and given a hash suffix (see `_codex_cli_functions`).
     - Gemini CLI: ``mcp_<server>_<tool>`` (the prefix is not doubled when the
       server name already starts with ``mcp_``), characters outside
       ``[A-Za-z0-9_.:-]`` replaced with ``_``, and a name over 63 characters
@@ -251,17 +257,48 @@ def _candidate_functions(server: str, tool: str) -> set[str]:
     are ambiguous and fail closed in `_resolve_bridged_tools`.
     """
     claude_code = _CLAUDE_CODE_INVALID.sub
-    codex_cli = _CODEX_CLI_INVALID.sub
     opencode = _OPENCODE_INVALID.sub
     return {
         tool,
         f"mcp__{claude_code('_', server)}__{claude_code('_', tool)}",
-        codex_cli("_", tool),
-        f"mcp__{codex_cli('_', server)}__{codex_cli('_', tool)}",
+        *_codex_cli_functions(server, tool),
         f"{server}__{tool}",
         _gemini_cli_function(server, tool),
         f"{opencode('_', server)}_{opencode('_', tool)}",
     }
+
+
+def _codex_cli_functions(server: str, tool: str) -> tuple[str, str]:
+    """Codex CLI's model-facing names for a bridged tool (its `normalize_tools_for_model`).
+
+    The sanitized tool name sits in a ``mcp__<server>`` namespace, so a call
+    carries the bare name; the flat form older releases sent joins namespace
+    and name with ``__``.
+    When namespace, separator and name exceed 128 bytes, the name is cut to fit
+    and given a ``_<12 hex>`` suffix, the SHA-1 of the tool's identity (server,
+    namespace, connector id, name, name; the middle three are the raw server
+    name, empty, and the raw tool name for an MCP server), and a namespace that
+    leaves no room for the suffix is cut instead. Codex disambiguates names that
+    still collide with another server's tools by hashing again; those are not
+    reproducible from one bridged tool and are denied.
+    """
+    namespace = _CODEX_CLI_INVALID.sub("_", server)
+    if not namespace.startswith("mcp__"):
+        namespace = f"mcp__{namespace}"
+    name = _CODEX_CLI_INVALID.sub("_", tool)
+    reserved = len(_CODEX_CLI_SEPARATOR)
+    if len(namespace) + len(name) + reserved > _CODEX_CLI_MAX_LENGTH:
+        identity = f"{server}\0{server}\0\0{tool}\0{tool}".encode()
+        digest = hashlib.sha1(identity, usedforsecurity=False).hexdigest()
+        suffix = f"_{digest[:_CODEX_CLI_HASH_LENGTH]}"
+        max_name = max(_CODEX_CLI_MAX_LENGTH - len(namespace) - reserved, 0)
+        if max_name >= len(suffix):
+            name = name[: max_name - len(suffix)] + suffix
+        else:
+            namespace = namespace[: _CODEX_CLI_MAX_LENGTH - len(suffix) - reserved]
+            name = suffix
+    flat = f"{namespace.rstrip('_')}{_CODEX_CLI_SEPARATOR}{name.lstrip('_')}"
+    return name, flat
 
 
 def _gemini_cli_function(server: str, tool: str) -> str:
