@@ -11,9 +11,9 @@ lets that user decide what our next command runs.
 
 Two things go wrong, and only the first is an escalation. A command that runs as
 ``root`` runs the planted program as ``root``. A command that runs as the agent's own
-user returns the planted program's answer, which defeats the checks that exist to
-catch that user: ``test -O`` on a service directory is what rejects a squatted one,
-and it is worthless if the agent supplies ``test``.
+user returns the planted program's answer, so what Inspect learns about the sandbox
+(which requests a service has been sent, what a file contains) is whatever that
+user's ``find`` or ``cat`` chooses to say.
 
 This module is the one place that knows how to avoid that. Every helper here:
 
