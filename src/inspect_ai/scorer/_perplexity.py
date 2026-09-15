@@ -18,7 +18,7 @@ import math
 from inspect_ai.solver._task_state import TaskState
 
 from ._metric import Score
-from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
+from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token, safe_exp
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -59,14 +59,16 @@ def perplexity() -> Scorer:
             )
         sum_log_probs = sum(log_probs)
         nll = -sum_log_probs / num_tokens
+        
+        ppl = safe_exp(nll)
 
         return Score(
             value=nll,
-            explanation=f"Per-token NLL: {nll:.4f}, perplexity: {math.exp(nll):.4f}",
+            explanation=f"Per-token NLL: {nll:.4f}, perplexity: {ppl:.4f}",
             metadata={
                 "num_tokens": num_tokens,
                 "sum_log_probs": sum_log_probs,
-                "perplexity": math.exp(nll),
+                "perplexity": ppl,
             },
         )
 
