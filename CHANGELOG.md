@@ -38,6 +38,7 @@
 - Security: Checkpoint resume refuses checkpoint-source entries that would write outside the checkpoints directory; sample ids containing `/`, `\`, `~` or NUL, or longer than 200 bytes, get a hashed checkpoint directory name and no longer resume checkpoints from earlier versions.
 - Groq: An over-capacity, server, or rate-limit error delivered inside a streamed response is now retried instead of failing the sample, and a streamed context-length rejection yields `model_length` output.
 - Bedrock, Groq, Mistral, Azure AI: Transient errors delivered mid-stream (throttling, capacity, dropped connections) are now retried instead of failing the sample or returning a truncated output.
+- Bedrock: Models that return encrypted reasoning (OpenAI's GPT-5.6 family) no longer fail every request, and their reasoning is now carried across turns so multi-turn and tool-calling evals work, streamed or not.
 - Agent bridge: Bridged OpenAI and Google requests with a malformed `tool_choice`/`toolConfig` now return a 400 naming the bad field instead of a status-less error, and a non-string tool name no longer poisons the sample transcript.
 - Eval Set: A retry attempt that itself errors or is interrupted no longer causes the next attempt to re-run (or, with `retry_cleanup`, lose) samples an earlier attempt completed.
 - Eval Log: Reading a sample from a `.json` log by id now matches the id's string form exactly, as `.eval` logs always have (`1` finds `"1"`), instead of also matching zero-padded numeric forms such as `"001"`.
