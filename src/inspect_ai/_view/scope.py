@@ -438,8 +438,13 @@ def scope_from_claims(
     claim = claims.get(SCOPE_CLAIM)
     if not isinstance(claim, Mapping):
         raise ValueError(f"Missing or malformed {SCOPE_CLAIM} claim")
-    if claim.get("v") != SCOPE_VERSION:
-        raise ValueError(f"Unsupported {SCOPE_CLAIM} version: {claim.get('v')!r}")
+    version = claim.get("v")
+    if (
+        isinstance(version, bool)
+        or not isinstance(version, int)
+        or version != SCOPE_VERSION
+    ):
+        raise ValueError(f"Unsupported {SCOPE_CLAIM} version: {version!r}")
 
     raw_roots = claim.get("roots")
     if not isinstance(raw_roots, list):

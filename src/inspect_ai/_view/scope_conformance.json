@@ -4275,6 +4275,63 @@
         }
       },
       "expect": "valid"
+    },
+    {
+      "id": "invalid-version-float",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1.0,
+          "roots": [
+            {
+              "uri": "{tmp_uri}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid",
+      "notes": "v must be the integer 1"
+    },
+    {
+      "id": "invalid-version-bool",
+      "claim": {
+        "inspect_view_scope": {
+          "v": true,
+          "roots": [
+            {
+              "uri": "{tmp_uri}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid",
+      "notes": "v must be the integer 1"
+    },
+    {
+      "id": "invalid-version-string",
+      "claim": {
+        "inspect_view_scope": {
+          "v": "1",
+          "roots": [
+            {
+              "uri": "{tmp_uri}/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "invalid",
+      "notes": "v must be the integer 1"
     }
   ],
   "children": [

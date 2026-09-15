@@ -4415,3 +4415,44 @@ def test_scoped_jwt_unrepresentable_exp_is_401(
     )
     assert middleware._verify(ok) is not None
     assert middleware._cache[ok][0] == float(2**53)
+
+
+def test_scoped_empty_log_dir_binds_like_absent(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    token = _mint([_dir_root(logs / "sub")])
+    inner = logs / "sub" / "2025-01-01T00-00-00+00-00_inner_innerid.eval"
+    with client:
+        for route in (
+            "/api/logs?log_dir=",
+            "/api/log-files?log_dir=",
+            "/api/log-dir?log_dir=",
+        ):
+            response = client.get(route, headers=_bearer(token))
+            assert response.status_code == 200, route
+        assert [
+            Path(f["name"]).name
+            for f in client.get("/api/logs?log_dir=", headers=_bearer(token)).json()[
+                "files"
+            ]
+        ] == [inner.name]
+        two = _mint([_dir_root(logs / "sub"), _dir_root(logs)])
+        assert client.get("/api/logs?log_dir=", headers=_bearer(two)).status_code == 403
+        # the legacy credential still passes "" through as before
+        assert client.get("/api/logs?log_dir=", headers=_legacy()).status_code != 403
+
+
+def test_sample_buffer_confinement_paths(tmp_path: Path) -> None:
+    """The derived buffer directory is computed for local paths and URIs alike."""
+    from starlette.requests import Request as _Request
+
+    app = fastapi_server.view_server_app(
+        default_dir=str(tmp_path),
+        access_policy=fastapi_server.OnlyDirAccessPolicy(str(tmp_path)),
+    )
+    log = write_eval_log(tmp_path, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    _create_sample_buffer(log)
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get(f"/pending-samples?log={_q(log)}").status_code == 200
+        # a root-level file has no parent directory to confine into
+        assert client.get(f"/pending-samples?log={_q('/x.eval')}").status_code == 403
+    del _Request

@@ -395,6 +395,10 @@ def view_server_app(
         return await resolver.resolve_delete(request, decoded)
 
     async def _resolve_list(request: Request, location: str | None) -> str:
+        # An empty `log_dir=` names no location; under a scope it binds like an
+        # absent one (the compatibility path keeps passing "" through, as before).
+        if location == "" and not _compatibility_locations(request):
+            location = None
         return await resolver.resolve_list(request, location)
 
     async def _derived_file(request: Request, directory: str, name: str) -> str:
@@ -429,9 +433,18 @@ def view_server_app(
         """
         if _compatibility_locations(request):
             return
-        parent = file.rstrip("/").rsplit("/", 1)[0] if "/" in file else "."
-        stem = os.path.splitext(file.rstrip("/").rsplit("/", 1)[-1])[0]
-        buffer_dir = f"{parent}/.buffer/{stem}"
+        if "://" in file:
+            parent, _, name = file.rstrip("/").rpartition("/")
+        else:
+            parent, name = os.path.dirname(file), os.path.basename(file)
+        if not parent:
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        stem = os.path.splitext(name)[0]
+        buffer_dir = (
+            os.path.join(parent, ".buffer", stem)
+            if "://" not in file
+            else f"{parent}/.buffer/{stem}"
+        )
         try:
             anchor = ScopeRoot.parse(parent, "dir", ["read"])
         except ValueError:
