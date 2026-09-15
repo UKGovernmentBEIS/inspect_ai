@@ -1,9 +1,14 @@
 import math
 from pathlib import Path
 
+import pytest
+import yaml
+from pydantic import ValidationError
+from typing_extensions import TypedDict
+
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.model import compute_model_cost
-from inspect_ai.model._model_data.model_data import ModelCost
+from inspect_ai.model._model_data.model_data import ModelCost, ModelCostTier
 from inspect_ai.model._model_output import ModelUsage
 
 
@@ -189,3 +194,206 @@ def test_compute_model_cost_cache_ttl_does_not_affect_other_tokens() -> None:
         compute_model_cost(cost_data, usage, "1h"),
         compute_model_cost(cost_data, usage),
     )
+
+
+class _Rates(TypedDict):
+    input: float
+    output: float
+    input_cache_write: float
+    input_cache_read: float
+
+
+# OpenAI gpt-5.5 pricing: standard up to 272k prompt tokens, long-context above
+_STANDARD = _Rates(
+    input=5.00, output=30.00, input_cache_write=5.00, input_cache_read=0.50
+)
+_LONG = _Rates(
+    input=10.00, output=45.00, input_cache_write=10.00, input_cache_read=1.00
+)
+_LONG_CONTEXT = 272_000
+
+
+def _tiered_cost() -> ModelCost:
+    return ModelCost(
+        **_STANDARD,
+        tiers=[
+            ModelCostTier(max_input_tokens=_LONG_CONTEXT, **_STANDARD),
+            ModelCostTier(max_input_tokens=None, **_LONG),
+        ],
+    )
+
+
+def _call(
+    prompt: int,
+    output: int = 5_000,
+    input_tokens_cache_read: int | None = None,
+    input_tokens_cache_write: int | None = None,
+) -> ModelUsage:
+    return ModelUsage(
+        input_tokens=prompt,
+        output_tokens=output,
+        total_tokens=prompt
+        + output
+        + (input_tokens_cache_read or 0)
+        + (input_tokens_cache_write or 0),
+        input_tokens_cache_read=input_tokens_cache_read,
+        input_tokens_cache_write=input_tokens_cache_write,
+    )
+
+
+def test_compute_model_cost_tiers_bill_each_call_at_its_band() -> None:
+    cost_data = _tiered_cost()
+
+    # (50k * 5 + 5k * 30) / 1M = 0.4000
+    assert math.isclose(compute_model_cost(cost_data, _call(50_000)), 0.4000)
+    # (300k * 10 + 5k * 45) / 1M = 3.2250
+    assert math.isclose(compute_model_cost(cost_data, _call(300_000)), 3.2250)
+
+
+def test_compute_model_cost_tier_bound_is_inclusive() -> None:
+    cost_data = _tiered_cost()
+
+    assert math.isclose(
+        compute_model_cost(cost_data, _call(_LONG_CONTEXT, output=0)),
+        _LONG_CONTEXT * 5.00 / 1_000_000,
+    )
+    assert math.isclose(
+        compute_model_cost(cost_data, _call(_LONG_CONTEXT + 1, output=0)),
+        (_LONG_CONTEXT + 1) * 10.00 / 1_000_000,
+    )
+
+
+def test_compute_model_cost_three_tiers_selects_middle_band() -> None:
+    def tier(max_input_tokens: int | None, input: float) -> ModelCostTier:
+        return ModelCostTier(
+            max_input_tokens=max_input_tokens,
+            input=input,
+            output=2 * input,
+            input_cache_write=0.0,
+            input_cache_read=0.0,
+        )
+
+    cost_data = ModelCost(
+        input=1.0,
+        output=2.0,
+        input_cache_write=0.0,
+        input_cache_read=0.0,
+        # deliberately unsorted: selection must not depend on declaration order
+        tiers=[tier(None, 4.0), tier(32_000, 1.0), tier(128_000, 2.0)],
+    )
+
+    assert math.isclose(compute_model_cost(cost_data, _call(10_000, output=0)), 0.01)
+    assert math.isclose(compute_model_cost(cost_data, _call(64_000, output=0)), 0.128)
+    assert math.isclose(compute_model_cost(cost_data, _call(200_000, output=0)), 0.8)
+
+
+def test_compute_model_cost_tier_uses_prompt_including_cached_tokens() -> None:
+    cost_data = _tiered_cost()
+    # 50k billed input + 250k cache-read = 300k prompt, above 272k
+    usage = _call(50_000, output=5_000, input_tokens_cache_read=250_000)
+
+    # long band: (50k * 10 + 5k * 45 + 250k * 1) / 1M = 0.9750
+    # (selecting on input_tokens alone would give the standard band: 0.5250)
+    assert math.isclose(compute_model_cost(cost_data, usage), 0.9750)
+
+
+def test_compute_model_cost_tiers_bill_per_call_not_accumulated_usage() -> None:
+    cost_data = _tiered_cost()
+
+    # forty 50k calls cost $16.00; one 2M-token call at the sum costs $29.00
+    per_call_total = 40 * compute_model_cost(cost_data, _call(50_000))
+    assert math.isclose(per_call_total, 16.00)
+    assert math.isclose(
+        compute_model_cost(cost_data, _call(2_000_000, output=200_000)), 29.00
+    )
+
+
+def test_compute_model_cost_1h_cache_write_uses_selected_band_rate() -> None:
+    cost_data = _tiered_cost()
+    usage = _call(0, output=0, input_tokens_cache_write=1_000_000)
+
+    # 1M cache-write tokens select the long band ($10/M at the 5m rate)
+    assert math.isclose(compute_model_cost(cost_data, usage, "5m"), 10.00)
+    assert math.isclose(compute_model_cost(cost_data, usage, "1h"), 10.00 * 2.0 / 1.25)
+
+
+def test_compute_model_cost_top_level_rates_ignored_when_tiers_set() -> None:
+    cost_data = ModelCost(
+        **_LONG,
+        tiers=[
+            ModelCostTier(max_input_tokens=_LONG_CONTEXT, **_STANDARD),
+            ModelCostTier(max_input_tokens=None, **_LONG),
+        ],
+    )
+
+    assert math.isclose(compute_model_cost(cost_data, _call(50_000)), 0.4000)
+
+
+def test_compute_model_cost_tiers_round_trip_from_yaml() -> None:
+    loaded = yaml.safe_load(
+        """
+        input: 5.00
+        output: 30.00
+        input_cache_write: 5.00
+        input_cache_read: 0.50
+        tiers:
+          - max_input_tokens: 272000
+            input: 5.00
+            output: 30.00
+            input_cache_write: 5.00
+            input_cache_read: 0.50
+          - max_input_tokens: null
+            input: 10.00
+            output: 45.00
+            input_cache_write: 10.00
+            input_cache_read: 1.00
+        """
+    )
+    cost_data = ModelCost(**loaded)
+
+    assert math.isclose(compute_model_cost(cost_data, _call(50_000)), 0.4000)
+    assert math.isclose(compute_model_cost(cost_data, _call(300_000)), 3.2250)
+
+
+def test_model_cost_without_tiers_is_unchanged() -> None:
+    cost_data = ModelCost(**_STANDARD)
+
+    assert cost_data.tiers is None
+    assert math.isclose(compute_model_cost(cost_data, _call(300_000)), 1.6500)
+
+
+def test_model_cost_tiers_require_exactly_one_unbounded_band() -> None:
+    with pytest.raises(ValidationError, match="unbounded"):
+        ModelCost(**_STANDARD, tiers=[])
+    with pytest.raises(ValidationError, match="unbounded"):
+        ModelCost(
+            **_STANDARD,
+            tiers=[ModelCostTier(max_input_tokens=_LONG_CONTEXT, **_STANDARD)],
+        )
+    with pytest.raises(ValidationError, match="unbounded"):
+        ModelCost(
+            **_STANDARD,
+            tiers=[
+                ModelCostTier(max_input_tokens=None, **_STANDARD),
+                ModelCostTier(max_input_tokens=None, **_LONG),
+            ],
+        )
+
+
+def test_model_cost_tiers_require_unique_bounds() -> None:
+    with pytest.raises(ValidationError, match="unique"):
+        ModelCost(
+            **_STANDARD,
+            tiers=[
+                ModelCostTier(max_input_tokens=_LONG_CONTEXT, **_STANDARD),
+                ModelCostTier(max_input_tokens=_LONG_CONTEXT, **_LONG),
+                ModelCostTier(max_input_tokens=None, **_LONG),
+            ],
+        )
+
+
+def test_model_cost_tier_rejects_negative_bound_and_unknown_fields() -> None:
+    with pytest.raises(ValidationError):
+        ModelCostTier(max_input_tokens=-1, **_STANDARD)
+    with pytest.raises(ValidationError, match="max_input_token"):
+        ModelCostTier.model_validate({"max_input_token": 272000, **_STANDARD})

@@ -779,6 +779,49 @@ def test_model_cost_config_file() -> None:
     assert usage.total_cost == pytest.approx(0.007)
 
 
+def test_model_cost_config_file_prompt_size_tiers() -> None:
+    set_model_info("model", ModelInfo())
+    config_yaml = (
+        "model:\n"
+        "    input: 5.00\n"
+        "    output: 30.00\n"
+        "    input_cache_write: 5.00\n"
+        "    input_cache_read: 0.50\n"
+        "    tiers:\n"
+        "      - max_input_tokens: 272000\n"
+        "        input: 5.00\n"
+        "        output: 30.00\n"
+        "        input_cache_write: 5.00\n"
+        "        input_cache_read: 0.50\n"
+        "      - max_input_tokens: null\n"
+        "        input: 10.00\n"
+        "        output: 45.00\n"
+        "        input_cache_write: 10.00\n"
+        "        input_cache_read: 1.00\n"
+    )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(config_yaml)
+        config_path = f.name
+
+    def run_with_usage(prompt: int, output: int) -> float | None:
+        generated = ModelOutput.from_content(model="mockllm/model", content="Hello")
+        generated.usage = ModelUsage(
+            input_tokens=prompt, output_tokens=output, total_tokens=prompt + output
+        )
+        model = get_model("mockllm/model", custom_outputs=[generated])
+        task = Task(
+            dataset=[Sample(input="Say Hello", target="Hello")],
+            solver=[generate()],
+            scorer=match(),
+        )
+        log = eval(task, model=model, model_cost_config=config_path)[0]
+        assert log.status == "success"
+        return list(log.stats.model_usage.values())[0].total_cost
+
+    assert run_with_usage(50_000, 5_000) == pytest.approx(0.4000)
+    assert run_with_usage(300_000, 5_000) == pytest.approx(3.2250)
+
+
 def test_model_cost_config_dict() -> None:
     # register model info without cost, then use dict to add cost
     set_model_info("model", ModelInfo())
