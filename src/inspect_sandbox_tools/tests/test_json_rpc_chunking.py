@@ -274,9 +274,8 @@ def test_small_response_unaffected_by_unusable_chunk_dir(
 ) -> None:
     """An unusable chunk path must not break non-chunked requests.
 
-    The chunk dir lives at a well-known path in a world-writable location, so
-    sandbox code can pre-create it (e.g. as a plain file). Small responses
-    never touch the chunk dir and must keep working regardless of its state.
+    Small responses never touch chunk storage and must keep working whatever
+    state the tools user's own directory is in.
     """
     pytest.importorskip("jsonrpcserver")
     chunking._CHUNK_DIR.touch()
@@ -484,3 +483,82 @@ def test_root_cli_round_trips_a_chunked_response_produced_as_another_user() -> N
         assert not chunk_path.exists()
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
+
+
+def test_unusable_chunk_storage_fails_only_responses_that_need_chunking(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failed reservation before the switch is raised only if chunking is needed."""
+    pytest.importorskip("jsonrpcserver")
+    import inspect_sandbox_tools._cli.main as main_module
+
+    monkeypatch.setattr(
+        main_module, "switch_target", lambda user, can_switch_user: user
+    )
+    monkeypatch.setattr(main_module, "switch_user", lambda _user: None)
+    monkeypatch.setattr(main_module, "get_home_dir", lambda _user: os.environ["HOME"])
+    monkeypatch.setenv(JSON_RPC_RESPONSE_MAX_BYTES_ENV, "4096")
+    chunking._CHUNK_DIR.touch()
+    small = tmp_path / "small.txt"
+    small.write_text("small")
+    large = tmp_path / "large.txt"
+    large.write_text("line\n" * 2000)
+
+    def request(path: Path) -> dict[str, object]:
+        return {
+            "jsonrpc": "2.0",
+            "method": "text_editor",
+            "id": 1,
+            "params": {
+                "command": "view",
+                "path": str(path),
+                "_run_as": {"uid": 12345, "gid": 12345, "groups": []},
+            },
+        }
+
+    assert "small" in json.loads(_exec_cli(request(small), capsys))["result"]
+    with pytest.raises(RuntimeError, match="cannot be trusted: it is not a directory"):
+        _exec_cli(request(large), capsys)
+
+
+def test_chunk_is_removed_when_no_piece_fits() -> None:
+    response = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "x" * 2000})
+
+    with pytest.raises(ValueError, match="too small"):
+        chunk_json_rpc_response_if_needed({"id": 1}, response, 64)
+
+    assert list(chunking._CHUNK_DIR.glob("*.jsonrpc")) == []
+
+
+def test_chunk_is_emptied_when_no_piece_fits_after_directory_access_is_lost() -> None:
+    """After the switch the file cannot be unlinked, so it is emptied and swept later."""
+    spill = open_chunk_spill()
+    path = chunking._CHUNK_DIR / f"{spill.handle}.jsonrpc"
+    response = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "x" * 2000})
+    _simulate_switch_away_from_tools_user()
+    try:
+        with pytest.raises(ValueError, match="too small"):
+            chunk_json_rpc_response_if_needed({"id": 1}, response, 64, spill=spill)
+        assert path.exists() and path.stat().st_size == 0
+    finally:
+        _simulate_switch_back_to_tools_user()
+
+    old = time.time() - chunking._RESERVATION_GRACE_SECONDS - 5
+    os.utime(path, (old, old))
+    open_chunk_spill().file.close()
+    assert not path.exists()
+
+
+def test_continuation_and_release_do_not_create_chunk_storage() -> None:
+    handle = "0" * 32
+    missing = handle_json_rpc_response_chunk_request(
+        {"id": 1, "params": {"handle": handle, "offset": 0}}, 512
+    )
+    assert json.loads(missing)["error"]["message"] == "chunk handle not found"
+    released = handle_json_rpc_response_chunk_request(
+        {"id": 2, "params": {"handle": handle, "release": True}}, 512
+    )
+    assert json.loads(released)["result"] is None
+    assert not chunking._CHUNK_DIR.exists()

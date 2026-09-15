@@ -43,6 +43,24 @@ class ChunkSpill(NamedTuple):
     file: BinaryIO
 
 
+class UnreservedChunkSpill(NamedTuple):
+    """Why no chunk file could be reserved; raised only if a response needs one."""
+
+    error: Exception
+
+
+def reserve_chunk_spill() -> ChunkSpill | UnreservedChunkSpill:
+    """Reserve a chunk file before switching user, without failing the request.
+
+    Small responses never need chunk storage, so a reservation failure is kept
+    and raised only if the response turns out to need chunking.
+    """
+    try:
+        return open_chunk_spill()
+    except (RuntimeError, OSError) as ex:
+        return UnreservedChunkSpill(ex)
+
+
 def open_chunk_spill() -> ChunkSpill:
     """Reserve a chunk file for a response that does not exist yet.
 
@@ -51,7 +69,7 @@ def open_chunk_spill() -> ChunkSpill:
     the stale sweep and is released when the process exits, so a reservation
     that turned out to be unneeded is swept as an empty orphan by a later call.
     """
-    chunk_dir = _chunk_dir()
+    chunk_dir = _chunk_dir(create=True)
     _remove_stale_chunks(chunk_dir)
     while True:
         handle = uuid.uuid4().hex
@@ -72,9 +90,15 @@ def open_chunk_spill() -> ChunkSpill:
         return ChunkSpill(handle, os.fdopen(fd, "rb+"))
 
 
-def _chunk_dir() -> Path:
-    ensure_private_server_dir(_CHUNK_DIR.parent)
-    ensure_private_server_dir(_CHUNK_DIR)
+def _chunk_dir(*, create: bool) -> Path:
+    """Return the verified chunk directory inside the verified server directory.
+
+    Raises:
+        FileNotFoundError: ``create`` is False and either directory is missing.
+        RuntimeError: An entry at either path cannot be trusted.
+    """
+    ensure_private_server_dir(_CHUNK_DIR.parent, create=create)
+    ensure_private_server_dir(_CHUNK_DIR, create=create)
     return _CHUNK_DIR
 
 
@@ -82,21 +106,24 @@ def chunk_json_rpc_response_if_needed(
     request_data: dict[str, Any],
     response: str,
     max_response_bytes: int | None = None,
-    spill: ChunkSpill | None = None,
+    spill: ChunkSpill | UnreservedChunkSpill | None = None,
 ) -> str:
     """Return a bounded response envelope, spilling large frames to a file.
 
-    ``spill`` is a file reserved earlier with :func:`open_chunk_spill`. Without
-    one the file is created here, which requires running as the tools user.
+    ``spill`` is the result of :func:`reserve_chunk_spill` before a user switch.
+    Without one the file is created here, which requires running as the tools
+    user.
     """
     request_id = request_data.get("id")
     response_bytes = response.encode("utf-8")
     response_limit = _response_byte_limit(max_response_bytes)
     if request_id is None or len(response_bytes) + 1 <= response_limit:
-        if spill is not None:
+        if isinstance(spill, ChunkSpill):
             spill.file.close()
         return response
 
+    if isinstance(spill, UnreservedChunkSpill):
+        raise spill.error
     if spill is None:
         spill = open_chunk_spill()
     with spill.file as chunk_file:
@@ -107,11 +134,21 @@ def chunk_json_rpc_response_if_needed(
                 request_id, spill.handle, chunk_file, 0, response_limit
             )
         except Exception:
-            # A sandbox user cannot unlink in the tools user's directory but can
-            # empty the file it holds open; the next sweep removes the orphan.
-            with suppress(OSError):
-                chunk_file.truncate(0)
+            _discard_chunk(spill.handle, chunk_file)
             raise
+
+
+def _discard_chunk(handle: str, chunk_file: BinaryIO) -> None:
+    """Remove a chunk whose response cannot be served.
+
+    A sandbox user cannot unlink in the tools user's directory, but it can empty
+    the file it holds open; the next sweep then removes the orphan.
+    """
+    try:
+        os.unlink(_CHUNK_DIR / _chunk_name(handle))
+    except OSError:
+        with suppress(OSError):
+            chunk_file.truncate(0)
 
 
 def handle_json_rpc_response_chunk_request(
@@ -127,17 +164,24 @@ def handle_json_rpc_response_chunk_request(
     if not isinstance(handle, str) or not _VALID_HANDLE.fullmatch(handle):
         return _json_rpc_error(request_id, -32602, "invalid chunk handle")
 
-    try:
-        chunk_path = _chunk_dir() / _chunk_name(handle)
-        if params.get("release") is True:
-            chunk_path.unlink(missing_ok=True)
-            return _json_rpc_success(request_id, None)
-        if "release" in params:
-            return _json_rpc_error(request_id, -32602, "release must be true")
+    release = params.get("release") is True
+    if not release and "release" in params:
+        return _json_rpc_error(request_id, -32602, "release must be true")
+    offset = 0 if release else params.get("offset")
+    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+        return _json_rpc_error(request_id, -32602, "invalid chunk offset")
 
-        offset = params.get("offset")
-        if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
-            return _json_rpc_error(request_id, -32602, "invalid chunk offset")
+    try:
+        try:
+            chunk_path: Path | None = _chunk_dir(create=False) / _chunk_name(handle)
+        except FileNotFoundError:
+            chunk_path = None  # nothing was ever spilled for this server directory
+        if release:
+            if chunk_path is not None:
+                chunk_path.unlink(missing_ok=True)
+            return _json_rpc_success(request_id, None)
+        if chunk_path is None:
+            raise FileNotFoundError(handle)
 
         with open(chunk_path, "rb") as chunk_file:
             response = _read_chunk_response(
@@ -262,7 +306,9 @@ def _remove_stale_chunks(chunk_dir: Path) -> None:
     A live reservation is locked by the process that made it. An unlocked empty
     file older than the grace period is a reservation that was never needed or
     whose process died; the grace period covers the instant between creating a
-    reservation and locking it.
+    reservation and locking it. The sweep is linear in the number of files
+    present, which stays small: one empty file per switched call, kept for at
+    most the grace period.
     """
     now = time.time()
     with suppress(OSError), os.scandir(chunk_dir) as entries:
