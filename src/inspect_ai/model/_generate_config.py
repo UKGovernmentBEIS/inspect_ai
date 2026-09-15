@@ -156,6 +156,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     fallback_models: list[str] | None
     """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""
 
+    fail_on_refusal: bool | None
+    """Raise a `ModelRefusalError` (failing the sample) when the model returns `stop_reason="content_filter"`. Defaults to False."""
+
     verbosity: Literal["low", "medium", "high"] | None
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
@@ -285,6 +288,9 @@ class GenerateConfig(BaseModel):
 
     fallback_models: list[str] | None = Field(default=None)
     """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""
+
+    fail_on_refusal: bool | None = Field(default=None)
+    """Raise a `ModelRefusalError` (failing the sample) when the model returns `stop_reason="content_filter"`. Defaults to False."""
 
     verbosity: Literal["low", "medium", "high"] | None = Field(default=None)
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
