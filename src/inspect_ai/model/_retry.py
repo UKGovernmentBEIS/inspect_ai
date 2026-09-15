@@ -1,5 +1,7 @@
+import contextlib
 from typing import TYPE_CHECKING, Awaitable, Callable
 
+import anyio
 from tenacity import (
     RetryCallState,
     retry_if_exception,
@@ -10,6 +12,7 @@ from tenacity.stop import StopBaseT
 from tenacity.wait import WaitBaseT
 from typing_extensions import TypedDict
 
+from inspect_ai._util.working import sample_waiting
 from inspect_ai.model._generate_overrides import generate_config_override
 
 if TYPE_CHECKING:
@@ -22,6 +25,7 @@ class ModelRetryConfig(TypedDict):
     retry: RetryBaseT
     before_sleep: Callable[[RetryCallState], (Awaitable[None] | None)]
     stop: StopBaseT
+    sleep: Callable[[float], Awaitable[None]]
 
 
 def model_retry_config(
@@ -31,7 +35,7 @@ def model_retry_config(
     should_retry: "Callable[[BaseException], bool | RetryDecision]",
     before_retry: Callable[[BaseException], (Awaitable[None] | None)],
     log_model_retry: Callable[[str, RetryCallState], Awaitable[None] | None],
-    report_waiting_time: Callable[[float], None] | None = None,
+    track_waiting_time: bool = False,
     wait: WaitBaseT | None = None,
     live_overrides: bool = True,
     report_retry_wait: bool = True,
@@ -61,11 +65,6 @@ def model_retry_config(
     # retries run in `Model._generate`'s own (live) retry loop.
 
     async def on_before_sleep(rs: RetryCallState) -> None:
-        # report the upcoming sleep as waiting time (that way the working time can't
-        # expire while we are waiting b/c we've already offset it)
-        if report_waiting_time is not None:
-            report_waiting_time(rs.upcoming_sleep)
-
         # `report_retry_wait` gates the per-sample record rather than relying
         # on sample_active() alone: a batcher's admin-op retry loop runs on a
         # worker task that inherits the context of whichever sample first
@@ -102,6 +101,10 @@ def model_retry_config(
         res = before_retry(ex)
         if res is not None:
             await res
+
+    async def sleep(seconds: float) -> None:
+        async with sample_waiting() if track_waiting_time else contextlib.nullcontext():
+            await anyio.sleep(seconds)
 
     # resolve wait
     wait = (
@@ -170,6 +173,7 @@ def model_retry_config(
         "retry": retry_if_exception(_retry_predicate),
         "before_sleep": on_before_sleep,
         "stop": stop,
+        "sleep": sleep,
     }
 
 

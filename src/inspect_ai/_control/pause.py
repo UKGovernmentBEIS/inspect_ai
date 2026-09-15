@@ -547,8 +547,8 @@ async def wait_task_dispatch(
 # (skipping only active model events — a span the gate sits outside), so held
 # time must be credited incrementally: crediting only at hold end would let a
 # working_limit expire and kill the sample mid-hold, forfeiting exactly the
-# in-sample progress hold semantics exist to preserve. Unlike retry backoff,
-# a hold cannot pre-credit — its duration is unknown at hold start. Half the
+# in-sample progress hold semantics exist to preserve. A hold's duration is
+# unknown at hold start. Half the
 # monitor's poll interval: the tick and the poll are unsynchronized, so a
 # full-interval tick could leave ~1s of hold uncredited at a monitor wake —
 # enough to reap a sample that entered the hold with under a second of
@@ -639,8 +639,8 @@ async def wait_generate_dispatch(
     uniformly: an attempt begins
     when its backoff has elapsed *and* the gate is open (extending resolved
     question 2 of ``design/ctl/pause-resume.md`` to the hard gate; the two
-    waiting spans are disjoint by construction, since backoff pre-credits its
-    sleep and a park starts only after the sleep completes). Parks while the
+    waiting spans are disjoint within an attempt, since a park starts only
+    after the backoff sleep completes). Parks while the
     process latch, the active sample's task gate, or the called model's gate
     is hard-closed.
 
@@ -648,11 +648,9 @@ async def wait_generate_dispatch(
     ``_HELD_CREDIT_INTERVAL`` seconds, and on the way out — including
     cancellation) through ``report_waiting_time``, which must feed
     ``report_sample_waiting_time`` (keeping ``working_limit`` enforcement and
-    the sample's reported working time honest) plus whatever call-local
-    accounting the caller keeps: generate passes a closure that also feeds
-    its own waiting accumulator, whose post-call reconciliation would
-    otherwise re-report the held span as provider-internal waiting; compact
-    has no reconciliation and passes ``report_sample_waiting_time`` directly. ``time_limit``
+    the sample's reported working time honest). Overlapping holds and the
+    generate call's post-call reconciliation are deduplicated by that shared
+    accounting. ``time_limit``
     deadlines deliberately keep running while held — explicitly the
     operator's risk with ``pause --now``.
 
