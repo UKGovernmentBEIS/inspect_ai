@@ -383,7 +383,7 @@ class _TracebackBlock(Widget):
         # The state layer prefers ``error.traceback_ansi`` over the
         # plain ``traceback`` field — upstream ``format_traceback``
         # bakes the full ``rich.traceback.Traceback`` output (frame
-        # summaries + syntax-highlighted source-line context) into
+        # summaries + source-line context, not syntax highlighted) into
         # ANSI escape codes, so parsing them back with ``Text.from_ansi``
         # gives us the same styled rendering Inspect's own console
         # display produces. ``Text`` carries only foreground styles
