@@ -655,7 +655,7 @@ The transport "where" values (`--ctl-server=4444` for a TCP loopback port, `--ct
 
 ### Environment-variable mirror
 
-`INSPECT_EVAL_CTL_SERVER` mirrors the flag (same values: `false` / `true` / `keep`), following the `INSPECT_EVAL_ACP_SERVER` precedent. This lets a test runner or CI config globally suppress the surface (`INSPECT_EVAL_CTL_SERVER=false`) without modifying each `inspect eval` invocation.
+`INSPECT_EVAL_CTL_SERVER` mirrors the flag (same values: `false` / `true` / `keep`), following the `INSPECT_EVAL_ACP_SERVER` precedent. This lets a test runner or CI config globally suppress the surface (`INSPECT_EVAL_CTL_SERVER=false`) without modifying each `inspect eval` invocation. The fallback is implemented in `resolve_ctl_server` (consulted when the value is `None`), not only as the click option's `envvar`, so an in-process `eval()` / `eval_set()` honours it too; an explicit `ctl_server=` argument always wins.
 
 ### Relationship to `--acp-server`
 
@@ -668,10 +668,10 @@ The flag shapes match (one overloaded-value flag each: `--acp-server=false|true|
 
 ### Test-suite cost
 
-Pytest runs that spawn many evals will each try to bind. AF_UNIX is cheap and discovery files self-clean via PID-liveness, but per-eval bind overhead is worth measuring in phase 1. Mitigations if it matters:
+Pytest runs that spawn many evals will each try to bind. AF_UNIX is cheap and discovery files self-clean via PID-liveness, but the per-eval start/stop was measured (meridianlabs-ai/inspect_ai#393) at ~200ms — most of a small eval's wall time, ~27% of the suite — almost all of it building the FastAPI app per server and waiting out uvicorn's 100ms shutdown polls. Both are addressed:
 
-- Set `INSPECT_EVAL_CTL_SERVER=false` globally for the test session.
-- Make the bind lazy (allocate only when something asks via discovery).
+- The app is built once per process and shared (`ControlServer._build_app` / `app.state.server`), and the uvicorn `Server` subclass wakes on `should_exit` instead of polling and skips the shutdown settle sleep when idle — start + stop is now ~1ms.
+- The test suite sets `INSPECT_EVAL_CTL_SERVER=false` for every test via an autouse fixture (`tests/conftest.py::disable_ctl_server`); tests whose subject is the live control surface opt out with `@pytest.mark.real_ctl_server`. An explicit `ctl_server=` argument still wins over the env var.
 
 The graceful-fallback policy means worst-case is "test logs have warning lines"; eval correctness is unaffected.
 
