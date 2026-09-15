@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
+- Bugfix: Overflow recovery no longer drops the sample's input from the recorded conversation, so scorers and the viewer still see the task after a forced compaction.
 
 ## 0.3.265 (17 September 2026)
 
