@@ -2,9 +2,10 @@
 
 File APIs map to host paths and ``user="root"`` is ignored, so code whose
 in-sandbox side is plain ``sh`` (tar, dd, find, comm, restic-as-a-binary)
-executes for real against a temp dir — no Docker required. The ``tar``
-first on the fake's ``PATH`` writes what a Linux sandbox's tar writes
-(see :func:`linux_like_path`).
+executes for real against a temp dir — no Docker required. Framework
+commands pin ``PATH`` to the system directories; the checkpoint
+``conftest`` points that pin at :func:`sandbox_path`, whose ``tar``
+writes what a Linux sandbox's tar writes (see :func:`linux_like_path`).
 """
 
 from __future__ import annotations
@@ -77,13 +78,8 @@ def sandbox_path() -> str:
 class LocalShellSandbox(SandboxEnvironment):
     """Sandbox fake that executes ``exec`` on the host shell.
 
-    ``extra_env`` overlays the inherited environment (e.g. a ``PATH``
-    with a shim dir prepended) for every ``exec``; a per-call ``env``
-    is layered on top of that.
+    A per-call ``env`` is layered over the inherited environment.
     """
-
-    def __init__(self, extra_env: dict[str, str] | None = None) -> None:
-        self._extra_env = extra_env
 
     async def exec(
         self,
@@ -98,13 +94,12 @@ class LocalShellSandbox(SandboxEnvironment):
     ) -> ExecResult[str]:
         input_bytes = input.encode() if isinstance(input, str) else input
         # COPYFILE_DISABLE keeps macOS bsdtar from adding AppleDouble ``._*``
-        # members even when a test's own ``PATH`` bypasses the tar shim; a
-        # no-op elsewhere.
+        # members should a command reach it past the tar shim; a no-op
+        # elsewhere.
         run_env = {
             **os.environ,
             "PATH": sandbox_path(),
             "COPYFILE_DISABLE": "1",
-            **(self._extra_env or {}),
             **(env or {}),
         }
         proc = subprocess.run(

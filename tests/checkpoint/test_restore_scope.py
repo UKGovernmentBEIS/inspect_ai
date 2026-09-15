@@ -37,6 +37,7 @@ from inspect_ai.util._checkpoint._restore_scope import (
     tar_member_argument,
     tar_member_node,
 )
+from inspect_ai.util._sandbox._privileged import pinned_shell_command
 
 LABEL = "test restore"
 HOME = RestoreRoots.from_include(["/home/user"], label=LABEL)
@@ -697,8 +698,9 @@ async def test_remove_existing_symlinks_runs_as_root_and_reports_failure() -> No
     await remove_existing_symlinks(ok, HOME, label=LABEL)
     (cmd, user), *rest = ok.calls
     assert not rest and user == "root"
-    assert cmd[:2] == ["sh", "-c"] and cmd[2].startswith("set -e\n")
-    assert cmd[2].endswith(remove_existing_symlinks_command(HOME.roots))
+    assert cmd == pinned_shell_command(
+        "set -e\n" + remove_existing_symlinks_command(HOME.roots)
+    )
 
     failing = _Recording(success=False)
     with pytest.raises(RuntimeError, match=re.escape("['/home/user']")) as exc_info:

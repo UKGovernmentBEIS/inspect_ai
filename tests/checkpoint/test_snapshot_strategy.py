@@ -22,6 +22,8 @@ import shlex
 import shutil
 import subprocess
 import tarfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -797,16 +799,25 @@ async def test_archive_restore_decodes_gzip_like_the_sandbox_does(
     assert not (root / "pw").exists()
 
 
-def _tar_shim(tmp_path: Path, implementation: str) -> dict[str, str] | None:
-    """``extra_env`` putting ``implementation``'s tar first on ``PATH`` (``None`` = the fake's own)."""
+@contextmanager
+def _tar_shim(tmp_path: Path, implementation: str) -> Iterator[None]:
+    """Pinned commands resolve ``tar`` to ``implementation``'s (``host`` = the fake's own).
+
+    The strategy's scripts ignore the fake's ``PATH`` and use the pinned
+    system directories, so the shim goes first on that pinned ``PATH``.
+    """
     if implementation == "host":
-        return None
+        yield
+        return
     if shutil.which(implementation) is None:
         pytest.skip(f"{implementation} not installed")
     shim = tmp_path / "tar-shim"
     shim.mkdir()
     (shim / "tar").symlink_to(shutil.which(implementation) or implementation)
-    return {"PATH": f"{shim}:{os.environ['PATH']}"}
+    with patch.object(
+        privileged, "SYSTEM_PATH", f"{shim}{os.pathsep}{privileged.SYSTEM_PATH}"
+    ):
+        yield
 
 
 @pytest.mark.parametrize("hiding", ["tar_parser", "second_gzip_member"])
@@ -825,7 +836,7 @@ async def test_archive_extraction_guard_fails_on_a_planted_special_file(
     the host's tar a plain archive carrying a fifo, since GNU tar honors
     the PAX record and would hide the member as ``tarfile`` did.
     """
-    env = LocalShellSandbox(extra_env=_tar_shim(tmp_path, implementation))
+    env = LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
     ctx = _context(tmp_path / "sample")
     root = tmp_path / "capture" / "data"
@@ -858,9 +869,12 @@ async def test_archive_extraction_guard_fails_on_a_planted_special_file(
         )
         planted = root / "pipe"
 
-    with patch(
-        "inspect_ai.util._checkpoint._snapshot.archive._check_archive",
-        return_value=None,
+    with (
+        _tar_shim(tmp_path, implementation),
+        patch(
+            "inspect_ai.util._checkpoint._snapshot.archive._check_archive",
+            return_value=None,
+        ),
     ):
         with pytest.raises(RuntimeError, match=rf"extraction produced {planted}"):
             await strategy.restore(
@@ -896,7 +910,7 @@ async def test_archive_restore_never_writes_through_an_image_symlink(
     so ``shadow`` lands in a real directory ``l`` and the hard link,
     whose target no longer exists, fails the restore.
     """
-    env = LocalShellSandbox(extra_env=_tar_shim(tmp_path, implementation))
+    env = LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
     ctx = _context(tmp_path / "sample")
     root = tmp_path / "capture" / "data"
@@ -923,13 +937,14 @@ async def test_archive_restore_never_writes_through_an_image_symlink(
         {_rel(root / "l" / "shadow"): b"planted\n"},
     )
 
-    with pytest.raises(RuntimeError, match="archive snapshot restore failed"):
-        await strategy.restore(
-            env,
-            SandboxBackupPaths(include=[str(root)]),
-            _hostile_details(archive_name, digest, root),
-            ctx,
-        )
+    with _tar_shim(tmp_path, implementation):
+        with pytest.raises(RuntimeError, match="archive snapshot restore failed"):
+            await strategy.restore(
+                env,
+                SandboxBackupPaths(include=[str(root)]),
+                _hostile_details(archive_name, digest, root),
+                ctx,
+            )
 
     assert not (outside / "shadow").exists()
     assert (outside / "passwd").stat().st_nlink == 1
@@ -958,7 +973,7 @@ async def test_archive_restore_replaces_image_symlinks_with_the_snapshot(
     paths = SandboxBackupPaths(include=[str(data_dir)])
     details = await strategy.snapshot(capture_env, paths, 1, ctx)
 
-    env = LocalShellSandbox(extra_env=_tar_shim(tmp_path, implementation))
+    env = LocalShellSandbox()
     shutil.rmtree(data_dir)
     data_dir.mkdir()
     elsewhere = tmp_path / "capture" / "elsewhere"
@@ -968,7 +983,8 @@ async def test_archive_restore_replaces_image_symlinks_with_the_snapshot(
     (data_dir / "stale").symlink_to("/etc")
 
     await _remove_image_symlinks(env, data_dir)
-    await strategy.restore(env, paths, details, ctx)
+    with _tar_shim(tmp_path, implementation):
+        await strategy.restore(env, paths, details, ctx)
 
     assert (data_dir / "local").is_dir() and not (data_dir / "local").is_symlink()
     assert (data_dir / "local" / "x").read_text() == "captured\n"

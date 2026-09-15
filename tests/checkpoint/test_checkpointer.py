@@ -70,6 +70,7 @@ from inspect_ai.util._checkpoint.hydrate import HydrationResult, _HostHydrationR
 from inspect_ai.util._checkpoint.report import ResumeReport
 from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
 from inspect_ai.util._restic import ResticBackupSummary
+from inspect_ai.util._sandbox._privileged import pinned_command, pinned_shell_command
 from inspect_ai.util._store import Store
 from inspect_ai.util._subprocess import ExecResult
 
@@ -3105,21 +3106,27 @@ class _RecordingSandbox:
         self, cmd: list[str], user: str | None = None, **kwargs: object
     ) -> ExecResult[str]:
         self.commands.append(cmd)
-        if cmd[:4] == ["stat", "-L", "-c", "%u"] or cmd[:2] == ["test", "-e"]:
+        if _pinned(cmd, ["stat", "-L", "-c", "%u"]) or _pinned(cmd, ["test", "-e"]):
             if not self.home_exists:
                 return ExecResult(
                     success=False, returncode=1, stdout="", stderr="No such file"
                 )
             return ExecResult(success=True, returncode=0, stdout="1001\n", stderr="")
-        if cmd == ["id", "-u"]:
+        if cmd == pinned_command(["id", "-u"]):
             assert user is None, "the default user's uid is read as the default user"
             return ExecResult(success=True, returncode=0, stdout="1000\n", stderr="")
         return ExecResult(success=True, returncode=0, stdout="", stderr="")
 
 
+def _pinned(cmd: list[str], argv: list[str]) -> bool:
+    """``cmd`` is ``privileged_exec``'s argv for ``argv``, or for a longer argv starting with it."""
+    prefix = pinned_command(argv)
+    return cmd[: len(prefix)] == prefix
+
+
 def _symlink_pass(*roots: str) -> list[str]:
     """The core's pre-``setup`` exec deleting the image's symlinks under ``roots``."""
-    return ["sh", "-c", "set -e\n" + remove_existing_symlinks_command(roots)]
+    return pinned_shell_command("set -e\n" + remove_existing_symlinks_command(roots))
 
 
 def _sandbox_checkpoint(checkpoint_id: int, sandboxes: dict[str, str]) -> Checkpoint:
@@ -3187,7 +3194,7 @@ async def test_hydrate_sandbox_refuses_resume_without_committed_record() -> None
         )
     assert strategy.calls == ["setup"]
     assert env.commands == [
-        ["stat", "-L", "-c", "%u", "/root"],
+        pinned_command(["stat", "-L", "-c", "%u", "/root"]),
         _symlink_pass("/root"),
     ]
 
@@ -3214,13 +3221,11 @@ async def test_hydrate_sandbox_reowns_auto_home_around_restore() -> None:
     assert restored_paths is paths
     assert isinstance(ref, SnapshotDetails) and ref.snapshot_id == "d2"
     assert env.commands == [
-        ["stat", "-L", "-c", "%u", "/home/agent"],
+        pinned_command(["stat", "-L", "-c", "%u", "/home/agent"]),
         _symlink_pass("/home/agent"),
-        [
-            "sh",
-            "-c",
-            "find /home/agent -xdev ! -user 1001 -exec chown -h 1001 {} +",
-        ],
+        pinned_shell_command(
+            "find /home/agent -xdev ! -user 1001 -exec chown -h 1001 {} +"
+        ),
     ]
     assert strategy.commands_before_setup == env.commands[:2]
 
@@ -3235,15 +3240,13 @@ async def test_hydrate_sandbox_reowns_missing_home_to_default_user() -> None:
     )
     assert strategy.calls == ["setup", "discard_orphans", "restore"]
     assert env.commands == [
-        ["stat", "-L", "-c", "%u", "/home/agent"],
-        ["test", "-e", "/home/agent"],
-        ["id", "-u"],
+        pinned_command(["stat", "-L", "-c", "%u", "/home/agent"]),
+        pinned_command(["test", "-e", "/home/agent"]),
+        pinned_command(["id", "-u"]),
         _symlink_pass("/home/agent"),
-        [
-            "sh",
-            "-c",
-            "find /home/agent -xdev ! -user 1000 -exec chown -h 1000 {} +",
-        ],
+        pinned_shell_command(
+            "find /home/agent -xdev ! -user 1000 -exec chown -h 1000 {} +"
+        ),
     ]
 
 

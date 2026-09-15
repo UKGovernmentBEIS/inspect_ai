@@ -93,6 +93,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, NamedTuple
 
+from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from ._layout.schemas import SnapshotDetails
@@ -647,9 +648,8 @@ async def remove_existing_symlinks(
     pass then severs. Running it any later would leave that state
     unreachable at its path and fail the restore without naming the cause.
     """
-    result = await env.exec(
-        ["sh", "-c", "set -e\n" + remove_existing_symlinks_command(roots.roots)],
-        user="root",
+    result = await privileged_shell(
+        env, "set -e\n" + remove_existing_symlinks_command(roots.roots), user="root"
     )
     if not result.success:
         raise RuntimeError(
@@ -772,17 +772,17 @@ async def home_owner_uid(env: SandboxEnvironment, home: str, *, label: str) -> i
     owner (the link itself is typically root's); a dangling link falls
     through to the ``test -e`` check, which follows links too.
     """
-    result = await env.exec(["stat", "-L", "-c", "%u", home], user="root")
+    result = await privileged_exec(env, ["stat", "-L", "-c", "%u", home], user="root")
     text = result.stdout.strip()
     if result.success and text.isdigit():
         return int(text)
-    exists = await env.exec(["test", "-e", home], user="root")
+    exists = await privileged_exec(env, ["test", "-e", home], user="root")
     if exists.success:
         raise RuntimeError(
             f"{label}: could not read the owner of home dir {home}: "
             f"{result.stderr.strip() or result.stdout.strip()}"
         )
-    whoami = await env.exec(["id", "-u"])
+    whoami = await privileged_exec(env, ["id", "-u"], user=None)
     text = whoami.stdout.strip()
     if not whoami.success or not text.isdigit():
         raise RuntimeError(
@@ -806,7 +806,7 @@ async def enforce_home_owner(
     handed to the user as well. Group ownership is left as recorded.
     """
     script = f"find {shlex.quote(home)} -xdev ! -user {uid} -exec chown -h {uid} {{}} +"
-    result = await env.exec(["sh", "-c", script], user="root")
+    result = await privileged_shell(env, script, user="root")
     if not result.success:
         raise RuntimeError(
             f"{label}: re-owning restored files under {home} to uid {uid} failed: "
