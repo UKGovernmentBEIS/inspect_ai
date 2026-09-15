@@ -15,6 +15,7 @@ env:
 
 jobs:
   sync-models:
+    if: github.repository == 'UKGovernmentBEIS/inspect_ai'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
