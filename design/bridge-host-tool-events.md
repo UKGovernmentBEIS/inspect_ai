@@ -146,7 +146,10 @@ After #5428 (the tree this design targets):
   call in every response handed to the scaffold, whether or not a policy is
   active, except for servers in `SandboxAgentBridge.proposal_exempt_servers`
   (those registered with `BridgedToolsSpec(require_proposal=False)`, called
-  "exempt servers" below), for which no grant is stored.
+  "exempt servers" below), for which no grant is stored. A "server"
+  throughout is one `BridgedToolsSpec`: the named MCP server the
+  in-container proxy exposes at `/mcp/<spec.name>` for that spec's tools
+  (`bridge.py:271-280`), not the model or the sandbox.
 - `call_tool` denies unless the server is exempt or a grant is consumed;
   `tool_approval_required()` is removed. The denial is still a
   `PermissionError`, now reading "Host tool call '<server>/<tool>' was not
@@ -349,8 +352,8 @@ class _ToolExecutionGrant(NamedTuple):
   there is one and executes regardless. The store stays bounded and every
   entry is still consumable; the only cost is that an exempt server's never-
   executed proposals occupy slots until evicted. #5428's
-  `test_opted_out_server_stores_no_grants` inverts accordingly (Open
-  question 1).
+  `test_opted_out_server_stores_no_grants` inverts accordingly (decision:
+  Ransom, 2026-09-15).
 
 Capturing the proposing event's span, in `bridge_generate`
 (`src/inspect_ai/agent/_bridge/util.py:562`):
@@ -1122,18 +1125,14 @@ coordinated ts-mono PR.
 
 ## Open questions
 
-1. **Store grants for exempt servers.** #5428 skips them; this design
-   stores them so a model-proposed call on a `require_proposal=False`
-   server still pairs with its proposal. Recommendation: store them. The
-   cost is bounded-store slots for an exempt server's never-executed
-   proposals; the alternative leaves every event from an exempt server
-   unpaired.
+None outstanding.
 
 Decided (Ransom, 2026-09-15): arguments that are not a JSON object or nest
 deeper than the native bound are rejected before execution; a denial is
 recorded as `ToolCallError("permission", ...)`; string results are
 truncated only when `max_tool_output` or `ToolDef.max_output` is explicitly
-set, never by the native 16 KiB default; the viewer companion lands
+set, never by the native 16 KiB default; grants are stored for exempt
+servers so their proposed calls still pair; the viewer companion lands
 together with the Python change, as cross-repo PRs normally do.
 
 ## Not this design
