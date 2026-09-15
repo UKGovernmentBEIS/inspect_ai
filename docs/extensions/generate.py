@@ -61,11 +61,7 @@ for record in records:
 
 # Sort items by category order
 cat_rank = {c: i for i, c in enumerate(CATEGORY_ORDER)}
-items.sort(
-    key=lambda x: (
-        cat_rank.get((x["categories"] or ["Tooling"])[0], 99)
-    )
-)
+items.sort(key=lambda x: (cat_rank.get((x["categories"] or ["Tooling"])[0], 99)))
 
 with open(PATH / "extensions.json", "w") as f:
     json.dump(items, f, indent=2)

@@ -83,6 +83,35 @@ approval = [
 eval("browser.py", approval=approval, trace=True)
 ```
 
+## Parallel Chains {#approval-chains}
+
+A policy list is a *chain*: approvers are asked in order and the first decision that is not `escalate` is final. That suits one monitor with a human behind it, but two independent monitors listed one after the other would never both run: whichever approves first ends the chain.
+
+To run independent monitors on every call, give their policies a `chain` name. Policies sharing a name form one chain with the usual semantics; every chain with a policy covering the call runs, and the call proceeds only if every chain approves:
+
+``` yaml
+approvers:
+  - name: internet_attempt
+    tools: "*"
+    chain: attempt
+  - name: human            # takes the attempt monitor's escalations
+    tools: "*"
+    chain: attempt
+  - name: sandbox_escape
+    tools: "*"
+    chain: escape          # runs on every call regardless of `attempt`
+```
+
+Or in code: `ApprovalPolicy(approver, tools, chain="attempt")`. Policies without a `chain` form the default chain, so existing configurations behave exactly as before.
+
+The rules when several chains cover a call:
+
+- Chains run concurrently. Every chain runs to its decision, so a `reject` from one chain does not stop another that might terminate or hand the call to a human. `terminate` is the exception: nothing outranks it, so the remaining chains are cancelled.
+- The combined decision is the most severe: `terminate` over `reject` over `approve`. `modify` is honoured only when a single chain covers the call; across chains it is a rejection.
+- Escalation stays within a chain. When an approver escalates, the next approver in that chain sees who escalated and why in the view's context, which the human approver renders above the call. Two chains that both end in a human produce two requests, answered one after the other.
+- Each chain behaves exactly as a lone policy list does today, including rejecting a call that none of its `tools` patterns cover; end a chain with `auto` for `*` if it should stay out of other tools.
+- Each approver records its own `ApprovalEvent`, tagged with its `chain`. When several chains ran, a summary `policy` event records the combined decision with each chain's outcome in its metadata.
+
 ## Task Approvers {#task-approvers}
 
 You can specify approval policies at the task level using the `approval` parameter when creating a `Task`. For example:

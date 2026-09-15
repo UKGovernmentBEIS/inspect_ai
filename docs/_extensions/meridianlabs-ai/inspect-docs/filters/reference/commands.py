@@ -102,8 +102,7 @@ def resolve_cli_command(
         if child is None:
             available = ", ".join(sorted(current.commands.keys())) or "(none)"
             raise RuntimeError(
-                f"Subcommand {token!r} not found in click group. "
-                f"Available: {available}"
+                f"Subcommand {token!r} not found in click group. Available: {available}"
             )
         current = child
     return current
@@ -187,7 +186,9 @@ def _build_command_context(
     return click.Context(command, info_name=prog_name, parent=parent)
 
 
-def _get_sub_commands(command: click.Command, ctx: click.Context) -> list[click.Command]:
+def _get_sub_commands(
+    command: click.Command, ctx: click.Context
+) -> list[click.Command]:
     """Return subcommands of a Click command."""
     subcommands = getattr(command, "commands", {})
     if subcommands:
@@ -196,7 +197,7 @@ def _get_sub_commands(command: click.Command, ctx: click.Context) -> list[click.
     if not isinstance(command, click.MultiCommand):  # type: ignore[arg-type]
         return []
 
-    multi = cast(click.MultiCommand, command) # type: ignore
+    multi = cast(click.MultiCommand, command)  # type: ignore
     subcommands_list: list[click.Command] = []
 
     for name in multi.list_commands(ctx):
@@ -207,7 +208,9 @@ def _get_sub_commands(command: click.Command, ctx: click.Context) -> list[click.
     return subcommands_list
 
 
-def _make_title(ctx: click.Context, depth: int, *, has_attr_list: bool) -> Iterator[str]:
+def _make_title(
+    ctx: click.Context, depth: int, *, has_attr_list: bool
+) -> Iterator[str]:
     """Create the Markdown heading for a command."""
     if has_attr_list:
         yield from _make_title_full_command_path(ctx, depth)
@@ -244,7 +247,9 @@ def _make_title_full_command_path(ctx: click.Context, depth: int) -> Iterator[st
     yield ""
 
 
-def _make_description(ctx: click.Context, remove_ascii_art: bool = False) -> Iterator[str]:
+def _make_description(
+    ctx: click.Context, remove_ascii_art: bool = False
+) -> Iterator[str]:
     """Create markdown lines based on the command's own description."""
     help_string = ctx.command.help or ctx.command.short_help
 
@@ -279,7 +284,9 @@ def _make_usage(ctx: click.Context) -> Iterator[str]:
     # Gets the usual 'Usage' string without the prefix.
     formatter = ctx.make_formatter()
     pieces = ctx.command.collect_usage_pieces(ctx)
-    formatter.write_usage(ctx.command_path.replace("_", "-"), " ".join(pieces), prefix="")
+    formatter.write_usage(
+        ctx.command_path.replace("_", "-"), " ".join(pieces), prefix=""
+    )
     usage = formatter.getvalue().rstrip("\n")
 
     yield "#### Usage"
@@ -309,7 +316,9 @@ def _make_options(
 def _show_options(ctx: click.Context) -> Iterator[None]:
     """Context manager that temporarily shows all hidden options."""
     options = [
-        opt for opt in ctx.command.get_params(ctx) if isinstance(opt, click.Option) and opt.hidden
+        opt
+        for opt in ctx.command.get_params(ctx)
+        if isinstance(opt, click.Option) and opt.hidden
     ]
 
     try:
@@ -359,7 +368,9 @@ def _format_table_option_type(option: click.Option) -> str:
     if isinstance(option.type, click.Choice):
         # @click.option(..., type=click.Choice(["A", "B", "C"]))
         # -> choices (`A` | `B` | `C`)
-        choices = f" {_HTML_PIPE} ".join(f"`{choice}`" for choice in option.type.choices)
+        choices = f" {_HTML_PIPE} ".join(
+            f"`{choice}`" for choice in option.type.choices
+        )
         return f"{typename} ({choices})"
 
     if isinstance(option.type, click.DateTime):
@@ -416,7 +427,11 @@ def _format_table_option_row(option: click.Option) -> str:
 def _make_table_options(ctx: click.Context, show_hidden: bool = False) -> Iterator[str]:
     """Create the table style options description."""
 
-    options = [param for param in ctx.command.get_params(ctx) if isinstance(param, click.Option)]
+    options = [
+        param
+        for param in ctx.command.get_params(ctx)
+        if isinstance(param, click.Option)
+    ]
     options = [option for option in options if not option.hidden or show_hidden]
     option_rows = [_format_table_option_row(option) for option in options]
 
