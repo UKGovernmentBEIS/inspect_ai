@@ -184,6 +184,7 @@ def test_run_config_generate_config_all_fields() -> None:
         "modalities": ["image"],
         "cache": False,
         "batch": False,
+        "fail_on_refusal": False,
     }
     assert set(values) == set(GenerateConfig.model_fields)
     expected = GenerateConfig.model_validate(values).model_dump(exclude_none=True)
@@ -202,6 +203,7 @@ def test_run_config_eval_config_all_fields() -> None:
         "sample_id": ["one", 2],
         "sample_shuffle": False,
         "approval": {"approvers": []},
+        "review": {"reviewers": []},
         "notification": False,
         "fail_on_error": 0.5,
         "continue_on_fail": False,
