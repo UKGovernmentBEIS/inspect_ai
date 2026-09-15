@@ -1,7 +1,5 @@
 import asyncio
 import base64
-import errno
-import fcntl
 import json
 import os
 import pwd
@@ -327,35 +325,6 @@ def test_reserved_spill_is_written_after_directory_access_is_lost() -> None:
     assert not (chunking._CHUNK_DIR / f"{spill.handle}.jsonrpc").exists()
 
 
-def test_unneeded_reservation_is_swept_but_a_live_one_is_kept() -> None:
-    old = time.time() - chunking._RESERVATION_GRACE_SECONDS - 5
-    ancient = time.time() - chunking._CHUNK_TTL_SECONDS - 5
-
-    unneeded = open_chunk_spill()
-    unneeded.file.close()
-    os.utime(chunking._CHUNK_DIR / f"{unneeded.handle}.jsonrpc", (old, old))
-    live = open_chunk_spill()
-    os.utime(chunking._CHUNK_DIR / f"{live.handle}.jsonrpc", (old, old))
-    fresh_empty = open_chunk_spill()
-    fresh_empty.file.close()
-    stale = open_chunk_spill()
-    stale.file.write(b"x")
-    stale.file.close()
-    os.utime(chunking._CHUNK_DIR / f"{stale.handle}.jsonrpc", (ancient, ancient))
-    complete = open_chunk_spill()
-    complete.file.write(b"x")
-    complete.file.close()
-    os.utime(chunking._CHUNK_DIR / f"{complete.handle}.jsonrpc", (old, old))
-
-    sweeper = open_chunk_spill()
-    sweeper.file.close()
-
-    names = {p.stem for p in chunking._CHUNK_DIR.glob("*.jsonrpc")}
-    assert unneeded.handle not in names and stale.handle not in names
-    assert {live.handle, fresh_empty.handle, complete.handle} <= names
-    live.file.close()
-
-
 def test_cli_reserves_the_spill_before_switching_user(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -547,8 +516,8 @@ def test_chunk_is_emptied_when_no_piece_fits_after_directory_access_is_lost() ->
     finally:
         _simulate_switch_back_to_tools_user()
 
-    old = time.time() - chunking._RESERVATION_GRACE_SECONDS - 5
-    os.utime(path, (old, old))
+    stale = time.time() - chunking._CHUNK_TTL_SECONDS - 5
+    os.utime(path, (stale, stale))
     open_chunk_spill().file.close()
     assert not path.exists()
 
@@ -564,33 +533,6 @@ def test_continuation_and_release_do_not_create_chunk_storage() -> None:
     )
     assert json.loads(released)["result"] is None
     assert not chunking._CHUNK_DIR.exists()
-
-
-def test_without_working_locks_no_file_is_left_and_only_the_ttl_sweeps(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A filesystem without flock fails chunking closed without growing the directory."""
-    chunk_dir = chunking._chunk_dir(create=True)
-    old = time.time() - chunking._RESERVATION_GRACE_SECONDS - 5
-    ancient = time.time() - chunking._CHUNK_TTL_SECONDS - 5
-    empty = chunk_dir / f"{'a' * 32}.jsonrpc"
-    empty.touch()
-    os.utime(empty, (old, old))
-    stale = chunk_dir / f"{'b' * 32}.jsonrpc"
-    stale.write_bytes(b"x")
-    os.utime(stale, (ancient, ancient))
-
-    def no_locks(_fd: int, _operation: int) -> None:
-        raise OSError(errno.ENOLCK, "No locks available")
-
-    monkeypatch.setattr(fcntl, "flock", no_locks)
-
-    with pytest.raises(OSError, match="No locks available"):
-        open_chunk_spill()
-
-    # The stale chunk went by TTL; the empty one stays, since its liveness is
-    # unknown without locks; the failed reservation left nothing behind.
-    assert {p.name for p in chunk_dir.glob("*.jsonrpc")} == {empty.name}
 
 
 def test_continuation_refuses_a_symlink_at_the_chunk_path(tmp_path: Path) -> None:
@@ -611,3 +553,22 @@ def test_continuation_refuses_a_symlink_at_the_chunk_path(tmp_path: Path) -> Non
     assert continuation["error"]["code"] == -32000
     assert "symbolic link" in continuation["error"]["message"]
     assert "secret" not in json.dumps(continuation)
+
+
+def test_stale_reservations_and_chunks_are_swept_on_the_next_reservation() -> None:
+    stale = time.time() - chunking._CHUNK_TTL_SECONDS - 5
+    unneeded = open_chunk_spill()
+    unneeded.file.close()
+    complete = open_chunk_spill()
+    complete.file.write(b"x")
+    complete.file.close()
+    for spill in (unneeded, complete):
+        os.utime(chunking._CHUNK_DIR / f"{spill.handle}.jsonrpc", (stale, stale))
+    fresh = open_chunk_spill()
+    fresh.file.close()
+
+    sweeper = open_chunk_spill()
+    sweeper.file.close()
+
+    names = {p.stem for p in chunking._CHUNK_DIR.glob("*.jsonrpc")}
+    assert names == {fresh.handle, sweeper.handle}

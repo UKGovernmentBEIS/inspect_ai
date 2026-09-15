@@ -9,7 +9,6 @@ tools user serves the continuations from there.
 """
 
 import base64
-import fcntl
 import json
 import os
 import re
@@ -33,14 +32,13 @@ JSON_RPC_RESPONSE_MAX_BYTES_ENV = "INSPECT_SANDBOX_JSON_RPC_RESPONSE_MAX_BYTES"
 _DEFAULT_MAX_RESPONSE_BYTES = 64 * 1024
 _MAX_CHUNK_BYTES = 512 * 1024
 _CHUNK_TTL_SECONDS = 60 * 60
-_RESERVATION_GRACE_SECONDS = 60
 _VALID_HANDLE = re.compile(r"^[0-9a-f]{32}$")
 
 _CHUNK_DIR = SERVER_DIR / "chunks"
 
 
 class ChunkSpill(NamedTuple):
-    """A reserved chunk file, held open and locked by the process that made it."""
+    """A reserved chunk file, held open by the process that made it."""
 
     handle: str
     file: BinaryIO
@@ -68,9 +66,8 @@ def open_chunk_spill() -> ChunkSpill:
     """Reserve a chunk file for a response that does not exist yet.
 
     The CLI calls this as the tools user before switching to a sandbox user.
-    The file is created exclusively and locked; the lock marks it as live to
-    the stale sweep and is released when the process exits, so a reservation
-    that turned out to be unneeded is swept as an empty orphan by a later call.
+    A reservation that turns out to be unneeded is closed empty and removed by
+    the stale sweep, along with any other chunk, once it is older than the TTL.
     """
     chunk_dir = _chunk_dir(create=True)
     _remove_stale_chunks(chunk_dir)
@@ -84,14 +81,7 @@ def open_chunk_spill() -> ChunkSpill:
             )
         except FileExistsError:
             continue
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
-            os.fchmod(fd, 0o600)  # the umask may have masked owner bits
-        except BaseException:
-            os.close(fd)
-            with suppress(OSError):
-                os.unlink(chunk_dir / _chunk_name(handle))
-            raise
+        os.fchmod(fd, 0o600)  # the umask may have masked owner bits
         return ChunkSpill(handle, os.fdopen(fd, "rb+"))
 
 
@@ -147,7 +137,7 @@ def _discard_chunk(handle: str, chunk_file: BinaryIO) -> None:
     """Remove a chunk whose response cannot be served.
 
     A sandbox user cannot unlink in the tools user's directory, but it can empty
-    the file it holds open; the next sweep then removes the orphan.
+    the file it holds open; the stale sweep removes it after the TTL.
     """
     try:
         os.unlink(_CHUNK_DIR / _chunk_name(handle))
@@ -306,42 +296,12 @@ def _response_byte_limit(explicit_limit: int | None) -> int:
 
 
 def _remove_stale_chunks(chunk_dir: Path) -> None:
-    """Remove chunks past their TTL and reservations no process holds.
-
-    A live reservation is locked by the process that made it. An unlocked empty
-    file older than the grace period is a reservation that was never needed or
-    whose process died; the grace period covers the instant between creating a
-    reservation and locking it. Where locking is unavailable, only the TTL
-    applies. The sweep is linear in the number of files present, which stays
-    small: one empty file per switched call, kept for at most the grace period.
-    """
-    now = time.time()
-    with suppress(OSError), os.scandir(chunk_dir) as entries:
-        for entry in entries:
-            if entry.name.endswith(".jsonrpc"):
-                with suppress(OSError):
-                    _remove_if_orphaned(entry.path, now)
-
-
-def _remove_if_orphaned(path: str, now: float) -> None:
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
-    try:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return  # held by a live reservation
-        except OSError:
-            unlocked = False  # locking unavailable here, so liveness is unknown
-        else:
-            unlocked = True
-        info = os.fstat(fd)
-        age = now - info.st_mtime
-        if age > _CHUNK_TTL_SECONDS or (
-            unlocked and info.st_size == 0 and age > _RESERVATION_GRACE_SECONDS
-        ):
-            os.unlink(path)
-    finally:
-        os.close(fd)
+    stale_before = time.time() - _CHUNK_TTL_SECONDS
+    with suppress(OSError):
+        for chunk_path in chunk_dir.glob("*.jsonrpc"):
+            with suppress(OSError):
+                if chunk_path.stat().st_mtime < stale_before:
+                    chunk_path.unlink()
 
 
 def _json_rpc_success(request_id: Any, result: object) -> str:
