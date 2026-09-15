@@ -23,7 +23,6 @@ from tenacity import (
     retry,
     retry_if_exception,
     stop_after_attempt,
-    stop_after_delay,
     wait_exponential_jitter,
 )
 
@@ -45,7 +44,8 @@ def download(
 
     If `dest` already exists and its checksum matches, the download is
     skipped. Retries on transient HTTP errors (408, 429, 5xx) with
-    exponential backoff; gives up immediately on other 4xx responses.
+    exponential backoff for up to five attempts, regardless of transfer
+    duration; gives up immediately on other 4xx responses.
 
     The download is streamed to a sibling tempfile and atomically renamed
     to `dest` only after the checksum has been verified, so a failed or
@@ -78,7 +78,7 @@ def download(
 
     @retry(
         wait=wait_exponential_jitter(),
-        stop=stop_after_attempt(5) | stop_after_delay(60),
+        stop=stop_after_attempt(5),
         retry=retry_if_exception(httpx_should_retry),
         before_sleep=log_httpx_retry_attempt(f"download {url}"),
     )
