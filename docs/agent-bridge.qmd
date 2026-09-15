@@ -212,7 +212,7 @@ BridgedToolsSpec(
 )
 ```
 
-Give bridged tools names that are unique across bridged servers and distinct from the agent's own tools: a grant identifies a call by function name and arguments, so a name shared with an agent-local tool also authorizes one execution of the same-named bridged tool, and a name shared across bridged servers is ambiguous and will be denied.
+Give bridged tools names that are unique across bridged servers and distinct from the agent's own tools: a grant identifies a call by function name and arguments, so a name shared with an agent-local tool also authorizes one execution of the same-named bridged tool, and a name shared across bridged servers is ambiguous and will be denied. Uniqueness is judged after the rewriting the agent applies to make names valid for its model API (for example, replacing punctuation with underscores), so `host.tools` and `host_tools` count as the same server name.
 
 ## Models
 

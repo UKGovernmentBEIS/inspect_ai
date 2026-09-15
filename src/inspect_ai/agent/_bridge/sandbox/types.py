@@ -1,3 +1,4 @@
+import re
 from collections import deque
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
@@ -216,25 +217,62 @@ class _ToolExecutionGrant(NamedTuple):
     """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
 
 
-def _candidate_functions(server: str, tool: str) -> tuple[str, ...]:
+_CLAUDE_CODE_INVALID = re.compile(r"[^a-zA-Z0-9_-]")
+_CODEX_CLI_INVALID = re.compile(r"[^a-zA-Z0-9_]")
+_GEMINI_CLI_INVALID = re.compile(r"[^a-zA-Z0-9_.:-]")
+_GEMINI_CLI_MAX_LENGTH = 63
+_OPENCODE_INVALID = re.compile(r"[^a-zA-Z0-9_-]")
+
+
+def _candidate_functions(server: str, tool: str) -> set[str]:
     """The names a scaffold could have declared this bridged tool as to its model.
 
-    Scaffolds name MCP tools under their own scheme: the bare tool name (Codex
-    CLI), Claude Code's ``mcp__<server>__<tool>``, Gemini CLI's
-    ``mcp_<server>_<tool>`` (older releases: ``<server>__<tool>`` for conflicting
-    names), and OpenCode's ``<server>_<tool>``. Each candidate is an exact string
-    computed from the known (server, tool) — never parsed out of a call name — so
-    an unrecognized scheme, or a name the scaffold rewrote (characters outside
-    its identifier set, or a long name Gemini CLI truncates), matches nothing
-    (deny-safe) rather than the wrong tool.
+    Each scaffold names MCP tools under its own scheme and rewrites characters its
+    model API rejects; the schemes are reproduced here from the scaffolds' source
+    so a proposal is recognized even when the scaffold rewrote the name:
+
+    - Claude Code: ``mcp__<server>__<tool>``, characters outside ``[A-Za-z0-9_-]``
+      in either part replaced with ``_``.
+    - Codex CLI: the tool name inside a ``mcp__<server>`` Responses API namespace,
+      so the call carries the bare name, or the flat ``mcp__<server>__<tool>``;
+      characters outside ``[A-Za-z0-9_]`` replaced with ``_``.
+    - Gemini CLI: ``mcp_<server>_<tool>`` (the prefix is not doubled when the
+      server name already starts with ``mcp_``), characters outside
+      ``[A-Za-z0-9_.:-]`` replaced with ``_``, and a name over 63 characters
+      collapsed to its first and last 30 around ``...``. Older releases used
+      ``<server>__<tool>`` for conflicting names.
+    - OpenCode: ``<server>_<tool>``, characters outside ``[A-Za-z0-9_-]`` in
+      either part replaced with ``_``.
+
+    The bare tool name is kept for a scaffold that passes names straight through.
+    Every candidate is computed from the known (server, tool), never parsed out of
+    a call name, so an unrecognized scheme matches nothing (deny-safe) rather than
+    the wrong tool, and two bridged tools whose names rewrite to the same string
+    are ambiguous and fail closed in `_resolve_bridged_tools`.
     """
-    return (
+    claude_code = _CLAUDE_CODE_INVALID.sub
+    codex_cli = _CODEX_CLI_INVALID.sub
+    opencode = _OPENCODE_INVALID.sub
+    return {
         tool,
-        f"mcp__{server}__{tool}",
+        f"mcp__{claude_code('_', server)}__{claude_code('_', tool)}",
+        codex_cli("_", tool),
+        f"mcp__{codex_cli('_', server)}__{codex_cli('_', tool)}",
         f"{server}__{tool}",
-        f"mcp_{server}_{tool}",
-        f"{server}_{tool}",
-    )
+        _gemini_cli_function(server, tool),
+        f"{opencode('_', server)}_{opencode('_', tool)}",
+    }
+
+
+def _gemini_cli_function(server: str, tool: str) -> str:
+    """Gemini CLI's model-facing name for a bridged tool (its `generateValidName`)."""
+    name = f"{server}_{tool}"
+    if not name.startswith("mcp_"):
+        name = f"mcp_{name}"
+    name = _GEMINI_CLI_INVALID.sub("_", name)
+    if len(name) > _GEMINI_CLI_MAX_LENGTH:
+        name = f"{name[:30]}...{name[-30:]}"
+    return name
 
 
 class _BridgedToolId(NamedTuple):

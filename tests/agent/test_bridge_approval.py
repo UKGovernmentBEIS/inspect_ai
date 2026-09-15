@@ -51,6 +51,7 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 TASK = "Tidy up the working directory."
@@ -670,19 +671,98 @@ async def test_ambiguous_host_tool_name_registers_no_grant() -> None:
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
 
 
-async def test_single_underscore_name_denoting_two_tools_registers_no_grant() -> None:
-    """`<server>_<tool>` can collide across servers; the collision fails closed."""
-    bridge = SandboxAgentBridge(
+def sandbox_bridge_with_servers(
+    bridged_tools: dict[str, dict[str, Tool]],
+) -> SandboxAgentBridge:
+    return SandboxAgentBridge(
         state=AgentState(messages=[]),
         filter=None,
         retry_refusals=None,
         compaction=None,
         port=13131,
         model=None,
-        bridged_tools={
+        bridged_tools=bridged_tools,
+    )
+
+
+@pytest.mark.parametrize(
+    ("server", "function"),
+    [
+        ("host.tools", "mcp__host_tools__read_file"),
+        ("host-tools", "mcp__host_tools__read_file"),
+        ("host.tools", "mcp_host.tools_read_file"),
+        ("host.tools", "host_tools_read_file"),
+    ],
+    ids=["claude-code", "codex-cli-flat", "gemini-cli", "opencode"],
+)
+async def test_host_tool_grant_matches_scaffold_rewritten_names(
+    server: str, function: str
+) -> None:
+    """A server name the scaffold rewrites for its model API still resolves.
+
+    Claude Code and OpenCode replace '.' with '_' and keep '-'; Codex CLI replaces
+    both; Gemini CLI allows '.' and keeps the name as is.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers({server: {"read_file": tool}})
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function=function, arguments={"path": "x"})]
+    )
+
+    assert bridge.consume_tool_execution_grant(server, "read_file", {"path": "x"})
+
+
+async def test_host_tool_grant_matches_gemini_cli_truncated_name() -> None:
+    """Gemini CLI collapses a model-facing name over 63 characters to 30...30."""
+    tool = AsyncMock(return_value="contents")
+    server = "s" * 60
+    bridge = sandbox_bridge_with_servers({server: {"read_file": tool}})
+    # mcp_ + 60 s + _read_file is 74 characters: the first 30 and the last 30 survive
+    truncated = "mcp_" + "s" * 26 + "..." + "s" * 20 + "_read_file"
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function=truncated, arguments={})]
+    )
+
+    assert bridge.consume_tool_execution_grant(server, "read_file", {})
+
+
+async def test_host_tool_grant_does_not_double_gemini_cli_prefix() -> None:
+    """A server already named mcp_... gets no second mcp_ prefix from Gemini CLI."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers({"mcp_host": {"read_file": tool}})
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="mcp_host_read_file", arguments={})]
+    )
+
+    assert bridge.consume_tool_execution_grant("mcp_host", "read_file", {})
+
+
+async def test_names_that_rewrite_to_the_same_string_register_no_grant() -> None:
+    """Servers 'a.b' and 'a_b' both present tool 'c' as a_b_c to OpenCode."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a.b": {"c": AsyncMock(return_value="a")},
+            "a_b": {"c": AsyncMock(return_value="b")},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="a_b_c", arguments={})]
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_single_underscore_name_denoting_two_tools_registers_no_grant() -> None:
+    """`<server>_<tool>` can collide across servers; the collision fails closed."""
+    bridge = sandbox_bridge_with_servers(
+        {
             "a": {"b_c": AsyncMock(return_value="a")},
             "a_b": {"c": AsyncMock(return_value="b")},
-        },
+        }
     )
 
     bridge.register_tool_execution_grants(
