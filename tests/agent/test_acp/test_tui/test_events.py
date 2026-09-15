@@ -83,6 +83,7 @@ def _compaction_payload(
     tokens_before: int | None = 12_345,
     tokens_after: int | None = 4_100,
     source: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a serialized ``CompactionEvent`` as the wire would deliver it."""
     payload: dict[str, Any] = {"event": "compaction"}
@@ -94,6 +95,8 @@ def _compaction_payload(
         payload["tokens_after"] = tokens_after
     if source is not None:
         payload["source"] = source
+    if metadata is not None:
+        payload["metadata"] = metadata
     return payload
 
 
@@ -308,6 +311,95 @@ def test_consume_compaction_event_drops_source_body() -> None:
     chip = state.items[0]
     assert isinstance(chip, EventChip)
     assert chip.body_text is None
+
+
+def test_consume_compaction_event_names_the_applied_strategy() -> None:
+    """A delegating strategy's chip names the delegate, not the discriminator.
+
+    Native and summary compaction both register ``type="summary"``, so
+    under ``CompactionAuto`` the discriminator alone would report
+    "summary" for a native compaction.
+    """
+    state = SessionState()
+    state.consume_compaction_event(
+        _compaction_payload(
+            metadata={
+                "strategy": "CompactionAuto",
+                "strategy_applied": "CompactionNative",
+            }
+        )
+    )
+    chip = state.items[0]
+    assert isinstance(chip, EventChip)
+    assert chip.header_summary == "compaction · native · tokens 12.3k → 4.1k"
+
+
+def test_consume_compaction_event_flags_a_fallback() -> None:
+    """A silent degradation to the slower summary path is surfaced inline."""
+    state = SessionState()
+    state.consume_compaction_event(
+        _compaction_payload(
+            metadata={
+                "strategy": "CompactionAuto",
+                "strategy_applied": "CompactionSummary",
+                "fallback_reason": "native compaction not supported: ...",
+            }
+        )
+    )
+    chip = state.items[0]
+    assert isinstance(chip, EventChip)
+    assert chip.header_summary == (
+        "compaction · summary (fell back) · tokens 12.3k → 4.1k"
+    )
+
+
+def test_consume_compaction_event_flags_a_fallback_that_later_recovered() -> None:
+    """A run that fell back early then succeeded natively is still flagged.
+
+    The orchestrator reports ``fallback_reason`` at run level rather than
+    from the final pass, so the summarization it paid for stays visible even
+    though the last pass was native.
+    """
+    state = SessionState()
+    state.consume_compaction_event(
+        _compaction_payload(
+            metadata={
+                "strategy": "CompactionAuto",
+                "strategy_applied": "CompactionNative",
+                "fallback_reason": "native compaction not supported: ...",
+                "passes": ["CompactionSummary", "CompactionNative"],
+            }
+        )
+    )
+    chip = state.items[0]
+    assert isinstance(chip, EventChip)
+    assert (
+        chip.header_summary == "compaction · native (fell back) · tokens 12.3k → 4.1k"
+    )
+
+
+def test_consume_compaction_event_keeps_discriminator_without_provenance() -> None:
+    """A non-delegating strategy emits no strategy_applied; chip is unchanged."""
+    state = SessionState()
+    state.consume_compaction_event(
+        _compaction_payload(
+            compaction_type="trim", metadata={"strategy": "CompactionTrim"}
+        )
+    )
+    chip = state.items[0]
+    assert isinstance(chip, EventChip)
+    assert chip.header_summary == "compaction · trim · tokens 12.3k → 4.1k"
+
+
+def test_consume_compaction_event_renders_unconventional_strategy_name() -> None:
+    """A third-party class name that isn't Compaction-prefixed is left intact."""
+    state = SessionState()
+    state.consume_compaction_event(
+        _compaction_payload(metadata={"strategy_applied": "MyOwnStrategy"})
+    )
+    chip = state.items[0]
+    assert isinstance(chip, EventChip)
+    assert chip.header_summary == "compaction · MyOwnStrategy · tokens 12.3k → 4.1k"
 
 
 # ---------------------------------------------------------------------------
