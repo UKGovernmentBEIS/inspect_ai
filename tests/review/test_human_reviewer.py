@@ -234,3 +234,50 @@ async def test_the_consoles_enter_default_cannot_continue_a_sample_it_was_not_of
         clear_task_screen()
 
     assert decided.decision == "terminate"
+
+
+async def test_a_result_the_surfaces_cannot_render_is_named(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The surfaces render text only, and `ChatMessageTool.text` drops an
+    # image: a screenshot-returning tool must not reach the operator looking
+    # like a tool that returned nothing.
+    from inspect_ai._util.content import ContentImage, ContentText
+
+    surface = Surface("approve")
+    surface.install(monkeypatch)
+    shot = ChatMessageTool(
+        content=[
+            ContentText(text="clicked"),
+            ContentImage(image="data:image/png;base64,iVBORw0KGgo="),
+        ],
+        tool_call_id="c1",
+        function="computer",
+    )
+    history: list[ChatMessage] = []
+
+    await human_reviewer()("Clicking.", call(), shot, "", ToolCallView(), history)
+
+    [shown] = surface.views
+    assert shown.call is not None
+    assert "clicked\n[image]" in shown.call.content
+
+
+async def test_a_text_view_stays_text_so_a_substituted_argument_cannot_forge_markdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The surfaces substitute `{{param}}` into the view after the reviewer
+    # builds it, so a code fence sized at build time cannot contain what the
+    # substitution puts inside it. Text stays text, which the panel and
+    # console render without interpreting markdown at all.
+    surface = Surface("approve")
+    surface.install(monkeypatch)
+    view = ToolCallView(call=ToolCallContent(format="text", content="run: {{cmd}}"))
+
+    await review(human_reviewer(), view)
+
+    [shown] = surface.views
+    assert shown.call is not None
+    assert shown.call.format == "text"
+    assert "run: {{cmd}}" in shown.call.content
+    assert "HTTP/1.1 200 OK" in shown.call.content

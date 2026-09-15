@@ -92,7 +92,7 @@ def view_with_result(view: ToolCallView, result: ChatMessageTool) -> ToolCallVie
     if result.error is not None:
         outcome = f"Error ({result.error.type}): {result.error.message}"
     else:
-        outcome = result.text
+        outcome = _result_text(result)
     # The surfaces substitute `{{param}}` placeholders from the call's
     # arguments into the view; tool output is evidence, not a template.
     outcome = outcome.replace("{{", "{ {")
@@ -106,10 +106,14 @@ def view_with_result(view: ToolCallView, result: ChatMessageTool) -> ToolCallVie
             content=f"{view.call.content}\n\n{result_block}",
         )
     else:
+        # A text view stays text. The surfaces substitute `{{param}}` into the
+        # content after this runs, so a fence sized here cannot contain what
+        # the substitution puts inside it, and the panel and console render
+        # text without interpreting markdown at all.
         call = ToolCallContent(
             title=view.call.title,
-            format="markdown",
-            content=f"{_fenced(view.call.content)}\n\n{result_block}",
+            format="text",
+            content=f"{view.call.content}\n\nResult\n\n{outcome}",
         )
     return ToolCallView(context=view.context, call=call)
 
@@ -132,6 +136,19 @@ def review_from_approval(approval: Approval, offered: list[ApprovalDecision]) ->
             ),
         )
     return Review(decision=decision, explanation=_EXPLANATION[decision])
+
+
+def _result_text(result: ChatMessageTool) -> str:
+    """The result's text, with content the surfaces cannot render named.
+
+    `ChatMessageTool.text` drops image, audio and video parts, and the three
+    surfaces render text only. Naming the part keeps a screenshot-returning
+    tool from reaching the operator as an empty result.
+    """
+    return "\n".join(
+        content.text if content.type == "text" else f"[{content.type}]"
+        for content in result.content_list
+    )
 
 
 def _fenced(text: str) -> str:
