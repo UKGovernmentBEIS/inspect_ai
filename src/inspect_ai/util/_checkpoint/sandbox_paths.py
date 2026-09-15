@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import NamedTuple
 
+from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.context import sandbox_environments_context_var
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
@@ -144,14 +145,12 @@ async def _resolve_home_and_cache(
     ``$XDG_CACHE_HOME`` or ``<home>/.cache`` per the XDG Base Directory
     spec. Returns ``(None, None)`` if the home can't be resolved.
     """
-    result = await env.exec(
-        [
-            "sh",
-            "-c",
-            'h=$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6); '
-            '[ -n "$h" ] || h="$HOME"; '
-            'echo "$h"; printf %s "${XDG_CACHE_HOME:-$h/.cache}"',
-        ]
+    result = await privileged_shell(
+        env,
+        'h=$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6); '
+        '[ -n "$h" ] || h="$HOME"; '
+        'echo "$h"; printf %s "${XDG_CACHE_HOME:-$h/.cache}"',
+        user=None,
     )
     lines = result.stdout.split("\n") if result.success else []
     home = lines[0].strip() if lines else ""

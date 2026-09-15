@@ -5,6 +5,7 @@ description: Reviewers and review policies.
 
 ## Reviewers
 
+### human_reviewer
 ### read_review_policies
 ### review
 
