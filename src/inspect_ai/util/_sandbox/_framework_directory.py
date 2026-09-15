@@ -23,6 +23,12 @@ The contract for a private framework directory is:
   group/others or is sticky, so no other principal can rename or unlink the
   directory out from under a verified path.
 
+``mode=SHARED_MODE`` (``0o1777``) selects the one other policy: a sticky,
+world-writable directory in which several users each keep a private framework
+directory (``/var/tmp/sandbox-services``). It must be owned by root or by the uid
+the command runs as, because the owner of a sticky directory can rename entries
+other users created in it; it is never repaired; every other check is the same.
+
 The contract stops at the immediate parent. Ancestors above it are not checked,
 so callers must choose paths whose ancestors are root-owned and not writable by
 others (``/var/tmp/<name>`` qualifies: ``/var`` and ``/`` are root-owned ``0755``).
@@ -98,8 +104,9 @@ _VERIFIED_MARKER = "INSPECT_FRAMEWORK_DIRECTORY_VERIFIED"
 
 # Arguments: $1 = expected uid (empty = no expectation), $2 = create flag (1/0),
 # $3 = repair-mode flag (1/0), $4 = required mode (octal, as `stat -c %a` prints
-# it), $5 = parent path, $6 = leaf name, $7.. = command to exec with the verified
-# directory as cwd (optional). POSIX sh only (dash/BusyBox):
+# it; the sticky 1777 selects the shared policy), $5 = parent path, $6 = leaf name,
+# $7.. = command to exec with the verified directory as cwd (optional). POSIX sh
+# only (dash/BusyBox):
 # no arrays, no [[ ]], no local. `stat -c %u/%a` is common to GNU coreutils and
 # BusyBox. `umask 077` closes the window in BusyBox's non-atomic `mkdir -m`
 # (mkdir(0777) then chmod) and also applies to whatever the wrapped command creates:
@@ -132,6 +139,7 @@ case $parent in
     /) dir=/$leaf ;;
     *) dir=$parent/$leaf ;;
 esac
+case $want in 1*) shared=1 ;; *) shared=0 ;; esac
 report() {
     printf '%s: %s\\n' "$1" "$2" >&2
     exit "$3"
@@ -194,7 +202,11 @@ now=$(pwd -P)
 dstat=$(stat -c '%u %a' . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c '%u %a' . 2>&1 >/dev/null)"
 uid=${dstat% *}
 mode=${dstat#* }
-[ "$uid" = "$me" ] || violation "$dir is owned by uid $uid, expected uid $me"
+accept="uid $me"
+if [ "$shared" = 1 ] && [ "$me" != 0 ]; then accept="uid $me or 0"; fi
+if [ "$uid" != "$me" ] && { [ "$shared" != 1 ] || [ "$uid" != 0 ]; }; then
+    violation "$dir is owned by uid $uid, expected $accept"
+fi
 if [ "$mode" != "$want" ]; then
     if [ "$created" = 1 ] || [ "$repair" = 1 ]; then
         # Either we just created it (a setgid parent may have added bits) or the
@@ -203,9 +215,22 @@ if [ "$mode" != "$want" ]; then
         # across a numeric mode, so clear them by name first; BusyBox `o-t` is a
         # no-op, so clear the sticky bit with the bare `-t` both implementations
         # honour. The numeric mode then sets exactly the permission bits wanted.
-        chmod u-s,g-s,-t . && chmod "$want" . || violation "could not set mode of $dir"
+        # A shared directory is world-writable, so it gets its whole mode in one
+        # step: the sticky bit is never absent while others can write (`+t` because
+        # BusyBox `o=t` leaves the bit alone).
+        if [ "$shared" = 1 ]; then
+            chmod u=rwx,g=rwx,o=rwx,u-s,g-s,+t . || violation "could not set mode of $dir"
+        else
+            chmod u-s,g-s,-t . && chmod "$want" . || violation "could not set mode of $dir"
+        fi
         mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
     fi
+fi
+if [ "$shared" = 1 ] && [ "$created" = 0 ] && [ "$mode" != "$want" ]; then
+    # `mkdir -m 1777` sets the mode in a second step (BusyBox and GNU alike), so a
+    # concurrent creator may still be mid-way: look once more before refusing.
+    sleep 1
+    mode=$(stat -c %a . 2>/dev/null) || unavailable "cannot stat $dir: $(stat -c %a . 2>&1 >/dev/null)"
 fi
 [ "$mode" = "$want" ] || violation "$dir has mode $mode, expected $want"
 printf '%s\\n' @VERIFIED@ >&2
@@ -311,6 +336,10 @@ def split_framework_path(path: str) -> FrameworkPath:
 DEFAULT_MODE = 0o700
 """Mode of a private framework directory: readable and writable by its owner only."""
 
+SHARED_MODE = 0o1777
+"""Mode of a shared framework directory: sticky and world-writable, so several users
+can each keep a private framework directory inside it (see the module docstring)."""
+
 
 def expected_uid_for(user: str | None) -> int | None:
     """The uid the helper must actually run as for ``user``, if the host knows it.
@@ -330,12 +359,19 @@ def framework_directory_mode(mode: int) -> str:
     in that mode (``"700"``, ``"755"``), which is also what ``chmod`` and
     ``mkdir -m`` accept.
 
+    ``SHARED_MODE`` is the one accepted mode outside ``0o777``: the sticky bit is
+    what makes a world-writable directory safe to share, and the script derives the
+    shared owner rule from it.
+
     Raises:
-        ValueError: ``mode`` carries set-id or sticky bits, does not give its owner
-            read, write, and search permission, or lets group or others write to
-            the directory (which would let another principal add or replace entries
-            behind the owner's back, defeating the point of verifying it).
+        ValueError: ``mode`` carries set-id or sticky bits (other than
+            ``SHARED_MODE``), does not give its owner read, write, and search
+            permission, or lets group or others write to the directory (which
+            would let another principal add or replace entries behind the owner's
+            back, defeating the point of verifying it).
     """
+    if mode == SHARED_MODE:
+        return format(mode, "o")
     if mode & ~0o777:
         raise ValueError(
             f"framework directory mode {mode:#o} must not include set-id or sticky bits"
@@ -392,29 +428,32 @@ async def _run_verified(
     user: str | None,
     expected_uid: int | None,
     timeout: int | None,
+    concurrency: bool = True,
     input: str | bytes | None = None,
 ) -> ExecResult[str]:
     parent, leaf = split_framework_path(path)
     want = framework_directory_mode(mode)
     expect = "" if expected_uid is None else str(expected_uid)
-    result = await sandbox.exec(
-        [
-            SHELL_PATH,
-            "-c",
-            _SCRIPT,
-            "sh",
-            expect,
-            "1" if create else "0",
-            "1" if repair_mode else "0",
-            want,
-            parent,
-            leaf,
-            *cmd,
-        ],
-        user=user,
-        input=input,
-        timeout=timeout,
-    )
+    argv = [
+        SHELL_PATH,
+        "-c",
+        _SCRIPT,
+        "sh",
+        expect,
+        "1" if create else "0",
+        "1" if repair_mode else "0",
+        want,
+        parent,
+        leaf,
+        *cmd,
+    ]
+    if concurrency:
+        result = await sandbox.exec(argv, user=user, input=input, timeout=timeout)
+    else:
+        # Only passed when set: some providers' exec() predates the parameter.
+        result = await sandbox.exec(
+            argv, user=user, input=input, timeout=timeout, concurrency=False
+        )
     if _VERIFIED_MARKER in result.stderr.splitlines():
         # Verification completed; whatever follows is the wrapped command's own
         # outcome (so any verdict-shaped line it printed is not ours).
@@ -457,6 +496,7 @@ async def ensure_framework_directory(
     repair_mode: bool = False,
     mode: int = DEFAULT_MODE,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> None:
     """Create or adopt ``path`` as a framework directory owned by ``user``.
 
@@ -493,7 +533,10 @@ async def ensure_framework_directory(
             principals must read and traverse the directory; the mode can never
             let group or others write (see :func:`framework_directory_mode`).
             Every later check of the same directory must ask for the same mode.
+            ``SHARED_MODE`` selects the shared-parent policy (see the module
+            docstring); it cannot be combined with ``repair_mode``.
         timeout: Optional timeout for the sandbox command.
+        concurrency: As for ``sandbox.exec``.
 
     Raises:
         FrameworkDirectoryError: The entry violates the contract or could not be
@@ -505,9 +548,12 @@ async def ensure_framework_directory(
             cannot be entered).
         RuntimeError: The script could not run at all (no ``sh``, or the provider
             refused the requested user).
-        ValueError: ``path`` is not an absolute, non-root path free of ``..``, or
-            ``mode`` is not an acceptable framework directory mode.
+        ValueError: ``path`` is not an absolute, non-root path free of ``..``,
+            ``mode`` is not an acceptable framework directory mode, or
+            ``repair_mode`` is set for ``SHARED_MODE``.
     """
+    if repair_mode and mode == SHARED_MODE:
+        raise ValueError("a shared framework directory cannot be repaired")
     await _run_verified(
         sandbox,
         path,
@@ -518,6 +564,7 @@ async def ensure_framework_directory(
         user=user,
         expected_uid=expected_uid,
         timeout=timeout,
+        concurrency=concurrency,
     )
 
 
@@ -528,6 +575,7 @@ async def try_ensure_framework_directory_as_root(
     mode: int = DEFAULT_MODE,
     trace_tag: str,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> bool:
     """Create or adopt ``path`` as a root-owned framework directory, if root works.
 
@@ -546,9 +594,11 @@ async def try_ensure_framework_directory_as_root(
     symlink, is owned by another uid, has the wrong mode, ...) and a check that
     could not be performed are re-raised rather than read as "no root": falling
     back to the default user there would let whoever planted the entry decide
-    which user owns the framework's files. Callers decide what the rootless
-    fallback does (for instance whether ``repair_mode`` is appropriate for the
-    default user), which is why this helper stops at the verdict.
+    which user owns the framework's files. A ``TimeoutError`` is re-raised too: it
+    says nothing about root, and a fallback would wait the whole timeout again.
+    Callers decide what the rootless fallback does (for instance whether
+    ``repair_mode`` is appropriate for the default user), which is why this helper
+    stops at the verdict.
 
     Args:
         sandbox: Sandbox to operate in.
@@ -557,6 +607,7 @@ async def try_ensure_framework_directory_as_root(
             :func:`ensure_framework_directory`).
         trace_tag: Trace category for the fallback messages.
         timeout: Optional timeout for the sandbox command.
+        concurrency: As for ``sandbox.exec``.
 
     Returns:
         ``True`` if the directory was created or adopted as root; ``False`` if the
@@ -567,15 +618,27 @@ async def try_ensure_framework_directory_as_root(
         FrameworkDirectoryError: The entry violates the contract or could not be
             created or entered as root.
         FrameworkDirectoryUnavailableError: The check itself could not be performed.
+        TimeoutError: The sandbox command timed out.
         ValueError: ``path`` is not an absolute, non-root path free of ``..``, or
             ``mode`` is not an acceptable framework directory mode.
     """
     try:
         await ensure_framework_directory(
-            sandbox, path, user="root", expected_uid=0, mode=mode, timeout=timeout
+            sandbox,
+            path,
+            user="root",
+            expected_uid=0,
+            mode=mode,
+            timeout=timeout,
+            concurrency=concurrency,
         )
         return True
-    except (FrameworkDirectoryError, FrameworkDirectoryUnavailableError, ValueError):
+    except (
+        FrameworkDirectoryError,
+        FrameworkDirectoryUnavailableError,
+        TimeoutError,
+        ValueError,
+    ):
         raise
     except FrameworkDirectoryUserError as ex:
         trace_message(
@@ -604,6 +667,7 @@ async def verify_framework_directory(
     expected_uid: int | None = None,
     mode: int = DEFAULT_MODE,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> None:
     """Check that ``path`` is an existing directory satisfying the contract.
 
@@ -620,6 +684,7 @@ async def verify_framework_directory(
         mode: Permission bits the directory must have (see
             :func:`ensure_framework_directory`).
         timeout: Optional timeout for the sandbox command.
+        concurrency: As for :func:`ensure_framework_directory`.
 
     Raises:
         FrameworkDirectoryNotFoundError: Nothing exists at ``path``.
@@ -640,6 +705,7 @@ async def verify_framework_directory(
         user=user,
         expected_uid=expected_uid,
         timeout=timeout,
+        concurrency=concurrency,
     )
 
 
@@ -653,6 +719,7 @@ async def exec_in_framework_directory(
     mode: int = DEFAULT_MODE,
     input: str | bytes | None = None,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> ExecResult[str]:
     """Verify ``path`` and then run ``cmd`` with the verified directory as cwd.
 
@@ -687,6 +754,7 @@ async def exec_in_framework_directory(
             whole; this lets a caller stream content (an archive for ``tar``)
             into the verified directory without staging a file first.
         timeout: Optional timeout for the sandbox command.
+        concurrency: As for :func:`ensure_framework_directory`.
 
     Returns:
         The command's own result. A failing command is returned, not raised.
@@ -716,6 +784,7 @@ async def exec_in_framework_directory(
         expected_uid=expected_uid,
         input=input,
         timeout=timeout,
+        concurrency=concurrency,
     )
 
 
@@ -731,6 +800,24 @@ def _entry_name(name: str) -> str:
             f"framework directory entry name must be a single path component: {name!r}"
         )
     return name
+
+
+def _private_mode(mode: int) -> int:
+    """Refuse the shared mode for an entry operation inside a framework directory.
+
+    Both entry operations assume only the directory's owner can create entries
+    there: the writer stages under a predictable temporary name, and a stat says
+    nothing about who placed the entry. Neither holds in a world-writable shared
+    directory, where every user keeps its own private directory instead.
+
+    Raises:
+        ValueError: ``mode`` is ``SHARED_MODE``.
+    """
+    if mode == SHARED_MODE:
+        raise ValueError(
+            "entry operations need a private framework directory, not a shared one"
+        )
+    return mode
 
 
 # Prints the raw st_mode of $1 in hex (as `stat -c %f` does, without following a
@@ -774,11 +861,13 @@ async def stat_in_framework_directory(
     Raises:
         RuntimeError: ``stat`` failed on an existing entry, or printed something
             that is not a hexadecimal mode.
-        ValueError: ``name`` is not a single path component.
+        ValueError: ``name`` is not a single path component, or ``mode`` is
+            ``SHARED_MODE`` (see :func:`_private_mode`).
         Everything :func:`exec_in_framework_directory` raises (the directory was not
         verified, or the check could not run).
     """
     name = _entry_name(name)
+    mode = _private_mode(mode)
     result = await exec_in_framework_directory(
         sandbox,
         path,
@@ -883,12 +972,14 @@ async def write_file_in_framework_directory(
     Raises:
         RuntimeError: The file could not be written or published (including when
             an entry already exists at ``name``).
-        ValueError: ``name`` is not a single path component, or ``file_mode`` is
-            not an acceptable framework file mode.
+        ValueError: ``name`` is not a single path component, ``file_mode`` is
+            not an acceptable framework file mode, or ``mode`` is ``SHARED_MODE``
+            (see :func:`_private_mode`).
         Everything :func:`exec_in_framework_directory` raises (the directory was not
         verified, or the check could not run).
     """
     name = _entry_name(name)
+    mode = _private_mode(mode)
     result = await exec_in_framework_directory(
         sandbox,
         path,
