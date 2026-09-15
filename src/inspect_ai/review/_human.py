@@ -1,14 +1,9 @@
 from inspect_ai.approval._approval import Approval, ApprovalDecision
-from inspect_ai.approval._human.acp import (
-    _safe_code_fence,
-    request_human_approval_via_acp,
-)
-from inspect_ai.approval._human.console import console_approval
-from inspect_ai.approval._human.panel import panel_approval
+from inspect_ai.approval._human.acp import _safe_code_fence
+from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
-from inspect_ai.util._notify import notify
 
 from ._registry import reviewer
 from ._review import Review, ReviewDecision
@@ -20,8 +15,9 @@ HUMAN_TERMINATED = (
 )
 HUMAN_ESCALATED = "Human operator escalated the tool result review."
 
-# The review is collected on the approval surfaces (ACP, panel, console), which
-# speak approval decisions: `continue` is offered as `approve`.
+# The review is collected by `human_approver`, so it reaches the operator on
+# the approval surfaces (ACP, panel, console), which speak approval decisions:
+# `continue` is offered as `approve`.
 _APPROVAL_CHOICE: dict[ReviewDecision, ApprovalDecision] = {
     "continue": "approve",
     "terminate": "terminate",
@@ -55,6 +51,7 @@ def human_reviewer(
        Reviewer: Interactive human reviewer.
     """
     approval_choices = [_APPROVAL_CHOICE[choice] for choice in choices]
+    approve = human_approver(choices=approval_choices)
 
     async def review(
         message: str,
@@ -64,24 +61,7 @@ def human_reviewer(
         view: ToolCallView,
         history: list[ChatMessage],
     ) -> Review:
-        # deferred: `log._samples` sits below this module in the import graph
-        from inspect_ai.log._samples import awaiting_human
-
-        await notify(message)
-        review_view = view_with_result(view, result)
-        with awaiting_human("approval", call.function):
-            approval = await request_human_approval_via_acp(
-                message=message, call=call, view=review_view, choices=approval_choices
-            )
-            if approval is None:
-                try:
-                    approval = await panel_approval(
-                        message, call, review_view, history, approval_choices
-                    )
-                except NotImplementedError:
-                    approval = console_approval(
-                        message, review_view, approval_choices, call.arguments
-                    )
+        approval = await approve(message, call, view_with_result(view, result), history)
         return review_from_approval(approval, approval_choices)
 
     return review

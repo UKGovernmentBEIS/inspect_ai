@@ -4,10 +4,10 @@ import pytest
 
 from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
+from inspect_ai.approval._human import approver as human_module
 from inspect_ai.model import ChatMessageTool
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.review import Review, human_reviewer
-from inspect_ai.review import _human as human_module
 from inspect_ai.tool import ToolCallError
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 
