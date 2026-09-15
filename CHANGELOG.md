@@ -22,7 +22,7 @@
 - Agent Bridge: Google clients now receive token log probabilities and top candidates returned by the host model.
 - Google: OAuth/ADC requests to the Gemini Developer API no longer send the placeholder API-key header alongside bearer authentication.
 - Scoring: `math()` now records `reason="invalid_response_format"` when no answer can be extracted, so format failures are distinguishable from wrong answers.
-- Scoring: `math()` now gives a symbolic answer the same verdict whether it and the target are written in LaTeX or plain notation (e.g. `\frac{x}{2}` vs `x/2`), and plain-notation symbols match case-insensitively like LaTeX ones.
+- Scoring: `math()` now gives a symbolic answer the same verdict whether it and the target are written in LaTeX or plain notation (e.g. `\frac{x}{2}` vs `x/2`), plain-notation symbols match case-insensitively like LaTeX ones, and an answer is parsed under its target's symbol assumptions so cancelling imaginary terms (e.g. `x+i-i` vs `x`) still match.
 - Scoring: `choice()` now tags empty completions as `NOANSWER` with `reason="no_response"` and records `reason="invalid_response_format"` when no choice can be parsed, so format failures are distinguishable from wrong answers.
 - Scorer: metrics that own a degenerate shape (e.g. `grouped()`) now report it on an all-unscored run instead of collapsing to a synthesized flat NaN, on both the list and dict metric paths; metrics that raise on empty input still report NaN, with a one-time warning. (#5150)
 - Approval: Policy files given as percent-encoded `file://` URIs (e.g. paths with spaces, as `Path.as_uri()` produces) are now accepted by `eval()`, `Task()`, and `--approval`.

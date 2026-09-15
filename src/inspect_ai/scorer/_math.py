@@ -147,6 +147,9 @@ class _ParsedValue:
     text: str | None
     source: str
     expensive: bool = False
+    # The symbol policy the winning parser used; None for text values. A
+    # target's policy is reused to parse the answer compared against it.
+    policy: _SymbolPolicy | None = None
 
 
 @dataclass(frozen=True)
@@ -493,6 +496,12 @@ class _SymbolPolicy:
     Detecting the imaginary unit stays with the caller because its spelling is
     notation-specific (`_looks_complex` for LaTeX, `_plain_looks_complex` for
     plain, which also accepts `I` and Python's `2j`).
+
+    The policy is decided per answer-target pair, not per candidate: the
+    target's policy is recorded on its `_ParsedValue` and the answer is parsed
+    under it, so both sides build identical symbols. Otherwise `x + i - i`
+    would build a non-real `x` that never equals the target's real `x` even
+    though the imaginary terms cancel.
     """
 
     lowercase: bool
@@ -757,7 +766,9 @@ def _parse_latex_number(text: str, sympy: Any) -> Any:
     return sympy.Integer(normalized)
 
 
-def _parse_latex_expression(candidate: str, sympy: Any) -> Any:
+def _parse_latex_expression(
+    candidate: str, sympy: Any, policy: _SymbolPolicy | None = None
+) -> Any:
     from latex2sympy2_extended import (  # type: ignore[import-untyped]
         NormalizationConfig,
         normalize_latex,
@@ -796,7 +807,8 @@ def _parse_latex_expression(candidate: str, sympy: Any) -> Any:
         def parse_number(self, text: str) -> Any:
             return _parse_latex_number(text, sympy)
 
-    policy = _SymbolPolicy.for_candidate(candidate, _looks_complex)
+    if policy is None:
+        policy = _SymbolPolicy.for_candidate(candidate, _looks_complex)
     converter = _InspectLatex2Sympy(
         variable_values=None,
         is_real=policy.is_real,
@@ -818,21 +830,32 @@ def _parse_latex_expression(candidate: str, sympy: Any) -> Any:
     return parse()
 
 
-def _parse_expression(candidate: str, sympy: Any) -> Any | None:
+def _parse_expression(
+    candidate: str, sympy: Any, policy: _SymbolPolicy | None = None
+) -> tuple[Any | None, _SymbolPolicy | None]:
+    """Parse a candidate, returning the expression and the policy that built it.
+
+    With `policy` given (the target's, when parsing an answer) both parsers use
+    it as-is; otherwise each detects its own from the candidate's notation.
+    """
+    plain_policy = policy or _SymbolPolicy.for_candidate(
+        candidate, _plain_looks_complex
+    )
     try:
-        expression = _parse_plain_expression(candidate, sympy)
+        expression = _parse_plain_expression(candidate, sympy, plain_policy)
     except _MathLimitError:
         raise
     except Exception:
         expression = None
 
     if expression is not None:
-        return expression
+        return expression, plain_policy
 
+    latex_policy = policy or _SymbolPolicy.for_candidate(candidate, _looks_complex)
     try:
-        return _parse_latex_expression(candidate, sympy)
+        return _parse_latex_expression(candidate, sympy, latex_policy), latex_policy
     except Exception:
-        return None
+        return None, None
 
 
 def _percentage_base(candidate: str) -> str | None:
@@ -925,16 +948,21 @@ def _validate_expression(expression: Any, sympy: Any) -> _ExpressionInfo:
     return _ExpressionInfo(expensive=expensive)
 
 
-def _parse_candidate(candidate: str) -> _ParsedValue:
+def _parse_candidate(
+    candidate: str, policy: _SymbolPolicy | None = None
+) -> _ParsedValue:
     import sympy  # type: ignore[import-untyped]
 
     candidate = _strip_delimiters(candidate)
     _validate_candidate(candidate)
 
     expression: Any | None = None
+    expression_policy: _SymbolPolicy | None = None
     percentage_base = _percentage_base(candidate)
     if percentage_base is not None:
-        expression = _parse_expression(percentage_base, sympy)
+        expression, expression_policy = _parse_expression(
+            percentage_base, sympy, policy
+        )
         if expression is not None:
             expression = sympy.Mul(
                 expression,
@@ -948,7 +976,7 @@ def _parse_candidate(candidate: str) -> _ParsedValue:
         return _ParsedValue(None, _normalize_text(candidate), candidate)
 
     if expression is None:
-        expression = _parse_expression(candidate, sympy)
+        expression, expression_policy = _parse_expression(candidate, sympy, policy)
 
     if expression is not None:
         try:
@@ -957,13 +985,15 @@ def _parse_candidate(candidate: str) -> _ParsedValue:
             raise
         except Exception as ex:
             raise _MathParseError("could not validate mathematical answer") from ex
-        return _ParsedValue(expression, None, candidate, info.expensive)
+        return _ParsedValue(
+            expression, None, candidate, info.expensive, expression_policy
+        )
 
     equation = _split_plain_equation(candidate)
     if equation is not None:
         _, right = equation
         try:
-            return _parse_candidate(right)
+            return _parse_candidate(right, policy)
         except _MathParseError:
             pass
 
@@ -973,11 +1003,13 @@ def _parse_candidate(candidate: str) -> _ParsedValue:
     raise _MathParseError("could not parse mathematical answer")
 
 
-def _parse_first(candidates: list[str]) -> _ParsedValue:
+def _parse_first(
+    candidates: list[str], policy: _SymbolPolicy | None = None
+) -> _ParsedValue:
     parse_error: _MathParseError | None = None
     for candidate in candidates:
         try:
-            return _parse_candidate(candidate)
+            return _parse_candidate(candidate, policy)
         except (_MathLimitError, _MathUnsafeError):
             raise
         except _MathParseError as ex:
@@ -997,18 +1029,32 @@ def _matching_expression_candidate(
     the last line can still be recognized. Unsafe/over-limit candidates abort.
     """
     for candidate in candidates:
-        try:
-            parsed = _parse_candidate(candidate)
-        except (_MathLimitError, _MathUnsafeError):
-            raise
-        except _MathParseError:
-            continue
-        if parsed.expression is not None and any(
-            _expression_equivalent(target_value, parsed, sympy)
-            for target_value in parsed_targets
-        ):
-            return parsed
+        for policy in _target_policies(parsed_targets):
+            try:
+                parsed = _parse_candidate(candidate, policy)
+            except (_MathLimitError, _MathUnsafeError):
+                raise
+            except _MathParseError:
+                break
+            if parsed.expression is not None and any(
+                _expression_equivalent(target_value, parsed, sympy)
+                for target_value in parsed_targets
+                if target_value.policy == policy
+            ):
+                return parsed
     return None
+
+
+def _target_policies(
+    parsed_targets: list[_ParsedValue],
+) -> list[_SymbolPolicy | None]:
+    """The distinct symbol policies the targets were parsed under, in order.
+
+    The answer is parsed once per policy so each target is compared against an
+    answer whose symbols carry the same assumptions. Policies have two axes
+    with one fixed, so this is at most real and complex (plus None for text).
+    """
+    return list(dict.fromkeys(target_value.policy for target_value in parsed_targets))
 
 
 def _is_numeric_expression(expression: Any, sympy: Any) -> bool:
@@ -1160,24 +1206,29 @@ def _score_answer_worker(
     from sympy.core.cache import clear_cache  # type: ignore[import-untyped]
 
     try:
+        candidates = _answer_candidates(completion)
         try:
-            answer = _parse_first(_answer_candidates(completion))
+            # Parse the answer under each target's own symbol policy (at most
+            # one parse per distinct policy) so the pair shares assumptions.
+            answers = {
+                policy: _parse_first(candidates, policy)
+                for policy in _target_policies(parsed_targets) or [None]
+            }
         except _MathLimitError as ex:
             return _WorkerScore("answer_limit", None, str(ex))
         except _MathParseError as ex:
             return _WorkerScore("answer_parse_error", None, str(ex))
 
+        answer = next(iter(answers.values()))
         correct = any(
-            _expression_equivalent(target_value, answer, sympy)
+            _expression_equivalent(target_value, answers[target_value.policy], sympy)
             for target_value in parsed_targets
         )
         # If the primary answer was opaque text that didn't match (a prose
         # wrapper such as "42 because ..."), fall back to an expression-valued
         # candidate — the bare last line / last number — that the text masked.
         if not correct and answer.expression is None:
-            fallback = _matching_expression_candidate(
-                _answer_candidates(completion), parsed_targets, sympy
-            )
+            fallback = _matching_expression_candidate(candidates, parsed_targets, sympy)
             if fallback is not None:
                 correct = True
                 answer = fallback

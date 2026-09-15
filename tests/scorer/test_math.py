@@ -339,9 +339,11 @@ def test_percentage_is_removed_before_latex_parser(
     parse_latex = math_module._parse_latex_expression
     parsed_candidates: list[str] = []
 
-    def recording_parser(candidate: str, sympy: Any) -> Any:
+    def recording_parser(
+        candidate: str, sympy: Any, policy: "math_module._SymbolPolicy | None" = None
+    ) -> Any:
         parsed_candidates.append(candidate)
-        return parse_latex(candidate, sympy)
+        return parse_latex(candidate, sympy, policy)
 
     monkeypatch.setattr(math_module, "_parse_latex_expression", recording_parser)
 
@@ -541,23 +543,83 @@ def test_symbolic_mismatches_stay_incorrect_across_notations(
     assert _score_answer(answer, (target,)).status == "incorrect"
 
 
-def test_imaginary_unit_cancellation_is_consistent_across_notations() -> None:
-    # A candidate that mentions the imaginary unit builds non-real symbols, so
-    # it does not match a target built from real ones even when the imaginary
-    # parts cancel — `x + i - i` vs `x` is a false negative in both notations.
-    # That is a deliberate consequence of aligning the parsers, not an accident:
-    # the LaTeX path already scored its own spelling of this pair incorrect
-    # before this fix, and the plain path (which scored it correct) now agrees,
-    # so the verdict stops depending on notation. Pinned so that anyone who
-    # later removes the false negative has to change both paths together.
-    assert _score_answer(r"\boxed{x + i - i}", ("x",)).status == "incorrect"
-    assert (
-        _score_answer(r"\boxed{\frac{x + i - i}{1}}", (r"\frac{x}{1}",)).status
-        == "incorrect"
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        # Plain on both sides, in each spelling of the imaginary unit.
+        ("x+i-i", "x"),
+        ("x+I-I", "x"),
+        ("x+1j-1j", "x"),
+        ("x*i*i", "-x"),
+        ("x", "x + i - i"),
+        # LaTeX on both sides.
+        (r"\boxed{x + i - i}", "x"),
+        (r"\boxed{\frac{x + i - i}{1}}", r"\frac{x}{1}"),
+        # Mixed notation, with the imaginary unit on either side.
+        (r"\boxed{\frac{x+i-i}{1}}", "x"),
+        (r"\boxed{x + i - i}", r"\frac{x}{1}"),
+        (r"\boxed{\frac{x}{1}}", "x+i-i"),
+        (r"\boxed{x}", "x + i - i"),
+        # A real-only identity still holds when the answer mentions `i`.
+        ("sqrt(x**2) + i - i", "abs(x)"),
+    ],
+)
+def test_cancelling_imaginary_terms_match_real_targets(
+    answer: str, target: str
+) -> None:
+    # The answer is parsed under the target's symbol policy, so a candidate
+    # whose imaginary parts cancel builds the same real `x` as its target
+    # instead of a non-real `x` that could never compare equal.
+    assert _score_answer(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        ("x+i", "x"),
+        ("i*x", "x"),
+        ("x+i", "x+2*i"),
+        ("z = 1+i", "z = 1-i"),
+        (r"\boxed{x+i}", "x"),
+        (r"\boxed{i x}", "x"),
+    ],
+)
+def test_unequal_complex_expressions_stay_incorrect(answer: str, target: str) -> None:
+    # Sharing the target's policy only aligns assumptions; it does not make a
+    # genuinely different complex value equal to a real one.
+    assert _score_answer(answer, (target,)).status == "incorrect"
+
+
+def test_answer_is_parsed_under_the_target_policy() -> None:
+    import sympy
+
+    parsed, error = math_module._parse_targets_worker(("x",))
+    assert error is None
+    (target,) = parsed
+    assert target.policy is not None and target.policy.is_real is True
+    answer = _parse_candidate("x+i-i", target.policy).expression
+    assert answer is not None
+    assert answer.free_symbols == {sympy.Symbol("x", real=True)}
+    # Standalone parsing keeps detecting the policy from the candidate itself.
+    assert _parse_candidate("x+i-i").policy == math_module._SymbolPolicy(
+        lowercase=True, is_real=False
     )
-    # When both sides are complex the cancellation matches.
-    assert _score_answer(r"\boxed{x + i - i}", ("x + i - i",)).status == "correct"
-    assert _score_answer(r"\boxed{x*i*i}", ("-x + i - i",)).status == "correct"
+
+
+def test_each_target_governs_its_own_comparison() -> None:
+    # With targets of differing policies, the answer is compared against each
+    # under that target's assumptions; a match against any one is enough.
+    assert _score_answer("x", ("x+i-i", "x")).status == "correct"
+    assert _score_answer("x", ("x", "x+i-i")).status == "correct"
+    assert _score_answer("x+i", ("x", "x+i-i")).status == "incorrect"
+
+
+def test_text_targets_carry_no_policy() -> None:
+    parsed, error = math_module._parse_targets_worker(("no solution",))
+    assert error is None
+    assert parsed[0].text == "no solution" and parsed[0].policy is None
+    assert _score_answer("no solution", ("no solution",)).status == "correct"
+    assert _score_answer("x+i", ("no solution", "x+I")).status == "correct"
 
 
 def test_plain_and_latex_parsers_build_identical_symbols() -> None:
