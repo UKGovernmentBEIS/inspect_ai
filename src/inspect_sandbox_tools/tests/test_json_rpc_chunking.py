@@ -1,5 +1,7 @@
 import asyncio
 import base64
+import errno
+import fcntl
 import json
 import os
 import pwd
@@ -562,3 +564,50 @@ def test_continuation_and_release_do_not_create_chunk_storage() -> None:
     )
     assert json.loads(released)["result"] is None
     assert not chunking._CHUNK_DIR.exists()
+
+
+def test_without_working_locks_no_file_is_left_and_only_the_ttl_sweeps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A filesystem without flock fails chunking closed without growing the directory."""
+    chunk_dir = chunking._chunk_dir(create=True)
+    old = time.time() - chunking._RESERVATION_GRACE_SECONDS - 5
+    ancient = time.time() - chunking._CHUNK_TTL_SECONDS - 5
+    empty = chunk_dir / f"{'a' * 32}.jsonrpc"
+    empty.touch()
+    os.utime(empty, (old, old))
+    stale = chunk_dir / f"{'b' * 32}.jsonrpc"
+    stale.write_bytes(b"x")
+    os.utime(stale, (ancient, ancient))
+
+    def no_locks(_fd: int, _operation: int) -> None:
+        raise OSError(errno.ENOLCK, "No locks available")
+
+    monkeypatch.setattr(fcntl, "flock", no_locks)
+
+    with pytest.raises(OSError, match="No locks available"):
+        open_chunk_spill()
+
+    # The stale chunk went by TTL; the empty one stays, since its liveness is
+    # unknown without locks; the failed reservation left nothing behind.
+    assert {p.name for p in chunk_dir.glob("*.jsonrpc")} == {empty.name}
+
+
+def test_continuation_refuses_a_symlink_at_the_chunk_path(tmp_path: Path) -> None:
+    response = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "x" * 2000})
+    chunk = _chunk_metadata(chunk_json_rpc_response_if_needed({"id": 1}, response, 512))
+    chunk_path = chunking._CHUNK_DIR / f"{chunk['handle']}.jsonrpc"
+    secret = tmp_path / "secret"
+    secret.write_bytes(b"secret " * 100)
+    chunk_path.unlink()
+    chunk_path.symlink_to(secret)
+
+    continuation = json.loads(
+        handle_json_rpc_response_chunk_request(
+            {"id": 2, "params": {"handle": chunk["handle"], "offset": 0}}, 512
+        )
+    )
+
+    assert continuation["error"]["code"] == -32000
+    assert "symbolic link" in continuation["error"]["message"]
+    assert "secret" not in json.dumps(continuation)

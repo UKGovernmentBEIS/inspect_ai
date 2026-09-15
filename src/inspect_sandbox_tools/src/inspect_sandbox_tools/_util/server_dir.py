@@ -14,7 +14,7 @@ import stat
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TextIO
+from typing import BinaryIO, TextIO
 
 # Also defined in inspect_ai.util._sandbox.local — keep in sync.
 SERVER_DIR_ENV = "INSPECT_SANDBOX_TOOLS_DIR"
@@ -172,6 +172,11 @@ def write_private_text(path: Path, text: str) -> None:
 def open_private_append(path: Path) -> TextIO:
     """Open a file in the server directory for appending, never through a symlink."""
     return os.fdopen(_open_private(path, os.O_RDWR | os.O_CREAT | os.O_APPEND), "a+")
+
+
+def open_private_binary(path: Path) -> BinaryIO:
+    """Open a file in the server directory for binary reading, never through a symlink."""
+    return os.fdopen(_open_private(path, os.O_RDONLY), "rb")
 
 
 def _open_private(path: Path, flags: int) -> int:

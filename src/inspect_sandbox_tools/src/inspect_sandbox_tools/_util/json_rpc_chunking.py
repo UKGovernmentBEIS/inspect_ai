@@ -20,7 +20,10 @@ from pathlib import Path
 from typing import Any, BinaryIO, NamedTuple
 
 from inspect_sandbox_tools._util.constants import SERVER_DIR
-from inspect_sandbox_tools._util.server_dir import ensure_private_server_dir
+from inspect_sandbox_tools._util.server_dir import (
+    ensure_private_server_dir,
+    open_private_binary,
+)
 
 JSON_RPC_RESPONSE_CHUNK_METHOD = "__inspect_json_rpc_response_chunk__"
 JSON_RPC_RESPONSE_CHUNK_FIELD = "__inspect_json_rpc_response_chunk__"
@@ -86,6 +89,8 @@ def open_chunk_spill() -> ChunkSpill:
             os.fchmod(fd, 0o600)  # the umask may have masked owner bits
         except BaseException:
             os.close(fd)
+            with suppress(OSError):
+                os.unlink(chunk_dir / _chunk_name(handle))
             raise
         return ChunkSpill(handle, os.fdopen(fd, "rb+"))
 
@@ -183,7 +188,7 @@ def handle_json_rpc_response_chunk_request(
         if chunk_path is None:
             raise FileNotFoundError(handle)
 
-        with open(chunk_path, "rb") as chunk_file:
+        with open_private_binary(chunk_path) as chunk_file:
             response = _read_chunk_response(
                 request_id,
                 handle,
@@ -306,9 +311,9 @@ def _remove_stale_chunks(chunk_dir: Path) -> None:
     A live reservation is locked by the process that made it. An unlocked empty
     file older than the grace period is a reservation that was never needed or
     whose process died; the grace period covers the instant between creating a
-    reservation and locking it. The sweep is linear in the number of files
-    present, which stays small: one empty file per switched call, kept for at
-    most the grace period.
+    reservation and locking it. Where locking is unavailable, only the TTL
+    applies. The sweep is linear in the number of files present, which stays
+    small: one empty file per switched call, kept for at most the grace period.
     """
     now = time.time()
     with suppress(OSError), os.scandir(chunk_dir) as entries:
@@ -321,11 +326,18 @@ def _remove_stale_chunks(chunk_dir: Path) -> None:
 def _remove_if_orphaned(path: str, now: float) -> None:
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return  # held by a live reservation
+        except OSError:
+            unlocked = False  # locking unavailable here, so liveness is unknown
+        else:
+            unlocked = True
         info = os.fstat(fd)
         age = now - info.st_mtime
         if age > _CHUNK_TTL_SECONDS or (
-            info.st_size == 0 and age > _RESERVATION_GRACE_SECONDS
+            unlocked and info.st_size == 0 and age > _RESERVATION_GRACE_SECONDS
         ):
             os.unlink(path)
     finally:
