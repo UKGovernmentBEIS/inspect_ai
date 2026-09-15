@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import sys
 import time
 from typing import Any
 
@@ -15,7 +16,7 @@ pytestmark = pytest.mark.usefixtures("sandbox_server_cleanup")
 
 def _run_exec(stdin: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["python", "-m", "inspect_sandbox_tools._cli.main", "exec"],
+        [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "exec"],
         input=stdin,
         text=True,
         capture_output=True,
