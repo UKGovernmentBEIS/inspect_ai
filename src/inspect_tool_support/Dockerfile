@@ -1,6 +1,6 @@
-# This Dockerfile creates a Docker image that includes inspect-tool-support code.
-# This is the container side code implementation for several inspect tools including
-# web_browser, bash_session, and text_editor.
+# Builds the aisiuk/inspect-tool-support image. inspect_ai uses it as the
+# default sandbox image when a task has no Dockerfile or compose.yaml, and
+# as the container side of the web_browser tool.
 
 FROM python:3.12-bookworm
 
