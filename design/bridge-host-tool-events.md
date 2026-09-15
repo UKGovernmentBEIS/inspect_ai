@@ -55,12 +55,15 @@ Goals:
   while running, cancellable by the operator, visible to the execution
   observer, finalised exactly once by the host runner.
 - Recorded results follow the eval's image-logging policy, as message
-  content does.
+  content does, and string results are bounded by the eval's
+  `max_tool_output` and the tool's own `ToolDef.max_output`, as native
+  results are.
 - No change to what the scaffold receives for calls that execute today,
-  with two deliberate exceptions listed under Compatibility: arguments that
-  are not a JSON object, and arguments nested deeper than the native bound,
-  are now rejected before execution. The approval and grant decision is
-  unchanged.
+  with three deliberate exceptions listed under Compatibility: arguments
+  that are not a JSON object, and arguments nested deeper than the native
+  bound, are now rejected before execution; a string result over the
+  output limit is delivered truncated with the native wrapper text. The
+  approval and grant decision is unchanged.
 
 Non-goals:
 
@@ -68,9 +71,9 @@ Non-goals:
   the sandbox). Those remain visible only through `ModelEvent` inputs.
 - Making execution grants unconditional (denying unproposed calls without an
   approval policy). See "Not this design".
-- Argument schema validation, dataclass coercion, `max_tool_output`
-  truncation, or `ToolDef.viewer` support for bridged host tools. The
-  bridge path calls `tool_fn(**arguments)` directly today and keeps doing so.
+- Argument schema validation, dataclass coercion, or `ToolDef.viewer`
+  support for bridged host tools. The bridge path calls
+  `tool_fn(**arguments)` directly today and keeps doing so.
 - Tool result review for host tools. Native `execute_tools` runs the
   `review` policies after a tool executes and before the model sees the
   result; the bridge path runs none, and this design does not change that
@@ -103,7 +106,10 @@ Non-goals:
   arguments exactly as the scaffold sent them (a non-object fails inside
   the call with a `TypeError`; nesting is unbounded) and returns a plain
   string verbatim, MCP content blocks for image results, or
-  `to_json_str_safe(result)` otherwise (`:253-263`).
+  `to_json_str_safe(result)` otherwise (`:253-263`). Nothing bounds the
+  size of that result: the eval's `max_tool_output` and a tool's own
+  `ToolDef.max_output` are not consulted, so a bridged `bash()` delivers
+  its whole output where the native path would have truncated it.
 - Any exception becomes an RPC error string `Error calling method call_tool:
   <str(ex)>` (`util/_sandbox/service.py:562-581`; tracebacks are
   deliberately kept host-side), which the proxy returns as JSON-RPC error
@@ -166,6 +172,14 @@ Non-goals:
   its result before the model does and can continue, terminate or
   escalate. Nothing on the bridge path calls them; `_bridge/_approval.py`
   applies approvers only.
+- String results are truncated before they reach the model or the event:
+  `truncate_tool_output` (`_call_tools.py:1309-1333`) applies the tool's
+  `ToolDef.max_output` if declared, else `active_generate_config().max_tool_output`,
+  else 16 KiB, replaces the text with a wrapper ("The output of your call
+  to X was too long to be displayed. Here is a truncated version: …") and
+  the event records `truncated=(raw_bytes, limit)` (`:314-326`). List
+  results (`list[Content]`) are not truncated. `ToolDef(tool)` recovers a
+  `max_output` declared on the tool (`src/inspect_ai/tool/_tool_def.py:97`).
 - Model-provided arguments are bounded to `MAX_TOOL_CALL_ARGUMENTS_DEPTH`
   (100) before execution (`_call_tools.py:742`, `:1348-1360`) because
   pydantic-core and log condensation only tolerate bounded nesting;
@@ -442,8 +456,9 @@ Control flow, in order:
    path publishes a single `timeout` update; an outer cancellation (bridge
    teardown, sample limit) propagates through the scope to the `except` and
    publishes a single `cancelled` update.
-6. **Return** the serialized result exactly as `service.py:253-263` does
-   today.
+6. **Return** the serialized result as `service.py:253-263` does today,
+   except that a string result over the output limit is the truncated
+   wrapper text recorded on the event.
 
 Single-shot events (steps 1, 2, 4) have no proposal, so they are
 constructed under the span current in the service task, given
@@ -456,10 +471,23 @@ span, the shape the native denial path produces (`_call_tools.py:728-731`).
 `result` is the `ToolResult` the tool returned, massaged as the native path
 does for the event (`_call_tools.py:284-333`): a `str` verbatim; a single
 `Content` wrapped in a list; a list of `Content` as is; anything else as
-`to_json_str_safe(result)`, which is the string the scaffold receives
-(`service.py:263`). No truncation is applied (`truncated=None`): the bridge
-delivers the full result to the scaffold today and the event records what
-was delivered.
+`to_json_str_safe(result)`, the string the bridge sends today
+(`service.py:263`).
+
+A string result is then bounded exactly as native bounds it:
+`truncate_tool_output(event.function, content, ToolDef(tool_fn).max_output)`
+(the `ToolDef` lookup is the one `list_tools` already performs per request,
+`service.py:180`). When it truncates, the wrapper text is both what the
+scaffold receives over MCP and what the event records, with
+`truncated=(raw_bytes, limit)`; otherwise `truncated=None`. Delivered and
+recorded results are always the same bytes. List results are not
+truncated, as native. The limit resolves from the tool's `max_output`,
+then `active_generate_config().max_tool_output` (the service task inherits
+the eval's config), then 16 KiB, so an eval's `max_tool_output` now governs
+its bridged host tools as it governs its native ones. This is the third
+scaffold-facing change (see Compatibility); it also bounds the inline copy
+of the result in the log, which `walk_tool_event` never condenses into an
+attachment.
 
 Media in the recorded result follow the eval's logging policy. `walk_tool_event`
 (`_condense.py:936-944`) gains `result=walk_tool_result(event.result,
@@ -747,6 +775,7 @@ regression above; bridged turns without host calls are unchanged.
 |---|---|---|---|---|---|---|
 | Executed, proposal matched | proposing `ToolCall.id` | as the model saw it | mapped failure or `None` | `True` only for an unmapped exception | `true` | unchanged; on failure the original exception text |
 | Executed, no proposal matched (no policy) | fresh | MCP tool name | as above | as above | `false` | unchanged |
+| Executed, string result over the output limit | as executed | as executed | `None` | `None` | as executed | **changed**: the native truncation wrapper text; event `truncated=(raw, limit)` |
 | Denied (policy active, no grant) | fresh | MCP tool name | `permission` | `None` | `false` | unchanged (`PermissionError` text) |
 | Unknown server or tool | fresh | MCP tool name as sent | `parsing` | `None` | `false` | unchanged (`ValueError` text) |
 | Arguments not an object, or nested over 100 deep | fresh | MCP tool name | `parsing` | `None` | `false` | **changed**: `ValueError` text instead of a `TypeError` text or execution |
@@ -786,6 +815,15 @@ viewer it is a failed tool panel; in `events_df` it is a row with
   configuration would then never pair, giving two ACP cards per host call
   and unpaired approvals in the viewer for most users. Recording proposals
   unconditionally is the smaller total change once consumers are counted.
+- **Delivering the full result and recording it truncated**, or the
+  reverse. Either way the event would say something other than what the
+  scaffold received, which defeats the record. Truncating at the execution
+  edge keeps them identical and is what the eval's `max_tool_output` was
+  set to do.
+- **Not truncating at all** (round-1 text). Keeps the wire bytes identical
+  for large results, but ignores limits the eval author set for these
+  tools and stores an unbounded inline copy in every host tool event.
+  Rejected.
 - **Recording deep or non-object arguments and executing anyway.** Keeps
   the scaffold-facing behaviour byte-identical, but either records
   something other than what executed (a placeholder) or admits unbounded
@@ -808,13 +846,17 @@ viewer it is a failed tool panel; in `events_df` it is a row with
   where today they are inline in both cases. Readers of this version resolve
   the references; an older inspect reading a newer log shows the
   `attachment://` string in that result. Text results are unchanged.
-- **Scaffold-facing behaviour.** Two calls that behave differently:
+- **Scaffold-facing behaviour.** Three cases behave differently:
   arguments that are not a JSON object (today: a `TypeError` from
-  `tool_fn(**arguments)`; after: a `ValueError` before execution) and
+  `tool_fn(**arguments)`; after: a `ValueError` before execution);
   arguments nested deeper than 100 containers (today: executed; after:
-  rejected with the native depth error). Both are MCP `-32603` errors either
-  way; only the text and, for depth, the execution change. No known
-  scaffold sends either.
+  rejected with the native depth error); and a string result larger than
+  the output limit (today: delivered whole; after: the native truncation
+  wrapper, 16 KiB by default, overridable per eval with `max_tool_output`
+  and per tool with `ToolDef.max_output`). The first two are MCP `-32603`
+  errors either way and no known scaffold sends them. The third affects any
+  bridged tool with large output, most likely `bash()`; an eval that wants
+  the old behaviour raises `max_tool_output`.
 - **Generated TypeScript types.** None to regenerate; `metadata` is already
   typed as an open object.
 - **Public API and CLI.** `SandboxAgentBridge.consume_tool_execution_grant`
@@ -851,10 +893,11 @@ viewer it is a failed tool panel; in `events_df` it is a row with
   `test_scaffold_local_tool_calls_are_not_stored` (`:678`) still holds. The
   Docker approval tests (`tests/tools/test_tools_bridge.py:620`, `:656`)
   keep passing because RPC behaviour for those calls is unchanged.
-- **CHANGELOG.** Two `## Unreleased` lines: host tools executed through
+- **CHANGELOG.** Three `## Unreleased` lines: host tools executed through
   `sandbox_agent_bridge(bridged_tools=...)` are now recorded as tool events
-  in the transcript, including denied calls; images in tool results now
-  follow `log_images` like images in messages.
+  in the transcript, including denied calls; their results now respect
+  `max_tool_output` and a tool's `max_output` like native tool results;
+  images in tool results now follow `log_images` like images in messages.
 
 ## Security
 
@@ -872,8 +915,9 @@ Untrusted input reaching the new code is the scaffold's `tools/call`:
   model-provided arguments for the same reason: a recorded value the log
   writer cannot serialize would fail sample logging. Long argument strings
   are condensed into attachments (`_condense.py:434`).
-- `result` comes from the host tool (trusted code). Media in it follow the
-  `log_images` policy through `walk_tool_result`. Error messages recorded
+- `result` comes from the host tool (trusted code). String results are
+  bounded by the output limit before recording; media in list results
+  follow the `log_images` policy through `walk_tool_result`. Error messages recorded
   on the event are the same strings the scaffold already receives;
   tracebacks stay out of both, as today.
 - Nothing in the event flows back to the sandbox: the RPC response is built
@@ -911,6 +955,12 @@ tests do, and subscribe a recorder to count emissions):
 - Executed without a policy: paired id, `approval="not_required"`.
 - Unproposed execution without a policy: fresh id, `error is None`,
   `proposed=False`.
+- Output limit: a tool returning 20 KiB with the default limit returns the
+  native wrapper text to the caller and records the same text with
+  `truncated == (20480, 16384)`; a tool registered as
+  `ToolDef(tool, max_output=64).as_tool()` truncates at 64 bytes; a tool
+  returning `[ContentText(<20 KiB>)]` is delivered and recorded whole with
+  `truncated is None`.
 - Denied: fresh id, `function` is the MCP tool name, `error.type ==
   "permission"`, `proposed=False`, `approval="denied"`, tool not awaited,
   `PermissionError` still raised with today's text.
@@ -982,6 +1032,9 @@ Docker (slow), `tests/tools/test_tools_bridge.py`; these run in PR CI's
   denied event, no executed event, and the MCP error text unchanged.
 - A tool that raises `TimeoutError("tool-specific timeout")`: the MCP error
   carries that text and the event carries the native timeout error.
+- `eval(..., max_tool_output=1024)` with a tool returning 4 KiB: the MCP
+  `text` block is the wrapper containing a 1 KiB excerpt and the event has
+  `truncated == (4096, 1024)`.
 
 Viewer, ts-mono: vitest cases for the coverage-keyed `showToolCalls` and
 `recentInputMessages` rules over two fixtures: a bridged turn at the top
@@ -1025,9 +1078,10 @@ proves no change.
 5. **Record host tool events** (new
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`; `service.py`
    delegates; `src/inspect_ai/event/_tool.py` docstring for
-   `metadata.bridge`; `util.py:365-369` docstring). Unit tests from the
-   Testing section, including the event tree, cancellation counts (direct,
-   outer, and ACP `cancel_current_turn`), RPC text preservation and trio.
+   `metadata.bridge`; `util.py:365-369` docstring). Includes the output truncation of string
+   results. Unit tests from the Testing section, including the event tree,
+   cancellation counts (direct, outer, and ACP `cancel_current_turn`), RPC
+   text preservation, truncation and trio.
 6. **ACP mapping** (`src/inspect_ai/agent/_acp/event_mapping.py`,
    `tests/agent/test_acp/test_router_bridge_tools.py`). Pop `pending` in
    `_map_tool_event`, update docstrings, add the three tests.
@@ -1063,11 +1117,16 @@ PR.
    Recommendation: yes, with the native bound and the native error text.
    The alternative (execute and record a placeholder) records something
    other than what ran. No known scaffold is affected.
-4. **Denial error type.** Recommendation: `permission`, which renders today
+4. **Truncate host tool results at the execution edge.** Recommendation:
+   yes, with the native limit resolution. It changes what a scaffold
+   receives for results over 16 KiB (by default) and is the one change here
+   a real scaffold will notice; the alternative leaves eval-configured
+   limits ignored and unbounded results in the log.
+5. **Denial error type.** Recommendation: `permission`, which renders today
    and matches how the native path types a `PermissionError`. `approval`
    would group denials with policy rejections in dataframes but is hidden by
    the viewer's tool panel unless a viewer change accompanies it.
-5. **Sequencing with the viewer companion.** Recommendation: land the
+6. **Sequencing with the viewer companion.** Recommendation: land the
    ts-mono change first; if the Python change ships alone, mixed bridged
    turns show the two rendering regressions described under Viewer until it
    does.
@@ -1085,8 +1144,7 @@ PR.
   proposal deque's bound and the ambiguity rule would need a second look
   because they would then deny rather than unpair.
 - **Parity of the host path with native execution**: `validate_tool_input`,
-  `tool_params` coercion, `max_tool_output` truncation, `ToolDef.viewer`
-  for the event's `view`.
+  `tool_params` coercion, `ToolDef.viewer` for the event's `view`.
 - **Tool result review for host tools.** A `review` policy
   (`Task(review=)`, `eval(review=)`, `react(review=)`) does not cover a
   bridged host tool today: native `execute_tools` runs `_apply_tool_review`
