@@ -53,6 +53,7 @@
 - Sandbox Tools: Binaries downloaded from S3 that fail SHA256 verification or lack a pinned digest are now rejected instead of run with a warning; `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` has been removed.
 - Sandbox tools: Fixed a race during injection that let a non-root sandbox user replace the tools archive before root unpacked it.
 - Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
+- Sandboxes: A sandbox user can no longer make Inspect's own commands run a program it planted on the image `PATH`; images must provide `/bin/sh` and the coreutils Inspect uses (including `zstd` for existing `.tar.zst` checkpoints) in the system `bin`/`sbin` directories, not `/usr/local`.
 - Inspect View: Requests for unreadable log headers now return 403 instead of 500.
 - Eval Set: Tasks that set a non-mean epochs reducer now reuse their completed log on subsequent `eval_set()` calls instead of being re-run every time.
 - Subprocess: Commands given `input` that exit without reading stdin now return their exit status and stderr instead of raising, and commands that fill stdout before reading stdin no longer hang.
