@@ -219,24 +219,35 @@ resolve_bridge_model(requested, *, model_aliases, model_resolver, model,
  3. model_resolver(qualified) is not None   -> that                    route="resolver"
  4. requested == "inspect"                  -> get_model()             route="inspect"
  5. pin set                                 -> D                       route="model"
- 6. qualified (inspect/ stripped) or requested
+ 6. forward_model_names and the stripped
+    name is in model_roles()                -> get_model(role=name)    route="role"
+ 7. qualified (inspect/ stripped) or requested
     names the active model                  -> active instance         route="active"
- 7. forward_model_names:
-      stripped name in model_roles()        -> get_model(role=name)    route="role"
-      else                                  -> get_model(name)         route="passthrough"
- 8. otherwise                               -> get_model()             route="default"
+ 8. forward_model_names                     -> get_model(name)         route="passthrough"
+ 9. otherwise                               -> get_model()             route="default"
 ```
 
 What changes relative to today: step 4 no longer depends on how the pin is
-spelled; step 7 runs only on opt-in; step 8 is new. Steps 1 to 3, 5 and 6
-keep today's precedence: alias and resolver beat the pin, the pin beats the
-active-model match, the active-model match beats pass-through. Step 6 keeps
-both of today's comparisons (full name or short name after stripping, and
-the raw pre-qualification name against the short name), so a client on the
-OpenAI endpoint naming `gpt-4o` still gets an `azureai/gpt-4o` active model.
-Step 8 calls `get_model()` exactly as `"inspect"` does, so outside an eval
-it falls back to `INSPECT_EVAL_MODEL` and otherwise raises the same
-"No model specified" error a bare `"inspect"` request raises today.
+spelled; steps 6 and 8 run only on opt-in; step 9 is new. Every other
+precedence is today's: alias and resolver beat the pin (util.py:639-663
+run before 669), the pin beats roles and the active-model match (669-672
+before 678 and 700), a role beats the active-model match (678-679 before
+700-705), and the active-model match beats `get_model(name)`. Under
+pass-through the order is therefore exactly today's `model=None` order,
+which is what keeps the in-process bridge unchanged. Step 7 keeps both of
+today's comparisons (full name or short name after stripping, and the raw
+pre-qualification name against the short name), so a client on the OpenAI
+endpoint naming `gpt-4o` still gets an `azureai/gpt-4o` active model. Step
+9 calls `get_model()` exactly as `"inspect"` does, so outside an eval it
+falls back to `INSPECT_EVAL_MODEL` and otherwise raises the same "No model
+specified" error a bare `"inspect"` request raises today.
+
+Role before active matters when the active model's short name is also a
+role name (active `mockllm/grader`, role `grader` bound to another model).
+Today `grader` and `inspect/grader` both return the role (verified
+2026-09-15 at the base commit), and under pass-through they still do. Under
+the default, where roles are not reachable, they resolve to the active
+model without a warning, because the name denotes the active model.
 
 ### What `model=` means (the matrix)
 
@@ -251,6 +262,8 @@ Active model `A`; role `grader`; pin target `D`.
 | `inspect/<A's spec>` | `A` instance | `D`, warn | `A` instance |
 | `grader` (role) | `A`, warn (**change**) | `D`, warn (unchanged) | role `grader` |
 | `inspect/grader` | `A`, warn (**change**) | `D`, warn (unchanged) | role `grader` |
+| `grader` when `A`'s short name is also `grader` | `A` instance, no warning (the name denotes `A`) | `D`, warn (unchanged) | role `grader` (unchanged: role beats the active match) |
+| `inspect/grader` when `A`'s short name is also `grader` | `A` instance, no warning | `D`, warn (unchanged) | role `grader` (unchanged) |
 | `inspect/openai/gpt-4o-mini` | `A`, warn (**change**) | `D`, warn (unchanged) | `get_model("openai/gpt-4o-mini")` |
 | `gpt-4o-mini` on the OpenAI endpoint | `A`, warn (**change**) | `D`, warn (unchanged) | `get_model("openai/gpt-4o-mini")` |
 | `unknown-model` with no endpoint provider | `A`, warn (**change**: today `ValueError`) | `D`, warn | `ValueError` from `get_model` (unchanged) |
@@ -316,7 +329,9 @@ Message for the default route:
 > honour client model names.
 
 For the pinned route the second sentence is "Add ... to model_aliases to
-route it elsewhere; it was pinned by model='inspect/openai/gpt-4o'."
+route it elsewhere; it was pinned by model='inspect/openai/gpt-4o'." When
+the requested name is a model role the hint is specific: "'grader' is a
+model role; expose it with model_aliases={'grader': get_model(role='grader')}".
 
 Dedupe is a module-level `set[str]` of requested names in util.py (not
 `warn_once`, whose list membership is linear in distinct messages), capped
@@ -342,32 +357,70 @@ def model_event_metadata(metadata: dict[str, Any]) -> Iterator[None]:
 
     Nested blocks merge, inner keys winning. Not part of the public API.
     """
+    token = _model_event_metadata.set(
+        {**(_model_event_metadata.get() or {}), **metadata}
+    )
+    try:
+        yield
+    finally:
+        _model_event_metadata.reset(token)
 ```
+
+The `finally` reset is what makes this state safe: a generation that is
+cancelled or raises unwinds through it, so the next generation in the same
+task sees no stale keys. A `ContextVar` is per task and anyio copies the
+context when a task starts, so two bridged requests in flight in different
+tasks never see each other's routing. Both properties are tested (see
+Testing).
 
 `_record_model_interaction` passes `metadata=dict(current) if current else
 None` to `ModelEvent(...)` (1964-1975). Cache reads, retries and sink
 routing are untouched: they all go through this one constructor.
 
 `bridge_generate()` gains a keyword-only `routing: BridgeModelResolution |
-None = None` and wraps the generate call:
+None = None`. Inside its retry loop, the block that runs the filter and the
+default generation (util.py:532-579) is enclosed in a fresh
+`model_event_metadata(...)` context on every attempt:
 
 ```python
-with (
-    bridge_model_generate(),
-    use_model_event_sink(bridge.model_event_sink),
-    model_event_metadata(
+def _routing_metadata(routing: BridgeModelResolution | None) -> AbstractContextManager[None]:
+    if routing is None:
+        return nullcontext()
+    return model_event_metadata(
         {"bridge_requested_model": routing.requested, "bridge_route": routing.route}
-    ) if routing else nullcontext(),
-):
-    output = await model.generate(...)
+    )
+
+while True:
+    input_messages, tools, tool_choice, config = ...   # reset per attempt
+    with _routing_metadata(routing):
+        output: ModelOutput | None = None
+        if bridge.filter:
+            ...                                        # a filter may generate itself
+        if output is None:
+            with bridge_model_generate(), use_model_event_sink(bridge.model_event_sink):
+                output = await model.generate(...)
+    ...                                                # compaction bookkeeping, approval
 ```
+
+A `@contextmanager` object is single-use, hence the helper that returns a
+new one per attempt. The filter runs inside the block because a
+`GenerateFilter` may call `model.generate()` itself and return the output
+(util.py:543-555): that `ModelEvent` is the client's request served through
+the filter and must carry the requested name too. Compaction
+(`compact.compact_input` at 510-512, `record_output` at 583-584) and tool
+approval (600) stay outside: a summarisation or approver call is not the
+client's request and must not be labelled as one.
 
 Every bridged call records both keys, not only redirects: an alias hit is
 also a name-to-model mapping worth seeing in the log, and one rule is
 simpler to test than a conditional one. A filter that returns a
 `ModelOutput` without generating produces no `ModelEvent` and so nothing to
-stamp. The keys appear under `metadata` on the event in the log and in the
-viewer's event metadata; no viewer change is needed to see them.
+stamp. The keys are serialised under `metadata` on the event, so they are
+in the `.eval` log and visible to `read_eval_log()` and anything that
+walks events. The viewer does not render event metadata at the pinned
+ts-mono revision (`ModelEventView.tsx` shows configuration, messages, tools
+and API data only), so a dedicated presentation is a separate change (see
+Not this design).
 
 ### Code changes
 
@@ -529,9 +582,15 @@ Pinned bridges already had this behaviour (table row `grader` /
 
 **`model=` with bare `"inspect"`.** A pin spelled without the `inspect/`
 prefix (`model="openai/gpt-4o"`) no longer captures a request for
-`"inspect"`; that request goes to the active model, as it does for a pin
-spelled `inspect/openai/gpt-4o` today. No caller in this repo or inspect_swe
-spells a pin without the prefix.
+`"inspect"`; that request goes to the eval's active model, as it does for a
+pin spelled `inspect/openai/gpt-4o` today. One caller spells a pin this way:
+inspect_swe's ACP Gemini agent (`acp/_agents/gemini_cli/gemini_cli.py:75`,
+`model=str(model)`). Its normal traffic is Gemini model ids
+(`gemini-2.5-pro` and the CLI's internal utility names), which the pin
+captures today and under this design alike. Only a literal `"inspect"`
+request would route differently, and Gemini CLI never sends one (it sends
+the `--model` id); when the agent's model is the eval's model the two
+targets coincide anyway.
 
 **Precedence with `model_aliases` and the active-model match.** Unchanged:
 aliases first, then resolver, then pin, then active match. The active match
@@ -611,11 +670,28 @@ Warning, same file, with `caplog`:
   silence.
 - `test_active_and_alias_hits_do_not_warn`.
 
-Model layer, `tests/model/test_model_event_timing.py` (existing file that
-runs a `mockllm` generate and inspects the resulting `ModelEvent`):
+Model layer, `tests/model/test_model_event_metadata.py` (new file: no
+existing model test covers a context manager's cancellation and task
+isolation; `test_model_event_timing.py` is about snapshot timing):
 
-- `test_model_event_metadata_context_stamps_event`: nested blocks merge,
-  inner key wins, no block means `metadata is None`.
+- `test_model_event_metadata_stamps_event`: a `mockllm` generate inside the
+  block yields an event with the keys; nested blocks merge with the inner
+  key winning; no block means `metadata is None`.
+- `test_model_event_metadata_reset_after_cancel`: a stub `ModelAPI`
+  registered with `@modelapi` (as `tests/agent/test_bridge_provider_errors.py`
+  does around line 254) whose `generate` sets an `anyio.Event` (started) and
+  then awaits a second event that is never set. The test awaits started,
+  cancels the enclosing `anyio.CancelScope`, then generates again with
+  `mockllm` outside any block and asserts `metadata is None`. No sleeps.
+- `test_model_event_metadata_reset_after_failure`: the same with a stub
+  whose `generate` raises; the next event carries no stale keys.
+- `test_model_event_metadata_isolated_between_tasks`: two tasks under
+  `tg_collect`, each in its own block with a different requested name, each
+  awaiting a shared "both started" `anyio.Event` before generating so they
+  are in flight together; each task's event carries only its own keys.
+
+All four are plain `async def` tests, so the conftest hook runs them on both
+backends; the PR runs them with `--runtrio` as well as the default.
 
 End to end without Docker, `tests/agent/test_agent_bridge.py` (existing
 file, `eval()` with `mockllm`): a solver builds `SandboxAgentBridge(...)` by
@@ -628,6 +704,11 @@ response came from `mockllm/model`, the log's `ModelEvent.metadata` is
 a second test with `forward_model_names=True` and `"model": "mockllm/other"`
 records `route == "passthrough"`. Repeat one redirected case for the
 Anthropic and Google dialect functions.
+`test_bridge_filter_generated_event_records_requested_name`: the bridge has
+a `GenerateFilter` that calls `model.generate()` itself and returns that
+output; the resulting `ModelEvent` (the only one) carries the requested
+name and route, which is the filter-path case the metadata block exists to
+cover.
 
 End to end with Docker, `tests/tools/test_tools_bridge.py` (existing
 `@skip_if_no_docker` file whose slow tests PR CI runs):
@@ -653,8 +734,9 @@ One PR, in commits an implementer can land in order:
 
 1. **Model-layer hook.** `model_event_metadata()` and the
    `_record_model_interaction` change in `src/inspect_ai/model/_model.py`;
-   test in `tests/model/test_model_event_timing.py`. Independent of the
-   bridge and safe alone.
+   the four tests in `tests/model/test_model_event_metadata.py` (stamping,
+   reset after cancel, reset after failure, task isolation). Independent of
+   the bridge and safe alone.
 2. **Resolver.** `BridgeModelRoute`, `BridgeModelResolution`,
    `resolve_bridge_model`, the wrapper and the warning in
    `src/inspect_ai/agent/_bridge/util.py`; `forward_model_names` on
@@ -707,5 +789,8 @@ from the eval's, matching its ACP Gemini agent.
   worth a set if it is ever used with per-input messages.
 - A public API for attaching metadata to `ModelEvent`s
   (`model_event_metadata` stays private until a second consumer appears).
+- Viewer presentation of `ModelEvent.metadata`. The requested name is in
+  the log, but `ModelEventView` in ts-mono does not render event metadata;
+  showing it is a viewer change on its own.
 - The in-process bridge exposing `model=`, `model_aliases` or
   `model_resolver`.
