@@ -21637,17 +21637,27 @@ li > ul {
 ._below_9b4ex_26 {
   margin-top: 0.4em;
 }
-._headline_1l22a_1 {
+._headline_1yxpt_1 {
   display: block;
   min-width: 0;
 }
 
-._inlineExplanation_1l22a_6 {
+._inlineExplanation_1yxpt_6 {
   margin-left: 0.3em;
 }
 
-._rejected_1l22a_10 {
+._rejected_1yxpt_10 {
   color: var(--bs-danger);
+}
+
+._chains_1yxpt_14 {
+  display: grid;
+  gap: 0.15rem;
+  margin-top: 0.25rem;
+}
+
+._chain_1yxpt_14 {
+  min-width: 0;
 }
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
