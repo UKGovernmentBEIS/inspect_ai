@@ -104894,7 +104894,7 @@ var ApprovalEventView_module_default = {
 			$[8] = t2;
 		} else t2 = $[8];
 		chains = t2;
-		source = event.chain ? `by ${approver} (chain "${event.chain}")` : `by ${approver}`;
+		source = event.chain ? `by approver "${approver}" (chain "${event.chain}")` : `by approver "${approver}"`;
 		t1 = explanation.includes("\n");
 		$[0] = decision;
 		$[1] = event;
@@ -110374,7 +110374,7 @@ function _temp2$39(m) {
 		$[8] = t2;
 	} else t2 = $[8];
 	const chains = t2;
-	const source = event.chain ? `by ${reviewer} (chain "${event.chain}")` : `by ${reviewer}`;
+	const source = event.chain ? `by reviewer "${reviewer}" (chain "${event.chain}")` : `by reviewer "${reviewer}"`;
 	const t3 = eventNode.id;
 	let t4;
 	if ($[9] !== alarming || $[10] !== decision) {
