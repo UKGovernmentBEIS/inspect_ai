@@ -2,16 +2,21 @@
 
 import os
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.util import ComposeConfig, ComposeService
+from inspect_ai.util._sandbox.docker import compose as compose_module
 from inspect_ai.util._sandbox.docker.config import (
     auto_compose_dir,
     is_auto_compose_file,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
+from inspect_ai.util._sandbox.docker.service import (
+    ComposeService as DockerComposeService,
+)
 from inspect_ai.util._sandbox.docker.util import ComposeProject
 
 
@@ -179,3 +184,41 @@ async def test_compose_config_with_extensions(request) -> None:
     finally:
         if project.config and os.path.exists(project.config):
             os.unlink(project.config)
+
+
+async def test_compose_up_process_timeout_includes_startup_and_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Leave the full Docker wait window after bounded startup."""
+    compose_command = AsyncMock()
+    monkeypatch.setattr(compose_module, "compose_command", compose_command)
+    services: dict[str, DockerComposeService] = {
+        "default": {
+            "image": "nginx",
+            "healthcheck": {
+                "start_period": "2s",
+                "interval": "2s",
+                "timeout": "5s",
+                "retries": 3,
+            },
+        }
+    }
+
+    await compose_module.compose_up(
+        ComposeProject(
+            name="inspect-test",
+            config=None,
+            sample_id=None,
+            epoch=None,
+            env=None,
+        ),
+        services,
+    )
+
+    call = compose_command.await_args
+    assert call is not None
+    command = call.args[0]
+    wait_timeout = int(command[command.index("--wait-timeout") + 1])
+    process_timeout = call.kwargs["timeout"]
+
+    assert process_timeout == compose_module.COMPOSE_WAIT + wait_timeout
