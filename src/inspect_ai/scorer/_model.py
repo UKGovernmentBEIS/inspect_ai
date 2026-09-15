@@ -39,6 +39,22 @@ from ._target import Target
 logger = logging.getLogger(__name__)
 
 _ModelGraderMedia = ContentImage | ContentAudio | ContentVideo | ContentDocument
+_INPUT_MEDIA_TYPES: tuple[type[Content], ...] = (
+    ContentImage,
+    ContentAudio,
+    ContentVideo,
+    ContentDocument,
+)
+
+# Output/submission media is a narrower whitelist than input media -- no
+# document -- matching the pre-existing `output_media` filter in
+# `model_scoring_prompt`.
+_OutputGraderMedia = ContentImage | ContentAudio | ContentVideo
+_OUTPUT_MEDIA_TYPES: tuple[type[Content], ...] = (
+    ContentImage,
+    ContentAudio,
+    ContentVideo,
+)
 
 
 @scorer(metrics=[accuracy(), stderr()])
@@ -300,17 +316,31 @@ def _model_graded_qa_single(
             state.metadata, ["question", "answer", "criterion", "instructions"]
         )
 
-        input_content = _model_grader_input_content(state.input)
-        input_media = [
-            content
-            for content in input_content
-            if isinstance(content, _ModelGraderMedia)
-        ]
-        input_media_text = " ".join(f"[{media.type}]" for media in input_media)
-
-        # present the question
+        # present the question, and select the original content that backs
+        # [Task media] reconstruction. That selection is kept aligned with
+        # whichever messages actually supplied `question`, so reconstruction
+        # can't reintroduce text or media that selection excluded -- except
+        # for a callable `include_history`, whose own text selection can't be
+        # inferred from its returned string (see the branch below).
+        input_content: list[Content] = []
         if include_history is True:
             question = chat_history(state)
+            # chat_history's own selection runs through (and includes) the
+            # final assistant turn -- that message is the submission itself,
+            # already presented separately via the answer slot, so excluding
+            # it here keeps task and submission media from blurring together
+            history_messages = _history_messages(state)
+            if history_messages and isinstance(
+                history_messages[-1], ChatMessageAssistant
+            ):
+                history_messages = history_messages[:-1]
+            input_content = _flatten_message_content(history_messages)
+            input_media = [
+                content
+                for content in input_content
+                if isinstance(content, _ModelGraderMedia)
+            ]
+            input_media_text = " ".join(f"[{media.type}]" for media in input_media)
             if (
                 input_media_text
                 and isinstance(state.input, list)
@@ -322,13 +352,24 @@ def _model_graded_qa_single(
                 question = f"{input_media_text}{question}"
         elif callable(include_history):
             # a custom callback already returns a flattened string with no
-            # structure to interleave media back into, so it is used as-is;
-            # the [Task media] block built below (from the original sample
-            # input, independent of this callback) still preserves media
-            # order and, for multiple media items, their original placement
-            # relative to the task text.
+            # structure to interleave media back into, and its own text
+            # selection isn't knowable, so [Task media] stays a bare media
+            # list sourced from the original sample input (documented
+            # fallback) -- reconstructing captions here could reintroduce
+            # text the callback intentionally excluded.
             question = include_history(state)
+            input_media = _model_grader_input_media(state.input)
+            input_media_text = " ".join(f"[{media.type}]" for media in input_media)
         else:
+            final_message = _final_input_user_message(state.input)
+            if final_message is not None and isinstance(final_message.content, list):
+                input_content = list(final_message.content)
+            input_media = [
+                content
+                for content in input_content
+                if isinstance(content, _ModelGraderMedia)
+            ]
+            input_media_text = " ".join(f"[{media.type}]" for media in input_media)
             try:
                 question = state.input_text
             except ValueError:
@@ -353,7 +394,7 @@ def _model_graded_qa_single(
             instructions=instructions,
             metadata=metadata,
             input_media=input_media,
-            input_content=input_content,
+            input_content=input_content if not callable(include_history) else None,
         )
 
         # query the model for the score
@@ -511,7 +552,14 @@ _PERMISSIVE_GRADE_PATTERN = (
 )
 
 
-def chat_history(state: TaskState) -> str:
+def _history_messages(state: TaskState) -> list[ChatMessage]:
+    """Messages ``chat_history`` renders.
+
+    History minus system turns, up to and including the final assistant turn
+    (anything after it is dropped). Exposed separately so callers
+    reconstructing ``[Task media]`` for ``include_history=True`` select from
+    exactly the same messages that produced the presented question text.
+    """
     # filter out system messages
     messages: list[ChatMessage] = [
         message
@@ -521,9 +569,13 @@ def chat_history(state: TaskState) -> str:
 
     # present message history through the final assistant turn. The default
     # templates also include state.output.completion in the Submission slot.
-    messages = remove_last_match_and_after(
+    return remove_last_match_and_after(
         messages, lambda message: isinstance(message, ChatMessageAssistant)
     )
+
+
+def chat_history(state: TaskState) -> str:
+    messages = _history_messages(state)
 
     # begin history with text of first message (it will come right after
     # 'Task' or 'Question' in the template)
@@ -607,11 +659,22 @@ def model_scoring_prompt(
         k: _sanitize_metadata_value(v) for k, v in metadata.items()
     }
 
+    # When the [Task media] block will reproduce the original text itself,
+    # the flattened `question` collapses to a bare pointer -- otherwise the
+    # same caption would appear twice: once here, once in the block.
+    reconstructs_input_text = input_content is not None and any(
+        isinstance(content, ContentText) and content.text.strip()
+        for content in input_content
+    )
     if len(input_media) > 0:
         question = (
-            f"{question} (see [Task media])"
-            if len(question) > 0
-            else "See [Task media]"
+            "See [Task media]"
+            if reconstructs_input_text
+            else (
+                f"{question} (see [Task media])"
+                if len(question) > 0
+                else "See [Task media]"
+            )
         )
 
     # we need to remove media objects from output and reference them as attachements in the answer
@@ -625,11 +688,20 @@ def model_scoring_prompt(
         for content in output_content
         if content.type in ["image", "audio", "video"]
     ]
+    reconstructs_output_text = any(
+        isinstance(content, ContentText) and content.text.strip()
+        for content in output_content
+    )
     if len(output_media) > 0:
-        if len(answer) > 0:
-            answer = f"{answer} (see [Submission media])"
-        else:
-            answer = "See [Submission media]"
+        answer = (
+            "See [Submission media]"
+            if reconstructs_output_text
+            else (
+                f"{answer} (see [Submission media])"
+                if len(answer) > 0
+                else "See [Submission media]"
+            )
+        )
 
     # format the prompt
     prompt = template.format(
@@ -645,10 +717,14 @@ def model_scoring_prompt(
         content: list[Content] = [ContentText(text=prompt)]
         if len(input_media) > 0:
             content.append(ContentText(text="[Task media]"))
-            content.extend(_media_block_content(input_media, input_content))
+            content.extend(
+                _media_block_content(input_media, input_content, _INPUT_MEDIA_TYPES)
+            )
         if len(output_media) > 0:
             content.append(ContentText(text="[Submission media]"))
-            content.extend(_media_block_content(output_media, output_content))
+            content.extend(
+                _media_block_content(output_media, output_content, _OUTPUT_MEDIA_TYPES)
+            )
         return ChatMessageUser(content=content)
     else:
         return ChatMessageUser(content=prompt)
@@ -657,36 +733,34 @@ def model_scoring_prompt(
 def _media_block_content(
     media: Sequence[Content],
     ordered_content: Sequence[Content] | None,
+    admissible_media: tuple[type[Content], ...],
 ) -> list[Content]:
     """Content for a ``[Task media]``/``[Submission media]`` block.
 
-    Media introduced by a single caption (one text run followed by one or
-    more media items, e.g. "here are the reference files: <img> <audio>")
-    is unambiguous once paired with that caption, already folded into the
-    surrounding question/answer text -- so the block stays the bare media
-    list, in original order (preserves prior behavior/tests). Multiple
-    *distinct* captions each introducing their own media (e.g. "first,
-    <img1>. second, <img2>.") lose that correspondence once flattened into
-    a trailing list, so when the original interleaved content is available
-    (it is not for a custom ``include_history`` callback result, which is
-    already a flattened string) the block instead reproduces that content
-    verbatim -- text and media in original order -- so the grader can tell
-    which passage each item illustrates.
+    When the original interleaved content is available (``ordered_content``),
+    reproduces it in original order -- admissible media plus neutralized,
+    non-blank text -- so the grader can tell which passage each item
+    illustrates. Text is neutralized here, on a copy, rather than mutating
+    the original ``Content``, so a reconstructed caption can't smuggle raw
+    structural delimiters into the grader prompt; content outside
+    ``admissible_media`` (e.g. reasoning, tool-use) is dropped, since this
+    reconstruction lands in a grader **user** message that can't carry it.
+    Without ordered content (a custom ``include_history`` callback, whose
+    returned string has no structure to interleave media back into, or a
+    direct ``model_scoring_prompt`` caller that only supplies ``media``) the
+    block is the bare media list, in original order.
     """
     if ordered_content is None:
         return list(media)
-    text_runs = [
-        content
-        for content in ordered_content
-        if isinstance(content, ContentText) and content.text.strip()
-    ]
-    if len(text_runs) <= 1:
-        return list(media)
-    return [
-        content
-        for content in ordered_content
-        if not (isinstance(content, ContentText) and not content.text.strip())
-    ]
+    result: list[Content] = []
+    for item in ordered_content:
+        if isinstance(item, ContentText):
+            text = neutralize_structural_delimiters(item.text)
+            if text.strip():
+                result.append(ContentText(text=text))
+        elif isinstance(item, admissible_media):
+            result.append(item)
+    return result
 
 
 def _model_grading_metadata_message(message: ChatMessage) -> ChatMessage:
@@ -697,14 +771,55 @@ def _model_grading_metadata_message(message: ChatMessage) -> ChatMessage:
     return message
 
 
+def _final_input_user_message(
+    sample_input: str | list[ChatMessage],
+) -> ChatMessage | None:
+    """The message backing ``TaskState.input_text`` under ``include_history=False``.
+
+    Selecting from this same message keeps ``[Task media]`` reconstruction
+    aligned with the presented question: content from an earlier turn, or
+    from another role, in a multi-message sample input can't leak in just
+    because it happens to sit somewhere in ``state.input``.
+    """
+    if isinstance(sample_input, str):
+        return None
+    return next(
+        (
+            message
+            for message in reversed(sample_input)
+            if isinstance(message, ChatMessageUser)
+        ),
+        None,
+    )
+
+
+def _flatten_message_content(messages: Sequence[ChatMessage]) -> list[Content]:
+    """Flatten selected messages to one content sequence, in original order.
+
+    A string-valued message becomes a single ``ContentText`` so a turn isn't
+    silently dropped from ``[Task media]`` reconstruction just because it
+    wasn't authored as a content list.
+    """
+    flattened: list[Content] = []
+    for message in messages:
+        if isinstance(message.content, str):
+            if message.content.strip():
+                flattened.append(ContentText(text=message.content))
+        else:
+            flattened.extend(message.content)
+    return flattened
+
+
 def _model_grader_input_content(
     sample_input: str | list[ChatMessage],
 ) -> list[Content]:
-    """Original task content (text and media) in original message/content order.
+    """Original sample-input content (text and media), all roles.
 
-    Used to reconstruct the original interleaving of text and media under
-    ``[Task media]`` when the task input mixes multiple media items with
-    surrounding text (see ``_media_block_content``).
+    In original message/content order. Used only as the documented
+    ``include_history`` callback fallback (see
+    ``_media_block_content``): an arbitrary callback's own text selection
+    isn't knowable, so its ``[Task media]`` block is media-only, sourced from
+    the whole original input regardless of role.
     """
     if isinstance(sample_input, str):
         return []
