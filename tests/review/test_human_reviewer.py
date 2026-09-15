@@ -206,3 +206,31 @@ async def test_placeholders_in_the_result_are_not_substituted(
 
 def test_the_human_reviewer_is_registered_by_name() -> None:
     assert registry_lookup("reviewer", "human") is not None
+
+
+async def test_the_consoles_enter_default_cannot_continue_a_sample_it_was_not_offered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Against the real console surface, not a fake: rich returns the prompt's
+    # default ("a", approve) on Enter whether or not approve is among the
+    # choices, so a reviewer that does not offer `continue` relies on the
+    # fail-closed mapping to stop the sample.
+    from inspect_ai._display.core.active import clear_task_screen, init_task_screen
+    from inspect_ai._display.core.display import TaskScreen
+
+    async def no_acp(**kwargs: object) -> Approval | None:
+        return None
+
+    async def no_panel(*args: object, **kwargs: object) -> Approval:
+        raise NotImplementedError
+
+    monkeypatch.setattr(human_module, "request_human_approval_via_acp", no_acp)
+    monkeypatch.setattr(human_module, "panel_approval", no_panel)
+    monkeypatch.setattr("builtins.input", lambda *args: "")  # the operator hits Enter
+    init_task_screen(TaskScreen())
+    try:
+        decided = await review(human_reviewer(choices=["terminate"]))
+    finally:
+        clear_task_screen()
+
+    assert decided.decision == "terminate"
