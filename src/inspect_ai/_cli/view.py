@@ -46,7 +46,7 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--require-scoped-authorization",
         is_flag=True,
         envvar="INSPECT_VIEW_REQUIRE_SCOPED_AUTHORIZATION",
-        help="Accept only scoped bearer JWTs signed with INSPECT_VIEW_AUTHORIZATION_TOKEN; refuse the raw token (except on /api/app-config).",
+        help="Accept only scoped bearer JWTs signed with INSPECT_VIEW_AUTHORIZATION_TOKEN; refuse the raw token everywhere except /api/app-config, including the viewer's own assets.",
     )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:

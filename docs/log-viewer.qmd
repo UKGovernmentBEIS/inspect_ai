@@ -78,7 +78,7 @@ A client that holds the shared secret can also confine its own requests. Instead
 {"v": 1, "roots": [{"uri": "file:///w/logs", "kind": "dir", "permissions": ["read", "list"]}]}
 ```
 
-The server resolves every location in such a request against those roots (symlinks and `..` included) and refuses anything outside them; a request that names no location is bound to the sole root. `GET /api/app-config` reports `scoped_authorization: true` when a server supports this. The raw token remains accepted with today's unconfined behaviour; pass `--require-scoped-authorization` (or set `INSPECT_VIEW_REQUIRE_SCOPED_AUTHORIZATION=1`) to refuse it everywhere except `/api/app-config` once every client sends scoped tokens. The VS Code extension uses this to give each log panel its own scope.
+The server resolves every location in such a request against those roots (symlinks and `..` included) and refuses anything outside them; a request that names no location is bound to the sole root. `GET /api/app-config` reports `scoped_authorization: true` when a server supports this. The raw token remains accepted with today's unconfined behaviour; pass `--require-scoped-authorization` (or set `INSPECT_VIEW_REQUIRE_SCOPED_AUTHORIZATION=1`) to refuse it everywhere except `/api/app-config` (including the viewer's own assets, so a browser behind a proxy that injects the raw token sees no UI) once every client sends scoped tokens. The VS Code extension uses this to give each log panel its own scope.
 
 Unauthenticated network exposure remains available only through an explicit acknowledgement:
 

@@ -1110,15 +1110,11 @@ def test_api_eval_set_uses_fs_options_reader(
 ) -> None:
     calls: list[tuple[str, dict[str, Any]]] = []
 
-    def fake_read_eval_set_manifest(
-        manifest: str, fs_options: dict[str, Any] = {}
-    ) -> None:
-        calls.append((manifest, fs_options))
+    def fake_read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> None:
+        calls.append((log_dir, fs_options))
         return None
 
-    monkeypatch.setattr(
-        fastapi_server, "read_eval_set_manifest", fake_read_eval_set_manifest
-    )
+    monkeypatch.setattr(fastapi_server, "read_eval_set_info", fake_read_eval_set_info)
     app = fastapi_server.view_server_app(fs_options={"anon": True})
     with fastapi.testclient.TestClient(app) as client:
         resp = client.request(
@@ -1128,7 +1124,7 @@ def test_api_eval_set_uses_fs_options_reader(
 
     resp.raise_for_status()
     assert resp.json() is None
-    assert calls == [("s3://bucket/logs/eval-set.json", {"anon": True})]
+    assert calls == [("s3://bucket/logs", {"anon": True})]
 
 
 def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3285,6 +3281,7 @@ ROUTES_WITHOUT_LOCATION: set[tuple[str, str]] = {
     ("GET", "/events"),
     ("GET", "/app-config"),
     ("GET", "/scout/searches"),
+    ("GET", "/dist"),
 }
 
 _SOME_DIR_B64 = base64.urlsafe_b64encode(b"some/dir").decode().rstrip("=")
@@ -3402,6 +3399,27 @@ def test_every_route_is_classified_and_consults_the_resolver() -> None:
     )
     stale = {key for key in _ROUTE_REQUESTS if key not in set(_api_routes(app))}
     assert not stale, f"recipes for routes that no longer exist: {stale}"
+
+
+def test_standalone_app_adds_only_classified_routes(tmp_path: Path) -> None:
+    """The routes standalone_view_app adds on top of view_server_app are classified too."""
+    from inspect_ai._view.network import resolve_viewer_network_policy
+
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+    outer = fastapi_server.standalone_view_app(
+        log_dir=str(tmp_path),
+        network_policy=resolve_viewer_network_policy(bind_host="127.0.0.1", port=7575),
+        dist_dir=dist,
+    )
+    # SecurityHeaders(HostValidation(ViewAuthorization(FastAPI))) -> Mount("/api", BrowserOrigin(api))
+    fastapi_app = cast(Any, outer).app.app.app
+    mounts = [r for r in fastapi_app.routes if getattr(r, "path", None) == "/api"]
+    api = cast(Any, mounts[0]).app.app
+    extra = set(_api_routes(api)) - set(_api_routes(fastapi_server.view_server_app()))
+    assert extra == {("GET", "/dist")}
+    assert extra <= ROUTES_WITHOUT_LOCATION
 
 
 def test_locations_are_decoded_only_in_the_resolver_helpers() -> None:
@@ -4456,3 +4474,170 @@ def test_sample_buffer_confinement_paths(tmp_path: Path) -> None:
         # a root-level file has no parent directory to confine into
         assert client.get(f"/pending-samples?log={_q('/x.eval')}").status_code == 403
     del _Request
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Round-2 review fixes
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_sample_buffer_guard_uses_the_buffer_path_derivation(tmp_path: Path) -> None:
+    """A backslash-bearing log name under a symlinked parent must not reach the buffer.
+
+    The buffer code splits on the backslash (POSIX ``basename`` flips it), so
+    the guard must derive the path the same way or the buffer opens outside
+    the scope.
+    """
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (logs / "a").symlink_to(outside, target_is_directory=True)
+    # what the buffer code would open for "<logs>/a\b.eval": <outside>/.buffer/b/
+    _create_sample_buffer(str(outside / "b.eval"))
+    name = "a\\b.eval"
+    write_eval_log(logs, name)
+    log = logs / name
+    app = fastapi_server.view_server_app(
+        default_dir=str(logs),
+        access_policy=fastapi_server.OnlyDirAccessPolicy(str(logs)),
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get(f"/log-size/{_q(log)}").status_code == 200
+        assert client.get(f"/pending-samples?log={_q(log)}").status_code == 403
+        assert (
+            client.get(
+                f"/pending-sample-data?log={_q(log)}&id=sample1&epoch=0"
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                f"/pending-sample-data-urls?log={_q(log)}&id=sample1&epoch=0"
+            ).status_code
+            == 403
+        )
+
+
+def test_sample_buffer_guard_under_a_scope(tmp_path: Path) -> None:
+    client, logs = _standalone(tmp_path)
+    run = logs / "2025-01-01T00-00-00+00-00_run_runid.eval"
+    outside = tmp_path / "outside"
+    _create_sample_buffer(str(outside / run.name))
+    (logs / ".buffer").symlink_to(outside / ".buffer", target_is_directory=True)
+    token = _mint([_dir_root(logs)])
+    file_token = _mint([_file_root(run)])
+    with client:
+        for tok in (token, file_token):
+            assert (
+                client.get(
+                    f"/api/pending-samples?log={_q(run)}", headers=_bearer(tok)
+                ).status_code
+                == 403
+            )
+        assert (
+            client.get(
+                f"/api/pending-samples?log={_q(run)}", headers=_legacy()
+            ).status_code
+            == 200
+        )
+        (logs / ".buffer").unlink()
+        _create_sample_buffer(str(run))
+        # a file root still sees its own buffer (sibling directory, not in the root)
+        assert (
+            client.get(
+                f"/api/pending-samples?log={_q(run)}", headers=_bearer(file_token)
+            ).status_code
+            == 200
+        )
+
+
+def test_only_hs256_is_accepted() -> None:
+    assert fastapi_server.VIEW_JWT_ALGORITHMS == ["HS256"]
+
+
+def test_hs256_pin_is_what_rejects_other_hmac_algorithms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pin, not PyJWT, refuses HS512: widening the list would accept the token."""
+    import warnings
+
+    import jwt
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        token = jwt.encode(
+            {
+                "aud": fastapi_server.VIEW_JWT_AUDIENCE,
+                "exp": int(time.time()) + 600,
+                "inspect_view_scope": {"v": 1, "roots": [_dir_root(Path("/w/logs"))]},
+            },
+            _SECRET,
+            algorithm="HS512",
+        )
+    middleware = fastapi_server.ViewAuthorizationMiddleware(cast(Any, None), _SECRET)
+    assert middleware._verify(token) is None
+    monkeypatch.setattr(fastapi_server, "VIEW_JWT_ALGORITHMS", ["HS256", "HS512"])
+    assert middleware._verify(token) is not None
+
+
+def test_eval_set_fs_options_missing_directory_is_404_for_plain_policies() -> None:
+    """Main probed the directory with fs.info; a plain policy keeps that 404."""
+    app = fastapi_server.view_server_app(fs_options={"anon": True})
+    with fastapi.testclient.TestClient(app) as client:
+        assert client.get("/eval-set?dir=memory://does-not-exist").status_code == 404
+
+
+def test_azure_spellings_resolve_to_one_canonical_location(tmp_path: Path) -> None:
+    pytest.importorskip("adlfs")
+    client, logs = _standalone(tmp_path)
+    token = _mint(
+        [
+            {
+                "uri": "az://mycontainer/inspect-logs",
+                "kind": "dir",
+                "permissions": ["read", "list"],
+            }
+        ]
+    )
+    policy = fastapi_server.ScopedAccessPolicy()
+    from starlette.requests import Request as _Request
+
+    from inspect_ai._view.scope import scope_from_claims
+
+    view_scope = scope_from_claims(
+        {
+            "inspect_view_scope": {
+                "v": 1,
+                "roots": [
+                    {
+                        "uri": "az://mycontainer/inspect-logs",
+                        "kind": "dir",
+                        "permissions": ["read", "list"],
+                    }
+                ],
+            }
+        }
+    )
+    request = _Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/",
+            "headers": [],
+            "state": {"view_scope": view_scope},
+        }
+    )
+    for spelling in (
+        "abfs://mycontainer/inspect-logs/x.eval",
+        "az://mycontainer/inspect-logs/x.eval",
+        "abfss://mycontainer/inspect-logs/x.eval",
+        "abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs/x.eval",
+    ):
+        assert (
+            asyncio.run(policy.resolve_read(request, spelling))
+            == "abfs://mycontainer/inspect-logs/x.eval"
+        )
+    with pytest.raises(fastapi.HTTPException):
+        asyncio.run(policy.resolve_read(request, "az://other/inspect-logs/x.eval"))
+    del token, client, logs

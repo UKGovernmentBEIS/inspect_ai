@@ -33,17 +33,22 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from typing_extensions import override
 
 from inspect_ai._display.core.active import display
-from inspect_ai._eval.evalset import EvalSet, read_eval_set_manifest
+from inspect_ai._eval.evalset import (
+    EvalSet,
+    read_eval_set_info,
+    read_eval_set_manifest,
+)
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai.log import EvalLog
 from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._file import read_eval_log_headers_async
 from inspect_ai.log._recorders.buffer import sample_buffer
+from inspect_ai.log._recorders.buffer.filestore import sample_buffer_dir
 from inspect_ai.log._recorders.buffer.types import (
     PendingSampleUrls,
     SampleData,
@@ -362,7 +367,11 @@ def view_server_app(
         path keeps ``normalize_uri`` on path-segment routes and
         ``/log-headers``, which re-parses a decoded ``file:`` URI, because
         plain policies and legacy clients were written against it. ``None``
-        means the value is already the once-decoded spelling.
+        means the value is already the once-decoded spelling: the listing
+        routes (``/logs``, ``/log-files``, ``/log-dir``, ``/eval-set``,
+        ``/flow``) apply no decode of their own to ``log_dir``/``dir`` beyond
+        the framework's query decoding, as on ``main``. That asymmetry is
+        deliberate compatibility, not an omission.
         """
         if encoding == "path" and compatibility:
             return normalize_uri(location)
@@ -427,27 +436,28 @@ def view_server_app(
         ``<dir>/.buffer/<name>/``, a location derived from the authorized file
         rather than named by the request. It is not authorized against the
         scope (a ``file`` root must still see its own buffer) but must stay
-        under the file's directory, so a symlink planted at ``.buffer`` or the
-        buffer name cannot lead elsewhere. Compatibility callers are left as
-        before.
+        under the file's directory, so a symlink planted at ``.buffer``, at
+        the buffer name, or at a path component the buffer code splits on,
+        cannot lead elsewhere. The derived path is built with the same helpers
+        ``SampleBufferFilestore`` uses, so the check and the open cannot
+        disagree; the anchor is the canonical file's own directory as the
+        canonicalizer sees it. Compatibility callers are left as before.
         """
         if _compatibility_locations(request):
             return
-        if "://" in file:
-            parent, _, name = file.rstrip("/").rpartition("/")
-        else:
-            parent, name = os.path.dirname(file), os.path.basename(file)
-        if not parent:
-            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
-        stem = os.path.splitext(name)[0]
-        buffer_dir = (
-            os.path.join(parent, ".buffer", stem)
-            if "://" not in file
-            else f"{parent}/.buffer/{stem}"
-        )
         try:
-            anchor = ScopeRoot.parse(parent, "dir", ["read"])
-        except ValueError:
+            fs = filesystem(file)
+            parent = dirname(file)
+            stem = os.path.splitext(basename(file))[0]
+            buffer_dir = f"{sample_buffer_dir(parent, fs)}{fs.sep}{stem}"
+            anchor_dir = (
+                file.rstrip("/").rpartition("/")[0]
+                if "://" in file
+                else os.path.dirname(file)
+            )
+            anchor = ScopeRoot.parse(anchor_dir, "dir", ["read"])
+        except Exception as ex:
+            logger.debug(f"Refusing sample buffer for {file!r}: {ex}")
             raise HTTPException(status_code=HTTP_403_FORBIDDEN)
         if PathScope((anchor,)).resolve(buffer_dir, "read") is None:
             raise HTTPException(status_code=HTTP_403_FORBIDDEN)
@@ -692,6 +702,12 @@ def view_server_app(
         sub_dir: str = Query(None, alias="dir"),
     ) -> EvalSet | None:
         eval_set_dir = await _resolve_list_child(request, log_dir, sub_dir)
+        if fs_options and _compatibility_locations(request):
+            # exactly main's reader for plain policies: probes the directory
+            # first, so a missing directory is a 404 rather than a null
+            return read_eval_set_info(
+                await _map_file(request, eval_set_dir), fs_options=fs_options
+            )
         manifest = await _derived_file(request, eval_set_dir, "eval-set.json")
 
         # async fs, not to_thread — see the fsspec/to_thread warning in AGENTS.md
