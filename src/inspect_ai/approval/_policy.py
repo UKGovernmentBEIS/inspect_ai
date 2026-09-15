@@ -58,7 +58,8 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
         globs = [tool if tool.endswith("*") else f"{tool}*" for tool in tools]
         chains.setdefault(policy.chain, []).append((globs, policy.approver))
 
-    # approvers in a chain that match a tool call
+    # approvers in one chain that match a tool call (matching is per chain,
+    # since each chain decides on its own which of its policies apply)
     def tool_approvers(
         chain: list[tuple[list[str], Approver]], tool_call: ToolCall
     ) -> list[Approver]:
@@ -128,9 +129,12 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
             chain, approvers = participating[0]
             return await run_chain(chain, approvers, message, call, view, history)
 
-        # several chains: all run to their decision (a reject does not stop a
-        # chain that might terminate or ask a human); only a terminate, which
-        # nothing outranks, cancels the rest. The most severe decision wins.
+        # several chains: each runs to its own decision, recorded as its own
+        # events (a reject does not stop a chain that might terminate or ask a
+        # human; only a terminate, which nothing outranks, cancels the rest).
+        # The tool loop needs one answer to "does this call run", so the
+        # per-chain decisions are then combined into one Approval, recorded as
+        # a summary with each chain's decision in its metadata.
         results = await run_chains(
             [
                 (
@@ -160,7 +164,9 @@ def combine_chain_approvals(
     """The decision several chains reach together: the most severe of theirs.
 
     `modify` is honoured only from a lone chain; across chains it is a
-    rejection, since the other chains approved the original arguments.
+    rejection, since the other chains approved the original arguments. A chain
+    that never reached a decision because another chain's `terminate` cancelled
+    it appears as "cancelled".
     """
     outcomes = {
         chain_label(chain): (

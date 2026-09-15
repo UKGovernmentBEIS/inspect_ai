@@ -11,8 +11,10 @@ if sys.version_info < (3, 11):
 
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallView
 
-K = TypeVar("K", bound=Hashable)
-D = TypeVar("D")
+ChainName = TypeVar("ChainName", bound=Hashable)
+"""What a chain is keyed by: its name (`None` for the default chain)."""
+Decision = TypeVar("Decision")
+"""What a chain resolves to: an `Approval` or a `Review`."""
 
 DEFAULT_CHAIN = "default"
 """Name used for the unlabelled chain in explanations and metadata."""
@@ -23,21 +25,27 @@ def chain_label(chain: str | None) -> str:
 
 
 async def run_chains(
-    chains: Sequence[tuple[K, Callable[[], Awaitable[D]]]],
-    decisive: Callable[[D], bool],
-) -> dict[K, D]:
-    """Run every chain concurrently to its decision.
+    chains: Sequence[tuple[ChainName, Callable[[], Awaitable[Decision]]]],
+    decisive: Callable[[Decision], bool],
+) -> dict[ChainName, Decision]:
+    """Run every chain concurrently, each to its own decision.
 
-    A decisive result (one nothing can outrank) cancels the chains still
-    running. Returns the results of the chains that finished, keyed by chain;
-    cancelled chains are absent.
+    Nothing is combined here: every chain reaches its decision independently
+    (a human in one chain answers their own request). A decisive result, one
+    nothing can outrank such as `terminate`, cancels the chains still running,
+    since the outcome is settled and, for example, a person should not be
+    asked about a sample that is ending. Returns the decisions of the chains
+    that finished, keyed by chain; a cancelled chain is absent, and appears as
+    "cancelled" in the summary the caller records.
     """
-    results: dict[K, D] = {}
+    results: dict[ChainName, Decision] = {}
 
     try:
         async with anyio.create_task_group() as tg:
 
-            async def run(key: K, fn: Callable[[], Awaitable[D]]) -> None:
+            async def run(
+                key: ChainName, fn: Callable[[], Awaitable[Decision]]
+            ) -> None:
                 result = await fn()
                 results[key] = result
                 if decisive(result):
