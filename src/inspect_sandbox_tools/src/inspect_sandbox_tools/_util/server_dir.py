@@ -1,9 +1,10 @@
 """The server's private state directory and the control files inside it.
 
 The socket, pid, lock, log, and status files that the server and CLI trust all
-live in one directory. This module decides where that directory is, creates or
-verifies it as private to the current user, and opens files inside it without
-following anything another principal could have planted there.
+live in one directory, as do the chunk files that hold oversized tool responses
+(in a ``chunks`` subdirectory). This module decides where that directory is,
+creates or verifies it as private to the current user, and opens files inside
+it without following anything another principal could have planted there.
 """
 
 import errno
@@ -60,17 +61,18 @@ def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
     """Create ``server_dir`` as a private directory, or verify an existing one.
 
     The socket, pid, lock, and status files that the server and CLI trust live in
-    this directory. Inside an injected bundle it sits in the tools tree, which only
-    the tools user can write to; the ``local`` sandbox supplies a directory inside
-    its private per-sample temp dir; source mode (development and tests) falls back
-    to the system temp dir, where other users may be able to plant an entry before
-    the server first starts. Either way an existing entry is adopted only if it is
-    a real directory (not a symlink) owned by the current effective uid, and it is
-    then tightened to mode 0700; an owned directory the uid cannot even enter is
-    refused rather than repaired. This holds for root and non-root servers alike: a
-    rootless server shares its uid with the sandbox's default user, but no other uid
-    in the container may reach its socket or rewrite its control files (older
-    releases left rootless directories at 0777).
+    this directory, and the chunk files for oversized tool responses live in a
+    subdirectory verified the same way. Inside an injected bundle it sits in the
+    tools tree, which only the tools user can write to; the ``local`` sandbox
+    supplies a directory inside its private per-sample temp dir; source mode
+    (development and tests) falls back to the system temp dir, where other users may
+    be able to plant an entry before the server first starts. Either way an existing
+    entry is adopted only if it is a real directory (not a symlink) owned by the
+    current effective uid, and it is then tightened to mode 0700; an owned directory
+    the uid cannot even enter is refused rather than repaired. This holds for root
+    and non-root servers alike: a rootless server shares its uid with the sandbox's
+    default user, but no other uid in the container may reach its socket or rewrite
+    its control files (older releases left rootless directories at 0777).
 
     Verification and tightening go through a descriptor so they bind to the entry
     that was inspected; a path-based chmod would follow a symlink swapped in later.
