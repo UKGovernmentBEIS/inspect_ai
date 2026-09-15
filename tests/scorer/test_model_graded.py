@@ -293,11 +293,12 @@ async def test_model_graded_input_media_attached_once_with_history(
         assert content[1] == ContentText(text="Custom: Question")
         assert content[2] == image
     else:
-        # include_history=True selects the same messages chat_history
-        # renders, so its formatted text (role labels included) occupies
-        # the [Task] slot directly, alongside the original-input media
-        assert content[1] == ContentText(text="Question\n\nAssistant: Answer")
+        # this history is source-aligned, so the original message's own
+        # text/media interleaving is preserved in place, followed by the
+        # role-labeled text of the genuine new assistant turn
+        assert content[1] == ContentText(text="Question")
         assert content[2] == image
+        assert content[3] == ContentText(text="Assistant: Answer")
 
 
 def test_model_grader_input_media_preserves_message_and_content_order():
@@ -357,12 +358,16 @@ def test_model_scoring_prompt_labels_task_and_submission_media():
     ]
 
 
-def test_model_scoring_prompt_preserves_interleaving_for_multiple_captions():
-    # This exercises the labeled-attachment fallback used for custom
+def test_model_scoring_prompt_custom_template_attachments_are_media_only():
+    # Regression for R2: the labeled-attachment fallback used for custom
     # templates (``model_scoring_prompt`` defaults to ``is_standard_template
-    # =False``): a single caption already appears in the flattened
-    # `question` (with a "(see [Task media])" pointer), so the block stays
-    # the bare media list to avoid duplicating that same caption.
+    # =False``) must never reconstruct question/answer text into the
+    # [Task media]/[Submission media] block -- doing so bypasses the
+    # template's own `str.format()` selection (truncation, omission,
+    # repeated fields), reintroducing text the template chose not to show.
+    # This holds regardless of how many captions the original content had,
+    # and regardless of whether `input_content` is supplied at all -- the
+    # block is always the bare admissible-media list, in original order.
     image_a = ContentImage(image="data:image/png;base64,YQ==")
     image_b = ContentImage(image="data:image/png;base64,Yg==")
     single_caption_prompt = model_scoring_prompt(
@@ -385,10 +390,10 @@ def test_model_scoring_prompt_preserves_interleaving_for_multiple_captions():
         image_b,
     ]
 
-    # Two distinct captions, each introducing its own image, lose their
-    # correspondence once flattened to a bare media list -- the block must
-    # reproduce the original interleaved sequence (text and media in
-    # original order) instead.
+    # Two distinct captions, each introducing its own image: the block
+    # still stays the bare media list -- it must not reconstruct either
+    # caption, even though a per-caption correspondence would be
+    # unambiguous here.
     submission_a = ContentImage(image="data:image/png;base64,c2Eg")
     submission_b = ContentImage(image="data:image/png;base64,c2Ig")
     interleaved_prompt = model_scoring_prompt(
@@ -417,21 +422,20 @@ def test_model_scoring_prompt_preserves_interleaving_for_multiple_captions():
     assert isinstance(interleaved_prompt.content, list)
     assert interleaved_prompt.content[1:] == [
         ContentText(text="[Task media]"),
-        ContentText(text="First, a circle:"),
         image_a,
-        ContentText(text="Then, a square:"),
         image_b,
         ContentText(text="[Submission media]"),
-        ContentText(text="Circle reply:"),
         submission_a,
-        ContentText(text="Square reply:"),
         submission_b,
     ]
+    # "Circle reply:"/"Square reply:" still appear exactly once each, via
+    # ordinary `{answer}` string substitution -- not duplicated by the
+    # attachment block
+    assert interleaved_prompt.text.count("Circle reply:") == 1
+    assert interleaved_prompt.text.count("Square reply:") == 1
 
-    # Omitting input_content (the shape existing direct callers use) keeps
-    # the prior bare-media-list behavior even with multiple captions --
-    # reconstruction only activates when the caller supplies the ordered
-    # original content.
+    # Omitting input_content (the shape existing direct callers use) is the
+    # same bare-media-list behavior.
     no_content_prompt = model_scoring_prompt(
         template="{question} {answer}",
         question="First, a circle. Then, a square.",
@@ -746,10 +750,14 @@ async def test_model_graded_source_selection_excludes_unselected_roles(
 async def test_model_graded_history_excludes_final_assistant_turn_media(
     scorer_factory: Callable[..., Scorer],
 ) -> None:
-    # Regression: include_history=True's [Task media] reconstruction must
-    # exclude the final assistant turn -- that message is the submission
+    # Regression: include_history=True's [Task] reconstruction must exclude
+    # the final assistant turn's own media -- that message is the submission
     # itself (already shown separately via the answer slot), so including
-    # it would blur task and submission media/text together.
+    # it would blur task and submission media/text together. This history
+    # is source-aligned (state.messages == state.input plus the genuine new
+    # assistant turn, unmodified), so each original message's own text/media
+    # interleaving is preserved in place, with role labels intact for the
+    # messages beyond the first.
     image_1 = ContentImage(image="data:image/png;base64,dGFzazE=")
     image_2 = ContentImage(image="data:image/png;base64,dGFzazI=")
     sample_input: list[ChatMessage] = [
@@ -789,21 +797,19 @@ async def test_model_graded_history_excludes_final_assistant_turn_media(
     assert log.status == "success"
     content = requests[0][0].content
     assert isinstance(content, list)
-    # the [Task] slot holds chat_history's own formatted narrative (role
-    # labels intact -- see test_model_graded_source_selection_excludes_
-    # unselected_roles), followed by the original-input media, in original
-    # order; the final assistant turn (the submission, already shown
-    # separately via the answer slot) contributes no media here
-    text_index, history_text_item = next(
-        (i, c)
-        for i, c in enumerate(content)
-        if isinstance(c, ContentText) and "The first image above" in c.text
-    )
-    history_text = history_text_item.text
-    assert "User: The first image above is the reference." in history_text
-    assert "User: Answer for the reference only." in history_text
-    assert "Assistant: Answer" in history_text
-    assert content[text_index + 1 : text_index + 3] == [image_1, image_2]
+    # image_1 (from the first, unlabeled message) stays immediately before
+    # its own caption; image_2 (from the third message) stays immediately
+    # before its own caption; the final assistant turn (the submission,
+    # already shown separately via the answer slot) contributes only its
+    # role-labeled text, no media
+    image_1_index = content.index(image_1)
+    assert content[image_1_index : image_1_index + 5] == [
+        image_1,
+        ContentText(text="User: The first image above is the reference."),
+        image_2,
+        ContentText(text="User: Answer for the reference only."),
+        ContentText(text="Assistant: Answer"),
+    ]
 
 
 @pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
@@ -893,13 +899,17 @@ def test_model_graded_excludes_tool_use_from_output_block() -> None:
     )
     assert isinstance(prompt.content, list)
     assert "tool_use" not in [item.type for item in prompt.content]
+    # custom-template attachments are always the bare admissible-media
+    # list -- the two captions are not reconstructed here (see R2)
     assert prompt.content[1:] == [
         ContentText(text="[Submission media]"),
-        ContentText(text="First answer image"),
         image_a,
-        ContentText(text="Second answer image"),
         image_b,
     ]
+    # each caption still appears exactly once, via ordinary `{answer}`
+    # string substitution -- not duplicated by the attachment block
+    assert prompt.text.count("First answer image") == 1
+    assert prompt.text.count("Second answer image") == 1
 
 
 @pytest.mark.parametrize(
@@ -913,12 +923,14 @@ def test_model_graded_excludes_tool_use_from_output_block() -> None:
 async def test_model_graded_multiple_images_fallback_for_flattened_history(
     include_history: bool | Callable[[TaskState], str],
 ) -> None:
-    # include_history=True selects the same messages chat_history renders,
-    # so full text/media reconstruction still applies. A custom callable's
-    # own text selection isn't knowable from its returned string, so its
-    # documented fallback is a bare media list, sourced from the original
-    # sample input, with no text reconstructed (reconstructing captions
-    # here could reintroduce text the callback intentionally excluded).
+    # include_history=True's history is source-aligned here (state.messages
+    # is exactly state.input plus the genuine new assistant turn), so the
+    # original message's own text/media interleaving is preserved in place.
+    # A custom callable's own text selection isn't knowable from its
+    # returned string, so its documented fallback is a bare media list,
+    # sourced from the original sample input, with no text reconstructed
+    # (reconstructing captions here could reintroduce text the callback
+    # intentionally excluded).
     image_1 = ContentImage(image="data:image/png;base64,dGFzazE=")
     image_2 = ContentImage(image="data:image/png;base64,dGFzazI=")
     sample_input: list[ChatMessage] = [
@@ -973,15 +985,16 @@ async def test_model_graded_multiple_images_fallback_for_flattened_history(
             image_2,
         ]
     else:
-        # include_history=True's [Task] slot holds chat_history's own
-        # formatted narrative, followed by the original-input media
-        task_start = content.index(
-            ContentText(text="First:\nSecond:\n\nAssistant: Answer")
-        )
-        assert content[task_start : task_start + 3] == [
-            ContentText(text="First:\nSecond:\n\nAssistant: Answer"),
+        # include_history=True's [Task] slot preserves the original
+        # message's own text/media interleaving, followed by the
+        # role-labeled text of the genuine new assistant turn
+        task_start = content.index(ContentText(text="First:"))
+        assert content[task_start : task_start + 5] == [
+            ContentText(text="First:"),
             image_1,
+            ContentText(text="Second:"),
             image_2,
+            ContentText(text="Assistant: Answer"),
         ]
 
 
@@ -1045,6 +1058,226 @@ async def test_model_graded_custom_template_preserves_format_specs(
         ContentText(text="[Submission media]"),
         submission_image,
     ]
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.anyio
+async def test_model_graded_custom_template_omits_untemplated_captions(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    # Regression for R2: a custom template with multiple captions in the
+    # question/answer must not leak the entire, untruncated/unformatted
+    # question or answer text into the request -- only what the template's
+    # own str.format() call actually selects. `{answer}` is not referenced
+    # at all here, so none of the answer's two captions may appear; the
+    # question's format spec truncates to 4 characters, so its second
+    # caption must not reappear either. Media attachments stay a bare,
+    # media-only list regardless of how many captions introduced them.
+    image_a = ContentImage(image="data:image/png;base64,YQ==")
+    image_b = ContentImage(image="data:image/png;base64,Yg==")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(
+            content=[
+                ContentText(text="TASK caption one"),
+                image_a,
+                ContentText(text="TASK omitted caption two"),
+                image_b,
+            ]
+        )
+    ]
+    requests: list[list[ChatMessage]] = []
+
+    def capture(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        requests.append(deepcopy(messages))
+        return ModelOutput.from_content("mockllm/grader", "GRADE: C")
+
+    submission_image_a = ContentImage(image="data:image/png;base64,c3ViQQ==")
+    submission_image_b = ContentImage(image="data:image/png;base64,c3ViQg==")
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(input=sample_input, target="Criterion")],
+                scorer=scorer_factory(
+                    model=get_model("mockllm/grader", custom_outputs=capture),
+                    template="[BEGIN DATA]\nQ={question:.4}\n[END DATA]\nIGNORE SUBMISSION CONTENT",
+                ),
+            ),
+            model=get_model(
+                "mockllm/subject",
+                custom_outputs=[
+                    ModelOutput.from_content(
+                        "mockllm/subject",
+                        [
+                            ContentText(text="ANSWER caption one"),
+                            submission_image_a,
+                            ContentText(text="ANSWER omitted caption two"),
+                            submission_image_b,
+                        ],
+                    )
+                ],
+            ),
+        )
+    )[0]
+
+    assert log.status == "success"
+    request = requests[0][0]
+    assert isinstance(request.content, list)
+    assert isinstance(request.content[0], ContentText)
+    assert request.content[0].text == (
+        "[BEGIN DATA]\nQ=TASK\n[END DATA]\nIGNORE SUBMISSION CONTENT"
+    )
+    assert "omitted caption two" not in request.text
+    assert "ANSWER caption one" not in request.text
+    assert request.content[1:] == [
+        ContentText(text="[Task media]"),
+        image_a,
+        image_b,
+        ContentText(text="[Submission media]"),
+        submission_image_a,
+        submission_image_b,
+    ]
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.anyio
+async def test_model_graded_empty_template_matches_none_template(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    # Regression for R3: template="" has always selected the built-in
+    # template's content (like template=None), and must also be recognized
+    # as the built-in template for ordering purposes -- otherwise it
+    # silently takes the custom-template (labeled-attachment) path instead
+    # of the standard data-slot placement.
+    image_a = ContentImage(image="data:image/png;base64,YQ==")
+    image_b = ContentImage(image="data:image/png;base64,Yg==")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(
+            content=[
+                image_a,
+                ContentText(text="Only image above this sentence is the reference."),
+                image_b,
+            ]
+        )
+    ]
+
+    async def capture_request(template: str | None) -> list[Content]:
+        requests: list[list[ChatMessage]] = []
+
+        def capture(
+            messages: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            requests.append(deepcopy(messages))
+            return ModelOutput.from_content("mockllm/grader", "GRADE: C")
+
+        log = (
+            await eval_async(
+                Task(
+                    dataset=[Sample(input=sample_input, target="Criterion")],
+                    scorer=scorer_factory(
+                        model=get_model("mockllm/grader", custom_outputs=capture),
+                        template=template,
+                    ),
+                ),
+                model=get_model(
+                    "mockllm/subject",
+                    custom_outputs=[
+                        ModelOutput.from_content("mockllm/subject", "Answer")
+                    ],
+                ),
+            )
+        )[0]
+        assert log.status == "success"
+        content = requests[0][0].content
+        assert isinstance(content, list)
+        return content
+
+    none_content = await capture_request(None)
+    empty_content = await capture_request("")
+    assert none_content == empty_content
+    # both must place task media at its original position (before the
+    # reference sentence), not flatten it after the data boundary
+    image_a_index = none_content.index(image_a)
+    sentence_index = next(
+        i
+        for i, c in enumerate(none_content)
+        if isinstance(c, ContentText) and "Only image above" in c.text
+    )
+    image_b_index = none_content.index(image_b)
+    assert image_a_index < sentence_index < image_b_index
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.anyio
+async def test_model_graded_diverged_history_falls_back_to_flattened_text(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    # Regression for R1's fallback boundary: when the running history no
+    # longer corresponds message-for-message to state.input (e.g. after
+    # compaction/summarization), the ordering fix must not guess at
+    # reconstructing media positions in text it can no longer verify -- it
+    # falls back to chat_history's flattened, role-labeled narrative text
+    # with the original-input media attached independently at the end,
+    # exactly like the pre-existing (still supported) behavior.
+    image = ContentImage(image="data:image/png;base64,ZGl2ZXJnZWQ=")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(content=[image, ContentText(text="Identify the image.")])
+    ]
+    requests: list[list[ChatMessage]] = []
+
+    def capture(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        requests.append(deepcopy(messages))
+        return ModelOutput.from_content("mockllm/grader", "GRADE: C")
+
+    # a summarized/compacted running history: the leading message's content
+    # no longer matches state.input verbatim (text rewritten, media
+    # dropped), so this is genuinely diverged, not source-aligned
+    state = TaskState(
+        model=ModelName("mockllm/subject"),
+        sample_id=1,
+        epoch=1,
+        input=sample_input,
+        messages=[
+            ChatMessageUser(content="Compacted summary of the original image task."),
+            ChatMessageAssistant(content="A cat."),
+        ],
+    )
+    state.output = ModelOutput.from_content("mockllm/subject", "A cat.")
+
+    result = await scorer_factory(
+        model=get_model("mockllm/grader", custom_outputs=capture),
+        include_history=True,
+    )(state, Target("Criterion"))
+
+    assert result is not None and result.value == CORRECT
+    content = requests[0][0].content
+    assert isinstance(content, list)
+    # flattened role-labeled narrative text, then the original-input media
+    # attached independently (not interleaved -- state.messages no longer
+    # represents where it belongs)
+    text_index, history_text_item = next(
+        (i, c)
+        for i, c in enumerate(content)
+        if isinstance(c, ContentText)
+        and "Compacted summary of the original image task." in c.text
+    )
+    assert (
+        history_text_item.text
+        == "Compacted summary of the original image task.\n\nAssistant: A cat."
+    )
+    assert content[text_index + 1] == image
 
 
 @pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])

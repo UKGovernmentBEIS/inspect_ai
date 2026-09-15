@@ -240,9 +240,12 @@ def _model_graded_scorer(
     template text later. It unlocks placing ordered question/submission
     content directly in the template's data slots (see
     ``model_scoring_prompt``); custom templates keep the original
-    text-plus-labeled-attachment behavior instead.
+    text-plus-labeled-attachment behavior instead. Uses the same falsy check
+    as ``grading_template`` below (``template if template else
+    default_template``) so ``None`` and ``""`` both resolve to -- and are
+    recognized as -- the built-in template.
     """
-    is_standard_template = template is None
+    is_standard_template = not template
 
     # resolve a file/resource template to its content now, at factory time:
     # the deferred fan-out path below constructs its sub-scorers at scoring
@@ -379,17 +382,25 @@ def _model_graded_qa_single(
                 )
             ):
                 question = f"{input_media_text}{question}"
-            # Reuse chat_history's own formatting (User/Assistant/Tool
-            # labels, tool call arguments) rather than re-flattening
-            # `state.messages` -- that keeps role boundaries and tool-call
-            # information intact -- then append the original-input media
-            # independently, so it survives even when `state.messages` (e.g.
-            # after compaction) no longer resembles `state.input` at all.
-            history_content: list[Content] = (
-                [ContentText(text=question)] if question else []
-            )
-            history_content.extend(input_media)
-            input_content = history_content
+            # When the running history hasn't diverged from state.input --
+            # no compaction, no content-transforming callback in between --
+            # reconstruct it with each message's own text/media interleaving
+            # (and role labels) intact, in original order (see
+            # `_history_ordered_content`). Otherwise we can't trust that
+            # `state.messages` still represents the original media
+            # positions, so fall back to chat_history's flattened text with
+            # the original-input media attached independently, so it
+            # survives even when `state.messages` no longer resembles
+            # `state.input` at all.
+            aligned_messages = _source_aligned_history_messages(state)
+            if aligned_messages is not None:
+                input_content = _history_ordered_content(aligned_messages)
+            else:
+                history_content: list[Content] = (
+                    [ContentText(text=question)] if question else []
+                )
+                history_content.extend(input_media)
+                input_content = history_content
         elif callable(include_history):
             # a custom callback already returns a flattened string with no
             # structure to interleave media back into, and its own text
@@ -606,6 +617,17 @@ def _history_messages(state: TaskState) -> list[ChatMessage]:
     )
 
 
+def _format_assistant_history_text(message: ChatMessageAssistant) -> str:
+    """The narrative text ``chat_history`` (and ``_history_ordered_content``) render for a non-first assistant turn: its own text plus formatted tool-call arguments."""
+    assistant_message = [message.text] if message.text else []
+    if message.tool_calls:
+        assistant_message.extend(
+            format_function_call(tool_call.function, tool_call.arguments)
+            for tool_call in message.tool_calls
+        )
+    return "\n\n".join(assistant_message)
+
+
 def chat_history(state: TaskState) -> str:
     messages = _history_messages(state)
 
@@ -620,23 +642,97 @@ def chat_history(state: TaskState) -> str:
             if isinstance(message, ChatMessageUser):
                 history.append(f"User: {message.text}")
             elif isinstance(message, ChatMessageAssistant):
-                assistant_message = [message.text] if message.text else []
-                if message.tool_calls:
-                    assistant_message.extend(
-                        [
-                            format_function_call(
-                                tool_call.function, tool_call.arguments
-                            )
-                            for tool_call in message.tool_calls
-                        ]
-                    )
-                history.append("Assistant: " + "\n\n".join(assistant_message))
+                history.append(f"Assistant: {_format_assistant_history_text(message)}")
             elif isinstance(message, ChatMessageTool):
                 history.append(
                     f"Tool ({message.function}): {message.tool_error or ''}{message.text}"
                 )
 
     return "\n\n".join(history)
+
+
+def _content_matches(live: ChatMessage, original: ChatMessage) -> bool:
+    """Whether ``live`` (from current ``state.messages``) reproduces ``original`` (from ``state.input``) verbatim -- same role and same content, not merely the same position."""
+    return type(live) is type(original) and live.content == original.content
+
+
+def _source_aligned_history_messages(state: TaskState) -> list[ChatMessage] | None:
+    """``_history_messages(state)`` when its leading messages reproduce ``state.input`` verbatim, message-for-message -- ``None`` when the running history has actually diverged.
+
+    Position alone doesn't establish correspondence -- only exact
+    per-message content equality does (see ``_content_matches``). A
+    compacted, summarized, or otherwise rewritten leading history fails
+    this check, and the caller falls back to ``chat_history``'s flattened
+    text plus the original-input media attached separately: safer than
+    guessing where media that may no longer be represented in
+    ``state.messages`` belongs.
+    """
+    if not isinstance(state.input, list):
+        return None
+    input_messages = [
+        message for message in state.input if not isinstance(message, ChatMessageSystem)
+    ]
+    if not input_messages:
+        return None
+    messages = _history_messages(state)
+    if len(messages) < len(input_messages) or not all(
+        _content_matches(live, original)
+        for live, original in zip(messages, input_messages)
+    ):
+        return None
+    return messages
+
+
+def _user_message_content(message: ChatMessageUser, label: str | None) -> list[Content]:
+    """One user message's own content (text and media, in original order), with ``label`` (e.g. ``"User: "``) folded into its leading text run -- or added as its own text run when the message has no text to fold it into. ``label=None`` returns the content unlabeled (the first-message convention; see ``_history_ordered_content``)."""
+    items: list[Content] = (
+        [ContentText(text=message.content)]
+        if isinstance(message.content, str)
+        else list(message.content)
+    )
+    if label is None:
+        return items
+    for index, item in enumerate(items):
+        if isinstance(item, ContentText):
+            items[index] = ContentText(text=f"{label}{item.text}")
+            return items
+    return [ContentText(text=label), *items]
+
+
+def _history_ordered_content(messages: Sequence[ChatMessage]) -> list[Content]:
+    """Ordered content (text and media, in original order) across source-aligned history ``messages`` -- the ``include_history=True`` counterpart of ``chat_history`` that keeps media in place instead of collecting it separately via ``.text``.
+
+    Mirrors ``chat_history``'s own labeling convention: the first message
+    contributes its content unlabeled, later ones get the same
+    ``User:``/``Assistant:``/``Tool (name):`` label. Only user-message
+    content -- where original task media actually lives -- interleaves
+    media with its (labeled) text; assistant/tool narrative (text,
+    tool-call arguments, tool errors) is rendered exactly as
+    ``chat_history`` renders it, as plain text.
+    """
+    content: list[Content] = []
+    for index, message in enumerate(messages):
+        is_first = index == 0
+        if isinstance(message, ChatMessageUser):
+            content.extend(
+                _user_message_content(message, None if is_first else "User: ")
+            )
+        elif is_first:
+            if message.text:
+                content.append(ContentText(text=message.text))
+        elif isinstance(message, ChatMessageAssistant):
+            content.append(
+                ContentText(
+                    text=f"Assistant: {_format_assistant_history_text(message)}"
+                )
+            )
+        elif isinstance(message, ChatMessageTool):
+            content.append(
+                ContentText(
+                    text=f"Tool ({message.function}): {message.tool_error or ''}{message.text}"
+                )
+            )
+    return content
 
 
 # Structural delimiters used in the default grading templates. Literal space (not
@@ -750,19 +846,20 @@ def model_scoring_prompt(
         **sanitized_metadata,
     )
 
-    # return with media if necessary
+    # return with media if necessary. Custom-template attachments are
+    # always the bare admissible-media list, in original order -- never a
+    # reconstruction of `question`/`answer` text -- so a template's own
+    # `str.format()` semantics (truncation, omission, repeated fields) are
+    # never bypassed by a caption reappearing outside the template's data
+    # boundaries.
     if len(input_media) > 0 or len(output_media) > 0:
         content: list[Content] = [ContentText(text=prompt)]
         if len(input_media) > 0:
             content.append(ContentText(text="[Task media]"))
-            content.extend(
-                _media_block_content(input_media, input_content, _INPUT_MEDIA_TYPES)
-            )
+            content.extend(input_media)
         if len(output_media) > 0:
             content.append(ContentText(text="[Submission media]"))
-            content.extend(
-                _media_block_content(output_media, output_content, _OUTPUT_MEDIA_TYPES)
-            )
+            content.extend(output_media)
         return ChatMessageUser(content=content)
     else:
         return ChatMessageUser(content=prompt)
@@ -867,37 +964,6 @@ def _ordered_admissible_content(
         elif isinstance(item, admissible_media):
             result.append(item)
     return result
-
-
-def _media_block_content(
-    media: Sequence[Content],
-    ordered_content: Sequence[Content] | None,
-    admissible_media: tuple[type[Content], ...],
-) -> list[Content]:
-    """Content for a ``[Task media]``/``[Submission media]`` labeled-attachment block.
-
-    Media introduced by a single caption (one text run followed by one or
-    more media items) is unambiguous once paired with that caption, already
-    present in the surrounding question/answer text -- so the block stays
-    the bare admissible-media list, in original order. Multiple *distinct*
-    captions each introducing their own media lose that correspondence once
-    flattened into a trailing list, so when the original interleaved
-    content is available the block instead reproduces it verbatim -- see
-    ``_ordered_admissible_content``. Without ordered content (a custom
-    ``include_history`` callback, or a direct ``model_scoring_prompt``
-    caller that only supplies ``media``) the block is the bare media list,
-    in original order.
-    """
-    if ordered_content is None:
-        return list(media)
-    text_runs = [
-        content
-        for content in ordered_content
-        if isinstance(content, ContentText) and content.text.strip()
-    ]
-    if len(text_runs) <= 1:
-        return list(media)
-    return _ordered_admissible_content(ordered_content, admissible_media)
 
 
 def _model_grading_metadata_message(message: ChatMessage) -> ChatMessage:
