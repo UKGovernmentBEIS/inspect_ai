@@ -214,27 +214,31 @@ class _S3ETagCapture:
         return self._capture(self._client.complete_multipart_upload(**kwargs))
 
 
-async def _read_exactly(source: BinaryIO, size: int, io_chunksize: int) -> bytearray:
-    """Read up to ``size`` bytes from ``source`` without blocking the event loop.
-
-    Each chunk is read in a worker thread: ``EvalRecorder.flush()`` and
-    checkpoint egress stream from disk, and a blocking read on the loop stalls
-    every other sample for its duration. ``run_sync`` is left non-abandoning
-    (the default), so a cancelled upload does not unwind while a read is still
-    in flight; callers reuse or close the source right after the upload
-    (``flush()`` reopens its temp-file zip in a ``finally``), and an abandoned
-    read would race that.
-    """
+def _read_exactly_sync(source: BinaryIO, size: int) -> bytearray:
+    """Read up to ``size`` bytes from ``source``, retrying short reads until EOF."""
     data = bytearray()
     while len(data) < size:
-        chunk = await anyio.to_thread.run_sync(
-            source.read, min(io_chunksize, size - len(data))
-        )
+        chunk = source.read(size - len(data))
         if not chunk:
             break
         data += chunk
 
     return data
+
+
+async def _read_exactly(source: BinaryIO, size: int) -> bytearray:
+    """Read up to ``size`` bytes from ``source`` without blocking the event loop.
+
+    The whole part is read in one worker-thread hop: ``EvalRecorder.flush()``
+    and checkpoint egress stream from disk, and a blocking read on the loop
+    stalls every other sample for its duration, while hopping per
+    ``io_chunksize`` slice costs 32 round trips for a default 8 MB part.
+    ``run_sync`` is left non-abandoning (the default), so a cancelled upload
+    does not unwind while a read is still in flight; callers reuse or close
+    the source right after the upload (``flush()`` reopens its temp-file zip
+    in a ``finally``), and an abandoned read would race that.
+    """
+    return await anyio.to_thread.run_sync(_read_exactly_sync, source, size)
 
 
 async def _s3_multipart_upload_async(
@@ -258,9 +262,7 @@ async def _s3_multipart_upload_async(
             await send.send((part_number, first_part))
 
             while True:
-                body = await _read_exactly(
-                    source, config.multipart_chunksize, config.io_chunksize
-                )
+                body = await _read_exactly(source, config.multipart_chunksize)
                 if body:
                     part_number += 1
                     await send.send((part_number, body))
@@ -323,9 +325,7 @@ async def _s3_upload_fileobj_async(
 
     config = config or TransferConfig()
     first_part = await _read_exactly(
-        source,
-        max(config.multipart_threshold, config.multipart_chunksize),
-        config.io_chunksize,
+        source, max(config.multipart_threshold, config.multipart_chunksize)
     )
     if len(first_part) < config.multipart_threshold:
         response = await client.put_object(Bucket=bucket, Key=key, Body=first_part)

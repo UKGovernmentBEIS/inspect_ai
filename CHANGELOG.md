@@ -69,6 +69,7 @@
 - Scoring: `choice()` now raises an error for samples without answer options instead of silently scoring them incorrect.
 - Bugfix: Anthropic prompt caching no longer fails every request after a turn served by a fallback model (`fallback_models`) with a 400 error.
 - S3: Streaming uploads of eval logs and checkpoint files no longer block the event loop while reading the source file, so other samples keep running during slow disk reads.
+- S3: Streaming uploads now read each multipart part from the source file in a single worker-thread call rather than 32 chunked calls, reducing event-loop wakeups during log flushes.
 - Model refusals: New `fail_on_refusal` generate config option (`--fail-on-refusal`) fails a sample with a `ModelRefusalError` when a model refuses a request, settable eval-wide, per task, per model, per model role, or per call.
 - Sandbox Services: Service directories are now private to the service user, and a service refuses to start if its directory or the shared `/var/tmp/sandbox-services` parent already exists with the wrong owner, mode, or type.
 
