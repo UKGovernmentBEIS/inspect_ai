@@ -219,7 +219,12 @@ def _mcp_tool_result_content(
 def call_tool(
     bridge: SandboxAgentBridge,
 ) -> Callable[[str, str, dict[str, JsonValue]], Awaitable[JsonValue]]:
-    """Execute a bridged tool and return result."""
+    """Execute a bridged tool and return result.
+
+    A tool runs only for a call the model proposed in a bridged generation, once
+    per proposal (see `SandboxAgentBridge.register_tool_execution_grants`), unless
+    its server was registered with `require_proposal=False`.
+    """
 
     async def execute(
         server: str, tool: str, arguments: dict[str, JsonValue]
@@ -231,16 +236,20 @@ def call_tool(
         if tool not in server_tools:
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
-        if bridge.tool_approval_required() and not bridge.consume_tool_execution_grant(
-            server, tool, arguments
+        if (
+            server not in bridge.proposal_exempt_servers
+            and not bridge.consume_tool_execution_grant(server, tool, arguments)
         ):
             warn_once(
                 logger,
-                f"Denied host tool call '{server}/{tool}': no approved "
-                "execution grant matched it.",
+                f"Denied host tool call '{server}/{tool}': the model did not "
+                "propose it in a bridged generation (or its proposal has "
+                "already executed).",
             )
             raise PermissionError(
-                f"Host tool call '{server}/{tool}' was not approved for execution"
+                f"Host tool call '{server}/{tool}' was not proposed by the model "
+                "in a bridged generation (a bridged host tool runs once per "
+                "proposed call)"
             )
 
         tool_fn = server_tools[tool]

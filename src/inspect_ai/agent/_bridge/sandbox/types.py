@@ -47,6 +47,7 @@ class SandboxAgentBridge(AgentBridge):
         model_aliases: dict[str, str | Model] | None = None,
         mcp_server_configs: list[MCPServerConfigHTTP] | None = None,
         bridged_tools: dict[str, dict[str, Tool]] | None = None,
+        proposal_exempt_servers: set[str] | None = None,
         model_event_sink: ModelEventSink | None = None,
         forward_generation_config: bool = False,
         approval: list["ApprovalPolicy"] | None = None,
@@ -73,6 +74,7 @@ class SandboxAgentBridge(AgentBridge):
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []
         self.bridged_tools = bridged_tools or {}
+        self.proposal_exempt_servers = proposal_exempt_servers or set()
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
@@ -88,25 +90,35 @@ class SandboxAgentBridge(AgentBridge):
     bridged_tools: dict[str, dict[str, Tool]]
     """Registry of bridged tools by server name, then tool name."""
 
+    proposal_exempt_servers: set[str]
+    """Bridged servers registered with `BridgedToolsSpec(require_proposal=False)`.
+
+    Their tools execute without an execution grant, so for them the bridge does
+    not guarantee that a host tool runs only for a call the model proposed.
+    """
+
     def register_tool_execution_grants(self, calls: Sequence[ToolCall]) -> None:
-        """Add one-shot host-tool grants from an approved response.
+        """Add one-shot host-tool grants for the calls in a response handed to the scaffold.
 
-        Each grant binds the exact bridged (server, tool) the approved call's
-        model-facing function name denotes plus the approved arguments
-        (JSON-normalized, since the scaffold re-sends them as parsed JSON), and
-        is consumed once. A name that denotes more than one bridged tool is
-        ambiguous — no grant is registered (fail closed, with a warning). A
-        grant is not scoped to the turn it was approved in: it persists until
+        A host tool executes only for a call the model proposed in a bridged
+        generation, once per proposal: `call_tool` consumes a matching grant
+        before running the tool and denies a call without one, whether or not an
+        approval policy is active. Each grant binds the exact bridged (server,
+        tool) the call's model-facing function name denotes plus the arguments
+        handed to the scaffold (as approved or approver-modified; JSON-normalized,
+        since the scaffold re-sends them as parsed JSON). A name that denotes more
+        than one bridged tool is ambiguous — no grant is registered (fail closed,
+        with a warning). No grant is stored for a server in
+        `proposal_exempt_servers`, since none is needed to execute its tools.
+
+        A grant is not scoped to the turn it was proposed in: it persists until
         consumed (or evicted, with a warning, once `_MAX_TOOL_EXECUTION_GRANTS`
-        unconsumed grants accumulate) — including when the approved response
-        never reached the scaffold (serialization or transport failure) — but
-        only ever re-authorizes the exact approved action. The approval API carries no execution target, so an
-        approved scaffold-local call whose name denotes a bridged tool also
-        mints a grant for it — still bounded to the approved arguments.
+        unconsumed grants accumulate) — including when the response never
+        reached the scaffold (serialization or transport failure) — but only ever
+        authorizes the exact proposed action. A call carries no execution target,
+        so a scaffold-local call whose name denotes a bridged tool also mints a
+        grant for it — still bounded to its arguments.
         """
-        if not self.tool_approval_required():
-            return
-
         for call in calls:
             targets = _resolve_bridged_tools(self.bridged_tools, call.function)
             if not targets:
@@ -114,22 +126,23 @@ class SandboxAgentBridge(AgentBridge):
             if len(targets) > 1:
                 warn_once(
                     logger,
-                    f"Approved tool call '{call.function}' denotes more than "
-                    "one bridged tool; no execution grant registered (the "
-                    "call will be denied). Use unique tool names across "
-                    "bridged servers, or a qualified name "
-                    "('mcp__<server>__<tool>').",
+                    f"Tool call '{call.function}' denotes more than one "
+                    "bridged tool; no execution grant registered (the call "
+                    "will be denied). Use unique tool names across bridged "
+                    "servers, or a qualified name ('mcp__<server>__<tool>').",
                 )
+                continue
+            target = targets[0]
+            if target.server in self.proposal_exempt_servers:
                 continue
             if len(self._tool_execution_grants) == self._tool_execution_grants.maxlen:
                 warn_once(
                     logger,
                     "Bridged tool execution grants exceeded "
                     f"{_MAX_TOOL_EXECUTION_GRANTS}; evicting the oldest "
-                    "unconsumed grant. An approved-but-never-executed call "
+                    "unconsumed grant. A proposed-but-never-executed call "
                     "that old can no longer be executed.",
                 )
-            target = targets[0]
             self._tool_execution_grants.append(
                 _ToolExecutionGrant(
                     server=target.server,
@@ -145,7 +158,7 @@ class SandboxAgentBridge(AgentBridge):
 
         Arguments match by JSON semantics (`_json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
-        JSON round-trip cannot turn an approved call into a denial; any other
+        JSON round-trip cannot turn a proposed call into a denial; any other
         difference (including bool vs number) is denied.
         """
         for index, grant in enumerate(self._tool_execution_grants):
@@ -157,14 +170,6 @@ class SandboxAgentBridge(AgentBridge):
                 del self._tool_execution_grants[index]
                 return True
         return False
-
-    def tool_approval_required(self) -> bool:
-        """Return whether explicit or ambient approval governs host tool calls."""
-        from inspect_ai.agent._bridge._approval import bridge_approval_scope
-        from inspect_ai.approval._apply import have_tool_approval
-
-        with bridge_approval_scope(self.approval):
-            return have_tool_approval()
 
     def request_fail(self, error: Exception) -> None:
         """Fail the sample with `error` from a bridged generation.
@@ -199,7 +204,7 @@ class SandboxAgentBridge(AgentBridge):
 
 
 class _ToolExecutionGrant(NamedTuple):
-    """Identity of one approved host tool execution."""
+    """Identity of one host tool execution the model proposed."""
 
     server: str
     """Bridged server the grant is bound to."""
@@ -208,19 +213,28 @@ class _ToolExecutionGrant(NamedTuple):
     """Tool name within the bridged server."""
 
     arguments: dict[str, Any]
-    """The approved arguments, JSON-normalized and matched via `_json_equal`."""
+    """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
 
 
-def _candidate_functions(server: str, tool: str) -> tuple[str, str, str]:
+def _candidate_functions(server: str, tool: str) -> tuple[str, ...]:
     """The names a scaffold could have declared this bridged tool as to its model.
 
-    Scaffolds name MCP tools under their own scheme: the bare tool name, Claude
-    Code's ``mcp__<server>__<tool>``, or Gemini CLI's ``<server>__<tool>`` (used
-    for conflicting names). Each candidate is an exact string computed from the
-    known (server, tool) — never parsed out of a call name — so an unrecognized
-    scheme matches nothing (deny-safe) rather than the wrong tool.
+    Scaffolds name MCP tools under their own scheme: the bare tool name (Codex
+    CLI), Claude Code's ``mcp__<server>__<tool>``, Gemini CLI's
+    ``mcp_<server>_<tool>`` (older releases: ``<server>__<tool>`` for conflicting
+    names), and OpenCode's ``<server>_<tool>``. Each candidate is an exact string
+    computed from the known (server, tool) — never parsed out of a call name — so
+    an unrecognized scheme, or a name the scaffold rewrote (characters outside
+    its identifier set, or a long name Gemini CLI truncates), matches nothing
+    (deny-safe) rather than the wrong tool.
     """
-    return (tool, f"mcp__{server}__{tool}", f"{server}__{tool}")
+    return (
+        tool,
+        f"mcp__{server}__{tool}",
+        f"{server}__{tool}",
+        f"mcp_{server}_{tool}",
+        f"{server}_{tool}",
+    )
 
 
 class _BridgedToolId(NamedTuple):
