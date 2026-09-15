@@ -16,9 +16,10 @@ async def call_reviewer(
     output: ToolResult,
     view: ToolCallView,
     history: list[ChatMessage],
+    chain: str | None = None,
 ) -> Review:
     review = await reviewer(message, call, result, output, view, history)
-    record_review(registry_log_name(reviewer), message, call, review)
+    record_review(registry_log_name(reviewer), message, call, review, chain)
     return review
 
 
@@ -27,6 +28,7 @@ def record_review(
     message: str,
     call: ToolCall,
     review: Review,
+    chain: str | None = None,
 ) -> None:
     from inspect_ai.log._transcript import transcript
 
@@ -38,5 +40,6 @@ def record_review(
             decision=review.decision,
             explanation=review.explanation,
             metadata=review.metadata,
+            chain=chain,
         )
     )

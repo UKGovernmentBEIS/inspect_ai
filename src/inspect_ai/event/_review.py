@@ -26,3 +26,6 @@ class ReviewEvent(BaseEvent):
 
     explanation: str | None = Field(default=None)
     """Explanation for decision."""
+
+    chain: str | None = Field(default=None)
+    """Policy chain the reviewer belonged to (None for the default chain)."""

@@ -115,6 +115,25 @@ from inspect_ai.review import ReviewPolicy
 eval(task, review=[ReviewPolicy(no_network(), tools=["bash", "python"])])
 ```
 
+## Parallel Chains
+
+A `reviewers:` list is a chain, like an approval policy list: the first reviewer that does not `escalate` decides, so two independent reviewers listed together would never both run. Give policies a `chain` name to run them independently; every chain reviews every result, each exactly as a lone list would, and the sample continues only if every chain continues:
+
+``` yaml
+reviewers:
+  - name: output_monitor
+    tools: "*"
+    chain: output
+  - name: human
+    tools: "*"
+    chain: output
+  - name: exfiltration_monitor
+    tools: "*"
+    chain: exfil
+```
+
+Or `ReviewPolicy(reviewer, tools, chain="output")` in code. Chains run concurrently; a `terminate` from any chain ends the sample and cancels the others. Escalation stays within a chain, and the next reviewer in the chain sees who escalated and why in the view's context. Each reviewer records its own `ReviewEvent` tagged with its chain, plus a summary `policy` event when several chains ran. See [Parallel Chains](approval.qmd#approval-chains) for the full rules, which are the same for approvals.
+
 ## Task Reviewers
 
 Tasks can declare their own reviewers with the `review` parameter, which accepts a policy file or a list of `ReviewPolicy` objects:

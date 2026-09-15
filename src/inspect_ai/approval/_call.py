@@ -19,6 +19,7 @@ async def call_approver(
     call: ToolCall,
     view: ToolCallView,
     history: list[ChatMessage],
+    chain: str | None = None,
 ) -> Approval:
     # run approver (if the approval is still using state then
     # provide that but issue a warning)
@@ -34,7 +35,7 @@ async def call_approver(
         approval = await approver(message, call, view, history)
 
     # record
-    record_approval(registry_log_name(approver), message, call, view, approval)
+    record_approval(registry_log_name(approver), message, call, view, approval, chain)
 
     # return approval
     return approval
@@ -46,6 +47,7 @@ def record_approval(
     call: ToolCall,
     view: ToolCallView | None,
     approval: Approval,
+    chain: str | None = None,
 ) -> None:
     from inspect_ai.log._transcript import transcript
 
@@ -59,5 +61,6 @@ def record_approval(
             modified=approval.modified,
             explanation=approval.explanation,
             metadata=approval.metadata,
+            chain=chain,
         )
     )
