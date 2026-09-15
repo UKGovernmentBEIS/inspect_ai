@@ -144,7 +144,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
               - `open_web_browser`: Open the web browser in full screen view.
               - `navigate`: Navigate to a URL in the browser.
                   - Example: execute(action="navigate", text="https://example.com")
-          coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen to which to move or drag. Required only by `action=mouse_move` and `action=left_click_drag`.
+          coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen to move to, drag to, or click at. Required by `action=mouse_move` and `action=left_click_drag`. Optional for `action=left_click`, `action=right_click`, `action=middle_click`, `action=back_click`, `action=forward_click`, `action=double_click` and `action=triple_click`, which click at the current cursor position when it is omitted; also optional for `action=scroll` (scrolls at the coordinate) and `action=type` (clicks at the coordinate before typing).
           duration (int | None): The duration to wait or hold the key down for. Required only by `action=hold_key` and `action=wait`.
           region (list[int] | None): The region to zoom into as [x0, y0, x1, y1] coordinates. Required only by `action=zoom`.
           scroll_amount (int | None): The number of 'clicks' to scroll. Required only by `action=scroll`.
@@ -225,9 +225,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
             case "left_mouse_up":
                 return await common.left_mouse_up(timeout=timeout)
             case "left_click":
-                return await common.left_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.left_click(coordinate, timeout=timeout)
             case "left_click_drag":
                 return await common.left_click_drag(
                     not_none(start_coordinate, "start_coordinate"),
@@ -235,29 +233,17 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                     timeout=timeout,
                 )
             case "right_click":
-                return await common.right_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.right_click(coordinate, timeout=timeout)
             case "middle_click":
-                return await common.middle_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.middle_click(coordinate, timeout=timeout)
             case "back_click":
-                return await common.back_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.back_click(coordinate, timeout=timeout)
             case "forward_click":
-                return await common.forward_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.forward_click(coordinate, timeout=timeout)
             case "double_click":
-                return await common.double_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.double_click(coordinate, timeout=timeout)
             case "triple_click":
-                return await common.triple_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.triple_click(coordinate, timeout=timeout)
             case "scroll":
                 return await common.scroll(
                     not_none(scroll_amount, "scroll_amount"),
