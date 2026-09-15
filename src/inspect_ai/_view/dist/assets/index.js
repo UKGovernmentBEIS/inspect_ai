@@ -58180,8 +58180,8 @@ var markdownRenderers = {
 };
 var renderMarkdown = (markdown, renderer = defaultMarkdownRenderer) => markdownRenderers[renderer](markdown);
 //#endregion
-//#region ../../node_modules/.pnpm/dompurify@3.4.14/node_modules/dompurify/dist/purify.es.mjs
-/*! @license DOMPurify 3.4.14 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.14/LICENSE */
+//#region ../../node_modules/.pnpm/dompurify@3.4.15/node_modules/dompurify/dist/purify.es.mjs
+/*! @license DOMPurify 3.4.15 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.15/LICENSE */
 function _arrayLikeToArray(r, a) {
 	(null == a || a > r.length) && (a = r.length);
 	for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
@@ -59176,7 +59176,7 @@ var _resolveObjectOption = function _resolveObjectOption(cfg, key, makeFallback)
 function createDOMPurify() {
 	let window = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
 	const DOMPurify = (root) => createDOMPurify(root);
-	DOMPurify.version = "3.4.14";
+	DOMPurify.version = "3.4.15";
 	DOMPurify.removed = [];
 	if (!window || !window.document || window.document.nodeType !== NODE_TYPE.document || !window.Element) {
 		DOMPurify.isSupported = false;
@@ -59193,6 +59193,7 @@ function createDOMPurify() {
 	const ElementPrototype = Element.prototype;
 	const cloneNode = lookupGetter(ElementPrototype, "cloneNode");
 	const remove = lookupGetter(ElementPrototype, "remove");
+	const removeAttributeNode = lookupGetter(ElementPrototype, "removeAttributeNode");
 	const getNextSibling = lookupGetter(ElementPrototype, "nextSibling");
 	const getChildNodes = lookupGetter(ElementPrototype, "childNodes");
 	const getParentNode = lookupGetter(ElementPrototype, "parentNode");
@@ -59647,7 +59648,7 @@ function createDOMPurify() {
 	*/
 	const _stripAttributeNode = function _stripAttributeNode(element, attribute, name) {
 		try {
-			element.removeAttributeNode(attribute);
+			removeAttributeNode(element, attribute);
 		} catch (_) {
 			try {
 				element.removeAttribute(name);
@@ -59720,7 +59721,7 @@ function createDOMPurify() {
 			from: element
 		});
 		try {
-			if (attr) element.removeAttributeNode(attr);
+			if (attr) removeAttributeNode(element, attr);
 			else element.removeAttribute(name);
 		} catch (_) {
 			try {
@@ -59966,7 +59967,7 @@ function createDOMPurify() {
 		const realTagName = getNodeName ? getNodeName(element) : null;
 		if (typeof realTagName !== "string") return false;
 		if (transformCaseFunc(realTagName) !== "form") return false;
-		return typeof element.nodeName !== "string" || typeof element.textContent !== "string" || typeof element.removeChild !== "function" || element.attributes !== getAttributes(element) || typeof element.removeAttribute !== "function" || typeof element.setAttribute !== "function" || typeof element.namespaceURI !== "string" || typeof element.insertBefore !== "function" || typeof element.hasChildNodes !== "function" || element.nodeType !== getNodeType(element) || element.childNodes !== getChildNodes(element);
+		return typeof element.nodeName !== "string" || typeof element.textContent !== "string" || typeof element.removeChild !== "function" || element.attributes !== getAttributes(element) || typeof element.removeAttribute !== "function" || typeof element.removeAttributeNode !== "function" || typeof element.getAttributeNode !== "function" || typeof element.setAttribute !== "function" || typeof element.namespaceURI !== "string" || typeof element.insertBefore !== "function" || typeof element.hasChildNodes !== "function" || element.nodeType !== getNodeType(element) || element.childNodes !== getChildNodes(element);
 	};
 	/**
 	* Checks whether the given value is a DocumentFragment from any realm.
@@ -60251,24 +60252,38 @@ function createDOMPurify() {
 	/**
 	* Write a modified attribute value back onto the element. On
 	* success, re-probe for clobbering introduced by the new value and
-	* remove the element when found; otherwise pop the removal entry
-	* recorded by the earlier _removeAttribute (long-standing pairing
-	* with the SANITIZE_NAMED_PROPS path - do not "fix" casually). On
+	* remove the element when found; otherwise, when this writeback is the
+	* recreate half of the SANITIZE_NAMED_PROPS remove-and-recreate, pop the
+	* removal entry that path recorded so it does not show as removed. On
 	* failure, remove the attribute instead.
+	*
+	* Returns true only on a clean write (the value was set and the new value
+	* introduced no clobbering). The caller uses that, together with its own
+	* knowledge of whether this attribute pushed a DOMPurify.removed record, to
+	* decide whether to pop that record. The pop must happen ONLY for the
+	* named-prop remove-and-recreate; popping on any other value change (trim,
+	* template scrubbing, Trusted Types) would consume an unrelated _forceRemove
+	* subtree-cleanup record and let that detached subtree keep a live event
+	* handler through the IN_PLACE neutralization pass (SO-001).
 	*
 	* @param currentNode the element carrying the attribute
 	* @param name the attribute name as present on the element
 	* @param namespaceURI the attribute's namespace, if any
 	* @param value the new attribute value
+	* @return true if the value was written without introducing clobbering
 	*/
 	const _setAttributeValue = function _setAttributeValue(currentNode, name, namespaceURI, value) {
 		try {
 			if (namespaceURI) currentNode.setAttributeNS(namespaceURI, name, value);
 			else currentNode.setAttribute(name, value);
-			if (_isClobbered(currentNode)) _forceRemove(currentNode);
-			else arrayPop(DOMPurify.removed);
+			if (_isClobbered(currentNode)) {
+				_forceRemove(currentNode);
+				return false;
+			}
+			return true;
 		} catch (_) {
 			_removeAttribute(name, currentNode);
+			return false;
 		}
 	};
 	/**
@@ -60301,6 +60316,7 @@ function createDOMPurify() {
 			const lcName = transformCaseFunc(name);
 			const initValue = attrValue;
 			let value = name === "value" ? initValue : stringTrim(initValue);
+			let recreatedNamedProp = false;
 			hookEvent.attrName = lcName;
 			hookEvent.attrValue = value;
 			hookEvent.keepAttr = true;
@@ -60310,6 +60326,7 @@ function createDOMPurify() {
 			if (SANITIZE_NAMED_PROPS && (lcName === "id" || lcName === "name") && stringIndexOf(value, SANITIZE_NAMED_PROPS_PREFIX) !== 0) {
 				_removeAttribute(name, currentNode, attr);
 				value = SANITIZE_NAMED_PROPS_PREFIX + value;
+				recreatedNamedProp = true;
 			}
 			if (SAFE_FOR_XML && regExpTest(/((--!?|])>)|<\/(style|script|title|xmp|textarea|noscript|iframe|noembed|noframes)/i, value)) {
 				_removeAttribute(name, currentNode, attr);
@@ -60334,7 +60351,9 @@ function createDOMPurify() {
 				continue;
 			}
 			value = _applyTrustedTypesToAttribute(lcTag, lcName, namespaceURI, value);
-			if (value !== initValue) _setAttributeValue(currentNode, name, namespaceURI, value);
+			if (value !== initValue) {
+				if (_setAttributeValue(currentNode, name, namespaceURI, value) && recreatedNamedProp) arrayPop(DOMPurify.removed);
+			}
 		}
 		_executeHooks(hooks.afterSanitizeAttributes, currentNode, null);
 	};
@@ -60468,7 +60487,7 @@ function createDOMPurify() {
 			if (importedNode.nodeType === NODE_TYPE.element && importedNode.nodeName === "BODY") body = importedNode;
 			else if (importedNode.nodeName === "HTML") body = importedNode;
 			else body.appendChild(importedNode);
-			_sanitizeAttachedShadowRoots(importedNode);
+			_sanitizeAttachedShadowRoots(body);
 		} else {
 			if (!RETURN_DOM && !SAFE_FOR_TEMPLATES && !WHOLE_DOCUMENT && dirty.indexOf("<") === -1) return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? _createTrustedHTML(dirty) : dirty;
 			body = _initDocument(dirty);
@@ -67886,6 +67905,45 @@ var sampleHandlesEqual = (sample1, sample2) => {
 		...fixes
 	} : raw;
 };
+var normalizeScore = (raw) => {
+	if (!isRecord(raw)) return {
+		value: "",
+		history: []
+	};
+	const fixes = {};
+	if (raw["value"] === void 0) fixes["value"] = "";
+	if (!Array.isArray(raw["history"])) fixes["history"] = [];
+	return Object.keys(fixes).length > 0 ? {
+		...raw,
+		...fixes
+	} : raw;
+};
+/**
+* JsonChange rows: `value` and `replaced` default to None upstream, so an
+* absent field reads as null. Rows that aren't records are dropped —
+* pydantic would refuse them. Identity-preserving when nothing needs filling.
+*/ var normalizeJsonChanges = (raw) => {
+	if (!Array.isArray(raw)) return [];
+	let changed = false;
+	const changes = [];
+	for (const change of raw) {
+		if (!isRecord(change)) {
+			changed = true;
+			continue;
+		}
+		const fixes = {};
+		if (change["value"] === void 0) fixes["value"] = null;
+		if (change["replaced"] === void 0) fixes["replaced"] = null;
+		if (Object.keys(fixes).length > 0) {
+			changed = true;
+			changes.push({
+				...change,
+				...fixes
+			});
+		} else changes.push(change);
+	}
+	return changed ? changes : raw;
+};
 /**
 * Per-event-type defaults for required fields pydantic defaults at read
 * time. Returns undefined when nothing needs filling (the hot path for
@@ -67928,15 +67986,18 @@ var sampleHandlesEqual = (sample1, sample2) => {
 			});
 			break;
 		case "score":
-			if (!isRecord(raw["score"])) fix("score", {
-				value: "",
-				history: []
-			});
+			{
+				const score = normalizeScore(raw["score"]);
+				if (score !== raw["score"]) fix("score", score);
+			}
 			if (typeof raw["intermediate"] !== "boolean") fix("intermediate", false);
 			break;
 		case "state":
 		case "store":
-			if (!Array.isArray(raw["changes"])) fix("changes", []);
+			{
+				const changes = normalizeJsonChanges(raw["changes"]);
+				if (changes !== raw["changes"]) fix("changes", changes);
+			}
 			break;
 		case "tool":
 			if (typeof raw["id"] !== "string") fix("id", "");
@@ -68182,6 +68243,29 @@ var sampleHandlesEqual = (sample1, sample2) => {
 	return changed ? summaries : raw;
 };
 //#endregion
+//#region ../../packages/inspect-common/src/normalize/timeline.ts
+/**
+* A timeline is the only sample/transcript field shaped as a record with a
+* `root` record; this is the same claim the surrounding parse already made.
+*/ var isWireTimeline = (raw) => isRecord(raw) && isRecord(raw["root"]);
+var isWireTimelineEvent = (item) => item.type === "event" || item.type === void 0 && "event" in item;
+var normalizeTimelineSpan = (raw) => ({
+	...raw,
+	type: "span",
+	tool_invoked: raw.tool_invoked ?? false,
+	utility: raw.utility ?? false,
+	branches: (raw.branches ?? []).map(normalizeTimelineSpan),
+	content: (raw.content ?? []).map((item) => isWireTimelineEvent(item) ? {
+		...item,
+		type: "event"
+	} : normalizeTimelineSpan(item))
+});
+var normalizeTimeline = (raw) => ({
+	...raw,
+	root: normalizeTimelineSpan(raw.root)
+});
+var normalizeTimelines = (raw) => raw.map(normalizeTimeline);
+//#endregion
 //#region ../../packages/inspect-common/src/normalize/sample.ts
 /**
 * Normalize a raw EvalSample of any vintage into the current shape:
@@ -68216,6 +68300,8 @@ var sampleHandlesEqual = (sample1, sample2) => {
 	]) if (!isRecord(sample[field])) sample[field] = {};
 	for (const field of ["model_usage", "role_usage"]) sample[field] = normalizeModelUsageMap(sample[field]);
 	sample["events"] = normalizeEvents(sample["events"]);
+	const timelines = sample["timelines"];
+	if (Array.isArray(timelines)) sample["timelines"] = normalizeTimelines(timelines.filter(isWireTimeline));
 	if (Array.isArray(sample["model_fallbacks"])) sample["model_fallbacks"] = sample["model_fallbacks"].map((fallback) => isRecord(fallback) && typeof fallback["count"] !== "number" ? {
 		...fallback,
 		count: 1
@@ -71219,7 +71305,7 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	return isRasterImageMimeType(normalizedSource) && normalizedSource === normalizedDeclared;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.8/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.9/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
 function createLazyMeasurementsView(count, flat, getItemKey) {
 	const cache = new Array(count);
 	return new Proxy(cache, { get(target, prop, receiver) {
@@ -71249,7 +71335,7 @@ function createLazyMeasurementsView(count, flat, getItemKey) {
 	} });
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.8/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.9/node_modules/@tanstack/virtual-core/dist/esm/utils.js
 function memo$10(getDeps, fn, opts) {
 	let deps = opts.initialDeps ?? [];
 	let result;
@@ -71283,7 +71369,7 @@ var debounce = (targetWindow, fn, ms) => {
 	} });
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.8/node_modules/@tanstack/virtual-core/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.9/node_modules/@tanstack/virtual-core/dist/esm/index.js
 var _isIOSResult;
 var isIOSWebKit = () => {
 	if (_isIOSResult !== void 0) return _isIOSResult;
@@ -71424,6 +71510,7 @@ var Virtualizer = class {
 		this._iosJustTouchEnded = false;
 		this._iosTouchEndTimerId = null;
 		this._intendedScrollOffset = null;
+		this._clampedAdjustment = null;
 		this.elementsCache = /* @__PURE__ */ new Map();
 		this.now = () => {
 			var _a, _b, _c;
@@ -71596,6 +71683,7 @@ var Virtualizer = class {
 			this._iosDeferredAdjustment = 0;
 			this._iosTouching = false;
 			this._iosJustTouchEnded = false;
+			this._clampedAdjustment = null;
 			this.scrollElement = null;
 			this.targetWindow = null;
 		};
@@ -71627,6 +71715,7 @@ var Virtualizer = class {
 					if (isScrolling && this._intendedScrollOffset === null && offset === this.scrollOffset) return;
 					if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) offset = this._intendedScrollOffset;
 					this._intendedScrollOffset = null;
+					if (this._clampedAdjustment !== null && Math.abs(offset - this._clampedAdjustment.maxAtWrite) >= 1.5) this._clampedAdjustment = null;
 					this.scrollAdjustments = 0;
 					const prevOffset = this.getScrollOffset();
 					this.scrollDirection = isScrolling ? prevOffset === offset ? this.scrollDirection : prevOffset < offset ? "forward" : "backward" : null;
@@ -71685,6 +71774,22 @@ var Virtualizer = class {
 					});
 				}
 				if (followOnAppend) this.scrollToEnd({ behavior: followOnAppend });
+			}
+			this._retryClampedAdjustment();
+		};
+		this._retryClampedAdjustment = () => {
+			if (this._clampedAdjustment === null || !this.scrollElement || !this.options.enabled) return;
+			const { target, maxAtWrite } = this._clampedAdjustment;
+			const max = this.getMaxScrollOffset();
+			if (max > maxAtWrite + .5) {
+				this._clampedAdjustment = target > max + .5 ? {
+					target,
+					maxAtWrite: max
+				} : null;
+				this._scrollToOffset(target, {
+					adjustments: void 0,
+					behavior: void 0
+				});
 			}
 		};
 		this._flushIosDeferredIfReady = () => {
@@ -71996,6 +72101,7 @@ var Virtualizer = class {
 				if (wasAtEnd) adjustedSync = this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
 				else if (shouldAdjustScroll) adjustedSync = this.applyScrollAdjustment(delta);
 				this.notify(adjustedSync);
+				this._retryClampedAdjustment();
 			}
 		};
 		this.getVirtualItems = memo$10(() => [this.getVirtualIndexes(), this.getMeasurements()], (indexes, measurements) => {
@@ -72182,6 +72288,13 @@ var Virtualizer = class {
 			this._iosDeferredAdjustment += delta;
 			return false;
 		} else {
+			const target = this.getScrollOffset() + this.scrollAdjustments + delta;
+			const el = this.scrollElement;
+			const maxAtWrite = el !== null && ("scrollHeight" in el || "document" in el) ? this.getMaxScrollOffset() : null;
+			this._clampedAdjustment = maxAtWrite !== null && target > maxAtWrite + .5 ? {
+				target,
+				maxAtWrite
+			} : null;
 			this._scrollToOffset(this.getScrollOffset(), {
 				adjustments: this.scrollAdjustments += delta,
 				behavior
@@ -72307,7 +72420,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.10_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.11_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -72457,6 +72570,7 @@ function useScaledVirtualizer(opts) {
 		estimateSize: opts.estimateSize,
 		getScrollElement: opts.getScrollElement,
 		overscan: opts.overscan ?? 5,
+		useFlushSync: opts.useFlushSync,
 		scrollPaddingStart: opts.scrollPaddingStart ?? 0,
 		scrollMargin: opts.scrollMargin ?? 0,
 		observeElementOffset: scaledObserveElementOffset,
@@ -72477,45 +72591,48 @@ function useScaledVirtualizer(opts) {
 //#endregion
 //#region ../../packages/react/src/virtual/use-virtual-list-state.ts
 var CURRENT_VERSION = 1;
-function useVirtualListState(persistenceKey) {
-	const $ = (0, import_compiler_runtime.c)(8);
-	let t0;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t0 = { defaultValue: null };
-		$[0] = t0;
-	} else t0 = $[0];
-	const [stored, setStored] = useProperty(persistenceKey, "snapshot", t0);
+function useVirtualListState(persistenceKey, t0) {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const enabled = t0 === void 0 ? true : t0;
 	let t1;
-	if ($[1] !== stored) {
-		t1 = () => {
-			if (!stored) return;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = { defaultValue: null };
+		$[0] = t1;
+	} else t1 = $[0];
+	const [stored, setStored] = useProperty(persistenceKey, "snapshot", t1);
+	let t2;
+	if ($[1] !== enabled || $[2] !== stored) {
+		t2 = () => {
+			if (!enabled || !stored) return;
 			if (stored.version !== CURRENT_VERSION) return;
 			return stored;
 		};
-		$[1] = stored;
-		$[2] = t1;
-	} else t1 = $[2];
-	const getRestoreSnapshot = t1;
-	let t2;
-	if ($[3] !== setStored) {
-		t2 = (snapshot) => {
-			setStored(snapshot);
-		};
-		$[3] = setStored;
-		$[4] = t2;
-	} else t2 = $[4];
-	const recordSnapshot = t2;
+		$[1] = enabled;
+		$[2] = stored;
+		$[3] = t2;
+	} else t2 = $[3];
+	const getRestoreSnapshot = t2;
 	let t3;
-	if ($[5] !== getRestoreSnapshot || $[6] !== recordSnapshot) {
-		t3 = {
+	if ($[4] !== enabled || $[5] !== setStored) {
+		t3 = (snapshot) => {
+			if (enabled) setStored(snapshot);
+		};
+		$[4] = enabled;
+		$[5] = setStored;
+		$[6] = t3;
+	} else t3 = $[6];
+	const recordSnapshot = t3;
+	let t4;
+	if ($[7] !== getRestoreSnapshot || $[8] !== recordSnapshot) {
+		t4 = {
 			getRestoreSnapshot,
 			recordSnapshot
 		};
-		$[5] = getRestoreSnapshot;
-		$[6] = recordSnapshot;
-		$[7] = t3;
-	} else t3 = $[7];
-	return t3;
+		$[7] = getRestoreSnapshot;
+		$[8] = recordSnapshot;
+		$[9] = t4;
+	} else t4 = $[9];
+	return t4;
 }
 var VirtualList_module_default = { scroller: "_scroller_1uwiu_1" };
 //#endregion
@@ -72560,7 +72677,7 @@ var countMatchesInTexts = (lowerTextsByItem, lowerTerm) => {
 	}
 	return total;
 };
-function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalScroll, data, renderRow, estimatedItemHeight = DEFAULT_ITEM_HEIGHT_PX, overscan, embedded = false, resetScrollOnMount: resetScrollOnMountProp, live, navOwned, followRequested, showProgress, initialIndex, scrollPaddingStart, components, smoothScroll = true, itemSearchText, findScope = "local", scrollToTopOnFinish = false, onVisibleRangeChange }) {
+function VirtualList({ persistenceKey, persistScroll = true, ref, id, className, scrollRef: externalScroll, data, renderRow, estimatedItemHeight = DEFAULT_ITEM_HEIGHT_PX, overscan, useFlushSync, embedded = false, resetScrollOnMount: resetScrollOnMountProp, live, navOwned, followRequested, showProgress, initialIndex, initialScrollOffset, scrollPaddingStart, components, smoothScroll = true, itemSearchText, findScope = "local", scrollToTopOnFinish = false, onVisibleRangeChange }) {
 	const resetScrollOnMount = resetScrollOnMountProp ?? !embedded;
 	const externalScrollRef = externalScroll instanceof HTMLElement ? null : externalScroll ?? null;
 	const externalScrollEl = externalScroll instanceof HTMLElement ? externalScroll : null;
@@ -72605,10 +72722,11 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		estimateSize: () => estimatedItemHeight,
 		getScrollElement,
 		overscan,
+		useFlushSync,
 		scrollPaddingStart: scrollPaddingStart ?? 0,
 		scrollMargin
 	});
-	const { getRestoreSnapshot, recordSnapshot } = useVirtualListState(persistenceKey);
+	const { getRestoreSnapshot, recordSnapshot } = useVirtualListState(persistenceKey, persistScroll);
 	const [storedFollow, setFollowOutput] = useProperty(persistenceKey, "follow", { defaultValue: null });
 	const isAutoScrollingRef = (0, import_react.useRef)(false);
 	const followUserActedRef = (0, import_react.useRef)(false);
@@ -72646,10 +72764,12 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		setFollowOutput
 	]);
 	const userInteractingRef = (0, import_react.useRef)(false);
+	const interactionSequenceRef = (0, import_react.useRef)(0);
 	const pointerDownRef = (0, import_react.useRef)(false);
 	const interactTimerRef = (0, import_react.useRef)(null);
 	const noteUserInteraction = (0, import_react.useCallback)(() => {
 		userInteractingRef.current = true;
+		interactionSequenceRef.current += 1;
 		if (interactTimerRef.current) clearTimeout(interactTimerRef.current);
 		interactTimerRef.current = setTimeout(() => {
 			userInteractingRef.current = false;
@@ -72805,8 +72925,9 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		let frames = 0;
 		let stable = 0;
 		let lastTop = el_4.scrollTop;
+		const interactionAtStart = interactionSequenceRef.current;
 		const settle = () => {
-			if (userInteractingRef.current) {
+			if (interactionSequenceRef.current !== interactionAtStart) {
 				finish();
 				return;
 			}
@@ -72871,7 +72992,10 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		if (hasInitialScrolledRef.current) return;
 		const el_6 = getScrollElement();
 		if (!el_6) return;
-		const snapshot = getRestoreSnapshot();
+		const snapshot = initialScrollOffset === void 0 ? getRestoreSnapshot() : {
+			scrollOffset: initialScrollOffset,
+			totalCount: data.length
+		};
 		let releaseFrame_0 = 0;
 		const frame_0 = requestAnimationFrame(() => {
 			isAutoScrollingRef.current = true;
@@ -72914,6 +73038,7 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	}, [
 		persistenceKey,
 		initialIndex,
+		initialScrollOffset,
 		settleScrollToIndex,
 		settleRestoreScroll,
 		contentTotal,
@@ -109535,7 +109660,7 @@ function groupRetryAttempts(events) {
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ModelEventView.tsx
 var ModelEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(113);
+	const $ = (0, import_compiler_runtime.c)(111);
 	const { eventNode, showToolCalls, className, context, eventCallbacks } = t0;
 	const successEvent = eventNode.event;
 	const attempts = context?.retryAttempts?.get(retryAttemptKey(successEvent));
@@ -109566,7 +109691,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output?.choices?.map(_temp$54);
+		t4 = event.output.choices.map(_temp$54);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -109600,7 +109725,7 @@ var ModelEventView = (t0) => {
 	const [showAllMessages, setShowAllMessages] = (0, import_react.useState)(false);
 	let t7;
 	if ($[14] !== event.pending || $[15] !== isCancelled || $[16] !== outputMessages) {
-		t7 = event.pending || isCancelled ? (outputMessages || []).filter(_temp2$39) : outputMessages || [];
+		t7 = event.pending || isCancelled ? outputMessages.filter(_temp2$39) : outputMessages;
 		$[14] = event.pending;
 		$[15] = isCancelled;
 		$[16] = outputMessages;
@@ -109842,50 +109967,44 @@ var ModelEventView = (t0) => {
 	} else t28 = $[82];
 	const t29 = `${eventNode.id}-model-input-full`;
 	let t30;
-	if ($[83] !== outputMessages) {
-		t30 = outputMessages || [];
-		$[83] = outputMessages;
-		$[84] = t30;
-	} else t30 = $[84];
-	let t31;
-	if ($[85] !== event.input || $[86] !== t30) {
-		t31 = [...event.input, ...t30];
-		$[85] = event.input;
-		$[86] = t30;
-		$[87] = t31;
-	} else t31 = $[87];
-	const t32 = context?.hasToolEvents !== false;
+	if ($[83] !== event.input || $[84] !== outputMessages) {
+		t30 = [...event.input, ...outputMessages];
+		$[83] = event.input;
+		$[84] = outputMessages;
+		$[85] = t30;
+	} else t30 = $[85];
+	const t31 = context?.hasToolEvents !== false;
+	let t32;
+	if ($[86] !== t31) {
+		t32 = { collapseToolMessages: t31 };
+		$[86] = t31;
+		$[87] = t32;
+	} else t32 = $[87];
 	let t33;
-	if ($[88] !== t32) {
-		t33 = { collapseToolMessages: t32 };
-		$[88] = t32;
-		$[89] = t33;
-	} else t33 = $[89];
+	if ($[88] === Symbol.for("react.memo_cache_sentinel")) {
+		t33 = { show: false };
+		$[88] = t33;
+	} else t33 = $[88];
 	let t34;
-	if ($[90] === Symbol.for("react.memo_cache_sentinel")) {
-		t34 = { show: false };
-		$[90] = t34;
-	} else t34 = $[90];
-	let t35;
-	if ($[91] !== t29 || $[92] !== t31 || $[93] !== t33) {
-		t35 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[89] !== t29 || $[90] !== t30 || $[91] !== t32) {
+		t34 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Messages",
 			className: ModelEventView_module_default.container,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
 				id: t29,
-				messages: t31,
-				tools: t33,
-				labels: t34
+				messages: t30,
+				tools: t32,
+				labels: t33
 			})
 		});
-		$[91] = t29;
-		$[92] = t31;
-		$[93] = t33;
-		$[94] = t35;
-	} else t35 = $[94];
-	let t36;
-	if ($[95] !== event.tool_choice || $[96] !== event.tools) {
-		t36 = event.tools.length > 1 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[89] = t29;
+		$[90] = t30;
+		$[91] = t32;
+		$[92] = t34;
+	} else t34 = $[92];
+	let t35;
+	if ($[93] !== event.tool_choice || $[94] !== event.tools) {
+		t35 = event.tools.length > 1 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Tools",
 			className: ModelEventView_module_default.container,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolsConfig, {
@@ -109893,23 +110012,23 @@ var ModelEventView = (t0) => {
 				toolChoice: event.tool_choice
 			})
 		});
-		$[95] = event.tool_choice;
-		$[96] = event.tools;
-		$[97] = t36;
-	} else t36 = $[97];
-	let t37;
-	if ($[98] !== event.call) {
-		t37 = event.call ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(APIView, {
+		$[93] = event.tool_choice;
+		$[94] = event.tools;
+		$[95] = t35;
+	} else t35 = $[95];
+	let t36;
+	if ($[96] !== event.call) {
+		t36 = event.call ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(APIView, {
 			"data-name": "API",
 			call: event.call,
 			className: ModelEventView_module_default.container
 		}) : "";
-		$[98] = event.call;
-		$[99] = t37;
-	} else t37 = $[99];
-	let t38;
-	if ($[100] !== className || $[101] !== eventCallbacks || $[102] !== eventNode.id || $[103] !== t15 || $[104] !== t16 || $[105] !== t24 || $[106] !== t28 || $[107] !== t35 || $[108] !== t36 || $[109] !== t37 || $[110] !== titleString || $[111] !== turnNav) {
-		t38 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
+		$[96] = event.call;
+		$[97] = t36;
+	} else t36 = $[97];
+	let t37;
+	if ($[98] !== className || $[99] !== eventCallbacks || $[100] !== eventNode.id || $[101] !== t15 || $[102] !== t16 || $[103] !== t24 || $[104] !== t28 || $[105] !== t34 || $[106] !== t35 || $[107] !== t36 || $[108] !== titleString || $[109] !== turnNav) {
+		t37 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
 			eventNodeId: eventNode.id,
 			className,
 			title: titleString,
@@ -109922,26 +110041,26 @@ var ModelEventView = (t0) => {
 			children: [
 				t24,
 				t28,
+				t34,
 				t35,
-				t36,
-				t37
+				t36
 			]
 		});
-		$[100] = className;
-		$[101] = eventCallbacks;
-		$[102] = eventNode.id;
-		$[103] = t15;
-		$[104] = t16;
-		$[105] = t24;
-		$[106] = t28;
-		$[107] = t35;
-		$[108] = t36;
-		$[109] = t37;
-		$[110] = titleString;
-		$[111] = turnNav;
-		$[112] = t38;
-	} else t38 = $[112];
-	return t38;
+		$[98] = className;
+		$[99] = eventCallbacks;
+		$[100] = eventNode.id;
+		$[101] = t15;
+		$[102] = t16;
+		$[103] = t24;
+		$[104] = t28;
+		$[105] = t34;
+		$[106] = t35;
+		$[107] = t36;
+		$[108] = titleString;
+		$[109] = turnNav;
+		$[110] = t37;
+	} else t37 = $[110];
+	return t37;
 };
 function formatFailureTime(event) {
 	const sec = attemptDurationSec(event);
@@ -109952,14 +110071,14 @@ var APIView = (t0) => {
 	const { call, className } = t0;
 	let t1;
 	if ($[0] !== call.request) {
-		t1 = JSON.stringify(call.request, void 0, 2) ?? "";
+		t1 = JSON.stringify(call.request, void 0, 2);
 		$[0] = call.request;
 		$[1] = t1;
 	} else t1 = $[1];
 	const requestCode = t1;
 	let t2;
 	if ($[2] !== call.response) {
-		t2 = JSON.stringify(call.response, void 0, 2) ?? "";
+		t2 = call.response === void 0 ? "" : JSON.stringify(call.response, void 0, 2);
 		$[2] = call.response;
 		$[3] = t2;
 	} else t2 = $[3];
@@ -113338,7 +113457,7 @@ function _temp2$36(val, index) {
 * TypeScript port of Python's nodes.py, implementing our own span tree building
 * since we don't have access to inspect_ai's event_tree().
 */ function isSpanNode(item) {
-	return typeof item === "object" && item !== null && "children" in item && Array.isArray(item.children);
+	return "children" in item && Array.isArray(item.children);
 }
 /**
 * Wraps a single Event with computed timing and token methods.
@@ -113541,8 +113660,8 @@ function convertServerEvent(server, lookup) {
 	return new TimelineEvent(event);
 }
 function convertServerSpan(server, lookup) {
-	const content = (server.content ?? []).map((item) => convertServerContentItem(item, lookup)).filter((item) => item !== null);
-	const branches = (server.branches ?? []).map((b) => convertServerSpan(b, lookup)).filter((b) => b.content.length > 0 || b.branches.length > 0);
+	const content = server.content.map((item) => convertServerContentItem(item, lookup)).filter((item) => item !== null);
+	const branches = server.branches.map((b) => convertServerSpan(b, lookup)).filter((b) => b.content.length > 0 || b.branches.length > 0);
 	return new TimelineSpan({
 		id: server.id,
 		name: server.name,
@@ -113623,10 +113742,10 @@ function stripSuffix(e, suffix, trajId) {
 	if (event.event === "model") {
 		const usage = event.output.usage;
 		if (usage) {
-			const inputTokens = usage.input_tokens ?? 0;
+			const inputTokens = usage.input_tokens;
 			const cacheRead = usage.input_tokens_cache_read ?? 0;
 			const cacheWrite = usage.input_tokens_cache_write ?? 0;
-			const outputTokens = usage.output_tokens ?? 0;
+			const outputTokens = usage.output_tokens;
 			return inputTokens + cacheRead + cacheWrite + outputTokens;
 		}
 	}
@@ -114016,7 +114135,6 @@ function eventToNode(event) {
 * Extract and normalize the system prompt from a single ModelEvent.
 */ function getSystemPromptForEvent(event) {
 	const input = event.input;
-	if (!input) return null;
 	for (const msg of input) if (msg.role === "system") {
 		let raw;
 		if (typeof msg.content === "string") raw = msg.content;
@@ -114096,7 +114214,6 @@ function eventToNode(event) {
 function isWarmupCall(event) {
 	if (event.config.max_tokens == null || event.config.max_tokens > 1) return false;
 	const input = event.input;
-	if (!input) return false;
 	for (let i = input.length - 1; i >= 0; i--) {
 		const msg = input[i];
 		if (msg?.role === "user") {
@@ -114248,11 +114365,9 @@ function isWarmupCall(event) {
 			if (nextItem.type !== "event") continue;
 			if (nextItem.event.event === "model") {
 				const modelEvent = nextItem.event;
-				if (modelEvent.input) {
-					for (const msg of modelEvent.input) if (msg.role === "tool" && msg.tool_call_id === toolCallId) {
-						const text = extractToolEventResult(msg.content);
-						if (text) item.agentResult = codexResultText(msg.function ?? void 0, msg.content, text);
-					}
+				for (const msg of modelEvent.input) if (msg.role === "tool" && msg.tool_call_id === toolCallId) {
+					const text = extractToolEventResult(msg.content);
+					if (text) item.agentResult = codexResultText(msg.function ?? void 0, msg.content, text);
 				}
 				if (item.agentResult) break;
 			}
@@ -115295,7 +115410,7 @@ var sanitizeStringify = (v) => {
 				fields.push(["title", resolvedTitle]);
 			}
 			if (toolEvent.function) fields.push(["function", toolEvent.function]);
-			if (toolEvent.arguments) fields.push(["arguments", JSON.stringify(toolEvent.arguments)]);
+			fields.push(["arguments", JSON.stringify(toolEvent.arguments)]);
 			if (toolEvent.result) {
 				if (typeof toolEvent.result === "string") fields.push(["result", toolEvent.result]);
 				else for (const text of extractToolResultText(toolEvent.result)) fields.push(["result", text]);
@@ -115349,7 +115464,7 @@ var sanitizeStringify = (v) => {
 			const subtaskEvent = event;
 			if (subtaskEvent.name) fields.push(["name", subtaskEvent.name]);
 			if (subtaskEvent.type) fields.push(["type", subtaskEvent.type]);
-			if (subtaskEvent.input) fields.push(["input", sanitizeStringify(subtaskEvent.input)]);
+			fields.push(["input", sanitizeStringify(subtaskEvent.input)]);
 			if (subtaskEvent.result) fields.push(["result", sanitizeStringify(subtaskEvent.result)]);
 			break;
 		}
@@ -115363,10 +115478,8 @@ var sanitizeStringify = (v) => {
 			const scoreEvent = event;
 			if (scoreEvent.score.answer) fields.push(["answer", scoreEvent.score.answer]);
 			if (scoreEvent.score.explanation) fields.push(["explanation", scoreEvent.score.explanation]);
-			if (scoreEvent.score.value !== void 0) {
-				const val = scoreEvent.score.value;
-				fields.push(["value", typeof val === "string" ? val : JSON.stringify(val)]);
-			}
+			const scoreValue = scoreEvent.score.value;
+			fields.push(["value", typeof scoreValue === "string" ? scoreValue : JSON.stringify(scoreValue)]);
 			if (scoreEvent.target) {
 				if (typeof scoreEvent.target === "string") fields.push(["target", scoreEvent.target]);
 				else if (Array.isArray(scoreEvent.target)) for (const t of scoreEvent.target) fields.push(["target", t]);
@@ -115392,7 +115505,7 @@ var sanitizeStringify = (v) => {
 		case "sample_limit": {
 			const sampleLimitEvent = event;
 			if (sampleLimitEvent.message) fields.push(["message", sampleLimitEvent.message]);
-			if (sampleLimitEvent.type) fields.push(["type", sampleLimitEvent.type]);
+			fields.push(["type", sampleLimitEvent.type]);
 			break;
 		}
 		case "input": {
@@ -115410,7 +115523,7 @@ var sanitizeStringify = (v) => {
 		}
 		case "approval": {
 			const approvalEvent = event;
-			if (approvalEvent.decision) fields.push(["decision", approvalEvent.decision]);
+			fields.push(["decision", approvalEvent.decision]);
 			if (approvalEvent.explanation) fields.push(["explanation", approvalEvent.explanation]);
 			if (approvalEvent.approver) fields.push(["approver", approvalEvent.approver]);
 			break;
@@ -115424,7 +115537,7 @@ var sanitizeStringify = (v) => {
 		}
 		case "sandbox": {
 			const sandboxEvent = event;
-			if (sandboxEvent.action) fields.push(["action", sandboxEvent.action]);
+			fields.push(["action", sandboxEvent.action]);
 			if (sandboxEvent.cmd) fields.push(["cmd", sandboxEvent.cmd]);
 			if (sandboxEvent.output) fields.push(["output", sandboxEvent.output]);
 			if (sandboxEvent.file) fields.push(["file", sandboxEvent.file]);
@@ -115435,7 +115548,7 @@ var sanitizeStringify = (v) => {
 			const stateEvent = event;
 			for (const change of stateEvent.changes) {
 				fields.push(["path", change.path]);
-				if (change.value !== void 0) fields.push(["value", typeof change.value === "string" ? change.value : sanitizeStringify(change.value)]);
+				fields.push(["value", typeof change.value === "string" ? change.value : sanitizeStringify(change.value)]);
 			}
 			break;
 		}
@@ -139888,7 +140001,7 @@ function codePointSize$1(code) {
 	return code < 65536 ? 1 : 2;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+state@6.7.2/node_modules/@codemirror/state/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+state@6.7.4/node_modules/@codemirror/state/dist/index.js
 /**
 The data structure for documents. @nonabstract
 */
@@ -142637,13 +142750,14 @@ var Chunk = class Chunk {
 				basePos = newTo;
 				baseSide = val.endSide;
 			} else {
-				if (newFrom == newTo) {
-					for (let i = value.length - 1; i > 0; i--) if ((newFrom - to[i - 1] || val.startSide - value[i - 1].endSide) <= 0) {
+				if (newFrom == newTo) for (let i = value.length; i > 0; i--) {
+					if ((newFrom - (to[i - 1] + newPos) || val.startSide - value[i - 1].endSide) >= 0) {
 						value.splice(i, 0, val);
-						from.splice(i, 0, newFrom);
-						to.splice(i, 0, newTo);
+						from.splice(i, 0, newFrom - newPos);
+						to.splice(i, 0, newTo - newPos);
 						continue iter;
 					}
+					if ((newFrom - (from[i - 1] + newPos) || val.endSide - value[i - 1].startSide) > 0) break;
 				}
 				spill(newFrom, newTo, val);
 			}
@@ -142714,11 +142828,11 @@ var RangeSet = class RangeSet {
 		let builder = new RangeSetBuilder();
 		while (cur.value || i < add.length) if (i < add.length && (cur.from - add[i].from || cur.startSide - add[i].value.startSide) >= 0) {
 			let range = add[i++];
-			if (!builder.addInner(range.from, range.to, range.value)) spill.push(range);
+			if (!builder.addInner(range.from, range.to, range.value, false)) spill.push(range);
 		} else if (cur.rangeIndex == 1 && cur.chunkIndex < this.chunk.length && (i == add.length || this.chunkEnd(cur.chunkIndex) < add[i].from) && (!filter || filterFrom > this.chunkEnd(cur.chunkIndex) || filterTo < this.chunkPos[cur.chunkIndex]) && builder.addChunk(this.chunkPos[cur.chunkIndex], this.chunk[cur.chunkIndex])) cur.nextChunk();
 		else {
 			if (!filter || filterFrom > cur.to || filterTo < cur.from || filter(cur.from, cur.to, cur.value)) {
-				if (!builder.addInner(cur.from, cur.to, cur.value)) spill.push(Range.create(cur.from, cur.to, cur.value));
+				if (!builder.addInner(cur.from, cur.to, cur.value, false)) spill.push(Range.create(cur.from, cur.to, cur.value));
 			}
 			cur.next();
 		}
@@ -142738,7 +142852,7 @@ var RangeSet = class RangeSet {
 		let spilled;
 		let spill = (from, to, value) => {
 			if (!spilled) spilled = new RangeSetBuilder();
-			spilled.add(from, to, value);
+			spilled.addRange(from, to, value, false);
 		};
 		for (let i = 0; i < this.chunk.length; i++) {
 			let start = this.chunkPos[i], chunk = this.chunk[i];
@@ -142931,14 +143045,20 @@ var RangeSetBuilder = class RangeSetBuilder {
 	`value.startSide`) order.
 	*/
 	add(from, to, value) {
-		if (!this.addInner(from, to, value)) (this.nextLayer || (this.nextLayer = new RangeSetBuilder())).add(from, to, value);
+		this.addRange(from, to, value, true);
 	}
 	/**
 	@internal
 	*/
-	addInner(from, to, value) {
+	addRange(from, to, value, strict) {
+		if (!this.addInner(from, to, value, strict)) (this.nextLayer || (this.nextLayer = new RangeSetBuilder())).addRange(from, to, value, strict);
+	}
+	/**
+	@internal
+	*/
+	addInner(from, to, value, strict) {
 		let diff = from - this.lastTo || value.startSide - this.last.endSide;
-		if (diff <= 0 && (from - this.lastFrom || value.startSide - this.last.startSide) < 0) throw new Error("Ranges must be added sorted by `from` position and `startSide`");
+		if (strict && diff <= 0 && (from - this.lastFrom || value.startSide - this.last.startSide) < 0) throw new Error("Ranges must be added sorted by `from` position and `startSide`");
 		if (diff < 0) return false;
 		if (this.from.length == 250) this.finishChunk(true);
 		if (this.chunkStart < 0) this.chunkStart = from;
@@ -143508,7 +143628,7 @@ function add(elt, child) {
 	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.10/node_modules/@codemirror/view/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+view@6.43.11/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -146734,7 +146854,7 @@ var InlineCoordsScan = class {
 		}
 		if (!closestRect) {
 			if (!below && !above) return {
-				i: positions[0],
+				i: 0,
 				after: false
 			};
 			let side = above && (!below || this.y - above.bottom < below.top - this.y) ? above : below;
@@ -147240,7 +147360,7 @@ var InputState = class {
 				keyCode: event.keyCode,
 				mods
 			};
-			setTimeout(() => this.flushIOSKey(), 250);
+			setTimeout(() => this.flushIOSKey(), 50);
 			return true;
 		}
 		if (event.keyCode != 229) this.view.observer.forceFlush();
@@ -147248,7 +147368,7 @@ var InputState = class {
 	}
 	flushIOSKey(change) {
 		let key = this.pendingIOSKey;
-		if (!key) return false;
+		if (!key || this.view.observer.pendingRecords().length) return false;
 		if (key.key == "Enter" && change && change.from < change.to && /^\S+$/.test(change.insert.toString())) return false;
 		this.pendingIOSKey = void 0;
 		return dispatchKey(this.view.contentDOM, key.key, key.keyCode, key.mods);

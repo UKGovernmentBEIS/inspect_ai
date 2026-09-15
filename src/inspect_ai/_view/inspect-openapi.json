@@ -168,6 +168,17 @@
           "call": {
             "$ref": "#/components/schemas/ToolCall"
           },
+          "chain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chain"
+          },
           "decision": {
             "enum": [
               "approve",
@@ -306,6 +317,17 @@
         "additionalProperties": true,
         "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
         "properties": {
+          "chain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chain"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -8186,6 +8208,17 @@
           "call": {
             "$ref": "#/components/schemas/ToolCall"
           },
+          "chain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chain"
+          },
           "decision": {
             "enum": [
               "continue",
@@ -8306,6 +8339,17 @@
         "additionalProperties": true,
         "description": "Configuration format for reviewer policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\nreviewers:\n  - name: mypackage/output_monitor\n    tools: bash, python\n\n  - name: human\n    tools: \"*\"\n```",
         "properties": {
+          "chain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chain"
+          },
           "name": {
             "title": "Name",
             "type": "string"
