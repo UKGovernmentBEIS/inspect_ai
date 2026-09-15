@@ -51,14 +51,13 @@ HOP_BY_HOP = {
 
 
 class AsyncHTTPServer:
-    """Async HTTP server supporting GET/POST/OPTIONS with streaming + proxy utilities."""
+    """Async HTTP server supporting GET/POST with streaming + proxy utilities."""
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8000) -> None:
         self.host = host
         self.port = port
-        self.routes: MethodRoutes = {"GET": {}, "POST": {}, "OPTIONS": {}}
+        self.routes: MethodRoutes = {"GET": {}, "POST": {}}
         self.server: asyncio.Server | None = None
-        self.enable_cors: bool = True
         self.server_name: str = "asyncio-proxy"
 
     # -------- Routing --------
@@ -198,16 +197,6 @@ class AsyncHTTPServer:
         return method, full_path, http_version, headers, body
 
     # -------- Response building / streaming --------
-    def _cors_headers(self) -> dict[str, str]:
-        if not self.enable_cors:
-            return {}
-        return {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type, OpenAI-Organization, OpenAI-Beta",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Max-Age": "600",
-        }
-
     def _build_headers_block(
         self, status: int, headers: dict[str, str], reason: Optional[str] = None
     ) -> bytes:
@@ -218,7 +207,6 @@ class AsyncHTTPServer:
             "Server": self.server_name,
         }
         out = {**base, **headers}
-        out.update(self._cors_headers())
         lines = [status_line]
         for k, v in out.items():
             if v is None:
@@ -311,14 +299,11 @@ class AsyncHTTPServer:
         headers_lower = {k.lower(): v for k, v in headers_list}
         is_chunked = "chunked" in headers_lower.get("transfer-encoding", "").lower()
 
-        # Compose headers (preserve original case), then add CORS
-        cors = self._cors_headers()
+        # Compose headers (preserve original case)
         status_line = f"HTTP/1.1 {status} {reason or _http_reason_phrase(status)}\r\n"
         writer.write(status_line.encode("ascii"))
         for k, v in headers_list:
             writer.write(f"{k}: {v}\r\n".encode("latin-1", "strict"))
-        for ck, cv in cors.items():
-            writer.write(f"{ck}: {cv}\r\n".encode("ascii"))
         writer.write(b"\r\n")
         await asyncio.wait_for(writer.drain(), timeout=WRITE_TIMEOUT_S)
 
@@ -388,9 +373,11 @@ class AsyncHTTPServer:
             path = unquote(parsed.path)
             query = parse_qs(parsed.query)
 
-            # OPTIONS preflight
+            # No browser clients, so no preflight: OPTIONS is not a served method
             if method == "OPTIONS":
-                response_bytes = self._build_response(204, b"", "text/plain", {})
+                response_bytes = self._build_response(
+                    405, b"", "text/plain", {"Allow": ", ".join(self.routes)}
+                )
                 writer.write(response_bytes)
                 await writer.drain()
                 return

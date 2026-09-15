@@ -2825,3 +2825,118 @@ async def test_anthropic_streaming_provider_error_emits_sse_error() -> None:
     assert "event: error" in text
     assert "rate_limit_error" in text
     assert "overloaded" in text
+
+
+# ---------- No cross-origin access ----------
+
+
+def _assert_no_cross_origin_headers(headers: Any) -> None:
+    """The proxy has no browser clients, so no response may grant cross-origin access."""
+    offending = [k for k in headers if k.lower().startswith("access-control-")]
+    assert offending == [], offending
+
+
+_BROWSER_HEADERS = {"Origin": "http://example.test"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/v1/chat/completions", "/mcp/test-server"])
+async def test_options_request_is_refused_without_cross_origin_grant(
+    proxy_server: tuple[AsyncHTTPServer, str], path: str
+) -> None:
+    """OPTIONS (a browser preflight) gets 405 naming the served methods, and no grant."""
+    _, base_url = proxy_server
+    headers = {**_BROWSER_HEADERS, "Access-Control-Request-Method": "POST"}
+    async with ClientSession() as session:
+        async with session.options(f"{base_url}{path}", headers=headers) as response:
+            assert response.status == 405
+            assert response.headers["Allow"] == "GET, POST"
+            _assert_no_cross_origin_headers(response.headers)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        (
+            "/v1/chat/completions",
+            {
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+        ),
+        (
+            "/mcp/test-server",
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+        ),
+    ],
+)
+async def test_json_post_with_origin_has_no_cross_origin_headers(
+    proxy_server: tuple[AsyncHTTPServer, str], path: str, body: dict[str, Any]
+) -> None:
+    """A JSON POST carrying an Origin header is served without a cross-origin grant."""
+    _, base_url = proxy_server
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}{path}", json=body, headers=_BROWSER_HEADERS
+        ) as response:
+            assert response.status == 200
+            _assert_no_cross_origin_headers(response.headers)
+            await response.json()
+
+
+@pytest.mark.asyncio
+async def test_streamed_response_has_no_cross_origin_headers(
+    proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """An SSE response streamed by the proxy carries no cross-origin grant."""
+    _, base_url = proxy_server
+    body = {
+        "model": "gpt-4o",
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": True,
+    }
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1/chat/completions", json=body, headers=_BROWSER_HEADERS
+        ) as response:
+            assert response.status == 200
+            assert response.headers["Content-Type"].startswith("text/event-stream")
+            _assert_no_cross_origin_headers(response.headers)
+            text = await response.text()
+    assert "data: [DONE]" in text
+
+
+@pytest.mark.asyncio
+async def test_relayed_upstream_response_has_no_cross_origin_headers(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """A response relayed verbatim from an upstream carries no cross-origin grant."""
+    server, base_url = http_server
+    upstream_body = b"relayed body"
+
+    @server.route("/relay", method="GET")
+    async def relay_handler(_request: dict[str, Any]) -> dict[str, Any]:
+        reader = asyncio.StreamReader()
+        reader.feed_data(upstream_body)
+        reader.feed_eof()
+        return {
+            "_relay": {
+                "status": 200,
+                "reason": "OK",
+                "headers_list": [
+                    ("Content-Type", "text/plain"),
+                    ("Content-Length", str(len(upstream_body))),
+                ],
+                "reader": reader,
+                "content_length": len(upstream_body),
+            }
+        }
+
+    async with ClientSession() as session:
+        async with session.get(
+            f"{base_url}/relay", headers=_BROWSER_HEADERS
+        ) as response:
+            assert response.status == 200
+            assert await response.read() == upstream_body
+            _assert_no_cross_origin_headers(response.headers)
