@@ -61,47 +61,43 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
+      # `uv sync` rather than `uv venv` + `uv pip install .[dev]`: the step
+      # below runs under `uv run`, which syncs the project environment to
+      # uv.lock before it executes anything, so an unlocked `uv pip install`
+      # is partly undone a step later (measured: 46 packages uninstalled, 48
+      # installed, inspect_ai rebuilt, 3.5s). Installing the locked set here
+      # and passing --no-sync below reaches the same environment once
+      # (verified: `uv pip freeze` after either sequence is byte-identical).
       - name: Install dependencies
-        run: |-
-          uv venv
-          uv pip install .[dev]
+        run: uv sync
 
       - name: Run mypy
-        run: uv run mypy --exclude tests/test_package src tests
+        run: uv run --no-sync mypy --exclude tests/test_package src tests
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
         run: uv cache prune --ci
 
+  # No project install: every hook in .pre-commit-config.yaml comes from a
+  # remote repo and runs in an environment pre-commit builds itself (the
+  # uv-lock hook brings its own uv), so nothing here reads the inspect_ai
+  # package. The checkout is shallow because nothing here consumes a
+  # setuptools_scm version either: the uv-lock hook does build root metadata,
+  # but uv.lock records this project as a versionless editable root, so the
+  # tagless fallback version a shallow clone yields never reaches the file.
   pre-commit:
     runs-on: ubuntu-latest
     env:
       SKIP: "ruff"
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-          filter: "blob:none"
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v10.0.1
-        with:
-          version: "${{ env.UV_VERSION }}"
-
-      - name: Install dependencies
-        run: uv pip install --system .[dev]
-
       - uses: pre-commit/action@v3.0.1
-
-      - name: Minimize uv cache
-        if: ${{ !cancelled() }}
-        run: uv cache prune --ci
 
   # Detect which areas changed so conditional jobs (docs, sandbox-tools-unit)
   # can be skipped. A skipped job-level `if` still reports a (non-blocking)
@@ -179,12 +175,20 @@ jobs:
           path: .docs-render-ok
           key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', '.docs-src-delta') }}
 
+      # Own cache scope: setup-uv's default key is shared by every 3.11 job
+      # here, so the first to finish saves its dev cache and this job only ever
+      # logs "cache hit ... not saving cache" — leaving the sdist-built
+      # quarto-cli wheel, 43s of the install step below, uncacheable. Note the
+      # key hashes requirements-doc.txt, not the resolution it produces, so a
+      # quarto release above its `>=` floor still re-pays that build until some
+      # hashed file rotates the key.
       - name: Install uv
         if: steps.render-cache.outputs.cache-hit != 'true'
         uses: astral-sh/setup-uv@v10.0.1
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
+          cache-suffix: docs
 
       # The package itself is installed because reference docs are
       # generated from the inspect_ai module (griffe).
@@ -272,14 +276,27 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
+      # `uv sync` rather than `uv venv` + `uv pip install .[dev]`: the pytest
+      # step runs under `uv run`, which syncs the project environment to
+      # uv.lock before it executes anything, so an unlocked `uv pip install`
+      # is partly undone a step later (measured: 46 packages uninstalled, 48
+      # installed, inspect_ai rebuilt, 5.3s). Installing the locked set here
+      # and passing --no-sync below reaches the same environment once
+      # (verified: `uv pip freeze` after either sequence is byte-identical).
+      # The other `uv run` sites below keep their implicit sync on purpose:
+      # for docs and sandbox-tools-unit, dropping it would change which
+      # dependency versions the job tests against, and slow-tool-tests-release
+      # relies on the sync replacing its wheel install with the lockfile's
+      # editable one, so `_binaries_dir()` resolves to the source tree the
+      # published binaries were downloaded into.
+      # tests/test_package goes in after the sync (it is not in the lockfile)
+      # so ensure_test_package_installed() short-circuits instead of
+      # pip-installing it mid-run (~9s on the xdist critical path, paid by
+      # whichever test calls it first).
       - name: Install dependencies
         if: env.RUN_TESTS == 'true'
-        # tests/test_package is pre-installed so ensure_test_package_installed()
-        # short-circuits instead of pip-installing it mid-run (~9s on the
-        # xdist critical path, paid by whichever test calls it first).
         run: |-
-          uv venv
-          uv pip install .[dev]
+          uv sync
           uv pip install --no-deps ./tests/test_package
 
       - name: Test with pytest
@@ -300,7 +317,7 @@ jobs:
         # -n logical, not auto: auto means physical cores when psutil is
         # importable (it always is — a runtime dependency), using only 2 of
         # the runner's 4 vCPUs. Measured: 449s → 334s of pytest wall.
-        run: uv run pytest -ra --doctest-modules --color=yes -n logical --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
+        run: uv run --no-sync pytest -ra --doctest-modules --color=yes -n logical --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
 
       - name: Upload test order log
         if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
