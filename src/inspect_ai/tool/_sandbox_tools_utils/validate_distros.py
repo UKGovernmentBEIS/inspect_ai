@@ -12,10 +12,12 @@ NOTE: Must be run as a module (with -m flag) to ensure proper package imports.
 Run from the inspect_ai source root or with the package installed.
 """
 
+import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List
+from typing import List, NamedTuple
 
 from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_BASE_NAME
 
@@ -53,10 +55,21 @@ def print_colored(message: str, color: str = Colors.NC) -> None:
     print(f"{color}{message}{Colors.NC}")
 
 
-def test_distro(distro: str, executable_path: Path) -> bool:
-    """Test a single distro with the given artifact (a gzipped tar of the onedir bundle)."""
-    print_colored(f"Testing {distro} with {executable_path.name}", Colors.BLUE)
+class DistroResult(NamedTuple):
+    """Outcome of one distro x artifact healthcheck run."""
 
+    distro: str
+    executable_name: str
+    passed: bool
+    output: str
+
+
+def test_distro(distro: str, executable_path: Path) -> DistroResult:
+    """Test a single distro with the given artifact (a gzipped tar of the onedir bundle).
+
+    Runs quietly (output captured, not streamed) so tests can run concurrently;
+    the caller prints each result as it completes.
+    """
     # Run the container matching the ARTIFACT's architecture so the dynamically
     # linked launcher finds its libc/loader. On a foreign-arch host this runs under
     # the platform emulator (e.g. Rosetta/qemu); that works because the emulated
@@ -90,13 +103,13 @@ def test_distro(distro: str, executable_path: Path) -> bool:
         script,
     ]
 
-    try:
-        subprocess.run(cmd, check=True, capture_output=False)
-        print_colored(f"✓ {distro}: SUCCESS", Colors.GREEN)
-        return True
-    except subprocess.CalledProcessError:
-        print_colored(f"✗ {distro}: FAILED", Colors.RED)
-        return False
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return DistroResult(
+        distro=distro,
+        executable_name=executable_path.name,
+        passed=result.returncode == 0,
+        output=result.stdout + result.stderr,
+    )
 
 
 def find_executables() -> List[Path]:
@@ -133,22 +146,38 @@ def main() -> None:
     executable_names = [exe.name for exe in executables]
     print_colored(f"Found executables: {', '.join(executable_names)}", Colors.BLUE)
 
-    # Test results tracking
-    total_tests = 0
-    passed_tests = 0
-
-    # Test each executable against the distro set matching its libc variant
-    for executable in executables:
-        distros = (
+    # Every (artifact, distro) pair is an independent docker run, so run them
+    # concurrently. Capped: each healthcheck starts the server process, and the
+    # foreign-arch runs execute under emulation.
+    pairs = [
+        (executable, distro)
+        for executable in executables
+        for distro in (
             MUSL_DISTROS if filename_to_config(executable.name).musl else GLIBC_DISTROS
         )
-        print_colored(f"\n=== Testing {executable.name} ===", Colors.BLUE)
+    ]
+    total_tests = len(pairs)
+    passed_tests = 0
 
-        for distro in distros:
-            total_tests += 1
-            if test_distro(distro, executable):
+    with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 4)) as executor:
+        futures = [
+            executor.submit(test_distro, distro, executable)
+            for executable, distro in pairs
+        ]
+        for future in as_completed(futures):
+            result = future.result()
+            if result.passed:
                 passed_tests += 1
-            print()  # Blank line for readability
+                print_colored(
+                    f"✓ {result.distro} × {result.executable_name}: SUCCESS",
+                    Colors.GREEN,
+                )
+            else:
+                print_colored(
+                    f"✗ {result.distro} × {result.executable_name}: FAILED",
+                    Colors.RED,
+                )
+                print(result.output)
 
     # Summary
     print_colored("\n=== TEST SUMMARY ===", Colors.BLUE)

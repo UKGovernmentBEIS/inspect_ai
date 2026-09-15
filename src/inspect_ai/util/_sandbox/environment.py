@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import logging
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import (
     Annotated,
@@ -9,6 +10,7 @@ from typing import (
     Awaitable,
     Callable,
     Literal,
+    NamedTuple,
     Type,
     TypeVar,
     Union,
@@ -49,6 +51,24 @@ class SandboxUnavailableError(RuntimeError):
 
 
 ST = TypeVar("ST", bound="SandboxEnvironment")
+
+_sandbox_prebuilt: ContextVar[bool] = ContextVar("sandbox_prebuilt", default=False)
+
+
+def sandbox_prebuilt() -> bool:
+    """Whether sandbox images should be treated as prebuilt.
+
+    When `True`, the built-in Docker provider verifies that images exist
+    instead of building them, raising `PrerequisiteError` for images that
+    don't. Currently internal to the Docker provider (not exported from
+    `inspect_ai.util`).
+    """
+    return _sandbox_prebuilt.get()
+
+
+def set_sandbox_prebuilt(prebuilt: bool) -> None:
+    _sandbox_prebuilt.set(prebuilt)
+
 
 TaskInit = Callable[[str, Union["SandboxEnvironmentConfigType", None]], Awaitable[None]]
 TaskInitEnvironment = Callable[
@@ -105,6 +125,16 @@ class SandboxConnection(BaseModel):
     """Optional container name (does not apply to all sandboxes)."""
 
 
+class SandboxDefaultUser(NamedTuple):
+    """Identity of the user `exec()` runs as when no `user` is given."""
+
+    uid: int
+    gid: int
+    groups: list[int]
+    home: str | None
+    """HOME as exec() sees it; None when unset (the passwd home applies)."""
+
+
 class SandboxEnvironment(abc.ABC):
     """Environment for executing arbitrary code from tools.
 
@@ -116,6 +146,12 @@ class SandboxEnvironment(abc.ABC):
         self._inject_lock = anyio.Lock()
         self._tools_injected: bool = False
         self._tools_user: str | None = None
+        # True once the sandbox-tools user has been decided for this object (root
+        # or, for a rootless sandbox, the default user), so the detector stops
+        # probing root on every tool call. `_tools_user is None` alone cannot say
+        # this because None also means "default user".
+        self._tools_user_resolved: bool = False
+        self._tools_default_user: SandboxDefaultUser | None = None
 
     @abc.abstractmethod
     async def exec(

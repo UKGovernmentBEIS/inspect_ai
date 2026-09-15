@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from copy import copy
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING, Sequence
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model, ModelRoles, get_model
 from inspect_ai.model._model_info import _get_model_info_direct
 
 if TYPE_CHECKING:
@@ -12,18 +12,49 @@ if TYPE_CHECKING:
 
 
 def resolve_model_roles(
-    model_roles: Mapping[str, str | Model] | None,
-) -> dict[str, Model] | None:
+    model_roles: ModelRoles | None,
+) -> dict[str, Model | list[Model]] | None:
     if model_roles is not None:
-        resolved_model_roles = {
-            k: get_model(v, memoize=False) if isinstance(v, str) else copy(v)
-            for k, v in model_roles.items()
-        }
-        for k, v in resolved_model_roles.items():
-            v._set_role(k)
+        resolved_model_roles: dict[str, Model | list[Model]] = {}
+        for k, v in model_roles.items():
+            if isinstance(v, str | Model):
+                resolved_model_roles[k] = _resolve_role_model(k, v)
+            else:
+                # guard against untyped values (e.g. CLI YAML parsing can
+                # yield None or numeric scalars) so they get a clean error
+                # rather than a TypeError/AttributeError downstream
+                if not isinstance(v, Sequence) or not all(
+                    isinstance(m, str | Model) for m in v
+                ):
+                    raise PrerequisiteError(
+                        f"Model role '{k}' has an invalid value ({v!r}): "
+                        + "expected a model name, a Model instance, or a "
+                        + "list of these."
+                    )
+                if len(v) == 0:
+                    raise PrerequisiteError(
+                        f"Model role '{k}' was assigned an empty list "
+                        + "(at least one model is required)."
+                    )
+                models = [_resolve_role_model(k, m) for m in v]
+                # a single-model list is equivalent to a single model --
+                # collapse it so downstream consumers (get_model, scorer
+                # fan-out, the log) all see the canonical single-model shape
+                resolved_model_roles[k] = models if len(models) > 1 else models[0]
         return resolved_model_roles
     else:
         return None
+
+
+def _resolve_role_model(role: str, model: str | Model) -> Model:
+    # memoize=False for strings / copy for Model instances so that each role
+    # gets a distinct Model instance; otherwise roles sharing the same model
+    # collapse onto one object and per-role usage is misattributed (see #4450)
+    resolved = (
+        get_model(model, memoize=False) if isinstance(model, str) else copy(model)
+    )
+    resolved._set_role(role)
+    return resolved
 
 
 def resolve_model(model: str | Model | None) -> Model | None:
@@ -43,7 +74,10 @@ def resolve_model_costs(
 
         models: set[Model] = {task.model}
         if task.model_roles:
-            models.update(task.model_roles.values())
+            for role_models in task.model_roles.values():
+                models.update(
+                    role_models if isinstance(role_models, list) else [role_models]
+                )
 
         missing: list[str] = []
         for model in models:

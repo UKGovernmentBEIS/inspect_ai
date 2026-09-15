@@ -1,19 +1,55 @@
+from contextlib import asynccontextmanager
 from os.path import dirname, join
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, AsyncIterator, cast
 
 import anyio
 import pytest
 
+from inspect_ai._util.azure import AzureAuthError
 from inspect_ai._util.file import filesystem
 from inspect_ai.log import list_eval_logs, list_eval_logs_async
-from inspect_ai.log._file import _walk_without_detail
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    _walk_without_detail,
+    manifest_eval_log_name,
+)
+
+AZURE_AUTH_MESSAGE = "Server failed to authenticate the request"
 
 file = Path(__file__)
 
 log_dir = join(dirname(file), "test_list_logs")
 
 ignored_files = ["ignore.json"]
+
+
+def test_manifest_eval_log_name_uses_filesystem_separator() -> None:
+    info = EvalLogInfo(
+        name="logs\\2024-01-01_task.eval",
+        type="file",
+        size=100,
+        mtime=1.0,
+        task="task",
+        task_id="1",
+        suffix=None,
+    )
+
+    assert manifest_eval_log_name(info, "logs", "\\") == "2024-01-01_task.eval"
+
+
+def test_manifest_eval_log_name_normalizes_manifest_separator() -> None:
+    info = EvalLogInfo(
+        name="logs/subdir/2024-01-01_task.eval",
+        type="file",
+        size=100,
+        mtime=1.0,
+        task="task",
+        task_id="1",
+        suffix=None,
+    )
+
+    assert manifest_eval_log_name(info, "logs", "/") == "subdir/2024-01-01_task.eval"
 
 
 def test_list_logs():
@@ -152,3 +188,71 @@ def test_list_logs_async_remote_fs_trio(monkeypatch: pytest.MonkeyPatch):
         assert len(logs) == 3
 
     anyio.run(check, backend="trio")
+
+
+class _FakeAsyncAzureFilesystem:
+    """Stands in for an az:// filesystem whose listing call raises."""
+
+    def is_async(self) -> bool:
+        return True
+
+    def is_s3(self) -> bool:
+        return False
+
+    async def _exists(self, path: str) -> bool:
+        raise Exception(AZURE_AUTH_MESSAGE)
+
+    def exists(self, path: str) -> bool:
+        raise Exception(AZURE_AUTH_MESSAGE)
+
+    def ls(self, path: str, recursive: bool = True) -> list[Any]:
+        raise AssertionError("listing must not be reached after an auth failure")
+
+
+def _patch_azure_auth_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
+    @asynccontextmanager
+    async def fake_async_filesystem(
+        location: str, fs_options: dict[str, Any] = {}
+    ) -> AsyncIterator[Any]:
+        yield _FakeAsyncAzureFilesystem()
+
+    monkeypatch.setattr(
+        "inspect_ai.log._file.filesystem",
+        lambda path, fs_options={}: _FakeAsyncAzureFilesystem(),
+    )
+    monkeypatch.setattr("inspect_ai.log._file.async_filesystem", fake_async_filesystem)
+
+
+async def _check_azure_auth_error_raises() -> None:
+    # an auth failure is not an empty directory: it must surface as a friendly
+    # AzureAuthError rather than being downgraded to a warning and []
+    with pytest.raises(AzureAuthError, match="Azure storage authentication failed"):
+        await list_eval_logs_async("az://container/logs")
+
+
+async def test_list_logs_async_azure_auth_error_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_azure_auth_filesystem(monkeypatch)
+    await _check_azure_auth_error_raises()
+
+
+def test_list_logs_async_azure_auth_error_raises_trio(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the trio sync-fallback branch must behave identically
+    _patch_azure_auth_filesystem(monkeypatch)
+    anyio.run(_check_azure_auth_error_raises, backend="trio")
+
+
+async def test_list_logs_async_azure_auth_error_keeps_original(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the raw provider error must remain reachable via __cause__ so the
+    # friendly message does not lose the underlying diagnostic
+    _patch_azure_auth_filesystem(monkeypatch)
+    with pytest.raises(AzureAuthError) as exc_info:
+        await list_eval_logs_async("az://container/logs")
+
+    assert isinstance(exc_info.value.__cause__, Exception)
+    assert AZURE_AUTH_MESSAGE in str(exc_info.value.__cause__)

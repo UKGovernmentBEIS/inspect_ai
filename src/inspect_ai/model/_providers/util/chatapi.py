@@ -114,6 +114,7 @@ def chat_api_handler_message(
 
 def _log_and_report_before_sleep(
     model_name: str,
+    qualified_model_name: str | None = None,
 ) -> Callable[[RetryCallState], None]:
     """Build a tenacity `before_sleep` that logs AND reports the retry.
 
@@ -128,7 +129,14 @@ def _log_and_report_before_sleep(
 
     A chatapi-internal retry that succeeds on attempt 2 still reports here,
     so the controller and stats see the rate-limit signal even when the
-    eventual call returns success.
+    eventual call returns success. This is also the *sole* reporter for
+    chatapi-internal retries, so `qualified_model_name` must be threaded
+    through for them to reach the per-model throughput registry at all
+    (`model_name` is the bare display name used for logging). The upcoming
+    sleep is recorded as the model's scheduled backoff for the same reason —
+    this inner loop's sleep is invisible to the outer retry loop's
+    `on_before_sleep`, so skipping it here would leave chatapi-internal
+    backoff out of `backoff_ratio`/cumulative backoff.
     """
     log = log_httpx_retry_attempt(model_name)
 
@@ -141,7 +149,15 @@ def _log_and_report_before_sleep(
             return
         decision = httpx_classify_retry(ex)
         if decision is not None and decision.retry:
-            report_http_retry(kind=decision.kind, retry_after=decision.retry_after)
+            report_http_retry(
+                kind=decision.kind,
+                retry_after=decision.retry_after,
+                model=qualified_model_name,
+            )
+            if qualified_model_name is not None:
+                from inspect_ai.model._throughput import record_retry_wait
+
+                record_retry_wait(qualified_model_name, retry_state.upcoming_sleep)
 
     return cb
 
@@ -152,13 +168,14 @@ async def chat_api_request(
     url: str,
     headers: dict[str, Any],
     json: Any,
+    qualified_model_name: str | None = None,
 ) -> Any:
     # define call w/ retry policy
     @retry(
         wait=wait_exponential_jitter(),
         stop=(stop_after_attempt(2)),
         retry=retry_if_exception(httpx_should_retry),
-        before_sleep=_log_and_report_before_sleep(model_name),
+        before_sleep=_log_and_report_before_sleep(model_name, qualified_model_name),
     )
     async def call_api() -> Any:
         response = await client.post(url=url, headers=headers, json=json)

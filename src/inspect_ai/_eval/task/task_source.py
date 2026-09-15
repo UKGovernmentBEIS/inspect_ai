@@ -72,6 +72,15 @@ class TaskSource:
         add to the run (equivalent to calling ``enqueue_task`` with them): they
         run after the current batch, before the next ``next_tasks()``. Return
         ``None`` (the default) to add nothing.
+
+        Fires for every sample the task logs, including one cancelled
+        individually by an operator (its ``error`` is then the cancellation,
+        with no scores), but not for samples cancelled by the task itself
+        unwinding (a task-level cancel or ^C) -- those reach the source only
+        via the log passed to ``task_complete``. A cancelled sample's
+        ``error.message`` is the cancellation exception's repr (it starts
+        with ``CancelledError(`` or ``Cancelled(``), which is how to tell it
+        from a genuine error.
         """
         return None
 

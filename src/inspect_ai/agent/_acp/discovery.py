@@ -26,9 +26,19 @@ def discovery_dir() -> Path:
     return inspect_data_dir("acp")
 
 
-def default_socket_path(eval_id: str) -> Path:
-    """Default AF_UNIX socket path for a given eval_id."""
-    return discovery_dir() / f"{eval_id}.sock"
+def default_socket_path(pid: int) -> Path:
+    """Default AF_UNIX socket path for an ACP server bound by ``pid``.
+
+    Keyed on the pid rather than the eval id, matching the control
+    channel's ``default_socket_path``. ``sun_path`` holds 104 bytes and
+    an eval id is a 36-character uuid, which put the default within a
+    few bytes of the limit for an ordinary username -- so a name that
+    happened to be long enough failed the bind for reasons no message
+    connected to the length of a home directory. A pid is five or six
+    digits, and the discovery *file* beside it is already per-pid, so
+    this claims no identity the directory did not already assume.
+    """
+    return discovery_dir() / f"{pid}.sock"
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +84,15 @@ class DiscoveredEval:
     eval_id: str
     started_at: float
     target: TargetAddress
+    pid: int = 0
+    """The process hosting this server, or ``0`` for an entry that did not record one.
+
+    Present for the same reason :class:`~inspect_ai._control.discovery.DiscoveredControlServer`
+    carries one: an external runner that spawned a process knows its pid and
+    nothing else about it, so without this there is no way to get from *that
+    worker* to *that worker's server*. The discovery file has always carried
+    it; only this shape was dropping it.
+    """
 
 
 class TargetResolutionError(Exception):
@@ -133,8 +152,14 @@ def list_discovered_evals() -> list[DiscoveredEval]:
         eval_id = target.eval_id or ""
         if not eval_id:
             continue
+        try:
+            pid = int(data["pid"])
+        except (KeyError, TypeError, ValueError):
+            pid = 0
         results.append(
-            DiscoveredEval(eval_id=eval_id, started_at=started_at, target=target)
+            DiscoveredEval(
+                eval_id=eval_id, started_at=started_at, target=target, pid=pid
+            )
         )
     results.sort(key=lambda e: e.started_at, reverse=True)
     return results

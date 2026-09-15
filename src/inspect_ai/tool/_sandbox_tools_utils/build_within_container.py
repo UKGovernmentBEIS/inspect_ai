@@ -26,8 +26,9 @@ import os
 import platform
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal, NamedTuple, cast
 
 # IMPORT CONTEXT HANDLING:
 # This script runs in three different execution contexts:
@@ -186,6 +187,62 @@ def run_docker_container(
     subprocess.run(cmd, check=True, stdout=None, stderr=None)
 
 
+class VariantResult(NamedTuple):
+    """Outcome of one arch x libc variant build."""
+
+    label: str
+    ok: bool
+    output: str
+
+
+def _build_all_variants(dev: bool, passthrough_args: list[str]) -> None:
+    """Build all four arch x libc variants concurrently.
+
+    Each variant is an independent recursive invocation of this script: image
+    tags are distinct per variant, and the in-container build stages into
+    container-local /tmp, so the only shared write is each variant's uniquely
+    named artifact. Output is captured per variant (parallel streams would
+    interleave) and dumped in full when a build fails.
+    """
+    variants = [(arch, musl) for arch in ("amd64", "arm64") for musl in (False, True)]
+    print("Building all architecture x libc variants in parallel...")
+
+    def build_variant(arch: str, musl: bool) -> VariantResult:
+        cmd = [sys.executable, __file__, "--arch", arch]
+        if musl:
+            cmd.append("--musl")
+        if not dev:
+            cmd.append("--dev=false")
+        if passthrough_args:
+            cmd.append("--")
+            cmd.extend(passthrough_args)
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
+        return VariantResult(
+            label=f"{arch}-{'musl' if musl else 'glibc'}",
+            ok=result.returncode == 0,
+            output=result.stdout,
+        )
+
+    failed = []
+    with ThreadPoolExecutor(max_workers=len(variants)) as executor:
+        futures = [
+            executor.submit(build_variant, arch, musl) for arch, musl in variants
+        ]
+        for future in as_completed(futures):
+            variant = future.result()
+            if variant.ok:
+                print(f"✓ {variant.label} built")
+            else:
+                print(f"✗ {variant.label} FAILED; full build output:")
+                print(variant.output)
+                failed.append(variant.label)
+    if failed:
+        print(f"Builds failed: {', '.join(failed)}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build inspect-sandbox-tools executables in containers",
@@ -235,21 +292,7 @@ def main() -> None:
 
         # Handle --all flag or no parameters (default behavior)
         if args.all or (not args.arch):
-            print("Building for all architectures and libc variants...")
-            # Recursively call this script for each architecture x libc variant
-            for arch in ["amd64", "arm64"]:
-                for musl in [False, True]:
-                    cmd = [sys.executable, __file__, "--arch", arch]
-                    if musl:
-                        cmd.append("--musl")
-                    if not args.dev:
-                        cmd.append("--dev=false")
-                    # Add passthrough arguments if any
-                    if passthrough_args:
-                        cmd.append("--")
-                        cmd.extend(passthrough_args)
-                    print(f"Building {arch} ({'musl' if musl else 'glibc'})...")
-                    subprocess.run(cmd, check=True)
+            _build_all_variants(args.dev, passthrough_args)
             return
 
         # Determine target architecture (only when --arch is explicitly specified)

@@ -1,4 +1,5 @@
 import math
+from typing import Any
 
 import pytest
 from test_helpers.utils import (
@@ -15,15 +16,22 @@ from test_helpers.utils import (
 from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput, get_model
 
 
-async def generate_with_logprobs(model_name, **model_kwargs) -> ModelOutput:
+async def generate_with_logprobs(
+    model_name: str,
+    *,
+    temperature: float | None = 0.001,
+    extra_body: dict[str, Any] | None = None,
+    **model_kwargs: Any,
+) -> ModelOutput:
     model = get_model(
         model_name,
         config=GenerateConfig(
             logprobs=True,
             top_logprobs=2,
-            temperature=0.001,
+            temperature=temperature,
             max_tokens=50,
             max_retries=0,
+            extra_body=extra_body,
         ),
         **model_kwargs,
     )
@@ -51,22 +59,45 @@ async def test_openai_responses_logprobs() -> None:
 @pytest.mark.anyio
 @skip_if_no_moonshot
 async def test_moonshot_logprobs() -> None:
-    # kimi-k2.5 rather than k3: K3's thinking (on by default) would consume
-    # the small max_tokens budget before any completion tokens (and their
-    # logprobs) are emitted
-    response = await generate_with_logprobs("moonshot/kimi-k2.5")
+    # K3 rejects logprobs outright ("only false is allowed for this model"),
+    # so use K2.6 with thinking disabled -- with thinking on (the default) the
+    # small max_tokens budget is spent on reasoning tokens and no completion
+    # logprobs are emitted. K2.6 pins temperature to 0.6 even with thinking
+    # disabled, so send no temperature at all.
+    response = await generate_with_logprobs(
+        "moonshot/kimi-k2.6",
+        temperature=None,
+        extra_body={"thinking": {"type": "disabled"}},
+    )
     assert response.choices[0].logprobs is not None
     assert response.choices[0].logprobs.content[0].top_logprobs is not None
     assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
 
 
+def test_together_logprobs_params_passthrough() -> None:
+    # Together now follows the OpenAI logprobs contract: `logprobs` must stay
+    # a boolean (the old integer rewrite 400s on newer models) and
+    # `top_logprobs` must be passed through (deleting it capped results at 1)
+    from inspect_ai.model._providers.together import TogetherAIAPI
+
+    api = TogetherAIAPI(model_name="MiniMaxAI/MiniMax-M3", api_key="test-key")
+    params = api.completion_params(
+        GenerateConfig(logprobs=True, top_logprobs=2), tools=False
+    )
+    assert params["logprobs"] is True
+    assert params["top_logprobs"] == 2
+
+
 @skip_if_no_together
 async def test_together_logprobs() -> None:
-    response = await generate_with_logprobs("together/MiniMaxAI/MiniMax-M2.7")
+    # gemma rather than a thinking model (e.g. MiniMax-M3), whose reasoning
+    # would consume the small max_tokens budget before any completion tokens
+    # (and their logprobs) are emitted
+    response = await generate_with_logprobs("together/google/gemma-4-31B-it")
     assert response.choices[0].logprobs is not None
     top_logprobs = response.choices[0].logprobs.content[0].top_logprobs
     assert top_logprobs is not None
-    assert len(top_logprobs) == 1
+    assert len(top_logprobs) == 2
 
 
 @skip_if_no_together
@@ -75,7 +106,7 @@ async def test_together_logprobs_openai_format() -> None:
     assert response.choices[0].logprobs is not None
     top_logprobs = response.choices[0].logprobs.content[0].top_logprobs
     assert top_logprobs is not None
-    assert len(top_logprobs) == 1
+    assert len(top_logprobs) == 2
 
 
 @pytest.mark.anyio

@@ -8,7 +8,12 @@ from shortuuid import uuid
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
+from inspect_ai.model._model import (
+    GenerateFilter,
+    Model,
+    ModelEventSink,
+    ModelResolver,
+)
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
@@ -47,6 +52,7 @@ async def sandbox_agent_bridge(
     *,
     model: str | None = None,
     model_aliases: dict[str, str | Model] | None = None,
+    model_resolver: ModelResolver | None = None,
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
     compaction: CompactionStrategy | None = None,
@@ -80,6 +86,11 @@ async def sandbox_agent_bridge(
         model_aliases: Map of model name aliases. When a request uses a name
             that appears here, the corresponding value (a ``Model`` instance
             or model spec string) is used instead. Checked before the fallback ``model``.
+        model_resolver: Dynamic routing policy called with the requested model
+            name (provider-qualified on a provider-specific endpoint, e.g.
+            ``openai/gpt-5.1``). Checked after ``model_aliases`` and before the ``model``
+            fallback; return a ``Model``/spec to route the request there, or
+            ``None`` to defer. Routes by policy without enumerating every name.
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)
         compaction: Compact the conversation when it it is close to overflowing
@@ -170,6 +181,7 @@ async def sandbox_agent_bridge(
                 port=port,
                 model=model,
                 model_aliases=model_aliases,
+                model_resolver=model_resolver,
                 model_event_sink=model_event_sink,
                 forward_generation_config=forward_generation_config,
                 approval=approval,
@@ -208,6 +220,7 @@ async def sandbox_agent_bridge(
                 cmd=[SANDBOX_CLI, "model_proxy"],
                 options=ExecRemoteStreamingOptions(
                     concurrency=False,
+                    user=sandbox_env._tools_user,
                     env={
                         f"{MODEL_SERVICE.upper()}_PORT": str(port),
                         f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
@@ -219,8 +232,9 @@ async def sandbox_agent_bridge(
             # monitor proxy for unexpected death
             tg.start_soon(_monitor_proxy, proxy)
 
-            # monitor for a termination requested by a tool call approver
-            tg.start_soon(_monitor_terminate, bridge)
+            # monitor for a sample failure requested from a bridged generation
+            # (approver termination, fail_on_refusal)
+            tg.start_soon(_monitor_failure, bridge)
 
             # main agent
             try:
@@ -266,17 +280,17 @@ def _register_bridged_tools(
     )
 
 
-async def _monitor_terminate(bridge: SandboxAgentBridge) -> None:
-    """Raise `TerminateSampleError` when a tool call approver requests termination.
+async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
+    """Raise the error a bridged generation asked the sample to fail with.
 
     Bridged generations run in the sandbox service task, whose exceptions never
-    propagate (see `SandboxAgentBridge.request_terminate`). Raising here instead puts
-    the error in the bridge's own task group, so it unwinds the agent and reaches the
-    sample runner.
+    propagate (see `SandboxAgentBridge.request_fail`). Raising here instead puts
+    the error in the bridge's own task group, so it unwinds the agent and reaches
+    the sample runner.
     """
-    await bridge._terminate_requested.wait()
-    raise TerminateSampleError(
-        bridge._terminate_reason or "Sample terminated by tool call approver."
+    await bridge._failure_requested.wait()
+    raise bridge._failure or TerminateSampleError(
+        "Sample terminated by tool call approver."
     )
 
 

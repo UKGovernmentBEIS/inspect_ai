@@ -58,20 +58,23 @@ class QuitCommand(SessionEndCommand):
     def cli(self, args: Namespace) -> None:
         # verify that the user wants to proceed
         action = "quit the task without submitting an answer (ending the exercise)"
-        while True:
-            response = (
-                input(
-                    f"\nDo you definitely want to {action}?\n\nThis will disconnect you from the task environment and you won't be able to reconnect.\n\nYes (y) or No (n): "
+        try:
+            while True:
+                response = (
+                    input(
+                        f"\nDo you definitely want to {action}?\n\nThis will disconnect you from the task environment and you won't be able to reconnect.\n\nYes (y) or No (n): "
+                    )
+                    .lower()
+                    .strip()
                 )
-                .lower()
-                .strip()
-            )
-            if response in ["yes", "y"]:
-                break
-            elif response in ["no", "n"]:
-                return
-            else:
-                print("Please enter yes or no.")
+                if response in ["yes", "y"]:
+                    break
+                elif response in ["no", "n"]:
+                    return
+                else:
+                    print("Please enter yes or no.")
+        except EOFError:
+            return
 
         # thank the user!
         print(
@@ -124,20 +127,23 @@ class SubmitCommand(SessionEndCommand):
         answer_text = f" '{answer}'" if answer else ""
         action = f"end the task and submit{answer_text}"
 
-        while True:
-            response = (
-                input(
-                    f"\nDo you definitely want to {action}?\n\nThis will disconnect you from the task environment and you won't be able to reconnect.\n\nYes (y) or No (n): "
+        try:
+            while True:
+                response = (
+                    input(
+                        f"\nDo you definitely want to {action}?\n\nThis will disconnect you from the task environment and you won't be able to reconnect.\n\nYes (y) or No (n): "
+                    )
+                    .lower()
+                    .strip()
                 )
-                .lower()
-                .strip()
-            )
-            if response in ["yes", "y"]:
-                break
-            elif response in ["no", "n"]:
-                return
-            else:
-                print("Please enter yes or no.")
+                if response in ["yes", "y"]:
+                    break
+                elif response in ["no", "n"]:
+                    return
+                else:
+                    print("Please enter yes or no.")
+        except EOFError:
+            return
 
         # thank the user!
         print(

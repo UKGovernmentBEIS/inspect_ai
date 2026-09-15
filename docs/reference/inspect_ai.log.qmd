@@ -20,6 +20,7 @@ description: List, read, write, and analyse logs.
 ### write_log_dir_manifest
 ### retryable_eval_logs
 ### EvalLogInfo
+### WriteEvalLogResult
 
 ## Log Editing
 
@@ -44,8 +45,10 @@ description: List, read, write, and analyse logs.
 
 ### recover_eval_log
 ### recoverable_eval_logs
+### IncompleteAction
 ### RecoverableEvalLog
 ### RecoveryNotAvailable
+### RecoveryThresholdExceeded
 
 ## Eval Log API
 
@@ -60,6 +63,9 @@ description: List, read, write, and analyse logs.
 ### EvalResults
 ### EvalScore
 ### EvalMetric
+### HeadlineMetric
+### ResolvedHeadlineMetric
+### headline_metric
 ### EvalSampleReductions
 ### EvalStats
 ### EvalError
@@ -83,7 +89,6 @@ description: List, read, write, and analyse logs.
 ### transcript
 ### Transcript
 ### TranscriptHistory
-
 
 
 

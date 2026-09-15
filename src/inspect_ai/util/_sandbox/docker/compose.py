@@ -6,16 +6,22 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, cast
 
-import anyio
 import yaml
 from pydantic import BaseModel
 
+from inspect_ai._util.cpu import effective_cpu_count
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util._concurrency import concurrency as concurrency_manager
 from inspect_ai.util._display import display_type, display_type_plain
-from inspect_ai.util._subprocess import ExecResult, subprocess
+from inspect_ai.util._subprocess import (
+    ExecResult,
+    SubprocessRun,
+    run_subprocess,
+    subprocess,
+)
 
+from .config import is_auto_compose_file
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
@@ -139,13 +145,14 @@ async def compose_ps(
     ]
     | None = None,
     all: bool = False,
+    timeout: int = 300,
 ) -> list[dict[str, Any]]:
     command = ["ps", "--format", "json"]
     if all:
         command.append("--all")
     if status:
         command = command + ["--status", status]
-    result = await compose_command(command, project=project, timeout=300)
+    result = await compose_command(command, project=project, timeout=timeout)
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)
@@ -182,6 +189,49 @@ async def compose_pull(
         timeout=None,  # no timeout for pull
         capture_output=capture_output,
     )
+
+
+PREBUILT_IMAGES_ERROR_PREFIX = (
+    "Sandbox images are expected to be prebuilt (sandbox_prebuilt is set) but "
+)
+
+
+async def compose_verify_prebuilt_images(
+    project: ComposeProject, services: dict[str, ComposeService]
+) -> None:
+    unnamed: list[str] = []
+    missing: list[str] = []
+    for name, service in services.items():
+        if "build" not in service and not service.get("x-local"):
+            continue
+        image = service.get("image")
+        if not image:
+            unnamed.append(name)
+        elif not await docker_image_exists_locally(image):
+            missing.append(f"{name} ({image})")
+    problems: list[str] = []
+    if unnamed:
+        if project.config is not None and is_auto_compose_file(project.config):
+            problems.append(
+                "the task's sandbox config does not name an 'image' under which a "
+                "prebuilt image can be located. Name one via an 'image' key in a "
+                "compose.yaml, or via 'image' on the sandbox's ComposeService"
+            )
+        else:
+            problems.append(
+                "no prebuilt image can be located for these services because they have a 'build' "
+                "section but no 'image' key. Add an explicit 'image' name to the compose file and "
+                f"provide the image under that name: {', '.join(unnamed)}"
+            )
+    if missing:
+        problems.append(
+            "these services' images are not present in the Docker image store: "
+            f"{', '.join(missing)}"
+        )
+    if problems:
+        raise PrerequisiteError(
+            PREBUILT_IMAGES_ERROR_PREFIX + ". Additionally, ".join(problems)
+        )
 
 
 async def docker_image_exists_locally(image: str) -> bool:
@@ -320,20 +370,22 @@ async def compose_command(
 
     # set a concurrency limit for docker CLI invocations.
     # this should help with running more containers in parallel while avoiding hangs on some systems
-    DEFAULT_CLI_CONCURRENCY = max((os.cpu_count() or 1) * 2, 4)
+    # (sized off the processors this process may use, not the host's — see
+    # `effective_cpu_count`)
+    DEFAULT_CLI_CONCURRENCY = max(effective_cpu_count() * 2, 4)
     docker_cli_concurrency = int(
         os.environ.get("INSPECT_DOCKER_CLI_CONCURRENCY", DEFAULT_CLI_CONCURRENCY)
     )
 
     # function to run command (wrapped in concurrency limiter)
-    async def run_command(command_timeout: int | None) -> ExecResult[str]:
+    async def run_command(command_timeout: int | None) -> SubprocessRun[str]:
         concurrency_ctx = (
             concurrency_manager("docker-cli", docker_cli_concurrency, visible=False)
             if concurrency
             else contextlib.nullcontext()
         )
         async with concurrency_ctx:
-            result = await subprocess(
+            return await run_subprocess(
                 compose_command,
                 input=input,
                 cwd=cwd,
@@ -343,7 +395,6 @@ async def compose_command(
                 output_limit=output_limit,
                 concurrency=concurrency,
             )
-            return result
 
     # we have observed underlying unreliability in docker compose in some linux
     # environments on EC2 -- this exhibits in very simple commands (e.g. compose config)
@@ -355,33 +406,45 @@ async def compose_command(
     # commands hanging at a rate of ~ 1/1000, so we retry up to twice (tweaking the
     # retry time down) to make the odds of hanging vanishingly small.
     # under the same conditions we have also seen the compose CLI process exit
-    # immediately when dockerd fails the exec attach ("error attaching stdout
-    # stream: write unix /run/docker.sock->@: broken pipe"); the subsequent
-    # write of `input` to the dead subprocess's stdin then raises
-    # anyio.BrokenResourceError. retry that too.
+    # before reading its stdin when dockerd fails the exec attach (its exit
+    # status and output are not a reliable signal of this, so we key on the
+    # unread stdin). retry that too; when retries are exhausted the CLI's own
+    # result is returned so the caller sees what the command did.
 
     if timeout is not None:
         MAX_RETRIES = 2
         retries = 0
         while True:
+            command_timeout = max(
+                timeout if retries == 0 else (min(timeout, 60) // retries), 1
+            )
             try:
-                command_timeout = max(
-                    timeout if retries == 0 else (min(timeout, 60) // retries), 1
-                )
-                return await run_command(command_timeout)
-            except (TimeoutError, anyio.BrokenResourceError) as e:
+                run = await run_command(command_timeout)
+            except TimeoutError as e:
                 retries += 1
                 if timeout_retry and (retries <= MAX_RETRIES):
                     logger.info(
-                        f"Retrying docker compose command after "
-                        f"{type(e).__name__}: {shlex.join(compose_command)}"
+                        f"Retrying docker compose command after timeout: "
+                        f"{shlex.join(compose_command)}"
                     )
-                elif isinstance(e, TimeoutError):
-                    raise TimeoutError(
-                        f"Docker compose command '{command}' timed out after {timeout} seconds"
-                    ) from e
-                else:
-                    raise
+                    continue
+                raise TimeoutError(
+                    f"Docker compose command '{command}' timed out after {timeout} seconds"
+                ) from e
+            if run.stdin_written:
+                return run.result
+            retries += 1
+            if timeout_retry and (retries <= MAX_RETRIES):
+                logger.info(
+                    f"Retrying docker compose command that exited before reading "
+                    f"its stdin: {shlex.join(compose_command)}"
+                )
+                continue
+            logger.warning(
+                f"Docker compose command exited before reading its stdin; "
+                f"giving up after {retries} attempt(s): {shlex.join(compose_command)}"
+            )
+            return run.result
 
     else:
-        return await run_command(timeout)
+        return (await run_command(timeout)).result

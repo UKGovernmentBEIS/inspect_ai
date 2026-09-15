@@ -3,10 +3,12 @@
 import logging
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Literal
 
 from inspect_ai._util._async import run_coroutine
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.file import dirname, filesystem
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -15,13 +17,15 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
+from inspect_ai.log._recorders.eval import _sample_filename
 
-from ._buffer import read_buffer_recovery_data
-from ._read import read_crashed_eval_log
-from ._reconstruct import reconstruct_eval_sample
+from ._buffer import BufferRecoveryData, read_buffer_recovery_data
+from ._read import CrashedEvalLog, read_crashed_eval_log
+from ._reconstruct import IncompleteAction, reconstruct_eval_sample
 from ._write import (
     RecoveryStats,
     default_output_path,
+    expected_samples,
     write_recovered_eval_log,
 )
 
@@ -35,6 +39,53 @@ class RecoveryNotAvailable(Exception):
     or no sample buffer database exists. This is a normal condition, not an
     error. Opportunistic callers should catch this silently.
     """
+
+
+class RecoveryThresholdExceeded(Exception):
+    """More samples were in progress at crash than `incomplete_max` allows.
+
+    Raised before any recovery output is written, so the log remains
+    recoverable exactly as it was. A large in-progress set usually signals a
+    systemic failure (e.g. a provider outage) rather than a stalled tail, so
+    resolving it per the disposition would silently complete an eval whose
+    samples should re-run. Callers that recover opportunistically
+    (`eval_retry` / `eval_set`) catch this and fall back to the default
+    `"retry"` disposition.
+    """
+
+
+def resolve_incomplete_max(
+    incomplete_action: IncompleteAction, incomplete_max: int | float | None
+) -> int | float | None:
+    """Validate `incomplete_max`, dropping (with a warning) one that cannot apply.
+
+    A negative threshold is rejected: it can never be satisfied, so every
+    resolving recovery would refuse (or silently fall back to retry) with no
+    hint that the value was the cause. `0` is valid and means "resolve only
+    when nothing was in progress".
+
+    The guard only governs a resolving disposition; under `"retry"` nothing is
+    resolved, so a threshold is inert. Warn rather than fail so a threshold
+    baked into the environment as standing policy (`INSPECT_EVAL_INCOMPLETE_MAX`)
+    does not break runs that keep the default disposition, and return `None` so
+    callers can forward the result without warning a second time downstream.
+
+    Raises:
+        ValueError: `incomplete_max` is negative.
+    """
+    if incomplete_max is not None and incomplete_max < 0:
+        raise ValueError(
+            f"incomplete_max must be >= 0 (a count if >= 1, or a proportion of "
+            f"expected samples if strictly less than 1), got {incomplete_max}."
+        )
+    if incomplete_action == "retry" and incomplete_max is not None:
+        logger.warning(
+            f"incomplete_max={incomplete_max} has no effect with "
+            "incomplete_action='retry': the threshold only guards a resolving "
+            "disposition (e.g. incomplete_action='error')."
+        )
+        return None
+    return incomplete_max
 
 
 @dataclass
@@ -54,7 +105,7 @@ class RecoverableEvalLog:
     """Number of in-progress (unscored) samples in the buffer DB."""
 
     total_samples: int
-    """Total expected samples (dataset samples * epochs)."""
+    """Total expected samples (selected dataset samples * epochs)."""
 
     source: str = "database"
     """Recovery data source: "database" or "filestore"."""
@@ -64,8 +115,10 @@ def recover_eval_log(
     log: str,
     output: str | None = None,
     overwrite: bool = False,
-    cleanup: bool = True,
+    cleanup: bool | Literal["finalized"] = True,
     no_events: bool = False,
+    incomplete_action: IncompleteAction = "retry",
+    incomplete_max: int | float | None = None,
     _stats: RecoveryStats | None = None,
 ) -> EvalLog:
     """Recover a crashed eval log.
@@ -78,11 +131,34 @@ def recover_eval_log(
         output: Output path (default: <name>-recovered.eval alongside original).
         overwrite: Write the recovered log to the same path as the input,
             replacing the crashed log in-place.
-        cleanup: Remove the buffer DB after recovery.
+        cleanup: Remove the buffer DB after recovery. `"finalized"` removes it
+            only when the recovered log finalizes with `status="success"`: for
+            callers that keep the buffer as a safety net while resolved
+            samples re-run, a finalized recovery is the final log and nothing
+            re-runs, so the buffer would otherwise linger until the multi-day
+            startup sweep.
         no_events: Exclude event transcript from recovered samples.
+        incomplete_action: Disposition for samples that were in progress at
+            crash. `"retry"` (default) marks them as cancelled errors that a
+            later retry re-runs; `"error"` resolves them as operator
+            terminations, and when every expected sample is then final the
+            recovered log is finalized with `status="success"` (nothing will
+            retry it).
+        incomplete_max: Safety threshold for `incomplete_action="error"`
+            (count if >= 1, or proportion of expected samples if strictly
+            less than 1, so `1.0` means one sample, not 100%): raise
+            `RecoveryThresholdExceeded` — before writing anything — when more
+            than this many samples are in progress. `None` = no guard. Has no
+            effect (a warning is logged) with `incomplete_action="retry"`.
 
     Returns:
         The recovered EvalLog.
+
+    Raises:
+        RecoveryNotAvailable: There is nothing to recover.
+        RecoveryThresholdExceeded: More samples were in progress than
+            `incomplete_max` allows.
+        ValueError: `incomplete_max` is negative.
     """
     return run_coroutine(
         recover_eval_log_async(
@@ -91,6 +167,8 @@ def recover_eval_log(
             overwrite=overwrite,
             cleanup=cleanup,
             no_events=no_events,
+            incomplete_action=incomplete_action,
+            incomplete_max=incomplete_max,
             _stats=_stats,
         )
     )
@@ -100,12 +178,16 @@ async def recover_eval_log_async(
     log: str,
     output: str | None = None,
     overwrite: bool = False,
-    cleanup: bool = True,
+    cleanup: bool | Literal["finalized"] = True,
     _db_dir: str | Path | None = None,
     no_events: bool = False,
+    incomplete_action: IncompleteAction = "retry",
+    incomplete_max: int | float | None = None,
     _stats: RecoveryStats | None = None,
 ) -> EvalLog:
     """Async implementation of recover_eval_log."""
+    incomplete_max = resolve_incomplete_max(incomplete_action, incomplete_max)
+
     # Step 1: Read the crashed .eval file metadata
     try:
         crashed = await read_crashed_eval_log(log)
@@ -148,11 +230,35 @@ async def recover_eval_log_async(
     if recovery_data is None:
         raise RecoveryNotAvailable(f"No sample buffer database found for {log}")
 
-    # Derive flushed sample keys for deduplication against buffer DB
-    flushed_keys = set(crashed.sample_entries)
+    # Derive flushed sample keys for deduplication against buffer DB: the
+    # log's record is authoritative for a key unless the buffer holds a newer
+    # entry for it (see _superseded_by_buffer)
+    flushed_keys = set(crashed.sample_entries) - _superseded_by_buffer(
+        crashed, recovery_data
+    )
+
+    # Guard: refuse a resolving disposition when more samples are in progress
+    # than incomplete_max allows (checked before anything is written)
+    if incomplete_action != "retry" and incomplete_max is not None:
+        unresolved = [
+            summary
+            for summary in recovery_data.in_progress
+            if _sample_filename(summary.id, summary.epoch) not in flushed_keys
+        ]
+        threshold = (
+            incomplete_max
+            if incomplete_max >= 1
+            else incomplete_max * expected_samples(crashed.eval)
+        )
+        if len(unresolved) > threshold:
+            raise RecoveryThresholdExceeded(
+                f"Refusing to resolve {len(unresolved)} in-progress samples "
+                f"(incomplete_max={incomplete_max}). The log remains recoverable; "
+                f"recover with incomplete_action='retry' or raise the threshold."
+            )
 
     # Step 3: Determine recovery path and write
-    buffer = recovery_data.buffer if recovery_data else None
+    buffer = recovery_data.buffer
     streaming_buffer: SampleBufferFilestore | None = None
     streaming_summaries: list[tuple[EvalSampleSummary, bool]] | None = None
 
@@ -164,34 +270,34 @@ async def recover_eval_log_async(
         ] + [(summary, True) for summary in recovery_data.in_progress]
 
     # Lazy generator for non-filestore (database) buffers
-    def _buffer_samples() -> Iterator[EvalSample]:
+    def _buffer_samples() -> Iterator[tuple[EvalSample, bool]]:
         if buffer is None or isinstance(buffer, SampleBufferFilestore):
             return
 
-        all_summaries = [
-            (summary, False)
-            for summary in recovery_data.completed  # type: ignore[union-attr]
-        ] + [
-            (summary, True)
-            for summary in recovery_data.in_progress  # type: ignore[union-attr]
+        all_summaries = [(summary, False) for summary in recovery_data.completed] + [
+            (summary, True) for summary in recovery_data.in_progress
         ]
 
         for summary, is_in_progress in all_summaries:
-            entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
+            entry = _sample_filename(summary.id, summary.epoch)
             if entry in flushed_keys:
                 continue
 
             sample_data = buffer.get_sample_data(summary.id, summary.epoch)
 
             if sample_data is not None:
-                yield reconstruct_eval_sample(
-                    summary,
-                    sample_data,
-                    sample_metadata=buffer.get_sample_metadata(
-                        summary.id, summary.epoch
+                yield (
+                    reconstruct_eval_sample(
+                        summary,
+                        sample_data,
+                        sample_metadata=buffer.get_sample_metadata(
+                            summary.id, summary.epoch
+                        ),
+                        cancelled=is_in_progress,
+                        incomplete_action=incomplete_action,
+                        include_events=not no_events,
                     ),
-                    cancelled=is_in_progress,
-                    include_events=not no_events,
+                    is_in_progress,
                 )
 
     # Step 4: Stream all samples into the recovered file.
@@ -203,6 +309,7 @@ async def recover_eval_log_async(
         streaming_summaries=streaming_summaries,
         flushed_keys=flushed_keys,
         no_events=no_events,
+        incomplete_action=incomplete_action,
         stats=_stats,
     )
 
@@ -215,10 +322,68 @@ async def recover_eval_log_async(
         recovered_log = await read_eval_log_async(final_output)
 
     # Cleanup buffer DB (only after successful write)
-    if cleanup and recovery_data is not None and recovery_data.buffer is not None:
+    remove_buffer = cleanup is True or (
+        cleanup == "finalized" and recovered_log.status == "success"
+    )
+    if remove_buffer and recovery_data.buffer is not None:
         recovery_data.buffer.cleanup()
 
     return recovered_log
+
+
+def _superseded_by_buffer(
+    crashed: CrashedEvalLog, recovery_data: BufferRecoveryData
+) -> set[str]:
+    """Sample entries in the crashed log that the buffer holds a newer entry for.
+
+    A seeded retry attempt's log carries the prior attempt's records for the
+    very keys it re-runs. Where this attempt re-ran such a key — completing
+    it, or still running it at the crash — without reaching a destination
+    flush, the buffer's entry is the newer result and must not be shadowed by
+    the inherited record. The same holds for a sample requeued after its
+    completion was flushed. "Newer" is decided from the timestamps both
+    sides already carry: the buffer entry started after the log's record
+    ended (``sample_record_time``). A record this attempt flushed always
+    predates its own start, so it stays authoritative; a record missing
+    either timestamp stays authoritative too (today's behavior; only logs
+    and buffers written before realtime rows carried a start lack them).
+
+    The comparison spans attempts, so it assumes their clocks agree to within
+    the gap between the prior attempt finishing and the retry starting;
+    ``TaskLogger.seed_from_prior`` warns at startup when the clock is seen
+    to run behind the prior's records. Under undetected skew the inherited
+    record wins, which is the pre-existing behavior for that key.
+    """
+    ended_at: dict[str, datetime] = {}
+    for summary in crashed.summaries:
+        ended = sample_record_time(summary)
+        if ended is not None:
+            ended_at[_sample_filename(summary.id, summary.epoch)] = ended
+    superseded: set[str] = set()
+    for summary in recovery_data.completed + recovery_data.in_progress:
+        entry = _sample_filename(summary.id, summary.epoch)
+        ended = ended_at.get(entry)
+        started = _timestamp(summary.started_at)
+        if ended is not None and started is not None and started > ended:
+            superseded.add(entry)
+    return superseded
+
+
+def sample_record_time(summary: EvalSampleSummary) -> datetime | None:
+    """The latest moment a logged sample record vouches for.
+
+    Its completion, normally. A record with none is a recovered interruption:
+    a still-running sample that recovery wrote from its realtime row, which
+    knows only when the sample started (``completed_at`` stays unset, as the
+    sample never completed). Its start is then the latest time it carries,
+    and anything started after that is newer. Both fields are validated
+    ``UtcDatetimeStr``, so they parse; ``None`` only for a record with neither.
+    """
+    return _timestamp(summary.completed_at) or _timestamp(summary.started_at)
+
+
+def _timestamp(value: str | None) -> datetime | None:
+    return datetime_from_iso_format_safe(value) if value is not None else None
 
 
 def recoverable_eval_logs(
@@ -271,11 +436,7 @@ async def _recoverable_eval_logs_async(
         try:
             crashed = await read_crashed_eval_log(location)
             flushed = len(crashed.sample_entries)
-            dataset_samples = (
-                (crashed.eval.dataset.samples or 0) if crashed.eval.dataset else 0
-            )
-            epochs = crashed.eval.config.epochs or 1
-            total = dataset_samples * epochs
+            total = expected_samples(crashed.eval)
         except Exception:
             flushed = 0
             total = 0

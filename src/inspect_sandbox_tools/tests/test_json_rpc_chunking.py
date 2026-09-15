@@ -50,6 +50,33 @@ def test_chunk_dir_accepts_secure_root_owner(
     chunking.ensure_json_rpc_response_chunk_dir()
 
 
+@pytest.mark.skipif(not hasattr(os, "O_PATH"), reason="O_PATH is Linux-only")
+def test_chunk_dir_usable_by_non_owner_without_read_bit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 1733 root created by another identity denies us read; O_PATH still works."""
+    chunking._CHUNK_DIR.mkdir(mode=0o1733)
+    stat_values = list(chunking._CHUNK_DIR.lstat())
+    stat_values[0] = stat.S_IFDIR | 0o1733
+    stat_values[4] = 0
+    root_owned = os.stat_result(stat_values)
+    real_open = os.open
+    opens: list[int] = []
+
+    def open_without_read_permission(path: Any, flags: int, *args: Any) -> int:
+        opens.append(flags)
+        if not flags & os.O_PATH:
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_open(path, flags, *args)
+
+    monkeypatch.setattr(chunking.os, "open", open_without_read_permission)
+    monkeypatch.setattr(chunking.os, "fstat", lambda _fd: root_owned)
+    monkeypatch.setattr(chunking.os, "getuid", lambda: 1000)
+
+    chunking.ensure_json_rpc_response_chunk_dir()
+    assert len(opens) == 2 and opens[1] & os.O_PATH
+
+
 def test_json_rpc_response_chunking_round_trips_large_stdout_and_stderr() -> None:
     max_response_bytes = 128 * 1024
     original_response = json.dumps(

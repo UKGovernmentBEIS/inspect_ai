@@ -1,4 +1,5 @@
 import logging
+import sys
 from typing import TYPE_CHECKING, Callable
 
 import httpcore
@@ -151,20 +152,48 @@ def httpx_should_retry_no_status_code(ex: BaseException) -> bool:
         +-- ReadError
         +-- WriteError
     """
-    # Base class for all exceptions that occur at the level of the Transport API.
-    is_transport_error = isinstance(ex, httpx.TransportError)
+    return isinstance(ex, _retryable_no_status_errors())
 
-    # Sometimes exceptions are raised directly by httpcore, the lower-level library that httpx uses
-    is_httpcore_network_error = isinstance(ex, httpcore.NetworkError)
-    is_httpcore_timeout_error = isinstance(ex, httpcore.TimeoutException)
-    is_httpcore_protocol_error = isinstance(ex, httpcore.ProtocolError)
 
-    # extensible in case we notice other cases
-    return any(
-        [
-            is_transport_error,
-            is_httpcore_network_error,
-            is_httpcore_timeout_error,
-            is_httpcore_protocol_error,
-        ]
-    )
+# transport-level errors (from httpx, or raised directly by httpcore, the
+# lower-level library it uses) that should be retried despite carrying no
+# HTTP status code
+_RETRYABLE_NO_STATUS_ERRORS: tuple[type[BaseException], ...] = (
+    httpx.TransportError,
+    httpcore.NetworkError,
+    httpcore.TimeoutException,
+    httpcore.ProtocolError,
+)
+_httpx2_errors_added = False
+
+
+def _retryable_no_status_errors() -> tuple[type[BaseException], ...]:
+    """Exception types (without an HTTP status code) that warrant a retry.
+
+    httpx2/httpcore2 are not direct dependencies of inspect_ai — they arrive
+    transitively with openai >= 3 and anthropic >= 1, whose SDKs are built on
+    them and can surface their exception types; classify those exactly like
+    their legacy httpx/httpcore counterparts. Resolved lazily (an httpx2
+    exception can only exist if httpx2 is already imported) so that importing
+    inspect_ai doesn't pay for importing httpx2. No lock needed: inspect runs
+    on a single event loop thread, and re-running the extension is harmless.
+    """
+    global _RETRYABLE_NO_STATUS_ERRORS, _httpx2_errors_added
+    if not _httpx2_errors_added and "httpx2" in sys.modules:
+        import httpx2
+
+        additions: tuple[type[BaseException], ...] = (httpx2.TransportError,)
+        try:
+            import httpcore2
+
+            additions = additions + (
+                httpcore2.NetworkError,
+                httpcore2.TimeoutException,
+                httpcore2.ProtocolError,
+            )
+        except ImportError:
+            # httpx2's httpcore2 dependency is platform-conditional
+            pass
+        _RETRYABLE_NO_STATUS_ERRORS = _RETRYABLE_NO_STATUS_ERRORS + additions
+        _httpx2_errors_added = True
+    return _RETRYABLE_NO_STATUS_ERRORS

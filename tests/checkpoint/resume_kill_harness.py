@@ -20,6 +20,7 @@ Requires Docker (the sandbox backup path injects a Linux restic binary).
 
 from __future__ import annotations
 
+import glob
 import os
 import signal
 import sys
@@ -28,6 +29,7 @@ from typing import Any
 
 import anyio
 
+from checkpoint.docker_projects import record_docker_projects
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
@@ -37,19 +39,26 @@ from inspect_ai.model import (
     ChatMessageTool,
     GenerateConfig,
     ModelOutput,
+    ModelUsage,
     modelapi,
 )
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import includes
 from inspect_ai.tool import Tool, ToolChoice, ToolInfo, bash, tool
-from inspect_ai.util import CheckpointConfig, TurnInterval, store
+from inspect_ai.util import (
+    ArchiveSnapshots,
+    CheckpointConfig,
+    SandboxSnapshotConfig,
+    TurnInterval,
+    store,
+)
 
 LAYER1_CONTENT = "plain1"
 STORE_KEY = "answer"
 SCRIPTED_MODEL = "scripteddecode/model"
 
 # Write under $HOME (not /workspace) so the default-user home-dir auto-backup
-# captures it — the task declares no `sandbox_paths`, exercising
+# captures it — the task declares no capture paths, exercising
 # `resolve_sandbox_backup_paths` / `_resolve_home_and_cache`. Also drop a file
 # under the XDG cache dir ($HOME/.cache) to prove auto-home mode excludes it.
 WRITE_CMD = (
@@ -58,8 +67,13 @@ WRITE_CMD = (
     'printf cache > "$HOME/.cache/junk.txt"'
 )
 # Written on each post-resume turn so the new snapshot has a non-empty diff vs
-# its parent — used to assert file listing records the *changed* file.
-RESUME_WRITE_CMD = 'printf resumed > "$HOME/workspace/resumed.txt"'
+# its parent — used to assert file listing records the *changed* file. Also
+# cats the turn-0 file so the live post-resume ToolEvent's result proves the
+# sandbox filesystem was actually restored (not just that resume succeeded).
+RESUME_WRITE_CMD = (
+    'printf resumed > "$HOME/workspace/resumed.txt" && '
+    'cat "$HOME/workspace/decoded/layer1.txt"'
+)
 
 # The crash count + target live in a host file named by an env var, not module
 # state: each killed attempt is a fresh process, and the count must survive
@@ -69,14 +83,60 @@ RESUME_WRITE_CMD = 'printf resumed > "$HOME/workspace/resumed.txt"'
 CANCEL_FILE_ENV = "INSPECT_TEST_RESUME_CANCEL_FILE"
 TARGET_ENV = "INSPECT_TEST_RESUME_TARGET_CANCELS"
 
+# Sandbox snapshot strategy for the *fresh* attempt ("restic" | "archive").
+# Only the fresh eval reads it: resumes reconstruct the task from the log's
+# recorded task args, which is itself part of what the e2e test exercises
+# (the strategy pin hard-errors if the strategy didn't round-trip).
+STRATEGY_ENV = "INSPECT_TEST_RESUME_STRATEGY"
+
+
+def snapshot_strategy() -> str:
+    return os.environ.get(STRATEGY_ENV, "restic")
+
+
 # Which signal the `crash` tool sends itself: SIGKILL (unanticipated death, no
 # unwind) or SIGINT (what Ctrl-C delivers — graceful cancel, log finalized,
 # sandboxes torn down). Resume must work from either.
 SIGNAL_ENV = "INSPECT_TEST_RESUME_SIGNAL"
 
+# Two-sample mode (the queued-sample e2e): run `resume_two_sample_task`
+# instead, with max_samples=2 on the fresh attempt and max_samples=1 on
+# retries — so on a retry, sample B sits queued behind sample A's resume
+# when A crashes.
+TWO_SAMPLE_ENV = "INSPECT_TEST_RESUME_TWO_SAMPLE"
+
+# When set, the `crash` tool waits for this glob to match before killing
+# the process — used by two-sample mode to guarantee sample B has a
+# committed checkpoint (its ckpt file on the host) before sample A's
+# crash takes the whole process down.
+SIBLING_CKPT_GLOB_ENV = "INSPECT_TEST_RESUME_SIBLING_CKPT_GLOB"
+
+# Sample B's identity in two-sample mode.
+B_SAMPLE_ID = "resume2"
+B_INPUT = "work steadily"
+B_CONTENT = "plainB"
+B_WRITE_CMD = (
+    'mkdir -p "$HOME/workspace" && printf \'plainB\' > "$HOME/workspace/bfile.txt"'
+)
+# B submits at this tool-turn count: enough turns that B is still mid-run
+# when A crashes attempt #0, few enough that the final resume stays quick.
+B_SUBMIT_TURN = 4
+
+# Sample turn budget, when the test sets one. The budget-carry e2e needs a live
+# turn counter for the resume to carry; without a limit nothing counts turns.
+TURN_LIMIT_ENV = "INSPECT_TEST_RESUME_TURN_LIMIT"
+
+# Tokens the scripted model reports per generate, each direction.
+GENERATE_TOKENS = 10
+
 
 def crash_signal() -> signal.Signals:
     return signal.Signals[os.environ.get(SIGNAL_ENV, "SIGKILL")]
+
+
+def turn_limit() -> int | None:
+    value = os.environ.get(TURN_LIMIT_ENV)
+    return int(value) if value else None
 
 
 def cancels_done() -> int:
@@ -139,6 +199,13 @@ def remember() -> Tool:
 def crash() -> Tool:
     async def execute() -> str:
         """Signal the eval process to die (SIGKILL) or cancel (SIGINT)."""
+        # Two-sample mode: hold the crash until the sibling sample has a
+        # committed checkpoint on the host, so the kill deterministically
+        # leaves a checkpointed-but-unfinished sibling behind.
+        sibling_glob = os.environ.get(SIBLING_CKPT_GLOB_ENV)
+        if sibling_glob:
+            while not glob.glob(sibling_glob):
+                await anyio.sleep(0.1)
         # Record the crash before signalling (flushed to disk), then signal our
         # own process. Running inside the child, this is the child's PID.
         bump_cancels()
@@ -176,7 +243,35 @@ def _scripted_outputs(
     config: GenerateConfig,
 ) -> ModelOutput:
     _resume_state.generates += 1
+    output = _scripted_tool_call(input)
+    # MockLLM synthesizes usage only on its iterator path, not the callable one
+    # this harness drives — so stamp a fixed amount, giving the budget-carry
+    # e2e a token count to compare across the kill.
+    output.usage = ModelUsage(
+        input_tokens=GENERATE_TOKENS,
+        output_tokens=GENERATE_TOKENS,
+        total_tokens=2 * GENERATE_TOKENS,
+    )
+    return output
+
+
+def _scripted_tool_call(input: list[ChatMessage]) -> ModelOutput:
     n = sum(1 for m in input if isinstance(m, ChatMessageTool))
+    # Two-sample mode's sample B (recognized by its input text): never
+    # crashes — it does steady work turns and submits, so it's the
+    # checkpointed-but-unfinished sample the crashes leave behind.
+    if any(m.role == "user" and B_INPUT in m.text for m in input):
+        if n == 0:
+            return ModelOutput.for_tool_call(
+                SCRIPTED_MODEL, "bash", {"command": B_WRITE_CMD}
+            )
+        if n < B_SUBMIT_TURN:
+            return ModelOutput.for_tool_call(
+                SCRIPTED_MODEL, "bash", {"command": RESUME_WRITE_CMD}
+            )
+        return ModelOutput.for_tool_call(
+            SCRIPTED_MODEL, "submit", {"answer": B_CONTENT}
+        )
     done = cancels_done()
     target = target_cancels()
     if n == 0:
@@ -211,7 +306,7 @@ def _scripteddecode_provider() -> type[MockLLM]:
 
 
 @task
-def resume_decode_task() -> Task:
+def resume_decode_task(strategy: str = "restic") -> Task:
     return Task(
         dataset=[Sample(id="resume", input="decode the layers", target=LAYER1_CONTENT)],
         solver=react(tools=[bash(timeout=60), remember(), crash()]),
@@ -222,7 +317,38 @@ def resume_decode_task() -> Task:
         sandbox="docker",
         checkpoint=CheckpointConfig(
             trigger=TurnInterval(every=1),
-            # No sandbox_paths: the default sandbox's $HOME is auto-captured.
+            # No capture paths in either case, so the default sandbox's $HOME
+            # is auto-captured. "restic" leaves sandbox_paths unset entirely,
+            # exercising the default strategy-selection path; "archive"
+            # selects the strategy explicitly (paths=None keeps auto-home).
+            sandbox_paths=(
+                {"default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())}
+                if strategy == "archive"
+                else None
+            ),
+            retention="retain",
+        ),
+    )
+
+
+@task
+def resume_two_sample_task() -> Task:
+    """Two samples: A (the crasher) and B (steady worker, never crashes).
+
+    For the queued-sample e2e: with ``max_samples=1`` on a retry, B sits
+    queued behind A's resume when A crashes — B's checkpoints from the
+    prior attempt must survive that retry's death (#4870).
+    """
+    return Task(
+        dataset=[
+            Sample(id="resume", input="decode the layers", target=LAYER1_CONTENT),
+            Sample(id=B_SAMPLE_ID, input=B_INPUT, target=B_CONTENT),
+        ],
+        solver=react(tools=[bash(timeout=60), remember(), crash()]),
+        scorer=includes(),
+        sandbox="docker",
+        checkpoint=CheckpointConfig(
+            trigger=TurnInterval(every=1),
             retention="retain",
         ),
     )
@@ -232,18 +358,40 @@ def run_eval(log_dir: str, retry_from: str | None = None) -> None:
     """Run a fresh eval, or resume one from a prior log.
 
     Never returns when the scripted run is due to crash — the ``crash`` tool
-    ``SIGKILL``s the process.
+    ``SIGKILL``s the process. Two-sample mode (``TWO_SAMPLE_ENV``) runs
+    both samples concurrently on the fresh attempt, then one at a time on
+    retries (so the retry's crash leaves sample B queued, never started).
     """
+    two_sample = os.environ.get(TWO_SAMPLE_ENV) == "1"
     if retry_from is None:
-        eval(resume_decode_task(), model=SCRIPTED_MODEL, log_dir=log_dir)
+        if two_sample:
+            eval(
+                resume_two_sample_task(),
+                model=SCRIPTED_MODEL,
+                log_dir=log_dir,
+                max_samples=2,
+            )
+        else:
+            eval(
+                resume_decode_task(strategy=snapshot_strategy()),
+                model=SCRIPTED_MODEL,
+                log_dir=log_dir,
+                turn_limit=turn_limit(),
+            )
     else:
-        eval_retry(read_eval_log(retry_from), log_dir=log_dir)
+        # limits ride along in the log's eval config
+        eval_retry(
+            read_eval_log(retry_from),
+            log_dir=log_dir,
+            max_samples=1 if two_sample else None,
+        )
 
 
 def main() -> None:
     log_dir = sys.argv[1]
     retry_from = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
-    run_eval(log_dir, retry_from)
+    with record_docker_projects():
+        run_eval(log_dir, retry_from)
 
 
 if __name__ == "__main__":

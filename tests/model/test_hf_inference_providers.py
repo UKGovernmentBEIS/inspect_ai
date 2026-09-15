@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from test_helpers.utils import (
     skip_if_no_hf_token,
@@ -91,3 +93,26 @@ def test_hf_missing_token_raises_prerequisite_error(
 
     with pytest.raises(PrerequisiteError, match=HF_TOKEN):
         HFInferenceProvidersAPI(model_name="openai/gpt-oss-20b")
+
+
+@skip_if_no_openai_package
+def test_hf_stream_model_arg(monkeypatch: pytest.MonkeyPatch) -> None:
+    """hf-inference streams by default; explicit values and "auto" override."""
+    from inspect_ai.model._providers.hf_inference_providers import (
+        HF_TOKEN,
+        HFInferenceProvidersAPI,
+    )
+
+    monkeypatch.setenv(HF_TOKEN, "test-key")
+
+    def api(**model_args: Any) -> HFInferenceProvidersAPI:
+        return HFInferenceProvidersAPI(model_name="openai/gpt-oss-20b", **model_args)
+
+    # unset means always stream (not auto)
+    assert api().stream is True
+    assert api(stream=False).stream is False
+    # -M stream=auto arrives as the YAML string "auto": defer to the base
+    # class (stream only when the caller passes on_stream)
+    assert api(stream="auto").stream is None
+    with pytest.raises(ValueError, match="stream"):
+        api(stream="always")

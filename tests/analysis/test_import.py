@@ -351,12 +351,30 @@ def test_resolve_value_type_coercion() -> None:
 def test_resolve_value_errors() -> None:
     """Test error handling in _resolve_value."""
     # Type mismatch
-    with pytest.raises(ValueError, match="Cannot coerce"):
+    with pytest.raises(ValueError, match=r"^Cannot coerce str from type str to time$"):
         _resolve_value("str", time)
 
     # Incompatible conversion
-    with pytest.raises(ValueError, match="Cannot coerce"):
+    with pytest.raises(
+        ValueError, match=r"^Cannot coerce not a bool from type str to int$"
+    ):
         _resolve_value("not a bool", int)
+
+
+def test_column_error_path_type() -> None:
+    """Test that ColumnError.path is a str | None, not a JSONPath object."""
+    spec: list[Column] = [
+        TColumn("bad_type", path="$.eval.task", type=int),
+        TColumn("missing_req", path="$.eval.nonexistent", required=True),
+    ]
+    _, errors = import_record(eval_log(), test_record, spec, strict=False)
+    assert len(errors) == 2
+    for err in errors:
+        assert isinstance(err.path, str)
+    assert errors[0].path == "(($.eval).task)"
+    assert errors[1].path == "(($.eval).nonexistent)"
+    assert "Cannot coerce foo from type str to int" in str(errors[0])
+    assert "field not found" in str(errors[1])
 
 
 def test_complex_import_scenario() -> None:

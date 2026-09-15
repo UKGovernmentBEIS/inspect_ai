@@ -24,19 +24,29 @@ class ModelConfig(BaseModel):
 
 
 def model_roles_to_model_roles_config(
-    model_roles: dict[str, Model] | None,
-) -> dict[str, ModelConfig] | None:
+    model_roles: dict[str, Model | list[Model]] | None,
+) -> dict[str, ModelConfig | list[ModelConfig]] | None:
     if model_roles is not None:
-        return {k: model_to_model_config(v) for k, v in model_roles.items()}
+        return {
+            k: [model_to_model_config(m) for m in v]
+            if isinstance(v, list)
+            else model_to_model_config(v)
+            for k, v in model_roles.items()
+        }
     else:
         return None
 
 
 def model_roles_config_to_model_roles(
-    model_config: dict[str, ModelConfig] | None,
-) -> dict[str, Model] | None:
+    model_config: dict[str, ModelConfig | list[ModelConfig]] | None,
+) -> dict[str, Model | list[Model]] | None:
     if model_config is not None:
-        return {k: model_config_to_model(v) for k, v in model_config.items()}
+        return {
+            k: [model_config_to_model(mc) for mc in v]
+            if isinstance(v, list)
+            else model_config_to_model(v)
+            for k, v in model_config.items()
+        }
     else:
         return None
 

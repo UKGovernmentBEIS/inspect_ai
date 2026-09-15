@@ -1,9 +1,10 @@
 """End-to-end tests for the recovery API."""
 
 import json
+import logging
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -14,6 +15,7 @@ from test_helpers.buffer import simulate_crashed_buffer_db
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+from inspect_ai._util.error import EvalError
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import (
@@ -29,7 +31,10 @@ from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import HEADER_JSON, LogStart
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._recover import (
+    IncompleteAction,
     RecoveryNotAvailable,
+    RecoveryStats,
+    RecoveryThresholdExceeded,
     recover_eval_log_async,
     recoverable_eval_logs,
 )
@@ -40,17 +45,37 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
 
 
-def _make_eval_spec(task: str = "test_task") -> EvalSpec:
+def _make_eval_spec(
+    task: str = "test_task",
+    samples: int = 4,
+    sample_ids: list[int] | None = None,
+) -> EvalSpec:
     return EvalSpec(
         created=datetime.now(timezone.utc).isoformat(),
         task=task,
         model="mockllm/model",
-        dataset=EvalDataset(name="test", samples=4),
+        dataset=EvalDataset(name="test", samples=samples, sample_ids=sample_ids),
         config=EvalConfig(),
     )
 
 
-def _make_sample(id: int, epoch: int = 1) -> EvalSample:
+def _make_sample(
+    id: int,
+    epoch: int = 1,
+    *,
+    errored: bool = False,
+    interrupted: bool = False,
+    age: timedelta | None = None,
+    at: datetime | None = None,
+) -> EvalSample:
+    """A flushed sample record; ``age`` dates it into the past, ``at`` exactly.
+
+    ``interrupted`` is a recovered interruption: an earlier recovery wrote the
+    still-running sample from its realtime row, so it carries a start and an
+    error but no completion.
+    """
+    now = datetime.now(timezone.utc)
+    completed = at if at is not None else now - age if age is not None else now
     return EvalSample(
         id=id,
         epoch=epoch,
@@ -58,9 +83,18 @@ def _make_sample(id: int, epoch: int = 1) -> EvalSample:
         target=f"target {id}",
         output=ModelOutput.from_content(model="mockllm/model", content=f"output {id}"),
         messages=[],
-        scores={"accuracy": Score(value="C", answer="C")},
-        started_at=datetime.now(timezone.utc).isoformat(),
-        completed_at=datetime.now(timezone.utc).isoformat(),
+        scores=None
+        if errored or interrupted
+        else {"accuracy": Score(value="C", answer="C")},
+        error=EvalError(
+            message="CancelledError()" if interrupted else f"prior failure {id}",
+            traceback="",
+            traceback_ansi="",
+        )
+        if errored or interrupted
+        else None,
+        started_at=(completed - timedelta(seconds=1)).isoformat(),
+        completed_at=None if interrupted else completed.isoformat(),
     )
 
 
@@ -83,9 +117,10 @@ def _write_crashed_eval(
     path: str,
     samples: list[EvalSample] | None = None,
     task: str = "test_task",
+    eval_spec: EvalSpec | None = None,
 ) -> LogStart:
     """Write a synthetic crashed .eval ZIP file (no header.json)."""
-    eval_spec = _make_eval_spec(task)
+    eval_spec = eval_spec or _make_eval_spec(task)
     plan = EvalPlan()
     log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
 
@@ -109,10 +144,19 @@ def _create_buffer_db(
     completed_ids: list[int],
     in_progress_ids: list[int],
     db_dir: str | None = None,
+    *,
+    in_progress_started: bool = True,
+    started_at: datetime | None = None,
 ) -> SampleBufferDatabase:
-    """Create a buffer DB with a dead PID (simulating crashed process)."""
+    """Create a buffer DB with a dead PID (simulating crashed process).
+
+    ``started_at`` dates every row's start exactly (default: now).
+    ``in_progress_started=False`` opens the running samples' rows without a
+    start, as evals before realtime rows carried one did.
+    """
     db_path = Path(db_dir) if db_dir else None
     buffer = SampleBufferDatabase(location, create=True, db_dir=db_path)
+    row_started_at = (started_at or datetime.now(timezone.utc)).isoformat()
 
     for id in completed_ids:
         started = EvalSampleSummary(
@@ -120,7 +164,7 @@ def _create_buffer_db(
             epoch=1,
             input=f"input {id}",
             target=f"target {id}",
-            started_at=datetime.now(timezone.utc).isoformat(),
+            started_at=row_started_at,
         )
         buffer.start_sample(started)
         buffer.log_events(
@@ -132,7 +176,7 @@ def _create_buffer_db(
             input=f"input {id}",
             target=f"target {id}",
             scores={"accuracy": Score(value="C", answer="C")},
-            started_at=datetime.now(timezone.utc).isoformat(),
+            started_at=row_started_at,
             completed_at=datetime.now(timezone.utc).isoformat(),
         )
         buffer.complete_sample(completed, sample_metadata=None)
@@ -143,7 +187,7 @@ def _create_buffer_db(
             epoch=1,
             input=f"input {id}",
             target=f"target {id}",
-            started_at=datetime.now(timezone.utc).isoformat(),
+            started_at=row_started_at if in_progress_started else None,
         )
         buffer.start_sample(started)
         buffer.log_events(
@@ -183,6 +227,639 @@ async def test_recover_eval_log_end_to_end() -> None:
             assert read_log.status == "error"
             assert read_log.samples is not None
             assert len(read_log.samples) == 4
+
+
+async def test_recover_prefers_buffer_entries_over_seeded_prior_records() -> None:
+    """A seeded retry's inherited records do not shadow the buffer's newer results.
+
+    The crashed log is a retry attempt seeded from the prior log: sample 1
+    (clean) and samples 2 and 3 (errored) are the prior attempt's records,
+    completed minutes before this attempt began. In this attempt, 2 re-ran
+    and succeeded and 3 was still running at the crash; neither reached a
+    destination flush. Recovery must take both from the buffer (2 as its
+    success, 3 as an in-progress reconstruction) — their entries started
+    after the inherited records completed — and keep the inherited record
+    only for 1, which the buffer knows nothing about.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            age = timedelta(minutes=5)
+            seeded = [
+                _make_sample(1, age=age),
+                _make_sample(2, errored=True, age=age),
+                _make_sample(3, errored=True, age=age),
+            ]
+            _write_crashed_eval(eval_path, samples=seeded)
+            _create_buffer_db(
+                eval_path, completed_ids=[2], in_progress_ids=[3], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+
+            assert log.status == "error"
+            assert log.samples is not None
+            by_id = {sample.id: sample for sample in log.samples}
+            assert set(by_id) == {1, 2, 3}
+            # the inherited clean record, untouched
+            assert by_id[1].error is None and by_id[1].output.completion == "output 1"
+            # the buffer's success supersedes the inherited failure
+            assert by_id[2].error is None
+            assert (
+                by_id[2].scores is not None and by_id[2].scores["accuracy"].value == "C"
+            )
+            assert any(getattr(e, "event", "") == "model" for e in by_id[2].events)
+            # the in-progress re-run supersedes the inherited failure too: its partial
+            # transcript is kept and the sample reads as interrupted, not as the old error
+            assert by_id[3].error is not None
+            assert "prior failure" not in by_id[3].error.message
+            assert any(getattr(e, "event", "") == "model" for e in by_id[3].events)
+
+
+async def test_recover_keeps_seeded_records_the_buffer_does_not_supersede() -> None:
+    """Without a buffer entry, a still-seeded record is recovered as it is."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            age = timedelta(minutes=5)
+            seeded = [_make_sample(1, age=age), _make_sample(2, errored=True, age=age)]
+            _write_crashed_eval(eval_path, samples=seeded)
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+
+            assert log.samples is not None
+            by_id = {sample.id: sample for sample in log.samples}
+            assert set(by_id) == {1, 2, 3}
+            assert (
+                by_id[2].error is not None
+                and "prior failure 2" in by_id[2].error.message
+            )
+            assert by_id[3].error is None
+
+
+async def test_recover_prefers_buffer_over_a_seeded_recovered_interruption() -> None:
+    """An inherited recovered interruption yields to this attempt's newer result.
+
+    The prior attempt crashed and was recovered with sample 2 still running,
+    so its record is the interruption: a start, an error, no completion. The
+    retry seeded that record, re-ran 2 to success, and crashed before the
+    flush. The record's start is the latest time it carries, and the
+    buffer's entry started after it, so the buffer wins.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            age = timedelta(minutes=5)
+            seeded = [
+                _make_sample(1, age=age),
+                _make_sample(2, interrupted=True, age=age),
+            ]
+            _write_crashed_eval(eval_path, samples=seeded)
+            _create_buffer_db(
+                eval_path, completed_ids=[2], in_progress_ids=[], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+            assert log.samples is not None
+            by_id = {s.id: s for s in log.samples}
+            assert set(by_id) == {1, 2}
+            assert by_id[2].error is None
+            assert by_id[2].completed_at is not None
+            assert by_id[2].events
+
+
+async def test_recover_keeps_the_record_when_a_running_row_has_no_start() -> None:
+    """A realtime row without a start cannot claim to be newer than a record.
+
+    Rows opened before they carried a start (older evals) leave the log's
+    record authoritative, as recovery always treated flushed keys.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            _write_crashed_eval(
+                eval_path,
+                samples=[_make_sample(2, errored=True, age=timedelta(minutes=5))],
+            )
+            _create_buffer_db(
+                eval_path,
+                completed_ids=[],
+                in_progress_ids=[2],
+                db_dir=db_dir,
+                in_progress_started=False,
+            )
+
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+            assert log.samples is not None
+            (sample,) = log.samples
+            assert sample.id == 2
+            assert sample.error is not None and "prior failure" in sample.error.message
+
+
+async def test_recover_orders_a_rerun_within_the_same_second() -> None:
+    """A re-run started in the same second its inherited record completed wins.
+
+    Prior failure completed at .100; the retry admitted the re-run at .800 and
+    completed it before the crash. Sub-second precision on both sides is what
+    orders them.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            failed_at = datetime(2026, 9, 11, 12, 0, 0, 100_000, tzinfo=timezone.utc)
+            _write_crashed_eval(
+                eval_path, samples=[_make_sample(2, errored=True, at=failed_at)]
+            )
+            _create_buffer_db(
+                eval_path,
+                completed_ids=[2],
+                in_progress_ids=[],
+                db_dir=db_dir,
+                started_at=failed_at + timedelta(milliseconds=700),
+            )
+
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+            assert log.samples is not None
+            (sample,) = log.samples
+            assert sample.id == 2 and sample.error is None
+            assert sample.events
+
+
+async def test_recover_keeps_a_flushed_record_newer_than_its_buffer_entry() -> None:
+    """A record this attempt flushed is authoritative over the buffer's entry.
+
+    The buffer's entry for sample 2 started before the log's record of it
+    completed — this attempt ran 2 and flushed the result — so the flushed
+    record wins, exactly as recovery has always behaved for flushed keys.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            _create_buffer_db(
+                eval_path, completed_ids=[2], in_progress_ids=[], db_dir=db_dir
+            )
+            _write_crashed_eval(eval_path, samples=[_make_sample(2)])
+
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+            assert log.samples is not None
+            (sample,) = log.samples
+            assert sample.id == 2 and sample.error is None
+            # the flushed record (no events), not the buffer's reconstruction
+            assert not sample.events
+
+
+async def test_recover_incomplete_action_error_finalizes() -> None:
+    """incomplete_action='error' resolves in-progress samples and finalizes.
+
+    All 4 expected samples are present (2 flushed, 1 buffer-complete, 1
+    in-progress resolved as an error), so the recovered log finalizes with
+    status 'success' and results covering the expected sample count.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(eval_path, samples=flushed)
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+            )
+
+            assert log.status == "success"
+            assert log.error is None
+            assert log.results is not None
+            assert log.results.total_samples == 4
+
+            read_log = await read_eval_log_async(output_path)
+            assert read_log.status == "success"
+            assert read_log.samples is not None
+            assert len(read_log.samples) == 4
+
+            resolved = next(s for s in read_log.samples if s.id == 4)
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+            assert resolved.scores is None
+
+            completed = next(s for s in read_log.samples if s.id == 3)
+            assert completed.error is None
+            assert completed.scores is not None
+
+
+async def test_recover_incomplete_action_error_missing_samples_stays_error() -> None:
+    """Missing (never started) samples prevent finalization.
+
+    Only 3 of the 4 expected samples are present, so the log keeps status
+    'error' and remains retryable — while the in-progress sample is still
+    marked with the operator-termination error.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(eval_path, samples=flushed)
+            _create_buffer_db(
+                eval_path, completed_ids=[], in_progress_ids=[3], db_dir=db_dir
+            )
+
+            stats = RecoveryStats()
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+                _stats=stats,
+            )
+
+            assert log.status == "error"
+            assert log.error is not None
+            assert stats.not_finalized_reason == (
+                "1 expected samples missing from the recovered log"
+            )
+
+            read_log = await read_eval_log_async(output_path)
+            assert read_log.samples is not None
+            assert len(read_log.samples) == 3
+            resolved = next(s for s in read_log.samples if s.id == 3)
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+
+
+async def test_recover_incomplete_action_error_metrics_failure_stays_error(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A metrics recompute failure blocks finalization and says so.
+
+    Every expected sample is final, but without recomputed results the log
+    would fail eval_set's completeness predicate, so it keeps status
+    'error'. Unlike the missing-samples case this leaves nothing to run, so
+    the reason is reported distinctly (stats + warning) rather than looking
+    like missing samples.
+    """
+    from inspect_ai._eval.task import results as task_results
+
+    def failing_eval_results(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("metric 'custom_metric' not found")
+
+    monkeypatch.setattr(task_results, "eval_results", failing_eval_results)
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(eval_path, samples=flushed)
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            stats = RecoveryStats()
+            with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+                log = await recover_eval_log_async(
+                    eval_path,
+                    output=output_path,
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_action="error",
+                    _stats=stats,
+                )
+
+            assert log.status == "error"
+            assert log.results is None
+            assert stats.sample_count == 4
+            assert stats.not_finalized_reason == "metrics could not be recomputed"
+            assert any(
+                "not finalized" in r.message
+                and "metrics could not be recomputed" in r.message
+                for r in caplog.records
+            )
+
+            # the in-progress sample was still resolved, so a retry re-runs it
+            read_log = await read_eval_log_async(output_path)
+            assert read_log.samples is not None
+            resolved = next(s for s in read_log.samples if s.id == 4)
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+
+
+async def test_recover_finalized_has_no_not_finalized_reason() -> None:
+    """A finalized recovery, and the default disposition, report no reason."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+
+            _write_crashed_eval(eval_path, samples=[_make_sample(1), _make_sample(2)])
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            cases: list[tuple[IncompleteAction, str]] = [
+                ("retry", "retry.eval"),
+                ("error", "err.eval"),
+            ]
+            for action, output_name in cases:
+                stats = RecoveryStats()
+                log = await recover_eval_log_async(
+                    eval_path,
+                    output=os.path.join(temp_dir, output_name),
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_action=action,
+                    _stats=stats,
+                )
+                assert stats.not_finalized_reason is None
+                assert log.status == ("success" if action == "error" else "error")
+
+
+async def test_recover_incomplete_max() -> None:
+    """incomplete_max refuses to resolve too many in-progress samples."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(eval_path, samples=flushed)
+            _create_buffer_db(
+                eval_path, completed_ids=[], in_progress_ids=[3, 4], db_dir=db_dir
+            )
+
+            # count form: 2 in-progress > 1
+            with pytest.raises(RecoveryThresholdExceeded):
+                await recover_eval_log_async(
+                    eval_path,
+                    output=output_path,
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_action="error",
+                    incomplete_max=1,
+                )
+
+            # proportion form: 2 of 4 expected = 0.5 > 0.25
+            with pytest.raises(RecoveryThresholdExceeded):
+                await recover_eval_log_async(
+                    eval_path,
+                    output=output_path,
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_action="error",
+                    incomplete_max=0.25,
+                )
+
+            # nothing was written by the refused recoveries
+            assert not os.path.exists(output_path)
+
+            # at the threshold the recovery proceeds and finalizes
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+                incomplete_max=2,
+            )
+            assert log.status == "success"
+
+
+async def test_recover_incomplete_max_rejects_negative() -> None:
+    """A negative incomplete_max is a configuration error, not a silent refusal.
+
+    Zero stays valid (resolve only when nothing was in progress); the check
+    runs before recovery so nothing is read or written.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            _write_crashed_eval(eval_path, samples=[_make_sample(1), _make_sample(2)])
+            _create_buffer_db(
+                eval_path, completed_ids=[3, 4], in_progress_ids=[], db_dir=db_dir
+            )
+
+            for incomplete_action in ("error", "retry"):
+                with pytest.raises(ValueError, match="incomplete_max must be >= 0"):
+                    await recover_eval_log_async(
+                        eval_path,
+                        output=output_path,
+                        cleanup=False,
+                        _db_dir=db_dir,
+                        incomplete_action=incomplete_action,
+                        incomplete_max=-1,
+                    )
+            assert not os.path.exists(output_path)
+
+            # zero is a valid threshold: nothing in progress, so it finalizes
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+                incomplete_max=0,
+            )
+            assert log.status == "success"
+
+
+async def test_recover_incomplete_max_inert_under_retry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """incomplete_max has no effect (but warns) with incomplete_action='retry'."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            _write_crashed_eval(eval_path, samples=[_make_sample(1), _make_sample(2)])
+            _create_buffer_db(
+                eval_path, completed_ids=[], in_progress_ids=[3, 4], db_dir=db_dir
+            )
+
+            # 2 in-progress > 1 would be refused under "error", but under the
+            # default disposition the guard does not apply
+            with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+                log = await recover_eval_log_async(
+                    eval_path,
+                    output=output_path,
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_max=1,
+                )
+            assert log.status == "error"
+            assert os.path.exists(output_path)
+            warnings = [
+                r.message for r in caplog.records if "incomplete_max=1" in r.message
+            ]
+            assert len(warnings) == 1
+            assert "no effect" in warnings[0]
+
+
+async def test_recover_incomplete_action_error_finalizes_limited_eval() -> None:
+    """A limited eval is sized from its selected sample ids, not the dataset.
+
+    The dataset has 100 samples but the eval ran with a limit of 4 (recorded
+    as `sample_ids`), and all 4 are present after recovery — so the log
+    finalizes even though far fewer than `dataset.samples` were run.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(
+                eval_path,
+                samples=flushed,
+                eval_spec=_make_eval_spec(samples=100, sample_ids=[1, 2, 3, 4]),
+            )
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+            )
+
+            assert log.status == "success"
+            assert log.error is None
+            assert log.results is not None
+            assert log.results.total_samples == 4
+
+
+async def test_recover_incomplete_action_error_unexpected_sample_stays_error() -> None:
+    """Finalization is by sample identity, not by count.
+
+    The log records `sample_ids=[1, 2, 3]` but sample 4 was also written (a
+    dynamic `sample_source` records only its seed ids while produced samples
+    carry their own). Four samples are present — enough by count — yet a
+    written id outside the recorded set means produced samples may still be
+    unstarted, so the log keeps status 'error' and stays retryable.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(
+                eval_path,
+                samples=flushed,
+                eval_spec=_make_eval_spec(samples=3, sample_ids=[1, 2, 3]),
+            )
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+            )
+
+            assert log.status == "error"
+            assert log.error is not None
+
+            read_log = await read_eval_log_async(output_path)
+            assert read_log.samples is not None
+            assert len(read_log.samples) == 4
+            resolved = next(s for s in read_log.samples if s.id == 4)
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+
+
+async def test_recover_incomplete_max_proportion_of_limited_eval() -> None:
+    """The proportion form of incomplete_max is relative to the selected samples.
+
+    2 of the 4 selected samples are in progress (50%). Against the unsliced
+    dataset size of 100 that would be 2%, so a guard of 0.4 must still refuse.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(
+                eval_path,
+                samples=flushed,
+                eval_spec=_make_eval_spec(samples=100, sample_ids=[1, 2, 3, 4]),
+            )
+            _create_buffer_db(
+                eval_path, completed_ids=[], in_progress_ids=[3, 4], db_dir=db_dir
+            )
+
+            with pytest.raises(RecoveryThresholdExceeded):
+                await recover_eval_log_async(
+                    eval_path,
+                    output=output_path,
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_action="error",
+                    incomplete_max=0.4,
+                )
+            assert not os.path.exists(output_path)
 
 
 async def test_recover_eval_log_preserves_completed_sample_metadata() -> None:

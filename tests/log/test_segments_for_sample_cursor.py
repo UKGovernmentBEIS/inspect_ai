@@ -39,7 +39,7 @@ def test_segments_for_sample_cursor_returns_all_when_cursor_is_minus_one() -> No
         after_message_pool_id=-1,
         after_call_pool_id=-1,
     )
-    assert [s.id for s in out] == [0, 1, 2]
+    assert [s["id"] for s in out] == [0, 1, 2]
 
 
 def test_segments_for_sample_cursor_returns_all_when_cursor_is_none() -> None:
@@ -56,7 +56,7 @@ def test_segments_for_sample_cursor_returns_all_when_cursor_is_none() -> None:
         after_message_pool_id=None,
         after_call_pool_id=None,
     )
-    assert [s.id for s in out] == [0, 1, 2]
+    assert [s["id"] for s in out] == [0, 1, 2]
 
 
 def test_segments_for_sample_cursor_prunes_by_event_id() -> None:
@@ -78,7 +78,7 @@ def test_segments_for_sample_cursor_prunes_by_event_id() -> None:
     )
     # Only segment 2 has last_event_id > 10; others have no dimension above
     # any cursor so the OR-filter excludes them.
-    assert [s.id for s in out] == [2]
+    assert [s["id"] for s in out] == [2]
 
 
 def test_segments_for_sample_cursor_or_logic_across_cursor_types() -> None:
@@ -98,7 +98,7 @@ def test_segments_for_sample_cursor_or_logic_across_cursor_types() -> None:
         after_message_pool_id=50,
         after_call_pool_id=50,
     )
-    assert [s.id for s in out] == [0]
+    assert [s["id"] for s in out] == [0]
 
 
 @pytest.mark.parametrize(
@@ -166,7 +166,7 @@ def test_segments_for_sample_cursor_returns_in_id_order() -> None:
         after_message_pool_id=-1,
         after_call_pool_id=-1,
     )
-    assert [s.id for s in out] == [0, 1, 2]
+    assert [s["id"] for s in out] == [0, 1, 2]
 
 
 def test_segments_for_sample_cursor_ignores_segments_not_in_sample() -> None:
@@ -183,7 +183,7 @@ def test_segments_for_sample_cursor_ignores_segments_not_in_sample() -> None:
         after_message_pool_id=-1,
         after_call_pool_id=-1,
     )
-    assert [s.id for s in out] == [0, 2]
+    assert [s["id"] for s in out] == [0, 2]
 
 
 def test_segments_for_sample_cursor_uses_sample_segment_maxima() -> None:
@@ -256,7 +256,7 @@ def test_segments_for_sample_cursor_includes_sample_segment_when_any_dimension_a
         after_call_pool_id=15,
     )
 
-    assert [s.id for s in out] == [10]
+    assert [s["id"] for s in out] == [10]
 
 
 def test_segments_for_sample_cursor_handles_mixed_legacy_and_sample_segment_entries() -> (
@@ -286,7 +286,7 @@ def test_segments_for_sample_cursor_handles_mixed_legacy_and_sample_segment_entr
         after_call_pool_id=0,
     )
 
-    assert [s.id for s in out] == [1, 2, 3]
+    assert [s["id"] for s in out] == [1, 2, 3]
 
 
 def test_segments_for_sample_cursor_skips_sample_segment_with_missing_global_segment() -> (

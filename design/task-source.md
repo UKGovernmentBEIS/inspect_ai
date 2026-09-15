@@ -108,7 +108,9 @@ Key locations:
 - **Notification firing** — in
   [task/run.py](../src/inspect_ai/_eval/task/run.py): `task_run_sample` calls
   `task_source.sample_complete(eval_sample, task)` right after `emit_sample_end` (so
-  it fires **per sample**, not batched at task end), and `task_run` calls
+  it fires **per sample**, not batched at task end; it runs after the shielded
+  completion block, and is skipped for a sample cancelled by the task's own
+  unwind — see [sample-source.md](sample-source.md)), and `task_run` calls
   `task_source.task_complete(eval_log)` just before returning the log. Whatever
   a callback **returns** is passed to `_enqueue_source_tasks`, which pushes it
   onto the run enqueuer (`get_task_enqueuer().enqueue(...)`) — so returned tasks

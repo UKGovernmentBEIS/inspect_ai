@@ -18,6 +18,7 @@ from typing import (
     Callable,
     Iterator,
     Literal,
+    Mapping,
     NamedTuple,
     Protocol,
     Sequence,
@@ -69,8 +70,12 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
-from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
-from inspect_ai.model._generate_overrides import generate_config_override
+from inspect_ai._util.working import (
+    report_sample_waiting_time,
+    sample_waiting,
+    sample_working_time,
+)
+from inspect_ai.model._generate_overrides import generate_config_override_for_attempt
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -118,6 +123,13 @@ from ._generate_config import (
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost
 from ._model_output import ModelFallback, ModelOutput, ModelUsage
+from ._stream import (
+    ModelStreamObserver,
+    NoStreamDataError,
+    StreamHandler,
+    model_stream_observer,
+)
+from ._throughput import record_generate, throughput_view
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
@@ -212,8 +224,8 @@ class RetryDecision:
 
     `should_retry()` may return either a plain `bool` (legacy: any True
     is treated as a generic transient retry) or a `RetryDecision` to
-    additionally classify the retry kind and pass server-suggested wait
-    times to the adaptive concurrency controller.
+    additionally classify the retry kind for the adaptive concurrency
+    controller and separately record any server-suggested wait time.
 
     `RetryDecision` is truthy iff `retry` is True, so existing callers
     written against the `bool` return (`if api.should_retry(ex): ...`)
@@ -235,7 +247,11 @@ class RetryDecision:
     """
 
     retry_after: float | None = None
-    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`)."""
+    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`).
+
+    Exposed and reserved for future use: nothing currently consumes it — it
+    affects neither Inspect's retry backoff nor the adaptive concurrency cooldown.
+    """
 
     def __bool__(self) -> bool:
         return self.retry
@@ -266,6 +282,16 @@ class ModelAPI(abc.ABC):
     your model initialisation code (for example, here is what many
     of the built-in providers do with the `model_args` passed to them:
     https://inspect.aisi.org.uk/models.html#model-args)
+    """
+
+    qualified_model_name: str | None = None
+    """Full `provider/model` name (the string `Model.__str__` renders).
+
+    Stamped by `get_model()` right after construction — `model_name` is the
+    provider-stripped name, and process registries keyed by model (e.g. the
+    throughput registry) need the qualified form. None for a ModelAPI
+    constructed outside `get_model()`, in which case such registries simply
+    don't attribute this instance's traffic.
     """
 
     def __init__(
@@ -728,6 +754,62 @@ async def ensure_model_controller(model: "Model", config: GenerateConfig) -> Non
         )
 
 
+class ConnectionSlot:
+    """A held connection-semaphore slot that can be relinquished mid-call.
+
+    Wraps the connection pool's async-CM semaphore with explicit
+    acquire/release plus a held flag. ``wait_generate_dispatch`` uses it to
+    release the slot while a generate attempt is parked at the hard-pause
+    gate and reacquire it before the attempt resumes — a parked call must not
+    pin its connection slot, or a held sample's outstanding calls could
+    starve the very grader (or sibling task) the pause made room for. The
+    held flag makes the owning context's final release safe under any
+    interleaving: if a cancellation lands during the reacquire, the slot
+    simply is not held and the final release no-ops (never a double release,
+    never releasing a slot another call now holds).
+    """
+
+    def __init__(self, semaphore: contextlib.AbstractAsyncContextManager[Any]) -> None:
+        self._semaphore = semaphore
+        self._held = False
+
+    @property
+    def held(self) -> bool:
+        return self._held
+
+    async def acquire(self) -> None:
+        """Acquire the slot, tracking the wait as sample waiting time."""
+        if not self._held:
+            async with sample_waiting():
+                await self._semaphore.__aenter__()
+            self._held = True
+
+    async def reacquire(self) -> None:
+        """Reacquire after a gate release (the gate reports the wait itself)."""
+        if not self._held:
+            await self._semaphore.__aenter__()
+            self._held = True
+
+    async def release(self) -> None:
+        """Release the slot if held (no-op otherwise)."""
+        if self._held:
+            self._held = False
+            await self._semaphore.__aexit__(None, None, None)
+
+
+@contextlib.asynccontextmanager
+async def _held_connection_slot(
+    semaphore: contextlib.AbstractAsyncContextManager[Any],
+) -> AsyncIterator[ConnectionSlot]:
+    """Hold a connection slot for the enclosed block, yielding its handle."""
+    slot = ConnectionSlot(semaphore)
+    try:
+        await slot.acquire()
+        yield slot
+    finally:
+        await slot.release()
+
+
 class Model:
     """Model interface.
 
@@ -837,6 +919,7 @@ class Model:
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        on_stream: StreamHandler | None = None,
     ) -> ModelOutput:
         """Generate output from the model.
 
@@ -847,6 +930,23 @@ class Model:
           tool_choice: Directives to the model as to which tools to prefer.
           config: Model configuration.
           cache: Caching behavior for generate responses (defaults to no caching).
+          on_stream: Optional async callback receiving incremental
+            `StreamEvent`s (text / reasoning / tool-call deltas, plus retry
+            boundaries) while the response streams — a side-channel for UI
+            display; the final result is still the returned `ModelOutput`.
+            Passing a callback is itself a request to stream: providers
+            that support streaming stream the response without any
+            provider-level streaming flag (an explicit provider streaming
+            opt-out still wins). Providers or calls that don't stream
+            never invoke it (a cache hit, for example, produces no
+            content deltas — though a cache hit on a retry attempt still
+            delivers the retry boundary), and the callback is best treated
+            as display-only: on retry a `StreamRetryEvent` signals that
+            deltas received so far belong to a failed attempt and should
+            be discarded. A callback that raises never fails the model
+            call: the exception is logged and the callback is detached
+            for the remainder of that call (the next call tries it
+            again).
 
         Returns:
            ModelOutput
@@ -896,7 +996,7 @@ class Model:
         # enforce concurrency limits
         start_time = datetime.now(timezone.utc)
         working_start = sample_working_time()
-        async with self._connection_concurrency(config):
+        async with self._connection_concurrency(config) as connection:
             # generate
             output, event = await self._generate(
                 input=input,
@@ -904,6 +1004,8 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache,
+                connection=connection,
+                on_stream=on_stream,
             )
 
             # update the most recent ModelEvent with the actual start/completed
@@ -931,6 +1033,16 @@ class Model:
 
             _stamp_redacted_reasoning_tokens(output)
 
+            # fail the sample on a refusal if requested. Raised here, after the
+            # ModelEvent is complete (so the transcript shows the refusal and
+            # then the error) and after usage/refusal accounting has run.
+            if (
+                config.fail_on_refusal
+                and not output.empty
+                and output.stop_reason == "content_filter"
+            ):
+                raise ModelRefusalError(output, str(self), self.role)
+
             # return output
             return output
 
@@ -940,6 +1052,7 @@ class Model:
         tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource = [],
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        on_stream: StreamHandler | None = None,
     ) -> tuple[list[ChatMessage], ModelOutput]:
         """Generate output from the model, looping as long as the model calls tools.
 
@@ -953,6 +1066,10 @@ class Model:
           tools: Tools available for the model to call.
           config: Model configuration.
           cache: Caching behavior for generate responses (defaults to no caching).
+          on_stream: Optional async callback receiving incremental
+            `StreamEvent`s (see `generate()`). Invoked for each generate
+            call in the loop; attempt numbers in `StreamRetryEvent`s are
+            per-call, not cumulative across the loop.
 
         Returns:
            Tuple of list[ChatMessage], ModelOutput
@@ -967,6 +1084,7 @@ class Model:
                 tools=tools,  # type:ignore[arg-type]
                 config=config,
                 cache=cache,
+                on_stream=on_stream,
             )
 
             # append to new messages
@@ -1013,9 +1131,13 @@ class Model:
                 self.config.timeout,
                 self.should_retry,
                 self.before_retry,
-                log_model_retry,
+                functools.partial(
+                    log_model_retry,
+                    qualified_model_name=self.api.qualified_model_name,
+                ),
                 report_sample_waiting_time,
                 self.api.retry_wait(),
+                qualified_model_name=self.api.qualified_model_name,
             )
         )
         async def _count_tokens(
@@ -1134,8 +1256,12 @@ class Model:
         # Local import: model is imported very early and the pause gate is
         # only consulted per attempt (see wait_generate_dispatch's fast path).
         from inspect_ai._control.pause import wait_generate_dispatch
+        from inspect_ai.util._concurrency import get_or_create_semaphore
 
-        async with concurrency(f"{model_name}_compact", 10, key, visible=False):
+        compact_sem = await get_or_create_semaphore(
+            f"{model_name}_compact", 10, key, False
+        )
+        async with _held_connection_slot(compact_sem.semaphore) as slot:
 
             @retry(
                 **model_retry_config(
@@ -1144,9 +1270,13 @@ class Model:
                     self.config.timeout,
                     self.should_retry,
                     self.before_retry,
-                    log_model_retry,
+                    functools.partial(
+                        log_model_retry,
+                        qualified_model_name=self.api.qualified_model_name,
+                    ),
                     report_sample_waiting_time,
                     self.api.retry_wait(),
+                    qualified_model_name=self.api.qualified_model_name,
                 )
             )
             async def _compact(
@@ -1154,7 +1284,7 @@ class Model:
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
                 # report_sample_waiting_time directly: unlike generate,
                 # compact has no post-call waiting reconciliation to feed
-                await wait_generate_dispatch(self, report_sample_waiting_time)
+                await wait_generate_dispatch(self, report_sample_waiting_time, slot)
                 return await self.api.compact(messages, tools, config, instructions)
 
             from inspect_ai.log._samples import cleared_retry_wait
@@ -1176,6 +1306,8 @@ class Model:
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        connection: ConnectionSlot | None = None,
+        on_stream: StreamHandler | None = None,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import (
@@ -1254,6 +1386,21 @@ class Model:
             cache_policy = cache
         hooks_enabled = any(hook.enabled() for hook in get_all_hooks())
         cache_mode: Literal["write"] | None = "write" if cache_policy else None
+
+        # stream observer for this generate call: installed around each
+        # provider attempt so provider streaming loops can report chunks; it
+        # spans attempts so it can emit retry boundaries to `on_stream`
+        # (see ModelStreamObserver). Partial-output snapshots are suppressed
+        # when a ModelEventSink is installed: the pending event is routed to
+        # the sink rather than emitted to the transcript, so notifying the
+        # transcript of updates would insert a phantom pending event into its
+        # sidecar and realtime buffer.
+        stream_observer = ModelStreamObserver(
+            model=str(self),
+            on_stream=on_stream,
+            publish_partial=_model_event_sink.get() is None,
+        )
+
         # track reported waiting time during this generate call
         reported_waiting_time = 0.0
 
@@ -1273,15 +1420,19 @@ class Model:
                 config.timeout,
                 self.should_retry,
                 self.before_retry,
-                log_model_retry,
+                functools.partial(
+                    log_model_retry,
+                    qualified_model_name=self.api.qualified_model_name,
+                ),
                 report_waiting_time,
                 self.api.retry_wait(),
+                qualified_model_name=self.api.qualified_model_name,
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
             # report_waiting_time (not report_sample_waiting_time): held time
             # must also accumulate into this call's reconciliation below
-            await wait_generate_dispatch(self, report_waiting_time)
+            await wait_generate_dispatch(self, report_waiting_time, connection)
 
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
@@ -1331,6 +1482,12 @@ class Model:
                         output=existing,
                         call=None,
                     )
+                    # announce the attempt even though no provider call runs:
+                    # a cache hit on a *retry* attempt (a concurrent identical
+                    # call cached between attempts) must still deliver the
+                    # boundary that invalidates the failed attempt's deltas
+                    assert isinstance(event, ModelEvent)
+                    await stream_observer.begin_attempt(event)
                     # mark this request as a cache hit so the post-call
                     # adaptive-controller success notification is suppressed —
                     # cache hits don't exercise the rate limit
@@ -1359,23 +1516,26 @@ class Model:
             )
 
             # create timeout context manager if we have an attempt timeout
-            # (resolved per attempt so a live `inspect ctl config` override
-            # applies from the next attempt onward). A batched call keeps its
-            # launch value: its attempt awaits an entire provider batch, and
-            # an override cancelling that wait would resubmit the request
-            # into a new batch on every retry (duplicated provider work) —
-            # the whole-batch blast radius the batchers' admin-op override
-            # opt-out exists to avoid.
-            attempt_timeout = (
-                config.attempt_timeout
-                if config.batch
-                else generate_config_override("attempt_timeout", config.attempt_timeout)
+            attempt_timeout = generate_config_override_for_attempt(
+                "attempt_timeout", config
             )
             timeout_cm = (
                 anyio.move_on_after(attempt_timeout)
                 if attempt_timeout is not None
                 else contextlib.nullcontext()
             )
+
+            # stall-detection scope (see design/stream-idle-timeout.md): the
+            # deadline starts infinite and the stream observer arms/bumps it
+            # on each reported chunk, so an attempt that never streams can
+            # never fire
+            stream_idle_timeout = generate_config_override_for_attempt(
+                "stream_idle_timeout", config
+            )
+            idle_scope = (
+                anyio.CancelScope() if stream_idle_timeout is not None else None
+            )
+            idle_cm = idle_scope if idle_scope is not None else contextlib.nullcontext()
 
             with trace_action(logger, "Model", f"generate ({str(self)})"):
                 time_start = time.monotonic()
@@ -1392,17 +1552,27 @@ class Model:
                         else null_execution_observer()
                     )
 
+                    await stream_observer.begin_attempt(event)
+                    if idle_scope is not None:
+                        assert stream_idle_timeout is not None
+                        stream_observer.arm_stall_scope(idle_scope, stream_idle_timeout)
+
                     with (
                         track_active_model_event(event),
                         _observer.track_model_event(event),
+                        model_stream_observer(stream_observer),
                     ):
-                        with timeout_cm:
+                        with timeout_cm, idle_cm:
                             result = await self.api.generate(
                                 input=input,
                                 tools=call_tools,
                                 tool_choice=tool_choice,
                                 config=config,
                             )
+                        # inner scope first: when both fired, the idle scope's
+                        # sharper diagnosis wins
+                        if idle_scope is not None and idle_scope.cancel_called:
+                            raise StreamIdleTimeoutError(stream_idle_timeout)
                         if (
                             isinstance(timeout_cm, anyio.CancelScope)
                             and timeout_cm.cancel_called
@@ -1410,7 +1580,33 @@ class Model:
                             raise AttemptTimeoutError(attempt_timeout)
                 except Exception as ex:
                     # Mark event as failed for uncaught provider exceptions
+                    # (dropping any partial streamed output first — it
+                    # belongs to the failed attempt)
+                    stream_observer.discard_partial_output()
                     complete(ex, None)
+                    raise
+                except anyio.get_cancelled_exc_class():
+                    # Cancellation is a BaseException, so the handler above
+                    # misses it — but the event must not stay pending forever
+                    # on a live transcript (an interim-scoring deadline
+                    # cancelling a grader call mid-flight would otherwise pin
+                    # phantom model activity on the held sample and serialize
+                    # a pending event into the log). A published partial
+                    # streamed snapshot belongs to the cancelled attempt and
+                    # must not survive into the log as if it were a response —
+                    # discard it before completing. An intervention producer
+                    # (ACP operator-cancel) may already have completed the
+                    # event with its own marker — leave that alone.
+                    stream_observer.discard_partial_output()
+                    if isinstance(event, ModelEvent) and event.pending:
+                        complete(RuntimeError("model call cancelled"), None)
+                    raise
+                except BaseException:
+                    # other BaseExceptions (KeyboardInterrupt, shutdown): the
+                    # event's finalization stays with the interrupt machinery,
+                    # but a published partial snapshot must not survive into
+                    # the log as if it were a response
+                    stream_observer.discard_partial_output()
                     raise
                 finally:
                     time_elapsed = time.monotonic() - time_start
@@ -1423,6 +1619,7 @@ class Model:
 
             # raise error
             if isinstance(output, Exception):
+                stream_observer.discard_partial_output()
                 complete(output, call)
 
                 # Wrap the error in a ModelGenerateError which will show the
@@ -1547,14 +1744,27 @@ class Model:
         return model_output, event
 
     def should_retry(self, ex: BaseException) -> bool:
+        # `str(self)` requires registry info, which a hand-constructed
+        # ModelAPI (built outside get_model()) doesn't have — use the
+        # stamped qualified name, None when absent (retries then simply
+        # go unattributed in the throughput registry)
+        model = self.api.qualified_model_name
         if isinstance(ex, Exception):
-            # attempt timeout is always retried (we rely on `timeout`
-            # and/or `max_retries` for termination). Classified as transient:
-            # _request_had_retry still flips so the eventual success won't
-            # count toward adaptive scale-up, but the controller doesn't
-            # scale down for what's essentially infra noise.
-            if isinstance(ex, AttemptTimeoutError):
-                report_http_retry()
+            # attempt/stream-idle timeouts are always retried (we rely on
+            # `timeout` and/or `max_retries` for termination). Classified as
+            # transient: _request_had_retry still flips so the eventual
+            # success won't count toward adaptive scale-up, but the
+            # controller doesn't scale down for what's essentially infra
+            # noise (a stalled connection included).
+            if isinstance(ex, (AttemptTimeoutError, StreamIdleTimeoutError)):
+                report_http_retry(model=model)
+                return True
+
+            # a 200 stream that ended with zero chunks (see NoStreamDataError)
+            # is retried for any provider: there is no error payload to
+            # classify from, and a retry against a healthy server succeeds
+            if isinstance(ex, NoStreamDataError):
+                report_http_retry(model=model)
                 return True
 
             # anyio asyncio-backend race: SocketStream.aclose() calls
@@ -1571,7 +1781,7 @@ class Model:
                 "'NoneType' object has no attribute 'call_soon'" in str(ex)
                 or (ex.name == "call_soon" and ex.obj is None)
             ):
-                report_http_retry()
+                report_http_retry(model=model)
                 return True
 
             # check standard should_retry() method — may return bool or RetryDecision
@@ -1579,19 +1789,21 @@ class Model:
             if isinstance(decision, RetryDecision):
                 if decision.retry:
                     report_http_retry(
-                        kind=decision.kind, retry_after=decision.retry_after
+                        kind=decision.kind,
+                        retry_after=decision.retry_after,
+                        model=model,
                     )
                     return True
             elif decision:
                 # legacy bool-True path: provider didn't classify, treat as transient
-                report_http_retry()
+                report_http_retry(model=model)
                 return True
 
             from inspect_ai.hooks._hooks import has_api_key_override
 
             if has_api_key_override():
                 if self.api.is_auth_failure(ex):
-                    report_http_retry()
+                    report_http_retry(model=model)
                     return True
 
             # see if the API implements legacy is_rate_limit() method
@@ -1604,7 +1816,7 @@ class Model:
                 )
                 if cast(bool, is_rate_limit(ex)):
                     # legacy method's name says it all — treat as rate-limit
-                    report_http_retry(kind="rate_limit")
+                    report_http_retry(kind="rate_limit", model=model)
                     return True
 
         # no retry
@@ -1639,14 +1851,20 @@ class Model:
     @contextlib.asynccontextmanager
     async def _connection_concurrency(
         self, config: GenerateConfig
-    ) -> AsyncIterator[None]:
-        """Get the appropriate connection semaphore for this model instance."""
+    ) -> AsyncIterator[ConnectionSlot]:
+        """Hold a slot in this model's connection pool for the enclosed call.
+
+        Yields the slot's handle so the hard-pause gate can release it while
+        an attempt is parked and reacquire it before the attempt resumes
+        (see :class:`ConnectionSlot`).
+        """
         from inspect_ai.util._concurrency import (
             AdaptiveConcurrencyController,
             _active_controller,
             _request_had_retry,
             _request_was_cache_hit,
             adaptive_active,
+            get_or_create_semaphore,
             resolve_adaptive,
         )
 
@@ -1667,18 +1885,16 @@ class Model:
             config.adaptive_connections, config.max_connections, config.batch
         ):
             adaptive = resolve_adaptive(config.adaptive_connections)
-            async with concurrency(
-                name=str(model_name),
-                concurrency=adaptive.start,
-                key=key,
-                adaptive=adaptive,
-            ) as sem:
-                assert isinstance(sem, AdaptiveConcurrencyController)
-                token_c = _active_controller.set(sem)
+            adaptive_sem = await get_or_create_semaphore(
+                str(model_name), adaptive.start, key, True, adaptive
+            )
+            assert isinstance(adaptive_sem, AdaptiveConcurrencyController)
+            async with _held_connection_slot(adaptive_sem.semaphore) as slot:
+                token_c = _active_controller.set(adaptive_sem)
                 token_r = _request_had_retry.set(False)
                 token_h = _request_was_cache_hit.set(False)
                 try:
-                    yield
+                    yield slot
                 finally:
                     _active_controller.reset(token_c)
                     _request_had_retry.reset(token_r)
@@ -1692,12 +1908,11 @@ class Model:
                 if config.batch
                 else self.api.max_connections()
             )
-            async with concurrency(
-                name=str(model_name),
-                concurrency=max_connections,
-                key=key,
-            ):
-                yield
+            static_sem = await get_or_create_semaphore(
+                str(model_name), max_connections, key, True
+            )
+            async with _held_connection_slot(static_sem.semaphore) as slot:
+                yield slot
 
     def _resolve_config(self, config: GenerateConfig | None) -> GenerateConfig:
         # base config for this model
@@ -1710,15 +1925,19 @@ class Model:
 
         # otherwise merge operational config so its inherited everywhere
         else:
-            base_config = base_config.merge(
-                GenerateConfig(
-                    max_connections=active_config.max_connections,
-                    adaptive_connections=active_config.adaptive_connections,
-                    max_retries=active_config.max_retries,
-                    timeout=active_config.timeout,
-                    cache=active_config.cache,
-                )
+            inherited = GenerateConfig(
+                max_connections=active_config.max_connections,
+                adaptive_connections=active_config.adaptive_connections,
+                max_retries=active_config.max_retries,
+                timeout=active_config.timeout,
+                cache=active_config.cache,
             )
+            # fail_on_refusal is also inherited from the active (task/eval-wide)
+            # config, but unlike the operational fields above the role's own
+            # setting wins, so a role can opt out of an eval-wide setting.
+            if base_config.fail_on_refusal is None:
+                inherited.fail_on_refusal = active_config.fail_on_refusal
+            base_config = base_config.merge(inherited)
 
         # merge passed config
         return base_config.merge(config or GenerateConfig())
@@ -1845,9 +2064,36 @@ or return ``None`` to allow default processing to continue.
 """
 
 
+ModelResolver: TypeAlias = Callable[[str], "Model | str | None"]
+"""Dynamic per-request model resolver for the agent bridge.
+
+Receives the requested model name and returns the ``Model`` (or model spec
+string) to use instead, or ``None`` to defer to the bridge's normal resolution
+(aliases / fallback / ``get_model``). On a provider-specific bridge endpoint the
+name is first qualified by that provider, so the resolver receives e.g.
+``openai/gpt-5.1`` rather than a bare ``gpt-5.1``. Lets a bridge express a routing
+*policy* (e.g. route every request to the model under test) without enumerating
+every possible model name as an alias.
+"""
+
+
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
+
+
+class StreamIdleTimeoutError(RuntimeError):
+    """A streaming attempt delivered no chunk for `stream_idle_timeout` seconds.
+
+    Retried exactly like `AttemptTimeoutError` (transient — see
+    `Model.should_retry` and design/stream-idle-timeout.md).
+    """
+
+    def __init__(self, timeout: int | None) -> None:
+        super().__init__(
+            f"stream_idle_timeout '{timeout or 0}' exceeded (streaming "
+            "response stalled)."
+        )
 
 
 class ModelGenerateError(RuntimeError):
@@ -1870,6 +2116,46 @@ class ModelGenerateError(RuntimeError):
         super().__init__(message)
         self.status_code = status_code
         self.provider_message = provider_message
+
+
+class ModelRefusalError(Exception):
+    """A model refused a request and `fail_on_refusal` is set.
+
+    Raised by `Model.generate()` after a generation ends with
+    `stop_reason="content_filter"` when the resolved `GenerateConfig` has
+    `fail_on_refusal=True`. It is a plain `Exception` rather than a limit so
+    the sample runner records it as a sample error (the sample is not scored
+    and counts toward `fail_on_error`).
+
+    The message has a stable `Model refusal` prefix, then the model, role and
+    refusal category when known, then the start of the refusal text.
+    """
+
+    def __init__(
+        self, output: ModelOutput, model: str, role: str | None = None
+    ) -> None:
+        self.output = output
+        """The refused generation (its `stop_details` carry the category)."""
+        self.model = model
+        """Model that refused."""
+        self.role = role
+        """Model role, if the model was resolved via a role."""
+        super().__init__(_model_refusal_message(output, model, role))
+
+
+def _model_refusal_message(
+    output: ModelOutput, model: str, role: str | None, max_completion: int = 200
+) -> str:
+    details = [model]
+    if role:
+        details.append(f"role {role}")
+    stop_details = output.choices[0].stop_details if not output.empty else None
+    if stop_details is not None and stop_details.category:
+        details.append(f"category {stop_details.category}")
+    completion = output.completion.strip()
+    if len(completion) > max_completion:
+        completion = completion[:max_completion].rstrip() + "..."
+    return f"Model refusal ({', '.join(details)}): {completion}"
 
 
 class ModelName:
@@ -1965,6 +2251,8 @@ def get_model(
           at the task or eval level). Provide a `default` as a fallback
           in the case where the `role` hasn't been externally specified.
           Pass `required` to raise an error if the role has not been specified.
+          If the role is bound to a list of models, the first model in the
+          list is returned (use `model_roles()` to access all of them).
        required: If a model role is specified, is it required? If required
           and not present, an error is raised. Otherwise, the current
           default model is returned.
@@ -1994,9 +2282,14 @@ def get_model(
     if model == "none":
         model = "none/none"
 
-    # resolve model role
+    # resolve model role (a role bound to a list of models resolves to the
+    # first model in the list -- callers that want all of the models for a
+    # role should use model_roles() directly)
     if role is not None:
-        model_for_role = model_roles().get(role, None)
+        models_for_role = model_roles().get(role, None)
+        model_for_role = (
+            models_for_role[0] if isinstance(models_for_role, list) else models_for_role
+        )
         if model_for_role is not None:
             if config.model_dump(exclude_none=True):
                 model_for_role = copy(model_for_role)
@@ -2090,6 +2383,8 @@ def get_model(
             **model_args,
         )
         m = Model(modelapi_instance, config, model_args)
+        # stamp the qualified `provider/model` name for registries keyed by it
+        modelapi_instance.qualified_model_name = str(m)
         m._explicit_base_url = base_url
         if role is not None:
             m._set_role(role)
@@ -2469,7 +2764,11 @@ def combine_messages(
         )
 
 
-async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+async def log_model_retry(
+    model_name: str,
+    retry_state: RetryCallState,
+    qualified_model_name: str | None = None,
+) -> None:
     from inspect_ai._util.retry import (
         retry_error_summary,
         retry_error_type_status,
@@ -2478,11 +2777,23 @@ async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
 
     prefix = sample_context_prefix()
     error = retry_error_summary(retry_state)
+    # append the model's current window throughput so an operator watching
+    # retries scroll by can gauge effective rate without a second surface
+    # (`model_name` stays the bare display name; the registry is keyed by
+    # the qualified name — see design/model-throughput.md)
+    throughput = ""
+    if qualified_model_name is not None:
+        view = throughput_view(qualified_model_name)
+        if view is not None:
+            throughput = (
+                f" [{view.output_tokens_per_second:,.0f} out-tok/s, "
+                f"{view.retry_waits_active} in backoff]"
+            )
     level = logging.WARNING if retry_state.upcoming_sleep >= (60 * 20) else HTTP
     logger.log(
         level,
         f"{prefix}-> {model_name} retry {retry_state.attempt_number} "
-        f"(retrying in {retry_state.upcoming_sleep:,.0f} seconds){error}",
+        f"(retrying in {retry_state.upcoming_sleep:,.0f} seconds){error}{throughput}",
     )
 
     # notify hooks of the retry (useful for surfacing time spent in rate limiting)
@@ -2512,21 +2823,38 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
-def init_model_roles(roles: dict[str, Model]) -> None:
+# Mapping (not dict) so that pre-typed user dicts like dict[str, list[str]]
+# type-check — dict is invariant in its value type, Mapping is covariant
+ModelRoles: TypeAlias = Mapping[str, str | Model | Sequence[str | Model]]
+"""Assignment of models to named roles (e.g. the `model_roles` argument to `eval()` or `Task`).
+
+Maps a role name to a model (name or `Model` instance) or to a list of
+models. Assigned roles are looked up with `get_model(role=...)` or
+`model_roles()` (to *reference* a role, e.g. from a scorer, see `ModelRole`).
+"""
+
+
+def init_model_roles(roles: dict[str, Model | list[Model]]) -> None:
     _model_roles.set(roles)
 
 
-def model_roles() -> dict[str, Model]:
+def model_roles() -> dict[str, Model | list[Model]]:
     """Model roles.
 
-    Get the model roles defined for the current task. Call this method only within a running solver or agent execution (it's not available during task construction).
+    Get the model roles defined for the current task. A role maps to a single
+    `Model`, or to a list of models when a list was assigned to the role (e.g.
+    via the `model_roles` argument to `eval()`). Call this method only within a
+    running solver or agent execution (it's not available during task
+    construction).
     """
     return _model_roles.get()
 
 
 active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
-_model_roles: ContextVar[dict[str, Model]] = ContextVar("model_roles", default={})
+_model_roles: ContextVar[dict[str, Model | list[Model]]] = ContextVar(
+    "model_roles", default={}
+)
 
 
 class ModelEventSink(Protocol):
@@ -2647,6 +2975,11 @@ def record_and_check_model_usage(
     # record usage
     set_model_usage(model_name, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model_name, usage, model_usage_context_var.get(None))
+
+    # record into the process-global throughput registry (cache hits never
+    # reach this function — their early return in `_generate` keeps cached
+    # reads, which consume no provider capacity, out of the reported rate)
+    record_generate(model_name, usage)
 
     # record usage by role name (if role is set)
     if role is not None:

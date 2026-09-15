@@ -7,7 +7,6 @@ handler tasks). The scope shares a mutable cell by reference instead, so
 these tests center on cross-task visibility.
 """
 
-import logging
 from collections.abc import Iterator
 
 import anyio
@@ -125,22 +124,16 @@ async def test_current_span_is_parent_between_spans() -> None:
 async def test_no_cross_context_warning_on_cross_task_rotation(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # inspect_ai loggers don't propagate; attach caplog's handler directly
-    span_logger = logging.getLogger("inspect_ai.util._span")
-    span_logger.addHandler(caplog.handler)
-    try:
-        scope = SpanRotationScope(type="checkpoint")
-        await scope.open("checkpoint 1")
+    scope = SpanRotationScope(type="checkpoint")
+    await scope.open("checkpoint 1")
 
-        async def rotate() -> None:
-            await scope.end_span()
-            await scope.begin_span("checkpoint 2")
+    async def rotate() -> None:
+        await scope.end_span()
+        await scope.begin_span("checkpoint 2")
 
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(rotate)
-        await scope.close()
-    finally:
-        span_logger.removeHandler(caplog.handler)
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(rotate)
+    await scope.close()
 
     assert not [r for r in caplog.records if "another context" in r.getMessage()]
 

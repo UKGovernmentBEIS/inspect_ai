@@ -172,6 +172,16 @@ async def test_running_sample_serves_live_messages(
     # indices are absolute
     assert [m["index"] for m in page["messages"]] == [0, 1, 2]
 
+    # a just-finished sample still lingering in active_samples is "completed"
+    monkeypatch.setattr(
+        samples_mod,
+        "active_samples",
+        lambda: [_fake_running_sample(messages, completed=True)],
+    )
+    page = await sample_messages("e1", "1", 1)
+    assert page is not None
+    assert page["status"] == "completed"
+
 
 async def test_running_sample_tail_windows_from_the_end(
     monkeypatch: pytest.MonkeyPatch,

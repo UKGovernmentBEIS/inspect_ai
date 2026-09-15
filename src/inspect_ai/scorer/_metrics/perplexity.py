@@ -82,7 +82,10 @@ def perplexity_per_token() -> Metric:
             total_tokens += n
         if total_tokens == 0:
             return float("nan")
-        return math.exp(-total_log_probs / total_tokens)
+        try:
+            return math.exp(-total_log_probs / total_tokens)
+        except OverflowError:
+            return float("inf")
 
     return metric_fn
 
@@ -111,6 +114,9 @@ def perplexity_per_seq() -> Metric:
                 nll_per_seq.append(-s / n)
         if not nll_per_seq:
             return float("nan")
-        return math.exp(sum(nll_per_seq) / len(nll_per_seq))
+        try:
+            return math.exp(sum(nll_per_seq) / len(nll_per_seq))
+        except OverflowError:
+            return float("inf")
 
     return metric_fn

@@ -24,7 +24,7 @@ from inspect_ai.util._sandbox.docker.util import ComposeProject
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 
 # what `exec` injects for `bash(timeout=N)`: GNU `timeout` in front of `bash`
-WRAPPER = InjectedWrapper(binary="timeout", target="bash")
+WRAPPER = InjectedWrapper(binary="/usr/bin/timeout", target="bash")
 
 # --- the four ways a model wrecks its container (issue #4709 repro) --------
 
@@ -36,16 +36,16 @@ KILL_WORKLOAD = ExecResult(
 # `rm -rf /bin /usr/bin` — the binary runc cannot start is Inspect's own
 # `timeout` wrapper, not anything the model named.
 #
-# Captured from docker 29.6.2: the CLI reports this on *stdout*, with CRLF
-# line endings, and leaves stderr empty. Guarding on "output on stdout means
-# a process in the container produced it" therefore misses this entirely,
+# The CLI reports this on *stdout* and leaves stderr empty. Assuming stdout
+# means a process in the container produced it therefore misses this entirely,
 # which is what the end-to-end test below caught.
 RM_BIN = ExecResult(
     success=False,
     returncode=127,
     stdout=(
         "OCI runtime exec failed: exec failed: unable to start container "
-        'process: exec: "timeout": executable file not found in $PATH\r\n'
+        'process: exec: "/usr/bin/timeout": stat /usr/bin/timeout: '
+        "no such file or directory\r\n"
     ),
     stderr="",
 )
@@ -58,7 +58,7 @@ CHMOD_SHELL = ExecResult(
     success=False,
     returncode=126,
     stdout="",
-    stderr="timeout: failed to run command ‘bash’: Permission denied",
+    stderr="/usr/bin/timeout: failed to run command ‘bash’: Permission denied",
 )
 
 # deliberately NOT classified — see the exclusion test below
@@ -84,6 +84,30 @@ def test_unrunnable_sandbox_recognised(result: ExecResult[str]) -> None:
     error = classify_exec_failure(result, wrapper=WRAPPER)
     assert error is not None
     assert (result.stdout or result.stderr).strip() in str(error)
+
+
+@pytest.mark.parametrize(
+    "binary,stat_path,returncode",
+    [
+        ("/usr/bin/timeout", "/usr/bin/timeout", 1),
+        ("/usr/bin/timeout", "/some/other/file", 127),
+        ("/tmp/timeout", "/tmp/timeout", 127),
+        ("/usr/bin/bash", "/usr/bin/bash", 127),
+    ],
+)
+def test_absolute_wrapper_failure_requires_exact_path_and_exit_code(
+    binary: str, stat_path: str, returncode: int
+) -> None:
+    result = ExecResult(
+        success=False,
+        returncode=returncode,
+        stdout=(
+            "OCI runtime exec failed: exec failed: unable to start container "
+            f'process: exec: "{binary}": stat {stat_path}: no such file or directory'
+        ),
+        stderr="",
+    )
+    assert classify_exec_failure(result, wrapper=WRAPPER) is None
 
 
 # --- must not fire on the model's own output -------------------------------
@@ -435,8 +459,52 @@ def _sandbox() -> DockerSandboxEnvironment:
     )
 
 
+FAKE_DIAGNOSTICS = 'Container diagnostics for service "default":\n(fake diagnostics)'
+
+
+def _stub_dead_container_probes(
+    monkeypatch: pytest.MonkeyPatch, service_dead: bool
+) -> None:
+    """Stub the docker probes the dead-container paths run.
+
+    These tests must never touch a real docker daemon.
+    """
+
+    async def fake_service_dead(*args: object, **kwargs: object) -> bool:
+        return service_dead
+
+    async def fake_diagnostics(*args: object, **kwargs: object) -> str:
+        return FAKE_DIAGNOSTICS
+
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.service_dead", fake_service_dead
+    )
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.sandbox_unavailable_diagnostics",
+        fake_diagnostics,
+    )
+
+
+def _capture_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Record warnings logged by the docker module.
+
+    Not caplog: once any eval has run in the process, inspect's init_logger
+    sets propagate=False on the inspect_ai logger, so records never reach
+    caplog's root handler (passes file-only, fails in a full-suite run).
+    """
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.logger.warning",
+        lambda msg, *args, **kwargs: warnings.append(str(msg)),
+    )
+    return warnings
+
+
 async def _exec_returning(
-    monkeypatch: pytest.MonkeyPatch, result: ExecResult[str], timeout: int | None = 30
+    monkeypatch: pytest.MonkeyPatch,
+    result: ExecResult[str],
+    timeout: int | None = 30,
+    service_dead: bool = False,
 ) -> ExecResult[str]:
     async def fake_compose_exec(*args: object, **kwargs: object) -> ExecResult[str]:
         return result
@@ -444,6 +512,7 @@ async def _exec_returning(
     monkeypatch.setattr(
         "inspect_ai.util._sandbox.docker.docker.compose_exec", fake_compose_exec
     )
+    _stub_dead_container_probes(monkeypatch, service_dead)
     # timeout=None is `bash()`'s default, and is what decides whether a
     # wrapper is injected ahead of the command
     return await _sandbox().exec(["bash", "-c", "echo hi"], timeout=timeout)
@@ -457,10 +526,15 @@ async def _exec_returning(
     ],
 )
 async def test_exec_raises_when_docker_could_not_run_the_command(
-    monkeypatch: pytest.MonkeyPatch, result: ExecResult[str]
+    monkeypatch: pytest.MonkeyPatch,
+    result: ExecResult[str],
 ) -> None:
+    warnings = _capture_warnings(monkeypatch)
     with pytest.raises(SandboxUnavailableError):
         await _exec_returning(monkeypatch, result)
+    # a dead container logs evidence of why it died (#264). logged, not
+    # embedded in the error: error text reaches the model as tool output
+    assert FAKE_DIAGNOSTICS in warnings
 
 
 async def test_exec_raises_permission_error_for_unlaunchable_shell(
@@ -481,6 +555,93 @@ async def test_exec_returns_ordinary_failures(
 ) -> None:
     failed = ExecResult(success=False, returncode=1, stdout="", stderr="")
     assert await _exec_returning(monkeypatch, failed) == failed
+
+
+# --- a container dying mid-command produces a silent failure ---------------
+#
+# docker reports nothing when the container dies while the command runs:
+# signal-death exit code, both streams empty. that is also the shape of a
+# command killed inside a healthy container, so the two are told apart by
+# asking compose whether the container is positively dead (#264). ordinary
+# silent failures (`grep -q` without a match) have small exit codes and
+# never pay the check.
+
+
+async def test_silent_signal_death_with_dead_container_raises_and_logs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warnings = _capture_warnings(monkeypatch)
+    died_mid_command = ExecResult(success=False, returncode=137, stdout="", stderr="")
+    with pytest.raises(SandboxUnavailableError) as excinfo:
+        await _exec_returning(monkeypatch, died_mid_command, service_dead=True)
+    assert "exited with code 137" in str(excinfo.value)
+    assert FAKE_DIAGNOSTICS in warnings
+
+
+async def test_silent_small_exit_code_never_checks_the_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # even against a genuinely dead container, a silent small-code failure is
+    # returned as-is: paying a docker CLI call on every `grep -q` miss is the
+    # cost this gate exists to avoid, and the next exec raises anyway
+    grep_no_match = ExecResult(success=False, returncode=1, stdout="", stderr="")
+    assert (
+        await _exec_returning(monkeypatch, grep_no_match, service_dead=True)
+        == grep_no_match
+    )
+
+
+async def test_silent_signal_death_in_running_container_is_an_ordinary_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # e.g. the kernel OOM-killed the command but the container survived
+    killed_command = ExecResult(success=False, returncode=137, stdout="", stderr="")
+    assert (
+        await _exec_returning(monkeypatch, killed_command, service_dead=False)
+        == killed_command
+    )
+
+
+async def test_diagnostics_logged_once_per_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a dead sandbox fails every subsequent exec; the post-mortem is logged
+    # for the first only
+    async def fake_compose_exec(*args: object, **kwargs: object) -> ExecResult[str]:
+        return KILL_WORKLOAD
+
+    warnings = _capture_warnings(monkeypatch)
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.compose_exec", fake_compose_exec
+    )
+    _stub_dead_container_probes(monkeypatch, service_dead=True)
+    sandbox = _sandbox()
+    for _ in range(2):
+        with pytest.raises(SandboxUnavailableError):
+            await sandbox.exec(["echo", "hi"], timeout=30)
+    assert warnings == [FAKE_DIAGNOSTICS]
+
+
+async def test_silent_success_never_checks_the_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a command that succeeded ran, whatever it printed; the dead check
+    # must not fire (it costs a docker CLI call per exec)
+    ok = ExecResult(success=True, returncode=0, stdout="", stderr="")
+
+    async def fake_compose_exec(*args: object, **kwargs: object) -> ExecResult[str]:
+        return ok
+
+    async def exploding_check(*args: object, **kwargs: object) -> bool:
+        raise AssertionError("service_dead must not be called for successful execs")
+
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.compose_exec", fake_compose_exec
+    )
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.service_dead", exploding_check
+    )
+    assert await _sandbox().exec(["true"], timeout=30) == ok
 
 
 async def test_no_wrapper_leaves_runc_launch_failures_unclassified(

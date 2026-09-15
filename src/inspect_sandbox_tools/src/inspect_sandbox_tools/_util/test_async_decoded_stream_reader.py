@@ -72,6 +72,40 @@ async def test_split_utf8_character():
 
 
 @pytest.mark.asyncio
+async def test_lone_partial_utf8_character_does_not_read_as_eof():
+    """A read delivering only a partial character must not return ''.
+
+    The incremental decoder buffers the partial bytes and decodes them to
+    nothing; returning that empty string would be indistinguishable from EOF
+    for callers (e.g. Process._read_loop would abandon a live PTY).
+    """
+    async with FDPipeReader() as (reader, write_pipe):
+        # the first two of 界's three bytes, delivered alone
+        write_pipe.write("界".encode("utf-8")[:2])
+
+        async def complete_character():
+            await asyncio.sleep(0.2)
+            write_pipe.write("界".encode("utf-8")[2:])
+
+        write_task = asyncio.create_task(complete_character())
+        result = await asyncio.wait_for(reader.read(100), 5)
+        assert result == "界"
+        await write_task
+
+
+@pytest.mark.asyncio
+async def test_dangling_partial_utf8_character_at_eof():
+    """A partial character left at EOF surfaces as U+FFFD, then '' for EOF."""
+    async with FDPipeReader() as (reader, write_pipe):
+        write_pipe.write(b"Juan Per\xc3")
+        write_pipe.close_write()
+
+        assert await reader.read(100) == "Juan Per"
+        assert await reader.read(100) == "�"
+        assert await reader.read(100) == ""
+
+
+@pytest.mark.asyncio
 async def test_malformed_utf8():
     """Test handling malformed UTF-8 data."""
     async with FDPipeReader() as (reader, pipe):

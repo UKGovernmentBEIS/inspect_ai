@@ -100,8 +100,8 @@ def test_sync_one_sample(
     assert len(manifest.segments) == 1, "Should have one new segment"
     segment = manifest.segments[0]
     # last_event_id should be at least 2 (event1, event2)
-    assert segment.last_event_id >= 2
-    assert segment.last_attachment_id == 0
+    assert segment["last_event_id"] >= 2
+    assert segment["last_attachment_id"] == 0
 
     # 5) Check that filestore returns the sample in get_samples
     fs_samples = filestore.get_samples()
@@ -329,7 +329,7 @@ def test_sync_multiple_samples(
     assert len(manifest.segments) == 1
 
     # Each sample references that single segment
-    seg_id = manifest.segments[0].id
+    seg_id = manifest.segments[0]["id"]
     for sm in manifest.samples:
         assert seg_id in {sample_segment_id(segment) for segment in sm.segments}
 
@@ -361,15 +361,27 @@ def test_pending_segments_use_per_sample_maxima(
 
     assert manifest is not None
     assert len(manifest.segments) == 1
-    assert manifest.segments[0].last_event_id == 3
+    assert manifest.segments[0]["last_event_id"] == 3
 
     sample_a = next(s for s in manifest.samples if s.summary.id == "a")
     sample_b = next(s for s in manifest.samples if s.summary.id == "b")
     assert sample_a.segments == [
-        SampleSegment(id=1, last_event_id=1, last_attachment_id=0)
+        SampleSegment(
+            id=1,
+            last_event_id=1,
+            last_attachment_id=0,
+            last_message_pool_id=0,
+            last_call_pool_id=0,
+        )
     ]
     assert sample_b.segments == [
-        SampleSegment(id=1, last_event_id=3, last_attachment_id=0)
+        SampleSegment(
+            id=1,
+            last_event_id=3,
+            last_attachment_id=0,
+            last_message_pool_id=0,
+            last_call_pool_id=0,
+        )
     ]
 
     pending = filestore.get_pending_segments("a", 1, after_event_id=1)
@@ -405,7 +417,13 @@ def test_sync_continues_from_legacy_integer_segments(
     sample = manifest.samples[0]
     assert sample.segments == [
         1,
-        SampleSegment(id=2, last_event_id=2, last_attachment_id=0),
+        SampleSegment(
+            id=2,
+            last_event_id=2,
+            last_attachment_id=0,
+            last_message_pool_id=0,
+            last_call_pool_id=0,
+        ),
     ]
     assert [
         event.event["data"] for event in filestore.read_segment_data(2, "a", 1).events
@@ -469,7 +487,7 @@ def test_sync_incremental(
     m1 = filestore.read_manifest()
     assert m1 and len(m1.segments) == 1
     seg1 = m1.segments[0]
-    assert seg1.last_event_id >= 2
+    assert seg1["last_event_id"] >= 2
 
     # Second batch
     db.log_events(
@@ -484,8 +502,8 @@ def test_sync_incremental(
     m2 = filestore.read_manifest()
     assert m2 and len(m2.segments) == 2
     seg2 = m2.segments[-1]
-    assert seg2.id > seg1.id
-    assert seg2.last_event_id >= 4
+    assert seg2["id"] > seg1["id"]
+    assert seg2["last_event_id"] >= 4
 
     # Confirm filestore returns all 4 events
     sample_data = filestore.get_sample_data("inc", 1)

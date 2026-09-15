@@ -39,9 +39,17 @@ async def request_input(
         `InputResult` with outcome (accepted / declined / cancelled) and
         optional `content` matching `schema`.
     """
+    from inspect_ai.log._samples import awaiting_human
+
     request = InputRequest(message=message, schema=schema)
     await notify(message)
-    result = await builtin._dispatch_builtin(request)
+    # Around the dispatch rather than inside one handler: a question parks the
+    # sample on a person whichever surface serves it, and `InputEvent` below is
+    # written only once the answer arrives — so without this the wait leaves no
+    # trace at all and the sample reads as idle on the control channel. No
+    # subject: the prompt *is* the request, and it is model-generated text.
+    with awaiting_human("question"):
+        result = await builtin._dispatch_builtin(request)
     _record_input_event(request, result)
     return result
 

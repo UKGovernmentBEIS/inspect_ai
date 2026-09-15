@@ -14,6 +14,7 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Iterator, Literal, TextIO, cast, overload
 from urllib.parse import quote_from_bytes, urlparse
+from urllib.request import url2pathname
 
 import fsspec  # type: ignore  # type: ignore
 from fsspec.core import split_protocol  # type: ignore  # type: ignore
@@ -442,9 +443,15 @@ def to_uri(path_or_uri: str) -> str:
 
 
 def local_path(filename: str) -> str:
-    """Convert a file:// URL to a local path, or return as-is."""
+    """Convert a file:// URL to a local path, or return as-is.
+
+    Percent-encoded characters are decoded (the inverse of `to_uri`, which
+    encodes them), so paths with spaces or literal percent sequences round
+    trip. Known limitation (unchanged): a UNC-style `file://server/share`
+    URL drops its host component — only the path part is returned.
+    """
     if filename.startswith("file://"):
-        return urlparse(filename).path
+        return url2pathname(urlparse(filename).path)
     return filename
 
 

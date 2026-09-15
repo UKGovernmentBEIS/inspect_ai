@@ -6,6 +6,7 @@ import pytest
 from test_helpers.task_logger import TaskLoggerShim
 
 from inspect_ai._eval.task.run import log_sample
+from inspect_ai._util.error import EvalError
 from inspect_ai.event import (
     InfoEvent,
     ModelEvent,
@@ -29,6 +30,7 @@ from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput
+from inspect_ai.scorer import Score
 
 
 def _model(uuid: str, content: str) -> ModelEvent:
@@ -460,3 +462,160 @@ async def test_json_recorder_log_sample_streaming_includes_history_attachments(
     assert isinstance(logged_info_event.data, dict)
     assert logged_info_event.data["content"] == buffered_info_event.data["content"]
     assert long_content in log.samples[0].attachments.values()
+
+
+@pytest.mark.anyio
+async def test_log_sample_degrades_gracefully_when_serialization_fails(
+    tmp_path,
+) -> None:
+    # a sample whose content defeats condensation/serialization (here a store
+    # value nested beyond pydantic-core's serialization depth limit) must not
+    # raise out of log_sample (which would tear down the whole eval after the
+    # fail_on_error decision): it is logged with content stripped and the
+    # failure recorded as the sample's error
+    sample = _sample().model_copy(
+        update={
+            "messages": [ChatMessageUser(content="hello")],
+            "store": {"deep": _deep_dict(1000)},
+            "scores": {"match": Score(value="C")},
+        }
+    )
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    logger = _fallback_logger(recorder, spec)
+
+    logged = await log_sample(sample, logger, log_images=True, from_memory=True)
+    await _finish_eval(recorder, spec)
+
+    assert logged.store == {}
+    assert logged.messages == []
+    # the scores serialize on their own, so they are kept: the headline
+    # results were computed from them and must agree with the sample record
+    assert logged.scores == {"match": Score(value="C")}
+    assert logged.error is not None
+    assert logged.error.message.startswith(
+        "Sample content (messages, output, events, store, metadata) was removed"
+    )
+
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].id == "sample"
+    assert log.samples[0].store == {}
+    assert log.samples[0].scores is not None
+    assert log.samples[0].scores["match"].value == "C"
+    assert log.samples[0].error is not None
+
+
+@pytest.mark.anyio
+async def test_log_sample_fallback_strips_unserializable_score_metadata(
+    tmp_path,
+) -> None:
+    # when the scores themselves defeat serialization only their metadata (the
+    # one score field of unbounded shape) is removed, so the value survives in
+    # the record; a sample that already carries an error keeps it, with the
+    # content removal appended so the empty record is explained in the log
+    sample = _sample().model_copy(
+        update={
+            "messages": [ChatMessageUser(content="hello")],
+            "scores": {
+                "match": Score(
+                    value="C", answer="C", metadata={"deep": _deep_dict(1000)}
+                )
+            },
+            "error": EvalError(
+                message="solver failed", traceback="", traceback_ansi=""
+            ),
+        }
+    )
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    logger = _fallback_logger(recorder, spec)
+
+    logged = await log_sample(sample, logger, log_images=True, from_memory=True)
+    await _finish_eval(recorder, spec)
+
+    assert logged.scores == {"match": Score(value="C", answer="C")}
+    assert logged.error is not None
+    assert logged.error.message.startswith("solver failed")
+    assert "metadata, score metadata) was removed" in logged.error.message
+
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].scores is not None
+    assert log.samples[0].scores["match"].value == "C"
+    assert log.samples[0].scores["match"].metadata is None
+    assert log.samples[0].error is not None
+    assert log.samples[0].error.message == logged.error.message
+
+
+@pytest.mark.anyio
+async def test_log_sample_fallback_drops_scores_as_last_resort(tmp_path) -> None:
+    # a score that cannot be written even without its metadata (only reachable
+    # by bypassing validation: every other Score field is of bounded shape) is
+    # dropped altogether, and the record says so
+    unwritable = Score.model_construct(value=_deep_dict(1000))
+    sample = _sample().model_copy(
+        update={
+            "messages": [ChatMessageUser(content="hello")],
+            "scores": {"match": unwritable},
+        }
+    )
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    logger = _fallback_logger(recorder, spec)
+
+    logged = await log_sample(sample, logger, log_images=True, from_memory=True)
+    await _finish_eval(recorder, spec)
+
+    assert logged.scores is None
+    assert logged.error is not None
+    assert "score metadata, scores) was removed" in logged.error.message
+
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].scores is None
+    assert log.samples[0].error is not None
+
+
+def _deep_dict(depth: int) -> dict[str, object]:
+    deep: dict[str, object] = {"a": 1}
+    for _ in range(depth):
+        deep = {"a": deep}
+    return deep
+
+
+def _fallback_logger(recorder: EvalRecorder, spec: EvalSpec) -> TaskLoggerShim:
+    logger = TaskLoggerShim(None)
+    logger.recorder = recorder
+    logger.eval = spec
+    logger.flush_buffer = 1
+    logger.flush_pending = []
+    logger._samples_completed = 0
+    return logger
+
+
+@pytest.mark.anyio
+async def test_log_sample_reraises_recorder_write_errors(tmp_path, monkeypatch) -> None:
+    # only a condensation/serialization failure may trigger the stripped-content
+    # fallback: a transient recorder write failure (e.g. an S3 blip) on a
+    # healthy sample must propagate unchanged — writing a stripped fallback
+    # record instead would silently drop the sample's content when a retry of
+    # the eval would have logged it intact
+    sample = _sample().model_copy(
+        update={"messages": [ChatMessageUser(content="hello")]}
+    )
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    written: list[EvalSample] = []
+
+    async def failing_log_sample(
+        eval: EvalSpec, sample: EvalSample, **kwargs: object
+    ) -> None:
+        written.append(sample)
+        raise OSError("simulated transient write failure")
+
+    monkeypatch.setattr(recorder, "log_sample", failing_log_sample)
+    logger = _fallback_logger(recorder, spec)
+
+    with pytest.raises(OSError):
+        await log_sample(sample, logger, log_images=True, from_memory=True)
+
+    # a single write attempt, with the sample's content intact (no fallback)
+    assert len(written) == 1
+    assert written[0].messages

@@ -102,6 +102,56 @@ class TestAgentToolDispatch:
         assert tool_event is not None
         assert tool_event.function == "agent"
 
+    def test_long_result_not_truncated(self) -> None:
+        """A subagent report over max_tool_output comes back whole.
+
+        It used to be truncated twice: execute_tools clipped the child's
+        submit() result, react read the clipped text back as the completion,
+        and the parent's execute_tools clipped that again -- so the parent saw
+        one truncation notice nested inside another.
+        """
+        report = "R" * (32 * 1024)  # double the 16KB default max_tool_output
+        sa = _test_subagent("research", "Read-only information gathering.")
+        tt = agent_tool(subagents=[sa])
+
+        task = Task(
+            dataset=[Sample(input="Do some research")],
+            solver=[use_tools(tt), generate()],
+            message_limit=10,
+        )
+
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={"prompt": "Find relevant information."},
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": report},
+                ),
+                ModelOutput.from_content("mockllm/model", "Done"),
+            ],
+        )
+
+        log = eval(task, model=model)[0]
+        assert log.status == "success"
+
+        tool_event = get_tool_event(log)
+        assert tool_event is not None
+        assert tool_event.function == "agent"
+        assert tool_event.truncated is None
+        assert tool_event.result == report
+
+        assert log.samples
+        assert not any(
+            "too long to be displayed" in message.text
+            for message in log.samples[0].messages
+        )
+
     def test_invalid_subagent_type(self) -> None:
         # TWO subagents on purpose: `subagent_type` only exists when there is a genuine
         # choice, so a single-subagent tool would reject this call as an unknown PARAMETER

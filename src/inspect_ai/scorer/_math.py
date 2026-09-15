@@ -1183,7 +1183,7 @@ def math(*, timeout: float = _DEFAULT_TIMEOUT_SECONDS) -> Scorer:
 
     Extracts a bounded final answer from model output, parses it without
     evaluating Python, and compares it to each target under bounded symbolic
-    work.
+    work. Raises a scoring error if none of the reference answers can be parsed.
 
     Args:
         timeout: Active-work budget in seconds for each parsing phase (target
@@ -1216,9 +1216,8 @@ def math(*, timeout: float = _DEFAULT_TIMEOUT_SECONDS) -> Scorer:
             )
 
         if target_error is not None:
-            return Score.unscored(
-                explanation=f"Could not parse mathematical target: {target_error}.",
-                metadata=_status_metadata("target_parse_error"),
+            raise ValueError(
+                f"Could not parse any mathematical target: {target_error}."
             )
 
         try:
@@ -1252,14 +1251,23 @@ def math(*, timeout: float = _DEFAULT_TIMEOUT_SECONDS) -> Scorer:
                 explanation=state.output.completion,
                 metadata=_status_metadata(result.status),
             )
+        # Extraction/parse failures are a format violation by the model under
+        # test: keep INCORRECT (the sample stays in the metric denominator) but
+        # record the failure mode in `reason` so analysis can separate "wrong
+        # answer" from "couldn't parse an answer". The completion is surfaced
+        # as the answer when no candidate was extracted, per the custom-scorers
+        # guidance for extraction scorers.
         return Score(
             value=INCORRECT,
-            answer=result.answer,
+            answer=result.answer
+            if result.answer is not None
+            else state.output.completion,
             explanation=(
                 f"Could not parse mathematical answer: {result.reason}."
                 if result.status == "answer_parse_error"
                 else f"Mathematical answer exceeded a complexity limit: {result.reason}."
             ),
+            reason="invalid_response_format",
             metadata=_status_metadata(result.status),
         )
 

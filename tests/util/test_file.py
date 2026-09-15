@@ -1,5 +1,7 @@
 import importlib
 import os
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -14,6 +16,7 @@ from inspect_ai._util.file import (
     basename,
     cleanup_s3_sessions,
     filesystem,
+    local_path,
     size_in_mb,
     strip_trailing_sep,
     to_uri,
@@ -243,6 +246,73 @@ def test_to_uri_idempotent() -> None:
     """to_uri should produce the same result when applied twice."""
     path = "/path/to/noop.py@noop.eval"
     assert to_uri(to_uri(path)) == to_uri(path)
+
+
+def test_local_path_round_trips_spaces() -> None:
+    """to_uri percent-encodes, so local_path must decode (#5025)."""
+    path = "/tmp/logs dir/my eval.eval"
+    assert local_path(to_uri(path)) == path
+
+
+def test_local_path_round_trips_literal_percent() -> None:
+    """Literal percent sequence in a filename round trips.
+
+    to_uri encodes the percent itself (%25), so decoding restores the
+    original name rather than treating the sequence as an escape.
+    """
+    path = "/tmp/report%20final.eval"
+    assert local_path(to_uri(path)) == path
+
+
+def test_local_path_decodes_encoded_uri() -> None:
+    """Behavior change pinned: an encoded file:// URI now decodes.
+
+    Previously the escapes passed through intact.
+    """
+    assert local_path("file:///tmp/report%20final.eval") == "/tmp/report final.eval"
+
+
+def test_local_path_passthrough_non_file() -> None:
+    """Non-file:// values are returned untouched, escapes and all."""
+    assert local_path("/tmp/plain path.eval") == "/tmp/plain path.eval"
+    assert local_path("s3://bucket/key%20name") == "s3://bucket/key%20name"
+
+
+def test_local_path_idempotent() -> None:
+    """Applying local_path twice never double-decodes.
+
+    The first call strips file:// and decodes; its result is a plain path,
+    so a second call is a no-op — a %-containing filename can't be decoded
+    twice by accidental double application.
+    """
+    path = "/tmp/report%20final.eval"
+    once = local_path(to_uri(path))
+    assert local_path(once) == once == path
+
+
+def test_local_path_is_the_only_file_uri_decoder() -> None:
+    """Tripwire: file:// percent-decoding stays centralized in local_path.
+
+    A second decode site consuming log locations would double-decode
+    (%2520 -> %20 -> space). If this fails, either route the new code
+    through local_path()/to_uri() or extend the allowlist deliberately.
+    """
+    src = Path(__file__).parent.parent.parent / "src" / "inspect_ai"
+    allowed = {
+        src / "_util" / "file.py",  # local_path itself
+        src / "_util" / "package.py",  # setuptools direct_url.json, separate domain
+    }
+    offenders = [
+        str(f)
+        for f in src.rglob("*.py")
+        if "url2pathname" in f.read_text(encoding="utf-8") and f not in allowed
+    ]
+    assert offenders == [], f"new file-URI decode sites: {offenders}"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive-path form")
+def test_local_path_windows_drive() -> None:
+    assert local_path("file:///C:/logs/eval%20run.eval") == "C:\\logs\\eval run.eval"
 
 
 async def test_cleanup_s3_sessions_no_instances() -> None:

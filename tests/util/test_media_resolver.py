@@ -6,6 +6,7 @@ import tempfile
 from collections.abc import AsyncIterator
 from contextvars import Token
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import anyio
@@ -355,11 +356,12 @@ class TestFileAsDataHttp:
 
         client_type = httpx.AsyncClient
 
-        def client_factory(*, follow_redirects: bool) -> httpx.AsyncClient:
-            return client_type(
-                transport=httpx.MockTransport(handler),
-                follow_redirects=follow_redirects,
-            )
+        def client_factory(**kwargs: Any) -> httpx.AsyncClient:
+            # the fetch builds its client from the shared HTTP defaults, so
+            # take those kwargs as given and own only the transport
+            kwargs.pop("transport", None)
+            kwargs.pop("mounts", None)
+            return client_type(transport=httpx.MockTransport(handler), **kwargs)
 
         with patch(
             "inspect_ai._util.images.httpx.AsyncClient",

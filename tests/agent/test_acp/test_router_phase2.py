@@ -19,6 +19,7 @@ things that Phase 6 left optional/absent:
 from typing import Any
 from uuid import UUID
 
+import pytest
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
@@ -58,10 +59,16 @@ from inspect_ai.tool._tool_call import ToolCall
 _TEST_MODEL = "phase2-router-test/synthetic"
 _TEST_CONTEXT_LENGTH = 100_000
 
-set_model_info(
-    _TEST_MODEL,
-    ModelInfo(context_length=_TEST_CONTEXT_LENGTH, output_tokens=4096),
-)
+
+@pytest.fixture(autouse=True)
+def register_test_model() -> None:
+    # per-test (not module import time): other test modules call
+    # clear_model_info_cache(), which wipes custom registrations, and under
+    # xdist they can run on this worker between collection and these tests.
+    set_model_info(
+        _TEST_MODEL,
+        ModelInfo(context_length=_TEST_CONTEXT_LENGTH, output_tokens=4096),
+    )
 
 
 def _new_session() -> LiveAcpTransport:

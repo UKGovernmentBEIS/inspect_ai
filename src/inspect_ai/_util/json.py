@@ -3,11 +3,13 @@ from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
     Any,
+    Iterable,
     Literal,
     Mapping,
     TypeAlias,
 )
 
+import ijson  # type: ignore[import-untyped]
 import jsonpatch
 from jsonpointer import (  # type: ignore  # jsonpointer is already a dependency of jsonpatch
     JsonPointerException,
@@ -22,6 +24,57 @@ if TYPE_CHECKING:
 
 # Pre-compile regex to quickly find paths ending in an index for json_changes (e.g., /items/0)
 _ARRAY_INDEX_RE = re.compile(r"^(.*)/(\d+)$")
+
+
+def exceeds_max_depth(value: object, max_depth: int) -> bool:
+    """Whether `value` nests containers deeper than `max_depth` levels.
+
+    Iterative traversal (explicit stack) so that measuring the depth of an
+    adversarially deep value can't itself exhaust the interpreter stack.
+    `BaseModel` values are descended into via their fields, including the
+    extra fields of `extra="allow"` models (pydantic-core serializes both
+    recursively, so their nesting counts toward the depth a serializer must
+    tolerate).
+
+    A container already expanded at an equal-or-greater depth is not expanded
+    again (tracked by `id()`): everything below it was already measured from at
+    least as deep, so it cannot newly exceed the limit. Without this, a
+    structure that shares sub-containers across many paths — a directed acyclic
+    graph, e.g. the aliased nodes `yaml.safe_load` produces from
+    anchors/aliases — would be re-expanded combinatorially, turning a
+    sub-kilobyte input into billions of visits and an uninterruptible CPU hang.
+    It also makes traversal terminate on reference cycles. Re-expansion at a
+    strictly greater depth is required for correctness (a shared node reached
+    by a longer path can push its subtree past the limit) and stays bounded:
+    depth only ever increases, and `max_depth` short-circuits the walk.
+    """
+    # container id -> greatest depth it has already been expanded from
+    expanded_at: dict[int, int] = {}
+    stack: list[tuple[object, int]] = [(value, 1)]
+    while stack:
+        current, depth = stack.pop()
+        if isinstance(current, dict):
+            children: Iterable[object] = current.values()
+        elif isinstance(current, (list, tuple, set, frozenset)):
+            children = current
+        elif isinstance(current, BaseModel):
+            # extra="allow" values live in __pydantic_extra__, not __dict__
+            extra = current.__pydantic_extra__
+            children = (
+                current.__dict__.values()
+                if not extra
+                else [*current.__dict__.values(), *extra.values()]
+            )
+        else:
+            continue
+        if depth > max_depth:
+            return True
+        seen_at = expanded_at.get(id(current))
+        if seen_at is not None and seen_at >= depth:
+            continue
+        expanded_at[id(current)] = depth
+        stack.extend((child, depth + 1) for child in children)
+    return False
 
 
 def is_ijson_nan_inf_error(
@@ -78,7 +131,6 @@ def get_ijson_backend() -> Any:
     pure-Python backend when running under trio so that async readers
     (e.g. ``read_eval_log_async(..., exclude_fields=...)``) work there.
     """
-    import ijson  # type: ignore[import-untyped]
     import sniffio
 
     try:
@@ -89,6 +141,38 @@ def get_ijson_backend() -> Any:
     except sniffio.AsyncLibraryNotFoundError:
         pass
     return ijson
+
+
+class ExcludingObjectBuilder:
+    """Build a JSON object from ijson events, skipping excluded top-level keys.
+
+    The counterpart of ijson's ``ObjectBuilder`` for reading a large object
+    selectively: feed it the ``(event, value)`` pairs a streaming parse
+    yields, and ``data`` holds the included top-level fields when the parse
+    ends. An excluded key's subtree is never built, so it costs no memory.
+    """
+
+    def __init__(self, exclude_fields: set[str]) -> None:
+        self.data: dict[str, Any] = {}
+        self._excluded = exclude_fields
+        self._depth = 0
+        self._key = ""
+        self._builder: Any | None = None
+
+    def event(self, event: str, value: Any) -> None:
+        if event in ("start_map", "start_array"):
+            self._depth += 1
+        elif event in ("end_map", "end_array"):
+            self._depth -= 1
+
+        if self._depth == 1 and event == "map_key":
+            self._key = value
+            self._builder = None if value in self._excluded else ijson.ObjectBuilder()
+        elif self._builder is not None:
+            self._builder.event(event, value)
+            if self._depth == 1:
+                self.data[self._key] = self._builder.value
+                self._builder = None
 
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]

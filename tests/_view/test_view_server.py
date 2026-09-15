@@ -10,7 +10,7 @@ import urllib.parse
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import IO, Any, ContextManager, Generator, TextIO, cast
+from typing import IO, Any, AsyncIterator, ContextManager, Generator, TextIO, cast
 
 import anyio
 import fastapi.testclient
@@ -720,6 +720,32 @@ def test_api_log_headers_multiple(view_client: ViewTestClient) -> None:
     resp = view_client.request("GET", f"/log-headers?{q}")
     resp.raise_for_status()
     assert len(resp.json()) == 2
+
+
+def test_api_log_headers_forbidden() -> None:
+    class NoReadPolicy(AccessPolicy):
+        async def can_read(self, request: Request, file: str) -> bool:
+            return False
+
+        async def can_delete(self, request: Request, file: str) -> bool:
+            return False
+
+        async def can_list(self, request: Request, dir: str) -> bool:
+            return False
+
+        async def can_write(self, request: Request, file: str) -> bool:
+            return False
+
+    app = fastapi_server.view_server_app(access_policy=NoReadPolicy())
+    with fastapi.testclient.TestClient(
+        app, raise_server_exceptions=False
+    ) as restricted_client:
+        response = restricted_client.get(
+            "/log-headers", params={"file": "restricted.eval"}
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Forbidden"}
 
 
 @pytest.mark.parametrize(
@@ -2111,6 +2137,53 @@ def test_api_log_edit_s3_returns_new_etag(mock_s3: None, tmp_path: Path) -> None
         client.close()
 
 
+def test_api_log_edit_returns_atomic_write_etag_during_race(
+    mock_s3: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The edit response must identify its write, not a later S3 object."""
+    from inspect_ai.log._recorders import eval as eval_recorder
+
+    s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_race.eval"
+    _write_eval_log_to_s3(s3_log)
+    original_put = eval_recorder._s3_put_object
+    later_etag = None
+
+    async def racing_put(async_fs, bucket, key, body, etag):
+        nonlocal later_etag
+        write_etag = await original_put(async_fs, bucket, key, body, etag)
+        if etag is not None:
+            client = await async_fs.s3_client_async()
+            response = await client.put_object(
+                Bucket=bucket, Key=key, Body=b"concurrent writer"
+            )
+            later_etag = str(response["ETag"]).strip('"')
+        return write_etag
+
+    monkeypatch.setattr(eval_recorder, "_s3_put_object", racing_put)
+
+    client = ViewTestClient(tmp_path)
+    try:
+        read_resp = client.request("GET", f"/logs/{s3_log}")
+        read_resp.raise_for_status()
+        edit_resp = client.frontend_request(
+            "POST",
+            f"/log-edit/{s3_log}",
+            headers={"If-Match": read_resp.headers["etag"]},
+            json={
+                "edits": [
+                    {"type": "tags", "tags_add": ["writer_a"], "tags_remove": []}
+                ],
+                "provenance": {"author": "alice"},
+            },
+        )
+
+        edit_resp.raise_for_status()
+        assert later_etag is not None
+        assert edit_resp.headers["etag"] != later_etag
+    finally:
+        client.close()
+
+
 def test_api_log_edit_s3_stale_if_match_returns_412(
     mock_s3: None, tmp_path: Path
 ) -> None:
@@ -2454,3 +2527,138 @@ def test_api_log_download_returns_full_body_when_stat_is_stale_low(
     resp = view_client.request("GET", view_client.log_url("log-download", fname))
     resp.raise_for_status()
     assert resp.content == Path(full_path).read_bytes()
+
+
+class _FakeBody:
+    """Stands in for the aiobotocore StreamingBody handed out by stream_log_bytes."""
+
+    def __init__(self, chunks: int = 1, release_error: bool = False) -> None:
+        self.chunks = chunks
+        self.release_error = release_error
+        self.started = False
+        self.streamed = 0
+        self.released = 0
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        self.started = True
+        for _ in range(self.chunks):
+            self.streamed += 1
+            yield b"chunk"
+
+    def release(self) -> None:
+        self.released += 1
+        if self.release_error:
+            raise ValueError("release failed")
+
+
+def _asgi_scope() -> dict[str, Any]:
+    # uvicorn's h11 channel sends 2.3, which takes starlette's task-group
+    # branch. It never sends 2.4 for HTTP, so only 2.3 is worth pinning.
+    return {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"}}
+
+
+async def _idle_receive() -> Any:
+    await anyio.sleep_forever()
+
+
+async def _send_failing_on_response_start(message: Any) -> None:
+    assert message["type"] == "http.response.start"
+    raise RuntimeError("client went away")
+
+
+def _patch_stream_log_bytes(monkeypatch: pytest.MonkeyPatch) -> list[_FakeBody]:
+    """Replace stream_log_bytes with a fake, returning the bodies it hands out."""
+    bodies: list[_FakeBody] = []
+
+    async def fake_stream_log_bytes(*args: Any, **kwargs: Any) -> _FakeBody:
+        body = _FakeBody()
+        bodies.append(body)
+        return body
+
+    monkeypatch.setattr(fastapi_server, "stream_log_bytes", fake_stream_log_bytes)
+    return bodies
+
+
+async def test_releasing_streaming_response_releases_unstarted_body() -> None:
+    """An iterator starlette never started still gets released."""
+    body = _FakeBody()
+
+    with pytest.raises(RuntimeError, match="client went away"):
+        await fastapi_server.ReleasingStreamingResponse(body)(
+            _asgi_scope(), _idle_receive, _send_failing_on_response_start
+        )
+
+    assert not body.started
+    assert body.released == 1
+
+
+async def test_releasing_streaming_response_releases_on_disconnect() -> None:
+    """A disconnect cancels the iterator mid-yield, so only the response can release."""
+    body = _FakeBody(chunks=1000)
+    streaming = anyio.Event()
+
+    async def send(message: Any) -> None:
+        if message["type"] == "http.response.body":
+            streaming.set()
+            await anyio.sleep(0)
+
+    async def receive() -> Any:
+        await streaming.wait()
+        return {"type": "http.disconnect"}
+
+    with anyio.fail_after(5):
+        await fastapi_server.ReleasingStreamingResponse(body)(
+            _asgi_scope(), receive, send
+        )
+
+    assert body.streamed < body.chunks
+    assert body.released == 1
+
+
+async def test_releasing_streaming_response_does_not_mask_request_failure() -> None:
+    """A failing release() must not replace whatever ended the request."""
+    body = _FakeBody(release_error=True)
+
+    with pytest.raises(RuntimeError, match="client went away"):
+        await fastapi_server.ReleasingStreamingResponse(body)(
+            _asgi_scope(), _idle_receive, _send_failing_on_response_start
+        )
+
+    assert body.released == 1
+
+
+@pytest.mark.parametrize("endpoint", ["log-bytes", "log-download"])
+def test_api_streaming_endpoints_release_body(
+    endpoint: str, view_client: ViewTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both streaming endpoints must wire up ReleasingStreamingResponse."""
+    bodies = _patch_stream_log_bytes(monkeypatch)
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+
+    url = view_client.log_url(endpoint, fname)
+    # start/end are required on log-bytes; the fake ignores the range.
+    resp = view_client.request("GET", f"{url}?start=0&end=6")
+
+    resp.raise_for_status()
+    assert resp.content == b"chunk"
+    assert [body.released for body in bodies] == [1]
+
+
+def test_api_log_download_encodes_non_latin1_filename(
+    view_client: ViewTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A log name above U+00FF must not break (or leak) the download.
+
+    Starlette encodes headers as latin-1, so such a name would raise in the
+    response constructor, after which nothing can release an acquired body.
+    """
+    bodies = _patch_stream_log_bytes(monkeypatch)
+    fname = "2025-01-01T00-00-00+00-00_task€_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+
+    resp = view_client.request("GET", view_client.log_url("log-download", fname))
+
+    resp.raise_for_status()
+    assert "utf-8''" in resp.headers["content-disposition"]
+    assert [body.released for body in bodies] == [1]

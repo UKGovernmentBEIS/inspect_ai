@@ -29,7 +29,7 @@ This example provides the model with the built-in [web browser](tools-standard.q
 
 Whenever you enable approval mode, all tool calls must be handled in some fashion (otherwise they are rejected). However, approving every tool call can be quite tedious, and not all tool calls are necessarily worthy of human oversight.
 
-You can chain to together the `human` and `auto` approvers in an *approval policy* to only approve selected tool calls. For example, here we create a policy that asks for human approval of only interactive web browser tool calls:
+You can chain together the `human` and `auto` approvers in an *approval policy* to only approve selected tool calls. For example, here we create a policy that asks for human approval of only interactive web browser tool calls:
 
 ``` yaml
 approvers:
