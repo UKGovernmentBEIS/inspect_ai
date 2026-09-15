@@ -237,6 +237,48 @@ anthropic/claude-sonnet-4-5-20250514:
     input_cache_read: 0.30
 ```
 
+Some models charge more once a single request's prompt exceeds a threshold (e.g. 272K tokens for GPT-5.5). For these, add a `tiers` list: each band has an inclusive `max_input_tokens` (the provider's threshold) plus the same four rates, and exactly one band must be unbounded (`max_input_tokens: null`). Each call is billed at the band its own prompt size falls in, counting cached input tokens. When `tiers` is set the top-level rates are not used for billing but are still required, so repeat the standard band there.
+
+``` python
+from inspect_ai.model import set_model_cost, ModelCost, ModelCostTier
+
+set_model_cost("openai/gpt-5.5", ModelCost(
+    input=5.00, output=30.00,
+    input_cache_write=5.00, input_cache_read=0.50,
+    tiers=[
+        ModelCostTier(
+            max_input_tokens=272000,
+            input=5.00, output=30.00,
+            input_cache_write=5.00, input_cache_read=0.50,
+        ),
+        ModelCostTier(
+            max_input_tokens=None,
+            input=10.00, output=45.00,
+            input_cache_write=10.00, input_cache_read=1.00,
+        ),
+    ],
+))
+```
+
+``` yaml
+openai/gpt-5.5:
+    input: 5.00
+    output: 30.00
+    input_cache_write: 5.00
+    input_cache_read: 0.50
+    tiers:
+      - max_input_tokens: 272000
+        input: 5.00
+        output: 30.00
+        input_cache_write: 5.00
+        input_cache_read: 0.50
+      - max_input_tokens: null
+        input: 10.00
+        output: 45.00
+        input_cache_write: 10.00
+        input_cache_read: 1.00
+```
+
 (As of Feb 9 2026, all major model providers count reasoning tokens as output tokens, so no separate price needs to be provided for reasoning tokens. If your use case requires separate calculation of reasoning token prices, contact us.)
 
 When model cost data is configured, costs will be tracked for the sample as a whole, as well as any events within the sample that have a ModelUsage field.

@@ -75,7 +75,7 @@ from ._model import (
 )
 from ._model_call import ModelCall
 from ._model_config import ModelConfig
-from ._model_data.model_data import ModelCost, ModelInfo
+from ._model_data.model_data import ModelCost, ModelCostTier, ModelInfo
 from ._model_info import get_model_info, set_model_cost, set_model_info
 from ._model_output import (
     ChatCompletionChoice,
@@ -152,6 +152,7 @@ __all__ = [
     "stable_message_ids",
     "ModelCall",
     "ModelCost",
+    "ModelCostTier",
     "ModelOutput",
     "ModelConversation",
     "compaction",

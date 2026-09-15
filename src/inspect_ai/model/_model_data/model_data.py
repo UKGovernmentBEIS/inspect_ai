@@ -2,13 +2,30 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, Field, PrivateAttr, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    ValidationError,
+    model_validator,
+)
 
 from inspect_ai._util.dateutil import UtcDate
 
 
-class ModelCost(BaseModel):
-    """Model cost in $/million tokens."""
+class ModelCostTier(BaseModel):
+    """Prompt-size pricing band in $/million tokens.
+
+    `max_input_tokens` is an inclusive upper bound on the call's prompt size
+    (input tokens plus cached input tokens). `None` means no upper bound and
+    is used for the final band.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_input_tokens: int | None = Field(default=None, ge=0)
+    """Inclusive maximum prompt tokens for this band, or `None` if unbounded."""
 
     input: float
     """Price per million input tokens."""
@@ -28,6 +45,63 @@ class ModelCost(BaseModel):
 
     input_cache_read: float
     """Price per million input tokens read from cache."""
+
+
+class ModelCost(BaseModel):
+    """Model cost in $/million tokens.
+
+    The four top-level rates are used when `tiers` is omitted. When `tiers` is
+    set, each call is billed at the rates of the band its prompt size falls in
+    and the top-level rates are not used.
+    """
+
+    input: float
+    """Price per million input tokens."""
+
+    output: float
+    """Price per million output tokens."""
+
+    input_cache_write: float
+    """Price per million input tokens written to cache.
+
+    Record the provider's default-TTL rate here (for Anthropic, the 5-minute
+    rate). Providers that bill longer cache TTLs at a higher rate (e.g.
+    Anthropic's 1-hour writes at 2x base input) are adjusted at cost
+    computation time based on the configured TTL — do not pre-bake a
+    longer-TTL rate into this field or it will be double-applied.
+    """
+
+    input_cache_read: float
+    """Price per million input tokens read from cache."""
+
+    tiers: list[ModelCostTier] | None = Field(default=None)
+    """Optional prompt-size bands, used instead of the top-level rates.
+
+    The whole call is billed at the smallest band whose inclusive
+    `max_input_tokens` the prompt fits. Exactly one band must be unbounded
+    (`max_input_tokens=None`) so every prompt size has a rate. Bands are
+    stored sorted by bound, unbounded last.
+    """
+
+    @model_validator(mode="after")
+    def _validate_tiers(self) -> "ModelCost":
+        if self.tiers is None:
+            return self
+        bounds = [tier.max_input_tokens for tier in self.tiers]
+        if bounds.count(None) != 1:
+            raise ValueError(
+                "tiers must include exactly one unbounded band (max_input_tokens=None)"
+            )
+        if len(bounds) != len(set(bounds)):
+            raise ValueError("tiers must have unique max_input_tokens values")
+        self.tiers = sorted(
+            self.tiers,
+            key=lambda tier: (
+                tier.max_input_tokens is None,
+                tier.max_input_tokens or 0,
+            ),
+        )
+        return self
 
 
 class BaseModelDefinition(BaseModel):

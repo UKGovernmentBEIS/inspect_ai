@@ -121,7 +121,7 @@ from ._generate_config import (
     set_active_generate_config,
 )
 from ._model_call import ModelCall, as_error_response
-from ._model_data.model_data import ModelCost
+from ._model_data.model_data import ModelCost, ModelCostTier
 from ._model_output import ModelFallback, ModelOutput, ModelUsage
 from ._stream import (
     ModelStreamObserver,
@@ -3096,10 +3096,43 @@ sample_role_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
 CACHE_WRITE_1H_MULTIPLIER = 2.0 / 1.25
 
 
+def _cost_rates(cost_data: ModelCost, usage: ModelUsage) -> ModelCost | ModelCostTier:
+    """Rates for this call: the band its prompt size falls in, else the flat rates.
+
+    The band is keyed on the prompt size the provider measures its threshold
+    against, which includes cached input tokens (`usage.input_tokens` excludes
+    them, so cache reads and writes are added back). This matches how the
+    providers with prompt-size tiers define the threshold:
+    - OpenAI: prompts with >272K input tokens bill at the higher rate
+      (https://developers.openai.com/api/docs/models/gpt-5.5), where input
+      tokens include the cached portion
+      (https://platform.openai.com/docs/guides/prompt-caching).
+    - Google: Gemini prices by prompts `<= 200k` vs `> 200k`
+      (https://ai.google.dev/gemini-api/docs/pricing), and `promptTokenCount`
+      includes cached content (https://ai.google.dev/api/generate-content).
+    """
+    if cost_data.tiers is None:
+        return cost_data
+    prompt_tokens = (
+        usage.input_tokens
+        + (usage.input_tokens_cache_read or 0)
+        + (usage.input_tokens_cache_write or 0)
+    )
+    # tiers are validated to be sorted by bound with the unbounded band last
+    return next(
+        tier
+        for tier in cost_data.tiers
+        if tier.max_input_tokens is None or prompt_tokens <= tier.max_input_tokens
+    )
+
+
 def compute_model_cost(
     cost_data: ModelCost, usage: ModelUsage, cache_ttl: str | None = None
 ) -> float:
     """Compute cost for a model call based on usage and cost data.
+
+    When `cost_data.tiers` is set, the band is chosen from this call's prompt
+    size (input tokens plus cached input tokens), not from accumulated usage.
 
     Args:
         cost_data: Per-token pricing for the model.
@@ -3111,16 +3144,17 @@ def compute_model_cost(
     Returns:
         Cost in dollars.
     """
-    cost = usage.input_tokens * cost_data.input / 1_000_000
-    cost += usage.output_tokens * cost_data.output / 1_000_000
+    rates = _cost_rates(cost_data, usage)
+    cost = usage.input_tokens * rates.input / 1_000_000
+    cost += usage.output_tokens * rates.output / 1_000_000
 
     if usage.input_tokens_cache_write is not None:
-        input_cache_write = cost_data.input_cache_write
+        input_cache_write = rates.input_cache_write
         if cache_ttl == "1h":
             input_cache_write *= CACHE_WRITE_1H_MULTIPLIER
         cost += usage.input_tokens_cache_write * input_cache_write / 1_000_000
     if usage.input_tokens_cache_read is not None:
-        cost += usage.input_tokens_cache_read * cost_data.input_cache_read / 1_000_000
+        cost += usage.input_tokens_cache_read * rates.input_cache_read / 1_000_000
 
     return cost
 
