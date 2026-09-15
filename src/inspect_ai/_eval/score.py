@@ -22,7 +22,12 @@ if TYPE_CHECKING:
 import anyio
 
 from inspect_ai._display import display as display_manager
-from inspect_ai._eval.context import init_task_context
+from inspect_ai._eval.context import (
+    have_eval_context,
+    init_eval_context,
+    init_task_context,
+)
+from inspect_ai._eval.eval import eval_async_running
 from inspect_ai._eval.loader import load_file_tasks, scorer_from_spec
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
@@ -226,6 +231,11 @@ async def score_async(
 ) -> EvalLog:
     """Score an evaluation log.
 
+    Can be called directly from any async Python code: when no eval
+    context is active (i.e. the call isn't made from within an eval or
+    the `inspect score` CLI) the runtime environment is initialized
+    automatically.
+
     Args:
        log (EvalLog):
          Evaluation log. Only the headers are needed if `samples`
@@ -252,6 +262,13 @@ async def score_async(
     Returns:
        Log with scores yielded by scorer.
     """
+    # self-initialize when called outside of an eval or the `inspect score`
+    # CLI (log_refusals matches the CLI). skipped while an eval is running
+    # in this process so a call from a sibling task can't reset its state.
+    if not have_eval_context() and not eval_async_running():
+        platform_init()
+        init_eval_context(None, None, log_refusals=True)
+
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
 
