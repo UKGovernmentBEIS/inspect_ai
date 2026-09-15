@@ -7,6 +7,9 @@ import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.util import ComposeConfig, ComposeService
+from inspect_ai.util._sandbox.docker import cleanup as cleanup_module
+from inspect_ai.util._sandbox.docker import config as docker_config
+from inspect_ai.util._sandbox.docker.compose import Project
 from inspect_ai.util._sandbox.docker.config import (
     auto_compose_dir,
     is_auto_compose_file,
@@ -179,3 +182,126 @@ async def test_compose_config_with_extensions(request) -> None:
     finally:
         if project.config and os.path.exists(project.config):
             os.unlink(project.config)
+
+
+async def test_retained_project_preserves_config_until_exact_cleanup(
+    capsys, monkeypatch, tmp_path: Path
+) -> None:
+    """A retained project keeps its network config for later project-scoped cleanup."""
+    project_name = "inspect-retained-iabcdef"
+    other_project_name = "inspect-other-ighijkl"
+    config_path = tmp_path / f"{project_name}.yaml"
+    other_config_path = tmp_path / f"{other_project_name}.yaml"
+    config_path.write_text(
+        "services:\n  default:\n    image: python:3.12-bookworm\n"
+        "networks:\n  retained-network:\n    internal: true\n",
+        encoding="utf-8",
+    )
+    other_config_path.write_text("services: {}\n", encoding="utf-8")
+    project = ComposeProject(
+        name=project_name,
+        config=config_path.as_posix(),
+        sample_id=0,
+        epoch=0,
+        env=None,
+    )
+    compose_down_configs: list[str] = []
+
+    async def fake_compose_ps(
+        _project: ComposeProject, *, all: bool = False
+    ) -> list[dict[str, str]]:
+        return []
+
+    async def fake_compose_ls() -> list[Project]:
+        return [
+            Project(
+                Name=project_name,
+                Status="running",
+                ConfigFiles=config_path.as_posix(),
+            ),
+            Project(
+                Name=other_project_name,
+                Status="running",
+                ConfigFiles=other_config_path.as_posix(),
+            ),
+        ]
+
+    async def fake_compose_down(cleanup_project: ComposeProject, _quiet: bool) -> None:
+        assert cleanup_project.config is not None
+        compose_down_configs.append(
+            Path(cleanup_project.config).read_text(encoding="utf-8")
+        )
+
+    monkeypatch.setattr(cleanup_module, "auto_compose_dir", lambda: tmp_path)
+    monkeypatch.setattr(docker_config, "auto_compose_dir", lambda: tmp_path)
+    monkeypatch.setattr(cleanup_module, "compose_ps", fake_compose_ps)
+    monkeypatch.setattr(cleanup_module, "compose_ls", fake_compose_ls)
+    monkeypatch.setattr(cleanup_module, "compose_down", fake_compose_down)
+
+    cleanup_module.project_cleanup_startup()
+    cleanup_module.project_startup(project)
+    await cleanup_module.project_cleanup_shutdown(cleanup=False)
+
+    assert config_path.exists()
+    assert "retained-network" in config_path.read_text(encoding="utf-8")
+    assert (
+        "Cleanup single environment: inspect sandbox cleanup docker <project-name>"
+        in capsys.readouterr().out
+    )
+
+    await cleanup_module.cli_cleanup(project_name)
+
+    assert compose_down_configs == [
+        "services:\n  default:\n    image: python:3.12-bookworm\n"
+        "networks:\n  retained-network:\n    internal: true\n"
+    ]
+    assert not config_path.exists()
+    assert other_config_path.exists()
+
+
+async def test_full_cleanup_removes_auto_compose_config(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Full cleanup removes the auto-compose config after bringing the project down."""
+    project_name = "inspect-cleanup-iabcdef"
+    config_path = tmp_path / f"{project_name}.yaml"
+    config_path.write_text("services: {}\n", encoding="utf-8")
+    project = ComposeProject(
+        name=project_name,
+        config=config_path.as_posix(),
+        sample_id=0,
+        epoch=0,
+        env=None,
+    )
+
+    async def fake_compose_down(cleanup_project: ComposeProject, _quiet: bool) -> None:
+        assert cleanup_project == project
+
+    monkeypatch.setattr(cleanup_module, "auto_compose_dir", lambda: tmp_path)
+    monkeypatch.setattr(docker_config, "auto_compose_dir", lambda: tmp_path)
+    monkeypatch.setattr(cleanup_module, "compose_down", fake_compose_down)
+
+    cleanup_module.project_cleanup_startup()
+    cleanup_module.project_startup(project)
+    await cleanup_module.project_cleanup_shutdown(cleanup=True)
+
+    assert not config_path.exists()
+
+
+async def test_cli_cleanup_removes_orphaned_auto_compose_config(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """CLI cleanup removes a config whose inspect project is no longer running."""
+    config_path = tmp_path / "inspect-orphan-iabcdef.yaml"
+    config_path.write_text("services: {}\n", encoding="utf-8")
+
+    async def fake_compose_ls() -> list[Project]:
+        return []
+
+    monkeypatch.setattr(cleanup_module, "auto_compose_dir", lambda: tmp_path)
+    monkeypatch.setattr(docker_config, "auto_compose_dir", lambda: tmp_path)
+    monkeypatch.setattr(cleanup_module, "compose_ls", fake_compose_ls)
+
+    await cleanup_module.cli_cleanup(None)
+
+    assert not config_path.exists()
