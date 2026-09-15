@@ -4671,10 +4671,16 @@ def test_sample_buffer_guard_anchors_in_the_mapped_namespace(tmp_path: Path) -> 
     )
     with fastapi.testclient.TestClient(app) as client:
         assert (
-            client.get(f"/pending-samples?log=logs/{Path(log).name}").status_code == 403
+            client.get(
+                f"/pending-samples?log={_q('logs/' + Path(log).name)}"
+            ).status_code
+            == 403
         )
         (storage / "logs" / ".buffer").unlink()
         _create_sample_buffer(log)
         assert (
-            client.get(f"/pending-samples?log=logs/{Path(log).name}").status_code == 200
+            client.get(
+                f"/pending-samples?log={_q('logs/' + Path(log).name)}"
+            ).status_code
+            == 200
         )
