@@ -1,14 +1,14 @@
 from logging import getLogger
 from typing import TYPE_CHECKING, Literal, cast
 
-from acp.schema import ElicitationSchema
-
 from inspect_ai.util._notify import notify
 
 from . import builtin
 from ._types import InputRequest, InputResult
 
 if TYPE_CHECKING:
+    from acp.schema import ElicitationSchema
+
     from inspect_ai.event._input import InputField
 
 logger = getLogger(__name__)
@@ -22,7 +22,7 @@ _ALLOWED_FIELD_TYPES: frozenset[str] = frozenset(
 async def request_input(
     *,
     message: str,
-    schema: ElicitationSchema,
+    schema: "ElicitationSchema",
 ) -> InputResult:
     """Ask the user a structured question and wait for an answer.
 
@@ -75,7 +75,7 @@ def _record_input_event(request: InputRequest, result: InputResult) -> None:
 
 
 def _fields_from_schema(
-    schema: ElicitationSchema, input_field_cls: "type[InputField]"
+    schema: "ElicitationSchema", input_field_cls: "type[InputField]"
 ) -> list["InputField"]:
     out: list["InputField"] = []
     for name, prop in (schema.properties or {}).items():

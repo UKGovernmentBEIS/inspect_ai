@@ -1,7 +1,10 @@
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from acp.schema import ElicitationSchema
+if TYPE_CHECKING:
+    # Deferred: `acp.schema` is the single largest cost of `import inspect_ai`,
+    # so the field below names it as a string; it is not runtime-resolvable.
+    from acp.schema import ElicitationSchema
 
 InputOutcome = Literal["accepted", "declined", "cancelled"]
 """Outcome of an `ask_user` interaction.
@@ -20,7 +23,7 @@ class InputRequest:
     message: str
     """The prompt shown to the user."""
 
-    schema: ElicitationSchema
+    schema: "ElicitationSchema"
     """Schema describing the answer fields."""
 
 
