@@ -6,6 +6,11 @@ from inspect_ai._eval.eval import eval, eval_async, eval_retry, eval_retry_async
 from inspect_ai._eval.evalset import eval_set, task_identifier
 from inspect_ai._eval.list import list_tasks
 from inspect_ai._eval.registry import task, task_source
+from inspect_ai._eval.run_config import (
+    RunConfig,
+    merge_run_config_params,
+    read_run_config,
+)
 from inspect_ai._eval.score import score, score_async
 from inspect_ai._eval.task import (
     Epochs,
@@ -36,6 +41,9 @@ __all__ = [
     "eval_retry",
     "eval_retry_async",
     "eval_set",
+    "RunConfig",
+    "read_run_config",
+    "merge_run_config_params",
     "task_identifier",
     "list_tasks",
     "score",

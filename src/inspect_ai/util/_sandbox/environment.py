@@ -593,6 +593,17 @@ A tuple, e.g. ("docker", "compose.yaml"), is equivalent to SandboxEnvironmentSpe
 """
 
 
+def parse_sandbox(sandbox: str | None) -> SandboxEnvironmentSpec | None:
+    if sandbox is not None:
+        parts = sandbox.split(":", maxsplit=1)
+        if len(parts) == 1:
+            return SandboxEnvironmentSpec(sandbox)
+        else:
+            return SandboxEnvironmentSpec(parts[0], parts[1])
+    else:
+        return None
+
+
 def resolve_sandbox_environment(
     sandbox: SandboxEnvironmentType | None,
 ) -> SandboxEnvironmentSpec | None:
