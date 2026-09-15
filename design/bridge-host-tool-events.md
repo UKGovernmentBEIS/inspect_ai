@@ -5,7 +5,11 @@ Status: proposed, 2026-09-15. Issue: none (task from Ransom). Author: agent
 
 All `path:line` references are to `main` at `ba590d512` unless a different
 tree is named. Viewer references are to the `ts-mono` submodule at the commit
-that tree pins (`02f2c5ad`), under `src/inspect_ai/_view/ts-mono/`.
+that tree pins (`02f2c5ad`), under `src/inspect_ai/_view/ts-mono/`. This
+design builds on PR #5428 (`bridge-host-tools-require-proposal`, head
+`6d66c17c2`, in review as this is written), which makes execution grants
+unconditional; where the two differ, the grant behaviour described here is
+#5428's, cited by function name rather than line.
 
 ## Why
 
@@ -16,7 +20,9 @@ sandbox service, and the host runs the tool function in the Inspect process
 (`src/inspect_ai/agent/_bridge/sandbox/service.py:219-265`). Since #4944,
 when an approval policy is active the call must consume a one-shot execution
 grant minted from an approved generation
-(`src/inspect_ai/agent/_bridge/sandbox/types.py:91-159`).
+(`src/inspect_ai/agent/_bridge/sandbox/types.py:91-159`); #5428 makes the
+grant a requirement for every call, with or without a policy, unless the
+server's `BridgedToolsSpec` sets `require_proposal=False`.
 
 Nothing on this path writes a transcript event. The only trace of a host
 tool execution is the `ModelEvent` of the generation that proposed it, if
@@ -44,13 +50,14 @@ Goals:
   bridged server and tool, the arguments as executed, the result as
   delivered to the scaffold (or the error), start and completion times,
   working time, and a marker that it ran on the host through the bridge.
-- An executed call that matches a recorded model proposal carries the
-  proposing `ToolCall.id` and is placed in the span of the proposing
-  `ModelEvent`, so consumers pair it with the proposal the way they pair
-  native `ToolEvent`s. A denied or rejected call gets a fresh id and an
-  error. An executed call with no matching proposal gets a fresh id and
-  `metadata.bridge.proposed = false`, with no `error` (see Open questions:
-  the task text asked for an error here).
+- An executed call that consumed a grant carries the proposing
+  `ToolCall.id` and is placed in the span of the proposing `ModelEvent`, so
+  consumers pair it with the proposal the way they pair native
+  `ToolEvent`s. A denied or rejected call gets a fresh id and an error.
+  With #5428 the only unproposed call that executes is one on a server the
+  eval opted out with `require_proposal=False`; it gets a fresh id and
+  `metadata.bridge.grant = "exempt"`, with no `error`, since executing it
+  is the eval author's stated intent.
 - The event behaves like a native `ToolEvent` for live surfaces: pending
   while running, cancellable by the operator, visible to the execution
   observer, finalised exactly once by the host runner.
@@ -69,8 +76,8 @@ Non-goals:
 
 - Recording the scaffold's own tool executions (Bash, Read, Edit run inside
   the sandbox). Those remain visible only through `ModelEvent` inputs.
-- Making execution grants unconditional (denying unproposed calls without an
-  approval policy). See "Not this design".
+- The execution contract itself (which calls run): that is #5428. This
+  design records what that contract decided.
 - Argument schema validation, dataclass coercion, or `ToolDef.viewer`
   support for bridged host tools. The bridge path calls
   `tool_fn(**arguments)` directly today and keeps doing so.
@@ -121,16 +128,37 @@ Non-goals:
 
 ### Grants
 
+On `main` (`ba590d512`):
+
 - `_ToolExecutionGrant(server, tool, arguments)` (`types.py:201-211`) is
   minted per approved call in `register_tool_execution_grants`
   (`types.py:91-139`), called from `bridge_generate` after approval and
   before the response is returned to the scaffold (`util.py:600-604`). The
-  method returns early when no approval policy is active (`types.py:107`),
-  so with the default configuration nothing is recorded about proposals.
+  method returns early when no approval policy is active (`types.py:107`).
 - `consume_tool_execution_grant` returns a `bool` (`types.py:141-159`).
 - The grant deque is bounded at 1024 entries (`types.py:33`, `:76-78`) and
   is not registered with the checkpointer, so grants do not survive a
   checkpoint restore.
+
+After #5428 (the tree this design targets):
+
+- `register_tool_execution_grants` records a grant for every bridged-tool
+  call in every response handed to the scaffold, whether or not a policy is
+  active, except for servers in `SandboxAgentBridge.proposal_exempt_servers`
+  (those registered with `BridgedToolsSpec(require_proposal=False)`), for
+  which no grant is stored.
+- `call_tool` denies unless the server is exempt or a grant is consumed;
+  `tool_approval_required()` is removed. The denial is still a
+  `PermissionError`, now reading "Host tool call '<server>/<tool>' was not
+  proposed by the model in a bridged generation (a bridged host tool runs
+  once per proposed call)".
+- `_candidate_functions` returns the set of model-facing names each
+  supported scaffold (Claude Code, Codex CLI, Gemini CLI, OpenCode) gives a
+  bridged tool, including their character rewriting and length rules, so
+  proposals are recognised for those scaffolds; ambiguous names still
+  register no grant.
+- The grant record, `consume`'s `bool` return, the one-shot matching and the
+  bounded store are unchanged.
 
 ### Native `ToolEvent` mechanics the design mirrors
 
@@ -266,16 +294,16 @@ directly to the sample transcript from the service task, in the native
 shape (event stamped with its parent span, emitted inside a `tool` span,
 nested events inside that span, which the viewer shows as a sibling span
 node beside the tool panel), placed under the span of the proposing
-`ModelEvent`. Pairing and placement come from the grant record, which is
-extended to hold the proposing `ToolCall` and that event's span, and is now
-written whether or not an approval policy is active (the denial decision is
-unchanged).
+`ModelEvent`. Pairing and placement come from the grant record, which #5428 already
+writes for every proposal and which this design extends to hold the
+proposing `ToolCall` and that event's span. The denial decision is #5428's
+and is unchanged.
 
 ```
 scaffold ──tools/call──▶ proxy ──call_tool RPC──▶ service task
                                                   │ resolve server/tool; arguments must be an object within the depth bound
                                                   │ grant = consume_tool_execution_grant(...)
-                                                  │ deny if approval active and grant is None
+                                                  │ deny if grant is None and the server requires a proposal (#5428)
                                                   │ under parent_span(grant.span_id):
                                                   │   ToolEvent(id = grant.call.id | fresh, pending)   ← stamped with the parent
                                                   │   span(type="tool"): transcript()._event(event)
@@ -287,7 +315,7 @@ scaffold ──tools/call──▶ proxy ──call_tool RPC──▶ service ta
 
 ### Grant record carries the proposal and its span
 
-`src/inspect_ai/agent/_bridge/sandbox/types.py`:
+`src/inspect_ai/agent/_bridge/sandbox/types.py`, on top of #5428:
 
 ```python
 class _ToolExecutionGrant(NamedTuple):
@@ -303,26 +331,26 @@ class _ToolExecutionGrant(NamedTuple):
 ```
 
 - `register_tool_execution_grants(calls, *, span_id: str | None = None)`
-  drops the early return at `types.py:107` and records a grant for every
-  approved (or, without a policy, every returned) call that resolves to
-  exactly one bridged tool. The base no-op hook on `AgentBridge`
-  (`src/inspect_ai/agent/_bridge/types.py:202`) gains the same keyword,
-  because `bridge_generate` is shared by in-process and sandbox bridges and
-  calls the hook for every generation, including ones without tool calls
-  (`util.py:602-604`); without the base change every in-process generation
-  would raise `TypeError`. The record is what lets an execution be attributed to its
-  proposal; the denial decision stays where it is (below). The ambiguity and
-  eviction warnings (`types.py:114-123`, `:124-131`) are reworded so they do
-  not say "the call will be denied" when no policy is active ("no execution
-  grant registered; under an approval policy the call is denied, otherwise it
-  executes unpaired").
+  stores the `ToolCall` and the captured span with each grant. The base
+  no-op hook on `AgentBridge` (`src/inspect_ai/agent/_bridge/types.py:202`)
+  gains the same keyword, because `bridge_generate` is shared by in-process
+  and sandbox bridges and calls the hook for every generation, including
+  ones without tool calls (`util.py:602-604`); without the base change every
+  in-process generation would raise `TypeError`. Registration policy
+  (unconditional, ambiguity fails closed, bounded store) is #5428's and is
+  not changed here.
 - `consume_tool_execution_grant(server, tool, arguments) ->
   _ToolExecutionGrant | None` returns the matched record instead of `bool`.
   Matching is unchanged (`_json_equal`, one-shot, oldest first).
-- The deque stays bounded at `_MAX_TOOL_EXECUTION_GRANTS`. Without a policy
-  the deque now fills for every host-tool proposal, so the eviction warning
-  will fire for long runs whose scaffold proposes host calls it never
-  executes; that is the existing bound doing its job.
+- Exempt servers. #5428 stores no grants for a `require_proposal=False`
+  server, which means a model-proposed call on such a server could never
+  pair with its proposal. This design therefore stores grants for exempt
+  servers too, purely for attribution: `call_tool` consumes a match when
+  there is one and executes regardless. The store stays bounded and every
+  entry is still consumable; the only cost is that an exempt server's never-
+  executed proposals occupy slots until evicted. #5428's
+  `test_opted_out_server_stores_no_grants` inverts accordingly (Open
+  question 1).
 
 Capturing the proposing event's span, in `bridge_generate`
 (`src/inspect_ai/agent/_bridge/util.py:562`):
@@ -344,14 +372,6 @@ Capturing the proposing event's span, in `bridge_generate`
   closed. With claude_code's `LiveConsumer`, main-agent proposals capture
   `None` (it attributes them to the current span) and sub-agent proposals
   capture `agent-<tool_use_id>`.
-
-Why record unconditionally: the default bridge configuration has no approval
-policy. If pairing were available only under approval, the common case would
-produce an unpaired event for every host call, and ACP live mode would show
-two cards per call (the synthesised one from the `ModelEvent` and a fresh
-one from the real event) with no id to reconcile them. Recording the
-proposal costs one bounded deque entry and is exactly the substrate the
-"unconditional grants" follow-up needs (see "Not this design").
 
 ### A span parent helper
 
@@ -401,18 +421,22 @@ Control flow, in order:
    object executes. The bound is the one native applies to model-provided
    arguments for the same reason (`_call_tools.py:1348-1360`): the recorded
    arguments enter the log, and unbounded nesting crashes sample logging.
-   Listed under Compatibility and Open questions.
+   Listed under Compatibility (decision: Ransom, 2026-09-15).
 3. **Match the proposal.** `grant = bridge.consume_tool_execution_grant(server,
    tool, arguments)`.
-4. **Deny.** If `bridge.tool_approval_required()` and `grant is None`:
-   record a completed event with fresh id, `function=tool`,
-   `error=ToolCallError("permission", "Host tool call '<server>/<tool>' was
-   not approved for execution")`, `failed=None`, and raise the same
-   `PermissionError` as today (`service.py:242-244`), keeping the `warn_once`.
-   `permission` is the type the native path assigns to a `PermissionError`
-   raised by a tool body (`_call_tools.py:248-250`) and it renders in the
-   viewer, which suppresses `approval`-typed errors expecting a paired
-   `ApprovalEvent` that a denial does not have (no approver ran).
+4. **Deny.** If the server is not in `bridge.proposal_exempt_servers` and
+   `grant is None` (#5428's condition): record a completed event with fresh
+   id, `function=tool`, `error=ToolCallError("permission", <#5428's message:
+   "Host tool call '<server>/<tool>' was not proposed by the model in a
+   bridged generation (a bridged host tool runs once per proposed call)">)`,
+   `failed=None`, and raise the same `PermissionError` #5428 raises, keeping
+   its `warn_once`. `permission` is the type the native path assigns to a
+   `PermissionError` raised by a tool body (`_call_tools.py:248-250`) and it
+   renders in the viewer, which suppresses `approval`-typed errors expecting
+   a paired `ApprovalEvent` that a denial does not have (no approver ran).
+   The type is also the accurate one: the agent has no permission to run a
+   host tool the model did not call; approval was never in question
+   (decision: Ransom, 2026-09-15).
 5. **Execute.**
 
    ```python
@@ -565,18 +589,19 @@ No new field. `BaseEvent.metadata` (`_base.py:29`) carries:
   "bridge": {
     "server": "calc",
     "tool": "calculator_add",
-    "proposed": true,
-    "approval": "granted"
+    "grant": "consumed"
   }
 }
 ```
 
 - `server`, `tool`: the `BridgedToolsSpec` name and the tool name within it.
-- `proposed`: whether a recorded model proposal matched (and so whether `id`
-  is the proposing call's id and the event sits in that proposal's span).
-- `approval`: `"granted"` (policy active, grant consumed), `"denied"`
-  (policy active, no grant), `"not_required"` (no policy), or `null` for
-  events recorded before the grant check (unknown tool, bad arguments).
+- `grant`: `"consumed"` (a proposal matched: `id` is the proposing call's id
+  and the event sits in that proposal's span), `"denied"` (server requires a
+  proposal and none matched), `"exempt"` (server registered with
+  `require_proposal=False`, no proposal matched, executed anyway), or
+  `null` for events recorded before the grant check (unknown tool, bad
+  arguments). Approval decisions are not repeated here; they are already
+  `ApprovalEvent`s paired by call id.
 
 `metadata` is already in the log schema and the generated TypeScript types
 (`metadata?: {[key: string]: unknown} | null`), so no type generation is
@@ -705,11 +730,12 @@ actions, and the native path has no switch either.
   arrives in the next input. Today the ordering would be: synth start,
   update (real event pending), update (real event completed), update
   (message settle); after the change the last update is gone.
-- Unpaired host events (fresh id) map as their own start and update. If the
-  call was model-proposed but unmatched (ambiguous name, or arguments the
-  scaffold altered), the synthesised card for the proposal remains and
-  settles from the `ChatMessageTool` as today, so that case shows two cards.
-  Accepted: the pairing covers every call the grant machinery can match.
+- Unpaired host events (fresh id) map as their own start and update. With
+  #5428 an unmatched call executes only on an exempt server; a proposal that
+  failed to match there (ambiguous name, arguments the scaffold altered)
+  keeps its synthesised card, which settles from the `ChatMessageTool` as
+  today, so that case shows two cards. Accepted: exempt servers give up the
+  correspondence guarantee by definition.
 - Replay needs no change: `_scan_bridge_tool_facts` already excludes ids
   that have a real `ToolEvent` from synthesis (`:1019`), and the host event
   replays as one completed start through `_map_tool_event`.
@@ -771,14 +797,14 @@ regression above; bridged turns without host calls are unchanged.
 
 ### Outcomes, summarised
 
-| Outcome | `id` | `function` | `error` | `failed` | `metadata.bridge.proposed` | RPC/MCP result to scaffold |
+| Outcome | `id` | `function` | `error` | `failed` | `metadata.bridge.grant` | RPC/MCP result to scaffold |
 |---|---|---|---|---|---|---|
-| Executed, proposal matched | proposing `ToolCall.id` | as the model saw it | mapped failure or `None` | `True` only for an unmapped exception | `true` | unchanged; on failure the original exception text |
-| Executed, no proposal matched (no policy) | fresh | MCP tool name | as above | as above | `false` | unchanged |
+| Executed, grant consumed | proposing `ToolCall.id` | as the model saw it | mapped failure or `None` | `True` only for an unmapped exception | `consumed` | unchanged; on failure the original exception text |
+| Executed on an exempt server, no grant | fresh | MCP tool name | as above | as above | `exempt` | unchanged |
 | Executed, string result over the output limit | as executed | as executed | `None` | `None` | as executed | **changed**: the native truncation wrapper text; event `truncated=(raw, limit)` |
-| Denied (policy active, no grant) | fresh | MCP tool name | `permission` | `None` | `false` | unchanged (`PermissionError` text) |
-| Unknown server or tool | fresh | MCP tool name as sent | `parsing` | `None` | `false` | unchanged (`ValueError` text) |
-| Arguments not an object, or nested over 100 deep | fresh | MCP tool name | `parsing` | `None` | `false` | **changed**: `ValueError` text instead of a `TypeError` text or execution |
+| Denied (server requires a proposal, none matched) | fresh | MCP tool name | `permission` | `None` | `denied` | unchanged from #5428 (`PermissionError` text) |
+| Unknown server or tool | fresh | MCP tool name as sent | `parsing` | `None` | `null` | unchanged (`ValueError` text) |
+| Arguments not an object, or nested over 100 deep | fresh | MCP tool name | `parsing` | `None` | `null` | **changed**: `ValueError` text instead of a `TypeError` text or execution |
 | Tool raised `LimitExceededError` | as executed | as executed | `limit` | `None` | as executed | unchanged (limit handling and error text) |
 | Operator cancel | as executed | as executed | `timeout` | `None` | as executed | new: MCP error "Command timed out before completing." |
 | Bridge teardown mid-call | as executed | as executed | `cancelled` | `None` | as executed | none (request abandoned, as today) |
@@ -810,11 +836,6 @@ viewer it is a failed tool panel; in `events_df` it is a row with
   its proposal and result, where the viewer's per-level pairing and
   coverage rules cannot see it (the per-level map at
   `resolveMessageToEvent.ts:223-236`). Rejected.
-- **Pair only under an approval policy** (the literal reading of "extend
-  the grant record"). Simplest change to `types.py`, but the default
-  configuration would then never pair, giving two ACP cards per host call
-  and unpaired approvals in the viewer for most users. Recording proposals
-  unconditionally is the smaller total change once consumers are counted.
 - **Delivering the full result and recording it truncated**, or the
   reverse. Either way the event would say something other than what the
   scaffold received, which defeats the record. Truncating at the execution
@@ -862,8 +883,8 @@ viewer it is a failed tool panel; in `events_df` it is a row with
 - **Public API and CLI.** `SandboxAgentBridge.consume_tool_execution_grant`
   returns the record instead of `bool`; `register_tool_execution_grants`
   gains a defaulted keyword on both `AgentBridge` and the sandbox override
-  and records without a policy; all are only called from `service.py`,
-  `util.py` and tests. A third-party `AgentBridge` subclass overriding the
+  and now stores grants for exempt servers; all are only called from
+  `service.py`, `util.py` and tests. A third-party `AgentBridge` subclass overriding the
   hook with the old signature would break at the shared call site; none is
   known. `call_tool`'s signature and wire
   behaviour are unchanged except as listed above. `util/_span.py` gains a
@@ -887,12 +908,15 @@ viewer it is a failed tool panel; in `events_df` it is a row with
   after resume, as today.
 - **Viewer.** Old logs render as before. New mixed bridged turns show the
   two regressions above until the ts-mono companion lands.
-- **Existing tests.** `test_host_tool_grants_are_not_stored_without_approval_policy`
-  (`tests/agent/test_bridge_approval.py:828`) asserts the opposite of the
-  new recording rule and is rewritten to assert attribution without denial;
-  `test_scaffold_local_tool_calls_are_not_stored` (`:678`) still holds. The
-  Docker approval tests (`tests/tools/test_tools_bridge.py:620`, `:656`)
-  keep passing because RPC behaviour for those calls is unchanged.
+- **Existing tests (as renamed by #5428).** `test_opted_out_server_stores_no_grants`
+  in `tests/agent/test_bridge_approval.py` inverts (grants are stored for
+  exempt servers, for attribution); `test_opted_out_server_executes_without_a_proposal`
+  and `test_scaffold_local_tool_calls_are_not_stored` still hold. The Docker
+  tests `test_sandbox_bridge_denies_unproposed_host_tool_call` and
+  `test_sandbox_bridge_executes_proposed_host_tool_call_once` in
+  `tests/tools/test_tools_bridge.py` keep passing because RPC behaviour for
+  those calls is unchanged; the transport-level tests #5428 opted out with
+  `require_proposal=False` now also see an `exempt` event each.
 - **CHANGELOG.** Three `## Unreleased` lines: host tools executed through
   `sandbox_agent_bridge(bridged_tools=...)` are now recorded as tool events
   in the transcript, including denied calls; their results now respect
@@ -933,10 +957,11 @@ Unit tests, `tests/agent/test_bridge_approval.py` (existing helpers
 at `:24`; install a fresh `Transcript` via `_transcript.set` as the ACP
 tests do, and subscribe a recorder to count emissions):
 
-- Approved and executed: the event has the proposing call's id and
+- Proposed and executed (with and without an approval policy, as #5428's
+  parametrised tests do): the event has the proposing call's id and
   function, the executed arguments (key order as sent), the result,
-  `metadata.bridge` with `proposed=True`, `approval="granted"`, `completed`
-  and `working_time` set, `pending is None`.
+  `metadata.bridge.grant == "consumed"`, `completed` and `working_time`
+  set, `pending is None`.
 - Event tree: run the call inside an outer `span()`; assert the stream is
   `span_begin(tool)`, `tool`, `info`, `span_end`; `ToolEvent.span_id`
   equals the outer span; the tool span's `parent_id` equals the outer span;
@@ -952,9 +977,9 @@ tests do, and subscribe a recorder to count emissions):
   `"agent-sub"`. A second case where the stub stamps the current span
   asserts the grant stored `None` and the event follows the span current at
   execution.
-- Executed without a policy: paired id, `approval="not_required"`.
-- Unproposed execution without a policy: fresh id, `error is None`,
-  `proposed=False`.
+- Exempt server (`require_proposal=False`): a proposed call pairs
+  (`grant == "consumed"`); an unproposed call executes with a fresh id,
+  `error is None`, `grant == "exempt"`.
 - Output limit: a tool returning 20 KiB with the default limit returns the
   native wrapper text to the caller and records the same text with
   `truncated == (20480, 16384)`; a tool registered as
@@ -962,8 +987,8 @@ tests do, and subscribe a recorder to count emissions):
   returning `[ContentText(<20 KiB>)]` is delivered and recorded whole with
   `truncated is None`.
 - Denied: fresh id, `function` is the MCP tool name, `error.type ==
-  "permission"`, `proposed=False`, `approval="denied"`, tool not awaited,
-  `PermissionError` still raised with today's text.
+  "permission"`, `grant == "denied"`, tool not awaited, `PermissionError`
+  still raised with #5428's text.
 - Unknown tool, non-object arguments, arguments nested 101 deep: `parsing`
   event, `ValueError` raised, tool not awaited; arguments nested 100 deep
   execute.
@@ -1021,15 +1046,16 @@ Docker (slow), `tests/tools/test_tools_bridge.py`; these run in PR CI's
 `slow-tool-tests` job because the PR touches `tests/tools/**`
 (`.github/workflows/build.yml:377-384`, `:521`):
 
-- Extend `test_sandbox_bridge_executes_approved_host_tool_call_once`
-  (`:656`): the log has two `tool` events, one with `id == "approved"`,
-  `function == "calculator_add"`, `arguments == {"y": 3, "x": 5}`, result
-  `"8"`, and one denied with a fresh id and `permission` error; both sit in
-  `tool` spans under the same parent as the `ModelEvent`.
-- Extend `test_single_tool_call_returns_correct_result` (`:199`): one `tool`
-  event with a fresh id, `approval == "not_required"`, `proposed is False`.
-- Extend `test_sandbox_bridge_rejects_forged_host_tool_call` (`:620`): one
-  denied event, no executed event, and the MCP error text unchanged.
+- Extend `test_sandbox_bridge_executes_proposed_host_tool_call_once`: the
+  log has two `tool` events, one with `id == "approved"`, `function ==
+  "calculator_add"`, `arguments == {"y": 3, "x": 5}`, result `"8"`, `grant
+  == "consumed"`, and one denied with a fresh id and `permission` error;
+  both sit in `tool` spans under the same parent as the `ModelEvent`.
+- Extend `test_single_tool_call_returns_correct_result` (an exempt server):
+  one `tool` event with a fresh id and `grant == "exempt"`.
+- Extend `test_sandbox_bridge_denies_unproposed_host_tool_call` (both
+  parametrisations): one denied event, no executed event, and the MCP error
+  text unchanged.
 - A tool that raises `TimeoutError("tool-specific timeout")`: the MCP error
   carries that text and the event carries the native timeout error.
 - `eval(..., max_tool_output=1024)` with a tool returning 4 KiB: the MCP
@@ -1058,12 +1084,12 @@ proves no change.
    None` keyword to the base `AgentBridge.register_tool_execution_grants`
    hook and the sandbox override; add `call` and `span_id` to
    `_ToolExecutionGrant`, return the record from
-   `consume_tool_execution_grant`, drop the policy early-return, reword
-   the two warnings, add `_SpanCapturingSink` and the capture in
-   `bridge_generate`, update `service.py:234` to the new return type.
-   Rewrite `test_host_tool_grants_are_not_stored_without_approval_policy`;
-   add the span-capture tests; confirm the in-process `bridge_generate`
-   tests still pass.
+   `consume_tool_execution_grant`, store grants for exempt servers, add
+   `_SpanCapturingSink` and the capture in `bridge_generate`, update the
+   grant check in `call_tool` to the new return type. Invert
+   `test_opted_out_server_stores_no_grants`; add the span-capture tests;
+   confirm the in-process `bridge_generate` tests still pass. Rebase onto
+   `main` once #5428 has merged.
 2. **Span parent helper** (`src/inspect_ai/util/_span.py`, `tests/util/`):
    `parent_span()` with a test that a constructed event and a nested
    `span()` take the given parent and the previous value is restored.
@@ -1100,49 +1126,35 @@ PR.
 
 ## Open questions
 
-1. **Error on an unproposed but executed call.** The task text says an
-   unproposed call gets a fresh id and an error. Recommendation: no
-   `error`; mark it with `metadata.bridge.proposed = false` only. `error`
-   drives "failed" status in ACP, error styling in the viewer and
-   `tool_event_error_type` in dataframes, all of which would then
-   misreport a tool that ran and returned normally. If Ransom wants the
-   anomaly louder, the alternative is a log-only
-   `ToolCallError("unknown", "Host tool call matched no model tool call
-   proposal")` with the successful result still recorded and returned.
-2. **Record proposals without an approval policy?** Recommendation: yes
-   (attribution and placement only; the scaffold sees no change). The
-   strict alternative pairs only under a policy and leaves the default
-   configuration with two ACP cards per host call.
-3. **Reject non-object and over-deep arguments before execution.**
-   Recommendation: yes, with the native bound and the native error text.
-   The alternative (execute and record a placeholder) records something
-   other than what ran. No known scaffold is affected.
-4. **Truncate host tool results at the execution edge.** Recommendation:
+1. **Store grants for exempt servers.** #5428 skips them; this design
+   stores them so a model-proposed call on a `require_proposal=False`
+   server still pairs with its proposal. Recommendation: store them. The
+   cost is bounded-store slots for an exempt server's never-executed
+   proposals; the alternative leaves every event from an exempt server
+   unpaired.
+2. **Truncate host tool results at the execution edge.** Recommendation:
    yes, with the native limit resolution. It changes what a scaffold
    receives for results over 16 KiB (by default) and is the one change here
    a real scaffold will notice; the alternative leaves eval-configured
-   limits ignored and unbounded results in the log.
-5. **Denial error type.** Recommendation: `permission`, which renders today
-   and matches how the native path types a `PermissionError`. `approval`
-   would group denials with policy rejections in dataframes but is hidden by
-   the viewer's tool panel unless a viewer change accompanies it.
-6. **Sequencing with the viewer companion.** Recommendation: land the
+   limits ignored and unbounded results in the log. A lower-risk variant
+   honours an explicitly configured `max_tool_output` or `ToolDef.max_output`
+   but does not apply the implicit 16 KiB default to bridged tools, so an
+   eval that never set a limit sees no change.
+3. **Sequencing with the viewer companion.** Recommendation: land the
    ts-mono change first; if the Python change ships alone, mixed bridged
    turns show the two rendering regressions described under Viewer until it
    does.
 
+Decided (Ransom, 2026-09-15): arguments that are not a JSON object or nest
+deeper than the native bound are rejected before execution; a denial is
+recorded as `ToolCallError("permission", ...)`.
+
 ## Not this design
 
-- **Unconditional execution grants.** Deny any host call that matches no
-  recorded proposal even without an approval policy, with a per-spec opt-out
-  (`BridgedToolsSpec(allow_unproposed=True)` or similar) for tools a
-  scaffold legitimately calls outside a model turn. From this design it
-  needs: proposals recorded regardless of policy (step 1), the `proposed`
-  marker on the event, and the denial branch in `host_tool.py`, which it
-  changes from `tool_approval_required() and grant is None` to `grant is
-  None and not spec.allow_unproposed`. Nothing here precludes it; the
-  proposal deque's bound and the ambiguity rule would need a second look
-  because they would then deny rather than unpair.
+- **The execution contract** (a host tool runs once per call the model
+  proposed, with a per-spec opt-out) is #5428, in review alongside this
+  design. This design assumes it and adds only the `ToolCall` and span to
+  its grant record.
 - **Parity of the host path with native execution**: `validate_tool_input`,
   `tool_params` coercion, `ToolDef.viewer` for the event's `view`.
 - **Tool result review for host tools.** A `review` policy
@@ -1169,7 +1181,7 @@ PR.
   executions; the router would need the bridge's registry to know at start
   time.
 - **A viewer badge** rendering `metadata.bridge` (host execution, denied,
-  unproposed) on the tool panel.
+  exempt) on the tool panel.
 - **Host tool exceptions do not fail the sample** (the service converts
   them to RPC errors); unchanged here, worth a deliberate decision.
 - **Scaffold-run tool calls** remain without `ToolEvent`s; the
