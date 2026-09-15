@@ -18,7 +18,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.message import Message
-from textual.widgets import Button, Input
+from textual.widgets import Button
 
 from inspect_ai._util.textual.form import ElicitationForm
 from inspect_ai.agent._acp.tui.state import (
@@ -174,33 +174,19 @@ class _ElicitationCard(InlineRequestCard):
         if self._form is not None:
             self.call_after_refresh(self._form.focus_first)
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Enter on a form Input → advance to next empty required, or submit.
+    def on_elicitation_form_submit_requested(
+        self, event: ElicitationForm.SubmitRequested
+    ) -> None:
+        """Enter dispatch exhausted the form's empty required fields.
 
-        Textual's :class:`Input` consumes Enter and emits
-        :class:`Input.Submitted`, stopping the keypress event
-        before the screen-level ``Binding("enter", action_submit)``
-        runs. So this handler is the canonical Enter dispatch
-        while the elicitation card has focus on a form input —
-        no need for a screen-level priority binding.
-
-        Multi-field UX (chose "advance, then submit"):
-
-        - If a later required field is still empty, focus it and
-          do NOT submit. Operators can fill multi-field forms by
-          typing + Enter through each row, the same Tab-then-Enter
-          flow they expect from web forms.
-        - Otherwise (all required fields filled, or this is the
-          only field), call :meth:`_submit` — the same path the
-          Submit button click takes. Validation errors short-
-          circuit submit and surface inline.
+        The advance-or-submit walk lives in
+        :meth:`ElicitationForm._advance_or_submit` (shared with the
+        other form hosts); this handler is the terminal "submit"
+        half — the same path the Submit button click takes.
+        Validation errors short-circuit submit and surface inline.
         """
         event.stop()
-        form = self._form
-        if form is None:
-            return
-        if not form.focus_next_empty_required(after=event.input):
-            self._submit()
+        self._submit()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         # Stop here so the screen doesn't see a generic Button.Pressed —
@@ -216,13 +202,7 @@ class _ElicitationCard(InlineRequestCard):
         form = self._form
         if form is None:  # defensive — compose hasn't run yet
             return
-        values, errors = form.collect()
-        if errors:
-            form.show_errors(errors)
+        values = form.collect_or_show_errors()
+        if values is None:
             return
-        form.clear_errors()
-        # values is non-None when errors is empty (per ElicitationForm.collect
-        # contract); pass {} rather than None for type safety.
-        self.post_message(
-            ElicitationDecisionRequested(action="accept", content=values or {})
-        )
+        self.post_message(ElicitationDecisionRequested(action="accept", content=values))
