@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import anyio
+import pytest
 
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.approval._approval import ApprovalDecision
@@ -150,29 +151,83 @@ async def test_a_terminate_in_one_chain_wins() -> None:
     assert "y: terminate" in (summary().explanation or "")
 
 
+@approver
+def signalling_approver(done: anyio.Event, decision: ApprovalDecision) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        done.set()
+        return Approval(decision=decision, explanation="no network")
+
+    return approve
+
+
+@approver
+def failing_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        raise ValueError("monitor unavailable")
+
+    return approve
+
+
 async def test_a_reject_does_not_stop_the_other_chain() -> None:
-    gate = anyio.Event()
+    rejected = anyio.Event()
 
-    async def open_gate_after_reject() -> None:
-        while not any(e.decision == "reject" for e in events()):
-            await anyio.sleep(0.01)
-        gate.set()
-
-    init_transcript(Transcript())
-    approve = policy_approver(
+    approval = await decide(
         [
-            ApprovalPolicy(fixed_approver("reject"), "*", chain="x"),
-            ApprovalPolicy(gated_approver(gate, "terminate"), "*", chain="y"),
+            ApprovalPolicy(signalling_approver(rejected, "reject"), "*", chain="x"),
+            ApprovalPolicy(gated_approver(rejected, "terminate"), "*", chain="y"),
         ]
     )
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(open_gate_after_reject)
-        approval = await approve("msg", bash_call(), ToolCallView(), [])
 
     assert approval.decision == "terminate"
     metadata = summary().metadata
     assert metadata is not None
     assert metadata["chains"]["y"]["decision"] == "terminate"
+
+
+async def test_the_combined_explanation_carries_each_chain_reason() -> None:
+    approval = await decide(
+        [
+            ApprovalPolicy(
+                signalling_approver(anyio.Event(), "reject"), "*", chain="x"
+            ),
+            ApprovalPolicy(fixed_approver("approve"), "*", chain="y"),
+        ]
+    )
+
+    assert approval.decision == "reject"
+    assert approval.explanation == "x: reject (no network); y: approve (fixed approve)"
+
+
+async def test_two_chains_terminating_at_once_terminate() -> None:
+    approval = await decide(
+        [
+            ApprovalPolicy(fixed_approver("terminate"), "*", chain="x"),
+            ApprovalPolicy(fixed_approver("terminate"), "*", chain="y"),
+        ]
+    )
+
+    assert approval.decision == "terminate"
+
+
+async def test_a_single_labelled_chain_records_no_summary() -> None:
+    approval = await decide([ApprovalPolicy(fixed_approver("approve"), "*", chain="x")])
+
+    assert approval.decision == "approve"
+    assert [(e.approver, e.chain) for e in events()] == [("fixed", "x")]
+
+
+async def test_a_failing_chain_raises_its_own_exception() -> None:
+    with pytest.raises(ValueError, match="monitor unavailable"):
+        await decide(
+            [
+                ApprovalPolicy(failing_approver(), "*", chain="x"),
+                ApprovalPolicy(fixed_approver("approve"), "*", chain="y"),
+            ]
+        )
 
 
 async def test_a_terminate_cancels_chains_still_running() -> None:

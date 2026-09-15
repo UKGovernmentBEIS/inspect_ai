@@ -1,9 +1,13 @@
 """Shared machinery for running independent policy chains on one call."""
 
+import sys
 from collections.abc import Awaitable, Callable, Hashable, Sequence
 from typing import TypeVar
 
 import anyio
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallView
 
@@ -30,16 +34,23 @@ async def run_chains(
     """
     results: dict[K, D] = {}
 
-    async with anyio.create_task_group() as tg:
+    try:
+        async with anyio.create_task_group() as tg:
 
-        async def run(key: K, fn: Callable[[], Awaitable[D]]) -> None:
-            result = await fn()
-            results[key] = result
-            if decisive(result):
-                tg.cancel_scope.cancel()
+            async def run(key: K, fn: Callable[[], Awaitable[D]]) -> None:
+                result = await fn()
+                results[key] = result
+                if decisive(result):
+                    tg.cancel_scope.cancel()
 
-        for key, fn in chains:
-            tg.start_soon(run, key, fn)
+            for key, fn in chains:
+                tg.start_soon(run, key, fn)
+    except ExceptionGroup as ex:
+        # a single failing chain raises what it raised, as a lone chain would,
+        # so the tool loop's handlers (limits, tool errors) still recognise it
+        if len(ex.exceptions) == 1:
+            raise ex.exceptions[0] from None
+        raise
 
     return results
 

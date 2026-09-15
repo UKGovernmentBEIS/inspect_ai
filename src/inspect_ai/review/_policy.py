@@ -15,6 +15,7 @@ from inspect_ai._util.registry import (
     registry_lookup,
 )
 from inspect_ai.approval._chains import chain_label, run_chains, with_escalation_context
+from inspect_ai.approval._policy import _summarise
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
@@ -174,9 +175,7 @@ def combine_chain_reviews(
         for chain in chains
     }
     metadata = {"chains": outcomes}
-    summary = "; ".join(
-        f"{label}: {outcome['decision']}" for label, outcome in outcomes.items()
-    )
+    summary = _summarise(outcomes)
     decision: ReviewDecision = (
         "terminate"
         if any(reviewed.decision == "terminate" for reviewed in results.values())

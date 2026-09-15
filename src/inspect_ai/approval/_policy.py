@@ -174,9 +174,7 @@ def combine_chain_approvals(
         for chain in chains
     }
     metadata = {"chains": outcomes}
-    summary = "; ".join(
-        f"{label}: {outcome['decision']}" for label, outcome in outcomes.items()
-    )
+    summary = _summarise(outcomes)
     decisions = {approval.decision for approval in results.values()}
     if "terminate" in decisions:
         return Approval(decision="terminate", explanation=summary, metadata=metadata)
@@ -184,8 +182,8 @@ def combine_chain_approvals(
         return Approval(decision="reject", explanation=summary, metadata=metadata)
     modifiers = [
         chain_label(chain)
-        for chain, approval in results.items()
-        if approval.decision == "modify"
+        for chain in chains
+        if chain in results and results[chain].decision == "modify"
     ]
     if modifiers:
         return Approval(
@@ -198,6 +196,19 @@ def combine_chain_approvals(
             metadata=metadata,
         )
     return Approval(decision="approve", explanation=summary, metadata=metadata)
+
+
+def _summarise(outcomes: dict[str, dict[str, str | None]]) -> str:
+    """One line per chain with its decision and reason, e.g. `x: reject (no network)`.
+
+    This is the text the model (and a human) sees when the call is rejected or
+    the sample terminated, so the deciding chain's own reason must be in it.
+    """
+    return "; ".join(
+        f"{label}: {outcome['decision']}"
+        + (f" ({outcome['explanation']})" if outcome["explanation"] else "")
+        for label, outcome in outcomes.items()
+    )
 
 
 class ApproverPolicyConfig(BaseModel):
