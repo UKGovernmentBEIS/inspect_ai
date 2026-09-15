@@ -544,6 +544,8 @@ services:
     init: true
     # network_mode is omitted because the browser visits external sites.
 ```
+
+The pre-built image runs as root by default and also provides a `nonroot` account (UID/GID 65532) for evaluations that should not run the agent as root; add `user: nonroot` to the service to use it. The web browser tool works under either user.
 :::
 
 ### Task Setup
