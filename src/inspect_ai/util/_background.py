@@ -61,15 +61,19 @@ def background(
         try:
             await func(*args)
         except Exception as ex:
-            # LimitExceededError and TerminateSampleError are intentional
-            # control flow (sample-level limits, operator termination) that
-            # propagate through background workers to be handled by the sample
-            # runner — they are not worker failures, so don't log them as
-            # errors. They still re-raise so the sample enforces them.
+            # LimitExceededError, TerminateSampleError and ModelRefusalError
+            # are intentional control flow (sample-level limits, operator
+            # termination, fail_on_refusal) that propagate through background
+            # workers to be handled by the sample runner — they are not worker
+            # failures, so don't log them as errors. They still re-raise so
+            # the sample enforces them.
             from inspect_ai._util.exception import TerminateSampleError
+            from inspect_ai.model._model import ModelRefusalError
             from inspect_ai.util._limit import LimitExceededError
 
-            if not isinstance(ex, (LimitExceededError, TerminateSampleError)):
+            if not isinstance(
+                ex, (LimitExceededError, TerminateSampleError, ModelRefusalError)
+            ):
                 logger.error(f"Background worker error: {ex}")
             raise
 

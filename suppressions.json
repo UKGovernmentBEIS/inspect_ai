@@ -122,14 +122,6 @@
     }
   },
   "src/inspect_ai/_control/server.py": {
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[method-assign]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[misc]": {
       "count": 1,
       "undescribed": 1
@@ -1710,12 +1702,6 @@
       "undescribed": 3
     }
   },
-  "tests/model/providers/test_openrouter.py": {
-    "type: ignore[typeddict-item]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "tests/model/providers/test_transformer_lens.py": {
     "type: ignore": {
       "count": 4,
@@ -1875,12 +1861,6 @@
     "type: ignore[arg-type]": {
       "count": 2,
       "undescribed": 2
-    }
-  },
-  "tests/test_task_retry_error_history.py": {
-    "type: ignore[arg-type]": {
-      "count": 4,
-      "undescribed": 4
     }
   },
   "tests/tools/test_call_tools.py": {
