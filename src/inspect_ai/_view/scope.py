@@ -168,9 +168,42 @@ def _local_path_from_file_uri(location: str, *, windows: bool) -> str | None:
     return None
 
 
+def _fsspec_remote_form(scheme: str, location: str) -> str:
+    """Fold fsspec scheme aliases and provider-specific authority forms.
+
+    fsspec registers one filesystem class under several schemes (``s3``/``s3a``,
+    ``abfs``/``az``/``abfss``, ``gs``/``gcs``) and adlfs accepts an authority
+    of the form ``container@account.dfs.core.windows.net``. ``main`` canonicalized
+    roots and candidates through ``fs._strip_protocol`` / ``unstrip_protocol``,
+    so all spellings of one object compared equal; this keeps that property by
+    rewriting the location to ``<primary scheme>://<stripped path>`` using the
+    registered class (no filesystem instance, so no credentials are needed).
+    Schemes fsspec does not know, cannot import, or whose stripped paths are
+    absolute (``memory``) are returned unchanged.
+    """
+    try:
+        from inspect_ai._util.file import filesystem_class
+
+        cls = filesystem_class(scheme)
+        protocol = cls.protocol
+        primary = protocol[0] if isinstance(protocol, tuple) else str(protocol)
+        stripped = str(cls._strip_protocol(location))
+    except Exception:
+        return location
+    if not stripped or stripped.startswith("/"):
+        return location
+    return f"{primary}://{stripped}"
+
+
 def _canonical_remote_path(location: str) -> _RemotePath | None:
     protocol, _ = _split_protocol(location)
     if protocol is None or protocol.lower() == "file":
+        return None
+    location = _fsspec_remote_form(
+        protocol.lower(), protocol.lower() + location[len(protocol) :]
+    )
+    protocol, _ = _split_protocol(location)
+    if protocol is None:
         return None
     try:
         parsed = urllib.parse.urlsplit(location)
@@ -480,8 +513,10 @@ def scope_from_claims(
     return ViewScope(roots=roots)
 
 
-WIRE_SCHEMES: frozenset[str] = frozenset({"file", "s3", "gs", "az", "http", "https"})
-"""URI schemes a claim may name a root with (design section 2)."""
+WIRE_SCHEMES: frozenset[str] = frozenset(
+    {"file", "s3", "s3a", "gs", "gcs", "az", "abfs", "abfss", "http", "https"}
+)
+"""URI schemes a claim may name a root with (design section 2, plus fsspec's aliases)."""
 
 
 def _check_wire_uri(uri: object, *, windows: bool | None = None) -> str:

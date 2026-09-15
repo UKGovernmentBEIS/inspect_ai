@@ -395,6 +395,16 @@ class FileSystem:
         return None
 
 
+def filesystem_class(protocol: str) -> Any:
+    """The fsspec filesystem class registered for `protocol`.
+
+    A class, not an instance: usable for `protocol` aliases and
+    `_strip_protocol` without constructing a client or needing credentials.
+    Raises what fsspec raises for an unknown or uninstallable protocol.
+    """
+    return fsspec.get_filesystem_class(protocol)
+
+
 def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
     """Return the filesystem used to host the specified path.
 

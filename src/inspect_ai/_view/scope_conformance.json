@@ -1,5 +1,5 @@
 {
-  "$schema_note": "Conformance corpus for inspect_ai._view.scope (design/viewer-scoped-authorization.md section 7). cases: resolve `location` (null = absent, default binding) for `permission` under `scope`; `decode` names the route-layer decode applied first (path and query = one urllib.parse.unquote, the built-in resolving policies' rule; null = none); `platform` restricts a case (posix, windows, null = any). {tmp} is the resolved fixture root, {tmp_uri} its file: URI. claims: scope_from_claims validity. children: resolve_child. Claim root URIs must be absolute file/s3/gs/az/http(s) URIs; bare paths are accepted only by ScopeRoot.parse for the server's own log_dir.",
+  "$schema_note": "Conformance corpus for inspect_ai._view.scope (design/viewer-scoped-authorization.md section 7). cases: resolve `location` (null = absent, default binding) for `permission` under `scope`; `decode` names the route-layer decode applied first (path and query = one urllib.parse.unquote, the built-in resolving policies' rule; null = none); `platform` restricts a case (posix, windows, null = any). {tmp} is the resolved fixture root, {tmp_uri} its file: URI. claims: scope_from_claims validity. children: resolve_child. Claim root URIs must be absolute file/s3/gs/az/http(s) URIs; bare paths are accepted only by ScopeRoot.parse for the server's own log_dir. A case with `requires` names a Python package it needs (skip when not importable).",
   "version": 1,
   "fixture": {
     "dirs": [
@@ -2517,9 +2517,11 @@
       "permission": "read",
       "decode": null,
       "expect": {
-        "resolved": "az://container/logs/run.eval"
+        "resolved": "abfs://container/logs/run.eval"
       },
-      "platform": null
+      "platform": null,
+      "requires": "adlfs",
+      "notes": "fsspec registers Azure under abfs/az/abfss; the primary spelling is the canonical one"
     },
     {
       "id": "remote-dir-authority-root",
@@ -3481,6 +3483,421 @@
         "resolved": "{tmp}/logs/a#b.eval"
       },
       "platform": "posix"
+    },
+    {
+      "id": "azure-abfs-spelling",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "abfs://mycontainer/inspect-logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "abfs://mycontainer/inspect-logs/x.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "abfs://mycontainer/inspect-logs/x.eval"
+      },
+      "platform": null,
+      "requires": "adlfs"
+    },
+    {
+      "id": "azure-az-spelling",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "abfs://mycontainer/inspect-logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "az://mycontainer/inspect-logs/x.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "abfs://mycontainer/inspect-logs/x.eval"
+      },
+      "platform": null,
+      "requires": "adlfs"
+    },
+    {
+      "id": "azure-abfss-spelling",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "abfs://mycontainer/inspect-logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "abfss://mycontainer/inspect-logs/x.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "abfs://mycontainer/inspect-logs/x.eval"
+      },
+      "platform": null,
+      "requires": "adlfs"
+    },
+    {
+      "id": "azure-abfss-account-authority",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "abfs://mycontainer/inspect-logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs/x.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "abfs://mycontainer/inspect-logs/x.eval"
+      },
+      "platform": null,
+      "requires": "adlfs",
+      "notes": "the account is a credential, not part of the object's identity (adlfs strips it)"
+    },
+    {
+      "id": "azure-az-root-abfs-candidate",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "az://mycontainer/inspect-logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "abfs://mycontainer/inspect-logs/x.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "abfs://mycontainer/inspect-logs/x.eval"
+      },
+      "platform": null,
+      "requires": "adlfs"
+    },
+    {
+      "id": "azure-other-container",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "abfs://mycontainer/inspect-logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "az://othercontainer/inspect-logs/x.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": null,
+      "requires": "adlfs"
+    },
+    {
+      "id": "azure-other-account-same-container",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "abfs://mycontainer/inspect-logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list"
+            ]
+          }
+        ]
+      },
+      "location": "abfss://mycontainer@other.dfs.core.windows.net/inspect-logs/x.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "abfs://mycontainer/inspect-logs/x.eval"
+      },
+      "platform": null,
+      "requires": "adlfs",
+      "notes": "the account is a credential, not part of the object's identity (adlfs strips it)"
+    },
+    {
+      "id": "remote-s3a-alias",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3a://bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs/run.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-s3a-root",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3a://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "s3://bucket/logs/run.eval"
+      },
+      "platform": null
+    },
+    {
+      "id": "remote-dir-write-self-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs",
+      "permission": "write",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "remote-dir-delete-self-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "s3://bucket/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "s3://bucket/logs",
+      "permission": "delete",
+      "decode": null,
+      "expect": "denied",
+      "platform": null
+    },
+    {
+      "id": "local-dir-write-self-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs",
+      "permission": "write",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-delete-self-denied",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs",
+      "permission": "delete",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-trailing-dot-is-a-name",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval.",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval."
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-trailing-space-is-a-name",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/run.eval ",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/run.eval "
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-control-char-is-a-name",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/a\u0001b.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/a\u0001b.eval"
+      },
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-bom-prefix-escapes-nothing",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read"
+            ]
+          }
+        ]
+      },
+      "location": "\ufeff{tmp}/logs/run.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": "denied",
+      "platform": "posix"
+    },
+    {
+      "id": "local-dir-nfd-name-is-distinct",
+      "scope": {
+        "v": 1,
+        "roots": [
+          {
+            "uri": "{tmp_uri}/logs",
+            "kind": "dir",
+            "permissions": [
+              "read"
+            ]
+          }
+        ]
+      },
+      "location": "{tmp}/logs/caf\u00e9.eval",
+      "permission": "read",
+      "decode": null,
+      "expect": {
+        "resolved": "{tmp}/logs/caf\u00e9.eval"
+      },
+      "platform": "posix"
     }
   ],
   "claims": [
@@ -4332,6 +4749,62 @@
       },
       "expect": "invalid",
       "notes": "v must be the integer 1"
+    },
+    {
+      "id": "valid-abfs-root",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "abfs://container/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "valid",
+      "requires": "adlfs"
+    },
+    {
+      "id": "valid-abfss-root",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "abfss://container@account.dfs.core.windows.net/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "valid",
+      "requires": "adlfs"
+    },
+    {
+      "id": "valid-s3a-root",
+      "claim": {
+        "inspect_view_scope": {
+          "v": 1,
+          "roots": [
+            {
+              "uri": "s3a://bucket/logs",
+              "kind": "dir",
+              "permissions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "expect": "valid"
     }
   ],
   "children": [

@@ -7,6 +7,7 @@ from the installed package).
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import urllib.parse
@@ -36,6 +37,12 @@ _PLATFORM = "windows" if os.name == "nt" else "posix"
 
 def _platform_cases(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [c for c in cases if c.get("platform") in (None, _PLATFORM)]
+
+
+def _skip_unless_available(case: dict[str, Any]) -> None:
+    requires = case.get("requires")
+    if requires is not None and importlib.util.find_spec(requires) is None:
+        pytest.skip(f"case needs {requires}")
 
 
 def _ids(cases: list[dict[str, Any]]) -> list[str]:
@@ -90,6 +97,7 @@ _CASES = _platform_cases(CORPUS["cases"])
 
 @pytest.mark.parametrize("case", _CASES, ids=_ids(_CASES))
 def test_scope_conformance_case(case: dict[str, Any], fixture_root: Path) -> None:
+    _skip_unless_available(case)
     case = _substitute(case, fixture_root)
     scope = scope_from_claims({"inspect_view_scope": case["scope"]}).path_scope
     permission = case["permission"]
@@ -115,6 +123,7 @@ _CLAIMS = CORPUS["claims"]
 
 @pytest.mark.parametrize("case", _CLAIMS, ids=_ids(_CLAIMS))
 def test_scope_from_claims_conformance(case: dict[str, Any], tmp_path: Path) -> None:
+    _skip_unless_available(case)
     case = _substitute(case, tmp_path.resolve())
     if case["expect"] == "valid":
         scope_from_claims(case["claim"])
