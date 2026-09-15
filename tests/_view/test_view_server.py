@@ -4641,3 +4641,40 @@ def test_azure_spellings_resolve_to_one_canonical_location(tmp_path: Path) -> No
     with pytest.raises(fastapi.HTTPException):
         asyncio.run(policy.resolve_read(request, "az://other/inspect-logs/x.eval"))
     del token, client, logs
+
+
+def test_sample_buffer_guard_anchors_in_the_mapped_namespace(tmp_path: Path) -> None:
+    """With a resolving policy plus a mapper, the guard checks the location the buffer opens."""
+    storage = tmp_path / "storage"
+    (storage / "logs").mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    log = write_eval_log(storage / "logs", "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    _create_sample_buffer(str(outside / Path(log).name))
+    (storage / "logs" / ".buffer").symlink_to(
+        outside / ".buffer", target_is_directory=True
+    )
+
+    class _Mapper(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"{storage}/{file.lstrip('/')}"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file.removeprefix(f"{storage}/")
+
+    class _PassThrough(_AliasResolvingPolicy):
+        async def resolve_read(self, request: Request, location: str) -> str:
+            return location
+
+    app = fastapi_server.view_server_app(
+        mapping_policy=_Mapper(), access_policy=_PassThrough("unused")
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        assert (
+            client.get(f"/pending-samples?log=logs/{Path(log).name}").status_code == 403
+        )
+        (storage / "logs" / ".buffer").unlink()
+        _create_sample_buffer(log)
+        assert (
+            client.get(f"/pending-samples?log=logs/{Path(log).name}").status_code == 200
+        )

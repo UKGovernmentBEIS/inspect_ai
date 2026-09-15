@@ -438,10 +438,12 @@ def view_server_app(
         scope (a ``file`` root must still see its own buffer) but must stay
         under the file's directory, so a symlink planted at ``.buffer``, at
         the buffer name, or at a path component the buffer code splits on,
-        cannot lead elsewhere. The derived path is built with the same helpers
-        ``SampleBufferFilestore`` uses, so the check and the open cannot
-        disagree; the anchor is the canonical file's own directory as the
-        canonicalizer sees it. Compatibility callers are left as before.
+        cannot lead elsewhere. ``file`` is the mapped location, the very string
+        handed to ``sample_buffer``; the derived path is built with the same
+        helpers ``SampleBufferFilestore`` uses, so the check and the open
+        cannot disagree in spelling or in namespace; the anchor is that file's
+        own directory as the canonicalizer sees it. Compatibility callers are
+        left as before.
         """
         if _compatibility_locations(request):
             return
@@ -775,14 +777,15 @@ def view_server_app(
         request: Request, log: str = Query(...)
     ) -> Samples | Response:
         file = await _resolve_read(request, log, encoding="query")
-        await _confine_sample_buffer(request, file)
+        mapped = await _map_file(request, file)
+        await _confine_sample_buffer(request, mapped)
 
         client_etag = request.headers.get("If-None-Match")
 
         # NOTE: sync on the event loop. The sample buffer can be filestore-backed
         # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
         # warning in AGENTS.md.
-        buffer = sample_buffer(await _map_file(request, file))
+        buffer = sample_buffer(mapped)
         samples = buffer.get_samples(client_etag)
         if samples == "NotModified":
             return Response(status_code=HTTP_304_NOT_MODIFIED)
@@ -822,12 +825,13 @@ def view_server_app(
         after_call_pool_id: int | None = Query(None, alias="after-call-pool-id"),
     ) -> SampleData | Response:
         file = await _resolve_read(request, log, encoding="query")
-        await _confine_sample_buffer(request, file)
+        mapped = await _map_file(request, file)
+        await _confine_sample_buffer(request, mapped)
 
         # NOTE: sync on the event loop. The sample buffer can be filestore-backed
         # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
         # warning in AGENTS.md.
-        buffer = sample_buffer(await _map_file(request, file))
+        buffer = sample_buffer(mapped)
         sample_data = buffer.get_sample_data(
             id=id,
             epoch=epoch,
@@ -861,9 +865,8 @@ def view_server_app(
         tail: bool = Query(False),
     ) -> PendingSampleUrls | Response:
         file = await _resolve_read(request, log, encoding="query")
-        await _confine_sample_buffer(request, file)
-
         mapped = await _map_file(request, file)
+        await _confine_sample_buffer(request, mapped)
         body = await build_pending_sample_urls(
             file=mapped,
             id=id,
