@@ -72,7 +72,9 @@ def _load_overlay(use_cache: bool) -> dict[str, dict[str, Any]]:
     return data
 
 
-def load_harbor(*, use_cache: bool = False) -> tuple[list[dict[str, Any]], list[str]]:
+def load_harbor(
+    *, use_cache: bool = False
+) -> tuple[list[dict[str, Any]], list[str]]:
     """Return (records, missing_category_slugs).
 
     Callers (sync_all.py) error out when missing_category_slugs is non-empty.
