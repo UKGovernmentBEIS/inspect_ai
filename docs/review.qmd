@@ -27,7 +27,15 @@ Errors reported by an executed tool are reviewed when they would otherwise be re
 
 ## Human Reviewer
 
-`human_reviewer()` shows an operator the tool call together with the result it returned and asks for a decision, on the same surfaces as the human approver: an attached ACP client, the approvals panel in the full-screen display, or the console. It offers `continue` and `terminate` by default; pass `choices` to add `escalate`. The surfaces are the approval ones, so `continue` appears there as "Approve", and a request the operator dismisses without choosing terminates the sample. Use it as the last reviewer in a policy so that model reviewers can hand a call's result to a person (an `escalate` from the last reviewer in a policy continues, as with any unanswered escalation):
+`human_reviewer()` shows an operator the tool call together with the result it returned and asks for a decision, on the same surfaces as the human approver: an attached ACP client, the approvals panel in the full-screen display, or the console. It offers `continue` and `terminate` by default; pass `choices` to add `escalate`. The surfaces are the approval ones, so `continue` appears there as "Approve", and a request the operator dismisses without choosing terminates the sample.
+
+Review the result of every tool call by using the `--review human` CLI option (or the `review = "human"` argument to `eval()`):
+
+``` bash
+inspect eval browser.py --review human
+```
+
+Use it as the last reviewer in a policy so that model reviewers can hand a call's result to a person (an `escalate` from the last reviewer in a policy continues, as with any unanswered escalation):
 
 ``` yaml
 reviewers:
