@@ -15,6 +15,8 @@
 - Sample selection: `--sample-id` now accepts ids containing colons (e.g. `user:cybergym/arvo_6008`); a `task:` prefix is stripped only when it names a task in the run.
 - Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
 - Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
+- Agent bridge: Tool calls returned to a scaffold over the OpenAI Responses API now carry an item `id` and `completed` status. Scaffolds built on the Vercel AI SDK (e.g. opencode) rejected the id-less items and silently dropped the tool call, so the agent stopped after its first tool call with an empty answer.
+- Agent bridge: Main-thread tracking now recognizes opencode's quote-wrapped prompt when the prompt itself contains double quotes (opencode escapes them), and a prompt that arrives with surrounding whitespace (older opencode prepends a newline to a prompt read from stdin), so the session title no longer displaces the agent's answer for such prompts.
 - Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.
 - Datasets: `csv_dataset()` now honors the dialect's delimiter when no explicit delimiter is supplied, including tab-separated and registered custom dialects.
 - Datasets: `csv_dataset()` now loads UTF-8 files with a byte-order mark, including Excel CSV exports, without requiring an explicit encoding.

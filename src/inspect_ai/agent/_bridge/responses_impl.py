@@ -1256,6 +1256,12 @@ def responses_output_items_from_assistant_message(
                 mcp_call = tool_use_to_mcp_call_param(content)
                 output.append(McpCall.model_validate(mcp_call))
 
+    # tool call items carry an item `id` (distinct from `call_id`) and a
+    # terminal `status`, as the real API returns them. Scaffolds built on the
+    # Vercel AI SDK (e.g. opencode) validate streamed output items against a
+    # schema that requires both; a non-conforming item falls through to the
+    # SDK's unknown-chunk fallback and the tool call is silently dropped,
+    # ending the agent's turn after its first tool call.
     for tool_call in message.tool_calls or []:
         if tool_call.function == "computer":
             output.append(
@@ -1282,11 +1288,18 @@ def responses_output_items_from_assistant_message(
             )
         elif tool_call.type == "custom":
             output.append(
-                ResponseCustomToolCall(
-                    type="custom_tool_call",
-                    call_id=tool_call.id,
-                    name=tool_call.function,
-                    input=next(iter(tool_call.arguments.values())),
+                ResponseCustomToolCall.model_validate(
+                    {
+                        "type": "custom_tool_call",
+                        "id": uuid(),
+                        "call_id": tool_call.id,
+                        "name": tool_call.function,
+                        "input": next(iter(tool_call.arguments.values())),
+                        "namespace": (tool_namespaces or {}).get(tool_call.function),
+                        # returned by the API (and required by the AI SDK) but
+                        # not declared on the SDK type; kept as an extra field
+                        "status": "completed",
+                    }
                 )
             )
         else:
@@ -1294,10 +1307,12 @@ def responses_output_items_from_assistant_message(
             output.append(
                 ResponseFunctionToolCall(
                     type="function_call",
+                    id=uuid(),
                     call_id=tool_call.id,
                     name=tool_call.function,
                     arguments=json.dumps(tool_call.arguments),
                     namespace=namespace,
+                    status="completed",
                 )
             )
 
