@@ -64,10 +64,8 @@ jobs:
       # `uv sync` rather than `uv venv` + `uv pip install .[dev]`: the step
       # below runs under `uv run`, which syncs the project environment to
       # uv.lock before it executes anything, so an unlocked `uv pip install`
-      # is partly undone a step later (measured: 46 packages uninstalled, 48
-      # installed, inspect_ai rebuilt, 3.5s). Installing the locked set here
-      # and passing --no-sync below reaches the same environment once
-      # (verified: `uv pip freeze` after either sequence is byte-identical).
+      # is partly undone a step later. Installing the locked set here and
+      # passing --no-sync below reaches the same environment once.
       - name: Install dependencies
         run: uv sync
 
@@ -276,13 +274,7 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
-      # `uv sync` rather than `uv venv` + `uv pip install .[dev]`: the pytest
-      # step runs under `uv run`, which syncs the project environment to
-      # uv.lock before it executes anything, so an unlocked `uv pip install`
-      # is partly undone a step later (measured: 46 packages uninstalled, 48
-      # installed, inspect_ai rebuilt, 5.3s). Installing the locked set here
-      # and passing --no-sync below reaches the same environment once
-      # (verified: `uv pip freeze` after either sequence is byte-identical).
+      # `uv sync` then `uv run --no-sync`, for the same reason as the mypy job.
       # The other `uv run` sites below keep their implicit sync on purpose:
       # for docs and sandbox-tools-unit, dropping it would change which
       # dependency versions the job tests against, and slow-tool-tests-release
