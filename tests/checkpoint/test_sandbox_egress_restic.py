@@ -34,12 +34,18 @@ from inspect_ai.util._checkpoint._repo_ops import (
 from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     EgressVerificationError,
     _EgressBuild,
-    _remove_files,
     _write_member,
     egress_sandbox,
     ingress_sandbox,
 )
 from inspect_ai.util._restic import ResticBackupSummary, resolve_restic
+
+# Slow for the same reason as tests/checkpoint/test_restore_repo.py: the
+# binary comes from `resolve_restic`, which downloads it on first use, and
+# every test here pays a real `restic init` plus real backup and restore
+# invocations. Keep anything that needs neither out of this file so it stays
+# in the PR gate (see `_remove_files` in test_sandbox_egress_extract.py).
+pytestmark = pytest.mark.slow
 
 PASSWORD = "test-password"
 CHUNK = 64 * 1024
@@ -493,30 +499,6 @@ async def test_egress_first_cycle_writes_keys_before_config(repos: _Repos) -> No
     assert kinds[:2] == ["keys", "config"]
     assert kinds[-1] == "snapshots"
     assert kinds == sorted(kinds, key=_LAYOUT_ORDER.index)
-
-
-def test_remove_files_unwinds_last_written_first(tmp_path: Path) -> None:
-    """Rollback removes in reverse write order.
-
-    A kill mid-rollback then never leaves a snapshot without its packs or
-    a ``config`` without its key.
-    """
-    names = ["keys/k", "config", "data/ab/p", "index/i", "snapshots/s"]
-    for name in names:
-        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / name).write_text("x")
-    removed: list[str] = []
-    real_unlink = Path.unlink
-
-    def spy(self: Path, missing_ok: bool = False) -> None:
-        removed.append(self.relative_to(tmp_path).as_posix())
-        real_unlink(self, missing_ok=missing_ok)
-
-    with patch.object(Path, "unlink", spy):
-        _remove_files(str(tmp_path), names)
-
-    assert removed == list(reversed(names))
-    assert not any((tmp_path / name).exists() for name in names)
 
 
 # --- resume side ------------------------------------------------------

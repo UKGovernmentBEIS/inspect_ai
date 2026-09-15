@@ -92,6 +92,7 @@ from typing import IO, Any, NamedTuple
 
 import anyio
 
+from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._async_fs import async_mkdir
@@ -192,11 +193,12 @@ async def ingress_sandbox(
         f"     find snapshots -type f 2>/dev/null; }} | "
         f"  LC_ALL=C sort > {paths.manifest})"
     )
-    result = await env.exec(["sh", "-c", extract_script], input=tar_bytes, user="root")
+    result = await privileged_shell(env, extract_script, input=tar_bytes, user="root")
     if not result.success:
         raise RuntimeError(f"Failed to ingress sandbox restic repo: {result.stderr}")
 
-    restore = await env.exec(
+    restore = await privileged_exec(
+        env,
         [
             paths.restic,
             "-r",
@@ -443,7 +445,7 @@ tar -cf {paths.staging}/egress-{tag}.tar -T {paths.staging}/order.txt
 wc -c < {paths.staging}/egress-{tag}.tar
 cat {paths.staging}/new.txt
 """
-    result = await env.exec(["sh", "-c", script], user="root")
+    result = await privileged_shell(env, script, user="root")
     if not result.success:
         raise RuntimeError(f"sandbox egress (build) failed: {result.stderr}")
     lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
@@ -823,10 +825,8 @@ cat {paths.manifest} - | LC_ALL=C sort -u > {paths.manifest}.tmp
 mv {paths.manifest}.tmp {paths.manifest}
 rm -f {paths.staging}/egress-{tag}.tar {paths.staging}/chunk
 """
-    result = await env.exec(
-        ["sh", "-c", script],
-        input="\n".join(members) + "\n",
-        user="root",
+    result = await privileged_shell(
+        env, script, input="\n".join(members) + "\n", user="root"
     )
     if not result.success:
         raise RuntimeError(f"sandbox egress (commit) failed: {result.stderr}")
