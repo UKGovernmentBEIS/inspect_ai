@@ -1,4 +1,5 @@
 import datetime
+import glob
 import hashlib
 import json
 import os
@@ -2125,6 +2126,22 @@ def cleanup_sample_buffer_db(path: Path) -> None:
             pass
     except Exception as ex:
         logger.warning(f"Error cleaning up sample buffer database at {path}: {ex}")
+
+
+def sample_buffer_dbs(location: str, db_dir: Path | None = None) -> list[Path]:
+    """Buffer databases opened for the log at ``location``, one per process.
+
+    Args:
+        location: Eval log location the buffers belong to.
+        db_dir: Override the database directory (defaults to the inspect
+            data dir).
+
+    Returns:
+        Paths of the ``<log file>.<pid>.db`` files, in no particular order.
+    """
+    dir, file = location_dir_and_file(filesystem(location).path_as_uri(location))
+    # the log file name is a literal, not a pattern (it may contain brackets)
+    return list((resolve_db_dir(db_dir) / dir).glob(f"{glob.escape(file)}.*.db"))
 
 
 def resolve_db_dir(db_dir: Path | None = None) -> Path:

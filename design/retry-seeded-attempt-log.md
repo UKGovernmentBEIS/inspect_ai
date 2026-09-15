@@ -847,10 +847,10 @@ Sample progress outranks header information, which is why a written
 `started` destination is kept and used rather than discarded. It lacks only
 what `log_finish` writes — status, the task-level error, stats, results —
 and `started` is the accurate status for an attempt that was still running
-when its write failed. The retry-cleanup sweep never deletes `started`
-logs, so should every later attempt also fail to write, this file stands as
-the task's newest log: an interrupted log carrying every sample the task
-has completed, which the next eval_set pass seeds from. An earlier draft
+when its write failed. The retry-cleanup sweep only ever removes a task's
+older logs, so should every later attempt also fail to write, this file
+stands as the task's newest log: an interrupted log carrying every sample
+the task has completed, which the next eval_set pass seeds from. An earlier draft
 discarded it (as `TaskLogger.discard` does for an abandoned attempt's
 destination) and fell back to the prior source, keeping the log dir tidier
 at the cost of re-running the attempt's flushed completions; that trades
@@ -985,9 +985,9 @@ warning names the prior log and the error.
 6. **A `log_finish` failure after earlier flushes leaves a `started` log as
    the task's newest.** The retry's source is that partial destination (the
    prior set plus this attempt's flushed completions, so no completed
-   sample on disk is re-run), and the file stays until retry cleanup, which
-   never removes `started` logs, so it outlives the run. What it lacks is
-   the header only (status, task-level error, stats, results), and
+   sample on disk is re-run), and the file stays until retry cleanup
+   removes it as an older log once a later attempt finishes. What it lacks
+   is the header only (status, task-level error, stats, results), and
    `started` is the accurate status for an attempt still running when its
    write failed. Completions between the last flush and the failed finish
    were never on disk and are re-run under any design. Chosen over
@@ -995,8 +995,6 @@ warning names the prior log and the error.
    draft), which kept the log dir tidier by re-running finished work. If
    the partial file is unreadable in the same outage, the next attempt's
    seed fails as for any prior-read failure (see the failure analysis).
-   Removing older `started` logs in the cleanup sweep, which would take
-   this file with it, is meridianlabs-ai/inspect_ai#459.
 
 ## Edge cases
 
@@ -1240,13 +1238,20 @@ second or two and the local numbers apply.
   than only the named file.
 - **F (one log per task)** becomes a small increment on A if per-attempt log
   identity is ever judged more cost than value.
-- **Retry cleanup of older `started` logs.** The sweep keeps every
-  `started` log for post-mortem debugging, a rule from before seeding, when
-  an interrupted attempt's log could hold samples no other log had. Every
-  finished attempt's log is now a superset of the `started` logs before it,
-  so those hold nothing the newest log lacks and could be removed like
-  errored ones; only a task's newest log ever needs recovery. Tracked as
-  meridianlabs-ai/inspect_ai#459.
+- **Retry cleanup of older `started` logs** (done, meridianlabs-ai/inspect_ai#459).
+  The sweep used to keep every `started` log for post-mortem debugging, a
+  rule from before seeding, when an interrupted attempt's log could hold
+  samples no other log had. Every finished attempt's log is now a superset
+  of the `started` logs before it, and only a task's newest log is ever
+  recovered, so the sweep removes older `started` logs like errored ones,
+  together with the sample buffer their attempt left behind — when the
+  attempt is one the sweeping process ran itself (the log's run id is one
+  of the `eval()` calls that `eval_set` invocation made), since only then
+  does it know the writer has ended. Nothing on disk can show that another
+  process has stopped writing a `started` log: its buffer database may
+  live in another data directory or pid namespace, and a recovered
+  snapshot carries the crashed log's run id. `started` logs from other
+  runs therefore stay, as before.
 - **Server-side compose for remote logs** (see Performance). #479: the
   seeded start flush composes the destination from the prior object's
   member area plus a small uploaded tail instead of re-uploading the seeded
