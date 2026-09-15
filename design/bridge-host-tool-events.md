@@ -792,8 +792,9 @@ level). Placing paired host events in the proposing event's span is what
 makes a per-level rule sufficient: a host event in an outer span while the
 proposal and its result sit in a sub-agent span would pair with neither,
 which is why span attribution is part of this design rather than a
-cosmetic choice. Until the companion lands, mixed bridged turns show the
-regression above; bridged turns without host calls are unchanged.
+cosmetic choice. The companion lands with the Python change, so no release
+shows the regression above; bridged turns without host calls are unchanged
+either way.
 
 ### Outcomes, summarised
 
@@ -906,8 +907,9 @@ viewer it is a failed tool panel; in `events_df` it is a row with
   native tool mid-checkpoint. Grants remain untracked, so a proposal
   recorded before a checkpoint does not pair (and under a policy is denied)
   after resume, as today.
-- **Viewer.** Old logs render as before. New mixed bridged turns show the
-  two regressions above until the ts-mono companion lands.
+- **Viewer.** Old logs render as before. The coverage-keyed rules land
+  with the Python change, so new mixed bridged turns render scaffold-run
+  calls and results as they do today, plus a panel per host call.
 - **Existing tests (as renamed by #5428).** `test_opted_out_server_stores_no_grants`
   in `tests/agent/test_bridge_approval.py` inverts (grants are stored for
   exempt servers, for attribution); `test_opted_out_server_executes_without_a_proposal`
@@ -1114,15 +1116,14 @@ proves no change.
 7. **Docker tests and docs** (`tests/tools/test_tools_bridge.py`,
    `docs/agent-bridge.qmd` Transcript section and the bridged-tools section
    for the argument restriction, `CHANGELOG.md`).
-8. **Viewer companion** (ts-mono, separate PR): coverage-keyed
-   `showToolCalls` and tool-message hiding at the timeline level, with the
-   two fixtures; then the submodule pointer bump in inspect_ai per
-   `.agents/skills/land-ts-mono/SKILL.md`. Independent of steps 1 to 7;
-   preferably lands first so the first release with host tool events has no
-   mixed-turn regression.
+8. **Viewer companion** (ts-mono PR): coverage-keyed `showToolCalls` and
+   tool-message hiding at the timeline level, with the two fixtures. Lands
+   together with the inspect_ai PR through the submodule pointer bump, per
+   `.agents/skills/land-ts-mono/SKILL.md` (decision: Ransom, 2026-09-15), so
+   no release carries host tool events without the viewer rules.
 
-Steps 1 to 7 are one inspect_ai PR (each step a commit). Step 8 is its own
-PR.
+Steps 1 to 7 are one inspect_ai PR (each step a commit); step 8 is the
+coordinated ts-mono PR.
 
 ## Open questions
 
@@ -1140,14 +1141,10 @@ PR.
    honours an explicitly configured `max_tool_output` or `ToolDef.max_output`
    but does not apply the implicit 16 KiB default to bridged tools, so an
    eval that never set a limit sees no change.
-3. **Sequencing with the viewer companion.** Recommendation: land the
-   ts-mono change first; if the Python change ships alone, mixed bridged
-   turns show the two rendering regressions described under Viewer until it
-   does.
-
 Decided (Ransom, 2026-09-15): arguments that are not a JSON object or nest
 deeper than the native bound are rejected before execution; a denial is
-recorded as `ToolCallError("permission", ...)`.
+recorded as `ToolCallError("permission", ...)`; the viewer companion lands
+together with the Python change, as cross-repo PRs normally do.
 
 ## Not this design
 
