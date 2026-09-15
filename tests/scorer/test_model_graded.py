@@ -29,6 +29,7 @@ from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     Model,
@@ -54,7 +55,7 @@ from inspect_ai.scorer._model import (
     neutralize_structural_delimiters,
 )
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
 
 
 def include_history_task(include_history: bool | Callable[[TaskState], str]) -> Task:
@@ -162,22 +163,23 @@ async def test_model_graded_multimodal(scorer_factory, scorer_name):
     )
     content = model_event.input[0].content
     assert isinstance(content, list)
-    # the original caption now reproduces inside each media block (in place
-    # of a flattened duplicate in the [Task]/[Submission] template slot)
+    # the standard template places the question/submission content directly
+    # in their data slots -- no "[Task media]"/"[Submission media]" pointer
+    # or trailing block
     assert len(content) == 7
     assert isinstance(content[0], ContentText)
-    assert "[Task media]" in content[0].text
-    assert "[Submission media]" in content[0].text
-    assert content[1] == ContentText(text="[Task media]")
-    assert content[2] == ContentText(text="How many ballons are in this picture?")
-    assert isinstance(content[3], ContentImage)
-    assert content[3].detail == "auto"
-    assert content[4] == ContentText(text="[Submission media]")
-    assert content[5] == ContentText(
+    assert "[Task media]" not in content[0].text
+    assert "[Submission media]" not in content[0].text
+    assert content[1] == ContentText(text="How many ballons are in this picture?")
+    assert isinstance(content[2], ContentImage)
+    assert content[2].detail == "auto"
+    assert isinstance(content[3], ContentText)
+    assert content[4] == ContentText(
         text="I believe there are 3 ballons in the picture."
     )
-    assert isinstance(content[6], ContentImage)
-    assert content[6].detail == "low"
+    assert isinstance(content[5], ContentImage)
+    assert content[5].detail == "low"
+    assert isinstance(content[6], ContentText)
 
 
 @pytest.mark.parametrize("include_history", [False, True], ids=["input", "history"])
@@ -226,8 +228,10 @@ async def test_model_graded_image_only_input(include_history):
     content = model_event.input[0].content
     assert isinstance(content, list)
     assert isinstance(content[0], ContentText)
-    assert "[Task]: [image]" in content[0].text
-    assert content[1] == ContentText(text="[Task media]")
+    # the standard template places the (media-only) task content directly
+    # in the [Task] data slot -- no "[Task media]" pointer/trailing block
+    assert "[Task media]" not in content[0].text
+    assert content[0].text.rstrip().endswith("[Task]:")
     assert len([item for item in content if isinstance(item, ContentImage)]) == 1
 
 
@@ -279,22 +283,21 @@ async def test_model_graded_input_media_attached_once_with_history(
     content = requests[0][0].content
     assert isinstance(content, list)
     assert isinstance(content[0], ContentText)
+    assert "[Task media]" not in content[0].text
     if callable(include_history):
         # a custom callback's own text selection isn't knowable, so the
-        # block stays a bare media list -- reconstructing "Question" here
-        # could reintroduce text the callback intentionally excluded
-        assert "Custom: Question (see [Task media])" in content[0].text
-        assert content[1:] == [ContentText(text="[Task media]"), image]
+        # [Task] slot falls back to the callback's flat text followed by
+        # the original-input media, rather than reconstructing "Question"
+        # (which could reintroduce text the callback intentionally
+        # excluded)
+        assert content[1] == ContentText(text="Custom: Question")
+        assert content[2] == image
     else:
         # include_history=True selects the same messages chat_history
-        # renders, so the caption reproduces in the block instead of
-        # duplicating as a flattened "Question (see [Task media])"
-        assert "See [Task media]" in content[0].text
-        assert content[1:] == [
-            ContentText(text="[Task media]"),
-            ContentText(text="Question"),
-            image,
-        ]
+        # renders, so its formatted text (role labels included) occupies
+        # the [Task] slot directly, alongside the original-input media
+        assert content[1] == ContentText(text="Question\n\nAssistant: Answer")
+        assert content[2] == image
 
 
 def test_model_grader_input_media_preserves_message_and_content_order():
@@ -355,9 +358,11 @@ def test_model_scoring_prompt_labels_task_and_submission_media():
 
 
 def test_model_scoring_prompt_preserves_interleaving_for_multiple_captions():
-    # A single caption followed by a run of media reproduces verbatim in the
-    # block (in original order), and the flattened `question` collapses to a
-    # bare pointer instead of duplicating that same caption.
+    # This exercises the labeled-attachment fallback used for custom
+    # templates (``model_scoring_prompt`` defaults to ``is_standard_template
+    # =False``): a single caption already appears in the flattened
+    # `question` (with a "(see [Task media])" pointer), so the block stays
+    # the bare media list to avoid duplicating that same caption.
     image_a = ContentImage(image="data:image/png;base64,YQ==")
     image_b = ContentImage(image="data:image/png;base64,Yg==")
     single_caption_prompt = model_scoring_prompt(
@@ -372,11 +377,10 @@ def test_model_scoring_prompt_preserves_interleaving_for_multiple_captions():
     )
     assert isinstance(single_caption_prompt.content, list)
     assert single_caption_prompt.content[0] == ContentText(
-        text="See [Task media] Answer"
+        text="Question (see [Task media]) Answer"
     )
     assert single_caption_prompt.content[1:] == [
         ContentText(text="[Task media]"),
-        ContentText(text="Question"),
         image_a,
         image_b,
     ]
@@ -510,22 +514,24 @@ async def test_model_graded_multiple_interleaved_images_preserve_order(
     content = request.content
     assert isinstance(content, list)
 
-    task_start = content.index(ContentText(text="[Task media]"))
-    submission_start = content.index(ContentText(text="[Submission media]"))
-    assert content[task_start:submission_start] == [
-        ContentText(text="[Task media]"),
+    # the standard template places question/submission content directly in
+    # their data slots -- no "[Task media]"/"[Submission media]" pointer
+    task_start = content.index(ContentText(text="First, a red circle:"))
+    submission_start = content.index(ContentText(text="Here is the circle:"))
+    assert content[task_start : submission_start - 1] == [
         ContentText(text="First, a red circle:"),
         image_1,
         ContentText(text="Then, a blue square:"),
         image_2,
     ]
-    assert content[submission_start:] == [
-        ContentText(text="[Submission media]"),
+    assert content[submission_start : submission_start + 4] == [
         ContentText(text="Here is the circle:"),
         submission_1,
         ContentText(text="Here is the square:"),
         submission_2,
     ]
+    assert "[Task media]" not in request.text
+    assert "[Submission media]" not in request.text
 
     # grading metadata still holds no media, only text -- the interleaved
     # reconstruction must not defeat the existing sanitization safeguard.
@@ -584,15 +590,11 @@ async def test_model_graded_single_caption_between_images_preserves_placement(
     assert log.status == "success"
     content = requests[0][0].content
     assert isinstance(content, list)
-    task_start = content.index(ContentText(text="[Task media]"))
-    # subject's plain-text "Answer" output carries no media, so the [Task
-    # media] block runs to the end of the message
-    assert content[task_start:] == [
-        ContentText(text="[Task media]"),
-        image_a,
-        caption,
-        image_b,
-    ]
+    task_start = content.index(image_a)
+    # the standard template places the [Task] content directly in its data
+    # slot -- no "[Task media]" pointer/trailing block
+    assert content[task_start : task_start + 3] == [image_a, caption, image_b]
+    assert "[Task media]" not in requests[0][0].text
 
 
 @pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
@@ -787,16 +789,21 @@ async def test_model_graded_history_excludes_final_assistant_turn_media(
     assert log.status == "success"
     content = requests[0][0].content
     assert isinstance(content, list)
-    task_start = content.index(ContentText(text="[Task media]"))
-    # subject's plain-text "Answer" output carries no media, so the [Task
-    # media] block runs to the end of the message
-    assert content[task_start:] == [
-        ContentText(text="[Task media]"),
-        image_1,
-        ContentText(text="The first image above is the reference."),
-        image_2,
-        ContentText(text="Answer for the reference only."),
-    ]
+    # the [Task] slot holds chat_history's own formatted narrative (role
+    # labels intact -- see test_model_graded_source_selection_excludes_
+    # unselected_roles), followed by the original-input media, in original
+    # order; the final assistant turn (the submission, already shown
+    # separately via the answer slot) contributes no media here
+    text_index, history_text_item = next(
+        (i, c)
+        for i, c in enumerate(content)
+        if isinstance(c, ContentText) and "The first image above" in c.text
+    )
+    history_text = history_text_item.text
+    assert "User: The first image above is the reference." in history_text
+    assert "User: Answer for the reference only." in history_text
+    assert "Assistant: Answer" in history_text
+    assert content[text_index + 1 : text_index + 3] == [image_1, image_2]
 
 
 @pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
@@ -952,21 +959,251 @@ async def test_model_graded_multiple_images_fallback_for_flattened_history(
     assert result is not None and result.value == CORRECT
     content = requests[0][0].content
     assert isinstance(content, list)
-    task_start = content.index(ContentText(text="[Task media]"))
+    assert "[Task media]" not in requests[0][0].text
     if callable(include_history):
-        assert content[task_start:] == [
-            ContentText(text="[Task media]"),
+        # a custom callback's own text selection isn't knowable from its
+        # returned string, so the [Task] slot falls back to that flat text
+        # followed by the original-input media, with no interleaving
+        # reconstructed (reconstructing captions here could reintroduce
+        # text the callback intentionally excluded)
+        task_start = content.index(ContentText(text="Custom flattened history"))
+        assert content[task_start : task_start + 3] == [
+            ContentText(text="Custom flattened history"),
             image_1,
             image_2,
         ]
     else:
-        assert content[task_start:] == [
-            ContentText(text="[Task media]"),
-            ContentText(text="First:"),
+        # include_history=True's [Task] slot holds chat_history's own
+        # formatted narrative, followed by the original-input media
+        task_start = content.index(
+            ContentText(text="First:\nSecond:\n\nAssistant: Answer")
+        )
+        assert content[task_start : task_start + 3] == [
+            ContentText(text="First:\nSecond:\n\nAssistant: Answer"),
             image_1,
-            ContentText(text="Second:"),
             image_2,
         ]
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.anyio
+async def test_model_graded_custom_template_preserves_format_specs(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    # Regression for F1 (custom templates): a custom template's own string
+    # formatting semantics -- including format specs like `{question:.4}`
+    # -- must apply to the real question/answer text, not a "See [Task
+    # media]" pointer. This exercises the entire final request through the
+    # public factory.
+    image = ContentImage(image="data:image/png;base64,dGFzaw==")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(content=[ContentText(text="TASK_CAPTION"), image])
+    ]
+    requests: list[list[ChatMessage]] = []
+
+    def capture(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        requests.append(deepcopy(messages))
+        return ModelOutput.from_content("mockllm/grader", "GRADE: C")
+
+    submission_image = ContentImage(image="data:image/png;base64,c3ViMQ==")
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(input=sample_input, target="Answer")],
+                scorer=scorer_factory(
+                    model=get_model("mockllm/grader", custom_outputs=capture),
+                    template="Q={question:.4}\nA={answer:.6}\nGRADE ONLY TRUNCATED TEXT",
+                ),
+            ),
+            model=get_model(
+                "mockllm/subject",
+                custom_outputs=[
+                    ModelOutput.from_content(
+                        "mockllm/subject",
+                        [ContentText(text="ANSWER_CAPTION"), submission_image],
+                    )
+                ],
+            ),
+        )
+    )[0]
+
+    assert log.status == "success"
+    request = requests[0][0]
+    assert isinstance(request.content, list)
+    assert isinstance(request.content[0], ContentText)
+    assert request.content[0].text.startswith("Q=TASK\nA=ANSWER\n")
+    assert "See [Task media]" not in request.text
+    assert "See [Submission media]" not in request.text
+    assert request.content[1:] == [
+        ContentText(text="[Task media]"),
+        image,
+        ContentText(text="[Submission media]"),
+        submission_image,
+    ]
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.anyio
+async def test_model_graded_default_keeps_earlier_media_without_earlier_text(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    # Regression for F2: the default (include_history=False) question omits
+    # earlier-turn text (only the final user message's text is presented),
+    # but original-input media from an earlier turn must still reach the
+    # grader -- media selection is independent of which text is selected.
+    image = ContentImage(image="data:image/png;base64,dGFzaw==")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(content=[image, ContentText(text="Earlier caption")]),
+        ChatMessageUser(content="Describe the preceding image."),
+    ]
+    requests: list[list[ChatMessage]] = []
+
+    def capture(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        requests.append(deepcopy(messages))
+        return ModelOutput.from_content("mockllm/grader", "GRADE: C")
+
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(input=sample_input, target="Answer")],
+                scorer=scorer_factory(
+                    model=get_model("mockllm/grader", custom_outputs=capture)
+                ),
+            ),
+            model=get_model(
+                "mockllm/subject",
+                custom_outputs=[
+                    ModelOutput.from_content("mockllm/subject", "It is a picture.")
+                ],
+            ),
+        )
+    )[0]
+
+    assert log.status == "success"
+    content = requests[0][0].content
+    assert isinstance(content, list)
+    assert image in content
+    assert ContentText(text="Describe the preceding image.") in content
+    # the earlier turn's own text is not part of the presented question --
+    # only its media is retained
+    assert "Earlier caption" not in requests[0][0].text
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.anyio
+async def test_model_graded_history_media_survives_runtime_history_divergence(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    # Regression for F2: under include_history=True, original-input media
+    # must reach the grader even when `state.messages` no longer resembles
+    # `state.input` at all (e.g. after a runtime history compaction) -- the
+    # immutable sample media can't be replaced by mutable runtime-only
+    # messages (which here don't even carry an image).
+    image = ContentImage(image="data:image/png;base64,dGFzaw==")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(content=[image, ContentText(text="Question")])
+    ]
+    state = TaskState(
+        model=ModelName("mockllm/subject"),
+        sample_id=1,
+        epoch=1,
+        input=sample_input,
+        messages=[
+            ChatMessageUser(content="Compacted original image context."),
+            ChatMessageAssistant(content="Answer"),
+        ],
+    )
+    state.output = ModelOutput.from_content("mockllm/subject", "Answer")
+    requests: list[list[ChatMessage]] = []
+
+    def capture(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        requests.append(deepcopy(messages))
+        return ModelOutput.from_content("mockllm/grader", "GRADE: C")
+
+    result = await scorer_factory(
+        model=get_model("mockllm/grader", custom_outputs=capture),
+        include_history=True,
+    )(state, Target("Answer"))
+
+    assert result is not None and result.value == CORRECT
+    content = requests[0][0].content
+    assert isinstance(content, list)
+    assert image in content
+    assert "Compacted original image context." in requests[0][0].text
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.anyio
+async def test_model_graded_history_preserves_mixed_role_and_tool_call_attribution(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    # Regression for F3: include_history=True must preserve User/Assistant/
+    # Tool(name) role labels and tool call arguments in the entire final
+    # request -- not a raw concatenation of message text that erases who
+    # said what.
+    image = ContentImage(image="data:image/png;base64,dGFzaw==")
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(content=[ContentText(text="Identify image"), image]),
+        ChatMessageAssistant(
+            content="This is definitely a cat.",
+            tool_calls=[
+                ToolCall(id="call_1", function="lookup", arguments={"name": "cat"})
+            ],
+        ),
+        ChatMessageTool(
+            content="No cat found", tool_call_id="call_1", function="lookup"
+        ),
+        ChatMessageUser(content="Correct the earlier answer."),
+    ]
+    requests: list[list[ChatMessage]] = []
+
+    def capture(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        requests.append(deepcopy(messages))
+        return ModelOutput.from_content("mockllm/grader", "GRADE: C")
+
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(input=sample_input, target="Answer")],
+                scorer=scorer_factory(
+                    model=get_model("mockllm/grader", custom_outputs=capture),
+                    include_history=True,
+                ),
+            ),
+            model=get_model(
+                "mockllm/subject",
+                custom_outputs=[ModelOutput.from_content("mockllm/subject", "Answer")],
+            ),
+        )
+    )[0]
+
+    assert log.status == "success"
+    prompt_text = requests[0][0].text
+    assert "Assistant: This is definitely a cat." in prompt_text
+    assert "lookup(name='cat')" in prompt_text
+    assert "Tool (lookup): No cat found" in prompt_text
+    assert "User: Correct the earlier answer." in prompt_text
+    assert image in requests[0][0].content
 
 
 @pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
@@ -1050,18 +1287,14 @@ async def test_saved_grading_metadata_excludes_media(
     request = requests[0][0]
     assert isinstance(request.content, list)
     assert isinstance(request.content[0], ContentText)
-    # the caption reproduces in the block, so the question/answer template
-    # slot collapses to a bare pointer instead of duplicating "Question"
-    assert "Question (see" not in request.content[0].text
-    assert "See [Task media]" in request.content[0].text
-    assert "See [Submission media]" in request.content[0].text
-    assert request.content[1:] == [
-        ContentText(text="[Task media]"),
-        ContentText(text="Question"),
-        *task_media,
-        ContentText(text="[Submission media]"),
-        submission_image,
-    ]
+    # the standard template places question/submission content directly in
+    # their data slots -- no "[Task media]"/"[Submission media]" pointer
+    assert "[Task media]" not in request.text
+    assert "[Submission media]" not in request.text
+    task_end = 2 + len(task_media)
+    assert request.content[1:task_end] == [ContentText(text="Question"), *task_media]
+    assert isinstance(request.content[task_end], ContentText)
+    assert request.content[task_end + 1] == submission_image
 
     default_log = await read_eval_log_async(log.location)
     resolved_log = await read_eval_log_async(log.location, resolve_attachments=True)
@@ -1106,13 +1339,13 @@ async def test_saved_grading_metadata_excludes_media(
         assert [item.type for item in grading_event.input[0].content_list] == [
             "text",
             "text",
-            "text",
             "image",
             "audio",
             "video",
             "document",
             "text",
             "image",
+            "text",
         ]
         assert [item.type for item in grading_event.output.message.content_list] == [
             "text",
