@@ -71,6 +71,10 @@ Non-goals:
 - Argument schema validation, dataclass coercion, `max_tool_output`
   truncation, or `ToolDef.viewer` support for bridged host tools. The
   bridge path calls `tool_fn(**arguments)` directly today and keeps doing so.
+- Tool result review for host tools. Native `execute_tools` runs the
+  `review` policies after a tool executes and before the model sees the
+  result; the bridge path runs none, and this design does not change that
+  (see "Not this design").
 - A new event type or a new `ToolEvent` field.
 
 ## Current behaviour
@@ -156,6 +160,12 @@ Non-goals:
   timed out before completing.")` (`:549-556`).
 - The execution observer is told about the in-flight call
   (`:201`, `:359`), which is how ACP's turn cancel finds and marks it.
+- After a successful execution the tool result reviewers run
+  (`_apply_tool_review`, `:357-368`, `:798`): the `review` policies from
+  `Task(review=)`, `eval(review=)` and `react(review=)` see the call and
+  its result before the model does and can continue, terminate or
+  escalate. Nothing on the bridge path calls them; `_bridge/_approval.py`
+  applies approvers only.
 - Model-provided arguments are bounded to `MAX_TOOL_CALL_ARGUMENTS_DEPTH`
   (100) before execution (`_call_tools.py:742`, `:1348-1360`) because
   pydantic-core and log condensation only tolerate bounded nesting;
@@ -1077,6 +1087,18 @@ PR.
 - **Parity of the host path with native execution**: `validate_tool_input`,
   `tool_params` coercion, `max_tool_output` truncation, `ToolDef.viewer`
   for the event's `view`.
+- **Tool result review for host tools.** A `review` policy
+  (`Task(review=)`, `eval(review=)`, `react(review=)`) does not cover a
+  bridged host tool today: native `execute_tools` runs `_apply_tool_review`
+  after execution and before the model sees the result
+  (`_call_tools.py:357-368`), the bridge path never does, and `ReviewEvent`s
+  are therefore absent for host calls. Covering them means running the
+  reviewer at the execution edge in `host_tool.py`, before the result is
+  returned to the scaffold, and deciding what `terminate` (the sample ends
+  through `bridge.request_fail`, as approval termination does) and
+  `escalate` mean over the RPC. This design gives it the `ToolEvent` a
+  `ReviewEvent` pairs with; it is a natural companion to the
+  unconditional-grants follow-up.
 - **Unifying the scaffold-facing error text with the native
   `ToolCallError` wording** (a `TimeoutError` reaches the scaffold as its
   own message today and keeps doing so).
