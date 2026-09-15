@@ -23720,6 +23720,39 @@ a._turnButton_loteg_100 {
 ._subtaskLabel_ac4z2_17 {
   padding: 0 2em;
 }
+._chain_1c1r0_1 {
+  margin: 0.4rem 0 0 0.75rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--bs-border-color);
+}
+
+._heading_1c1r0_7 {
+  font-size: var(--inspect-font-size-smaller);
+  margin-bottom: 0.15rem;
+}
+
+._explanation_1c1r0_12 {
+  margin-left: 0.3em;
+}
+
+._alarming_1c1r0_16 {
+  color: var(--bs-danger);
+}
+
+._step_1c1r0_20 {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 0.4rem;
+  align-items: start;
+}
+
+._position_1c1r0_27 {
+  padding-top: 0.15rem;
+}
+
+._row_1c1r0_31 {
+  min-width: 0;
+}
 ._summary_1mtn2_1 {
   margin: 0.5em 0;
   width: 100%;

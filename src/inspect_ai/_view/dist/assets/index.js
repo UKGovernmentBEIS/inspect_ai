@@ -56421,7 +56421,7 @@ function html_block(state, startLine, endLine, silent) {
 	token.content = state.getLines(startLine, nextLine, state.blkIndent, true);
 	return true;
 }
-function heading$2(state, startLine, endLine, silent) {
+function heading$3(state, startLine, endLine, silent) {
 	let pos = state.bMarks[startLine] + state.tShift[startLine];
 	let max = state.eMarks[startLine];
 	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
@@ -56586,7 +56586,7 @@ var _rules$1 = [
 	],
 	[
 		"heading",
-		heading$2,
+		heading$3,
 		[
 			"paragraph",
 			"reference",
@@ -104870,144 +104870,19 @@ var ApprovalEventView_module_default = {
 	chain: "_chain_1yxpt_14"
 };
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/ApprovalEventView.tsx
+//#region ../../packages/inspect-components/src/transcript/transform/chainOutcomes.ts
 /**
-* Renders the ApprovalEventView component.
-*/ var ApprovalEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(39);
-	const { eventNode, className } = t0;
-	const event = eventNode.event;
-	const decision = event.decision;
-	let alarming;
-	let chains;
-	let explanation;
-	let source;
-	let t1;
-	if ($[0] !== decision || $[1] !== event) {
-		explanation = event.explanation?.trim() ?? "";
-		const approver = event.approver;
-		alarming = decision === "reject" || decision === "terminate";
-		let t2;
-		if ($[7] !== event) {
-			t2 = chainOutcomes(event);
-			$[7] = event;
-			$[8] = t2;
-		} else t2 = $[8];
-		chains = t2;
-		source = event.chain ? `by approver "${approver}" (chain "${event.chain}")` : `by approver "${approver}"`;
-		t1 = explanation.includes("\n");
-		$[0] = decision;
-		$[1] = event;
-		$[2] = alarming;
-		$[3] = chains;
-		$[4] = explanation;
-		$[5] = source;
-		$[6] = t1;
-	} else {
-		alarming = $[2];
-		chains = $[3];
-		explanation = $[4];
-		source = $[5];
-		t1 = $[6];
-	}
-	const explanationIsBlock = t1;
-	const t2 = eventNode.id;
-	let t3;
-	if ($[9] !== alarming || $[10] !== decision) {
-		t3 = alarming ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: ApprovalEventView_module_default.rejected,
-			children: decisionLabel$1(decision)
-		}) : decisionLabel$1(decision);
-		$[9] = alarming;
-		$[10] = decision;
-		$[11] = t3;
-	} else t3 = $[11];
-	let t4;
-	if ($[12] !== decision) {
-		t4 = decisionIcon$1(decision);
-		$[12] = decision;
-		$[13] = t4;
-	} else t4 = $[13];
-	const t5 = alarming ? ApprovalEventView_module_default.rejected : void 0;
-	let t6;
-	if ($[14] !== chains || $[15] !== explanation || $[16] !== explanationIsBlock) {
-		t6 = chains ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChainOutcomes, { chains }) : explanation && explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0;
-		$[14] = chains;
-		$[15] = explanation;
-		$[16] = explanationIsBlock;
-		$[17] = t6;
-	} else t6 = $[17];
-	let t7;
-	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
-		t7 = clsx("text-style-secondary");
-		$[18] = t7;
-	} else t7 = $[18];
-	let t8;
-	if ($[19] !== chains || $[20] !== source) {
-		t8 = chains ? `combined decision of chains ${Object.keys(chains).map(_temp$65).join(", ")}` : source;
-		$[19] = chains;
-		$[20] = source;
-		$[21] = t8;
-	} else t8 = $[21];
-	let t9;
-	if ($[22] !== t8) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: t7,
-			children: [
-				"(",
-				t8,
-				")"
-			]
-		});
-		$[22] = t8;
-		$[23] = t9;
-	} else t9 = $[23];
-	let t10;
-	if ($[24] !== chains || $[25] !== explanation || $[26] !== explanationIsBlock) {
-		t10 = !chains && explanation && !explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: ApprovalEventView_module_default.inlineExplanation,
-			children: explanation
-		}) : null;
-		$[24] = chains;
-		$[25] = explanation;
-		$[26] = explanationIsBlock;
-		$[27] = t10;
-	} else t10 = $[27];
-	let t11;
-	if ($[28] !== t10 || $[29] !== t9) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: ApprovalEventView_module_default.headline,
-			children: [t9, t10]
-		});
-		$[28] = t10;
-		$[29] = t9;
-		$[30] = t11;
-	} else t11 = $[30];
-	let t12;
-	if ($[31] !== className || $[32] !== eventNode.id || $[33] !== t11 || $[34] !== t3 || $[35] !== t4 || $[36] !== t5 || $[37] !== t6) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
-			eventNodeId: t2,
-			title: t3,
-			icon: t4,
-			iconClassName: t5,
-			className,
-			below: t6,
-			children: t11
-		});
-		$[31] = className;
-		$[32] = eventNode.id;
-		$[33] = t11;
-		$[34] = t3;
-		$[35] = t4;
-		$[36] = t5;
-		$[37] = t6;
-		$[38] = t12;
-	} else t12 = $[38];
-	return t12;
-};
+* Policy chains: a call can be decided by several independent chains of
+* approvers (or reviewers). Each approver records its own event tagged with
+* its chain, and a summary `policy` event records the combined decision with
+* every chain's outcome in its metadata. These helpers read that structure so
+* the tool panel can render it as a tree: verdict first, then each chain with
+* its approvers in order.
+*/ var DEFAULT_CHAIN = "default";
 var isRecord = (value) => typeof value === "object" && value !== null;
+var sourceOf = (event) => "approver" in event ? event.approver : event.reviewer;
 /** The per-chain outcomes a policy summary event carries in its metadata. */ var chainOutcomes = (event) => {
-	if (("approver" in event ? event.approver : event.reviewer) !== "policy" || !isRecord(event.metadata)) return void 0;
+	if (sourceOf(event) !== "policy" || !isRecord(event.metadata)) return void 0;
 	const chains = event.metadata.chains;
 	if (!isRecord(chains)) return void 0;
 	const outcomes = {};
@@ -105016,6 +104891,183 @@ var isRecord = (value) => typeof value === "object" && value !== null;
 		explanation: typeof outcome.explanation === "string" ? outcome.explanation : null
 	};
 	return Object.keys(outcomes).length > 0 ? outcomes : void 0;
+};
+/**
+* Arrange a call's approval (or review) nodes as chains under their summary.
+* Returns undefined when no summary is present, i.e. a single chain decided
+* and the flat, chronological rendering is right.
+*/ function groupByChain(nodes) {
+	const summary = nodes.findLast((node) => chainOutcomes(node.event) !== void 0);
+	if (!summary) return void 0;
+	const outcomes = chainOutcomes(summary.event);
+	const chains = Object.entries(outcomes).map(([name, outcome]) => ({
+		name,
+		outcome,
+		nodes: []
+	}));
+	const byName = new Map(chains.map((chain) => [chain.name, chain]));
+	for (const node of nodes) {
+		if (node === summary) continue;
+		const name = node.event.chain ?? DEFAULT_CHAIN;
+		let chain = byName.get(name);
+		if (!chain) {
+			chain = {
+				name,
+				outcome: {
+					decision: "",
+					explanation: null
+				},
+				nodes: []
+			};
+			byName.set(name, chain);
+			chains.push(chain);
+		}
+		chain.nodes.push(node);
+	}
+	return {
+		summary,
+		chains
+	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/ApprovalEventView.tsx
+/**
+* Renders the ApprovalEventView component.
+*/ var ApprovalEventView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(41);
+	const { eventNode, className, showChain: t1, showChains: t2 } = t0;
+	const showChain = t1 === void 0 ? true : t1;
+	const showChains = t2 === void 0 ? true : t2;
+	const event = eventNode.event;
+	const decision = event.decision;
+	let alarming;
+	let chains;
+	let explanation;
+	let source;
+	let t3;
+	if ($[0] !== decision || $[1] !== event || $[2] !== showChain) {
+		explanation = event.explanation?.trim() ?? "";
+		const approver = event.approver;
+		alarming = decision === "reject" || decision === "terminate";
+		let t4;
+		if ($[8] !== event) {
+			t4 = chainOutcomes(event);
+			$[8] = event;
+			$[9] = t4;
+		} else t4 = $[9];
+		chains = t4;
+		source = event.chain && showChain ? `by approver "${approver}" (chain "${event.chain}")` : `by approver "${approver}"`;
+		t3 = explanation.includes("\n");
+		$[0] = decision;
+		$[1] = event;
+		$[2] = showChain;
+		$[3] = alarming;
+		$[4] = chains;
+		$[5] = explanation;
+		$[6] = source;
+		$[7] = t3;
+	} else {
+		alarming = $[3];
+		chains = $[4];
+		explanation = $[5];
+		source = $[6];
+		t3 = $[7];
+	}
+	const explanationIsBlock = t3;
+	const t4 = eventNode.id;
+	let t5;
+	if ($[10] !== alarming || $[11] !== decision) {
+		t5 = alarming ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ApprovalEventView_module_default.rejected,
+			children: decisionLabel$1(decision)
+		}) : decisionLabel$1(decision);
+		$[10] = alarming;
+		$[11] = decision;
+		$[12] = t5;
+	} else t5 = $[12];
+	let t6;
+	if ($[13] !== decision) {
+		t6 = decisionIcon$1(decision);
+		$[13] = decision;
+		$[14] = t6;
+	} else t6 = $[14];
+	const t7 = alarming ? ApprovalEventView_module_default.rejected : void 0;
+	let t8;
+	if ($[15] !== chains || $[16] !== explanation || $[17] !== explanationIsBlock || $[18] !== showChains) {
+		t8 = chains ? showChains ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChainOutcomes, { chains }) : void 0 : explanation && explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0;
+		$[15] = chains;
+		$[16] = explanation;
+		$[17] = explanationIsBlock;
+		$[18] = showChains;
+		$[19] = t8;
+	} else t8 = $[19];
+	let t9;
+	if ($[20] === Symbol.for("react.memo_cache_sentinel")) {
+		t9 = clsx("text-style-secondary");
+		$[20] = t9;
+	} else t9 = $[20];
+	let t10;
+	if ($[21] !== chains || $[22] !== source) {
+		t10 = chains ? `combined decision of chains ${Object.keys(chains).map(_temp$65).join(", ")}` : source;
+		$[21] = chains;
+		$[22] = source;
+		$[23] = t10;
+	} else t10 = $[23];
+	let t11;
+	if ($[24] !== t10) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: t9,
+			children: [
+				"(",
+				t10,
+				")"
+			]
+		});
+		$[24] = t10;
+		$[25] = t11;
+	} else t11 = $[25];
+	let t12;
+	if ($[26] !== chains || $[27] !== explanation || $[28] !== explanationIsBlock) {
+		t12 = !chains && explanation && !explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ApprovalEventView_module_default.inlineExplanation,
+			children: explanation
+		}) : null;
+		$[26] = chains;
+		$[27] = explanation;
+		$[28] = explanationIsBlock;
+		$[29] = t12;
+	} else t12 = $[29];
+	let t13;
+	if ($[30] !== t11 || $[31] !== t12) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: ApprovalEventView_module_default.headline,
+			children: [t11, t12]
+		});
+		$[30] = t11;
+		$[31] = t12;
+		$[32] = t13;
+	} else t13 = $[32];
+	let t14;
+	if ($[33] !== className || $[34] !== eventNode.id || $[35] !== t13 || $[36] !== t5 || $[37] !== t6 || $[38] !== t7 || $[39] !== t8) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
+			eventNodeId: t4,
+			title: t5,
+			icon: t6,
+			iconClassName: t7,
+			className,
+			below: t8,
+			children: t13
+		});
+		$[33] = className;
+		$[34] = eventNode.id;
+		$[35] = t13;
+		$[36] = t5;
+		$[37] = t6;
+		$[38] = t7;
+		$[39] = t8;
+		$[40] = t14;
+	} else t14 = $[40];
+	return t14;
 };
 var ChainOutcomes = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(2);
@@ -110340,134 +110392,137 @@ function _temp2$39(m) {
 * Renders a ReviewEvent: a reviewer's decision on an executed tool call's
 * result. Shares the approval row's styling; the decision set differs.
 */ var ReviewEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(39);
-	const { eventNode, className } = t0;
+	const $ = (0, import_compiler_runtime.c)(40);
+	const { eventNode, className, showChain: t1, showChains: t2 } = t0;
+	const showChain = t1 === void 0 ? true : t1;
+	const showChains = t2 === void 0 ? true : t2;
 	const event = eventNode.event;
 	const decision = event.decision;
 	let alarming;
 	let explanation;
 	let reviewer;
-	let t1;
+	let t3;
 	if ($[0] !== decision || $[1] !== event.explanation || $[2] !== event.reviewer) {
 		explanation = event.explanation?.trim() ?? "";
 		reviewer = event.reviewer;
 		alarming = decision === "terminate";
-		t1 = explanation.includes("\n");
+		t3 = explanation.includes("\n");
 		$[0] = decision;
 		$[1] = event.explanation;
 		$[2] = event.reviewer;
 		$[3] = alarming;
 		$[4] = explanation;
 		$[5] = reviewer;
-		$[6] = t1;
+		$[6] = t3;
 	} else {
 		alarming = $[3];
 		explanation = $[4];
 		reviewer = $[5];
-		t1 = $[6];
+		t3 = $[6];
 	}
-	const explanationIsBlock = t1;
-	let t2;
-	if ($[7] !== event) {
-		t2 = chainOutcomes(event);
-		$[7] = event;
-		$[8] = t2;
-	} else t2 = $[8];
-	const chains = t2;
-	const source = event.chain ? `by reviewer "${reviewer}" (chain "${event.chain}")` : `by reviewer "${reviewer}"`;
-	const t3 = eventNode.id;
+	const explanationIsBlock = t3;
 	let t4;
+	if ($[7] !== event) {
+		t4 = chainOutcomes(event);
+		$[7] = event;
+		$[8] = t4;
+	} else t4 = $[8];
+	const chains = t4;
+	const source = event.chain && showChain ? `by reviewer "${reviewer}" (chain "${event.chain}")` : `by reviewer "${reviewer}"`;
+	const t5 = eventNode.id;
+	let t6;
 	if ($[9] !== alarming || $[10] !== decision) {
-		t4 = alarming ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		t6 = alarming ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ApprovalEventView_module_default.rejected,
 			children: decisionLabel(decision)
 		}) : decisionLabel(decision);
 		$[9] = alarming;
 		$[10] = decision;
-		$[11] = t4;
-	} else t4 = $[11];
-	let t5;
-	if ($[12] !== decision) {
-		t5 = decisionIcon(decision);
-		$[12] = decision;
-		$[13] = t5;
-	} else t5 = $[13];
-	const t6 = alarming ? ApprovalEventView_module_default.rejected : void 0;
+		$[11] = t6;
+	} else t6 = $[11];
 	let t7;
-	if ($[14] !== chains || $[15] !== explanation || $[16] !== explanationIsBlock) {
-		t7 = chains ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChainOutcomes, { chains }) : explanation && explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0;
+	if ($[12] !== decision) {
+		t7 = decisionIcon(decision);
+		$[12] = decision;
+		$[13] = t7;
+	} else t7 = $[13];
+	const t8 = alarming ? ApprovalEventView_module_default.rejected : void 0;
+	let t9;
+	if ($[14] !== chains || $[15] !== explanation || $[16] !== explanationIsBlock || $[17] !== showChains) {
+		t9 = chains ? showChains ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChainOutcomes, { chains }) : void 0 : explanation && explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0;
 		$[14] = chains;
 		$[15] = explanation;
 		$[16] = explanationIsBlock;
-		$[17] = t7;
-	} else t7 = $[17];
-	let t8;
-	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = clsx("text-style-secondary");
-		$[18] = t8;
-	} else t8 = $[18];
-	let t9;
-	if ($[19] !== chains || $[20] !== source) {
-		t9 = chains ? `combined decision of chains ${Object.keys(chains).map(_temp$54).join(", ")}` : source;
-		$[19] = chains;
-		$[20] = source;
-		$[21] = t9;
-	} else t9 = $[21];
+		$[17] = showChains;
+		$[18] = t9;
+	} else t9 = $[18];
 	let t10;
-	if ($[22] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: t8,
+	if ($[19] === Symbol.for("react.memo_cache_sentinel")) {
+		t10 = clsx("text-style-secondary");
+		$[19] = t10;
+	} else t10 = $[19];
+	let t11;
+	if ($[20] !== chains || $[21] !== source) {
+		t11 = chains ? `combined decision of chains ${Object.keys(chains).map(_temp$54).join(", ")}` : source;
+		$[20] = chains;
+		$[21] = source;
+		$[22] = t11;
+	} else t11 = $[22];
+	let t12;
+	if ($[23] !== t11) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: t10,
 			children: [
 				"(",
-				t9,
+				t11,
 				")"
 			]
 		});
-		$[22] = t9;
-		$[23] = t10;
-	} else t10 = $[23];
-	let t11;
-	if ($[24] !== chains || $[25] !== explanation || $[26] !== explanationIsBlock) {
-		t11 = !chains && explanation && !explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		$[23] = t11;
+		$[24] = t12;
+	} else t12 = $[24];
+	let t13;
+	if ($[25] !== chains || $[26] !== explanation || $[27] !== explanationIsBlock) {
+		t13 = !chains && explanation && !explanationIsBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ApprovalEventView_module_default.inlineExplanation,
 			children: explanation
 		}) : null;
-		$[24] = chains;
-		$[25] = explanation;
-		$[26] = explanationIsBlock;
-		$[27] = t11;
-	} else t11 = $[27];
-	let t12;
-	if ($[28] !== t10 || $[29] !== t11) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+		$[25] = chains;
+		$[26] = explanation;
+		$[27] = explanationIsBlock;
+		$[28] = t13;
+	} else t13 = $[28];
+	let t14;
+	if ($[29] !== t12 || $[30] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ApprovalEventView_module_default.headline,
-			children: [t10, t11]
+			children: [t12, t13]
 		});
-		$[28] = t10;
-		$[29] = t11;
-		$[30] = t12;
-	} else t12 = $[30];
-	let t13;
-	if ($[31] !== className || $[32] !== eventNode.id || $[33] !== t12 || $[34] !== t4 || $[35] !== t5 || $[36] !== t6 || $[37] !== t7) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
-			eventNodeId: t3,
-			title: t4,
-			icon: t5,
-			iconClassName: t6,
+		$[29] = t12;
+		$[30] = t13;
+		$[31] = t14;
+	} else t14 = $[31];
+	let t15;
+	if ($[32] !== className || $[33] !== eventNode.id || $[34] !== t14 || $[35] !== t6 || $[36] !== t7 || $[37] !== t8 || $[38] !== t9) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
+			eventNodeId: t5,
+			title: t6,
+			icon: t7,
+			iconClassName: t8,
 			className,
-			below: t7,
-			children: t12
+			below: t9,
+			children: t14
 		});
-		$[31] = className;
-		$[32] = eventNode.id;
-		$[33] = t12;
-		$[34] = t4;
-		$[35] = t5;
-		$[36] = t6;
-		$[37] = t7;
-		$[38] = t13;
-	} else t13 = $[38];
-	return t13;
+		$[32] = className;
+		$[33] = eventNode.id;
+		$[34] = t14;
+		$[35] = t6;
+		$[36] = t7;
+		$[37] = t8;
+		$[38] = t9;
+		$[39] = t15;
+	} else t15 = $[39];
+	return t15;
 };
 var decisionLabel = (decision) => {
 	switch (decision) {
@@ -115337,6 +115392,82 @@ var TimelineRowSelectContext = (0, import_react.createContext)(null);
 function useTimelineRowSelect() {
 	return (0, import_react.useContext)(TimelineRowSelectContext);
 }
+var ChainGroupsView_module_default = {
+	chain: "_chain_1c1r0_1",
+	heading: "_heading_1c1r0_7",
+	explanation: "_explanation_1c1r0_12",
+	alarming: "_alarming_1c1r0_16",
+	step: "_step_1c1r0_20",
+	position: "_position_1c1r0_27",
+	row: "_row_1c1r0_31"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/ChainGroupsView.tsx
+var alarming = (decision) => decision === "reject" || decision === "terminate";
+/**
+* A call decided by several policy chains: the combined verdict first, then
+* each chain as an indented block with its own decision and, numbered in the
+* order they were asked, the approvers (or reviewers) that produced it.
+*/ var ChainGroupsView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(11);
+	const { groups, renderSummary, renderNode } = t0;
+	let t1;
+	if ($[0] !== groups.summary || $[1] !== renderSummary) {
+		t1 = renderSummary(groups.summary);
+		$[0] = groups.summary;
+		$[1] = renderSummary;
+		$[2] = t1;
+	} else t1 = $[2];
+	let t2;
+	if ($[3] !== groups.chains || $[4] !== renderNode) {
+		let t3;
+		if ($[6] !== renderNode) {
+			t3 = (chain) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+				className: ChainGroupsView_module_default.chain,
+				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+					className: clsx("text-style-secondary", ChainGroupsView_module_default.heading),
+					children: [
+						"chain \"",
+						chain.name,
+						"\":",
+						" ",
+						/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+							className: alarming(chain.outcome.decision) ? ChainGroupsView_module_default.alarming : void 0,
+							children: chain.outcome.decision || "no decision"
+						}),
+						chain.outcome.explanation && chain.nodes.length === 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+							className: ChainGroupsView_module_default.explanation,
+							children: chain.outcome.explanation
+						}) : null
+					]
+				}), chain.nodes.map((node, index) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+					className: ChainGroupsView_module_default.step,
+					children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+						className: clsx("text-style-secondary", ChainGroupsView_module_default.position),
+						children: [index + 1, "."]
+					}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+						className: ChainGroupsView_module_default.row,
+						children: renderNode(node, index + 1)
+					})]
+				}, node.id))]
+			}, chain.name);
+			$[6] = renderNode;
+			$[7] = t3;
+		} else t3 = $[7];
+		t2 = groups.chains.map(t3);
+		$[3] = groups.chains;
+		$[4] = renderNode;
+		$[5] = t2;
+	} else t2 = $[5];
+	let t3;
+	if ($[8] !== t1 || $[9] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [t1, t2] });
+		$[8] = t1;
+		$[9] = t2;
+		$[10] = t3;
+	} else t3 = $[10];
+	return t3;
+};
 var ToolEventView_module_default = {
 	summary: "_summary_1mtn2_1",
 	labeledToolCall: "_labeledToolCall_1mtn2_6",
@@ -115354,6 +115485,8 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 	const resolvedView = (0, import_react.useMemo)(() => event.view ? substituteToolCallContent(event.view, event.arguments) : void 0, [event.view, event.arguments]);
 	const approvalNodes = context?.toolApprovals?.get(event.id) ?? [];
 	const reviewNodes = context?.toolReviews?.get(event.id) ?? [];
+	const approvalChains = groupByChain(approvalNodes);
+	const reviewChains = groupByChain(reviewNodes);
 	const lastModelNode = (0, import_react.useMemo)(() => {
 		const lastModel = childNodes.findLast((e) => e.event.event === "model");
 		return lastModel ? eventNodeOf(lastModel, "model") : void 0;
@@ -115424,14 +115557,44 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 					messages: lastModelNode.event.output.choices.map((m) => m.message),
 					tools: { callStyle: "compact" }
 				}) : void 0,
-				approvalNodes.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				approvalChains ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: ToolEventView_module_default.approvalWrap,
+					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChainGroupsView, {
+						groups: approvalChains,
+						renderSummary: (node) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalEventView, {
+							eventNode: node,
+							className: ToolEventView_module_default.approval,
+							showChains: false
+						}),
+						renderNode: (node) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalEventView, {
+							eventNode: node,
+							className: ToolEventView_module_default.approval,
+							showChain: false
+						})
+					})
+				}) : approvalNodes.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: ToolEventView_module_default.approvalWrap,
 					children: approvalNodes.map((node) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalEventView, {
 						eventNode: node,
 						className: ToolEventView_module_default.approval
 					}, node.id))
 				}) : "",
-				reviewNodes.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				reviewChains ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: ToolEventView_module_default.approvalWrap,
+					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChainGroupsView, {
+						groups: reviewChains,
+						renderSummary: (node) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReviewEventView, {
+							eventNode: node,
+							className: ToolEventView_module_default.approval,
+							showChains: false
+						}),
+						renderNode: (node) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReviewEventView, {
+							eventNode: node,
+							className: ToolEventView_module_default.approval,
+							showChain: false
+						})
+					})
+				}) : reviewNodes.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: ToolEventView_module_default.approvalWrap,
 					children: reviewNodes.map((node) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReviewEventView, {
 						eventNode: node,
