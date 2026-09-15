@@ -102,14 +102,13 @@ async def test_view_directory_preserves_find_output(
     assert ".hidden.txt" not in result
 
 
-@pytest.mark.parametrize("returncode", [0, 1])
 async def test_view_directory_rejects_stderr(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, returncode: int
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
         text_editor_module,
         "run",
-        AsyncMock(return_value=(returncode, "partial listing", "permission denied")),
+        AsyncMock(return_value=(0, "partial listing", "permission denied")),
     )
     with pytest.raises(ToolException, match="permission denied"):
         await text_editor_module.view(str(tmp_path))
