@@ -74,6 +74,52 @@ def test_completed_and_running_unaffected() -> None:
     )
 
 
+# --- live rows: the pending interrupt field -----------------------------------
+
+
+def test_active_sample_summary_reports_pending_interrupt() -> None:
+    """A live row carries the not-yet-handled cancel action.
+
+    An initializing sample renders `queued`, so `interrupt` is the only
+    poller-visible evidence a deferred `sample cancel` was accepted
+    (design/ctl/initializing-sample-cancel.md); it reads on a running sample
+    inside its logging window too.
+    """
+    from inspect_ai._control.state import _active_sample_summary
+    from inspect_ai.dataset._dataset import Sample
+    from inspect_ai.log._samples import ActiveSample
+    from inspect_ai.log._transcript import Transcript
+    from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+    active = ActiveSample(
+        task="t",
+        log_location="mem://test",
+        model="mockllm/model",
+        sample=Sample(id=1, input="hi"),
+        epoch=1,
+        message_limit=None,
+        token_limit=None,
+        cost_limit=None,
+        time_limit=None,
+        working_limit=None,
+        fails_on_error=False,
+        transcript=Transcript(),
+        sandboxes={},
+        checkpointer=_NoopCheckpointer(),
+        eval_id="e-interrupt",
+        sample_uuid="u1",
+    )
+    row = _active_sample_summary(active)
+    assert row["status"] == "queued" and row["interrupt"] is None
+
+    active.interrupt("cancel")  # deferred: no task group yet
+    row = _active_sample_summary(active)
+    assert row["status"] == "queued" and row["interrupt"] == "cancel"
+
+    # non-live rows carry the key too, so the row schema is stable for jq
+    assert _summary_from_eval_sample_summary(_summary(None))["interrupt"] is None
+
+
 # --- deleted-log degradation -------------------------------------------------
 #
 # The retry sweep (retry_cleanup) deletes superseded attempts' logs while

@@ -324,8 +324,13 @@ async def current_sample_summaries(
 
     Merged and deduped by ``(sample_id, epoch)``; a terminal record
     (completed / error) supersedes a running one, which supersedes a
-    pending one. Sorted running → terminal → pending. Returns an empty
-    list when the eval isn't in this process.
+    pending one. A retry attempt's log is seeded with the prior attempt's
+    records (``TaskLogger.seed_from_prior``), but the live source withholds
+    a seeded record until the reuse sweep accepts it or its re-run
+    completes (``TaskLogger.sample_summaries``), so a sample awaiting or
+    running its re-run has no terminal row here and reads pending or
+    running like any other. Sorted running → terminal → pending. Returns
+    an empty list when the eval isn't in this process.
 
     Each entry has: ``sample_id``, ``epoch``, ``status`` (a
     :data:`SAMPLE_STATUSES` member), ``started_at``, ``completed_at``,
@@ -358,6 +363,8 @@ async def current_sample_summaries(
         existing = by_key.get(key)
         # Keep the first record for a key, except let a terminal record
         # supersede a still-running one (a sample that has since finished).
+        # A seeded prior record for a re-running sample never reaches here:
+        # the live source withholds it until the re-run completes.
         if existing is None or (
             existing["status"] == "running" and summary["status"] != "running"
         ):
@@ -625,6 +632,7 @@ def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
         "error": None,
         "limit": None,
         "limit_reason": None,
+        "interrupt": None,
     }
 
 
@@ -650,6 +658,7 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "retries": None,
         "limit": None,
         "limit_reason": None,
+        "interrupt": None,
     }
 
 
@@ -1058,6 +1067,7 @@ def _summary_from_eval_sample_summary(
         "retries": summary.retries,
         "limit": summary.limit,
         "limit_reason": summary.limit_reason,
+        "interrupt": None,
     }
 
 
@@ -1144,6 +1154,12 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "retries": s.retries or None,
         "limit": None,
         "limit_reason": None,
+        # the pending cancel resolution, whatever its origin — the
+        # poller-visible evidence that a `sample cancel` of an initializing
+        # sample (rendered `queued` here) was accepted and is waiting for the
+        # sample to start; a running sample inside its logging window reports
+        # it too (design/ctl/initializing-sample-cancel.md). Purely additive.
+        "interrupt": s.interrupt_action,
     }
 
 

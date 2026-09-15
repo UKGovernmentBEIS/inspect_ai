@@ -421,6 +421,7 @@ EVERY: dict[str, str] = {
     "INSPECT_EVAL_SANDBOX_PREBUILT": "1",
     "INSPECT_EVAL_CHECKPOINT": "turn:3",
     "INSPECT_EVAL_APPROVAL": "approval.yaml",
+    "INSPECT_EVAL_REVIEW": "review.yaml",
     "INSPECT_EVAL_RETRY_ON_ERROR": "true",
     "INSPECT_EVAL_SCORE_ON_ERROR": "1",
     "INSPECT_DEBUG_ERRORS": "1",
