@@ -25,6 +25,7 @@
 - Control Channel: Starting and stopping the control server no longer adds ~200ms to every `eval()`, which dominated the wall time of very small evals during tests.
 - Control Channel: `INSPECT_EVAL_CTL_SERVER` is now honored by `eval()` and `eval_set()` called from Python, not only by the CLI.
 - Sample and Task Sources: `sample_complete()` now fires for a running sample cancelled individually, so a source waiting on that sample no longer stalls; a blocking callback can no longer hang a task cancel.
+- Sample and Task Sources: a new `sample_abandoned()` hook reports a sample cancelled before anything was logged (cancelled while queued, or before its `retry_on_error` re-run), so a source waiting on it no longer stalls.
 - Agent Bridge: Google clients now receive token log probabilities and top candidates returned by the host model.
 - Google: OAuth/ADC requests to the Gemini Developer API no longer send the placeholder API-key header alongside bearer authentication.
 - Scoring: `math()` now records `reason="invalid_response_format"` when no answer can be extracted, so format failures are distinguishable from wrong answers.
