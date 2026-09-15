@@ -14,6 +14,22 @@ from ._scorer import Scorer
 from ._target import Target
 
 
+def no_response(completion: str) -> bool:
+    """Whether the model produced nothing that could be scored.
+
+    An empty or whitespace-only completion never produced output that could
+    violate a format, so `no_response` is the correct `ScoreReason` for it
+    rather than `invalid_response_format`.
+
+    Args:
+        completion: The raw model completion, never an extracted answer.
+
+    Returns:
+        True when the raw completion is empty or whitespace only.
+    """
+    return not completion.strip()
+
+
 def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
     """Scorer that uses a matching function.
 
@@ -31,7 +47,12 @@ def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
                 )
 
         return Score(
-            value=INCORRECT, answer=answer, explanation=state.output.completion
+            value=INCORRECT,
+            answer=answer,
+            reason="no_response"
+            if no_response(state.output.completion or "")
+            else None,
+            explanation=state.output.completion,
         )
 
     return score
