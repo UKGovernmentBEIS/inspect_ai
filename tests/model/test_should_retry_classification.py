@@ -466,6 +466,30 @@ def test_anthropic_503_classifies_as_transient() -> None:
     assert decision.kind == "transient"
 
 
+def test_anthropic_http_500_with_unknown_error_type_classifies_as_transient() -> None:
+    """Only an unclassified MID-STREAM error is exempt from the 500 retry rule.
+
+    A real HTTP 500 is transient however its body is typed; the exemption is
+    the provider's own `_UnclassifiedStreamError`, never the status alone.
+    """
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = APIStatusError(
+        message="upstream failure",
+        response=_httpx2_response(500),
+        body={
+            "type": "error",
+            "error": {"type": "some_future_error", "message": "upstream failure"},
+        },
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.kind == "transient"
+
+
 def test_anthropic_streaming_overloaded_body_classifies_as_transient() -> None:
     """Anthropic streaming sets a non-rate-limit status with overloaded body — should be transient."""
     from anthropic import APIStatusError

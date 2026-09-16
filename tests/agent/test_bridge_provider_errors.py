@@ -35,6 +35,7 @@ from inspect_ai.model._providers.anthropic import (
     _ANTHROPIC_ERROR_TYPE_STATUS,
     AnthropicAPI,
     _normalize_stream_error,
+    _UnclassifiedStreamError,
 )
 from inspect_ai.model._registry import modelapi
 from inspect_ai.util._limit import LimitExceededError
@@ -106,6 +107,8 @@ def test_status_code_of_preserves_declared_stream_response_status() -> None:
         ("rate_limit_error", 429, True),
         ("timeout_error", 504, True),
         ("overloaded_error", 529, True),
+        # a type the provider cannot classify: reported as a 500, not retried
+        ("some_future_error", 500, False),
     ],
 )
 async def test_anthropic_stream_error_is_normalized_for_retry(
@@ -130,6 +133,9 @@ async def test_anthropic_stream_error_is_normalized_for_retry(
 
     assert exc_info.value.status_code == status
     assert exc_info.value.message == message
+    assert isinstance(exc_info.value, _UnclassifiedStreamError) is (
+        error_type not in _ANTHROPIC_ERROR_TYPE_STATUS
+    )
     assert bool(api.should_retry(exc_info.value)) is retry
 
 
@@ -183,8 +189,8 @@ def test_every_recognized_error_type_survives_the_proxy_round_trip() -> None:
 
     lost: dict[str, str] = {}
     for error_type, status in _ANTHROPIC_ERROR_TYPE_STATUS.items():
-        ex = _anthropic_stream_error(error_type, "x")
-        _normalize_stream_error(ex)
+        ex = _normalize_stream_error(_anthropic_stream_error(error_type, "x"))
+        assert not isinstance(ex, _UnclassifiedStreamError), error_type
         derived = status_code_of(ex)
         assert derived == status, f"{error_type} derived {derived}, expected {status}"
         returned = proxy_types.get(derived, "api_error")
@@ -219,12 +225,16 @@ def test_unknown_stream_error_type_is_a_server_error_not_a_success() -> None:
     # error nobody classified is not known to be transient, so it is not
     # retried (before normalization it kept the 200 and was not retried either).
     api = AnthropicAPI(model_name="claude-test", api_key="test-key")
-    ex = _anthropic_stream_error("some_future_error", "provider said no")
-    _normalize_stream_error(ex)
+    raw = _anthropic_stream_error("some_future_error", "provider said no")
+    ex = _normalize_stream_error(raw)
+    assert isinstance(ex, _UnclassifiedStreamError)
     assert ex.status_code == 500
     assert ex.message == "provider said no"
     assert provider_error_payload(ex)["status"] == 500
     assert bool(api.should_retry(ex)) is False
+    # the SDK's own exception, which the raised one chains to, is not left
+    # half-rewritten: its status agrees with the response it shares
+    assert raw.status_code == raw.response.status_code == 500
 
 
 def test_unclassified_stream_error_still_retries_on_overload_text() -> None:
@@ -258,15 +268,17 @@ def test_malformed_stream_error_is_a_server_error_not_a_success(
     # captured so the operator can still see what the provider sent. The 500 is
     # for reporting, not a transient-failure claim: retry classification is what
     # it was when the error carried a 200 (only the text fallback can retry it).
-    ex = APIStatusError(
-        "mid-stream error",
-        response=httpx2.Response(
-            status_code=200,
-            request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"),
-        ),
-        body=body,
+    ex = _normalize_stream_error(
+        APIStatusError(
+            "mid-stream error",
+            response=httpx2.Response(
+                status_code=200,
+                request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"),
+            ),
+            body=body,
+        )
     )
-    _normalize_stream_error(ex)
+    assert isinstance(ex, _UnclassifiedStreamError)
     assert ex.status_code == 500
     assert ex.body == body
     assert provider_error_payload(ex)["status"] == 500
