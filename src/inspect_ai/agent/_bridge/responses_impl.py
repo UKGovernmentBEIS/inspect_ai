@@ -1285,6 +1285,7 @@ def responses_output_items_from_assistant_message(
             output.append(
                 ResponseCustomToolCall(
                     type="custom_tool_call",
+                    id=uuid(),
                     call_id=tool_call.id,
                     name=tool_call.function,
                     input=next(iter(tool_call.arguments.values())),
@@ -1295,6 +1296,7 @@ def responses_output_items_from_assistant_message(
             output.append(
                 ResponseFunctionToolCall(
                     type="function_call",
+                    id=uuid(),
                     call_id=tool_call.id,
                     name=tool_call.function,
                     arguments=json.dumps(tool_call.arguments),
