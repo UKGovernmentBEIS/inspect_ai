@@ -444,19 +444,21 @@ def _resolve_bridged_tools(
     A bridged tool that another declaration in the request claims (`_claims`) is
     not denoted by this one, however its name reads under some other scheme: that
     settles which scheme is active and keeps a scaffold-local tool from standing
-    in for a bridged one.
+    in for a bridged one. The description compared is the one `list_tools` served
+    (`ToolDef(tool).description`), read once per tool.
     """
-    return [
-        _BridgedToolId(server=server, tool=tool)
-        for server, tools in bridged_tools.items()
-        for tool, tool_fn in tools.items()
-        if _denotes(declaration, server, tool)
-        and not any(
-            _claims(other, server, tool, ToolDef(tool_fn).description)
-            for other in declared.values()
-            if other is not declaration
-        )
-    ]
+    others = [other for other in declared.values() if other is not declaration]
+    targets: list[_BridgedToolId] = []
+    for server, tools in bridged_tools.items():
+        for tool, tool_fn in tools.items():
+            if not _denotes(declaration, server, tool):
+                continue
+            if others:
+                description = ToolDef(tool_fn).description
+                if any(_claims(other, server, tool, description) for other in others):
+                    continue
+            targets.append(_BridgedToolId(server=server, tool=tool))
+    return targets
 
 
 _ANTIGRAVITY_DISPATCHER_PARAMETERS = frozenset({"ServerName", "ToolName", "Arguments"})

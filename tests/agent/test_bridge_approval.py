@@ -103,11 +103,19 @@ def declare_in_namespace(
     ]
 
 
-def mock_tool(description: str, result: str = "contents") -> AsyncMock:
-    """A bridged tool whose `tools/list` description is `description`."""
-    tool = AsyncMock(return_value=result)
-    tool.__doc__ = description
-    return tool
+def bridged_tool(description: str, result: str = "contents") -> Tool:
+    """A bridged tool whose `tools/list` description is `description`.
+
+    A real coroutine function rather than a mock: the resolver reads the served
+    description through `ToolDef`, whose signature parsing rejects a `Mock` on
+    Python 3.10.
+    """
+
+    async def execute() -> str:
+        return result
+
+    execute.__doc__ = description
+    return execute
 
 
 @approver(name="test_bridge_reject")
@@ -930,8 +938,8 @@ def cross_scheme_bridge() -> SandboxAgentBridge:
     """
     return sandbox_bridge_with_servers(
         {
-            "a": {"mcp_host_read_file": mock_tool("Tool a.", "a")},
-            "host": {"read_file": mock_tool("Read a file.", "host")},
+            "a": {"mcp_host_read_file": bridged_tool("Tool a.", "a")},
+            "host": {"read_file": bridged_tool("Read a file.", "host")},
         }
     )
 
@@ -970,7 +978,9 @@ async def test_gemini_declarations_settle_a_cross_scheme_collision() -> None:
 
 async def test_local_tool_reading_as_another_schemes_name_registers_no_grant() -> None:
     """Codex declared host/read_file as read_file in mcp__host; a local mcp_host_read_file is not it."""
-    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": bridged_tool("Read a file.")}}
+    )
     declared = declare("mcp_host_read_file") + declare_in_namespace(
         "mcp__host", "read_file"
     )
@@ -987,7 +997,7 @@ async def test_local_tool_sharing_a_bridged_tools_bare_name_registers_no_grant()
     None
 ):
     """OpenCode declares host/bash as host_bash; a call to its own bash is not a proposal for it."""
-    bridge = sandbox_bridge_with_servers({"host": {"bash": mock_tool("Run bash.")}})
+    bridge = sandbox_bridge_with_servers({"host": {"bash": bridged_tool("Run bash.")}})
     declared = declare("bash", description="OpenCode's shell.") + declare(
         "host_bash", description="Run bash."
     )
@@ -1014,7 +1024,7 @@ async def test_pass_through_declaration_beside_an_unrelated_local_tool_grants() 
     proposal for the local host_read_file grants nothing.
     """
     bridge = sandbox_bridge_with_servers(
-        {"host": {"read_file": mock_tool("Read a file.")}}
+        {"host": {"read_file": bridged_tool("Read a file.")}}
     )
     declared = declare("read_file", description="Read a file.") + declare(
         "host_read_file", description="Read the host's own file."
@@ -1055,8 +1065,8 @@ async def test_namespaced_dispatcher_shaped_tool_is_a_codex_tool() -> None:
     """
     bridge = sandbox_bridge_with_servers(
         {
-            "host": {"call_mcp_tool": AsyncMock(return_value="host")},
-            "other": {"read_file": AsyncMock(return_value="other")},
+            "host": {"call_mcp_tool": bridged_tool("Dispatch.", "host")},
+            "other": {"read_file": bridged_tool("Read a file.", "other")},
         }
     )
     declared = declare_in_namespace(
