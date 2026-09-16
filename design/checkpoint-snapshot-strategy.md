@@ -476,13 +476,19 @@ refuses them (exFAT/FAT, some CIFS and NFS mounts) the view is a *copy* of
 the whole accepted repository, so each fire additionally needs scratch
 space equal to the repository and copies it once, a cost that grows with
 history and is not bounded by the per-transfer cap. Measured on a real
-exFAT volume (a 4 GB disk image on the same SSD): 1.2 s for 0.35 GB,
-1.6 s for 0.7 GB, 2.8 s for 1.37 GB (≈ 300–500 MB/s; a network mount will
-be slower by its throughput), with scratch equal to those sizes. The copy
-runs in worker-thread chunks of ≈ 64 MiB, so a cancellation waits for one
-chunk, not the repository: measured 0.09 s to return after cancelling a
-1.37 GB build, with 76 MB copied. The accepted-repo publication step
-copies only the increment, so it stays within the cap. Keeping such
+exFAT volume (a 4 GB disk image on the same SSD): 0.8 s for 0.35 GB,
+1.3 s for 0.7 GB, 2.8 s for 1.37 GB (≈ 440–570 MB/s; a network mount will
+be slower by its throughput), with scratch equal to those sizes. The
+build is interruptible at a bounded granularity in both modes and makes
+no up-front pass over the repository: hard links are attempted 256 files
+per worker-thread call, and a copy proceeds 8 MiB per call, so a
+cancellation waits for at most one batch of links (~60 ms) or one block
+of one file — not for the whole repository, and not for a whole staged
+file, which a hostile sandbox can make as large as the transfer cap
+(measured: cancelling a 1.37 GB copy-mode build returned in under
+10 ms). The accepted-repo publication step copies only this fire's
+validated increment, so it is bounded by the cap; it runs as one call and
+an interruption there is the safe-prefix case above. Keeping such
 checkpoint directories on a link-capable local filesystem is the
 operator's lever here; the fallback exists so the checkpoint keeps working
 rather than fail every fire.

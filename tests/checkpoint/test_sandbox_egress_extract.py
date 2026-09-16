@@ -20,6 +20,7 @@ import tarfile
 import tracemalloc
 from collections.abc import Collection, Sequence
 from pathlib import Path
+from typing import IO
 from unittest.mock import patch
 
 import anyio
@@ -578,34 +579,91 @@ async def test_build_validation_view_copies_when_hard_links_unsupported(
     assert (view / "data/ab/old").stat().st_nlink == 1
 
 
-async def test_build_validation_view_copy_stops_at_a_chunk_on_cancellation(
+async def test_build_validation_view_copy_yields_within_a_large_file(
     tmp_path: Path,
 ) -> None:
-    """A cancelled copy-mode view build yields between chunks, not at the end.
+    """A cancelled copy-mode view build stops between blocks of one file.
 
-    Without hard links the view is a copy of the whole accepted repo, which
-    grows with history and is not bounded by the per-transfer cap. The build
-    therefore works in worker-thread calls of about ``_VIEW_CHUNK_BYTES``
-    each, so a cancellation waits for at most one chunk. Here copies are
-    slowed and the chunk shrunk so the cancel demonstrably lands with most of
-    the repo still uncopied.
+    Without hard links the view is a copy of the whole accepted repo, and a
+    single staged file can be as large as the transfer cap, so a whole-file
+    copy in one worker-thread call would make cancellation wait for it. The
+    copy therefore proceeds ``_VIEW_COPY_BLOCK`` bytes per call. Here one
+    32 MiB file is copied in 1 MiB blocks slowed to ~20 ms each; the cancel
+    lands after ~2-3 blocks and the build returns within one block, leaving
+    the file only partly copied.
     """
-    import shutil
     import time
 
     import inspect_ai.util._checkpoint._sandbox_restic.egress as egress_mod
 
     accepted = tmp_path / "accepted"
-    files = [f"data/ab/{i:02d}" for i in range(24)]
-    for name in files:
-        (accepted / name).parent.mkdir(parents=True, exist_ok=True)
-        (accepted / name).write_bytes(b"x" * (256 * 1024))
+    name = "data/ab/big"
+    (accepted / name).parent.mkdir(parents=True)
+    size = 32 * 1024 * 1024
+    (accepted / name).write_bytes(b"x" * size)
     view = tmp_path / "view"
-    real_copy = shutil.copyfile
+    real_read = egress_mod._read_block
 
-    def slow_copy(src: str, dst: str, *, follow_symlinks: bool = True) -> str:
+    def slow_read(f: IO[bytes], n: int) -> bytes:
         time.sleep(0.02)
-        return real_copy(src, dst, follow_symlinks=follow_symlinks)
+        return real_read(f, n)
+
+    started = anyio.Event()
+
+    async def build() -> None:
+        started.set()
+        await _build_validation_view(
+            view,
+            existing_repo=str(accepted),
+            existing=[name],
+            staging=tmp_path / "staging",
+            written=[],
+        )
+
+    with (
+        patch(_LINK, new=_no_link),
+        patch.object(egress_mod, "_VIEW_COPY_BLOCK", 1024 * 1024),
+        patch.object(egress_mod, "_read_block", slow_read),
+    ):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(build)
+            await started.wait()
+            await anyio.sleep(0.05)
+            t0 = time.perf_counter()
+            tg.cancel_scope.cancel()
+        waited = time.perf_counter() - t0
+
+    copied = (view / name).stat().st_size
+    assert 0 < copied < size, copied  # stopped part-way through the file
+    assert waited < 0.2  # one block, not the whole 0.64 s file
+
+
+async def test_build_validation_view_links_yield_between_batches(
+    tmp_path: Path,
+) -> None:
+    """A cancelled link-mode view build stops between batches of files.
+
+    Many tiny files must not turn one worker-thread call into a long
+    uninterruptible run: links are attempted ``_VIEW_LINK_BATCH`` per call.
+    Here 1000 files link at ~1 ms each in batches of 50; the cancel lands
+    early and the build returns within one batch, most files unlinked.
+    """
+    import os
+    import time
+
+    import inspect_ai.util._checkpoint._sandbox_restic.egress as egress_mod
+
+    accepted = tmp_path / "accepted"
+    files = [f"data/ab/{i:04d}" for i in range(1000)]
+    (accepted / "data/ab").mkdir(parents=True)
+    for name in files:
+        (accepted / name).write_bytes(b"x")
+    view = tmp_path / "view"
+    real_link = os.link
+
+    def slow_link(src: str, dst: str) -> None:
+        time.sleep(0.001)
+        real_link(src, dst)
 
     started = anyio.Event()
 
@@ -619,21 +677,18 @@ async def test_build_validation_view_copy_stops_at_a_chunk_on_cancellation(
             written=[],
         )
 
-    # Four 256 KiB files per chunk (1 MiB budget); copies take ~20 ms each,
-    # so the whole view would take ~0.5 s and one chunk ~0.08 s.
     with (
-        patch(_LINK, new=_no_link),
-        patch("shutil.copyfile", new=slow_copy),
-        patch.object(egress_mod, "_VIEW_CHUNK_BYTES", 1024 * 1024),
+        patch(_LINK, new=slow_link),
+        patch.object(egress_mod, "_VIEW_LINK_BATCH", 50),
     ):
         async with anyio.create_task_group() as tg:
             tg.start_soon(build)
             await started.wait()
-            await anyio.sleep(0.05)
+            await anyio.sleep(0.03)
             t0 = time.perf_counter()
             tg.cancel_scope.cancel()
         waited = time.perf_counter() - t0
 
-    copied = sum(1 for p in view.rglob("*") if p.is_file())
-    assert 0 < copied < len(files), copied  # stopped part-way, at a chunk edge
-    assert waited < 0.3  # one chunk, not the whole repo
+    linked = sum(1 for p in view.rglob("*") if p.is_file())
+    assert 0 < linked < len(files), linked  # stopped at a batch edge
+    assert waited < 0.2  # one batch (~50 ms), not the whole second

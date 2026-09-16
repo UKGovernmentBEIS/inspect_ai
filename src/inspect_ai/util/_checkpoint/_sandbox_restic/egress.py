@@ -154,11 +154,15 @@ _MAX_VIEW_STDERR_BYTES = 64 * 1024
 """Most of a validation command's stderr kept for the error: the view is
 built from sandbox-supplied bytes, so restic's diagnostics are attacker-shaped
 and can dwarf the input (one forged index can produce megabytes)."""
-_VIEW_CHUNK_BYTES = 64 * 1024 * 1024
-"""Bytes of accepted-repo files handled per worker-thread call while building
-the validation view. Hard links make a chunk near-instant; on a filesystem
-without hard links each chunk is a copy of that many bytes, so this bounds how
-long a cancellation waits before the build yields."""
+_VIEW_LINK_BATCH = 256
+"""Hard links attempted per worker-thread call while building the validation
+view (~0.25 ms each), bounding how long a cancellation waits on the link
+path however many files the repository holds."""
+_VIEW_COPY_BLOCK = 8 * 1024 * 1024
+"""Bytes copied per worker-thread call when the view must be copied (a
+filesystem without hard links), bounding how long a cancellation waits within
+one file however large it is — a staged file can be as large as the transfer
+cap."""
 
 
 class EgressVerificationError(RuntimeError):
@@ -883,16 +887,15 @@ def _merge_rank(name: str) -> int:
     return _MERGE_RANK.get(name.split("/", 1)[0], _MERGE_RANK["snapshots"])
 
 
-def _hardlink_into(src: Path, dst: Path) -> None:
-    """Hard-link ``src`` to ``dst`` (creating the parent), copying if links fail.
+def _try_link(src: Path, dst: Path) -> bool:
+    """Hard-link ``src`` to ``dst`` (creating the parent); False if links are refused.
 
     For the throwaway validation view: a hard link is O(1) and shares the
     accepted file's inode, which is safe because the view is only read. A
     filesystem without hard links (exFAT/FAT, some CIFS and NFS mounts)
-    refuses ``os.link`` with an ``OSError`` such as ``EPERM`` or
-    ``ENOTSUP``; then the file is copied, costing O(bytes) but keeping the
-    checkpoint working. ``FileExistsError`` is never swallowed — a name
-    already present is a bug, not a missing feature.
+    refuses ``os.link`` with an ``OSError`` such as ``EPERM`` or ``ENOTSUP``;
+    then the caller copies the file instead. ``FileExistsError`` is never
+    swallowed — a name already present is a bug, not a missing feature.
     """
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -900,7 +903,8 @@ def _hardlink_into(src: Path, dst: Path) -> None:
     except FileExistsError:
         raise
     except OSError:
-        shutil.copyfile(src, dst)
+        return False
+    return True
 
 
 def _publish_into(src: Path, dst: Path) -> None:
@@ -913,7 +917,11 @@ def _publish_into(src: Path, dst: Path) -> None:
     hard kill mid-copy leaves a ``.partial`` that the next fire's
     ``_scan_repo_files`` sweeps. The no-overwrite rule is kept by refusing
     an existing ``dst`` before the rename (this sandbox is the only writer
-    of its repo, so the check-then-rename is not racy).
+    of its repo, so the check-then-rename is not racy). This copy is one
+    validated file of this fire's increment, so it is bounded by the
+    transfer cap; the merge as a whole runs in one worker-thread call and
+    is cancelled only between fires (an interruption mid-merge is the
+    safe-prefix case described in the module docstring).
     """
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -934,31 +942,43 @@ def _publish_into(src: Path, dst: Path) -> None:
         raise
 
 
-def _view_chunks(
-    pairs: Sequence[tuple[Path, Path]],
-) -> list[list[tuple[Path, Path]]]:
-    """Split ``(src, dst)`` pairs into runs of about :data:`_VIEW_CHUNK_BYTES`.
+def _link_view_batch(pairs: Sequence[tuple[Path, Path]]) -> list[tuple[Path, Path]]:
+    """Link one batch into the view; return the pairs the filesystem refused."""
+    return [(src, dst) for src, dst in pairs if not _try_link(src, dst)]
 
-    Sizes come from ``stat``; a chunk closes once it reaches the budget, so
-    it can overshoot by at most one file (a restic pack, ~16 MiB by default).
+
+def _open_rb(path: Path) -> IO[bytes]:
+    return open(path, "rb")
+
+
+def _open_wb(path: Path) -> IO[bytes]:
+    return open(path, "wb")
+
+
+def _read_block(f: IO[bytes], size: int) -> bytes:
+    return f.read(size)
+
+
+async def _copy_file_interruptibly(src: Path, dst: Path) -> None:
+    """Copy ``src`` to ``dst`` in :data:`_VIEW_COPY_BLOCK` pieces.
+
+    Each read and each write is its own worker-thread call, so a
+    cancellation is honoured between blocks and waits for at most one block,
+    whatever the file's size. A partially written ``dst`` is left in the
+    view, which lives in scratch the caller sweeps.
     """
-    chunks: list[list[tuple[Path, Path]]] = []
-    chunk: list[tuple[Path, Path]] = []
-    size = 0
-    for src, dst in pairs:
-        chunk.append((src, dst))
-        size += src.stat().st_size
-        if size >= _VIEW_CHUNK_BYTES:
-            chunks.append(chunk)
-            chunk, size = [], 0
-    if chunk:
-        chunks.append(chunk)
-    return chunks
-
-
-def _link_view_chunk(pairs: Sequence[tuple[Path, Path]]) -> None:
-    for src, dst in pairs:
-        _hardlink_into(src, dst)
+    fsrc = await anyio.to_thread.run_sync(_open_rb, src)
+    try:
+        fdst = await anyio.to_thread.run_sync(_open_wb, dst)
+        try:
+            while block := await anyio.to_thread.run_sync(
+                _read_block, fsrc, _VIEW_COPY_BLOCK
+            ):
+                await anyio.to_thread.run_sync(fdst.write, block)
+        finally:
+            fdst.close()
+    finally:
+        fsrc.close()
 
 
 async def _build_validation_view(
@@ -981,21 +1001,31 @@ async def _build_validation_view(
     sibling of the accepted repo), so every link resolves.
 
     A filesystem without hard links falls back to copying every file
-    (:func:`_hardlink_into`), which costs O(bytes of the whole accepted
-    repo) in scratch space and I/O per fire — outside the per-transfer cap,
-    since it scales with accumulated history rather than the increment.
-    The work is done in worker-thread calls of about :data:`_VIEW_CHUNK_BYTES`
-    each, so a cancellation (a sibling sandbox's failure, or the sample
-    ending) is honoured between chunks: it waits at most one chunk's copy,
-    not the whole repository's, and the caller's scratch sweep then removes
-    what was built.
+    (:func:`_try_link` reports the refusal), which costs O(bytes of the
+    whole accepted repo) in scratch space and I/O per fire — outside the
+    per-transfer cap, since it scales with accumulated history rather than
+    the increment.
+
+    Cancellation (a sibling sandbox's failure, or the sample ending) is
+    honoured at a bounded granularity in both modes, with no up-front pass
+    over the repository: links are attempted :data:`_VIEW_LINK_BATCH` files
+    per worker-thread call, and a copy proceeds :data:`_VIEW_COPY_BLOCK`
+    bytes per call (:func:`_copy_file_interruptibly`). So a cancellation
+    waits for at most one batch of links or one block of one file — not for
+    the whole repository, and not for a whole staged file, which a hostile
+    sandbox can make as large as the transfer cap. The caller's scratch
+    sweep then removes what was built.
     """
     view.mkdir(parents=True, exist_ok=True)
     src_repo = Path(existing_repo)
     pairs = [(src_repo / rel, view / rel) for rel in sorted(existing)]
     pairs += [(staging / rel, view / rel) for rel in written]
-    for chunk in await anyio.to_thread.run_sync(_view_chunks, pairs):
-        await anyio.to_thread.run_sync(_link_view_chunk, chunk)
+    for start in range(0, len(pairs), _VIEW_LINK_BATCH):
+        to_copy = await anyio.to_thread.run_sync(
+            _link_view_batch, pairs[start : start + _VIEW_LINK_BATCH]
+        )
+        for src, dst in to_copy:
+            await _copy_file_interruptibly(src, dst)
 
 
 def _merge_into_repo(dest_repo: str, staging: Path, written: Sequence[str]) -> None:
