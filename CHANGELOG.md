@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: `hf_dataset(retry=True)` now retries HTTPX timeouts and transient Hugging Face connection wrappers produced by current client versions.
 - Bugfix: Closing cached S3 sessions after an eval no longer leaves s3fs to close them again at garbage collection, which raised a stray `AssertionError: Session was never entered` in unrelated code.
 - Bugfix: Task failures no longer report an internal "no running event loop" error in place of the original exception.
 - Anthropic: `cache_ttl` now defaults to "auto", which switches a sample's prompt-cache TTL from 5 minutes to 1 hour after a >5 minute gap between its requests; pass "5m" or "1h" to pin.

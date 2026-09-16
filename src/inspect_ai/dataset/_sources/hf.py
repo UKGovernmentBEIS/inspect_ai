@@ -65,6 +65,22 @@ def _should_retry_hf_error(err: BaseException) -> bool:
     if isinstance(err, ValueError):
         return "Couldn't find cache for" in str(err)
 
+    if isinstance(err, ConnectionError):
+        msg = str(err)
+        return (
+            "Couldn't reach" in msg
+            and "on the Hub" in msg
+            and "LocalEntryNotFoundError" in msg
+        )
+
+    try:
+        from httpx import TimeoutException
+
+        if isinstance(err, TimeoutException):
+            return True
+    except ImportError:
+        pass
+
     try:
         from requests.exceptions import ReadTimeout
 

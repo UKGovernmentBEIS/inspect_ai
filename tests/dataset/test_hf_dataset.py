@@ -90,6 +90,27 @@ def test_no_retry_readtimeout_other_host():
     assert _should_retry_hf_error(ReadTimeout("timed out: example.com")) is False
 
 
+def test_retry_httpx_readtimeout():
+    import httpx
+
+    err = httpx.ReadTimeout(
+        "timed out",
+        request=httpx.Request("GET", "https://huggingface.co/api/datasets/org/ds"),
+    )
+    assert _should_retry_hf_error(err) is True
+
+
+def test_retry_hf_connection_error_without_cause():
+    err = ConnectionError(
+        "Couldn't reach 'org/ds' on the Hub (LocalEntryNotFoundError)"
+    )
+    assert _should_retry_hf_error(err) is True
+
+
+def test_no_retry_unrelated_connection_error():
+    assert _should_retry_hf_error(ConnectionError("connection refused")) is False
+
+
 def test_no_retry_unrelated_exception():
     assert _should_retry_hf_error(RuntimeError("boom")) is False
 
