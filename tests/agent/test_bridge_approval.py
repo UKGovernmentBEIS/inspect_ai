@@ -725,8 +725,18 @@ async def test_host_tool_grant_matches_scaffold_rewritten_names(
         ("s" * 120, "t" * 5, "_797a814e6ef0"),
         # the flat form for the hashed case
         ("s" * 80, "t" * 60, "mcp__" + "s" * 80 + "__" + "t" * 28 + "_ad31d8f69652"),
+        # 77 bytes fits the 128-byte cap of current releases but not the 64-byte
+        # cap of rust-v0.149 and earlier (still embedded in codex-acp)
+        ("s" * 20, "t" * 50, "t" * 24 + "_01f03f38fbf3"),
     ],
-    ids=["fits-128", "129-hashed", "long-hashed", "namespace-cut", "flat-hashed"],
+    ids=[
+        "fits-128",
+        "129-hashed",
+        "long-hashed",
+        "namespace-cut",
+        "flat-hashed",
+        "64-cap-hashed",
+    ],
 )
 async def test_host_tool_grant_matches_codex_cli_length_normalized_name(
     server: str, tool: str, function: str
@@ -740,6 +750,87 @@ async def test_host_tool_grant_matches_codex_cli_length_normalized_name(
     )
 
     assert bridge.consume_tool_execution_grant(server, tool, {})
+
+
+@pytest.mark.parametrize(
+    ("server", "tool", "function"),
+    [
+        ("my-server.v2", "read.file", "mcp__my-server_v2__read_file"),
+        ("a__b", "c__d", "mcp__a_b__c_d"),
+        ("srv", "x" * 80, "mcp__srv__" + "x" * 45 + "_245dc304"),
+        (
+            "inspect-bridge-tools-server",
+            "very_long_tool_name_for_testing_hash_truncation",
+            "mcp__inspect-bridge-tools-server__very_long_tool_name__-532a7d1b",
+        ),
+    ],
+    ids=["punctuation", "underscore-runs", "long-positive-hash", "long-negative-hash"],
+)
+async def test_host_tool_grant_matches_kimi_code_name(
+    server: str, tool: str, function: str
+) -> None:
+    """Kimi Code collapses underscore runs and hashes names over 64 characters.
+
+    Expected names were produced by Kimi Code's own `qualifyMcpToolName`.
+    """
+    mock = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers({server: {tool: mock}})
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function=function, arguments={})]
+    )
+
+    assert bridge.consume_tool_execution_grant(server, tool, {})
+
+
+async def test_host_tool_grant_from_antigravity_dispatcher_call() -> None:
+    """Antigravity proposes `call_mcp_tool(ServerName, ToolName, Arguments)`.
+
+    The grant binds the named server and tool with the nested `Arguments`, which
+    is what the harness sends to the MCP server.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(
+        id="proposed",
+        function="call_mcp_tool",
+        arguments={
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "notes.txt"},
+        },
+    )
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "notes.txt"})
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"ServerName": "other", "ToolName": "read_file", "Arguments": {}},
+        {"ServerName": "host", "ToolName": "write_file", "Arguments": {}},
+        {"ServerName": "host", "ToolName": "read_file", "Arguments": "{}"},
+        {"ServerName": "host", "ToolName": "read_file"},
+    ],
+    ids=["unknown-server", "unknown-tool", "arguments-not-an-object", "no-arguments"],
+)
+async def test_antigravity_dispatcher_call_off_target_registers_no_grant(
+    arguments: dict[str, object],
+) -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="call_mcp_tool", arguments=arguments)]
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
 
 
 async def test_host_tool_grant_matches_gemini_cli_truncated_name() -> None:
@@ -1041,26 +1132,44 @@ async def test_opted_out_server_stores_no_grants() -> None:
     assert len(bridge._tool_execution_grants) == 0
 
 
-async def test_multi_choice_alternates_with_tool_calls_dropped_without_approval() -> (
-    None
-):
-    """Alternates' calls would have no execution grant, so they must not reach the scaffold."""
-    ungranted = ToolCall(id="alt", function="bash", arguments={"cmd": "rm -rf /"})
+def multi_choice_output_with_tool_call_alternate() -> ModelOutput:
     output = tool_calls_output(
         ToolCall(id="main", function="bash", arguments={"cmd": "ls"})
     )
     output.choices.append(
         ChatCompletionChoice(
-            message=ChatMessageAssistant(content="", tool_calls=[ungranted]),
+            message=ChatMessageAssistant(
+                content="",
+                tool_calls=[
+                    ToolCall(id="alt", function="bash", arguments={"cmd": "rm -rf /"})
+                ],
+            ),
             stop_reason="tool_calls",
         )
     )
+    return output
 
-    run = await run_bridge([output])
+
+async def test_multi_choice_alternates_with_tool_calls_dropped_for_sandbox_bridge() -> (
+    None
+):
+    """Alternates' calls would have no execution grant, so they must not reach the scaffold."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    run = await run_bridge(
+        [multi_choice_output_with_tool_call_alternate()], bridge=bridge
+    )
 
     assert len(run.output.choices) == 1
     assert run.output.message.tool_calls is not None
     assert run.output.message.tool_calls[0].id == "main"
+
+
+async def test_multi_choice_alternates_pass_through_for_in_process_bridge() -> None:
+    """An in-process bridge grants nothing, so without a policy there is nothing to protect."""
+    run = await run_bridge([multi_choice_output_with_tool_call_alternate()])
+
+    assert len(run.output.choices) == 2
 
 
 async def test_host_tool_execution_grants_are_bounded() -> None:

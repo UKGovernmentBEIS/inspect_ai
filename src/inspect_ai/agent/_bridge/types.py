@@ -199,12 +199,21 @@ class AgentBridge:
         """
         raise TerminateSampleError(reason)
 
+    grants_tool_execution: bool = False
+    """Whether this bridge binds host-tool execution to the calls in each response.
+
+    In-process bridges execute no host tools through a separate service, so nothing
+    is granted or checked. `SandboxAgentBridge` sets this and overrides
+    `register_tool_execution_grants`; `apply_bridge_tool_approval` reads it to
+    decide whether alternate choices must be dropped without an approval policy.
+    """
+
     def register_tool_execution_grants(self, calls: Sequence[ToolCall]) -> None:
-        """Register calls from an approved response for execution-edge checks.
+        """Register the calls in a response handed to the scaffold for execution-edge checks.
 
         In-process bridges execute no host tools through a separate service, so the
         base implementation has nothing to register. Sandbox bridges override this
-        to bind later service requests to the calls approval actually reviewed.
+        to bind later service requests to the calls the model actually made.
         """
 
     def compaction(

@@ -99,6 +99,9 @@ class SandboxAgentBridge(AgentBridge):
     not guarantee that a host tool runs only for a call the model proposed.
     """
 
+    grants_tool_execution = True
+    """Host tools run only against a grant minted here from a response."""
+
     def register_tool_execution_grants(self, calls: Sequence[ToolCall]) -> None:
         """Add one-shot host-tool grants for the calls in a response handed to the scaffold.
 
@@ -106,11 +109,12 @@ class SandboxAgentBridge(AgentBridge):
         generation, once per proposal: `call_tool` consumes a matching grant
         before running the tool and denies a call without one, whether or not an
         approval policy is active. Each grant binds the exact bridged (server,
-        tool) the call's model-facing function name denotes plus the arguments
-        handed to the scaffold (as approved or approver-modified; JSON-normalized,
-        since the scaffold re-sends them as parsed JSON). A name that denotes more
-        than one bridged tool is ambiguous — no grant is registered (fail closed,
-        with a warning). No grant is stored for a server in
+        tool) the call denotes (`_proposed_call`: by its model-facing function
+        name, or for Antigravity's `call_mcp_tool` dispatcher by the server and
+        tool named in its arguments) plus the arguments handed to the scaffold
+        (as approved or approver-modified; JSON-normalized, since the scaffold
+        re-sends them as parsed JSON). A name that denotes more than one bridged
+        tool is ambiguous — no grant is registered (fail closed, with a warning). No grant is stored for a server in
         `proposal_exempt_servers`, since none is needed to execute its tools.
 
         A grant is not scoped to the turn it was proposed in: it persists until
@@ -122,7 +126,7 @@ class SandboxAgentBridge(AgentBridge):
         grant for it — still bounded to its arguments.
         """
         for call in calls:
-            targets = _resolve_bridged_tools(self.bridged_tools, call.function)
+            targets, arguments = _proposed_call(self.bridged_tools, call)
             if not targets:
                 continue
             if len(targets) > 1:
@@ -149,7 +153,7 @@ class SandboxAgentBridge(AgentBridge):
                 _ToolExecutionGrant(
                     server=target.server,
                     tool=target.tool,
-                    arguments=to_jsonable_python(dict(call.arguments), fallback=str),
+                    arguments=to_jsonable_python(arguments, fallback=str),
                 )
             )
 
@@ -220,12 +224,16 @@ class _ToolExecutionGrant(NamedTuple):
 
 _CLAUDE_CODE_INVALID = re.compile(r"[^a-zA-Z0-9_-]")
 _CODEX_CLI_INVALID = re.compile(r"[^a-zA-Z0-9_]")
-_CODEX_CLI_MAX_LENGTH = 128
+_CODEX_CLI_MAX_LENGTHS = (64, 128)
 _CODEX_CLI_SEPARATOR = "__"
 _CODEX_CLI_HASH_LENGTH = 12
 _GEMINI_CLI_INVALID = re.compile(r"[^a-zA-Z0-9_.:-]")
 _GEMINI_CLI_MAX_LENGTH = 63
 _OPENCODE_INVALID = re.compile(r"[^a-zA-Z0-9_-]")
+_KIMI_CODE_INVALID = re.compile(r"[^a-zA-Z0-9_-]")
+_KIMI_CODE_UNDERSCORES = re.compile(r"_+")
+_KIMI_CODE_MAX_LENGTH = 64
+_ANTIGRAVITY_DISPATCHER = "call_mcp_tool"
 
 
 def _candidate_functions(server: str, tool: str) -> set[str]:
@@ -240,8 +248,9 @@ def _candidate_functions(server: str, tool: str) -> set[str]:
     - Codex CLI: the tool name inside a ``mcp__<server>`` Responses API namespace,
       so the call carries the bare name (older releases sent the flat
       ``mcp__<server>__<tool>``); characters outside ``[A-Za-z0-9_]`` replaced
-      with ``_``, and when namespace, separator and name exceed 128 bytes the
-      name is cut and given a hash suffix (see `_codex_cli_functions`).
+      with ``_``, and when namespace, separator and name exceed the cap (64
+      bytes before rust-v0.150, 128 from it) the name is cut and given a hash
+      suffix (see `_codex_cli_functions`).
     - Gemini CLI: ``mcp_<server>_<tool>`` (the prefix is not doubled when the
       server name already starts with ``mcp_``), characters outside
       ``[A-Za-z0-9_.:-]`` replaced with ``_``, and a name over 63 characters
@@ -249,6 +258,12 @@ def _candidate_functions(server: str, tool: str) -> set[str]:
       ``<server>__<tool>`` for conflicting names.
     - OpenCode: ``<server>_<tool>``, characters outside ``[A-Za-z0-9_-]`` in
       either part replaced with ``_``.
+    - Kimi Code: ``mcp__<server>__<tool>``, characters outside ``[A-Za-z0-9_-]``
+      in either part replaced with ``_`` and runs of ``_`` collapsed; a name over
+      64 characters is cut and given an FNV-1a hash (see `_kimi_code_function`).
+
+    Antigravity declares no per-tool functions; its ``call_mcp_tool`` dispatcher
+    is recognized in `_proposed_call` instead.
 
     The bare tool name is kept for a scaffold that passes names straight through.
     Every candidate is computed from the known (server, tool), never parsed out of
@@ -265,40 +280,46 @@ def _candidate_functions(server: str, tool: str) -> set[str]:
         f"{server}__{tool}",
         _gemini_cli_function(server, tool),
         f"{opencode('_', server)}_{opencode('_', tool)}",
+        _kimi_code_function(server, tool),
     }
 
 
-def _codex_cli_functions(server: str, tool: str) -> tuple[str, str]:
+def _codex_cli_functions(server: str, tool: str) -> set[str]:
     """Codex CLI's model-facing names for a bridged tool (its `normalize_tools_for_model`).
 
     The sanitized tool name sits in a ``mcp__<server>`` namespace, so a call
     carries the bare name; the flat form older releases sent joins namespace
     and name with ``__``.
-    When namespace, separator and name exceed 128 bytes, the name is cut to fit
+    When namespace, separator and name exceed the cap, the name is cut to fit
     and given a ``_<12 hex>`` suffix, the SHA-1 of the tool's identity (server,
     namespace, connector id, name, name; the middle three are the raw server
     name, empty, and the raw tool name for an MCP server), and a namespace that
-    leaves no room for the suffix is cut instead. Codex disambiguates names that
-    still collide with another server's tools by hashing again; those are not
-    reproducible from one bridged tool and are denied.
+    leaves no room for the suffix is cut instead. The cap was 64 bytes up to
+    rust-v0.149 (still embedded in codex-acp) and is 128 from rust-v0.150, so
+    both are produced. Codex disambiguates names that still collide with another
+    server's tools by hashing again; those are not reproducible from one bridged
+    tool and are denied.
     """
-    namespace = _CODEX_CLI_INVALID.sub("_", server)
-    if not namespace.startswith("mcp__"):
-        namespace = f"mcp__{namespace}"
-    name = _CODEX_CLI_INVALID.sub("_", tool)
-    reserved = len(_CODEX_CLI_SEPARATOR)
-    if len(namespace) + len(name) + reserved > _CODEX_CLI_MAX_LENGTH:
-        identity = f"{server}\0{server}\0\0{tool}\0{tool}".encode()
-        digest = hashlib.sha1(identity, usedforsecurity=False).hexdigest()
-        suffix = f"_{digest[:_CODEX_CLI_HASH_LENGTH]}"
-        max_name = max(_CODEX_CLI_MAX_LENGTH - len(namespace) - reserved, 0)
-        if max_name >= len(suffix):
-            name = name[: max_name - len(suffix)] + suffix
-        else:
-            namespace = namespace[: _CODEX_CLI_MAX_LENGTH - len(suffix) - reserved]
-            name = suffix
-    flat = f"{namespace.rstrip('_')}{_CODEX_CLI_SEPARATOR}{name.lstrip('_')}"
-    return name, flat
+    names: set[str] = set()
+    for max_length in _CODEX_CLI_MAX_LENGTHS:
+        namespace = _CODEX_CLI_INVALID.sub("_", server)
+        if not namespace.startswith("mcp__"):
+            namespace = f"mcp__{namespace}"
+        name = _CODEX_CLI_INVALID.sub("_", tool)
+        reserved = len(_CODEX_CLI_SEPARATOR)
+        if len(namespace) + len(name) + reserved > max_length:
+            identity = f"{server}\0{server}\0\0{tool}\0{tool}".encode()
+            digest = hashlib.sha1(identity, usedforsecurity=False).hexdigest()
+            suffix = f"_{digest[:_CODEX_CLI_HASH_LENGTH]}"
+            max_name = max(max_length - len(namespace) - reserved, 0)
+            if max_name >= len(suffix):
+                name = name[: max_name - len(suffix)] + suffix
+            else:
+                namespace = namespace[: max_length - len(suffix) - reserved]
+                name = suffix
+        names.add(name)
+        names.add(f"{namespace.rstrip('_')}{_CODEX_CLI_SEPARATOR}{name.lstrip('_')}")
+    return names
 
 
 def _gemini_cli_function(server: str, tool: str) -> str:
@@ -310,6 +331,34 @@ def _gemini_cli_function(server: str, tool: str) -> str:
     if len(name) > _GEMINI_CLI_MAX_LENGTH:
         name = f"{name[:30]}...{name[-30:]}"
     return name
+
+
+def _kimi_code_function(server: str, tool: str) -> str:
+    """Kimi Code's model-facing name for a bridged tool (its `qualifyMcpToolName`)."""
+
+    def part(value: str) -> str:
+        return _KIMI_CODE_UNDERSCORES.sub("_", _KIMI_CODE_INVALID.sub("_", value))
+
+    name = f"mcp__{part(server)}__{part(tool)}"
+    if len(name) <= _KIMI_CODE_MAX_LENGTH:
+        return name
+    digest = _kimi_code_hash(name)
+    return f"{name[: _KIMI_CODE_MAX_LENGTH - len(digest) - 1]}_{digest}"
+
+
+def _kimi_code_hash(value: str) -> str:
+    """Kimi Code's `stableHash8`: 32-bit FNV-1a in JavaScript integer arithmetic.
+
+    `Math.imul` yields a signed 32-bit product and `toString(16)` renders a
+    negative one with a leading ``-``, so the digest is 8 hex digits, or ``-``
+    and 8; the name is ASCII by then, so code points are single code units.
+    """
+    digest = 0x811C9DC5
+    for char in value:
+        digest = ((digest ^ ord(char)) * 0x01000193) & 0xFFFFFFFF
+    if digest & 0x80000000:
+        return f"-{(1 << 32) - digest:x}".rjust(8, "0")
+    return f"{digest:x}".rjust(8, "0")
 
 
 class _BridgedToolId(NamedTuple):
@@ -329,6 +378,43 @@ def _resolve_bridged_tools(
         for tool in tools
         if function in _candidate_functions(server, tool)
     ]
+
+
+class _ProposedCall(NamedTuple):
+    """What a proposed call would execute: the bridged tools it could denote, with what."""
+
+    targets: list[_BridgedToolId]
+    arguments: dict[str, Any]
+
+
+def _proposed_call(
+    bridged_tools: dict[str, dict[str, Tool]], call: ToolCall
+) -> _ProposedCall:
+    """Resolve a proposed call to the bridged tools it denotes and its arguments.
+
+    Most scaffolds declare each bridged tool to the model as its own function, so
+    the call's name denotes the tool (`_resolve_bridged_tools`) and its arguments
+    are the tool's. Antigravity instead declares one dispatcher,
+    ``call_mcp_tool(ServerName, ToolName, Arguments)``, so for that name the
+    target and the arguments come from the call's arguments; the server is named
+    explicitly, so there is nothing ambiguous to resolve, and a target that is not
+    a bridged tool denotes nothing.
+    """
+    if call.function == _ANTIGRAVITY_DISPATCHER:
+        server = call.arguments.get("ServerName")
+        tool = call.arguments.get("ToolName")
+        arguments = call.arguments.get("Arguments")
+        if (
+            isinstance(server, str)
+            and isinstance(tool, str)
+            and isinstance(arguments, dict)
+            and tool in bridged_tools.get(server, {})
+        ):
+            return _ProposedCall([_BridgedToolId(server=server, tool=tool)], arguments)
+        return _ProposedCall([], {})
+    return _ProposedCall(
+        _resolve_bridged_tools(bridged_tools, call.function), dict(call.arguments)
+    )
 
 
 def _json_equal(a: Any, b: Any) -> bool:
