@@ -19,6 +19,7 @@ import base64
 import hashlib
 import json
 import os
+import random
 import shutil
 import signal
 import subprocess
@@ -192,19 +193,21 @@ def _plant_conflicting_index(repo: Path, password: str = PASSWORD) -> tuple[str,
 
 def _understate_blob_lengths(
     repo: Path, index_names: Sequence[str], password: str = PASSWORD
-) -> None:
-    """Rewrite ``index_names`` to understate every data blob's plaintext size.
+) -> int:
+    """Understate every data blob's plaintext size; return how many were changed.
 
     Keeps each blob's compressed ``length``/``offset`` honest (so the pack
     file's size still checks out and its bytes still decrypt) but shrinks every
     recorded ``uncompressed_length`` by 100000, then deletes the original
     indexes so the lie is the only mapping. On restore, restic lays each blob
-    out using the understated length, so a multi-blob file comes out shorter
-    than it was; plain ``restic check`` and ``restic ls`` accept the repo, and
-    only ``check --read-data`` (which decompresses each blob) rejects it.
-    Understating every blob (rather than one) makes the short restore
-    deterministic regardless of which blob the content-defined chunker made
-    last.
+    out using the understated length, so a *multi-blob* file comes out shorter
+    than it was (understating the sole blob of a single-blob file has no size
+    effect, since nothing follows it); plain ``restic check`` and ``restic ls``
+    accept the repo, and only ``check --read-data`` (which decompresses each
+    blob) rejects it. Understating every blob (rather than one) makes the short
+    restore deterministic regardless of which blob the content-defined chunker
+    made last. The returned count lets a caller assert its input really is
+    multi-blob.
     """
     crypto = _ResticCrypto(repo, password)
     understated = 0
@@ -224,6 +227,7 @@ def _understate_blob_lengths(
             (repo / "index" / name).unlink()
     if understated == 0:
         raise AssertionError("no compressed data blob to understate in the indexes")
+    return understated
 
 
 class _Repos:
@@ -604,25 +608,27 @@ async def test_read_data_check_is_required_for_a_blob_length_lie(
     """`check --read-data` rejects a blob-length lie that plain check accepts.
 
     Establishes the restic 0.18.1 behaviour the egress validation depends on,
-    and answers "is `--read-data` load-bearing?". An index that understates a
-    data blob's recorded uncompressed length keeps the pack's size and bytes
-    valid, so `restic check` (no `--read-data`) and `restic ls` both report no
-    error, and a restore *succeeds* — but the file comes out short, because
-    restic lays each blob out at the understated length. Only
-    `check --read-data`, which decompresses every blob and checks its length,
-    rejects it. This is the conflicting-mapping case content addressing alone
-    does not stop, so the validation must read pack data, not merely list and
-    structurally check.
+    and answers "is `--read-data` load-bearing?". For a multi-blob file, an
+    index that understates the data blobs' recorded uncompressed lengths keeps
+    the packs' sizes and bytes valid, so `restic check` (no `--read-data`) and
+    `restic ls` both report no error, and a restore *succeeds* — but the file
+    comes out short, because restic lays each blob out at the understated
+    length. Only `check --read-data`, which decompresses every blob and checks
+    its length, rejects it. This is the conflicting-mapping case content
+    addressing alone does not stop, so the validation must read pack data, not
+    merely list and structurally check.
     """
     pytest.importorskip("cryptography")
     restic = await resolve_restic()
     repo = tmp_path / "repo"
     src = tmp_path / "src"
     src.mkdir()
-    # Several MB across multiple blobs; each blob still carries an
-    # `uncompressed_length` in a v2 repo.
-    size = 6 * 1024 * 1024
-    (src / "big.txt").write_bytes(os.urandom(size))
+    # 24 MiB of deterministic pseudo-random bytes. Restic's chunker caps a
+    # chunk at 8 MiB, so a file this size is always split into several data
+    # blobs (asserted below via the understated count) — the condition under
+    # which the length lie shortens the restore.
+    size = 24 * 1024 * 1024
+    (src / "big.bin").write_bytes(random.Random(496).randbytes(size))
     env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
 
     def run(*args: str, ok: bool = True) -> subprocess.CompletedProcess[str]:
@@ -640,7 +646,8 @@ async def test_read_data_check_is_required_for_a_blob_length_lie(
     snap = ResticBackupSummary.from_stdout(
         run("backup", str(src), "--json", "--quiet").stdout
     ).snapshot_id
-    _understate_blob_lengths(repo, sorted(os.listdir(repo / "index")))
+    understated = _understate_blob_lengths(repo, sorted(os.listdir(repo / "index")))
+    assert understated >= 2, f"expected a multi-blob file, understated {understated}"
 
     # Plain check and ls accept the lie.
     assert run("check", "--no-lock", "--no-cache", ok=False).returncode == 0
@@ -648,7 +655,7 @@ async def test_read_data_check_is_required_for_a_blob_length_lie(
     # Restore succeeds at exit 0 but silently yields a file short by the lie.
     out = tmp_path / "restored"
     run("restore", snap, "--target", str(out), "--no-lock", "--no-cache")
-    assert 0 < next(out.rglob("big.txt")).stat().st_size < size
+    assert 0 < next(out.rglob("big.bin")).stat().st_size < size
     # Only --read-data rejects it.
     assert run("check", "--read-data", "--no-lock", "--no-cache", ok=False).returncode
 

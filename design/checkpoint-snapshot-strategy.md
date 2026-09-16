@@ -377,9 +377,9 @@ the accepted repo:
   `--read-data` and `ls` reject a malformed or undecryptable index and an
   index that references a missing pack, but both *accept* two additions that
   silently corrupt a restore: a valid index pointing at a present-but-garbage
-  pack, and a valid index that understates a blob's recorded length (verified
-  against restic 0.18.1: plain `check`/`ls` report no error and the restore
-  succeeds, yet the file comes out short). `check --read-data` decrypts every
+  pack, and a valid index that understates the blobs of a multi-blob file (verified against restic
+  0.18.1: plain `check`/`ls` report no error and the restore succeeds, yet
+  the file comes out short). `check --read-data` decrypts every
   referenced blob
   and checks its length against the pack, so it rejects both. It is therefore
   required, not `check` alone — the reason validation reads pack data rather

@@ -76,13 +76,19 @@ sandbox can satisfy them while supplying fabricated state:
 
 Recovery behavior:
 
-A rejected transfer never reaches the accepted repo: extraction,
-validation, and the throwaway view all happen in a per-sandbox scratch
-directory that is removed on every exit path, so a failed or cancelled
-attempt leaves the accepted repo exactly as it was found. Only after the
-additions are merged does the host tell the sandbox to mark the accepted
-files as shipped. If that acknowledgment fails, the next attempt can
-safely resend them.
+Extraction and validation happen on the throwaway view in a per-sandbox
+scratch directory that is removed on every exit path. A transfer that
+fails validation, or is cancelled before the merge begins, never reaches
+the accepted repo, which is left exactly as it was found. The merge then
+links the validated additions into the accepted repo, packs before
+indexes before snapshots, so an interruption once it has begun — a hard
+kill, or a cancellation between the merge and the manifest commit — leaves
+at most a safe prefix or a merged-but-unrecorded snapshot: every earlier
+checkpoint stays restorable, and the leftover is dropped on resume by
+``forget_unrecorded_snapshots`` or re-sent idempotently by the next fire
+(content-addressed files). Only after the additions are merged does the
+host tell the sandbox to mark the accepted files as shipped; if that
+acknowledgment fails, the next attempt can safely resend them.
 
 Ingress is the inverse: on resume, copy a host-side repo back into the
 sandbox and restic-restore the recorded snapshot at its original
