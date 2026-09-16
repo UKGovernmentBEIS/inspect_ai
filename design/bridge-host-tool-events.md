@@ -1250,7 +1250,8 @@ together with the Python change, as cross-repo PRs normally do.
   exception outside the mapped set ends the sample; over the bridge the
   service turns it into an RPC error and the sample continues
   (`util/_sandbox/service.py:562-581`). Pre-existing and independent of
-  recording, so left for its own issue (decision: Ransom, 2026-09-16). The
+  recording, so left for its own issue, meridianlabs-ai/inspect_ai#500
+  (decision: Ransom, 2026-09-16). The
   mechanism, if wanted, is `bridge.request_fail(ex)` after finalising the
   event (`types.py:169-187`, `bridge.py:283-294`), the pattern
   `_forward_provider_errors` uses for refusals; the interactions with
