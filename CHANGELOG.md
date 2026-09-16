@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Text scorers (`match`, `includes`, `exact`, `f1`) now report `no_response` for empty completions and `refusal` for provider-reported refusal content in `Score.reason`, and `pattern()`/`answer()` use those reasons instead of misclassifying both as `invalid_response_format`.
+
 - Hugging Face `literal:` task targets now keep the rest of the value when it contains additional colons.
 
 - Review: `human_reviewer()` lets an operator review a tool call together with its result and continue or terminate the sample, on the same surfaces as the human approver.

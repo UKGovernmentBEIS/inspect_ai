@@ -1,5 +1,5 @@
 import pytest
-from test_helpers.utils import simple_task_state
+from test_helpers.utils import refusal_task_state, simple_task_state
 
 from inspect_ai.scorer import Target
 from inspect_ai.scorer._classification import exact, f1, max_exact_score, max_f1_score
@@ -135,3 +135,63 @@ def test_max_exact_score_word_order_and_duplicates():
     # max_exact_score must preserve word order and count (not compare word sets)
     assert max_exact_score("world hello", ["hello world"]) == 0.0
     assert max_exact_score("hello hello", ["hello"]) == 0.0
+
+
+@pytest.mark.anyio
+async def test_exact_empty_completion_marks_no_response_reason():
+    scorer = exact()
+    state = simple_task_state(model_output="")
+    result = await scorer(state, Target(["foo"]))
+
+    assert result.text == INCORRECT
+    assert result.reason == "no_response"
+
+
+@pytest.mark.anyio
+async def test_exact_refusal_content_marks_refusal_reason():
+    scorer = exact()
+    state = refusal_task_state("I'm sorry, I can't help with that.")
+    result = await scorer(state, Target(["foo"]))
+
+    assert result.text == INCORRECT
+    assert result.reason == "refusal"
+
+
+@pytest.mark.anyio
+async def test_exact_wrong_answer_keeps_reason_unset():
+    scorer = exact()
+    state = simple_task_state(model_output="bar")
+    result = await scorer(state, Target(["foo"]))
+
+    assert result.text == INCORRECT
+    assert result.reason is None
+
+
+@pytest.mark.anyio
+async def test_f1_empty_completion_marks_no_response_reason():
+    scorer = f1()
+    state = simple_task_state(model_output="")
+    result = await scorer(state, Target(["foo"]))
+
+    assert result.value == 0.0
+    assert result.reason == "no_response"
+
+
+@pytest.mark.anyio
+async def test_f1_refusal_content_marks_refusal_reason():
+    scorer = f1()
+    state = refusal_task_state("I'm sorry, I can't help with that.")
+    result = await scorer(state, Target(["foo"]))
+
+    assert result.value == 0.0
+    assert result.reason == "refusal"
+
+
+@pytest.mark.anyio
+async def test_f1_wrong_answer_keeps_reason_unset():
+    scorer = f1()
+    state = simple_task_state(model_output="bar")
+    result = await scorer(state, Target(["foo"]))
+
+    assert result.value == 0.0
+    assert result.reason is None

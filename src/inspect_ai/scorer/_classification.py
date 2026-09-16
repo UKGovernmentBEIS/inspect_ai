@@ -5,6 +5,7 @@ from typing import Callable, List
 from inspect_ai._util.text import is_finite_number, strip_punctuation
 from inspect_ai.solver._task_state import TaskState
 
+from ._common import abnormal_score_reason
 from ._metric import CORRECT, INCORRECT, Score
 from ._metrics import mean, stderr
 from ._scorer import Scorer, scorer
@@ -35,6 +36,7 @@ def f1(
         return Score(
             value=f1_score,
             answer=answer,
+            reason=abnormal_score_reason(state.output),
         )
 
     return score
@@ -53,7 +55,11 @@ def exact() -> Scorer:
         targets = target.target
 
         exact_score = max_exact_score(answer, targets)
-        return Score(value=CORRECT if exact_score == 1.0 else INCORRECT, answer=answer)
+        return Score(
+            value=CORRECT if exact_score == 1.0 else INCORRECT,
+            answer=answer,
+            reason=abnormal_score_reason(state.output),
+        )
 
     return score
 

@@ -1,5 +1,5 @@
 import pytest
-from test_helpers.utils import simple_task_state
+from test_helpers.utils import refusal_task_state, simple_task_state
 
 from inspect_ai.scorer import CORRECT, INCORRECT, Target, match
 
@@ -402,3 +402,33 @@ async def test_numeric_match_exact_still_matches_clean_number():
 
     assert result is not None
     assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_empty_completion_marks_no_response_reason():
+    scorer = match()
+    state = simple_task_state(model_output="")
+    result = await scorer(state, Target(["60"]))
+
+    assert result.text == INCORRECT
+    assert result.reason == "no_response"
+
+
+@pytest.mark.anyio
+async def test_refusal_content_marks_refusal_reason():
+    scorer = match()
+    state = refusal_task_state("I'm sorry, I can't help with that.")
+    result = await scorer(state, Target(["60"]))
+
+    assert result.text == INCORRECT
+    assert result.reason == "refusal"
+
+
+@pytest.mark.anyio
+async def test_wrong_answer_keeps_reason_unset():
+    scorer = match()
+    state = simple_task_state(model_output="28 + 32 = 61")
+    result = await scorer(state, Target(["60"]))
+
+    assert result.text == INCORRECT
+    assert result.reason is None

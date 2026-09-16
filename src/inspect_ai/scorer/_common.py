@@ -6,12 +6,31 @@ from inspect_ai._util.text import (
     strip_numeric_punctuation,
     strip_punctuation,
 )
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._unicode import unicode_number_to_float
 from inspect_ai.solver._task_state import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
 from ._scorer import Scorer
 from ._target import Target
+
+
+def abnormal_score_reason(output: ModelOutput) -> str | None:
+    """Machine-readable reason for an abnormal score, when one applies.
+
+    An empty completion carries nothing to grade (`no_response`), and
+    provider-reported refusal content is a refusal, not a format violation.
+    Anything else returns None and keeps the scorer's own classification.
+    """
+    completion = output.completion
+    if not completion or not completion.strip():
+        return "no_response"
+    content = output.message.content
+    if isinstance(content, str):
+        return None
+    if any(getattr(block, "refusal", None) for block in content):
+        return "refusal"
+    return None
 
 
 def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
@@ -31,7 +50,10 @@ def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
                 )
 
         return Score(
-            value=INCORRECT, answer=answer, explanation=state.output.completion
+            value=INCORRECT,
+            answer=answer,
+            explanation=state.output.completion,
+            reason=abnormal_score_reason(state.output),
         )
 
     return score

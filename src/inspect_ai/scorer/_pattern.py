@@ -3,6 +3,7 @@ from typing import Any
 
 from inspect_ai.solver._task_state import TaskState
 
+from ._common import abnormal_score_reason
 from ._metric import CORRECT, INCORRECT, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
@@ -104,12 +105,14 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
                 explanation=state.output.completion,
             )
         else:
-            # didn't find the scoring pattern: the model was instructed to
-            # answer in a specific format and didn't — an instruction-following
-            # failure charged to the model under test (see #4567)
+            # didn't find the scoring pattern: an empty completion or a
+            # refusal gets its own reason; anything else means the model was
+            # instructed to answer in a specific format and didn't — an
+            # instruction-following failure charged to the model under test
+            # (see #4567)
             return Score(
                 value=INCORRECT,
-                reason="invalid_response_format",
+                reason=abnormal_score_reason(state.output) or "invalid_response_format",
                 explanation="Scoring pattern not matched in output: "
                 + f"{state.output.completion}",
             )

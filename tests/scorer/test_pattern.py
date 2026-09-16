@@ -1,5 +1,5 @@
 import pytest
-from test_helpers.utils import simple_task_state
+from test_helpers.utils import refusal_task_state, simple_task_state
 
 from inspect_ai.scorer import CORRECT, INCORRECT, Target, pattern
 
@@ -186,3 +186,33 @@ async def test_pattern_no_capture_groups_match_all():
 
     assert result.text == CORRECT
     assert result.answer == "42"
+
+
+@pytest.mark.anyio
+async def test_empty_completion_marks_no_response_reason():
+    scorer = pattern(r"ANSWER:\s*(\d+)")
+    state = simple_task_state(model_output="")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == INCORRECT
+    assert result.reason == "no_response"
+
+
+@pytest.mark.anyio
+async def test_refusal_content_marks_refusal_reason():
+    scorer = pattern(r"ANSWER:\s*(\d+)")
+    state = refusal_task_state("I'm sorry, I can't help with that.")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == INCORRECT
+    assert result.reason == "refusal"
+
+
+@pytest.mark.anyio
+async def test_format_miss_keeps_invalid_response_format_reason():
+    scorer = pattern(r"ANSWER:\s*(\d+)")
+    state = simple_task_state(model_output="I think it is forty-two, honestly.")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"

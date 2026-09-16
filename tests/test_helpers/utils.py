@@ -18,6 +18,7 @@ import pytest
 from _pytest.outcomes import OutcomeException, Skipped, XFailed
 
 from inspect_ai import Task, eval, task
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
@@ -551,6 +552,20 @@ def simple_task_state(
         messages=messages if messages is not None else [],
         model=ModelName(model="fake/model"),
         output=ModelOutput.from_content(model="model", content=model_output),
+        sample_id=0,
+    )
+
+
+def refusal_task_state(text: str) -> TaskState:
+    return TaskState(
+        choices=None,
+        epoch=0,
+        input=[],
+        messages=[],
+        model=ModelName(model="fake/model"),
+        output=ModelOutput.from_content(
+            model="model", content=[ContentText(text=text, refusal=True)]
+        ),
         sample_id=0,
     )
 
