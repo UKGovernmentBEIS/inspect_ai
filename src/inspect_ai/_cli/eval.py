@@ -858,8 +858,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--cache-prompt",
-        type=click.Choice(["auto", "true", "false"]),
-        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only.",
+        type=click.Choice(["auto", "prefix", "true", "false"]),
+        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Set to 'prefix' to keep the explicit cache breakpoints but omit the automatic end-of-prompt breakpoint. Anthropic only.",
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(

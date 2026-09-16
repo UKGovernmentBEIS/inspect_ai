@@ -429,7 +429,7 @@ GENERATE_CONFIG_VARIABLES: dict[str, Callable[[str, str], Any]] = {
     "adaptive_connections": _text,
     "batch": _int_bool_or_str(DEFAULT_BATCH_SIZE),
     "cache": _int_bool_or_str(DEFAULT_CACHE_DAYS),
-    "cache_prompt": _strict_choice("auto", "true", "false"),
+    "cache_prompt": _strict_choice("auto", "prefix", "true", "false"),
 }
 """Variables carrying one identity-neutral generate-config field each.
 

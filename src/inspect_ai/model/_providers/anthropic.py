@@ -706,13 +706,15 @@ class AnthropicAPI(ModelAPI):
                 tools_param,
                 mcp_servers_param,
                 messages,
-                cache_prompt,
+                auto_cache,
             ) = await self.resolve_chat_input(input, tools, config, cache_ttl)
 
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
 
-            # automatic caching for messages (system/tools use explicit breakpoints).
+            # automatic caching for messages (system/tools use explicit breakpoints;
+            # `auto_cache` is False when caching is off, in "prefix" mode, or when
+            # the messages carry explicit breakpoints of their own).
             # Per Anthropic's docs, the top-level `cache_control` field is only
             # supported on the direct Claude API and Azure AI Foundry (preview);
             # "support for Amazon Bedrock and Google Vertex AI is coming later." On
@@ -720,7 +722,7 @@ class AnthropicAPI(ModelAPI):
             # `cache_control: Extra inputs are not permitted`. Fall back to the
             # per-block markers added in resolve_chat_input on those services.
             # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
-            if cache_prompt and not (self.is_bedrock() or self.is_vertex()):
+            if auto_cache and not (self.is_bedrock() or self.is_vertex()):
                 request["cache_control"] = cache_control_param(cache_ttl)
 
             # system messages and tools
@@ -1880,6 +1882,11 @@ class AnthropicAPI(ModelAPI):
             ):
                 cache_prompt = False
 
+        # explicit breakpoints (ContentText.cache_breakpoint) replace the
+        # heuristic message breakpoints: lookback would spend a slot on a block
+        # the caller didn't choose, and auto-cache would cache-write the varying
+        # tail the caller deliberately left unmarked.
+        explicit_breakpoints = count_message_cache_control(message_params)
         if cache_prompt:
             # system
             if system_param:
@@ -1893,8 +1900,26 @@ class AnthropicAPI(ModelAPI):
             # extra write for append-only growth where auto-cache alone
             # suffices. Skip thinking/redacted_thinking blocks — the API
             # rejects cache_control on those.
-            if message_params:
+            if message_params and not explicit_breakpoints:
                 add_lookback_cache_control(message_params, cache_ttl)
+            breakpoints = explicit_breakpoints + bool(system_param) + bool(tools_params)
+            if breakpoints > MAX_CACHE_BREAKPOINTS:
+                raise ValueError(
+                    f"Request has {breakpoints} cache breakpoints "
+                    f"({explicit_breakpoints} from ContentText.cache_breakpoint, "
+                    f"plus one each for the system prompt and tools when present); "
+                    f"Anthropic allows at most {MAX_CACHE_BREAKPOINTS}."
+                )
+        elif explicit_breakpoints:
+            # caching is off (config or a model that rejects cache_control)
+            strip_message_cache_control(message_params)
+            explicit_breakpoints = 0
+
+        auto_cache = (
+            cache_prompt
+            and config.cache_prompt != "prefix"
+            and not explicit_breakpoints
+        )
 
         normalize_document_citations(message_params)
 
@@ -1904,7 +1929,7 @@ class AnthropicAPI(ModelAPI):
             tools_params,
             mcp_server_params,
             message_params,
-            cache_prompt,
+            auto_cache,
         )
 
     def partition_tools(
@@ -2422,6 +2447,30 @@ def add_lookback_cache_control(
                     return
 
 
+# Anthropic rejects requests with more cache_control markers than this.
+MAX_CACHE_BREAKPOINTS = 4
+
+
+def count_message_cache_control(message_params: list[MessageParam]) -> int:
+    """Number of top-level content blocks in `message_params` carrying `cache_control`."""
+    return sum(
+        1
+        for msg in message_params
+        if isinstance(msg["content"], list)
+        for block in msg["content"]
+        if isinstance(block, dict) and "cache_control" in block
+    )
+
+
+def strip_message_cache_control(message_params: list[MessageParam]) -> None:
+    """Remove `cache_control` from every top-level content block in `message_params`."""
+    for msg in message_params:
+        if isinstance(msg["content"], list):
+            for block in msg["content"]:
+                if isinstance(block, dict):
+                    cast(dict[str, Any], block).pop("cache_control", None)
+
+
 def add_cache_control(
     param: TextBlockParam
     | ToolParam
@@ -2781,17 +2830,22 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 for item in await message_block_params(content)
             ]
 
-        return MessageParam(
-            role="user",
-            content=[
-                ToolResultBlockParam(
-                    tool_use_id=str(message.tool_call_id),
-                    type="tool_result",
-                    content=cast(list[TextBlockParam | ImageBlockParam], content),
-                    is_error=message.error is not None,
-                )
-            ],
+        tool_result = ToolResultBlockParam(
+            tool_use_id=str(message.tool_call_id),
+            type="tool_result",
+            content=cast(list[TextBlockParam | ImageBlockParam], content),
+            is_error=message.error is not None,
         )
+        # a breakpoint inside the result means "cache through this result",
+        # which is the enclosing tool_result block's marker
+        if isinstance(content, list) and any(
+            "cache_control" in cast(dict[str, Any], block) for block in content
+        ):
+            for block in content:
+                cast(dict[str, Any], block).pop("cache_control", None)
+            add_cache_control(cast(dict[str, Any], tool_result), _cache_write_ttl.get())
+
+        return MessageParam(role="user", content=[tool_result])
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant":
@@ -4713,7 +4767,10 @@ async def message_block_params(
             else None
         )
 
-        return [TextBlockParam(type="text", text=text, citations=citations)]
+        text_block = TextBlockParam(type="text", text=text, citations=citations)
+        if content.cache_breakpoint:
+            add_cache_control(text_block, _cache_write_ttl.get())
+        return [text_block]
     elif isinstance(content, ContentImage):
         return [await image_block_param(content.image)]
 

@@ -573,7 +573,7 @@ CHOICES: list[tuple[str, tuple[str, ...]]] = [
     ("INSPECT_LOG_LEVEL", LOG_LEVELS),
     ("INSPECT_LOG_LEVEL_TRANSCRIPT", LOG_LEVELS),
     ("INSPECT_DISPLAY", DISPLAYS),
-    ("INSPECT_EVAL_CACHE_PROMPT", ("auto", "true", "false")),
+    ("INSPECT_EVAL_CACHE_PROMPT", ("auto", "prefix", "true", "false")),
 ]
 
 

@@ -150,8 +150,8 @@ class GenerateConfigArgs(TypedDict, total=False):
     max_tool_output: int | None
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
-    cache_prompt: Literal["auto"] | bool | None
-    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic and Bedrock Converse (Claude and Nova) only."""
+    cache_prompt: Literal["auto", "prefix"] | bool | None
+    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Set to "prefix" to keep the explicit breakpoints (system, tools, second-to-last message block) but omit the automatic end-of-prompt breakpoint, so a varying final block is not cache-written on every call (e.g. an LLM judge with a fixed rubric and a varying item). Anthropic and Bedrock Converse (Claude and Nova) only ("prefix" is Anthropic only)."""
 
     fallback_models: list[str] | None
     """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""
@@ -283,8 +283,8 @@ class GenerateConfig(BaseModel):
     max_tool_output: int | None = Field(default=None)
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
-    cache_prompt: Literal["auto"] | bool | None = Field(default=None)
-    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic and Bedrock Converse (Claude and Nova) only."""
+    cache_prompt: Literal["auto", "prefix"] | bool | None = Field(default=None)
+    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Set to "prefix" to keep the explicit breakpoints (system, tools, second-to-last message block) but omit the automatic end-of-prompt breakpoint, so a varying final block is not cache-written on every call (e.g. an LLM judge with a fixed rubric and a varying item). Anthropic and Bedrock Converse (Claude and Nova) only ("prefix" is Anthropic only)."""
 
     fallback_models: list[str] | None = Field(default=None)
     """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""

@@ -20,8 +20,14 @@ import pytest
 from anthropic.types import MessageParam, TextBlockParam
 
 import inspect_ai.model._providers.anthropic as anthropic_module
-from inspect_ai._util.content import ContentText
-from inspect_ai.model._chat_message import ChatMessageSystem, ChatMessageUser
+from inspect_ai._util.content import Content, ContentText
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.model._providers.anthropic import (
@@ -32,6 +38,7 @@ from inspect_ai.model._providers.anthropic import (
 from inspect_ai.model._providers.anthropic import (
     add_lookback_cache_control as _add_lookback_cache_control,
 )
+from inspect_ai.tool import ToolCall, ToolInfo
 
 CACHE = {"type": "ephemeral"}
 
@@ -788,3 +795,255 @@ def test_never_tags_thinking_block(block_type: str) -> None:
                 "redacted_thinking",
             ):
                 assert "cache_control" not in b
+
+
+# ---------------------------------------------------------------------------
+# (h) "prefix" mode and explicit breakpoints (ContentText.cache_breakpoint)
+# ---------------------------------------------------------------------------
+
+
+async def _generate_request(
+    api: AnthropicAPI,
+    input: list[ChatMessage],
+    config: GenerateConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, Any]:
+    """The single request `generate()` issues for `input` under `config`."""
+    requests = _capture_requests(api, monkeypatch)
+    await api.generate(input=input, tools=[], tool_choice="auto", config=config)
+    assert len(requests) == 1
+    return requests[0]
+
+
+def _rubric_then_items(*, breakpoint: bool, items: int = 1) -> list[ChatMessage]:
+    """A judge-shaped user turn: a fixed rubric block, then varying item blocks."""
+    content: list[Content] = [ContentText(text="rubric", cache_breakpoint=breakpoint)]
+    content.extend(ContentText(text=f"item-{i}") for i in range(items))
+    return [ChatMessageUser(content=content)]
+
+
+@pytest.mark.anyio
+async def test_default_caching_tags_lookback_and_auto_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(),
+        [ChatMessageSystem(content="system")] + _rubric_then_items(breakpoint=False),
+        GenerateConfig(),
+        monkeypatch,
+    )
+    assert request["cache_control"] == CACHE
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert tagged(request["messages"]) == [(0, 0)]
+
+
+@pytest.mark.anyio
+async def test_cache_prompt_prefix_drops_auto_cache_keeps_explicit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(),
+        [ChatMessageSystem(content="system")] + _rubric_then_items(breakpoint=False),
+        GenerateConfig(cache_prompt="prefix"),
+        monkeypatch,
+    )
+    assert "cache_control" not in request
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert tagged(request["messages"]) == [(0, 0)]
+
+
+@pytest.mark.anyio
+async def test_cache_prompt_prefix_system_rubric_single_item(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # rubric in the system prompt, one varying user block: only the system
+    # breakpoint remains, so the item is never cache-written
+    request = await _generate_request(
+        _auto_api(),
+        [ChatMessageSystem(content="rubric"), ChatMessageUser(content="item")],
+        GenerateConfig(cache_prompt="prefix"),
+        monkeypatch,
+    )
+    assert "cache_control" not in request
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert tagged(request["messages"]) == []
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_replaces_lookback_and_auto_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # three blocks: lookback alone would tag the middle (varying) block
+    request = await _generate_request(
+        _auto_api(),
+        _rubric_then_items(breakpoint=True, items=2),
+        GenerateConfig(),
+        monkeypatch,
+    )
+    assert "cache_control" not in request
+    assert tagged(request["messages"]) == [(0, 0)]
+    assert request["messages"][0]["content"][0]["cache_control"] == CACHE
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_keeps_system_breakpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(),
+        [ChatMessageSystem(content="system")] + _rubric_then_items(breakpoint=True),
+        GenerateConfig(),
+        monkeypatch,
+    )
+    assert "cache_control" not in request
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert tagged(request["messages"]) == [(0, 0)]
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_carries_request_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(cache_ttl="1h"),
+        _rubric_then_items(breakpoint=True),
+        GenerateConfig(),
+        monkeypatch,
+    )
+    assert request["messages"][0]["content"][0]["cache_control"] == {
+        "type": "ephemeral",
+        "ttl": "1h",
+    }
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_stripped_when_cache_prompt_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(),
+        _rubric_then_items(breakpoint=True),
+        GenerateConfig(cache_prompt=False),
+        monkeypatch,
+    )
+    assert "cache_control" not in request
+    assert tagged(request["messages"]) == []
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_keeps_tools_breakpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = _auto_api()
+    requests = _capture_requests(api, monkeypatch)
+    await api.generate(
+        input=[ChatMessageSystem(content="system")]
+        + _rubric_then_items(breakpoint=True),
+        tools=[ToolInfo(name="f", description="a tool")],
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+    request = requests[0]
+    assert "cache_control" not in request
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert request["tools"][-1]["cache_control"] == CACHE
+    assert tagged(request["messages"]) == [(0, 0)]
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoints_over_budget_raise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # system + tools + 2 explicit markers is the ceiling; the API would reject
+    # a third, so refuse it up front with the reason
+    api = _auto_api()
+    _capture_requests(api, monkeypatch)
+    tools = [ToolInfo(name="f", description="a tool")]
+
+    def input_with(marked: int) -> list[ChatMessage]:
+        content: list[Content] = [
+            ContentText(text=f"doc-{i}", cache_breakpoint=True) for i in range(marked)
+        ]
+        content.append(ContentText(text="item"))
+        return [ChatMessageSystem(content="system"), ChatMessageUser(content=content)]
+
+    await api.generate(
+        input=input_with(2), tools=tools, tool_choice="auto", config=GenerateConfig()
+    )
+    with pytest.raises(ValueError, match="cache breakpoints"):
+        await api.generate(
+            input=input_with(3),
+            tools=tools,
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+
+def _tool_result_input() -> list[ChatMessage]:
+    """A tool loop whose result carries a breakpoint, then a follow-up question."""
+    return [
+        ChatMessageUser(content="task"),
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[ToolCall(id="t1", function="f", arguments={})],
+        ),
+        ChatMessageTool(
+            content=[ContentText(text="big document", cache_breakpoint=True)],
+            tool_call_id="t1",
+            function="f",
+        ),
+        ChatMessageUser(content="question"),
+    ]
+
+
+def _tool_result_positions(messages: list[dict[str, Any]]) -> list[tuple[int, int]]:
+    return [
+        (mi, bi)
+        for mi, message in enumerate(messages)
+        if isinstance(message["content"], list)
+        for bi, block in enumerate(message["content"])
+        if block.get("type") == "tool_result"
+    ]
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_in_tool_result_moves_to_tool_result_block(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(), _tool_result_input(), GenerateConfig(), monkeypatch
+    )
+    assert "cache_control" not in request
+    messages = request["messages"]
+    positions = _tool_result_positions(messages)
+    assert len(positions) == 1
+    assert tagged(messages) == positions
+    tool_result = messages[positions[0][0]]["content"][positions[0][1]]
+    assert tool_result["cache_control"] == CACHE
+    assert all("cache_control" not in block for block in tool_result["content"])
+
+
+@pytest.mark.anyio
+async def test_cache_prompt_false_strips_hoisted_tool_result_breakpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(),
+        _tool_result_input(),
+        GenerateConfig(cache_prompt=False),
+        monkeypatch,
+    )
+    assert "cache_control" not in request
+    messages = request["messages"]
+    assert tagged(messages) == []
+    (position,) = _tool_result_positions(messages)
+    tool_result = messages[position[0]]["content"][position[1]]
+    assert all("cache_control" not in block for block in tool_result["content"])
+
+
+def test_content_text_cache_breakpoint_round_trips() -> None:
+    block = ContentText(text="rubric", cache_breakpoint=True)
+    assert ContentText.model_validate_json(block.model_dump_json()) == block
+    # logs written before the field existed load with it unset
+    legacy = ContentText.model_validate({"type": "text", "text": "rubric"})
+    assert legacy.cache_breakpoint is None

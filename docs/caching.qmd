@@ -136,6 +136,23 @@ eval("ctf.py", cache_prompt=False)
 
 Providers will typically provide various means of customising the scope of cache usage. The Inspect `cache-prompt` option will by default attempt to make maximum use of provider caches (in the Anthropic implementation system messages, tool definitions, and all messages up to the last user message are included in the cache).
 
+The Anthropic implementation places cache breakpoints at the end of the system prompt, on the last tool definition, on the second-to-last message block, and (automatically) at the end of the prompt. The automatic breakpoint cache-writes whatever the final block is, which is wasted when that block changes on every call and is never read back (e.g. an LLM judge with a fixed rubric and a varying item). Two options address this:
+
+- `cache_prompt="prefix"` keeps the explicit breakpoints but omits the automatic end-of-prompt breakpoint. With the rubric in the system prompt and the item in the user message, only the rubric is cached.
+
+- `ContentText(text=..., cache_breakpoint=True)` places a breakpoint on a specific block. When any message block carries one, Inspect adds no message breakpoints of its own (the system and tool breakpoints remain), so the cache layout is exactly what you marked. Anthropic allows 4 breakpoints per request and the system prompt and tools use one each, so mark at most 2 blocks.
+
+``` python
+from inspect_ai.model import ChatMessageUser, ContentText
+
+judge_prompt = ChatMessageUser(
+    content=[
+        ContentText(text=rubric, cache_breakpoint=True),
+        ContentText(text=item),
+    ]
+)
+```
+
 ### Usage Reporting
 
 When using provider caching, model token usage will be reported with 4 distinct values rather than the normal input and output. For example:

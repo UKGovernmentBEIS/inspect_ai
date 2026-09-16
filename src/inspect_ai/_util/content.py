@@ -28,6 +28,9 @@ class ContentText(ContentBase):
     citations: Sequence[Citation] | None = Field(default=None)
     """Citations supporting the text block."""
 
+    cache_breakpoint: bool | None = Field(default=None)
+    """Place an explicit prompt-cache breakpoint after this block (the prefix up to and including it is cached). When any block in the messages carries a breakpoint, the provider adds no automatic breakpoints of its own to the messages. Anthropic Claude API only; at most 2 per request (system and tools use the other two slots)."""
+
 
 class ContentReasoning(ContentBase):
     """Reasoning content.

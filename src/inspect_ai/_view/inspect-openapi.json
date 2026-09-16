@@ -1939,6 +1939,17 @@
       "ContentText": {
         "description": "Text content.",
         "properties": {
+          "cache_breakpoint": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Breakpoint"
+          },
           "citations": {
             "anyOf": [
               {
@@ -5368,7 +5379,10 @@
           "cache_prompt": {
             "anyOf": [
               {
-                "const": "auto",
+                "enum": [
+                  "auto",
+                  "prefix"
+                ],
                 "type": "string"
               },
               {
