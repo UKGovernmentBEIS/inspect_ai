@@ -275,23 +275,35 @@ _REMINDER_SYSTEM_HOISTED_WARNING = (
     "(tool results map to user-role messages), which strips prior thinking and "
     "cache context on tool-use continuations."
 )
-# The 5m cache entry's TTL clock starts at prefill of the previous request, so
-# a gap since the previous request start exceeding the TTL means the cache has
-# expired and this request rewrites the full prefix regardless of the TTL we
-# choose — writing it at 1h then costs only the write premium on tokens already
-# being repaid, and protects the rest of the sample from further expiry.
+# The 5m cache entry's TTL clock starts at prefill of the request that wrote or
+# read it, so a gap since then exceeding the TTL means the cache has expired and
+# this request rewrites the full prefix regardless of the TTL we choose — writing
+# it at 1h then costs only the write premium on tokens already being repaid, and
+# protects the rest of the sample from further expiry.
 CACHE_TTL_ESCALATION_GAP = 300.0  # seconds (= the default 5m cache TTL)
 
-# backstop only — the active-sample registry prune in _resolve_cache_ttl is the
-# real cleanup; this should never fire unless a code path bypasses
+# TTL sent on the request whose usage is currently being recorded. Set per call
+# in _resolve_cache_ttl and read back by cache_write_ttl() for cost accounting:
+# the sample's escalation state is shared and sticky, so a sibling request that
+# escalates mid-flight (or a batched call, which never escalates) would
+# otherwise be billed at a TTL it was not sent with. Concurrent model calls run
+# as separate tasks with their own context copies, and both generate() and
+# compact() (which delegates to generate) resolve before the caller records
+# usage in that same task.
+_cache_write_ttl: ContextVar[Literal["5m", "1h"] | None] = ContextVar(
+    "anthropic_cache_write_ttl", default=None
+)
+
+# backstop only — the active-sample registry prune in _record_cache_ttl_refresh
+# is the real cleanup; this should never fire unless a code path bypasses
 # sample-completion removal from the registry
 _CACHE_TTL_STATE_MAX_SAMPLES = 10_000
 
 
 @dataclass
 class _SampleCacheTtlState:
-    last_request_start: float
-    """`time.monotonic()` at the start of the sample's last successful request."""
+    last_cached_request_start: float
+    """`time.monotonic()` at the start of the sample's last request that read or wrote the prompt cache."""
 
     escalated: bool = False
     """Sticky flag: sample observed a >5m gap and now uses the 1h TTL."""
@@ -549,11 +561,12 @@ class AnthropicAPI(ModelAPI):
         Otherwise ("auto", the default) requests start on the standard 5m TTL
         (returned as None so the `ttl` key is omitted from `cache_control`) and
         the active sample is escalated to the 1h TTL — permanently, for the
-        remainder of the sample — once the gap between two of its requests
-        exceeds the 5m TTL. At that point the cache has already expired and the
-        full prefix is being rewritten regardless, so the 1h write premium
-        applies only to tokens already being repaid while protecting the rest
-        of the sample (whose gaps have proven able to outlive the 5m TTL).
+        remainder of the sample — once the gap since its last request that
+        actually touched the prompt cache exceeds the 5m TTL. At that point the
+        cache has already expired and the full prefix is being rewritten
+        regardless, so the 1h write premium applies only to tokens already
+        being repaid while protecting the rest of the sample (whose gaps have
+        proven able to outlive the 5m TTL).
 
         Auto mode never escalates on non-first-party services (block-level
         `ttl` support on Bedrock/Vertex/Azure is unverified, and auto is the
@@ -562,11 +575,14 @@ class AnthropicAPI(ModelAPI):
         inter-request gap), or outside a sample context.
 
         The returned `request_start` is set only when gap tracking applied;
-        pass it to `_record_cache_ttl_refresh` once the request succeeds. A
-        failed attempt (rate limit, connection error) neither writes nor
-        refreshes the server-side cache, so it must not advance the gap
-        baseline — otherwise sub-TTL retry storms would mask real expiry.
+        pass it to `_record_cache_ttl_refresh` with the response usage once the
+        request succeeds.
         """
+        resolved = self._cache_ttl_for_request(config)
+        _cache_write_ttl.set(resolved.ttl)
+        return resolved
+
+    def _cache_ttl_for_request(self, config: GenerateConfig) -> _ResolvedCacheTtl:
         if self.cache_ttl in ("5m", "1h"):
             return _ResolvedCacheTtl(ttl=self.cache_ttl, request_start=None)
         if (
@@ -581,67 +597,80 @@ class AnthropicAPI(ModelAPI):
 
         now = time.monotonic()
         state = self._cache_ttl_state.get(active.sample_uuid)
+        if state is not None:
+            gap = now - state.last_cached_request_start
+            if not state.escalated and gap > CACHE_TTL_ESCALATION_GAP:
+                state.escalated = True
+                logger.info(
+                    f"anthropic prompt cache: gap of {gap:.0f}s since the last "
+                    f"cached request exceeded the {CACHE_TTL_ESCALATION_GAP:.0f}s "
+                    f"cache TTL for sample {active.sample_uuid}; using the 1h "
+                    "cache TTL for the remainder of the sample (cache writes "
+                    "billed at 2x base input price rather than 1.25x)."
+                )
+            self._cache_ttl_state.move_to_end(active.sample_uuid)
+
+        return _ResolvedCacheTtl(
+            ttl="1h" if state is not None and state.escalated else None,
+            request_start=now,
+        )
+
+    def _record_cache_ttl_refresh(
+        self, resolved: _ResolvedCacheTtl, usage: ModelUsage | None
+    ) -> None:
+        """Advance the sample's cache baseline after a request that used the cache.
+
+        Only a response reporting a cache read or write proves an entry exists
+        whose TTL clock started at this request, so only those establish the
+        baseline a later gap is measured against. Requests that never reached
+        the API (rate limit, connection error) and those the server declined to
+        cache (a prefix below the model's minimum cacheable length, which
+        silently reports zero cache tokens) leave the baseline alone —
+        otherwise a long retry backoff or a stretch of short prompts would
+        escalate a sample whose first real cache write is still ahead of it,
+        billing that unavoidable write at 2x rather than 1.25x.
+
+        The cache entry the next request reads is written/refreshed at prefill
+        (near request start), so the baseline is the request's start time — not
+        its completion.
+        """
+        if resolved.request_start is None:
+            return
+        if usage is None or not (
+            (usage.input_tokens_cache_write or 0)
+            or (usage.input_tokens_cache_read or 0)
+        ):
+            return
+        active = sample_active()
+        if active is None:
+            return
+        state = self._cache_ttl_state.get(active.sample_uuid)
         if state is None:
             # prune state for samples that have completed (they are removed
             # from the active-sample registry); once per sample, not per request
             live = {sample.sample_uuid for sample in active_samples()}
             for uuid in [k for k in self._cache_ttl_state if k not in live]:
                 del self._cache_ttl_state[uuid]
-            state = _SampleCacheTtlState(last_request_start=now)
-            self._cache_ttl_state[active.sample_uuid] = state
-        else:
-            gap = now - state.last_request_start
-            if not state.escalated and gap > CACHE_TTL_ESCALATION_GAP:
-                state.escalated = True
-                logger.info(
-                    f"anthropic prompt cache: gap of {gap:.0f}s between requests "
-                    f"exceeded the {CACHE_TTL_ESCALATION_GAP:.0f}s cache TTL for "
-                    f"sample {active.sample_uuid}; using the 1h cache TTL for the "
-                    "remainder of the sample (cache writes billed at 2x base "
-                    "input price rather than 1.25x)."
-                )
-            self._cache_ttl_state.move_to_end(active.sample_uuid)
-
-        while len(self._cache_ttl_state) > _CACHE_TTL_STATE_MAX_SAMPLES:
-            self._cache_ttl_state.popitem(last=False)
-
-        return _ResolvedCacheTtl(
-            ttl="1h" if state.escalated else None, request_start=now
-        )
-
-    def _record_cache_ttl_refresh(self, resolved: _ResolvedCacheTtl) -> None:
-        """Advance the sample's gap baseline after a successful request.
-
-        The cache entry the next request reads is written/refreshed at prefill
-        (near request start), so the baseline is the request's start time — not
-        its completion — and only requests that actually reached the API move
-        it.
-        """
-        if resolved.request_start is None:
-            return
-        active = sample_active()
-        if active is not None:
-            state = self._cache_ttl_state.get(active.sample_uuid)
+            self._cache_ttl_state[active.sample_uuid] = _SampleCacheTtlState(
+                last_cached_request_start=resolved.request_start
+            )
+            while len(self._cache_ttl_state) > _CACHE_TTL_STATE_MAX_SAMPLES:
+                self._cache_ttl_state.popitem(last=False)
+        elif resolved.request_start > state.last_cached_request_start:
             # ignore out-of-order completions from parallel calls in one sample
-            if state is not None and resolved.request_start > state.last_request_start:
-                state.last_request_start = resolved.request_start
+            state.last_cached_request_start = resolved.request_start
 
     @override
     def cache_write_ttl(self) -> str | None:
-        # Read-side counterpart of _resolve_cache_ttl for cost accounting: usage
-        # is recorded in the same sample context and escalation is sticky, so
-        # this matches the TTL resolved before the call. Bounded imprecision in
-        # an escalated sample: a parallel request in flight at the escalation
-        # instant, or a per-call batch=True request (whose resolve skips
-        # escalation), is billed at the 1h rate though sent at 5m.
+        # the TTL this call was actually sent with (see _cache_write_ttl), not
+        # the sample's current escalation state — a sibling request may have
+        # escalated the sample while this one was in flight. Residual: server
+        # tools insert their own 5m cache write after tool results, which an
+        # escalated sample still bills at 1h; only mapping the ephemeral_5m/1h
+        # split from response usage would price those exactly.
         if self.cache_ttl in ("5m", "1h"):
             return self.cache_ttl
-        active = sample_active()
-        if active is not None:
-            state = self._cache_ttl_state.get(active.sample_uuid)
-            if state is not None and state.escalated:
-                return "1h"
-        return None
+        return _cache_write_ttl.get()
 
     async def generate(
         self,
@@ -823,7 +852,7 @@ class AnthropicAPI(ModelAPI):
                     output.metadata or {}
                 ) | forced_tool_choice_degraded_metadata(tool_choice)
 
-            self._record_cache_ttl_refresh(resolved_cache_ttl)
+            self._record_cache_ttl_refresh(resolved_cache_ttl, output.usage)
 
             return output, model_call
 

@@ -11,14 +11,17 @@ server-side `fallback` blocks (which the API rejects with
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, Literal, cast
 
+import anyio
 import pytest
 from anthropic.types import MessageParam, TextBlockParam
 
 import inspect_ai.model._providers.anthropic as anthropic_module
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.model._providers.anthropic import (
     AnthropicAPI,
     add_cache_control,
@@ -315,6 +318,14 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> _Clock:
     return clock
 
 
+@pytest.fixture(autouse=True)
+def reset_cache_write_ttl() -> Iterator[None]:
+    """Keep the per-call billed-TTL context var from leaking between tests."""
+    token = anthropic_module._cache_write_ttl.set(None)
+    yield
+    anthropic_module._cache_write_ttl.reset(token)
+
+
 def _sample(uuid: str) -> SimpleNamespace:
     return SimpleNamespace(sample_uuid=uuid)
 
@@ -336,13 +347,25 @@ def _auto_api(**kwargs: Any) -> AnthropicAPI:
     return AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key", **kwargs)
 
 
+# usage of a response that wrote the prompt cache vs. one the server declined
+# to cache (a prefix below the model's minimum cacheable length reports zero
+# cache tokens rather than erroring)
+_CACHED_USAGE = ModelUsage(
+    input_tokens=100, output_tokens=10, input_tokens_cache_write=2000
+)
+_UNCACHED_USAGE = ModelUsage(input_tokens=100, output_tokens=10)
+
+
 def _resolve(
-    api: AnthropicAPI, config: GenerateConfig | None = None, succeed: bool = True
+    api: AnthropicAPI,
+    config: GenerateConfig | None = None,
+    succeed: bool = True,
+    usage: ModelUsage | None = _CACHED_USAGE,
 ) -> Literal["5m", "1h"] | None:
     """Resolve the TTL as generate() does, recording the refresh on success."""
     resolved = api._resolve_cache_ttl(config or GenerateConfig())
     if succeed:
-        api._record_cache_ttl_refresh(resolved)
+        api._record_cache_ttl_refresh(resolved, usage)
     return resolved.ttl
 
 
@@ -381,6 +404,38 @@ def test_resolve_cache_ttl_failed_attempts_do_not_reset_gap(
     assert _resolve(api, succeed=False) is None  # 250s gap, attempt fails
     clock.advance(250)
     assert _resolve(api) == "1h"  # 500s since the last *successful* request
+
+
+def test_resolve_cache_ttl_first_attempt_failure_does_not_escalate(
+    clock: _Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a sample whose very first attempt fails has nothing cached, so a retry
+    # backoff longer than the TTL must not escalate it — that first successful
+    # request writes the full prefix either way, and 1h would bill it at 2x
+    api = _auto_api()
+    _set_samples(monkeypatch, _sample("s1"))
+    assert _resolve(api, succeed=False) is None
+    clock.advance(400)
+    assert _resolve(api) is None
+    assert api.cache_write_ttl() is None
+    # the successful request established the baseline, so expiry after it does
+    clock.advance(301)
+    assert _resolve(api) == "1h"
+
+
+def test_resolve_cache_ttl_uncached_responses_do_not_establish_baseline(
+    clock: _Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a prefix below the model's minimum cacheable length is silently not
+    # cached (zero cache tokens, no error), so it cannot start a TTL clock
+    api = _auto_api()
+    _set_samples(monkeypatch, _sample("s1"))
+    assert _resolve(api, usage=_UNCACHED_USAGE) is None
+    assert api._cache_ttl_state == {}
+    clock.advance(400)
+    assert _resolve(api) is None  # first request that actually caches
+    clock.advance(301)
+    assert _resolve(api) == "1h"
 
 
 def test_resolve_cache_ttl_samples_escalate_independently(
@@ -523,6 +578,55 @@ def test_cache_write_ttl_auto(clock: _Clock, monkeypatch: pytest.MonkeyPatch) ->
     clock.advance(301)
     _resolve(api)
     assert api.cache_write_ttl() == "1h"
+
+
+def test_cache_write_ttl_batch_call_in_escalated_sample(
+    clock: _Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a batched request never escalates, so it is sent at 5m and must be billed
+    # at 5m even though the sample around it has escalated
+    api = _auto_api()
+    _set_samples(monkeypatch, _sample("s1"))
+    _resolve(api)
+    clock.advance(301)
+    assert _resolve(api) == "1h"
+    assert api.cache_write_ttl() == "1h"
+    assert _resolve(api, GenerateConfig(batch=True)) is None
+    assert api.cache_write_ttl() is None
+
+
+async def test_cache_write_ttl_unaffected_by_concurrent_escalation(
+    clock: _Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A request in flight when a sibling escalates is still billed at 5m."""
+    api = _auto_api()
+    _set_samples(monkeypatch, _sample("s1"))
+    _resolve(api)  # establish the baseline
+
+    in_flight_resolved = anyio.Event()
+    sibling_escalated = anyio.Event()
+    billed: dict[str, str | None] = {}
+
+    async def in_flight() -> None:
+        # resolved before the sibling escalates the sample
+        assert api._resolve_cache_ttl(GenerateConfig()) is not None
+        in_flight_resolved.set()
+        await sibling_escalated.wait()
+        billed["in_flight"] = api.cache_write_ttl()
+
+    async def sibling() -> None:
+        await in_flight_resolved.wait()
+        clock.advance(301)
+        assert api._resolve_cache_ttl(GenerateConfig()).ttl == "1h"
+        billed["sibling"] = api.cache_write_ttl()
+        sibling_escalated.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(in_flight)
+        tg.start_soon(sibling)
+
+    assert billed["sibling"] == "1h"
+    assert billed["in_flight"] is None
 
 
 def test_model_api_cache_write_ttl_default() -> None:

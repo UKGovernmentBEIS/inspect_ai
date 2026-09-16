@@ -1038,7 +1038,7 @@ async def test_anthropic_auto_cache_ttl_threads_into_request(
         import time
 
         api._cache_ttl_state["sample-1"] = _SampleCacheTtlState(
-            last_request_start=time.monotonic(), escalated=True
+            last_cached_request_start=time.monotonic(), escalated=True
         )
 
     captured: dict[str, Any] = {}
@@ -1115,7 +1115,7 @@ async def test_anthropic_auto_cache_ttl_escalates_via_generate(
 
     requests: list[dict[str, Any]] = []
 
-    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.model._model_output import ModelOutput, ModelUsage
 
     async def fake_perform(
         request: dict[str, Any],
@@ -1127,9 +1127,12 @@ async def test_anthropic_auto_cache_ttl_escalates_via_generate(
         span_recorder: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         requests.append(dict(request))
-        return {}, ModelOutput.from_content(
-            model=api.service_model_name(), content="ok"
+        output = ModelOutput.from_content(model=api.service_model_name(), content="ok")
+        # the gap baseline only advances on a response that used the cache
+        output.usage = ModelUsage(
+            input_tokens=100, output_tokens=10, input_tokens_cache_write=2000
         )
+        return {}, output
 
     monkeypatch.setattr(api, "_perform_request_and_continuations", fake_perform)
 
