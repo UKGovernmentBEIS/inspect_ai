@@ -1,3 +1,4 @@
+import re
 from collections import deque
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
@@ -299,32 +300,71 @@ def _resolve_by_served_content(
     The description is the key: the scaffolds forward the MCP description to
     their models unchanged (verified per scaffold in the PR), so equality after
     trimming whitespace identifies the tool whatever name it was given. An empty
-    description identifies nothing. When several bridged tools share a
-    description, the input schema breaks the tie, conservatively: scaffolds do
-    rewrite schemas, so only property and required names are compared, as a
-    subset (`_same_schema_shape`). Tools that still cannot be told apart are all
-    returned, and the caller fails closed on more than one.
+    description identifies nothing. Failing an exact match, a declaration that is
+    a truncation of a served description identifies it too
+    (`_is_truncation_of`), since a scaffold may cut a long description before
+    the model sees it. When several bridged tools match, the input schema breaks
+    the tie, conservatively: scaffolds do rewrite schemas, so only property and
+    required names are compared, as a subset (`_same_schema_shape`). Tools that
+    still cannot be told apart are all returned, and the caller fails closed on
+    more than one; the one cost of the truncation rule is that a truncated
+    description which is a prefix of two bridged tools' descriptions, or a
+    bridged tool whose whole description is a prefix of another's, is ambiguous.
     """
     targets: list[_BridgedToolId] = []
     for declaration in declarations:
         description = declaration.description.strip()
         if not description:
             continue
-        described = [
+        matched = [
             tool_id
             for tool_id, info in served.items()
             if info.description.strip() == description
+        ] or [
+            tool_id
+            for tool_id, info in served.items()
+            if _is_truncation_of(description, info.description.strip())
         ]
-        if len(described) > 1:
+        if len(matched) > 1:
             shaped = [
                 tool_id
-                for tool_id in described
+                for tool_id in matched
                 if _same_schema_shape(served[tool_id], declaration)
             ]
             if shaped:
-                described = shaped
-        targets.extend(tool_id for tool_id in described if tool_id not in targets)
+                matched = shaped
+        targets.extend(tool_id for tool_id in matched if tool_id not in targets)
     return targets
+
+
+_MIN_TRUNCATED_PREFIX = 64
+"""Shortest declared text accepted as a truncation of a served description.
+
+Longer than inspect's shortest built-in tool descriptions (`bash`, 43
+characters; `text_editor`, 51) and far below any scaffold's truncation limit
+(the one known, Claude Code's, is 2048), so a genuine truncation always
+qualifies while a short description can never match another tool's as an
+accidental prefix.
+"""
+
+_TRAILING_NON_ALNUM = re.compile(r"[^0-9A-Za-z]+$")
+_TRAILING_NON_ALNUM_KEEPING_CLOSERS = re.compile(r"[^0-9A-Za-z\])]+$")
+_TRAILING_BRACKETED = re.compile(r"[(\[][^()\[\]]{1,24}[)\]]$")
+
+
+def _is_truncation_of(declared: str, served: str) -> bool:
+    """Whether a declared description is a served description cut short.
+
+    Scaffold-agnostic: no scaffold's marker is looked for. A trailing run of
+    non-alphanumeric characters (an ellipsis, ``...``) and at most one short
+    bracketed suffix (``[truncated]``, ``[...]``) are dropped, then the rest must
+    be at least `_MIN_TRUNCATED_PREFIX` characters and a prefix of the served
+    text. A scaffold that rewrites the leading text is not tolerated.
+    """
+    prefix = _TRAILING_NON_ALNUM_KEEPING_CLOSERS.sub("", declared)
+    prefix = _TRAILING_BRACKETED.sub("", prefix)
+    prefix = _TRAILING_NON_ALNUM.sub("", prefix)
+    return len(prefix) >= _MIN_TRUNCATED_PREFIX and served.startswith(prefix)
 
 
 def _same_schema_shape(served: ToolInfo, declaration: ToolInfo) -> bool:

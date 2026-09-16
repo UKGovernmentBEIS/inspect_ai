@@ -865,6 +865,130 @@ async def test_description_selects_the_server_whatever_the_name() -> None:
 
 
 # ---------------------------------------------------------------------------
+# truncated descriptions
+# ---------------------------------------------------------------------------
+
+LONG = "Read a file from the host and return its contents. " * 60
+"""A served description far longer than any scaffold's limit (about 3000 chars)."""
+
+
+@pytest.mark.parametrize(
+    "declared",
+    [
+        LONG[:2048] + "… [truncated]",
+        LONG[:2048] + "...",
+        LONG[:100] + " [...]",
+        LONG[:100].rstrip() + "…",
+    ],
+    ids=["claude-code-style", "ellipsis", "bracketed", "single-ellipsis-char"],
+)
+async def test_truncated_description_resolves(declared: str) -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(tool, LONG)}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=declared),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
+
+
+async def test_truncation_shorter_than_the_minimum_prefix_does_not_resolve() -> None:
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), LONG)}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=LONG[:40] + "..."),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+def two_tools_sharing_a_prefix(
+    parameters_a: tuple[str, ...], parameters_b: tuple[str, ...]
+) -> SandboxAgentBridge:
+    return sandbox_bridge_with_servers(
+        {
+            "a": {
+                "read_file": served_tool(
+                    AsyncMock(), LONG + " Text files only.", parameters_a
+                )
+            },
+            "b": {
+                "read_file": served_tool(
+                    AsyncMock(), LONG + " Any file type.", parameters_b
+                )
+            },
+        }
+    )
+
+
+async def test_truncation_matching_two_tools_falls_to_the_schema_tiebreaker() -> None:
+    bridge = two_tools_sharing_a_prefix(("path",), ("path", "encoding"))
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=LONG[:2048] + "… [truncated]"),
+    )
+
+    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+
+
+async def test_truncation_matching_two_tools_of_one_shape_fails_closed() -> None:
+    bridge = two_tools_sharing_a_prefix(("path",), ("path",))
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=LONG[:2048] + "… [truncated]"),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_served_description_that_prefixes_another_fails_closed_when_truncated() -> (
+    None
+):
+    """A truncation ending exactly at the shorter description could be either tool."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), LONG)},
+            "b": {"read_file": served_tool(AsyncMock(), LONG + " Any file type.")},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=LONG.rstrip() + "…"),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_exact_match_wins_over_a_prefix_match() -> None:
+    """A declaration equal to the shorter description is that tool; the scaffold forwarded it whole."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), LONG)},
+            "b": {"read_file": served_tool(AsyncMock(), LONG + " Any file type.")},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=LONG),
+    )
+
+    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+
+
+# ---------------------------------------------------------------------------
 # the dispatcher shape (Antigravity's call_mcp_tool)
 # ---------------------------------------------------------------------------
 
