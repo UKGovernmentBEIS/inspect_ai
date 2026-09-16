@@ -103,11 +103,13 @@ Layout under the same ``/root/.cache/inspect/`` root as :mod:`.repo`:
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import io
 import os
 import re
 import shutil
+import subprocess
 import tarfile
 from collections.abc import Collection, Iterator, Sequence
 from contextlib import contextmanager
@@ -125,6 +127,7 @@ from .._async_fs import async_mkdir
 from .._copy import DEFAULT_COPY_CHUNK_SIZE, copy_out
 from .._repo_ops import (
     SNAPSHOT_ID_RE,
+    _kill,
     list_snapshots,
     match_snapshot_id,
     walk_snapshot_nodes,
@@ -147,6 +150,10 @@ _MEMBER_RE = re.compile(
 _FIRST_CYCLE_ONLY = ("config", "keys/")
 _HASH_CHUNK = 1024 * 1024
 _MAX_TAR_METADATA_BYTES = 64 * 1024
+_MAX_VIEW_STDERR_BYTES = 64 * 1024
+"""Most of a validation command's stderr kept for the error: the view is
+built from sandbox-supplied bytes, so restic's diagnostics are attacker-shaped
+and can dwarf the input (one forged index can produce megabytes)."""
 
 
 class EgressVerificationError(RuntimeError):
@@ -875,9 +882,54 @@ def _merge_rank(name: str) -> int:
 
 
 def _hardlink_into(src: Path, dst: Path) -> None:
-    """Hard-link ``src`` to ``dst``, creating ``dst``'s parent."""
+    """Hard-link ``src`` to ``dst`` (creating the parent), copying if links fail.
+
+    For the throwaway validation view: a hard link is O(1) and shares the
+    accepted file's inode, which is safe because the view is only read. A
+    filesystem without hard links (exFAT/FAT, some CIFS and NFS mounts)
+    refuses ``os.link`` with an ``OSError`` such as ``EPERM`` or
+    ``ENOTSUP``; then the file is copied, costing O(bytes) but keeping the
+    checkpoint working. ``FileExistsError`` is never swallowed — a name
+    already present is a bug, not a missing feature.
+    """
     dst.parent.mkdir(parents=True, exist_ok=True)
-    os.link(src, dst)
+    try:
+        os.link(src, dst)
+    except FileExistsError:
+        raise
+    except OSError:
+        shutil.copyfile(src, dst)
+
+
+def _publish_into(src: Path, dst: Path) -> None:
+    """Publish ``src`` at ``dst`` in the accepted repo, never replacing a file.
+
+    The fast path is a hard link, which is atomic and fails with
+    ``FileExistsError`` rather than overwrite. Where the filesystem refuses
+    links the file is copied to ``dst``'s ``.partial`` sibling and renamed
+    into place, so the final name only ever holds a complete file and a
+    hard kill mid-copy leaves a ``.partial`` that the next fire's
+    ``_scan_repo_files`` sweeps. The no-overwrite rule is kept by refusing
+    an existing ``dst`` before the rename (this sandbox is the only writer
+    of its repo, so the check-then-rename is not racy).
+    """
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(src, dst)
+        return
+    except FileExistsError:
+        raise
+    except OSError:
+        pass
+    if dst.exists():
+        raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), str(dst))
+    tmp = dst.with_name(f"{dst.name}.partial")
+    try:
+        shutil.copyfile(src, tmp)
+        os.replace(tmp, dst)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _build_validation_view(
@@ -897,7 +949,8 @@ def _build_validation_view(
     repo. Hard links keep it O(files), not O(bytes); the validation only
     reads the repo, so sharing inodes with the accepted files is safe. The
     accepted repo and the staging dir share one filesystem (staging is a
-    sibling of the accepted repo), so every link resolves.
+    sibling of the accepted repo), so every link resolves; a filesystem
+    without hard links falls back to copying (:func:`_hardlink_into`).
     """
     view.mkdir(parents=True, exist_ok=True)
     src_repo = Path(existing_repo)
@@ -908,26 +961,28 @@ def _build_validation_view(
 
 
 def _merge_into_repo(dest_repo: str, staging: Path, written: Sequence[str]) -> None:
-    """Hard-link this fire's validated new files into the accepted repo.
+    """Publish this fire's validated new files into the accepted repo.
 
     Reached only once the temporary view validated, so the accepted repo
     gains only files ``restic check --read-data`` accepted. Files are
-    linked in restic-layout order (keys, config, packs, indexes,
-    snapshots), so an interruption — including a hard kill, which cannot
-    unwind — leaves the accepted repo valid at every prefix: a snapshot is
-    never linked before the index and packs it references, and ``config``
-    never before its key. A new member never collides with an accepted
-    file (an identical re-ship is not in ``written``); ``os.link`` raises
-    rather than overwrite if one somehow does, so an accepted file is
-    never replaced. An ordinary failure unwinds this fire's links,
-    last-linked first, leaving the accepted repo unchanged.
+    published in restic-layout order (keys, config, packs, indexes,
+    snapshots), each atomically (:func:`_publish_into`: a hard link, or a
+    copy renamed into place where links are unsupported), so an
+    interruption — including a hard kill, which cannot unwind — leaves the
+    accepted repo valid at every prefix: a snapshot never appears before
+    the index and packs it references, and ``config`` never before its
+    key. A new member never collides with an accepted file (an identical
+    re-ship is not in ``written``); a collision raises rather than
+    overwrites, so an accepted file is never replaced. An ordinary failure
+    unwinds this fire's files, last-published first, leaving the accepted
+    repo unchanged.
     """
     dest = Path(dest_repo)
     ordered = sorted(written, key=lambda name: (_merge_rank(name), name))
     linked: list[str] = []
     try:
         for name in ordered:
-            _hardlink_into(staging / name, dest / name)
+            _publish_into(staging / name, dest / name)
             linked.append(name)
     except BaseException:
         for name in reversed(linked):
@@ -1094,17 +1149,56 @@ async def _run_view_restic(
     A non-zero exit is a rejected transfer, not a host error: the view is
     built from sandbox-supplied bytes, so a failure here means the
     additions are inconsistent with the accepted repo.
+
+    The process's output is attacker-shaped too — one forged index can make
+    restic print megabytes of diagnostics — so neither pipe is buffered
+    whole: stdout (progress) is drained and dropped, and only the first
+    :data:`_MAX_VIEW_STDERR_BYTES` of stderr are kept for the error, with a
+    marker when more was cut. Memory is bounded by one pipe chunk plus
+    that cap, whatever the view makes restic say. A cancellation or
+    failure while the child runs kills it before propagating, so no restic
+    outlives the fire.
     """
-    proc = await anyio.run_process(
-        [str(host_restic), "-r", str(view), *args, "--no-lock", "--no-cache"],
+    command = [str(host_restic), "-r", str(view), *args, "--no-lock", "--no-cache"]
+    stderr = bytearray()
+    truncated = False
+    async with await anyio.open_process(
+        command,
         env=restic_env(password),
-        check=False,
-    )
-    if proc.returncode != 0:
-        stderr = proc.stderr.decode(errors="replace").strip()
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as proc:
+        assert proc.stdout is not None and proc.stderr is not None
+        stdout_stream, stderr_stream = proc.stdout, proc.stderr
+
+        async def drain_stdout() -> None:
+            async for _ in stdout_stream:
+                pass
+
+        async def drain_stderr() -> None:
+            nonlocal truncated
+            async for chunk in stderr_stream:
+                room = _MAX_VIEW_STDERR_BYTES - len(stderr)
+                if room > 0:
+                    stderr.extend(chunk[:room])
+                if len(chunk) > room:
+                    truncated = True
+
+        try:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(drain_stdout)
+                tg.start_soon(drain_stderr)
+        except BaseException:
+            _kill(proc)
+            raise
+        returncode = await proc.wait()
+    if returncode != 0:
+        detail = stderr.decode(errors="replace").strip()
+        if truncated:
+            detail += f" [stderr truncated to {_MAX_VIEW_STDERR_BYTES} bytes]"
         raise EgressVerificationError(
             f"{label}: the received repository files failed validation "
-            f"({what}) against a view of the accepted repository: {stderr}"
+            f"({what}) against a view of the accepted repository: {detail}"
         )
 
 

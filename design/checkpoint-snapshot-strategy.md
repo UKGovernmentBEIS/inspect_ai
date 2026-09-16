@@ -448,9 +448,27 @@ indexes, trees, and snapshots; validation establishes only that the view
 is loadable and internally consistent, not that its captures are honest —
 which does not matter, because the sandbox already controls its own
 current capture. What it can no longer do is reach back and break or
-corrupt a checkpoint an earlier fire committed. The cost is a
-`check --read-data` per fire, which reads the whole repository and so
-grows with accumulated history, not just the increment.
+corrupt a checkpoint an earlier fire committed.
+
+Cost. Every fire re-reads the whole accepted repository (`check
+--read-data` on the view), so the per-fire cost is proportional to
+accumulated history and a run's cumulative validation I/O is quadratic in
+checkpoint count. Measured on restic 0.18.1 (Apple M4 Max, local SSD;
+reproduction in the #5443 PR body): per fire ≈ 1.0 s fixed (two restic
+key derivations for `snapshots` and `ls`) + 0.5 s + 0.7 s per GB of
+repository for `check --read-data` (≈ 1.45 CPU-s/GB, ≤ 125 MB RSS up to
+1.4 GB, memory tracking index size not data), + 0.24 ms per repository
+file to hard-link the view (0.07 s at 240 files; 4.9 s at 20 000). So a
+1.4 GB repo validates in ≈ 2.5 s per fire, and 40 fires that grew a repo
+to 1.4 GB spent 79 s validating in total; 52 small fires (112 MB) cost
+≈ 1.6 s each, dominated by the fixed floor. Restic's output on the view
+is attacker-shaped and is streamed with a 64 KiB stderr bound rather than
+buffered. The per-transfer cap bounds each increment, not the total, and
+nothing prunes mid-run, so the check's read cost keeps growing at ≈ 0.7
+s/GB; at 10 GB it is ≈ 8 s per fire. Routine turn and time triggers stay
+practical at checkpoint scales seen so far; a longer trigger interval is
+the operator's lever, and any relaxation of `--read-data` would trade
+away the guarantee above and is a design decision, not a tuning knob.
 
 ### 4.7 Strategy identity is recorded and pinned
 

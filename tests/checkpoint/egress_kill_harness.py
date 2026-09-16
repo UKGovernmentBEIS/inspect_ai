@@ -29,6 +29,7 @@ that subsequent fire against the killed repo.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import signal
@@ -48,6 +49,8 @@ from inspect_ai.util._restic import ResticBackupSummary, resolve_restic
 
 PASSWORD = "test-password"
 CAP = 1 << 30
+NO_LINKS_ENV = "EGRESS_KILL_NO_LINKS"
+"""Set in the child's environment to run the fire without hard links."""
 
 # boundary name -> the highest merge rank to link before the kill fires
 # (see egress._merge_rank: keys 1, config 2, data 3, index 4, snapshots 5).
@@ -138,7 +141,7 @@ def _install_validation_kill() -> None:
 def _install_merge_kill(boundary: str) -> None:
     target = _MERGE_KILL_RANK[boundary]
     real_merge = egress._merge_into_repo
-    real_link = egress._hardlink_into
+    real_publish = egress._publish_into
 
     def wrapped_merge(dest_repo: str, staging: Path, written: Any) -> None:
         ordered = sorted(written, key=lambda n: (egress._merge_rank(n), n))
@@ -147,15 +150,20 @@ def _install_merge_kill(boundary: str) -> None:
         counter = {"n": 0}
 
         def counting(src: Path, dst: Path) -> None:
-            real_link(src, dst)
+            real_publish(src, dst)
             counter["n"] += 1
             if counter["n"] >= kill_after:
                 os.kill(os.getpid(), signal.SIGKILL)
 
-        egress._hardlink_into = counting
+        egress._publish_into = counting
         real_merge(dest_repo, staging, written)
 
     egress._merge_into_repo = wrapped_merge
+
+
+def _no_link(src: Any, dst: Any, *args: Any, **kwargs: Any) -> None:
+    """Stand in for ``os.link`` on a filesystem without hard links."""
+    raise OSError(errno.EPERM, "Operation not permitted (no hard links)")
 
 
 def _write_info(workdir: Path, state: _State, id_a: str | None) -> None:
@@ -187,6 +195,10 @@ def _reopen(info: dict[str, str]) -> _State:
 async def _run(workdir: Path, boundary: str) -> None:
     fs = asyncfiles.AsyncFilesystem()
     asyncfiles._current_async_fs.set(fs)
+    if os.environ.get(NO_LINKS_ENV):
+        # Model a destination filesystem that refuses hard links, so the
+        # kill lands on the copy-and-rename publication path instead.
+        os.link = _no_link
     restic = await resolve_restic()
     state = await _setup(workdir, restic)
     if boundary.startswith("first_cycle"):
@@ -208,17 +220,25 @@ async def _run(workdir: Path, boundary: str) -> None:
     sys.exit(17)
 
 
-async def recover(workdir: str) -> dict[str, str]:
+async def recover(workdir: str, *, no_links: bool = False) -> dict[str, str]:
     """Run a fresh fire against the killed repo; return the verified id.
 
     Called in-process by the parent test. Proves the accepted repo is not
     wedged: a new checkpoint commits, absorbing any orphan the kill left.
+    With ``no_links`` the fire runs on the copy-and-rename publication
+    path, as the killed child did.
     """
     fs = asyncfiles.AsyncFilesystem()
     asyncfiles._current_async_fs.set(fs)
     state = _reopen(json.loads((Path(workdir) / "info.json").read_text()))
     id_next = _backup(state, "ckpt-00003", "v3\n")
-    verified = await _egress(state, "ckpt-00003", id_next)
+    if no_links:
+        from unittest.mock import patch
+
+        with patch.object(os, "link", _no_link):
+            verified = await _egress(state, "ckpt-00003", id_next)
+    else:
+        verified = await _egress(state, "ckpt-00003", id_next)
     return {"verified": verified, "expected": id_next}
 
 

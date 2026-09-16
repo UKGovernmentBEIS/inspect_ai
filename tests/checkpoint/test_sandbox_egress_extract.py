@@ -13,6 +13,7 @@ within the byte cap. A failure leaves the destination as it was found.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import io
 import tarfile
@@ -25,8 +26,10 @@ import pytest
 
 from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     EgressVerificationError,
+    _build_validation_view,
     _extract_verified,
     _merge_into_repo,
+    _publish_into,
     _remove_files,
 )
 
@@ -459,26 +462,26 @@ def test_merge_into_repo_links_in_layout_order(tmp_path: Path) -> None:
 
 
 def test_merge_into_repo_unwinds_on_failure(tmp_path: Path) -> None:
-    """A merge that fails part-way removes its own links, last first."""
+    """A merge that fails part-way removes its own files, last first."""
     staging = tmp_path / "staging"
     dest = tmp_path / "dest"
     written = ["data/ab/p", "index/i", "snapshots/s"]
     _stage(staging, written)
-    real_link = __import__("os").link
+    real_publish = _publish_into
 
-    def failing(src: str, dst: str) -> None:
-        if Path(dst).name == "i":
+    def failing(src: Path, dst: Path) -> None:
+        if dst.name == "i":
             raise OSError("disk full")
-        real_link(src, dst)
+        real_publish(src, dst)
 
     with patch(
-        "inspect_ai.util._checkpoint._sandbox_restic.egress.os.link", new=failing
+        "inspect_ai.util._checkpoint._sandbox_restic.egress._publish_into", new=failing
     ):
         with pytest.raises(OSError, match="disk full"):
             _merge_into_repo(str(dest), staging, written)
 
-    # The one pack that was linked before the failure is removed again.
-    assert not list(dest.rglob("*")) or not any(p.is_file() for p in dest.rglob("*"))
+    # The one pack published before the failure is removed again.
+    assert not any(p.is_file() for p in dest.rglob("*"))
 
 
 def test_merge_into_repo_never_overwrites_an_accepted_file(tmp_path: Path) -> None:
@@ -495,3 +498,80 @@ def test_merge_into_repo_never_overwrites_an_accepted_file(tmp_path: Path) -> No
 
     # The accepted file is untouched.
     assert (dest / name).read_bytes() == b"accepted bytes"
+
+
+def _no_link(src: object, dst: object, *args: object, **kwargs: object) -> None:
+    """Stand in for ``os.link`` on a filesystem without hard links (exFAT, some CIFS/NFS)."""
+    raise OSError(errno.EPERM, "Operation not permitted (no hard links)")
+
+
+_LINK = "inspect_ai.util._checkpoint._sandbox_restic.egress.os.link"
+
+
+def test_merge_into_repo_copies_when_hard_links_unsupported(tmp_path: Path) -> None:
+    """Without hard links the merge publishes by copy, atomically, in order.
+
+    Each file is copied to a ``.partial`` sibling and renamed into place, so
+    the final name only ever holds a complete file; nothing partial is left
+    behind and the content matches the staged bytes.
+    """
+    staging = tmp_path / "staging"
+    dest = tmp_path / "dest"
+    written = ["snapshots/s", "index/i", "data/ab/p", "config", "keys/k"]
+    _stage(staging, written)
+
+    with patch(_LINK, new=_no_link):
+        _merge_into_repo(str(dest), staging, written)
+
+    for name in written:
+        assert (dest / name).read_bytes() == name.encode()
+        assert (dest / name).stat().st_nlink == 1  # a copy, not a link
+    assert not list(dest.rglob("*.partial"))
+
+
+def test_publish_copy_fallback_never_overwrites_an_accepted_file(
+    tmp_path: Path,
+) -> None:
+    """The copy path keeps the no-overwrite rule a hard link gives for free."""
+    staging = tmp_path / "staging"
+    dest = tmp_path / "dest"
+    name = f"data/ab/{hashlib.sha256(b'x').hexdigest()}"
+    _stage(staging, [name])
+    (dest / name).parent.mkdir(parents=True, exist_ok=True)
+    (dest / name).write_bytes(b"accepted bytes")
+
+    with patch(_LINK, new=_no_link):
+        with pytest.raises(FileExistsError):
+            _publish_into(staging / name, dest / name)
+
+    assert (dest / name).read_bytes() == b"accepted bytes"
+    assert not list(dest.rglob("*.partial"))
+
+
+def test_build_validation_view_copies_when_hard_links_unsupported(
+    tmp_path: Path,
+) -> None:
+    """The throwaway view is built by copying where hard links are refused."""
+    accepted = tmp_path / "accepted"
+    staging = tmp_path / "staging"
+    view = tmp_path / "view"
+    _stage(accepted, ["config", "data/ab/old"])
+    _stage(staging, ["data/cd/new", "index/i"])
+
+    with patch(_LINK, new=_no_link):
+        _build_validation_view(
+            view,
+            existing_repo=str(accepted),
+            existing=["config", "data/ab/old"],
+            staging=staging,
+            written=["data/cd/new", "index/i"],
+        )
+
+    assert {p.relative_to(view).as_posix() for p in view.rglob("*") if p.is_file()} == {
+        "config",
+        "data/ab/old",
+        "data/cd/new",
+        "index/i",
+    }
+    assert (view / "data/ab/old").read_bytes() == b"data/ab/old"
+    assert (view / "data/ab/old").stat().st_nlink == 1

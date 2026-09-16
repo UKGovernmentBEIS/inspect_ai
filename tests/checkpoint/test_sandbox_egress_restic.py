@@ -24,6 +24,7 @@ Docker nor the restic download.
 from __future__ import annotations
 
 import base64
+import errno
 import hashlib
 import json
 import os
@@ -33,6 +34,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tracemalloc
 from collections.abc import Sequence
 from pathlib import Path
 from typing import IO, Any, Callable
@@ -42,6 +44,7 @@ import anyio
 import pytest
 from test_helpers.local_shell_sandbox import LocalShellSandbox
 
+from checkpoint.egress_kill_harness import NO_LINKS_ENV
 from checkpoint.egress_kill_harness import recover as _kill_harness_recover
 from inspect_ai.util._checkpoint._copy import copy_out, copy_out_partial_path
 from inspect_ai.util._checkpoint._layout.schemas import SnapshotDetails
@@ -57,8 +60,10 @@ from inspect_ai.util._checkpoint._restore_scope import (
     restic_node,
 )
 from inspect_ai.util._checkpoint._sandbox_restic.egress import (
+    _MAX_VIEW_STDERR_BYTES,
     EgressVerificationError,
     _EgressBuild,
+    _run_view_restic,
     _write_member,
     egress_sandbox,
     ingress_sandbox,
@@ -765,18 +770,22 @@ async def test_egress_rejects_index_referencing_missing_pack(repos: _Repos) -> N
 
 
 @pytest.mark.parametrize(
-    "boundary",
+    ("boundary", "no_links"),
     [
-        "validation",
-        "after_packs",
-        "after_indexes",
-        "after_snapshots",
-        "first_cycle",
-        "first_cycle_after_config",
+        ("validation", False),
+        ("after_packs", False),
+        ("after_indexes", False),
+        ("after_snapshots", False),
+        ("first_cycle", False),
+        ("first_cycle_after_config", False),
+        # The same publication ordering on a filesystem that refuses hard
+        # links, where each file is copied to a `.partial` and renamed in.
+        ("after_indexes", True),
     ],
+    ids=lambda v: v if isinstance(v, str) else ("no_links" if v else "links"),
 )
 async def test_egress_hard_kill_preserves_earlier_and_recovers(
-    boundary: str, tmp_path: Path
+    boundary: str, no_links: bool, tmp_path: Path
 ) -> None:
     """A real SIGKILL at any publication boundary keeps earlier checkpoints.
 
@@ -793,6 +802,7 @@ async def test_egress_hard_kill_preserves_earlier_and_recovers(
     worktree = Path(__file__).parent.parent.parent
     env = {
         **os.environ,
+        **({NO_LINKS_ENV: "1"} if no_links else {}),
         "PYTHONPATH": os.pathsep.join(
             p
             for p in (
@@ -844,8 +854,9 @@ async def test_egress_hard_kill_preserves_earlier_and_recovers(
         assert restore_a(workdir / "restore-A") == "v1\n"
 
     # A subsequent fire commits against the killed repo.
-    result = await _kill_harness_recover(str(workdir))
+    result = await _kill_harness_recover(str(workdir), no_links=no_links)
     assert result["verified"] == result["expected"]
+    assert not list(dest.rglob("*.partial"))
 
     if not boundary.startswith("first_cycle"):
         # ...and the earlier checkpoint is still restorable afterwards.
@@ -1117,6 +1128,95 @@ async def test_egress_first_cycle_writes_keys_before_config(repos: _Repos) -> No
     assert kinds[:2] == ["keys", "config"]
     assert kinds[-1] == "snapshots"
     assert kinds == sorted(kinds, key=_LAYOUT_ORDER.index)
+
+
+async def test_egress_works_without_hard_links(repos: _Repos) -> None:
+    """A destination filesystem that refuses hard links still checkpoints.
+
+    exFAT/FAT and some CIFS/NFS mounts refuse ``os.link``. The view is then
+    built by copying and each accepted file is published by copy-and-rename,
+    so both fires commit, the accepted repo matches the sandbox repo, nothing
+    partial is left, and the earlier checkpoint restores.
+    """
+    id1 = repos.backup("ckpt-00001")
+
+    def no_link(src: object, dst: object, *a: object, **k: object) -> None:
+        raise OSError(errno.EPERM, "Operation not permitted (no hard links)")
+
+    with patch.object(os, "link", no_link):
+        assert await repos.egress("ckpt-00001", id1) == id1
+        (repos.src / "notes.txt").write_text("v2\n")
+        id2 = repos.backup("ckpt-00002")
+        assert await repos.egress("ckpt-00002", id2) == id2
+
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"], id2: ["ckpt-00002"]}
+    assert repos.dest_files() == repos.repo_files()
+    assert not list(repos.dest.rglob("*.partial"))
+    assert all(p.stat().st_nlink == 1 for p in repos.dest.rglob("*") if p.is_file())
+    restored = repos.dest.parent.parent / "restore-A"
+    repos.restore_dest(id1, restored)
+    assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
+
+
+async def test_view_restic_bounds_attacker_shaped_stderr(tmp_path: Path) -> None:
+    """Validation output from a poisoned view is bounded in memory and error.
+
+    A forged index full of missing-pack mappings makes ``restic check``
+    print megabytes of diagnostics (measured: a 2 MB index produced 7 MB of
+    stderr), and the input can grow toward the per-transfer cap. The runner
+    must stream both pipes, drop stdout, and keep only a bounded stderr
+    prefix with a truncation marker — never buffer what the sandbox made
+    restic say.
+    """
+    restic = _fake_restic(
+        tmp_path,
+        "head -c 4194304 /dev/zero | tr '\\0' o\n"
+        "head -c 33554432 /dev/zero | tr '\\0' e >&2\n"
+        "exit 1",
+    )
+    tracemalloc.start()
+    try:
+        with pytest.raises(EgressVerificationError, match="stderr truncated") as info:
+            await _run_view_restic(
+                restic,
+                ["check", "--read-data"],
+                tmp_path / "view",
+                PASSWORD,
+                label="egress",
+                what="content check",
+            )
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert len(str(info.value)) < _MAX_VIEW_STDERR_BYTES + 512
+    assert peak < 16 * 1024 * 1024  # not the 36 MiB the child wrote
+
+
+async def test_view_restic_kills_child_on_cancellation(tmp_path: Path) -> None:
+    """Cancelling validation kills the restic child rather than orphaning it."""
+    pidfile = tmp_path / "pid"
+    restic = _fake_restic(tmp_path, f"echo $$ > {pidfile}\nexec sleep 300")
+
+    async def run() -> None:
+        await _run_view_restic(
+            restic, ["check"], tmp_path / "view", PASSWORD, label="egress", what="x"
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(run)
+        with anyio.fail_after(30):
+            while not pidfile.exists() or not pidfile.read_text().strip():
+                await anyio.sleep(0.05)
+        tg.cancel_scope.cancel()
+
+    pid = int(pidfile.read_text())
+    with anyio.fail_after(10):
+        while True:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+            await anyio.sleep(0.05)
 
 
 # --- resume side ------------------------------------------------------
