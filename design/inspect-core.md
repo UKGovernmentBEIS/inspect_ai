@@ -200,7 +200,7 @@ And note what codegen does *not* do: it gives hosts the target shape, not the ma
 
 ## Open questions
 
-1.  **Scope of `inspect_core`.** Which types exactly? The seven analyzed here are the monitor's needs; a log reader wants `EvalLog` and the event types, which reach further.
+1.  **Scope of `inspect_core`.** Which types exactly? The seven analyzed here are the monitor's needs; a log reader wants `EvalLog` and the event types, which reach further. `monitor-development.md` adds a concrete consumer for `ModelEvent` and `ToolEvent`: replaying a monitor over an eval log at full fidelity needs them, and without them in core that reconstruction lives in `inspect_ai` rather than `inspect_monitor`.
 2.  **Is it a separate distribution or a subpackage?** A separate wheel lets a Go-host author depend on it without `inspect_ai`; a subpackage is far less release machinery. The WASM case wants the former.
 3.  **How far to chase the four-package floor.** Removing `rich`, `platformdirs`, `anyio` and `jsonlines` means the types stop using `warn_once` and friends. Worth it for a constrained build, possibly not otherwise.
 4.  **Does `inspect_api` ship the Google provider conversions** given the heavier dependency, or are they an optional extra?

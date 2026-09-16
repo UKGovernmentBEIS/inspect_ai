@@ -4,7 +4,7 @@ Exploratory design for a new registry type, `@monitor`: one annotated function p
 
 Status: sketch. The Python below is illustrative, not proposed API.
 
-**Related design documents.** This one defines the protocol. `monitor-deployment.md` covers running a monitor outside the eval process — in a proxy on the wire — and the constraints that places on the protocol. `inspect-core.md` covers extracting the wire types into a package light enough for a monitor author (or another language) to depend on.
+**Related design documents.** This one defines the protocol. `monitor-deployment.md` covers running a monitor outside the eval process — in a proxy on the wire — and the constraints that places on the protocol. `monitor-development.md` covers measuring and calibrating a monitor before it acts, by replaying it over transcripts as an Inspect Scout scanner. `inspect-core.md` covers extracting the wire types into a package light enough for a monitor author (or another language) to depend on.
 
 ## Goal
 
@@ -130,6 +130,7 @@ class BeforeGenerate:
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
+    escalations: tuple[Reported[Recommendation], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -137,6 +138,7 @@ class AfterGenerate:
     model: str
     input: list[ChatMessage]
     output: ModelOutput
+    escalations: tuple[Reported[Recommendation], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -145,6 +147,7 @@ class BeforeToolCall:
     call: ToolCall              # the call as it will execute
     view: ToolCallView
     history: list[ChatMessage]
+    escalations: tuple[Reported[Recommendation], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -155,6 +158,7 @@ class AfterToolCall:
     output: ToolResult          # the tool's untruncated return value
     view: ToolCallView
     history: list[ChatMessage]
+    escalations: tuple[Reported[Recommendation], ...] = ()
 
 
 Step: TypeAlias = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall
@@ -164,6 +168,8 @@ Step: TypeAlias = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCal
 A monitor never annotates `Step`, since [its annotation is what selects the stage](#the-stage-comes-from-the-annotation). The alias exists for the layer above, which does see all four.
 
 **Everything in `step` is agent-influenced; nothing in `context` is.** `call`, `message`, `history`, `view`, `result` and `output` are all written or shaped by the agent under observation and are therefore injection-bearing; the briefing is author-written, the store is the monitor's own, the host is the framework's. Splitting them across two arguments makes that boundary structural rather than a matter of field ordering, which is the most useful thing the framework can do about injection (see [It is the only input the agent did not write](#it-is-the-only-input-the-agent-did-not-write)).
+
+`escalations` is the one exception, and it is worth naming as such. It is filled by an [ordered composition](#two-compositions-concurrent-and-ordered): when an earlier link in a chain returns `escalate`, its report is handed to the next link here, so a human at the end of the chain sees who is asking and why. The reports are monitor-authored rather than agent-authored, but they may quote agent text in their explanations, so a monitor rendering them into its own prompt should label them as prior verdicts rather than as instructions. The field is per-step, which is why it lives on the payload and not on `Context`, and it is empty everywhere except inside a chain. Approval's equivalent is a block appended to `view.context`; a first-class field is used instead because `view` exists only on the tool stages and is absent under a proxy.
 
 `BeforeToolCall` and `AfterToolCall` are the `Approver` and `Reviewer` payloads. `AfterToolCall` is a faithful dataclass-ification of the merged `Reviewer.__call__`, which takes exactly `message`, `call`, `result`, `output`, `view` and `history` — this document predicted the shape from the PR and it survived contact with the merged code unchanged. The before/after naming earns its keep here: `BeforeToolCall` carries a `call: ToolCall` and `AfterGenerate` an `output: ModelOutput`, so a payload named for the object it wraps would collide with a field inside itself.
 
@@ -304,6 +310,9 @@ class Recommendation(BaseModel):
     audit: bool = Field(default=False)
     """Request that oversight budget be spent on this."""
 
+    authoritative: bool = Field(default=False)
+    """A decision no protocol may weaken. Set by human(); see 'Authoritative reports'."""
+
     modified: ToolCall | None = Field(default=None)
     """Rewritten tool call, for a 'modify' recommendation."""
 
@@ -434,6 +443,14 @@ Auditing — spending scarce human review — is orthogonal to what happens to t
 
 An earlier draft called this the first concrete consumer of per-task state. It is not. Ctrl-Z's budget is **1% of actions per episode** ([Prior art](#prior-art)), and an episode is one agent trajectory — one sample. So the canonical audit budget is per-*sample* state, which `context.store_as(BudgetState)` already handles with no new machinery. A budget pooled across samples is a different and also defensible design, but it is not what the literature specifies, and [Per-task](#per-task) is not on the critical path because of it.
 
+#### Authoritative reports
+
+[Recommendations are advisory](#recommendations-are-advisory): whatever wraps a monitor may honour or ignore what it said. One class of report is not, and the doc previously carried it as a prose rule — "a protocol may override advisory reports, never authoritative decisions" — with nothing in the data to enforce it. `authoritative` is that rule made into a field.
+
+A `human()` monitor sets it. When a person has looked at a call and rejected it, no threshold, budget or aggregation above them gets to turn that into `continue`; the same holds for a human `approve`, which a protocol may not escalate past. The [dispatcher checks this at every layer boundary](#the-boundary-check): a protocol whose return is weaker than an authoritative report from one of its own children has a bug, and the check raises rather than quietly restoring the human's answer.
+
+It is a field on the report rather than a flag on the monitor because the combiner reads reports, not monitors, and because the log should show which decisions in a trajectory were a person's. Nothing stops an LLM monitor from setting it, and nothing should — the framework cannot verify that a human was involved, only that the author claimed authority — but the claim is visible in the transcript and in code review, which is the same discipline `portable=False` relies on.
+
 #### Two audiences
 
 Claude Code hooks separate `additionalContext` (the model sees it) from `systemMessage` (the operator sees it, the model does not). We should too, and the reason is security rather than tidiness: **telling an agent why it was flagged teaches it to evade.** `explanation` should be operator-facing by default, with a separate, explicit field for anything the model is meant to read.
@@ -508,9 +525,9 @@ With a flat type the type checker cannot stop an `AfterToolCall` monitor recomme
 
 That split came out of [Prior art](#prior-art) and is the main architectural consequence of it. In Ctrl-Z the monitor is a scorer; deferral, resampling and auditing are things the protocol does with the score, because they depend on calibration against benign distributions and on a global budget the monitor cannot see.
 
-**"Protocol" is a role, not a type.** A protocol is a monitor that takes other monitors as arguments and converts their reports into one recommendation — the combinator shape Inspect already uses everywhere it composes: `chain(*solvers) -> Solver`, `multi_scorer(scorers, reducer) -> Scorer`, `policy_approver(policies) -> Approver`. None of those is a separate registry type, and neither is this. See [Protocols are monitors](#protocols-are-monitors).
+**"Protocol" is a role with a marker, not a second registry type.** A protocol is a monitor that takes other monitors as arguments and converts their reports into one recommendation — the combinator shape Inspect already uses everywhere it composes: `chain(*solvers) -> Solver`, `multi_scorer(scorers, reducer) -> Scorer`, `policy_approver(policies) -> Approver`. None of those is a separate registry type, and neither is this. What a protocol does get is a decorator, `@protocol`, which registers under the same `"monitor"` type but declares — and has checked, statically and at decoration time — that the factory composes monitors and that the result recommends. See [Protocols are monitors](#protocols-are-monitors) and [The `@protocol` marker](#the-protocol-marker).
 
-The layering below is therefore about *what code does*, not about what type it has. That is a weaker guarantee than a type would give, and [the cost of that](#what-the-collapse-costs) is recorded rather than glossed.
+The layering below is therefore mostly about *what code does*. The structural claims are typed; the behavioural ones — that a protocol invokes its children through [the runner](#the-runner) and never weakens an authoritative report — are enforced at the boundary where they can be and recorded where they cannot. [What the collapse costs](#what-the-collapse-costs) keeps the honest residue.
 
 Applying the split shrinks the monitor surface rather than growing it. Every control-literature action turns out to live above the monitor:
 
@@ -558,7 +575,7 @@ Within a wrapping protocol this is forced rather than chosen. We want [observe-o
 
 The distinction that makes this coherent is **declared versus inferred**. Observe-only protects against actions a protocol *inferred* from a number the author never thresholded. It was never protecting against actions the author *declared*: someone who writes `recommend="reject"` is not surprised when a call is rejected, any more than an approver author is surprised today.
 
-One rule then covers the bimodality: **a wrapping monitor may override advisory reports, never authoritative decisions.** A human approver's rejection is authoritative and stays so — a threshold overriding a human would be a safety regression. Note this is a rule about *what a protocol should do*, not something its type prevents — one of the things [the collapse costs](#what-the-collapse-costs).
+One rule then covers the bimodality: **a wrapping monitor may override advisory reports, never authoritative decisions.** A human approver's rejection is authoritative and stays so — a threshold overriding a human would be a safety regression. An earlier draft left this as a rule about *what a protocol should do*; it is now carried on the report as [`authoritative`](#authoritative-reports) and enforced by [the boundary check](#the-boundary-check).
 
 ### Observe-only is the default for scores {#observe-only-is-the-default}
 
@@ -596,6 +613,8 @@ The literature's protocols are all arrangements of three resources with differen
 
 | Protocol | The arrangement |
 |------------------------|------------------------|
+| `strictest` | run every child, strongest recommendation wins; what a bare list compiles to. Not from the literature — it is the concurrent composition itself, named |
+| `chain` | run children in order, first non-`escalate` decides; approval's chain as a protocol |
 | `observe_only` | score and record; never act. Also how a benign distribution gets collected |
 | `trusted_monitoring` | the trusted model scores the untrusted model's output; the most suspicious slice goes to human audit, the rest is accepted |
 | `defer_to_trusted` | above a lower threshold but below the audit threshold, substitute the trusted model's action for the untrusted one's |
@@ -618,18 +637,18 @@ A protocol owns:
 - **pipeline stages** — paraphrasing, honeypot injection, each of which can now be [its own nested protocol](#protocols-are-monitors)
 - **its stance toward recommendations** — honour, or record and ignore
 
-All of which is ordinary code, not framework surface — see [`run_monitors` is where the guarantees live](#run-monitors-is-where-the-guarantees-live).
+All of which is ordinary code, not framework surface — see [The runner](#the-runner).
 
 ### Protocols are monitors {#protocols-are-monitors}
 
 ``` python
-@monitor
+@protocol
 def trusted_monitoring(
-    *monitors: Monitor,
+    monitors: Monitors,
     audit_budget: float = 0.01,
     defer_threshold: float = 0.8,
     audit_threshold: float = 0.95,
-) -> Monitor:
+) -> ProtocolMonitor:
     async def decide(context: Context, step: Step) -> Recommendation | None:
         reports = await run_monitors(monitors, context, step)
         ...
@@ -651,28 +670,96 @@ A combinator is `[Monitor] -> Monitor`, and Inspect answers that shape the same 
 
 Two consequences worth stating plainly, because both remove things this document previously carried:
 
-- **`@monitor` is the only new `RegistryType` value.** One decorator, one config surface, one set of plumbing. This dissolves the question of whether a second registry type was affordable.
-- **The naming problem disappears.** An earlier draft needed `ControlProtocol` because bare `Protocol` collides with `typing.Protocol`, which this codebase imports constantly. With no type to name, "protocol" goes back to being what the literature uses it for — a word for a role — and nothing collides. (`Policy` would still have been wrong, for what it is worth: in the control literature the *policy is the untrusted agent*, so reusing it for the thing doing the monitoring would invert the term.)
+- **`"monitor"` is the only new `RegistryType` value.** `@protocol` registers under it; it is a checked `@monitor`, not a second kind of object (see [The `@protocol` marker](#the-protocol-marker)). One config surface, one set of plumbing. This dissolves the question of whether a second registry type was affordable.
+- **The naming problem shrinks to a decorator.** An earlier draft needed `ControlProtocol` because bare `Protocol` collides with `typing.Protocol`, which this codebase imports constantly. A lowercase `protocol` decorator collides with nothing, exactly as `tool` and `Tool` coexist; the type alias for what a protocol factory returns is `ProtocolMonitor`, and "protocol" otherwise goes back to being what the literature uses it for — a word for a role. (`Policy` would still have been wrong, for what it is worth: in the control literature the *policy is the untrusted agent*, so reusing it for the thing doing the monitoring would invert the term.)
 
 Protocols nest, which the previous design forbade. A budget-owning protocol can wrap a paraphrasing protocol wrapping the leaf monitors, so the [pipeline stages](#the-extension-surface) become composable pieces rather than features one monolithic protocol has to anticipate. What still needs a rule is *budget ownership* under nesting — see the [open questions](#open-questions).
 
-### `run_monitors` is where the guarantees live {#run-monitors-is-where-the-guarantees-live}
+### The `@protocol` marker {#the-protocol-marker}
+
+The pattern above rested, in an earlier draft, on a parameter-name convention: "the factory parameter named `monitors` receives the children". This document rejects name conventions elsewhere on the grounds that names are explicit and never meaningful, and the same objection applies here. `@protocol` replaces the convention with a declaration the framework can check.
+
+``` python
+Monitors: TypeAlias = Mapping[str, Monitor] | Sequence[Monitor]
+
+ProtocolMonitor: TypeAlias = (
+    Callable[[Context, Step], Awaitable[Recommendation | None]]
+    | Callable[[Context, BeforeGenerate], Awaitable[Recommendation | None]]
+    | Callable[[Context, AfterGenerate], Awaitable[Recommendation | None]]
+    | Callable[[Context, BeforeToolCall], Awaitable[Recommendation | None]]
+    | Callable[[Context, AfterToolCall], Awaitable[Recommendation | None]]
+)
+
+
+def protocol(
+    factory: Callable[Concatenate[Monitors, P], ProtocolMonitor],
+) -> Callable[Concatenate[Monitors, P], ProtocolMonitor]: ...
+```
+
+It claims three things about the factory, and each is a claim the framework verifies against the code rather than a second vocabulary that could disagree with it — the distinction that got `@monitor(kind=)` and `@monitor(on=)` rejected:
+
+- **The first positional parameter accepts monitors.** This is what makes the nested `monitors:` key in [configuration](#configuration) legal under this factory and a configuration error under a leaf, without anyone inspecting parameter names.
+- **The returned callable is `Recommendation`-kind.** A protocol returning `Observation | None` is meaningless — it would be a scorer that happens to take scorers — and today nothing would catch it until a config-time warning about scores nobody reads.
+- **It is a monitor.** Same registry type, same params capture, same `Step`-or-single-stage annotation rule.
+
+What it deliberately does *not* do is invoke the children or own the fan-out. A draft of this design tried that — `protocol(monitors, decide=...)` with the framework calling `run_monitors` and the author supplying only the reduction — and it was strictly less expressive than writing the body: it had to grow a `transform=` parameter just to recover paraphrasing, and it could not express a chain at all, because a chain's decision is made *between* links rather than after them. The factory still holds the children either way, so the enforcement it appeared to buy was illusory. The body of a protocol is ordinary code that calls [the runner](#the-runner).
+
+So `@protocol` is a checked `@monitor`. A monitor author never sees it; a protocol author gets a name for the thing they are writing, a checker that catches the two structural mistakes at decoration, and a place in the reference docs where "protocol" resolves to something.
+
+### Static checking {#static-checking}
+
+Most of what `@protocol` and `@monitor` verify at decoration time, mypy and pyright verify first. The repo already does this for scorers: `@scorer` is typed `Callable[P, Scorer] -> Callable[P, Scorer]`, so a factory whose inner function returns the wrong thing fails type-checking before the runtime check runs. The same technique covers the monitor claims, and the runtime pass reduces to reading annotations the checker already validated.
+
+| Claim | How it is checked statically |
+|------------------------|------------------------|
+| the factory's first parameter accepts monitors | `Concatenate[Monitors, P]` on the decorator's parameter type; both checkers enforce a leading positional parameter of that type |
+| the inner function returns `Recommendation \| None` | an `async def` returning `Observation \| None` is not assignable to any member of `ProtocolMonitor` |
+| the inner function's second parameter is a stage type | `Callable` parameters are contravariant, so a function accepting `Step` matches the `Step` variant and one accepting `BeforeToolCall` matches that variant; an unannotated `step` matches nothing |
+| the declared kind matches the body | with the return annotated `Observation \| None`, a `return Recommendation(...)` inside is an ordinary type error — the strongest of the four, since it checks every return statement rather than the signature |
+
+Two things this forces on the API shape. `Concatenate` matches only a positional parameter, so the varargs form `chain(*monitors)` cannot be checked this way — protocols take one `monitors` argument, `chain([a, b])` or `chain({"guard": a, "review": b})`, which is also the form the mapping needs. And protocol factories annotate their return as `ProtocolMonitor` rather than `Monitor`; annotating the wide union would make the checker reject a correct protocol.
+
+What stays runtime-only is exactly what no type system would express: per-stage action legality (a generic `Recommendation[A]` was [rejected](#rejected-a-generic-parameterised-on-the-action-set) for schema reasons), the authority rule, whether a body went through the runner, and YAML configuration. Those live in [the boundary check](#the-boundary-check) and the log.
+
+### The runner {#the-runner}
 
 **The protocol invokes its monitors; the framework does not.** This is forced by [Prior art](#prior-art): paraphrasing and minification are transforms between agent output and monitor input, and honeypots are synthetic inputs injected into the monitor's stream. Neither is expressible if the framework has already called the monitors and handed over finished reports.
 
-So `run_monitors()` is not a convenience. It is where core's obligations sit:
+So the runner is not a convenience. It is where core's obligations sit, and it is the *only* sanctioned way to invoke a child. There are two functions, because [the two compositions](#two-compositions-concurrent-and-ordered) need different loops:
 
-- **filters by point** — only monitors annotated for this step are called
-- **fans out with `tg_collect()`**, per AGENTS.md, which [Concurrency is a safety property](#concurrency-is-a-safety-property-not-just-a-latency-one) shows is a safety requirement rather than a latency one
-- **handles abstention** and applies the failure policy uniformly
-- **records every report to the transcript, including the ones the protocol ignores** — load-bearing, because the ignored ones are the benign distribution calibration needs
+``` python
+async def run_monitor(
+    monitor: Monitor, context: Context, step: Step, *, name: str | None = None
+) -> Reported | None:
+    """Invoke one child if it is annotated for this stage.
 
-It returns:
+    Derives the child's Context under this layer's path, records a
+    MonitorEvent, applies the failure policy. Returns None if the child
+    abstained or does not watch this stage.
+    """
+
+
+async def run_monitors(monitors: Monitors, context: Context, step: Step) -> Reports:
+    """tg_collect over run_monitor. Cancels siblings when one returns terminate."""
+```
+
+`run_monitor` carries the per-child obligations:
+
+- **filters by point** — a child not annotated for this step is skipped, and the skip is indistinguishable from abstention
+- **names the child** — from the mapping key if the protocol was given a `Mapping`, else the registry name; a duplicate name within one layer is an error rather than a `#2` suffix
+- **derives the child's `Context`** — `Context` is already per-instance (its store is namespaced), so it carries the instance path, and the child's is built under it
+- **records the report** — one `MonitorEvent` per participating child, including the ones the protocol goes on to ignore, which is load-bearing because the ignored ones are the benign distribution calibration needs
+- **applies the [failure policy](#failure-semantics)** uniformly
+
+`run_monitors` adds the concurrent obligations: it **fans out with `tg_collect()`**, per AGENTS.md, which [Concurrency is a safety property](#concurrency-is-a-safety-property-not-just-a-latency-one) shows is a safety requirement rather than a latency one; and it **cancels remaining siblings when one returns `terminate`**, since nothing outranks it and the sample is ending — prompting a human about a sample that no longer exists is the concrete thing this avoids.
+
+They return:
 
 ``` python
 @dataclass(frozen=True)
 class Reported(Generic[R]):
-    monitor: str
+    name: str      # instance name: mapping key, or registry name
+    path: str      # "attempt/internet_attempt"
     report: R
 
 
@@ -680,26 +767,108 @@ class Reported(Generic[R]):
 class Reports:
     observations: Sequence[Reported[Observation]]
     recommendations: Sequence[Reported[Recommendation]]
+
+    def strongest(self) -> Reported[Recommendation] | None:
+        """By the precedence in Composition; None if nobody recommended."""
 ```
 
-Split by kind, because [the two halves aggregate differently](#composition) — scores combine and then threshold, recommendations resolve by precedence. Monitor identity is attached because a protocol may weight or require agreement across specific monitors. Generics are safe here in a way [they were not for `Report`](#what-a-monitor-returns): these are frozen dataclasses passed as arguments, never serialized, so no mangled name reaches `components/schemas`.
+Split by kind, because [the two halves aggregate differently](#composition) — scores combine and then threshold, recommendations resolve by precedence. Identity is attached because a protocol may weight or require agreement across specific monitors, and because `path` is what the transcript and the store are keyed by. Generics are safe here in a way [they were not for `Report`](#what-a-monitor-returns): these are frozen dataclasses passed as arguments, never serialized, so no mangled name reaches `components/schemas`.
 
-Everything else a protocol does is **ordinary Python over `Reports` plus task-scoped state** — thresholds, budget arithmetic, aggregation, deferral. That is the point rather than a gap: a protocol is meant to be [the extension surface](#the-extension-surface), and something requiring framework blessing beyond one helper would not be one.
+Everything else a protocol does is **ordinary Python over `Reports` plus task-scoped state** — thresholds, budget arithmetic, aggregation, deferral. That is the point rather than a gap: a protocol is meant to be [the extension surface](#the-extension-surface), and something requiring framework blessing beyond these helpers would not be one.
 
 Two things it is not quite arbitrary code over, both of which are existing open questions the collapse makes load-bearing:
 
 - **Per-sample state has to actually work**, which it does — the audit budget is per-episode and therefore per-sample (see [`audit` is a flag](#audit-is-a-flag-not-an-action)). Only a budget deliberately pooled across samples reaches [Per-task](#per-task), and that is a choice rather than a requirement.
 - **Resampling needs generate-stage substitution.** Drawing alternative completions and executing the least suspicious means replacing a whole `ModelOutput`, which is the [open question on generate-stage `modified`](#open-questions). The previous design could defer this as "a protocol concern the monitor never sees"; with one type that dodge is gone, and either the protocol calls `context.host.generate()` and substitutes, or resampling is not expressible.
 
+### Two compositions: concurrent and ordered {#two-compositions-concurrent-and-ordered}
+
+The reviewer group's requirements (#5423, see [below](#the-reviewer-groups-requirements-5423)) made explicit something the first draft had only half of. There are two ways to compose monitors, and people need both:
+
+- **Concurrent.** Every child runs; nothing is silenced; the strongest recommendation wins. This is what independent guards want — two monitors that each must be satisfied — and it is the composition [Composition](#composition) describes.
+- **Ordered.** Children run in sequence; the first non-`escalate` decides; later children never run. This is approval's chain, and it exists for two reasons that are both "do not invoke the next monitor unless needed": a cheap rule ahead of an expensive judge, and a human at the end who should only be asked what the machines could not answer.
+
+The first draft treated the ordered form as "wrong for a set of observers" and stopped there. It is wrong *as the default* — that is precisely the bug #5423 reports: A approves, B would have terminated, B never ran — but it is the right shape whenever there is a person at the end of it. Both ship as protocols on the same runner.
+
+**`chain()`** is the ordered one. It loops over `run_monitor`, so every link is recorded, and it hands escalations forward on the step:
+
+``` python
+@protocol
+def chain(monitors: Monitors) -> ProtocolMonitor:
+    async def run(context: Context, step: Step) -> Recommendation | None:
+        escalations: list[Reported[Recommendation]] = []
+        participated = False
+        for name, child in named(monitors):
+            reported = await run_monitor(
+                child, context, replace(step, escalations=tuple(escalations)), name=name
+            )
+            if reported is None:
+                continue
+            participated = True
+            match reported.report:
+                case Observation():
+                    continue                        # recorded; falls through
+                case Recommendation(recommend="escalate"):
+                    escalations.append(reported)
+                case decision:
+                    return decision
+        return Recommendation.clear() if participated else None
+
+    return run
+```
+
+Three properties fall out of writing it as ordinary code. An `Observation` in a chain is recorded and falls through, since it cannot be "the first decision" — ordered composition is Recommendation-shaped in substance. An all-escalate chain returns `continue` if anything participated, matching review's default and this document's rule; the [approval adapter](#a-protocol-layer-for-approval-too) keeps approval's fail-closed `reject` on its own path, so existing approval users see no change, and a monitor chain that wants fail-closed ends with a rejecting monitor, as approval lists end with `auto` today. And sequential dispatch stops being a violation of the independence rule, because the loop is a named, shipped protocol whose mode the transcript shows.
+
+**`strictest()`** is the concurrent one, and it is also what the top of a configuration compiles to (see [Configuration](#configuration)):
+
+``` python
+@protocol
+def strictest(monitors: Monitors) -> ProtocolMonitor:
+    async def run(context: Context, step: Step) -> Recommendation | None:
+        reports = await run_monitors(monitors, context, step)
+        strongest = reports.strongest()
+        if strongest is None:
+            return None
+        if strongest.report.recommend == "modify" and len(reports.recommendations) > 1:
+            return Recommendation(
+                recommend="reject",
+                explanation=f"{strongest.name} modified the call but other monitors approved the original",
+            )
+        return strongest.report
+
+    return run
+```
+
+That settles the `modify` question this document previously left open: concurrent children cannot see each other's rewrites, so a `modify` when more than one child recommended is a rejection naming the modifier. Re-approving modified arguments is more machinery than the decision is worth for now, and #5423 reached the same answer independently. The name is not settled; `all_of` is the alternative.
+
+**Concurrent is the default, and ordered is one explicit word.** The argument for making ordered the default is that many people will want a chain, which is true. The argument against is that ordered-by-default silences monitors, and silencing is a safety failure while concurrency's cost is latency and tokens. A default should fail safe, and changing one later is a silent semantic change for everyone. So a bare list is `strictest`, and a chain is `chain(...)`. The mistake the wrong default would produce most often — a `human()` in a concurrent group, prompting on every call — is caught at configuration time with a message that names `chain()`.
+
+### The boundary check {#the-boundary-check}
+
+When any layer returns, the dispatcher validates the recommendation before anything acts on it. This is where the rules that no type can express are enforced, and where the "invalid state" rule from AGENTS.md is applied: each is a bug in a monitor, not agent input, so each raises.
+
+- **The action is legal for the stage** — no `reject` at `AfterToolCall`, per [One vocabulary across stages](#one-vocabulary-across-stages).
+- **`modified` is set iff `recommend == "modify"`**, and carries the right type for the stage.
+- **The recommendation is not weaker than any [authoritative](#authoritative-reports) report from a child of this layer.** A protocol that turned a human's `reject` into `continue` has a bug. The check reads the layer's own child reports, which the runner recorded, so it needs no cooperation from the protocol.
+
+The check runs per layer, so a nested configuration is validated at every level rather than only at the top.
+
+### Humans in the loop
+
+#5423's chains end in a person, and the first draft had nowhere to put one: humans were `@approver`s, and approvers lived in `Task(approval=)`. A `human()` monitor closes that. It is `Recommendation`-kind, `BeforeToolCall` (and in principle any stage the human surfaces can render), prompts through the existing human approval surfaces, renders `step.escalations` above the call so the person sees who asked and why, and returns with `authoritative=True`. Human surfaces already queue requests, so two chains that both end in a person prompt one after the other and the stricter answer wins.
+
+It is the one monitor whose placement the framework second-guesses: a `human()` inside a concurrent group is almost never intended, and the config-time check says so and suggests `chain()`.
+
 ### What the collapse costs {#what-the-collapse-costs}
 
-A separate type could have made the contract explicit. One type cannot, so three things become convention plus documentation:
+A separate type could have made the whole contract explicit. One type with a marker gets most of the way, and the residue is smaller than the first draft's:
 
-- Nothing stops a protocol from **skipping `run_monitors`**, calling its monitors sequentially, and quietly destroying the independence property TraceGuard's result depends on.
-- Nothing stops it from **never recording** the reports it ignored, losing the benign distribution.
-- "No `escalate` at the outermost layer" is no longer expressible in the type. Harmless in practice, since [all-escalate is already defined as `continue`](#composition).
+- The structural claims — takes monitors, returns a recommendation, annotates a stage — are [statically checked](#static-checking).
+- Never weakening an authoritative report is [checked at the boundary](#the-boundary-check).
+- **Going through the runner is not preventable.** The factory holds the children and can call them as plain callables, bypassing naming, recording and the concurrency guarantee. What makes this tolerable is that a child invoked any other way produces no event: a protocol that recommended with no child reports in the transcript is visible in the log, and a config-time check can flag it.
+- "No `escalate` at the outermost layer" is not expressible in the type. Harmless in practice, since [all-escalate is already defined as `continue`](#composition).
 
-The first two are **detectable rather than preventable**: a composing monitor that produced a recommendation with no child reports in the transcript is visible in the log, and a config-time check can flag it. That is a genuine reduction in guarantee, and it buys one registry type instead of two, composable pipeline stages, and a table in [Two philosophies](#two-philosophies-both-first-class) with no special case in it.
+That is a genuine but narrow reduction in guarantee, and it buys one registry type instead of two, composable pipeline stages, and a table in [Two philosophies](#two-philosophies-both-first-class) with no special case in it.
 
 ### The extension surface {#the-extension-surface}
 
@@ -734,9 +903,13 @@ Monitor: TypeAlias = (
 )
 ```
 
-The last variant is what a [protocol](#protocols-are-monitors) annotates — `Step` being the widest union, and therefore a registration at all four points.
+The last variant is what a [protocol](#protocols-are-monitors) usually annotates — `Step` being the widest union, and therefore a registration at all four points. Protocol factories are decorated `@protocol` rather than `@monitor` and return the narrower `ProtocolMonitor` alias, which is the same five shapes restricted to `Recommendation | None`; see [The `@protocol` marker](#the-protocol-marker).
 
-Registry params come from the factory signature, so `registry_create("monitor", "suspicion_monitor", model="openai/gpt-4o-mini")` and the params recorded in the log work as they do for every other registry type. Note what is *not* a parameter here: a threshold. A factory taking `threshold=0.8` would be the anti-pattern [Two kinds](#two-kinds-and-how-to-choose) warns about, wearing configuration as a disguise. The new `RegistryType` value is `"monitor"`.
+Registry params come from the factory signature, so `registry_create("monitor", "suspicion_monitor", model="openai/gpt-4o-mini")` and the params recorded in the log work as they do for every other registry type. Note what is *not* a parameter here: a threshold. A factory taking `threshold=0.8` would be the anti-pattern [Two kinds](#two-kinds-and-how-to-choose) warns about, wearing configuration as a disguise. The new `RegistryType` value is `"monitor"`, and `@protocol` registers under it too.
+
+#### Instance names
+
+A registry name identifies a factory, not a configured instance, and two instances of one factory in a configuration — two `chain`s, two `suspicion_monitor`s with different models — need telling apart in the log and in the store. So every configured monitor has an **instance name**: the key, when it was given in a `Mapping`; the registry name otherwise. Names are unique within a layer, and a duplicate is a configuration error rather than an invented suffix. Nesting composes them into a **path**, `attempt/internet_attempt`, which is what `MonitorEvent` records and what `context.store_as()` namespaces by. This is #5423's dict-of-named-chains, generalised to every layer rather than only the top.
 
 #### Bare names inside the package, prefixed names outside it
 
@@ -834,7 +1007,7 @@ Backing per-sample state with the sample `Store` gets three things for free: it 
 
 There is no `monitor_store_as()` global. Ambient accessors exist in Inspect for call boundaries you do not control — a tool invoked by the model, a scorer invoked by the framework. A monitor controls every one of its own helper call sites, so a helper can simply take what it needs as a parameter.
 
-The one case that looks like it needs a global — a scorer reading what a monitor accumulated — does not. The monitor's per-sample state *is* in the sample store, namespaced by monitor name, so a scorer holding a `TaskState` reads it with the existing `store_as(TrajectoryState, instance=...)`. The only thing a monitor-specific global would add is not having to name the instance, which is exactly what makes it ambient and unportable.
+The one case that looks like it needs a global — a scorer reading what a monitor accumulated — does not. The monitor's per-sample state *is* in the sample store, namespaced by the monitor's [instance path](#instance-names), so a scorer holding a `TaskState` reads it with the existing `store_as(TrajectoryState, instance="attempt/internet_attempt")`. The only thing a monitor-specific global would add is not having to name the instance, which is exactly what makes it ambient and unportable.
 
 `context.store_as()` mirrors the familiar global `store_as()` deliberately. Bare `store()` is not available and should not be: it is taken by `inspect_ai.util.store()`, and a monitor's store is a *namespaced view* of the sample store rather than the same object.
 
@@ -890,7 +1063,20 @@ eval(monitor=...)
 inspect eval task.py --monitor monitors.yaml
 ```
 
-The flat case is a list, like approval:
+`Task(monitor=)` accepts one monitor, a list, or a mapping of names to monitors. **A list or mapping is sugar for `strictest(...)`**: every top-level configuration compiles to a protocol, so there is always a layer that owns the combined decision and emits the summary event #5423 asked for. A single monitor is `strictest` of one, which emits no event of its own, so the single-monitor log is exactly what a lone approver's is today.
+
+``` python
+Task(monitor=no_curl())
+Task(monitor=[no_curl(), no_rm_rf()])
+Task(monitor={
+    "attempt": chain([internet_attempt(), human()]),   # human takes the attempt monitor's escalations
+    "escape": sandbox_escape(),                          # runs on every call regardless
+})
+```
+
+The last form is #5423's example, and the mapping keys are the [instance names](#instance-names) that reach the log as `attempt/internet_attempt`, `attempt/human`, `escape`.
+
+The flat case in YAML is a list, like approval:
 
 ``` yaml
 monitors:
@@ -899,7 +1085,18 @@ monitors:
     tools: ["bash", "python"]
 ```
 
-Because [protocols are monitors](#protocols-are-monitors), the configured case nests:
+Named chains are a mapping, and because [protocols are monitors](#protocols-are-monitors) the configured case nests:
+
+``` yaml
+monitors:
+  attempt:
+    name: chain
+    monitors:
+      - name: internet_attempt
+      - name: human
+  escape:
+    name: sandbox_escape
+```
 
 ``` yaml
 monitors:
@@ -916,7 +1113,7 @@ monitors:
 
 **This nesting is the real cost of the collapse**, and it is the one place a separate registry type would have read better — `monitors:` plus a sibling `protocol:` key is flatter and more declarative than a tree. Three things make it acceptable rather than merely survivable: `Task(solver=chain(...))` already has this shape in Python, approval's config already nests policies, and the tree is what actually permits [nested pipeline stages](#the-extension-surface), which a two-key schema could not express at all.
 
-What the schema must not do is let `monitors:` under a leaf monitor parse silently. A monitor that takes no monitors and is handed some is a configuration error, and it is only catchable at config time because the factory signature is introspectable.
+What the schema must not do is let `monitors:` under a leaf monitor parse silently. The nested key is legal only under a factory decorated [`@protocol`](#the-protocol-marker), which is a declared and checked property of the factory rather than something inferred from its parameter names; a leaf handed children is a configuration error.
 
 `tools` is a wart. It scopes the tool stages the way `ApprovalPolicy` does, but a `BeforeGenerate` monitor is not tool-scoped and would fire regardless — so the key means "which tools this applies to, if it watches a tool point at all", not "when this monitor runs". Alternatives: a separate `stages:` key, or no globs at all (the monitor filters internally on `step.call.function`, which it can already do and which is more honest about the fact that a monitor is not a per-tool policy).
 
@@ -941,7 +1138,7 @@ The escape hatch is per-monitor and declared, following `portable=False`: `@moni
 
 ## Composition {#composition}
 
-Composition is the protocol's job: it collects reports from every configured monitor and produces one outcome. Approval's ordered chain — first non-`escalate` decides, later approvers never see the call — is right for an authorisation chain and wrong for a set of observers.
+Composition is the protocol's job: it collects reports from every configured monitor and produces one outcome. This section describes the **concurrent** composition, which is the default and what `strictest()` implements; the ordered alternative, `chain()`, is in [Two compositions](#two-compositions-concurrent-and-ordered). Approval's ordered chain — first non-`escalate` decides, later approvers never see the call — is right for an authorisation chain ending in a person and wrong as the default for a set of observers.
 
 - **Observation is unconditional.** Every monitor configured for a point runs at it, whether or not another has already formed a view.
 - **Every report is recorded**, including the ones that lost.
@@ -949,7 +1146,9 @@ Composition is the protocol's job: it collects reports from every configured mon
 
 **Aggregating suspicion.** `Observation`s from several monitors have to combine before thresholding. Max is the obvious default; per-dimension max is the right shape when scores are structured, since dimensions are meant to be independent (see [Prior art](#prior-art)). Weighted combinations and requiring agreement across monitors are protocol policy, not framework behavior.
 
-**Aggregating recommendations.** Across `Recommendation`s, the strongest wins: `terminate` \> `reject` \> `modify` \> `continue`. `escalate` means "I decline to decide", and all-escalate is `continue`. One `Action` ordering covers all four stages, so this is a single comparison function rather than one per stage. Claude Code hooks land the same way — all hooks run in parallel, any `deny` blocks.
+**Aggregating recommendations.** Across `Recommendation`s, the strongest wins: `terminate` \> `reject` \> `modify` \> `continue`. `escalate` means "I decline to decide", and all-escalate is `continue`. One `Action` ordering covers all four stages, so this is a single comparison function rather than one per stage — it is `Reports.strongest()`. Claude Code hooks land the same way — all hooks run in parallel, any `deny` blocks. `terminate` additionally cancels siblings still running, since nothing can outrank it.
+
+**Authoritative reports are a floor**, not a vote: a protocol may combine advisory recommendations however it likes, but its own return may not be weaker than an [authoritative](#authoritative-reports) child's, and the [boundary check](#the-boundary-check) enforces that.
 
 Then the protocol reconciles the two halves with its thresholds and budget, subject to [recommendations being advisory](#recommendations-are-advisory).
 
@@ -957,7 +1156,7 @@ Then the protocol reconciles the two halves with its thresholds and budget, subj
 
 Three LLM monitors in sequence triple the added latency at every step, which argues for `tg_collect()` (not `asyncio.gather`, per AGENTS.md). TraceGuard gives a stronger reason: **independence is the point**. Its 95%-versus-0% result against a colluding monitor comes from fragmenting evaluation so no single model sees the whole assessment, which requires monitors that cannot observe each other's conclusions.
 
-So concurrent dispatch is the default, and the cost is that `modify` becomes incoherent — a concurrent monitor cannot see another's rewrite. Options: allow at most one modifying monitor per configuration (simplest and probably right), make it last-wins in protocol order, or make two modifications an error.
+So concurrent dispatch is the default, and the cost is that `modify` becomes incoherent — a concurrent monitor cannot see another's rewrite. Settled in `strictest()`: a `modify` is honoured only when it was the only recommendation; when more than one child recommended, it becomes a `reject` naming the modifier. Last-wins in configuration order and "two is an error" were the alternatives; the rejection is chosen because the other children approved the *original* arguments and nothing has approved the modified ones. A chain has no such problem, since only one link decides.
 
 ### A second axis: concurrent with the *agent*
 
@@ -971,11 +1170,19 @@ This is a real knob and it belongs on the protocol, not the monitor: whether lat
 class MonitorEvent(BaseEvent):
     event: Literal["monitor"] = "monitor"
     monitor: str
+    """Registry name of the factory."""
+    path: str
+    """Instance path, e.g. "attempt/internet_attempt". Unique within a sample step."""
+    step_id: str
+    """The step examined: the triggering message id (BeforeGenerate), the assistant
+    message id (AfterGenerate), or the tool call id (tool stages). See
+    monitor-development.md, "Step ids"."""
     stage: Literal["model_input", "model_output", "tool_call", "tool_result"]
     kind: Literal["observation", "recommendation"]
     suspicion: Suspicion | None
     recommend: Action | None
     audit: bool
+    authoritative: bool
     outcome: Action | None
     explanation: str | None
     metadata: dict[str, Any] | None
@@ -983,12 +1190,21 @@ class MonitorEvent(BaseEvent):
 
 `recommend` versus `outcome` is the layering made legible in the log: what the monitor advised, and what the protocol did. Without both, a reader cannot tell an ignored recommendation from one that was never made — which is exactly what a reader of an observe-only run needs to see.
 
+`step_id` is what lets a report be matched to a label. It is recorded live, from ids that exist before the monitor runs, so a validation set built against replayed steps also matches the events an eval recorded — the two scan modes in `monitor-development.md` share it.
+
+`path` is #5423's `chain` field, generalised. That proposal tagged each `ApprovalEvent` with the name of the chain it belonged to; with arbitrary nesting a single parent name is not enough, and a path names the layer at every depth. `monitor` and `path` are both kept because a reader wants both questions answered: which code ran, and which configured instance it was.
+
 Since [protocols are monitors](#protocols-are-monitors), a nested configuration emits **one `MonitorEvent` per layer**, and that is what makes the layering readable without any further field:
 
 ```
-monitor="suspicion_monitor",  kind="observation",     suspicion=0.87
-monitor="defer_to_trusted",   kind="recommendation",  recommend="modify"
+monitor="internet_attempt",  path="attempt/internet_attempt",  kind="recommendation",  recommend="escalate"
+monitor="human",             path="attempt/human",             kind="recommendation",  recommend="reject",  authoritative=True
+monitor="chain",             path="attempt",                   kind="recommendation",  recommend="reject"
+monitor="sandbox_escape",    path="escape",                    kind="recommendation",  recommend="continue"
+monitor="strictest",         path="",                          kind="recommendation",  recommend="reject"
 ```
+
+The last line is the summary event #5423 wanted: the top-level `strictest` records the combined decision, and its explanation lists each child's. It is emitted only when more than one child participated, so a configuration with a single monitor logs one event per step, as approval does today.
 
 An earlier draft added a `strategy: str` here and on `Recommendation`, to record whether a `modify` came from a deferral, a resample or a trusted edit. It was removed: **the layer's identity already is the strategy.** A protocol named `defer_to_trusted` returning `modify` has said what it did, and the aggregate query that justified the field — how often did this protocol defer — is `monitor == "defer_to_trusted" and recommend == "modify"`. Worse, on `Recommendation` it was a field every leaf monitor carried and never set.
 
@@ -1112,6 +1328,28 @@ Three constraints:
 
 The win is not tidiness. Someone running an LLM approver today has no way to express "reject only the top 1% most suspicious" — the threshold has to be baked inside the approver, where it cannot be calibrated against a benign distribution or traded against a budget. A protocol layer fixes that for approval users whether or not they ever write a monitor.
 
+### The reviewer group's requirements (#5423) {#the-reviewer-groups-requirements-5423}
+
+The group that built `Reviewer` proposed, in #5423, that `approval` and `review` accept a dict of named policy chains: every chain runs on every matching call, each chain keeps today's first-non-`escalate` semantics internally, and the call proceeds only if every chain approves. The motivating defect was that one ordered chain makes two *independent* monitors impossible — whichever approves first silences the other — and the workaround (wrap both in one approver) loses per-monitor events, invents a severity order, and leaves an inner monitor with nowhere to escalate.
+
+That proposal will not land as written; the group has agreed to build on monitors instead. Its requirements are therefore requirements on this design, and this is how each is met:
+
+| #5423 asked for | Here |
+|------------------------|------------------------|
+| independent chains that all run | the default composition is concurrent; nothing is silenced |
+| per-monitor events, not one wrapper event | one `MonitorEvent` per participating child, from the runner |
+| a framework severity order | `terminate > reject > modify > continue`, in `Reports.strongest()` |
+| an ordered chain inside each group, with `escalate` staying within it | `chain()`; escalations never cross layers |
+| a human at the end of a chain who sees who escalated and why | `human()`, reading `step.escalations` |
+| named chains, and the name in the log | instance names from the mapping; `MonitorEvent.path` |
+| a summary event when several chains participated | the top-level `strictest` layer's own event |
+| `terminate` cancels the other chains | `run_monitors` |
+| `modify` with several participants is a rejection naming the chain | `strictest()` |
+| an uncovered call rejects, as a lone policy list does today | on the approval adapter path only; a monitor chain that nothing covers is `continue`, matching review |
+| concurrent by default (their open question 1) | yes |
+
+Two things differ deliberately. The proposal used "monitor" to mean a bundle that registers an approver and a reviewer together, so that "two monitors are two chains"; here a monitor is one function at one point and their bundle is a `chain()`. And `Task(approval=)` does not grow the dict form — the home for named parallel chains is `Task(monitor=)`, with approvers reachable inside a chain through the adapter.
+
 ## Keeping it simple {#keeping-it-simple}
 
 The prior-art pass added a lot of vocabulary. Most of it must stay invisible to someone who just wants to flag suspicious `bash` calls.
@@ -1131,7 +1369,7 @@ The concrete mitigations, in order of how much they do:
 2.  [**Progressive disclosure through defaults**](#progressive-disclosure-through-defaults-not-through-the-return-type) — a scorer sets `suspicion` and ignores every other field, and never learns what `audit` or `modified` do until it needs them.
 3.  [**Ship protocols, not parts**](#ship-protocols-not-parts) — pick from a list instead of assembling thresholds and budgets.
 4.  [**Kind-appropriate defaults**](#observe-only-is-the-default) — zero configuration does something sensible either way: a `Recommendation` monitor acts, an `Observation` monitor records.
-5.  **Two words, kept crisp — as roles, not types.** *Monitor* looks at one thing and says how suspicious it is. *Protocol* turns suspicion into a recommendation under a budget. That they are [the same type](#protocols-are-monitors) is an implementation fact a first-time author never needs. The failure mode is a doc explaining audit budgets inside "how to write your first monitor" — keep that page free of the control vocabulary entirely.
+5.  **Two words, kept crisp — as roles, not types.** *Monitor* looks at one thing and says how suspicious it is. *Protocol* turns suspicion into a recommendation under a budget. That they are [the same registry type](#protocols-are-monitors), one with a checked decorator, is an implementation fact a first-time author never needs. The failure mode is a doc explaining audit budgets inside "how to write your first monitor" — keep that page free of the control vocabulary entirely.
 6.  [**Exotica goes in extensions**](#the-extension-surface), per AGENTS.md's default.
 
 **One vocabulary.** An earlier draft kept two — `Action` for the monitor layer and the control literature's `accept` / `audit` / `defer` / `resample` / `trusted_edit` for the protocol layer — on the theory that the word would signal which layer you were in. [The collapse](#protocols-are-monitors) removed the two layers that theory rested on:
@@ -1166,21 +1404,29 @@ Retired as answered by later decisions: whether a union annotation registers
 several stages (yes — a protocol annotates `Step`, so it is load-bearing);
 `Report` versus `Decision` (settled, and the semantics it encoded are settled
 too); whether the protocol layer lands first (there is no separate layer after
-[the collapse](#protocols-are-monitors)); and whether proxy portability is a
-goal or an observation, which now lives only in `monitor-deployment.md`.
+[the collapse](#protocols-are-monitors)); whether proxy portability is a
+goal or an observation, which now lives only in `monitor-deployment.md`;
+whether `modify` composes (settled in [`strictest()`](#two-compositions-concurrent-and-ordered):
+a `modify` with more than one participant is a rejection naming the modifier);
+what happens in a mixed configuration with no protocol (there is no such
+configuration — a bare list compiles to `strictest`, which honours
+recommendations and records observations, and the config-time warning about
+scores nobody reads stays); whether protocols need their own construct (a
+[decorator](#the-protocol-marker), not a constructor or a type); and whether
+ordered composition should be the default (no — see [Two compositions](#two-compositions-concurrent-and-ordered)).
 
 1.  **Does `@approver` eventually fold in too?** [Settled for now](#relationship-to-approval-and-review): monitor subsumes the merged `Reviewer`, `@approver` survives. What is open is whether the authoritative/advisory distinction deserves its own type permanently, or whether `@approver` becomes a `Recommendation` monitor once monitors have users. Deliberately deferred rather than answered.
 2.  **Who owns the budget when protocols nest?** [Protocols are monitors](#protocols-are-monitors), so a budget-owning protocol can wrap a paraphrasing one wrapping leaf monitors — which is the point, but two nested budget-owning protocols need a rule. Outermost wins is the obvious answer; whether an inner one should be an error is open.
 3.  **Which protocols ship in core?** `observe_only` and something like `trusted_monitoring` seem clear. `defer_to_trusted`, `resample` and the collusion-resistant variants are candidates for an extension package.
 4.  **Score aggregation.** Max across monitors is the obvious default; per-dimension max when scores are structured. Weighted combination and requiring agreement are protocol policy — but the framework has to pick a default and say so.
-5.  **Where does threshold calibration get its benign distribution?** Ctrl-Z calibrates against known-benign runs. In an eval that could be a warm-up pass, a prior run's transcripts, or a static configuration. This is the least-specified part of the protocol layer.
+5.  **Where does threshold calibration get its benign distribution?** Answered in `monitor-development.md`: replay the `Observation` monitor over a known-benign corpus as a Scout scanner, and the results dataframe's score column is the distribution; a budget becomes a threshold by percentile, and a labelled corpus gives the precision–recall curve. What remains open there is hygiene — holding the calibration corpus out of the validation split.
 6.  **Does anything in v1 actually need per-task state?** The audit budget does not — it is per-episode, hence per-sample. Cross-sample gating ("terminate once 3 samples are flagged") does, and it is the case where in-memory state resets in the *unsafe* direction. If nothing in v1 needs it, [Per-task](#per-task) can be deferred whole; if something does, its scope wants deciding between task, run and eval-set.
-7.  **Does a `modify` compose?** Concurrent dispatch makes two rewrites incoherent. At most one modifying monitor per configuration is the simplest answer; last-wins in protocol order and "two is an error" are the alternatives.
+7.  **What is the default protocol called?** `strictest` says what it does to recommendations; `all_of` says what the configuration means. It appears in every multi-monitor log, so the name is worth getting right once.
 8.  **Does substituting `choices[0].message` need a usage convention?** [Settled](#one-vocabulary-across-stages) that `modified` carries a `ChatMessageAssistant` at `AfterGenerate`, leaving `usage` untouched. Open is whether a protocol that spent extra inference resampling should be able to *add* to the recorded usage, so cost accounting reflects what the protocol really cost.
 9.  **Does the monitor see `ContentReasoning`?** The CoT-monitorability literature says reasoning is a distinct signal and TraceGuard scores it as its own dimension. Defaulting it visible seems right; the question is whether a protocol should be able to withhold it.
 10.  **Lifecycle stages**: `SampleStart` / `SampleEnd` payloads would give per-sample state a place to initialise and a monitor a place to file a final verdict on a trajectory it watched but never interrupted. Natural, and cheap now that adding a stage means adding a payload type rather than a method to a base class — but it starts to overlap `Hooks`, and neither travels to a proxy.
-11.  **Can a monitor produce a `Score`?** A suspicion score over a trajectory is a metric people want beside the task's own scores. If yes, this touches scoring rather than only the agent loop, and the scope grows considerably.
+11.  **Can a monitor produce a `Score`?** Yes, without touching scoring: `as_scorer(as_scanner(monitor, unit="transcript"))` in `monitor-development.md`. The transcript-grain adapter reduces per-step reports to one value and Scout's existing `as_scorer` turns that into an Inspect scorer, with flagged steps as `scanner_references`.
 12.  **Does `AfterToolCall` get a bridged-agent fallback?** [Bridged agents are the in-process proxy case](#bridged-agents-are-the-proxy-case), so three of the four stages already work. Whether the lossy fourth — reconstructing a result from the *next* request — is worth building, or whether `AfterToolCall` should simply decline to fire and say why, is open.
 13.  **Does `Task` / `Sample` grow a `description` field?** A public API change for a general-purpose affordance monitors happen to need first. If not, monitor context comes from `metadata` by convention and is correspondingly undiscoverable.
-14.  **What happens in a mixed configuration with no protocol?** Recommendations act, scores only record — coherent, and surprising enough to warrant a warning. Whether it should instead be an error, forcing an explicit `observe_only()` or a real protocol, is open.
+14.  **Which stages can `human()` serve?** `BeforeToolCall` is what the existing human surfaces render. A human at `AfterGenerate` — approve the assistant message before the agent acts on it — is plausible and would need a new rendering; `BeforeGenerate` is hard to make meaningful to a person.
 15.  **Failure tolerance across many samples.** [Failing loud](#failure-semantics) is settled for the single-sample case. What is open is whether a monitor that fails on 3 samples in 500 should fail the eval, and whether that reuses `fail_on_error`'s existing shape (`True` / `False` / a proportion / a count) or needs a monitor-specific knob.
