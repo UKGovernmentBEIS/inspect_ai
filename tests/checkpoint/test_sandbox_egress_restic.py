@@ -190,33 +190,40 @@ def _plant_conflicting_index(repo: Path, password: str = PASSWORD) -> tuple[str,
     return f"data/{pack_name[:2]}/{pack_name}", index_name
 
 
-def _understate_blob_length(
+def _understate_blob_lengths(
     repo: Path, index_names: Sequence[str], password: str = PASSWORD
-) -> str:
-    """Rewrite one of ``index_names`` to understate a data blob's plaintext size.
+) -> None:
+    """Rewrite ``index_names`` to understate every data blob's plaintext size.
 
-    Keeps the compressed ``length``/``offset`` honest (so the pack file's size
-    still checks out and its bytes still decrypt) but shrinks the recorded
-    ``uncompressed_length`` by 100000, then deletes the original index so the
-    lie is the only mapping. On restore, restic lays the blob out using the
-    understated length and silently produces a file short by that much; plain
-    ``restic check`` and ``restic ls`` accept it, and only
-    ``check --read-data`` (which decompresses each blob) rejects it. Returns
-    the forged index's repo-relative name.
+    Keeps each blob's compressed ``length``/``offset`` honest (so the pack
+    file's size still checks out and its bytes still decrypt) but shrinks every
+    recorded ``uncompressed_length`` by 100000, then deletes the original
+    indexes so the lie is the only mapping. On restore, restic lays each blob
+    out using the understated length, so a multi-blob file comes out shorter
+    than it was; plain ``restic check`` and ``restic ls`` accept the repo, and
+    only ``check --read-data`` (which decompresses each blob) rejects it.
+    Understating every blob (rather than one) makes the short restore
+    deterministic regardless of which blob the content-defined chunker made
+    last.
     """
     crypto = _ResticCrypto(repo, password)
+    understated = 0
     for name in index_names:
         obj = crypto.load_index(name)
+        rewrote = False
         for pack in obj.get("packs", []):
             for blob in pack["blobs"]:
                 if blob.get("type") == "data" and "uncompressed_length" in blob:
                     blob["uncompressed_length"] = max(
                         1, blob["uncompressed_length"] - 100_000
                     )
-                    forged = crypto.write_index(obj)
-                    (repo / "index" / name).unlink()
-                    return forged
-    raise AssertionError("no compressed data blob to understate in the given indexes")
+                    understated += 1
+                    rewrote = True
+        if rewrote:
+            crypto.write_index(obj)
+            (repo / "index" / name).unlink()
+    if understated == 0:
+        raise AssertionError("no compressed data blob to understate in the indexes")
 
 
 class _Repos:
@@ -600,11 +607,12 @@ async def test_read_data_check_is_required_for_a_blob_length_lie(
     and answers "is `--read-data` load-bearing?". An index that understates a
     data blob's recorded uncompressed length keeps the pack's size and bytes
     valid, so `restic check` (no `--read-data`) and `restic ls` both report no
-    error — yet the recorded length no longer matches the blob, which lets a
-    restore lay the file out wrong. Only `check --read-data`, which
-    decompresses every blob and checks its length, rejects it. This is the
-    conflicting-mapping case content addressing alone does not stop, so the
-    validation must read pack data, not merely list and structurally check.
+    error, and a restore *succeeds* — but the file comes out short, because
+    restic lays each blob out at the understated length. Only
+    `check --read-data`, which decompresses every blob and checks its length,
+    rejects it. This is the conflicting-mapping case content addressing alone
+    does not stop, so the validation must read pack data, not merely list and
+    structurally check.
     """
     pytest.importorskip("cryptography")
     restic = await resolve_restic()
@@ -613,7 +621,8 @@ async def test_read_data_check_is_required_for_a_blob_length_lie(
     src.mkdir()
     # Several MB across multiple blobs; each blob still carries an
     # `uncompressed_length` in a v2 repo.
-    (src / "big.txt").write_bytes(os.urandom(6 * 1024 * 1024))
+    size = 6 * 1024 * 1024
+    (src / "big.txt").write_bytes(os.urandom(size))
     env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
 
     def run(*args: str, ok: bool = True) -> subprocess.CompletedProcess[str]:
@@ -631,11 +640,16 @@ async def test_read_data_check_is_required_for_a_blob_length_lie(
     snap = ResticBackupSummary.from_stdout(
         run("backup", str(src), "--json", "--quiet").stdout
     ).snapshot_id
-    _understate_blob_length(repo, sorted(os.listdir(repo / "index")))
+    _understate_blob_lengths(repo, sorted(os.listdir(repo / "index")))
 
-    # Plain check and ls accept the lie; only --read-data rejects it.
+    # Plain check and ls accept the lie.
     assert run("check", "--no-lock", "--no-cache", ok=False).returncode == 0
     assert run("ls", snap, "--no-lock", "--no-cache", ok=False).returncode == 0
+    # Restore succeeds at exit 0 but silently yields a file short by the lie.
+    out = tmp_path / "restored"
+    run("restore", snap, "--target", str(out), "--no-lock", "--no-cache")
+    assert 0 < next(out.rglob("big.txt")).stat().st_size < size
+    # Only --read-data rejects it.
     assert run("check", "--read-data", "--no-lock", "--no-cache", ok=False).returncode
 
 
@@ -662,7 +676,7 @@ async def test_egress_rejects_understated_blob_length(repos: _Repos) -> None:
         for f in repos.repo_files()
         if f.startswith("index/") and f not in repos.manifest()
     ]
-    _understate_blob_length(repos.repo, sorted(new_indexes))
+    _understate_blob_lengths(repos.repo, sorted(new_indexes))
 
     # Load-bearing: plain check accepts the poisoned repo, only --read-data
     # rejects it.
@@ -722,7 +736,14 @@ async def test_egress_rejects_index_referencing_missing_pack(repos: _Repos) -> N
 
 @pytest.mark.parametrize(
     "boundary",
-    ["validation", "after_packs", "after_indexes", "after_snapshots", "first_cycle"],
+    [
+        "validation",
+        "after_packs",
+        "after_indexes",
+        "after_snapshots",
+        "first_cycle",
+        "first_cycle_after_config",
+    ],
 )
 async def test_egress_hard_kill_preserves_earlier_and_recovers(
     boundary: str, tmp_path: Path
@@ -735,7 +756,8 @@ async def test_egress_hard_kill_preserves_earlier_and_recovers(
     the earlier committed checkpoint still restores from that repo, and that a
     subsequent fire recovers it (absorbing any orphan the kill left) — for the
     merge boundaries (packs, then indexes, then snapshots), during validation
-    before any merge, and for the first-cycle key/config publication.
+    before any merge, and for both first-cycle publication prefixes (after the
+    key, and after the key and ``config`` but before data).
     """
     harness = Path(__file__).parent / "egress_kill_harness.py"
     worktree = Path(__file__).parent.parent.parent
@@ -787,7 +809,7 @@ async def test_egress_hard_kill_preserves_earlier_and_recovers(
         )
         return next(target.rglob("notes.txt")).read_text()
 
-    if boundary != "first_cycle":
+    if not boundary.startswith("first_cycle"):
         # The earlier checkpoint restores from the killed repo.
         assert restore_a(workdir / "restore-A") == "v1\n"
 
@@ -795,7 +817,7 @@ async def test_egress_hard_kill_preserves_earlier_and_recovers(
     result = await _kill_harness_recover(str(workdir))
     assert result["verified"] == result["expected"]
 
-    if boundary != "first_cycle":
+    if not boundary.startswith("first_cycle"):
         # ...and the earlier checkpoint is still restorable afterwards.
         assert restore_a(workdir / "restore-A-after") == "v1\n"
 

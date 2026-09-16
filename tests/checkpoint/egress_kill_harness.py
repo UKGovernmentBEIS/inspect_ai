@@ -16,6 +16,9 @@ B's egress with a hook that ``SIGKILL``s this process at ``<boundary>``:
   before the fire returns and its checkpoint file is written.
 - ``first_cycle``     — during the *first* fire's merge, after the key is
   linked but before ``config`` (no prior A).
+- ``first_cycle_after_config`` — during the *first* fire's merge, after the
+  key and ``config`` are linked but before any data (an initialized but empty
+  repository; no prior A).
 
 A real ``SIGKILL`` runs no ``finally`` cleanup, so the on-disk state is
 exactly what the boundary left. The parent process asserts that the earlier
@@ -50,6 +53,7 @@ CAP = 1 << 30
 # (see egress._merge_rank: keys 1, config 2, data 3, index 4, snapshots 5).
 _MERGE_KILL_RANK = {
     "first_cycle": 1,
+    "first_cycle_after_config": 2,
     "after_packs": 3,
     "after_indexes": 4,
     "after_snapshots": 5,
@@ -185,10 +189,10 @@ async def _run(workdir: Path, boundary: str) -> None:
     asyncfiles._current_async_fs.set(fs)
     restic = await resolve_restic()
     state = await _setup(workdir, restic)
-    if boundary == "first_cycle":
+    if boundary.startswith("first_cycle"):
         _write_info(workdir, state, None)
         id1 = _backup(state, "ckpt-00001", "v1\n")
-        _install_merge_kill("first_cycle")
+        _install_merge_kill(boundary)
         await _egress(state, "ckpt-00001", id1)
     else:
         id_a = await _egress(state, "ckpt-00001", _backup(state, "ckpt-00001", "v1\n"))
