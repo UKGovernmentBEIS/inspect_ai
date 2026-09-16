@@ -77,6 +77,7 @@
 - Sandbox Services: Service directories are now private to the service user, and a service refuses to start if its directory or the shared `/var/tmp/sandbox-services` parent already exists with the wrong owner, mode, or type.
 - Sandboxes: The standard tool-support image now offers an opt-in non-root `nonroot` account (UID/GID 65532; default user unchanged) and installs the web browser's Playwright browsers to a shared path so the browser tool works under a non-root user.
 - Computer tool: click actions called without a `coordinate` now click at the current cursor position instead of failing, and the tool description states which actions require one.
+- Computer tool: `back_click` and `forward_click` now work (with a rebuilt `aisiuk/inspect-computer-tool` image); previously they failed inside the container regardless of arguments.
 
 ## 0.3.263 (03 September 2026)
 

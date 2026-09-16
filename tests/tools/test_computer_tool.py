@@ -1,7 +1,17 @@
-"""Host-side tests for the computer() tool, with the container call stubbed."""
+"""Tests for the computer() tool on both sides of the container boundary.
 
+Host side: `execute()` with the container call stubbed. Container side: the
+parser and dispatcher from `_resources/tool/` driven directly, minus X11.
+"""
+
+import importlib
+import logging
 import re
-from typing import get_args
+import sys
+from argparse import Namespace
+from pathlib import Path
+from types import ModuleType
+from typing import Awaitable, Callable, Iterator, NamedTuple, get_args
 
 import pytest
 
@@ -48,6 +58,44 @@ def sent_cmds(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
     monkeypatch.setattr(_common, "_send_cmd", fake_send_cmd)
     return cmds
+
+
+class Container(NamedTuple):
+    parse_arguments: Callable[[list[str]], Namespace]
+    computer_tool: ModuleType
+
+
+@pytest.fixture
+def container(monkeypatch: pytest.MonkeyPatch) -> Iterator[Container]:
+    """Import the container-side tool as the sandbox runs it, minus X11.
+
+    The modules under `_resources/tool/` use bare imports (`from _args import ...`)
+    because the directory is copied into the image as-is, so it goes on sys.path
+    for the import and its top-level modules are dropped from `sys.modules` after.
+    """
+    tool_dir = Path(_common.__file__).parent / "_resources" / "tool"
+    monkeypatch.syspath_prepend(str(tool_dir))
+    modules_before = set(sys.modules)
+    # computer_tool opens /proc/1/fd/1 (PID 1's stdout) at import time
+    logger_module = importlib.import_module("_logger")
+    monkeypatch.setattr(
+        logger_module,
+        "setup_logger",
+        lambda level=logging.INFO: logging.getLogger("computer_tool"),
+    )
+    computer_tool = importlib.import_module("computer_tool")
+
+    # execute_action first waits for the X11 session marker file
+    async def no_wait(path: str) -> None:
+        pass
+
+    monkeypatch.setattr(computer_tool, "wait_for_file", no_wait)
+    yield Container(importlib.import_module("_args").parse_arguments, computer_tool)
+    for name, module in list(sys.modules.items()):
+        if name not in modules_before and str(
+            getattr(module, "__file__", "")
+        ).startswith(str(tool_dir)):
+            del sys.modules[name]
 
 
 async def test_coordinate_description_matches_dispatch(
@@ -137,3 +185,61 @@ async def test_malformed_start_coordinate_is_reported_to_model(
     with pytest.raises(ToolParsingError, match=r"^start_coordinate must be \[x, y\]$"):
         await execute(action="left_click_drag", start_coordinate=[1], coordinate=[3, 4])
     assert sent_cmds == []
+
+
+@pytest.mark.parametrize("coordinate", [None, [3, 4]])
+@pytest.mark.parametrize("action", CLICK_ACTIONS)
+async def test_host_click_argv_is_accepted_by_container(
+    sent_cmds: list[list[str]],
+    container: Container,
+    action: str,
+    coordinate: list[int] | None,
+) -> None:
+    """Every click argv the host builds must parse on the container side.
+
+    The host advertising an action the container's parser rejects is fatal for
+    the sample (argparse exits non-zero, which `_send_cmd` raises as
+    `RuntimeError`), so the two sides are checked against each other here.
+    """
+    await computer()(action=action, coordinate=coordinate)
+
+    [argv] = sent_cmds
+    args = container.parse_arguments(argv)
+    assert args.action == action
+    assert args.coordinate == coordinate
+
+
+@pytest.mark.parametrize("text", [None, "shift"])
+@pytest.mark.parametrize("coordinate", [None, [3, 4]])
+@pytest.mark.parametrize("action", CLICK_ACTIONS)
+async def test_container_dispatches_click_to_x11_client(
+    container: Container,
+    monkeypatch: pytest.MonkeyPatch,
+    action: str,
+    coordinate: list[int] | None,
+    text: str | None,
+) -> None:
+    # The fake below answers any name, so pin the real client's surface first.
+    assert callable(getattr(container.computer_tool.X11Client, action))
+
+    calls: list[tuple[str, list[int] | None, str | None]] = []
+
+    class FakeX11Client:
+        # Records whichever method the dispatcher calls, so a case wired to the
+        # wrong X11 method shows up as a mismatched name.
+        def __getattr__(self, name: str) -> Callable[..., Awaitable[str]]:
+            async def record(coord: list[int] | None, text: str | None) -> str:
+                calls.append((name, coord, text))
+                return "ok"
+
+            return record
+
+    monkeypatch.setattr(container.computer_tool, "X11Client", FakeX11Client)
+
+    argv = [action]
+    if coordinate:
+        argv += ["--coordinate", "3", "4"]
+    if text:
+        argv += ["--text", text]
+    await container.computer_tool.execute_action(container.parse_arguments(argv))
+    assert calls == [(action, coordinate, text)]
