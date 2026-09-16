@@ -26,12 +26,13 @@ model the eval author never chose, on another provider when the eval's model
 is not on the scaffold's native API (an eval on `openai/gpt-5` whose Claude
 Code haiku calls go to Anthropic), and otherwise another model on the same
 provider (an eval on `anthropic/claude-fable-5` paying for haiku calls
-outside the eval model's config and accounting). Eval-internal model roles
-(graders, monitors) are also reachable by name from inside the sandbox
-(util.py:678-679). None of this is visible in
-the log: the `ModelEvent` records the model that served the call, not the
-name the scaffold asked for, and the response echoes the served model's name
-too (`completions.py:69,115`).
+outside the eval model's configuration). Eval-internal model roles (graders,
+monitors) are also reachable by name from inside the sandbox
+(util.py:678-679). The log records which model served each call and its
+usage (`_model.py:1964-1975`, `2976-2977`) and the viewer shows it, but not
+the name the scaffold asked for or why the bridge chose that model; the
+response echoes the served model's name too (`completions.py:69,115`). A
+redirect therefore cannot be told from a call the scaffold made by name.
 
 ### Who is untrusted
 
@@ -70,10 +71,13 @@ decides which model serves a request.
   provider or deployment (an Azure tenant, say) can today be sent to public
   OpenAI or Anthropic by naming them. The default keeps it on the model the
   author chose.
-- **Invisibility.** None of the above shows in the log today, so an operator
-  cannot tell that sandboxed code called other providers. The
-  `requested_model` field and the once-per-name warning make every redirect,
-  and every alias hit, auditable after the fact.
+- **No provenance.** The served model and its usage are already recorded
+  and shown (`_model.py:1964-1975`, `2976-2977`, the viewer's
+  `ModelEventView`), so an operator can see that `anthropic/claude-haiku-4-5`
+  was called. What the log lacks is the client-requested name and the
+  routing that led there, so a call the scaffold made by name and a redirect
+  look the same. The `requested_model` field and the once-per-name warning
+  supply that provenance for every redirect and every alias hit.
 
 What the design deliberately leaves alone: provider-side tools
 (`web_search`, `code_execution`, remote MCP) are a separate, already
@@ -151,8 +155,12 @@ The in-container proxy
 forwards the request body to the host service. A missing or empty `model` is
 rejected with a 400 before forwarding (proxy.py:701-702, 1427-1428,
 1649-1650); for Google the name is parsed from the URL path and written into
-the body (proxy.py:2044-2047). Each host dialect reads it and calls the
-resolver with the bridge's options and the endpoint's provider:
+the body (proxy.py:2044-2047) with a pattern that stops at the next slash
+(`models/([^/:]+)`, proxy.py:2032), so a prefixed Google name such as
+`inspect/mockllm/other` reaches the host as `inspect`. Each host dialect
+reads the name and calls the resolver with the bridge's options and the
+endpoint's provider; the Google dialect substitutes `"inspect"` when the
+body has no `model` (google_api_impl.py:76):
 
 | Dialect | Call site | `provider` |
 |---|---|---|
@@ -218,6 +226,15 @@ functions and so the same resolver, where `inspect/<spec>` resolves to a
 role or `get_model(spec)`. The documented
 `ChatOpenAI(model="inspect/google/gemini-1.5-pro")` example
 (`docs/agent-bridge.qmd:196-204`) is this path.
+
+The Google patch differs from the other three. It extracts a name from the
+SDK URL path only to decide interception (`_google_api_model_name`,
+bridge.py:578-581, the same slash-stopping pattern; used at 527-528) and
+then forwards the SDK's `request_dict`, which carries no `model`, so the
+Google dialect resolves its default `"inspect"` (google_api_impl.py:76). An
+in-process Google request for `inspect/mockllm/other` is therefore served by
+the active model today, and the dialect never sees the requested name
+(verified with a `google.genai` client under `agent_bridge()`, 2026-09-16).
 
 ### Where a record of the requested name would go
 
@@ -419,7 +436,9 @@ requested_model: str | None = Field(default=None)
 """Model name the client requested, for calls made through an agent bridge
 (`None` for direct calls). Differs from `model` when the bridge routed the
 request elsewhere: an alias, a resolver, a pin, or the default of serving
-an unrecognised name with the eval's model."""
+an unrecognised name with the eval's model. For the Google dialect through
+the sandbox proxy this is the name as the proxy read it from the URL, which
+truncates an `inspect/`-prefixed name at its first slash."""
 ```
 
 `src/inspect_ai/model/_model.py`:
@@ -490,6 +509,26 @@ simpler to test than a conditional one. A filter that returns a
 record. The route is not logged: it stays on `BridgeModelResolution` for
 the warning and the tests, and a reader sees a redirect as `requested_model`
 differing from `model` while knowing their own aliases.
+
+**Google.** On both Google paths the routing input is not the client's name
+today (see Current behaviour), so the requested name has to reach the
+recording path independently of it. `inspect_google_api_request()` and its
+`_impl` gain a keyword-only `requested_model: str | None = None`; the
+dialect records `requested_model` when given and the routing name otherwise.
+In-process, `patched_async_request` (bridge.py:518-537) extracts the full
+segment between `models/` and the `:` with a new helper
+`_google_api_requested_model(path)` (pattern `models/([^:]+):`) and passes
+it as `requested_model`; the interception test and the routing input
+(`_google_api_model_name` and the unmodified `request_dict`) are untouched,
+so in-process Google routing stays exactly as it is today, defect included.
+In the sandbox the proxy writes the slash-truncated segment into `model`
+(proxy.py:2032, 2044-2047) and this design does not change the proxy binary,
+so that path records the name as the proxy delivered it. For bare Gemini ids,
+the only Google names a known scaffold sends (Gemini CLI's `gemini-2.5-pro`
+and its utility names), that is the full client name; for an
+`inspect/`-prefixed Google name sent through the sandbox the field holds the
+first segment. The field's docstring says so, and the proxy fix is listed
+under Not this design with the routing defect.
 
 Because it is a typed field, the name is a first-class part of the log: in
 `.eval` files, through `read_eval_log()`, as a new
@@ -567,7 +606,12 @@ docstring rewritten:
 > model (`"inspect"` means the same). Cannot be combined with
 > `forward_model_names=True`.
 
-`src/inspect_ai/agent/_bridge/bridge.py`: pass `forward_model_names=True`.
+`src/inspect_ai/agent/_bridge/bridge.py`: pass `forward_model_names=True`;
+add `_google_api_requested_model(path)` and pass its result as
+`requested_model=` from `patched_async_request`.
+
+`src/inspect_ai/agent/_bridge/google_api.py` and `google_api_impl.py`: the
+keyword-only `requested_model` parameter, used for recording only.
 
 `src/inspect_ai/event/_model.py`: the `requested_model` field.
 
@@ -706,7 +750,10 @@ variant.
 **In-process `agent_bridge()`.** Shares the resolver and the dialect
 functions; constructed with pass-through on, so its routing is unchanged
 and the LangChain `inspect/google/...` example keeps working. Its
-`ModelEvent`s gain `requested_model` (`"inspect"` or the `inspect/` name).
+`ModelEvent`s gain `requested_model` (`"inspect"` or the `inspect/` name),
+on the Google path taken from the SDK URL rather than the body (see
+Recording); in-process Google routing is unchanged, including the
+pre-existing loss of a prefixed name described under Not this design.
 
 **Stored formats and the viewer.** `ModelEvent` is a persisted public
 model, so the field is a public-contract change and its consumers are
@@ -827,6 +874,15 @@ a `GenerateFilter` that calls `model.generate()` itself and returns that
 output; the resulting `ModelEvent` (the only one) carries
 `requested_model`, which is the filter-path case the context block exists
 to cover.
+`test_google_sdk_request_records_full_requested_model`, next to
+`test_google_bridge_returns_logprobs_to_client` (line 686): under
+`agent_bridge()` with a `mockllm` active model, a `google.genai` client
+calls `generate_content(model="inspect/mockllm/other", ...)`; the resulting
+`ModelEvent` has `requested_model == "inspect/mockllm/other"` and `model`
+equal to the active model (today's routing, unchanged). Invoking the dialect
+directly with a supplied `model` cannot catch this, because the SDK path
+never supplies one. Skipped with `pytest.importorskip("google.genai")` when
+the SDK is not installed.
 
 End to end with Docker, `tests/tools/test_tools_bridge.py` (existing
 `@skip_if_no_docker` file whose slow tests PR CI runs):
@@ -922,3 +978,10 @@ from the eval's, matching its ACP Gemini agent.
   own configuration.
 - The in-process bridge exposing `model=`, `model_aliases` or
   `model_resolver`.
+- Google routing loses a prefixed name on both paths: `_google_api_model_name`
+  (bridge.py:578-581) and the proxy's `_extract_model_from_google_path`
+  (proxy.py:2032) stop at the first slash, and the in-process patch forwards
+  no `model` at all, so `inspect/mockllm/other` through the Google dialect
+  is served by the active model rather than the named spec. Fixing it is a
+  routing change and, for the sandbox, a proxy binary rebuild, separate from
+  recording the requested name accurately.
