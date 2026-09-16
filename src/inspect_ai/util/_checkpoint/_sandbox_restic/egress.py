@@ -37,6 +37,20 @@ Host protections:
   the number of archive entries accepted. The sandbox also checks size
   before building the archive to avoid wasted work, but the host
   enforces the limit independently.
+- **A transfer is validated before it reaches the accepted repo.** New
+  files are received into a staging area beside the accepted repo, and a
+  throwaway view — the accepted repo (hard links) plus the additions — is
+  checked with ``restic check --read-data`` and ``restic ls`` before any
+  file is merged. Content addressing already prevents *changing* an
+  accepted file, but a later transfer could otherwise *add* a
+  correctly-named file (a malformed index, or a valid index that maps a
+  blob to an attacker-supplied pack) that leaves an earlier checkpoint
+  unrestorable or silently corrupt. Validation rejects such additions on
+  the copy, so the accepted repo is never touched by a transfer that
+  would break it. Only then are the additions linked in — packs, then
+  indexes, then snapshots — so even a hard kill mid-merge leaves every
+  earlier checkpoint restorable. Passing validation is not authenticity:
+  the sandbox still shapes its own captures, which it controls anyway.
 
 Transfer protocol checks reject inconsistent transfers. A compromised
 sandbox can satisfy them while supplying fabricated state:
@@ -62,10 +76,13 @@ sandbox can satisfy them while supplying fabricated state:
 
 Recovery behavior:
 
-If extraction or snapshot receipt checks fail, the host removes the
-files it added during this attempt. Only after these checks succeed
-does it tell the sandbox to mark the accepted files as shipped. If
-that acknowledgment fails, the next attempt can safely resend them.
+A rejected transfer never reaches the accepted repo: extraction,
+validation, and the throwaway view all happen in a per-sandbox scratch
+directory that is removed on every exit path, so a failed or cancelled
+attempt leaves the accepted repo exactly as it was found. Only after the
+additions are merged does the host tell the sandbox to mark the accepted
+files as shipped. If that acknowledgment fails, the next attempt can
+safely resend them.
 
 Ingress is the inverse: on resume, copy a host-side repo back into the
 sandbox and restic-restore the recorded snapshot at its original
@@ -92,6 +109,7 @@ from typing import IO, Any, NamedTuple
 
 import anyio
 
+from inspect_ai.util._restic.ops import restic_env
 from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
@@ -306,14 +324,30 @@ async def egress_sandbox(
             f"protocol violation, not a no-op"
         )
 
-    # Host scratch copy of the tarball lives in a per-sandbox directory
-    # beside (not inside) the repo, so nothing partial ever sits where
-    # restic would see it. Sandboxes egress concurrently and one name may
-    # prefix another (`web` / `web-db`), so the residue sweep is scoped to
-    # this sandbox's directory, not a name glob over the shared parent.
+    # This fire's new repo files are received, validated, and merged
+    # entirely beside (never inside) the accepted repo, so no failure path
+    # can leave a poisoned file where a restore of an earlier checkpoint
+    # would load it:
+    #
+    #   1. the tarball is copied out and extracted into a staging dir;
+    #   2. a throwaway *view* — the accepted repo (hard links) plus the
+    #      staged additions — is validated with `restic check --read-data`
+    #      and `ls`, so a malformed or conflicting index is caught on the
+    #      copy, before the accepted repo is touched;
+    #   3. only then are the staged files linked into the accepted repo,
+    #      packs before indexes before snapshots, so even a hard kill
+    #      mid-merge leaves every earlier checkpoint restorable.
+    #
+    # The scratch dir lives in a per-sandbox directory beside the repo, so
+    # nothing partial ever sits where restic would see it. Sandboxes
+    # egress concurrently and one name may prefix another (`web` /
+    # `web-db`), so the residue sweep is scoped to this sandbox's
+    # directory, not a name glob over the shared parent.
     scratch = _scratch_dir(dest_repo)
     await anyio.to_thread.run_sync(_reset_scratch_dir, scratch)
     tar_host = scratch / f"{tag}.tar"
+    staging = scratch / "staging"
+    view = scratch / "view"
     try:
         await copy_out(
             env,
@@ -330,7 +364,8 @@ async def egress_sandbox(
             partial(
                 _extract_verified,
                 tar_host,
-                dest_repo,
+                str(staging),
+                existing_repo=dest_repo,
                 new_files=build.new_files,
                 existing=before_files,
                 first_cycle=first_cycle,
@@ -338,19 +373,19 @@ async def egress_sandbox(
                 label=label,
             )
         )
-    finally:
-        # Threaded: the scratch dir holds a tarball of up to `max_bytes`
-        # and unlinking it is not free. Shielded: this `finally` also runs
-        # under cancellation, where an unshielded await would abort.
-        with anyio.CancelScope(shield=True):
-            await anyio.to_thread.run_sync(
-                partial(shutil.rmtree, scratch, ignore_errors=True)
+        await anyio.to_thread.run_sync(
+            partial(
+                _build_validation_view,
+                view,
+                existing_repo=dest_repo,
+                existing=before_files,
+                staging=staging,
+                written=extracted.written,
             )
-
-    try:
-        verified_id = await _verify_fresh_snapshot(
+        )
+        verified_id = await _validate_view(
             host_restic,
-            dest_repo,
+            view,
             password,
             before_ids=before_ids,
             written=extracted.written,
@@ -358,13 +393,18 @@ async def egress_sandbox(
             tag=tag,
             label=label,
         )
-    except BaseException:
-        # Shielded so a cancellation arriving during verification still
-        # rolls the destination back (a cancelled scope would otherwise
-        # abort the rollback's own await).
+        await anyio.to_thread.run_sync(
+            partial(_merge_into_repo, dest_repo, staging, extracted.written)
+        )
+    finally:
+        # Threaded: the scratch dir holds the tarball (up to `max_bytes`),
+        # the staging copy, and the hard-linked view, and unlinking is not
+        # free. Shielded: this `finally` also runs under cancellation,
+        # where an unshielded await would abort.
         with anyio.CancelScope(shield=True):
-            await anyio.to_thread.run_sync(_remove_files, dest_repo, extracted.written)
-        raise
+            await anyio.to_thread.run_sync(
+                partial(shutil.rmtree, scratch, ignore_errors=True)
+            )
 
     await _commit_egress(env, tag, extracted.members, paths)
     return verified_id
@@ -532,15 +572,25 @@ class _TarReader(io.BufferedReader):
 
 def _extract_verified(
     tar_path: Path,
-    dest_repo: str,
+    staging_dir: str,
     *,
+    existing_repo: str | None = None,
     new_files: Sequence[str],
     existing: Collection[str],
     first_cycle: bool,
     max_bytes: int,
     label: str,
 ) -> _Extracted:
-    """Validate and extract the egress tarball member by member.
+    """Validate the egress tarball member by member into ``staging_dir``.
+
+    ``staging_dir`` is a throwaway directory beside the accepted repo;
+    validated new members land there, never in the accepted repo, so a
+    later ``restic`` validation runs on a copy and the accepted repo is
+    touched only once the whole transfer is accepted (see
+    :func:`_build_validation_view` and :func:`_merge_into_repo`).
+    ``existing_repo`` is the accepted repo an already-shipped member is
+    checked against; it defaults to ``staging_dir`` for callers that
+    extract straight into the target.
 
     Every member must pass ``tarfile.data_filter`` (path safety), be a
     regular file, match the restic layout, be listed in ``new_files``,
@@ -552,7 +602,7 @@ def _extract_verified(
     destination and is renamed into place only if the hash equals its
     basename (``config`` excepted).
     New ``config``/``keys/*`` files are accepted only on the first
-    cycle. A member already present in ``dest_repo`` is accepted
+    cycle. A member already present in ``existing_repo`` is accepted
     without writing only when the shipped bytes are the existing bytes
     (both hash to the name; ``config`` contents compared by hash) — a
     re-ship after a failed phase-2 commit — and the existing file is
@@ -563,8 +613,9 @@ def _extract_verified(
     arbitrary new contents under their matching hash-derived names.
 
     On any failure, every file this call wrote is removed before the
-    error propagates, so ``dest_repo`` is left as it was found.
+    error propagates, so ``staging_dir`` is left as it was found.
     """
+    accepted_repo = existing_repo if existing_repo is not None else staging_dir
     expected = set(new_files)
     if len(expected) != len(new_files):
         raise EgressVerificationError(f"{label}: diff list contains duplicates")
@@ -583,7 +634,7 @@ def _extract_verified(
             ):
                 for member in tar:
                     name = member.name
-                    _check_member(member, dest_repo, expected, label)
+                    _check_member(member, staging_dir, expected, label)
                     if name in seen:
                         raise EgressVerificationError(
                             f"{label}: member {name!r} appears more than once"
@@ -602,14 +653,14 @@ def _extract_verified(
                         )
                     with reader.file_data(), src:
                         if name in existing:
-                            _accept_identical_reship(src, dest_repo, name, label)
+                            _accept_identical_reship(src, accepted_repo, name, label)
                         elif not first_cycle and name.startswith(_FIRST_CYCLE_ONLY):
                             raise EgressVerificationError(
                                 f"{label}: member {name!r} is only accepted while "
                                 f"the destination repo is uninitialized"
                             )
                         else:
-                            _write_member(src, dest_repo, name, label)
+                            _write_member(src, staging_dir, name, label)
                             written.append(name)
         except tarfile.TarError as exc:
             raise EgressVerificationError(
@@ -622,7 +673,7 @@ def _extract_verified(
                 f"tarball, e.g. {sorted(missing)[:3]}"
             )
     except BaseException:
-        _remove_files(dest_repo, written)
+        _remove_files(staging_dir, written)
         raise
     return _Extracted(members=sorted(seen), written=written)
 
@@ -736,12 +787,86 @@ def _remove_files(dest_repo: str, names: Sequence[str]) -> None:
         (Path(dest_repo) / name).unlink(missing_ok=True)
 
 
+# Restic layout order: config + keys must precede the data they open,
+# packs precede the indexes that map them, indexes precede the snapshots
+# that reference them. Merging and unwinding in this order keep the
+# accepted repo valid at every prefix.
+_MERGE_RANK = {"keys": 1, "config": 2, "data": 3, "index": 4, "snapshots": 5}
+
+
+def _merge_rank(name: str) -> int:
+    if name == "config":
+        return _MERGE_RANK["config"]
+    return _MERGE_RANK.get(name.split("/", 1)[0], _MERGE_RANK["snapshots"])
+
+
+def _hardlink_into(src: Path, dst: Path) -> None:
+    """Hard-link ``src`` to ``dst``, creating ``dst``'s parent."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    os.link(src, dst)
+
+
+def _build_validation_view(
+    view: Path,
+    *,
+    existing_repo: str,
+    existing: Collection[str],
+    staging: Path,
+    written: Sequence[str],
+) -> None:
+    """Hard-link the accepted repo files plus this fire's additions into ``view``.
+
+    ``view`` is a throwaway repository equal to the accepted repo as it
+    stands plus the staged additions, so ``restic check``/``ls`` run
+    against exactly what the accepted repo would become if this fire were
+    merged — but on a copy, so a rejected fire never touched the accepted
+    repo. Hard links keep it O(files), not O(bytes); the validation only
+    reads the repo, so sharing inodes with the accepted files is safe. The
+    accepted repo and the staging dir share one filesystem (staging is a
+    sibling of the accepted repo), so every link resolves.
+    """
+    view.mkdir(parents=True, exist_ok=True)
+    src_repo = Path(existing_repo)
+    for rel in sorted(existing):
+        _hardlink_into(src_repo / rel, view / rel)
+    for rel in written:
+        _hardlink_into(staging / rel, view / rel)
+
+
+def _merge_into_repo(dest_repo: str, staging: Path, written: Sequence[str]) -> None:
+    """Hard-link this fire's validated new files into the accepted repo.
+
+    Reached only once the temporary view validated, so the accepted repo
+    gains only files ``restic check --read-data`` accepted. Files are
+    linked in restic-layout order (keys, config, packs, indexes,
+    snapshots), so an interruption — including a hard kill, which cannot
+    unwind — leaves the accepted repo valid at every prefix: a snapshot is
+    never linked before the index and packs it references, and ``config``
+    never before its key. A new member never collides with an accepted
+    file (an identical re-ship is not in ``written``); ``os.link`` raises
+    rather than overwrite if one somehow does, so an accepted file is
+    never replaced. An ordinary failure unwinds this fire's links,
+    last-linked first, leaving the accepted repo unchanged.
+    """
+    dest = Path(dest_repo)
+    ordered = sorted(written, key=lambda name: (_merge_rank(name), name))
+    linked: list[str] = []
+    try:
+        for name in ordered:
+            _hardlink_into(staging / name, dest / name)
+            linked.append(name)
+    except BaseException:
+        for name in reversed(linked):
+            (dest / name).unlink(missing_ok=True)
+        raise
+
+
 async def _snapshot_tags(
-    host_restic: Path, dest_repo: str, password: str
+    host_restic: Path, dest_repo: str, password: str, *, no_cache: bool = False
 ) -> dict[str, list[str]]:
     """Full snapshot id → tags for every snapshot the destination lists."""
     snapshots: list[dict[str, Any]] = await list_snapshots(
-        host_restic, dest_repo, password
+        host_restic, dest_repo, password, no_cache=no_cache
     )
     return {snap["id"]: list(snap.get("tags") or []) for snap in snapshots}
 
@@ -756,12 +881,14 @@ async def _verify_fresh_snapshot(
     snapshot_id: str,
     tag: str,
     label: str,
+    no_cache: bool = False,
 ) -> str:
     """Check that the sandbox's reported snapshot arrived on the host.
 
-    The destination is the host-side restic repository receiving files
-    from this sandbox. Compare its snapshots before and after the
-    transfer. The added snapshots must be exactly those whose files the
+    ``dest_repo`` is the repository whose snapshots are compared before
+    and after the transfer — the validation view of the accepted
+    repository plus the additions, so this runs before anything is
+    merged. The added snapshots must be exactly those whose files the
     host just wrote. The snapshot reported by the sandbox must be one of
     them and have exactly the expected checkpoint tag.
 
@@ -777,7 +904,7 @@ async def _verify_fresh_snapshot(
 
     Return the full id of the reported snapshot after these checks pass.
     """
-    after = await _snapshot_tags(host_restic, dest_repo, password)
+    after = await _snapshot_tags(host_restic, dest_repo, password, no_cache=no_cache)
     lost = set(before_ids) - set(after)
     if lost:
         raise EgressVerificationError(
@@ -807,6 +934,104 @@ async def _verify_fresh_snapshot(
             f"{after[verified_id]}, expected [{tag!r}]"
         )
     return verified_id
+
+
+async def _validate_view(
+    host_restic: Path,
+    view: Path,
+    password: str,
+    *,
+    before_ids: Collection[str],
+    written: Collection[str],
+    snapshot_id: str,
+    tag: str,
+    label: str,
+) -> str:
+    """Validate the temporary view before any file reaches the accepted repo.
+
+    Three checks, cheapest first, each against the throwaway view:
+
+    1. **Freshness** (``restic snapshots``): the view's snapshot set must
+       be the accepted repo's plus exactly the snapshot files this fire
+       shipped, the reported id must be one of them, and it must carry
+       exactly this checkpoint's tag (:func:`_verify_fresh_snapshot`).
+    2. **``restic ls <reported id>``**: the committed snapshot must be
+       walkable — this loads every index and rejects a malformed or
+       undecryptable one (the demonstrated poisoning) before the more
+       expensive content read.
+    3. **``restic check --read-data``**: reads and decrypts every pack the
+       indexes reference and re-derives every blob, so a conflicting
+       index that maps a blob to an attacker-supplied pack — which
+       ``check`` without ``--read-data`` and ``ls`` both accept — is
+       rejected here. Without it the accepted repo could gain a
+       structurally valid addition that silently corrupts an earlier
+       snapshot's restore.
+
+    A failure of any check raises ``EgressVerificationError`` and the
+    accepted repo is never touched (the caller merges only on success).
+    Returns the reported snapshot's full id.
+
+    All commands run ``--no-lock --no-cache``: the view shares the
+    accepted repo's ``config`` id, so restic's repo-id-keyed cache would
+    otherwise let a cached pack mask a staged file (and reorder the blob
+    candidates a conflicting index competes in).
+    """
+    verified_id = await _verify_fresh_snapshot(
+        host_restic,
+        str(view),
+        password,
+        before_ids=before_ids,
+        written=written,
+        snapshot_id=snapshot_id,
+        tag=tag,
+        label=label,
+        no_cache=True,
+    )
+    await _run_view_restic(
+        host_restic,
+        ["ls", verified_id],
+        view,
+        password,
+        label=label,
+        what=f"listing snapshot {verified_id[:8]}",
+    )
+    await _run_view_restic(
+        host_restic,
+        ["check", "--read-data"],
+        view,
+        password,
+        label=label,
+        what="content check",
+    )
+    return verified_id
+
+
+async def _run_view_restic(
+    host_restic: Path,
+    args: Sequence[str],
+    view: Path,
+    password: str,
+    *,
+    label: str,
+    what: str,
+) -> None:
+    """Run a read-only restic command against the validation view.
+
+    A non-zero exit is a rejected transfer, not a host error: the view is
+    built from sandbox-supplied bytes, so a failure here means the
+    additions are inconsistent with the accepted repo.
+    """
+    proc = await anyio.run_process(
+        [str(host_restic), "-r", str(view), *args, "--no-lock", "--no-cache"],
+        env=restic_env(password),
+        check=False,
+    )
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode(errors="replace").strip()
+        raise EgressVerificationError(
+            f"{label}: the received repository files failed validation "
+            f"({what}) against a view of the accepted repository: {stderr}"
+        )
 
 
 async def _commit_egress(

@@ -353,6 +353,53 @@ Implementation requirements:
   `MAX_EXEC_OUTPUT_SIZE` (suppress progress streams — see
   `run_sandbox_backup`'s `--quiet` note).
 
+**Earlier checkpoints survive a later transfer (validate before merge).**
+Content addressing keeps a committed repository file's *bytes* immutable,
+but a later transfer can still *add* a new, correctly-named file — a
+restic file's name is the SHA-256 of its own bytes, so any bytes can be
+shipped under their matching name. A malformed `index/<sha256>` (bytes
+that are not a decryptable index) added to the accepted repo makes restic
+abort while loading indexes and so blocks restoring *every* snapshot,
+including earlier committed ones; a valid index that maps an existing
+blob to an attacker-supplied `data` pack can leave an earlier snapshot's
+restore silently corrupt. Neither changes an accepted file, so the
+content-addressing checks alone do not prevent them.
+
+The restic strategy therefore validates every transfer before it reaches
+the accepted repo:
+
+- New files are received into a staging area beside (never inside) the
+  accepted repo.
+- A throwaway *view* — the accepted repo (hard links) plus the staged
+  additions — is validated with `restic check --read-data` and `restic ls
+  <recorded id>`, run `--no-lock --no-cache` (the view shares the accepted
+  repo's `config` id, so its cache must be bypassed). `check` without
+  `--read-data` and `ls` reject a malformed or undecryptable index and an
+  index that references a missing pack, but both *accept* a valid index
+  pointing at a present-but-garbage pack; only reading pack contents
+  (`--read-data`) rejects that, so it is required, not `check` alone.
+- Only if the view validates are the additions linked into the accepted
+  repo, packs before indexes before snapshots, so an interruption —
+  including a hard kill, which cannot roll back — leaves every earlier
+  snapshot restorable at every prefix. Checking the live repo and rolling
+  back on failure would not do: a hard kill mid-rollback leaves the poison
+  visible. The accepted repo is never written by a transfer that fails
+  validation.
+
+Guarantee and limits. A later transfer cannot make an earlier committed
+snapshot unrestorable, and cannot silently alter its restored contents:
+the additions are proven, on an isolated copy, to keep every snapshot
+loadable and every referenced blob readable before anything is merged.
+This is not authenticity of the sandbox's state. An agent that controls
+sandbox root holds the repository key and can mint validly-encrypted
+indexes, trees, and snapshots; validation establishes only that the view
+is loadable and internally consistent, not that its captures are honest —
+which does not matter, because the sandbox already controls its own
+current capture. What it can no longer do is reach back and break or
+corrupt a checkpoint an earlier fire committed. The cost is a
+`check --read-data` per fire, which reads the whole repository and so
+grows with accumulated history, not just the increment.
+
 ### 4.7 Strategy identity is recorded and pinned
 
 Resume must never run one strategy over another strategy's data, and a

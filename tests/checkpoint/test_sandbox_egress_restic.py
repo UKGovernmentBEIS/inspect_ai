@@ -15,6 +15,9 @@ recorded snapshots and restores the recorded id.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -50,6 +53,114 @@ pytestmark = pytest.mark.slow
 PASSWORD = "test-password"
 CHUNK = 64 * 1024
 CAP = 1 << 30
+
+MALFORMED_INDEX = b"not a valid encrypted restic index"
+
+
+def _plant_conflicting_index(repo: Path, password: str = PASSWORD) -> tuple[str, str]:
+    """Plant a conflicting validly-encrypted index plus its garbage pack.
+
+    The index maps an existing data blob into a garbage ``data`` pack added
+    alongside it, in the in-sandbox ``repo``.
+    This models the strongest addition an agent that holds the repo key can
+    ship: it passes ``restic check`` *without* ``--read-data`` and ``restic
+    ls`` (both accept it), so only the ``--read-data`` content read catches
+    it. Returns the (pack, index) repo-relative names. Requires
+    ``cryptography`` (a v2 restic repo's AES-256-CTR + Poly1305-AES index
+    encryption); callers guard with ``pytest.importorskip``.
+    """
+    from cryptography.hazmat.primitives import poly1305
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    def poly_key(nonce: bytes, mk_k: bytes, mk_r: bytes) -> bytes:
+        enc = Cipher(algorithms.AES(mk_k), modes.ECB()).encryptor()
+        return mk_r + enc.update(nonce) + enc.finalize()
+
+    def decrypt(key: tuple[bytes, bytes, bytes], buf: bytes) -> bytes:
+        aes, mk_k, mk_r = key
+        nonce, ct, mac = buf[:16], buf[16:-16], buf[-16:]
+        checker = poly1305.Poly1305(poly_key(nonce, mk_k, mk_r))
+        checker.update(ct)
+        checker.verify(mac)
+        dec = Cipher(algorithms.AES(aes), modes.CTR(nonce)).decryptor()
+        return dec.update(ct) + dec.finalize()
+
+    def encrypt(key: tuple[bytes, bytes, bytes], plaintext: bytes) -> bytes:
+        aes, mk_k, mk_r = key
+        nonce = os.urandom(16)
+        enc = Cipher(algorithms.AES(aes), modes.CTR(nonce)).encryptor()
+        ct = enc.update(plaintext) + enc.finalize()
+        mac = poly1305.Poly1305(poly_key(nonce, mk_k, mk_r))
+        mac.update(ct)
+        return nonce + ct + mac.finalize()
+
+    key_file = next((repo / "keys").iterdir())
+    kj = json.loads(key_file.read_bytes())
+    assert kj["kdf"] == "scrypt", kj["kdf"]
+    dk = hashlib.scrypt(
+        password.encode(),
+        salt=base64.b64decode(kj["salt"]),
+        n=kj["N"],
+        r=kj["r"],
+        p=kj["p"],
+        dklen=64,
+        maxmem=(128 * kj["N"] * kj["r"] * 2) + 2**26,
+    )
+    user_key = (dk[:32], dk[32:48], dk[48:64])
+    mj = json.loads(decrypt(user_key, base64.b64decode(kj["data"])))
+    master = (
+        base64.b64decode(mj["encrypt"]),
+        base64.b64decode(mj["mac"]["k"]),
+        base64.b64decode(mj["mac"]["r"]),
+    )
+
+    def load_index(name: str) -> dict[str, Any]:
+        raw = decrypt(master, (repo / "index" / name).read_bytes())
+        if raw[:1] in (b"[", b"{"):
+            return json.loads(raw)
+        import zstandard
+
+        return json.loads(
+            zstandard.ZstdDecompressor().decompressobj().decompress(raw[1:])
+        )
+
+    blob: dict[str, Any] | None = None
+    for name in sorted(os.listdir(repo / "index")):
+        for pack in load_index(name).get("packs", []):
+            for candidate in pack["blobs"]:
+                if candidate.get("type") == "data":
+                    blob = candidate
+                    break
+            if blob is not None:
+                break
+        if blob is not None:
+            break
+    assert blob is not None, "no data blob to build a conflicting mapping against"
+
+    # A garbage pack sized to satisfy restic's pack-size arithmetic (36-byte
+    # header/trailer + blob length + a per-blob index entry: 41 bytes for a
+    # compressed v2 blob, 37 otherwise), so `check` without `--read-data`
+    # passes and only the content read rejects it.
+    compressed = "uncompressed_length" in blob
+    entry = 41 if compressed else 37
+    garbage = os.urandom(blob["length"] + 36 + entry)
+    pack_name = hashlib.sha256(garbage).hexdigest()
+    (repo / "data" / pack_name[:2]).mkdir(parents=True, exist_ok=True)
+    (repo / "data" / pack_name[:2] / pack_name).write_bytes(garbage)
+
+    entry_obj: dict[str, Any] = {
+        "id": blob["id"],
+        "type": "data",
+        "offset": 0,
+        "length": blob["length"],
+    }
+    if compressed:
+        entry_obj["uncompressed_length"] = max(1, blob["uncompressed_length"] - 100_000)
+    index_obj = {"packs": [{"id": pack_name, "blobs": [entry_obj]}]}
+    sealed = encrypt(master, json.dumps(index_obj, separators=(",", ":")).encode())
+    index_name = hashlib.sha256(sealed).hexdigest()
+    (repo / "index" / index_name).write_bytes(sealed)
+    return f"data/{pack_name[:2]}/{pack_name}", f"index/{index_name}"
 
 
 class _Repos:
@@ -129,6 +240,37 @@ class _Repos:
     def manifest(self) -> set[str]:
         path = self.sandbox_dir / "egress-manifest.txt"
         return set(path.read_text().split()) if path.exists() else set()
+
+    def restore_dest(self, snapshot_id: str, target: Path) -> None:
+        """Restore ``snapshot_id`` from the accepted (dest) repo into ``target``."""
+        subprocess.run(
+            [
+                str(self.restic),
+                "-r",
+                str(self.dest),
+                "restore",
+                snapshot_id,
+                "--target",
+                str(target),
+                "--no-lock",
+                "--no-cache",
+            ],
+            env={"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+    def plant_in_sandbox_repo(self, rel: str, data: bytes) -> str:
+        """Write ``data`` at ``rel`` in the in-sandbox repo; return ``rel``.
+
+        Models the sandbox (which controls its own repo) adding an extra
+        repository file the next egress diff will pick up and ship.
+        """
+        path = self.repo / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return rel
 
 
 @pytest.fixture
@@ -269,14 +411,16 @@ async def test_egress_recovers_after_failed_transfer(repos: _Repos) -> None:
     assert set(await repos.dest_snapshots()) == {id1, id2, id3}
 
 
-async def test_egress_cancelled_during_verification_rolls_back(
+async def test_egress_cancelled_during_validation_leaves_repo_untouched(
     repos: _Repos,
 ) -> None:
-    """Cancellation after extraction still removes this fire's files.
+    """Cancellation during validation never touches the accepted repo.
 
     ``_fire_once`` fans sandboxes out under one task group, so a sibling's
-    verification failure cancels this egress mid-``_verify_fresh_snapshot``
-    — after the members are already on disk.
+    failure can cancel this egress mid-validation. The additions live in
+    the scratch dir until validation passes, so the accepted repo is
+    unchanged the whole time and the cancelled attempt leaves nothing
+    behind.
     """
     id1 = repos.backup("ckpt-00001")
     await repos.egress("ckpt-00001", id1)
@@ -297,12 +441,161 @@ async def test_egress_cancelled_during_verification_rolls_back(
         async with anyio.create_task_group() as tg:
             tg.start_soon(repos.egress, "ckpt-00002", id2)
             await verifying.wait()
-            assert repos.dest_files() > files_after_1  # members extracted
+            # Validation runs on the throwaway view; the accepted repo is
+            # untouched, and the additions are staged off to the side.
+            assert repos.dest_files() == files_after_1
+            assert list(repos.dest.parent.glob(".egress-*"))
             tg.cancel_scope.cancel()
 
     assert repos.dest_files() == files_after_1
     assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
     assert not list(repos.dest.parent.glob(".egress-*"))
+
+
+async def test_egress_rejects_malformed_index_and_preserves_earlier(
+    repos: _Repos,
+) -> None:
+    """A later fire that ships a malformed index cannot bury an earlier one.
+
+    The demonstrated poisoning: a correctly-named but undecryptable
+    ``index/<sha256>`` passes the per-file hash check, yet once merged it
+    makes restic abort loading indexes and so blocks restoring *every*
+    snapshot, including earlier committed ones. Validation on the view
+    rejects it, and the earlier checkpoint stays restorable.
+    """
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    files_after_1 = repos.dest_files()
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    repos.plant_in_sandbox_repo(
+        f"index/{hashlib.sha256(MALFORMED_INDEX).hexdigest()}", MALFORMED_INDEX
+    )
+
+    with pytest.raises(EgressVerificationError, match="failed validation"):
+        await repos.egress("ckpt-00002", id2)
+
+    # The accepted repo never saw the fire: only ckpt-00001 is committed
+    # and its files are byte-for-byte unchanged.
+    assert repos.dest_files() == files_after_1
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+    assert not list(repos.dest.parent.glob(".egress-*"))
+    # ...and the earlier checkpoint still restores from the accepted repo.
+    restored = repos.dest.parent.parent / "restore-A"
+    repos.restore_dest(id1, restored)
+    assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
+
+
+async def test_egress_rejects_conflicting_index_only_read_data_catches(
+    repos: _Repos,
+) -> None:
+    """A conflicting index + attacker pack is rejected by the content read.
+
+    The addition passes ``restic check`` *without* ``--read-data`` and
+    ``restic ls`` (asserted here on the sandbox repo), so validation would
+    accept it and let a later fire silently corrupt an earlier snapshot's
+    restore if it did not read pack contents. The egress validation runs
+    ``check --read-data`` and rejects it, leaving the earlier checkpoint
+    intact.
+    """
+    pytest.importorskip("cryptography")
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    files_after_1 = repos.dest_files()
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    _plant_conflicting_index(repos.repo)
+
+    # The load-bearing property: plain `check` accepts the poisoned repo,
+    # only `--read-data` rejects it — so the fix's check flag matters.
+    env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
+    base = [str(repos.restic), "-r", str(repos.repo)]
+    assert (
+        subprocess.run(
+            [*base, "check", "--no-lock", "--no-cache"], env=env, capture_output=True
+        ).returncode
+        == 0
+    )
+    assert (
+        subprocess.run(
+            [*base, "check", "--read-data", "--no-lock", "--no-cache"],
+            env=env,
+            capture_output=True,
+        ).returncode
+        != 0
+    )
+
+    with pytest.raises(EgressVerificationError, match="content check"):
+        await repos.egress("ckpt-00002", id2)
+
+    assert repos.dest_files() == files_after_1
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+    restored = repos.dest.parent.parent / "restore-A"
+    repos.restore_dest(id1, restored)
+    assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
+
+
+async def test_egress_rejects_index_referencing_missing_pack(repos: _Repos) -> None:
+    """An index whose pack never arrives is rejected before merge.
+
+    A real fire's data pack is dropped from the sandbox repo after the
+    backup, so the egress ships the index and snapshot that reference it
+    but not the pack itself. The view then has an index pointing at a pack
+    that does not exist; validation rejects it.
+    """
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    files_after_1 = repos.dest_files()
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    # Drop this fire's new data pack so its index references a missing pack.
+    shipped = repos.repo_files() - repos.manifest()
+    new_packs = [f for f in shipped if f.startswith("data/")]
+    assert new_packs, "expected the second backup to add a data pack"
+    for pack in new_packs:
+        (repos.repo / pack).unlink()
+
+    with pytest.raises(EgressVerificationError, match="failed validation"):
+        await repos.egress("ckpt-00002", id2)
+
+    assert repos.dest_files() == files_after_1
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+
+
+async def test_egress_interrupted_merge_leaves_earlier_restorable(
+    repos: _Repos,
+) -> None:
+    """A hard kill part-way through the merge never buries an earlier fire.
+
+    The merge links packs, then indexes, then snapshots, so an interruption
+    (modelled by raising after the packs are linked) leaves the accepted
+    repo with orphan packs at worst — the new snapshot is not yet
+    referenceable, and every earlier committed snapshot still restores.
+    """
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+
+    import inspect_ai.util._checkpoint._sandbox_restic.egress as egress_mod
+
+    real_merge = egress_mod._merge_into_repo
+
+    def merge_only_packs(dest_repo: str, staging: Path, written: Any) -> None:
+        packs = [name for name in written if name.startswith("data/")]
+        real_merge(dest_repo, staging, packs)
+        raise RuntimeError("hard kill mid-merge")
+
+    with patch.object(egress_mod, "_merge_into_repo", new=merge_only_packs):
+        with pytest.raises(RuntimeError, match="hard kill"):
+            await repos.egress("ckpt-00002", id2)
+
+    # The new snapshot never landed; ckpt-00001 is still the only one.
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+    # Orphan packs may remain, but the earlier checkpoint still restores.
+    restored = repos.dest.parent.parent / "restore-A"
+    repos.restore_dest(id1, restored)
+    assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
 
 
 async def test_egress_rejects_unreadable_tarball(repos: _Repos) -> None:

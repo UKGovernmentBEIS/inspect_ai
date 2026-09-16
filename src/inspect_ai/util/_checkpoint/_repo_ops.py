@@ -97,16 +97,22 @@ practice; a unique prefix is accepted the way restic's CLI accepts one)."""
 
 
 async def list_snapshots(
-    restic: Path, repo: str, password: str
+    restic: Path, repo: str, password: str, *, no_cache: bool = False
 ) -> list[dict[str, Any]]:
     """``restic snapshots --json`` on ``repo`` (host-side metadata read).
 
     ``--no-lock``: a metadata read needs no repository lock, and a lock
     file left by a killed listing would otherwise ride along to the
     destination and block ``forget`` on a resume from another host.
+
+    ``no_cache`` adds ``--no-cache``. restic keys its on-disk cache by the
+    repository's ``config`` id, so a listing of a throwaway repo that
+    shares an accepted repo's ``config`` (an egress validation view) must
+    bypass the cache or it can be served the accepted repo's snapshot set.
     """
     proc = await _run_restic(
-        [str(restic), "-r", repo, "snapshots", "--json", "--no-lock"],
+        [str(restic), "-r", repo, "snapshots", "--json", "--no-lock"]
+        + (["--no-cache"] if no_cache else []),
         password=password,
     )
     snapshots: list[dict[str, Any]] = json.loads(proc.stdout.decode())

@@ -26,6 +26,7 @@ import pytest
 from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     EgressVerificationError,
     _extract_verified,
+    _merge_into_repo,
     _remove_files,
 )
 
@@ -416,3 +417,81 @@ def test_remove_files_unwinds_last_written_first(tmp_path: Path) -> None:
 
     assert removed == list(reversed(names))
     assert not any((tmp_path / name).exists() for name in names)
+
+
+def _stage(staging: Path, names: Sequence[str]) -> None:
+    for name in names:
+        (staging / name).parent.mkdir(parents=True, exist_ok=True)
+        (staging / name).write_bytes(name.encode())
+
+
+def test_merge_into_repo_links_in_layout_order(tmp_path: Path) -> None:
+    """Merge links keys, config, packs, indexes, then snapshots.
+
+    The order keeps the accepted repo valid at every prefix under a hard
+    kill: a snapshot never lands before the index and packs it references,
+    and ``config`` never before its key. The merge sorts internally, so a
+    tarball's member order cannot subvert it.
+    """
+    staging = tmp_path / "staging"
+    dest = tmp_path / "dest"
+    # Deliberately reversed input order to prove the merge re-sorts.
+    written = ["snapshots/s", "index/i", "data/ab/p", "config", "keys/k"]
+    _stage(staging, written)
+    linked: list[str] = []
+    real_link = __import__("os").link
+
+    def spy(src: str, dst: str) -> None:
+        linked.append(Path(dst).relative_to(dest).as_posix())
+        real_link(src, dst)
+
+    with patch("inspect_ai.util._checkpoint._sandbox_restic.egress.os.link", new=spy):
+        _merge_into_repo(str(dest), staging, written)
+
+    assert linked == ["keys/k", "config", "data/ab/p", "index/i", "snapshots/s"]
+    assert {p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file()} == {
+        "keys/k",
+        "config",
+        "data/ab/p",
+        "index/i",
+        "snapshots/s",
+    }
+
+
+def test_merge_into_repo_unwinds_on_failure(tmp_path: Path) -> None:
+    """A merge that fails part-way removes its own links, last first."""
+    staging = tmp_path / "staging"
+    dest = tmp_path / "dest"
+    written = ["data/ab/p", "index/i", "snapshots/s"]
+    _stage(staging, written)
+    real_link = __import__("os").link
+
+    def failing(src: str, dst: str) -> None:
+        if Path(dst).name == "i":
+            raise OSError("disk full")
+        real_link(src, dst)
+
+    with patch(
+        "inspect_ai.util._checkpoint._sandbox_restic.egress.os.link", new=failing
+    ):
+        with pytest.raises(OSError, match="disk full"):
+            _merge_into_repo(str(dest), staging, written)
+
+    # The one pack that was linked before the failure is removed again.
+    assert not list(dest.rglob("*")) or not any(p.is_file() for p in dest.rglob("*"))
+
+
+def test_merge_into_repo_never_overwrites_an_accepted_file(tmp_path: Path) -> None:
+    """A collision with an existing accepted file is an error, not a clobber."""
+    staging = tmp_path / "staging"
+    dest = tmp_path / "dest"
+    name = f"data/ab/{hashlib.sha256(b'x').hexdigest()}"
+    _stage(staging, [name])
+    (dest / name).parent.mkdir(parents=True, exist_ok=True)
+    (dest / name).write_bytes(b"accepted bytes")
+
+    with pytest.raises(FileExistsError):
+        _merge_into_repo(str(dest), staging, [name])
+
+    # The accepted file is untouched.
+    assert (dest / name).read_bytes() == b"accepted bytes"
