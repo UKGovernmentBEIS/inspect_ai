@@ -1102,6 +1102,60 @@ async def test_failure_recorded_as_info_event_and_warning(
     assert any(r.levelno == logging.WARNING for r in caplog.records)
 
 
+async def test_rejected_transfer_is_a_tolerated_checkpoint_failure(
+    dirs: _Dirs,
+) -> None:
+    """A rejected sandbox transfer records checkpoint_failed and continues.
+
+    When egress validation refuses a poisoned snapshot it raises
+    ``EgressVerificationError``; the checkpointer must treat that like any
+    fire failure — record a ``checkpoint_failed`` event naming the error and,
+    under the default (unlimited) tolerance, keep the sample running rather
+    than abort the eval. So a later checkpoint being poisoned does not stop
+    the run, and the earlier committed checkpoints remain the resume point.
+    """
+    from inspect_ai.event._info import InfoEvent
+    from inspect_ai.util._checkpoint._sandbox_restic.egress import (
+        EgressVerificationError,
+    )
+
+    class _RejectingCheckpointer(_EnteredCheckpointer):
+        async def _fire_once(
+            self,
+            trigger: CheckpointTriggerKind,
+            *,
+            metadata: dict[str, JsonValue] | None = None,
+            final: bool = False,
+        ) -> None:
+            raise EgressVerificationError(
+                "sandbox egress ckpt-00002 -> repo: the received repository "
+                "files failed validation (content check)"
+            )
+
+    cp = _RejectingCheckpointer(
+        config=ResolvedCheckpointConfig(trigger=Manual()),
+        hydration=_fake_hydration(dirs.checkpoints, dirs.context),
+        resume_checkpoint=None,
+        reset_transcript_store=True,
+    )
+    await cp.checkpoint()  # swallowed under default tolerance
+    await cp.checkpoint()
+
+    infos = [
+        e for e in dirs.events if isinstance(e, InfoEvent) and e.source == "checkpoint"
+    ]
+    assert len(infos) == 2
+    for info in infos:
+        assert isinstance(info.data, dict)
+        assert info.data["event"] == "checkpoint_failed"
+    first = infos[0].data
+    assert isinstance(first, dict)
+    error = first["error"]
+    assert isinstance(error, str)
+    assert error.startswith("EgressVerificationError")
+    assert cp._consecutive_failures == 2
+
+
 async def test_limit_exceeded_chains_original_error(dirs: _Dirs) -> None:
     """The raised CheckpointFailureLimitExceeded chains the underlying error."""
     cp = _flaky(

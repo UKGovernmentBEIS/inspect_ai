@@ -375,9 +375,14 @@ the accepted repo:
   <recorded id>`, run `--no-lock --no-cache` (the view shares the accepted
   repo's `config` id, so its cache must be bypassed). `check` without
   `--read-data` and `ls` reject a malformed or undecryptable index and an
-  index that references a missing pack, but both *accept* a valid index
-  pointing at a present-but-garbage pack; only reading pack contents
-  (`--read-data`) rejects that, so it is required, not `check` alone.
+  index that references a missing pack, but both *accept* two additions that
+  silently corrupt a restore: a valid index pointing at a present-but-garbage
+  pack, and a valid index that understates a blob's recorded length (verified
+  against restic 0.18.1: plain `check`/`ls` report no error, yet the restore
+  is short by the lie). `check --read-data` decrypts every referenced blob
+  and checks its length against the pack, so it rejects both. It is therefore
+  required, not `check` alone — the reason validation reads pack data rather
+  than only listing and structurally checking.
 - Only if the view validates are the additions linked into the accepted
   repo, packs before indexes before snapshots, so an interruption —
   including a hard kill, which cannot roll back — leaves every earlier
@@ -389,7 +394,10 @@ the accepted repo:
 Guarantee and limits. A later transfer cannot make an earlier committed
 snapshot unrestorable, and cannot silently alter its restored contents:
 the additions are proven, on an isolated copy, to keep every snapshot
-loadable and every referenced blob readable before anything is merged.
+loadable and every referenced blob decrypted and length-checked against
+its pack before anything is merged, so an index that would relayout or
+shorten an earlier snapshot's restore fails validation rather than
+merging.
 This is not authenticity of the sandbox's state. An agent that controls
 sandbox root holds the repository key and can mint validly-encrypted
 indexes, trees, and snapshots; validation establishes only that the view
