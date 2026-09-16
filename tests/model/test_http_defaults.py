@@ -794,6 +794,27 @@ def test_proxy_defaults_preserve_credentials_and_supplied_contexts(
         assert pool._proxy_ssl_context in default_cert_loads
 
 
+@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+def test_an_explicit_proxy_object_keeps_its_settings(
+    defaults: Any, httpx_mod: Any
+) -> None:
+    # The mount for `proxy=` is built here now, so the object form (the only
+    # way to pass proxy credentials or headers) must survive untouched.
+    proxy = httpx_mod.Proxy(
+        "http://proxy.example:3128",
+        auth=("username", "password"),
+        headers={"X-Proxy-Header": "value"},
+    )
+    client = defaults.default_async_client(proxy=proxy, trust_env=False)
+    mounts = [t for t in client._mounts.values() if t is not None]
+    assert len(mounts) == 1
+    pool = pool_of(mounts[0])
+    assert pool._proxy_url.host == b"proxy.example"
+    headers = {name.lower(): value for name, value in pool._proxy_headers}
+    assert headers[b"x-proxy-header"] == b"value"
+    assert headers[b"proxy-authorization"].startswith(b"Basic ")
+
+
 @pytest.mark.parametrize("defaults", DEFAULT_MODULES)
 @pytest.mark.parametrize(
     "var,proxied",

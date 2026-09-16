@@ -333,9 +333,10 @@ def default_client_kwargs(**overrides: Any) -> dict[str, Any]:
         # httpx would build the mount for an explicit proxy itself, from a
         # transport that is not loop scoped.
         if kwargs.get("proxy") is not None:
-            mounts["all://"] = LoopScopedTransport(
-                proxy=httpx.Proxy(kwargs.pop("proxy")), **transport_kwargs
-            )
+            proxy = kwargs.pop("proxy")
+            if not isinstance(proxy, httpx.Proxy):
+                proxy = httpx.Proxy(proxy)
+            mounts["all://"] = LoopScopedTransport(proxy=proxy, **transport_kwargs)
         mounts.update(kwargs.get("mounts") or {})
         kwargs["mounts"] = mounts
         kwargs["transport"] = LoopScopedTransport(**transport_kwargs)
