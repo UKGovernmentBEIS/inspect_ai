@@ -212,26 +212,11 @@ BridgedToolsSpec(
 )
 ```
 
-### Tool Naming {#bridged-tools-naming}
+### Matching a Proposal {#bridged-tools-matching}
 
-To match a proposed call to the bridged tool it executes, the bridge has to know how the agent names bridged tools to its model, and agents rename MCP tools under their own schemes: Claude Code declares `mcp__<server>__<tool>`, Codex CLI declares the bare name inside an `mcp__<server>` Responses API namespace, Gemini CLI `mcp_<server>_<tool>`, OpenCode `<server>_<tool>`, and Antigravity routes every MCP call through one `call_mcp_tool` function whose arguments name the target. By default the bridge recognizes the bare tool name and `mcp__<server>__<tool>` and denies anything else, so a missing or wrong naming fails closed rather than executing the wrong tool. Pass a `BridgedToolNaming` to `sandbox_agent_bridge(tool_naming=...)` for any other scheme. The [inspect_swe](https://meridianlabs-ai.github.io/inspect_swe/) agents pass the naming for the scaffold version they install; the wrapper for a custom scaffold supplies its own by subclassing `BridgedToolNaming`: override `declared_names()` with the name (and namespace, if the scaffold groups tools) the scaffold gives each bridged tool, and `dispatched_call()` if it routes calls through a dispatcher.
+Agents rename MCP tools to their models under their own schemes (Claude Code declares `mcp__<server>__<tool>`, Codex CLI the bare name inside a Responses API namespace, Gemini CLI `mcp_<server>_<tool>`, OpenCode `<server>_<tool>`, some cut or hash long names), so the bridge does not match a proposed call by name. It matches the call's declaration in the agent's request to a bridged tool by the content the bridge itself served in `tools/list`: the description first, and where several bridged tools share a description, the input schema's property and required names. A declaration whose description matches no bridged tool denotes nothing and the call is denied; two bridged tools the served content cannot tell apart are denied with a warning, so give bridged tools distinct descriptions. The supported agents forward the served description to their models unchanged; an agent that rewrote descriptions would be denied on every call. An agent-local tool declared with a bridged tool's exact description and schema is indistinguishable from it and would grant it.
 
-``` python
-from inspect_ai.agent import BridgedToolName, BridgedToolNaming
-
-class MyScaffoldNaming(BridgedToolNaming):
-    def declared_names(self, server: str, tool: str) -> list[BridgedToolName]:
-        return [BridgedToolName(f"{server}.{tool}")]
-
-async with sandbox_agent_bridge(
-    state,
-    bridged_tools=[BridgedToolsSpec(name="host_tools", tools=[search_database()])],
-    tool_naming=MyScaffoldNaming(),
-) as bridge:
-    ...
-```
-
-A call is matched against the tools the agent declared to the model in that request, by exact name (and namespace), so the naming must give each bridged tool a name distinct from every other bridged tool's: a name the naming gives two bridged tools is ambiguous and will be denied. Under the default naming a call to an agent-local tool that shares a bridged tool's bare name also authorizes one execution of the bridged tool with those arguments; a naming that qualifies names, as the scaffolds above do, keeps the two apart.
+One other shape is recognized: an agent that exposes every MCP tool through a single dispatcher function whose arguments carry string `ServerName` and `ToolName` values naming a bridged tool and an object `Arguments` (Antigravity's `call_mcp_tool`). Such a call denotes that tool with those nested arguments. A dispatcher with other parameter names is not supported and its calls are denied.
 
 ## Models
 

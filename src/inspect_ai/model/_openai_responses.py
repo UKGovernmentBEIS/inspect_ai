@@ -188,7 +188,7 @@ from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
-from inspect_ai.tool._tool_info import RESPONSES_NAMESPACE, ToolInfo
+from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._json import json_schema_dump
 
 from ._providers._openai_computer_use import (
@@ -566,6 +566,15 @@ def openai_responses_tool_choice(
                 )
             )
 
+
+RESPONSES_NAMESPACE = "__responses_namespace__"
+"""``ToolInfo.options`` key under which the agent bridge stashes the
+``(name, description)`` of the ``NamespaceToolParam`` a tool was flattened
+from, so that :func:`openai_responses_tools` can re-group it on the outgoing
+request. Without this, namespaced tools (e.g. codex's
+``multi_agent_v1.spawn_agent``) are sent flat as ``functions.spawn_agent``,
+which OpenAI's reserved-name validation rejects on models configured for
+encrypted tool use."""
 
 RESPONSES_VERBATIM = "__responses_verbatim__"
 """``ToolInfo.options`` key under which the agent bridge stashes the ORIGINAL

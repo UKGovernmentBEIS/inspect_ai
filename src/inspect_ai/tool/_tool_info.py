@@ -58,12 +58,6 @@ class ToolInfo(BaseModel):
     """Optional property bag that can be used by the model provider to customize the implementation of the tool"""
 
 
-RESPONSES_NAMESPACE = "__responses_namespace__"
-"""Well-known ``ToolInfo.options`` key carrying the ``(name, description)`` of
-the Responses API namespace a tool was declared in (the agent bridge stashes it
-when flattening a ``NamespaceToolParam``, so the outgoing request can re-group
-the tool and grant resolution can tell same-named tools apart by namespace)."""
-
 INTERNAL_TOOL_TYPE = "__internal_tool_type__"
 """Well-known ``ToolInfo.options`` key carrying the
 :class:`~inspect_ai._util.content.ContentToolUse` ``tool_type`` literal

@@ -10,12 +10,13 @@ from inspect_ai.agent._bridge.responses_impl import (
 )
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._openai_responses import (
+    RESPONSES_NAMESPACE,
     is_custom_tool_param,
     is_function_tool_param,
     is_namespace_tool_param,
 )
 from inspect_ai.tool._tool_call import ToolCall
-from inspect_ai.tool._tool_info import RESPONSES_NAMESPACE, ToolInfo
+from inspect_ai.tool._tool_info import ToolInfo
 
 
 def _function_tool(name: str) -> dict:

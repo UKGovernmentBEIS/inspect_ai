@@ -1,9 +1,4 @@
-from inspect_ai.tool._mcp._tools_bridge import (
-    BridgedToolCall,
-    BridgedToolName,
-    BridgedToolNaming,
-    BridgedToolsSpec,
-)
+from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._as_solver import as_solver
@@ -43,9 +38,6 @@ __all__ = [
     "AgentBridge",
     "SandboxAgentBridge",
     "BridgedToolsSpec",
-    "BridgedToolNaming",
-    "BridgedToolName",
-    "BridgedToolCall",
     "content_only",
     "last_message",
     "remove_tools",

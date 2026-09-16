@@ -73,7 +73,7 @@
 - Model refusals: New `fail_on_refusal` generate config option (`--fail-on-refusal`) fails a sample with a `ModelRefusalError` when a model refuses a request, settable eval-wide, per task, per model, per model role, or per call.
 - Sandbox Services: Service directories are now private to the service user, and a service refuses to start if its directory or the shared `/var/tmp/sandbox-services` parent already exists with the wrong owner, mode, or type.
 - Sandboxes: The standard tool-support image now offers an opt-in non-root `nonroot` account (UID/GID 65532; default user unchanged) and installs the web browser's Playwright browsers to a shared path so the browser tool works under a non-root user.
-- Sandbox agent bridge: host tools exposed with `bridged_tools` now execute only for calls the model proposed in a bridged generation, once per proposal, with or without an approval policy; `BridgedToolsSpec(require_proposal=False)` opts a server out, and `sandbox_agent_bridge(tool_naming=...)` tells the bridge how a custom agent names bridged tools to its model.
+- Sandbox agent bridge: host tools exposed with `bridged_tools` now execute only for calls the model proposed in a bridged generation, once per proposal, with or without an approval policy; `BridgedToolsSpec(require_proposal=False)` opts a server out.
 
 ## 0.3.263 (03 September 2026)
 
