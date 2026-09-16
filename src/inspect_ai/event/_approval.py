@@ -32,3 +32,6 @@ class ApprovalEvent(BaseEvent):
 
     explanation: str | None = Field(default=None)
     """Explanation for decision."""
+
+    chain: str | None = Field(default=None)
+    """Policy chain the approver belonged to (None for the default chain)."""

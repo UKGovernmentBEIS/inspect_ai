@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Iterator, Literal, Sequence
 
 if TYPE_CHECKING:
-    from inspect_ai.approval._policy import ApprovalPolicy
+    from inspect_ai.approval._policy import ApprovalPolicies
     from inspect_ai.tool._tools._skill import Skill
 
 import anyio
@@ -222,7 +222,7 @@ def agent_tool(
     max_depth: int = 1,
     get_messages: Callable[[], list[ChatMessage]] | None = None,
     retry_refusals: int | None = None,
-    approval: list[ApprovalPolicy] | None = None,
+    approval: ApprovalPolicies | None = None,
     background_enabled: bool = True,
 ) -> Tool:
     """Create an agent multiplexer tool for dispatching to subagents.
@@ -864,7 +864,7 @@ def _resolve_tools(
     max_depth: int,
     get_messages: Callable[[], list[ChatMessage]] | None,
     retry_refusals: int | None = None,
-    approval: list[ApprovalPolicy] | None = None,
+    approval: ApprovalPolicies | None = None,
 ) -> list[Tool | ToolDef | ToolSource]:
     tools: list[Tool | ToolDef | ToolSource] = []
     if sa.tools is not None:

@@ -1,7 +1,7 @@
 ## Unreleased
 
+- Approval and Review: `approval` and `review` accept a dict of named policy chains (`{"attempt": [...], "escape": [...]}`, or a mapping under `approvers:`/`reviewers:` in YAML); every chain covering a call runs and the strictest decision wins, so independent monitors no longer silence one another. A plain list is one chain, as before.
 - Hugging Face `literal:` task targets now keep the rest of the value when it contains additional colons.
-
 - Review: `human_reviewer()` lets an operator review a tool call together with its result and continue or terminate the sample, on the same surfaces as the human approver.
 - Agents: `react()` accepts `review` policies, which apply to the agent's tool calls in place of any eval-level or task-level reviewers, as `approval` does for approvers.
 - OpenAI-compatible token-counting and compaction endpoints that return 405 are now handled the same as those that return 404.

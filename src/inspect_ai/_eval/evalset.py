@@ -67,7 +67,7 @@ from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
-from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
+from inspect_ai.approval._policy import ApprovalPolicies, ApprovalPolicyConfig
 from inspect_ai.log import EvalLog, IncompleteAction
 from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 from inspect_ai.log._file import (
@@ -91,7 +91,7 @@ from inspect_ai.model._model_config import (
     model_roles_to_model_roles_config,
 )
 from inspect_ai.model._model_data.model_data import ModelCost
-from inspect_ai.review._policy import ReviewPolicy, ReviewPolicyConfig
+from inspect_ai.review._policy import ReviewPolicies, ReviewPolicyConfig
 from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -253,8 +253,8 @@ def eval_set(
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
-    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
-    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+    approval: str | ApprovalPolicies | ApprovalPolicyConfig | None = None,
+    review: str | ReviewPolicies | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     score: bool = True,
     score_display: bool | None = None,
@@ -372,10 +372,10 @@ def eval_set(
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
-            Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
+            Either a path to an approval policy config file, an ApprovalPolicyConfig, a list of approval policies, or a dict of named policy chains.
             Defaults to no approval policy.
         review: Tool result review policies.
-            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, a list of review policies, or a dict of named policy chains.
             Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to

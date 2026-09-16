@@ -6,7 +6,7 @@ from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.logger import init_logger
 from inspect_ai.approval._apply import have_tool_approval, init_tool_approval
 from inspect_ai.approval._human.manager import init_human_approval_manager
-from inspect_ai.approval._policy import ApprovalPolicy
+from inspect_ai.approval._policy import ApprovalPolicies
 from inspect_ai.log._refusal import init_refusal_tracking
 from inspect_ai.log._samples import init_active_samples
 from inspect_ai.model import GenerateConfig, Model
@@ -17,7 +17,7 @@ from inspect_ai.model._model import (
     init_role_usage,
 )
 from inspect_ai.review._apply import have_tool_review, init_tool_review
-from inspect_ai.review._policy import ReviewPolicy
+from inspect_ai.review._policy import ReviewPolicies
 from inspect_ai.util._concurrency import init_concurrency
 from inspect_ai.util._input.manager import init_human_question_manager
 from inspect_ai.util._subprocess import init_max_subprocesses
@@ -65,8 +65,8 @@ def init_task_context(
     model: Model,
     model_roles: dict[str, Model | list[Model]] | None = None,
     config: GenerateConfig = GenerateConfig(),
-    approval: list[ApprovalPolicy] | None = None,
-    review: list[ReviewPolicy] | None = None,
+    approval: ApprovalPolicies | None = None,
+    review: ReviewPolicies | None = None,
 ) -> None:
     init_model_context(model, model_roles, config)
     if not have_tool_approval():

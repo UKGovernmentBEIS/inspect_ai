@@ -15,7 +15,7 @@ from inspect_ai.tool._tool_call import (
 )
 from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 
-from ._policy import ReviewPolicy, policy_reviewer
+from ._policy import ReviewPolicies, policy_reviewer
 from ._review import Review
 from ._reviewer import Reviewer
 
@@ -61,7 +61,7 @@ async def apply_tool_review(
 
 
 @contextlib.contextmanager
-def review(policies: list[ReviewPolicy]) -> Iterator[None]:
+def review(policies: ReviewPolicies) -> Iterator[None]:
     """Context manager to temporarily replace tool review policies.
 
     Args:
@@ -74,7 +74,7 @@ def review(policies: list[ReviewPolicy]) -> Iterator[None]:
         _tool_reviewer.reset(token)
 
 
-def init_tool_review(policies: list[ReviewPolicy] | None) -> None:
+def init_tool_review(policies: ReviewPolicies | None) -> None:
     if policies:
         _tool_reviewer.set(policy_reviewer(policies))
     else:

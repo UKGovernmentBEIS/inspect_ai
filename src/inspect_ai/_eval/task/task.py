@@ -37,7 +37,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import (
-    ApprovalPolicy,
+    ApprovalPolicies,
     ApprovalPolicyConfig,
     approval_policies_from_config,
 )
@@ -47,7 +47,7 @@ from inspect_ai.model import GenerateConfig
 from inspect_ai.model._model import Model, ModelRoles
 from inspect_ai.model._util import resolve_model, resolve_model_roles
 from inspect_ai.review._policy import (
-    ReviewPolicy,
+    ReviewPolicies,
     ReviewPolicyConfig,
     review_policies_from_config,
 )
@@ -101,8 +101,8 @@ class Task:
         checkpoint: CheckpointConfig | bool | None = None,
         on_checkpoint: OnCheckpointCallback | None = None,
         on_resume: OnResumeCallback | None = None,
-        approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
-        review: str | ReviewPolicyConfig | list[ReviewPolicy] | None = None,
+        approval: str | ApprovalPolicyConfig | ApprovalPolicies | None = None,
+        review: str | ReviewPolicyConfig | ReviewPolicies | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         continue_on_fail: bool | None = None,
@@ -160,9 +160,9 @@ class Task:
                 ``str`` shorthand, or ``None``) surfaced to the agent via
                 ``checkpointer().restored``.
             approval: Tool use approval policies.
-                Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
+                Either a path to an approval policy config file, an ApprovalPolicyConfig, a list of approval policies, or a dict of named policy chains. Defaults to no approval policy.
             review: Tool result review policies.
-                Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
+                Either a path to a review policy config file, a ReviewPolicyConfig, a list of review policies, or a dict of named policy chains. Defaults to no review policy.
             epochs: Epochs to repeat samples for and optional score
                 reducer function(s) used to combine sample scores (defaults to "mean")
             fail_on_error: `True` to fail on first sample error
@@ -323,10 +323,10 @@ def task_with(
     on_resume: OnResumeCallback | None | NotGiven = NOT_GIVEN,
     approval: str
     | ApprovalPolicyConfig
-    | list[ApprovalPolicy]
+    | ApprovalPolicies
     | None
     | NotGiven = NOT_GIVEN,
-    review: str | ReviewPolicyConfig | list[ReviewPolicy] | None | NotGiven = NOT_GIVEN,
+    review: str | ReviewPolicyConfig | ReviewPolicies | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
@@ -387,9 +387,9 @@ def task_with(
             ``str`` shorthand, or ``None``) surfaced to the agent via
             ``checkpointer().restored``.
         approval: Tool use approval policies.
-            Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
+            Either a path to an approval policy config file, an ApprovalPolicyConfig, a list of approval policies, or a dict of named policy chains. Defaults to no approval policy.
         review: Tool result review policies.
-            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
+            Either a path to a review policy config file, a ReviewPolicyConfig, a list of review policies, or a dict of named policy chains. Defaults to no review policy.
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
@@ -539,8 +539,8 @@ class PreviousTask:
 
 
 def resolve_approval(
-    approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None,
-) -> list[ApprovalPolicy] | None:
+    approval: str | ApprovalPolicyConfig | ApprovalPolicies | None,
+) -> ApprovalPolicies | None:
     return (
         approval_policies_from_config(approval)
         if isinstance(approval, str | ApprovalPolicyConfig)
@@ -549,8 +549,8 @@ def resolve_approval(
 
 
 def resolve_review(
-    review: str | ReviewPolicyConfig | list[ReviewPolicy] | None,
-) -> list[ReviewPolicy] | None:
+    review: str | ReviewPolicyConfig | ReviewPolicies | None,
+) -> ReviewPolicies | None:
     return (
         review_policies_from_config(review)
         if isinstance(review, str | ReviewPolicyConfig)

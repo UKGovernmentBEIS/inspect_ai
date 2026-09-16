@@ -168,6 +168,17 @@
           "call": {
             "$ref": "#/components/schemas/ToolCall"
           },
+          "chain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chain"
+          },
           "decision": {
             "enum": [
               "approve",
@@ -287,13 +298,27 @@
         "type": "object"
       },
       "ApprovalPolicyConfig": {
+        "description": "Approval policy configuration: a list of approvers, or named chains of them.\n\nA list is one chain. A mapping names independent chains that all run on\nevery call:\n\n```yaml\napprovers:\n  attempt:\n    - name: internet_attempt\n      tools: \"*\"\n    - name: human\n      tools: \"*\"\n  escape:\n    - name: sandbox_escape\n      tools: \"*\"\n```",
         "properties": {
           "approvers": {
-            "items": {
-              "$ref": "#/components/schemas/ApproverPolicyConfig"
-            },
-            "title": "Approvers",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ApproverPolicyConfig"
+                },
+                "type": "array"
+              },
+              {
+                "additionalProperties": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApproverPolicyConfig"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              }
+            ],
+            "title": "Approvers"
           }
         },
         "required": [
@@ -8186,6 +8211,17 @@
           "call": {
             "$ref": "#/components/schemas/ToolCall"
           },
+          "chain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chain"
+          },
           "decision": {
             "enum": [
               "continue",
@@ -8287,13 +8323,27 @@
         "type": "object"
       },
       "ReviewPolicyConfig": {
+        "description": "Review policy configuration: a list of reviewers, or named chains of them.\n\nA list is one chain. A mapping names independent chains that all review\nevery result:\n\n```yaml\nreviewers:\n  output:\n    - name: output_monitor\n      tools: \"*\"\n    - name: human\n      tools: \"*\"\n  exfil:\n    - name: exfiltration_monitor\n      tools: \"*\"\n```",
         "properties": {
           "reviewers": {
-            "items": {
-              "$ref": "#/components/schemas/ReviewerPolicyConfig"
-            },
-            "title": "Reviewers",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReviewerPolicyConfig"
+                },
+                "type": "array"
+              },
+              {
+                "additionalProperties": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewerPolicyConfig"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              }
+            ],
+            "title": "Reviewers"
           }
         },
         "required": [

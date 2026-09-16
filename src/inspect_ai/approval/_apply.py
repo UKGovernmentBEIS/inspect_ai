@@ -16,7 +16,7 @@ from inspect_ai.tool._tool_call import (
 from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 
 from ._approver import Approver
-from ._policy import ApprovalPolicy, policy_approver
+from ._policy import ApprovalPolicies, policy_approver
 
 logger = getLogger(__name__)
 
@@ -84,7 +84,7 @@ def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
 
 @contextlib.contextmanager
 def approval(
-    policies: list[ApprovalPolicy],
+    policies: ApprovalPolicies,
 ) -> Iterator[None]:
     """Context manager to temporarily replace tool approval policies.
 
@@ -98,7 +98,7 @@ def approval(
         _tool_approver.reset(token)
 
 
-def init_tool_approval(approval: list[ApprovalPolicy] | None) -> None:
+def init_tool_approval(approval: ApprovalPolicies | None) -> None:
     if approval:
         _tool_approver.set(policy_approver(approval))
     else:
