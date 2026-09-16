@@ -629,8 +629,8 @@ async def test_read_data_check_is_required_for_a_blob_length_lie(
     and answers "is `--read-data` load-bearing?". For a multi-blob file, an
     index that understates the data blobs' recorded uncompressed lengths keeps
     the packs' sizes and bytes valid, so `restic check` (no `--read-data`) and
-    `restic ls` both report no error, and a restore *succeeds* — but the file
-    comes out short, because restic lays each blob out at the understated
+    `restic ls` both report no error, and a restore *succeeds* — but yields
+    the wrong bytes, because restic lays each blob out at the understated
     length. Only `check --read-data`, which decompresses every blob and checks
     its length, rejects it. This is the conflicting-mapping case content
     addressing alone does not stop, so the validation must read pack data, not
@@ -646,7 +646,8 @@ async def test_read_data_check_is_required_for_a_blob_length_lie(
     # blobs (asserted below via the understated count) — the condition under
     # which the length lie shortens the restore.
     size = 24 * 1024 * 1024
-    (src / "big.bin").write_bytes(random.Random(496).randbytes(size))
+    payload = random.Random(496).randbytes(size)
+    (src / "big.bin").write_bytes(payload)
     env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
 
     def run(*args: str, ok: bool = True) -> subprocess.CompletedProcess[str]:
@@ -670,10 +671,14 @@ async def test_read_data_check_is_required_for_a_blob_length_lie(
     # Plain check and ls accept the lie.
     assert run("check", "--no-lock", "--no-cache", ok=False).returncode == 0
     assert run("ls", snap, "--no-lock", "--no-cache", ok=False).returncode == 0
-    # Restore succeeds at exit 0 but silently yields a file short by the lie.
+    # Restore succeeds at exit 0 but silently yields the wrong bytes: the
+    # blobs land at understated offsets, so the file is either short (where
+    # the filesystem does not preallocate, e.g. APFS) or padded to its
+    # recorded size with the tail wrong (where restic preallocates, e.g.
+    # ext4). Assert on content, which is platform-independent.
     out = tmp_path / "restored"
     run("restore", snap, "--target", str(out), "--no-lock", "--no-cache")
-    assert 0 < next(out.rglob("big.bin")).stat().st_size < size
+    assert next(out.rglob("big.bin")).read_bytes() != payload
     # Only --read-data rejects it.
     assert run("check", "--read-data", "--no-lock", "--no-cache", ok=False).returncode
 
