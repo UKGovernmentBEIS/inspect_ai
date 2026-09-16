@@ -596,11 +596,11 @@ unchanged for every failure that exists today:
   because the exception goes on to fail the sample; over the bridge it does
   not today (the service converts it to an RPC error), so the message is
   recorded on the event instead. Whether an unmapped host tool exception
-  should also fail the sample, as it does natively, is Open question 1; the
-  mechanism exists (`bridge.request_fail(ex)`, `types.py:169-187`, raised
-  into the agent's task group by `_monitor_failure`, `bridge.py:283-294`,
-  while the RPC still answers the scaffold), and the event fields above are
-  the same either way.
+  should also fail the sample, as it does natively, is a pre-existing
+  question about the bridge service that this design leaves alone (see
+  "Not this design"); the event fields above are the same either way, and
+  the `ToolEvent` docstring notes that on a host event `failed=True` does
+  not imply the sample errored.
 - Operator cancel (`scope.cancel_called`): `error=ToolCallError("timeout",
   "Command timed out before completing.")`, `failed=None`, the contract at
   `_call_tools.py:549-556`; raise `ToolError` with that message. This path
@@ -1203,22 +1203,7 @@ native tool events on its own.
 
 ## Open questions
 
-1. **Should an unmapped host tool exception fail the sample?** Natively an
-   exception that is not a `ToolError` or one of the mapped types sets
-   `failed=True` on the event and fails the sample. Over the bridge the
-   service converts every exception into an RPC error and the sample
-   continues, so a bug in a host tool surfaces to the model as tool output
-   and the eval keeps going (`util/_sandbox/service.py:562-581`). This
-   design records `failed=True` and the message but leaves that behaviour
-   alone. Recommendation: fail the sample, for parity and because
-   `failed=True` should mean what it means natively. The mechanism exists:
-   call `bridge.request_fail(ex)` after finalising the event, so
-   `_monitor_failure` raises in the agent's task group while the RPC still
-   answers the scaffold (the pattern `_forward_provider_errors` uses for
-   `ModelRefusalError`, `service.py:59-63`). Error retries then apply as
-   for native failures. The cost is that a bridged eval whose host tool
-   raises intermittently now loses samples where the agent used to carry
-   on, which is the native behaviour those tools would have had anyway.
+None outstanding.
 
 Decided (Ransom, 2026-09-15): arguments that are not a JSON object or nest
 deeper than the native bound are rejected before execution; a denial is
@@ -1261,6 +1246,15 @@ together with the Python change, as cross-repo PRs normally do.
   time.
 - **A viewer badge** rendering `metadata.bridge` (host execution, denied,
   exempt) on the tool panel.
+- **Unmapped host tool exceptions do not fail the sample.** Natively an
+  exception outside the mapped set ends the sample; over the bridge the
+  service turns it into an RPC error and the sample continues
+  (`util/_sandbox/service.py:562-581`). Pre-existing and independent of
+  recording, so left for its own issue (decision: Ransom, 2026-09-16). The
+  mechanism, if wanted, is `bridge.request_fail(ex)` after finalising the
+  event (`types.py:169-187`, `bridge.py:283-294`), the pattern
+  `_forward_provider_errors` uses for refusals; the interactions with
+  `fail_on_error` and error retries need working through there.
 - **A closed-span fallback for captured spans**: tracking `SpanEndEvent`s
   through a bridge-side transcript subscription so an execution whose
   proposal's span has since closed is placed under the current span
