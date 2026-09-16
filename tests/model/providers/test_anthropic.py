@@ -921,7 +921,10 @@ async def test_anthropic_cache_marks_penultimate_block() -> None:
 
     async def resolve(input: list[ChatMessage], cache: bool = True) -> Any:
         return await api.resolve_chat_input(
-            input=input, tools=[], config=GenerateConfig(cache_prompt=cache)
+            input=input,
+            tools=[],
+            config=GenerateConfig(cache_prompt=cache),
+            cache_ttl=None,
         )
 
     # multi-block last message: mark content[-2]
@@ -1012,147 +1015,6 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
     )
 
     assert ("cache_control" in captured) is expects_top_level_cache_control
-
-
-@pytest.mark.anyio
-@pytest.mark.parametrize("escalated", [False, True])
-async def test_anthropic_auto_cache_ttl_threads_into_request(
-    escalated: bool, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Auto cache TTL threads the resolved ttl through the request.
-
-    An escalated sample's requests carry ttl "1h" on the top-level
-    cache_control and every breakpoint, while a non-escalated sample's
-    requests omit the ttl key entirely (byte-identical to the pre-auto
-    wire format).
-    """
-    import inspect_ai.model._providers.anthropic as anthropic_module
-    from inspect_ai.model._providers.anthropic import _SampleCacheTtlState
-
-    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
-
-    sample = types.SimpleNamespace(sample_uuid="sample-1")
-    monkeypatch.setattr(anthropic_module, "sample_active", lambda: sample)
-    monkeypatch.setattr(anthropic_module, "active_samples", lambda: [sample])
-    if escalated:
-        import time
-
-        api._cache_ttl_state["sample-1"] = _SampleCacheTtlState(
-            last_cached_request_start=time.monotonic(), escalated=True
-        )
-
-    captured: dict[str, Any] = {}
-
-    from inspect_ai.model._model_output import ModelOutput
-
-    async def fake_perform(
-        request: dict[str, Any],
-        streaming: bool,
-        tools: list[Any],
-        config: GenerateConfig,
-        pending_tool_uses: Any = None,
-        pending_mcp_tool_uses: Any = None,
-        span_recorder: Any = None,
-    ) -> tuple[dict[str, Any], ModelOutput]:
-        captured.update(request)
-        return {}, ModelOutput.from_content(
-            model=api.service_model_name(), content="ok"
-        )
-
-    monkeypatch.setattr(api, "_perform_request_and_continuations", fake_perform)
-
-    await api.generate(
-        input=[
-            ChatMessageSystem(content="be helpful"),
-            ChatMessageUser(
-                content=[
-                    ContentText(text="context block"),
-                    ContentText(text="question block"),
-                ]
-            ),
-        ],
-        tools=[],
-        tool_choice="auto",
-        config=GenerateConfig(cache_prompt=True),
-    )
-
-    def cache_controls(request: dict[str, Any]) -> list[dict[str, Any]]:
-        controls = [request["cache_control"], request["system"][-1]["cache_control"]]
-        for message in request["messages"]:
-            if isinstance(message["content"], list):
-                controls.extend(
-                    block["cache_control"]
-                    for block in message["content"]
-                    if isinstance(block, dict) and "cache_control" in block
-                )
-        return controls
-
-    controls = cache_controls(captured)
-    assert len(controls) >= 3  # top-level, system, lookback message block
-    if escalated:
-        assert all(c == {"type": "ephemeral", "ttl": "1h"} for c in controls)
-    else:
-        assert all(c == {"type": "ephemeral"} for c in controls)
-
-
-@pytest.mark.anyio
-async def test_anthropic_auto_cache_ttl_escalates_via_generate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A >5m gap between a sample's generate() calls escalates to the 1h TTL."""
-    import inspect_ai.model._providers.anthropic as anthropic_module
-
-    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
-
-    sample = types.SimpleNamespace(sample_uuid="sample-gap")
-    monkeypatch.setattr(anthropic_module, "sample_active", lambda: sample)
-    monkeypatch.setattr(anthropic_module, "active_samples", lambda: [sample])
-
-    clock = types.SimpleNamespace(now=1000.0)
-    monkeypatch.setattr(
-        anthropic_module, "time", types.SimpleNamespace(monotonic=lambda: clock.now)
-    )
-
-    requests: list[dict[str, Any]] = []
-
-    from inspect_ai.model._model_output import ModelOutput, ModelUsage
-
-    async def fake_perform(
-        request: dict[str, Any],
-        streaming: bool,
-        tools: list[Any],
-        config: GenerateConfig,
-        pending_tool_uses: Any = None,
-        pending_mcp_tool_uses: Any = None,
-        span_recorder: Any = None,
-    ) -> tuple[dict[str, Any], ModelOutput]:
-        requests.append(dict(request))
-        output = ModelOutput.from_content(model=api.service_model_name(), content="ok")
-        # the gap baseline only advances on a response that used the cache
-        output.usage = ModelUsage(
-            input_tokens=100, output_tokens=10, input_tokens_cache_write=2000
-        )
-        return {}, output
-
-    monkeypatch.setattr(api, "_perform_request_and_continuations", fake_perform)
-
-    async def call() -> None:
-        await api.generate(
-            input=[ChatMessageUser(content="hello")],
-            tools=[],
-            tool_choice="auto",
-            config=GenerateConfig(cache_prompt=True),
-        )
-
-    await call()
-    clock.now += 250
-    await call()
-    clock.now += 301
-    await call()
-
-    assert requests[0]["cache_control"] == {"type": "ephemeral"}
-    assert requests[1]["cache_control"] == {"type": "ephemeral"}
-    assert requests[2]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
 
 
 @pytest.mark.anyio

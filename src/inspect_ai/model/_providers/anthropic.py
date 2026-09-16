@@ -3,7 +3,6 @@ import json
 import os
 import re
 import time
-from collections import OrderedDict
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
@@ -153,7 +152,6 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.log._samples import (
-    active_samples,
     sample_active,
     set_active_model_event_call,
 )
@@ -275,35 +273,37 @@ _REMINDER_SYSTEM_HOISTED_WARNING = (
     "(tool results map to user-role messages), which strips prior thinking and "
     "cache context on tool-use continuations."
 )
-# The 5m cache entry's TTL clock starts at prefill of the request that wrote or
-# read it, so a gap since then exceeding the TTL means the cache has expired and
-# this request rewrites the full prefix regardless of the TTL we choose — writing
-# it at 1h then costs only the write premium on tokens already being repaid, and
-# protects the rest of the sample from further expiry.
+# A 5m cache entry's TTL clock starts at prefill of the request that wrote or
+# read it, so a gap exceeding the TTL means the entry has expired and the next
+# request rewrites the full prefix whatever TTL we pick — writing it at 1h then
+# costs only the write premium on tokens already being repaid, and protects the
+# rest of the sample from further expiry.
 CACHE_TTL_ESCALATION_GAP = 300.0  # seconds (= the default 5m cache TTL)
 
-# TTL sent on the request whose usage is currently being recorded. Set per call
-# in _resolve_cache_ttl and read back by cache_write_ttl() for cost accounting:
-# the sample's escalation state is shared and sticky, so a sibling request that
-# escalates mid-flight (or a batched call, which never escalates) would
-# otherwise be billed at a TTL it was not sent with. Concurrent model calls run
-# as separate tasks with their own context copies, and both generate() and
-# compact() (which delegates to generate) resolve before the caller records
-# usage in that same task.
+# TTL sent on the request whose usage is currently being recorded, read back by
+# cache_write_ttl() for cost accounting: escalation state is sticky and shared,
+# so a sibling that escalates mid-flight (or a batched call, which never
+# escalates) would otherwise bill this request at a TTL it was not sent with.
+# Concurrent calls are separate tasks with their own context copies, and both
+# generate() and compact() (which delegates to generate) resolve before the
+# caller records usage in that same task.
 _cache_write_ttl: ContextVar[Literal["5m", "1h"] | None] = ContextVar(
     "anthropic_cache_write_ttl", default=None
 )
 
-# backstop only — the active-sample registry prune in _record_cache_ttl_refresh
-# is the real cleanup; this should never fire unless a code path bypasses
-# sample-completion removal from the registry
-_CACHE_TTL_STATE_MAX_SAMPLES = 10_000
+# `time.monotonic()` at the start of the most recent request issued in this
+# task. pause_turn/server-tool continuations re-send the same cache_control and
+# refresh the entry at their own prefill, so the gap baseline must come from the
+# last one, not from the start of generate().
+_last_request_start: ContextVar[float | None] = ContextVar(
+    "anthropic_last_request_start", default=None
+)
 
 
 @dataclass
 class _SampleCacheTtlState:
     last_cached_request_start: float
-    """`time.monotonic()` at the start of the sample's last request that read or wrote the prompt cache."""
+    """`time.monotonic()` at the start of the last request that read or wrote the prompt cache."""
 
     escalated: bool = False
     """Sticky flag: sample observed a >5m gap and now uses the 1h TTL."""
@@ -363,13 +363,6 @@ class AnthropicAPI(ModelAPI):
                 "and 'auto'."
             )
         self.cache_ttl = cache_ttl
-
-        # per-sample cache-ttl escalation state for "auto" mode. Plain dict, no
-        # lock: inspect runs a single event loop and _resolve_cache_ttl never
-        # awaits between read and write. Keyed by sample uuid; entries are
-        # pruned against the active-sample registry when new samples arrive
-        # (created here, not in initialize(), which re-runs on auth retry).
-        self._cache_ttl_state: OrderedDict[str, _SampleCacheTtlState] = OrderedDict()
 
         # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
@@ -574,6 +567,12 @@ class AnthropicAPI(ModelAPI):
         is disabled, for batched requests (batch queuing has no meaningful
         inter-request gap), or outside a sample context.
 
+        Escalation is sample-wide, so a one-shot call that happens to run in an
+        escalated sample (a `model_graded_qa` grader, an approver, a compaction
+        summary) writes its unrelated prefix at 1h too. The gap is evidence
+        about the sample's pacing rather than about one prompt lineage, and
+        tracking lineages separately is not worth the bookkeeping.
+
         The returned `request_start` is set only when gap tracking applied;
         pass it to `_record_cache_ttl_refresh` with the response usage once the
         request succeeds.
@@ -581,6 +580,17 @@ class AnthropicAPI(ModelAPI):
         resolved = self._cache_ttl_for_request(config)
         _cache_write_ttl.set(resolved.ttl)
         return resolved
+
+    def _cache_ttl_state(self) -> dict[str, _SampleCacheTtlState] | None:
+        """Escalation state for the active sample, or None outside a sample.
+
+        Lives on the sample's `_AssistantInternal`, so its lifetime is the
+        sample's and it needs no pruning. Outside a sample that struct is a
+        process-global default instance, hence the `sample_active()` gate.
+        """
+        if sample_active() is None:
+            return None
+        return assistant_internal().cache_ttl
 
     def _cache_ttl_for_request(self, config: GenerateConfig) -> _ResolvedCacheTtl:
         if self.cache_ttl in ("5m", "1h"):
@@ -591,24 +601,23 @@ class AnthropicAPI(ModelAPI):
             or normalized_batch_config(config.batch)
         ):
             return _ResolvedCacheTtl(ttl=None, request_start=None)
-        active = sample_active()
-        if active is None:
+        sample_state = self._cache_ttl_state()
+        if sample_state is None:
             return _ResolvedCacheTtl(ttl=None, request_start=None)
 
         now = time.monotonic()
-        state = self._cache_ttl_state.get(active.sample_uuid)
-        if state is not None:
+        state = sample_state.get(self.service_model_name())
+        if state is not None and not state.escalated:
             gap = now - state.last_cached_request_start
-            if not state.escalated and gap > CACHE_TTL_ESCALATION_GAP:
+            if gap > CACHE_TTL_ESCALATION_GAP:
                 state.escalated = True
                 logger.info(
                     f"anthropic prompt cache: gap of {gap:.0f}s since the last "
                     f"cached request exceeded the {CACHE_TTL_ESCALATION_GAP:.0f}s "
-                    f"cache TTL for sample {active.sample_uuid}; using the 1h "
+                    f"cache TTL for {self.service_model_name()}; using the 1h "
                     "cache TTL for the remainder of the sample (cache writes "
                     "billed at 2x base input price rather than 1.25x)."
                 )
-            self._cache_ttl_state.move_to_end(active.sample_uuid)
 
         return _ResolvedCacheTtl(
             ttl="1h" if state is not None and state.escalated else None,
@@ -631,8 +640,15 @@ class AnthropicAPI(ModelAPI):
         billing that unavoidable write at 2x rather than 1.25x.
 
         The cache entry the next request reads is written/refreshed at prefill
-        (near request start), so the baseline is the request's start time — not
-        its completion.
+        (near request start), so the baseline is a request's start time — and
+        specifically the *last* request issued, since pause_turn/server-tool
+        continuations each refresh the entry at their own prefill.
+
+        Residual: an attempt cancelled by an attempt/stream-idle timeout unwinds
+        before this runs, so a request that did prefill and write leaves the
+        baseline where it was and the retry measures its gap from further back
+        than it should. Erring that way only over-escalates; there is no usage
+        to prove caching happened on a response we never received.
         """
         if resolved.request_start is None:
             return
@@ -641,33 +657,29 @@ class AnthropicAPI(ModelAPI):
             or (usage.input_tokens_cache_read or 0)
         ):
             return
-        active = sample_active()
-        if active is None:
+        sample_state = self._cache_ttl_state()
+        if sample_state is None:
             return
-        state = self._cache_ttl_state.get(active.sample_uuid)
+        # a continuation chain's last prefill, when later than resolve time; a
+        # value left by an earlier generate in this task is necessarily earlier
+        request_start = max(resolved.request_start, _last_request_start.get() or 0.0)
+        key = self.service_model_name()
+        state = sample_state.get(key)
         if state is None:
-            # prune state for samples that have completed (they are removed
-            # from the active-sample registry); once per sample, not per request
-            live = {sample.sample_uuid for sample in active_samples()}
-            for uuid in [k for k in self._cache_ttl_state if k not in live]:
-                del self._cache_ttl_state[uuid]
-            self._cache_ttl_state[active.sample_uuid] = _SampleCacheTtlState(
-                last_cached_request_start=resolved.request_start
+            sample_state[key] = _SampleCacheTtlState(
+                last_cached_request_start=request_start
             )
-            while len(self._cache_ttl_state) > _CACHE_TTL_STATE_MAX_SAMPLES:
-                self._cache_ttl_state.popitem(last=False)
-        elif resolved.request_start > state.last_cached_request_start:
+        elif request_start > state.last_cached_request_start:
             # ignore out-of-order completions from parallel calls in one sample
-            state.last_cached_request_start = resolved.request_start
+            state.last_cached_request_start = request_start
 
     @override
     def cache_write_ttl(self) -> str | None:
-        # the TTL this call was actually sent with (see _cache_write_ttl), not
-        # the sample's current escalation state — a sibling request may have
-        # escalated the sample while this one was in flight. Residual: server
-        # tools insert their own 5m cache write after tool results, which an
-        # escalated sample still bills at 1h; only mapping the ephemeral_5m/1h
-        # split from response usage would price those exactly.
+        # the TTL this call was sent with, not the sample's current escalation
+        # state — a sibling may have escalated while this one was in flight.
+        # Residual: server tools insert their own 5m cache write after tool
+        # results, which an escalated sample still bills at 1h; only mapping the
+        # ephemeral_5m/1h split from response usage would price those exactly.
         if self.cache_ttl in ("5m", "1h"):
             return self.cache_ttl
         return _cache_write_ttl.get()
@@ -1038,6 +1050,9 @@ class AnthropicAPI(ModelAPI):
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
         """
+        # each continuation re-sends the same cache_control, so it refreshes the
+        # cache entry at its own prefill -- record it as the gap baseline
+        _last_request_start.set(time.monotonic())
         if pending_tool_uses is None:
             pending_tool_uses = dict()
         if pending_mcp_tool_uses is None:
@@ -1790,7 +1805,7 @@ class AnthropicAPI(ModelAPI):
         input: list[ChatMessage],
         tools: list[ToolInfo],
         config: GenerateConfig,
-        cache_ttl: Literal["5m", "1h"] | None = None,
+        cache_ttl: Literal["5m", "1h"] | None,
     ) -> Tuple[
         list[TextBlockParam] | None,
         list["ToolParamDef"],
@@ -3263,6 +3278,14 @@ class _AssistantInternal:
     """Server tool spans keyed by member tool use id (for replay of messages
     whose id was rewritten, e.g. by the agent bridge -- server tool use ids
     survive the bridge whereas message ids do not)."""
+    cache_ttl: dict[str, _SampleCacheTtlState] = field(default_factory=dict)
+    """Prompt-cache TTL escalation state for "auto" mode, keyed by service model
+    name (two Anthropic models in one sample track their own caches).
+
+    Lives here because this struct is bound per sample, so the state's lifetime
+    is the sample's -- no registry, prune or cap needed. Deliberately absent
+    from `dump_anthropic_assistant_internal`: `time.monotonic()` is
+    process-local and meaningless once restored elsewhere."""
     containers: dict[str, str] = field(default_factory=dict)
     """Code execution container ids keyed by assistant message id.
 

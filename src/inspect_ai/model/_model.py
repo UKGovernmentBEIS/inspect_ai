@@ -409,11 +409,11 @@ class ModelAPI(abc.ABC):
         """Prompt-cache TTL billed for cache writes in the current call context.
 
         Consulted when recording usage after each generate/compact call ("1h"
-        bills cache writes at a higher rate). The default preserves the legacy
-        behavior of reading a static `cache_ttl` attribute; providers whose
-        TTL varies per call override this.
+        bills cache writes at a higher rate than the default 5m). Providers
+        that bill cache writes at a TTL-dependent rate override this; the
+        TTL may vary per call, so it is a method rather than an attribute.
         """
-        return getattr(self, "cache_ttl", None)
+        return None
 
     @abc.abstractmethod
     async def generate(
