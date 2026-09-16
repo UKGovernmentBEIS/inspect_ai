@@ -271,13 +271,17 @@ Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build
 
 ### Cache TTL {#anthropic-cache-ttl}
 
-Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default, using the standard 5-minute cache TTL. Use the `cache_ttl` model arg (`-M`) to specify a different TTL. Valid values are "5m" (the default) and "1h":
+Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default. Use the `cache_ttl` model arg (`-M`) to control the cache TTL. Valid values are:
+
+- "auto" (the default): requests use the standard 5-minute cache TTL, and a sample is automatically switched to the 1-hour TTL for the remainder of its execution when more than 5 minutes pass between requests that use the cache (e.g. due to slow tool calls, long generations, or queuing behind `max_connections`). By that point the 5-minute cache has expired and the full prompt prefix is being rewritten regardless, so escalating protects the rest of the sample from repeated cache misses. Escalations are reported in a log message.
+
+- "5m" or "1h": pin the TTL for all requests (disables automatic escalation).
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
 ```
 
-Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart.
+Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API (not Bedrock, Vertex, or Azure) and does not apply in [batch mode](models-batch.qmd).
 
 ### Streaming
 
