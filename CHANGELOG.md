@@ -15,6 +15,7 @@
 - Sample selection: `--sample-id` now accepts ids containing colons (e.g. `user:cybergym/arvo_6008`); a `task:` prefix is stripped only when it names a task in the run.
 - Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
 - Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
+- Agent Bridge: Web search and code execution items from Google and Mistral models now reach Responses API clients with a unique item id instead of an empty one.
 - Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.
 - Scoring: `perplexity()` and `target_perplexity()` now record infinite perplexity for a sample whose NLL is too large to exponentiate instead of losing the sample to an `OverflowError`.
 - Datasets: `csv_dataset()` now honors the dialect's delimiter when no explicit delimiter is supplied, including tab-separated and registered custom dialects.
