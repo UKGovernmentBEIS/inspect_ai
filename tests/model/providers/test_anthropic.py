@@ -1059,7 +1059,7 @@ async def test_anthropic_auto_cache_ttl_threads_into_request(
             model=api.service_model_name(), content="ok"
         )
 
-    api._perform_request_and_continuations = fake_perform  # type: ignore[method-assign]
+    monkeypatch.setattr(api, "_perform_request_and_continuations", fake_perform)
 
     await api.generate(
         input=[
@@ -1131,7 +1131,7 @@ async def test_anthropic_auto_cache_ttl_escalates_via_generate(
             model=api.service_model_name(), content="ok"
         )
 
-    api._perform_request_and_continuations = fake_perform  # type: ignore[method-assign]
+    monkeypatch.setattr(api, "_perform_request_and_continuations", fake_perform)
 
     async def call() -> None:
         await api.generate(
