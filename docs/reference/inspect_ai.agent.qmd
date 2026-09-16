@@ -31,6 +31,9 @@ description: Agent scaffolds and protocol.
 ### sandbox_agent_bridge
 ### SandboxAgentBridge
 ### BridgedToolsSpec
+### BridgedToolNaming
+### BridgedToolName
+### BridgedToolCall
 
 ## Filters
 

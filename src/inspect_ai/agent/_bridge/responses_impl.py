@@ -93,7 +93,6 @@ from inspect_ai.model._internal import (
 from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
-    RESPONSES_NAMESPACE,
     RESPONSES_VERBATIM,
     TOOL_SEARCH_NAME,
     TOOL_SEARCH_OPTIONS_MARKER,
@@ -154,7 +153,7 @@ from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
-from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE, ToolInfo
+from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE, RESPONSES_NAMESPACE, ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.tool._tools._code_execution import (

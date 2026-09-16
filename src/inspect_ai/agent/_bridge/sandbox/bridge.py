@@ -15,7 +15,7 @@ from inspect_ai.model._model import (
     ModelResolver,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
+from inspect_ai.tool._mcp._tools_bridge import BridgedToolNaming, BridgedToolsSpec
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
@@ -62,6 +62,7 @@ async def sandbox_agent_bridge(
     code_execution: CodeExecutionProviders | bool | None = None,
     client_mcp_servers: bool | None = None,
     bridged_tools: Sequence[BridgedToolsSpec] | None = None,
+    tool_naming: BridgedToolNaming | None = None,
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
@@ -122,6 +123,12 @@ async def sandbox_agent_bridge(
             once per proposal, unless its spec sets `require_proposal=False`
             (see `BridgedToolsSpec`). The resolved MCPServerConfigStdio objects
             to pass to CLI agents are available via bridge.mcp_server_configs.
+        tool_naming: How the sandboxed agent names bridged tools to its model
+            (see `BridgedToolNaming`), so a proposed call can be matched to the
+            bridged tool it executes. Defaults to the bare tool name and
+            `mcp__<server>__<tool>`; an agent that renames tools under another
+            scheme, groups them in a Responses API namespace, or routes them
+            through a dispatcher needs its own naming, or every call is denied.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
             installs it around `model.generate()` so the sink decides when and
@@ -189,6 +196,7 @@ async def sandbox_agent_bridge(
                 approval=approval,
                 checkpointer=checkpointer,
                 allow_remote_mcp=allow_remote_mcp,
+                tool_naming=tool_naming,
             )
 
             # register bridged tools with the bridge
