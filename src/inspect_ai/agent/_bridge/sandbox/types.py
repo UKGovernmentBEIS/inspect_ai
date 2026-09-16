@@ -307,9 +307,9 @@ def _resolve_by_served_content(
     the tie, conservatively: scaffolds do rewrite schemas, so only property and
     required names are compared, as a subset (`_same_schema_shape`). Tools that
     still cannot be told apart are all returned, and the caller fails closed on
-    more than one; the one cost of the truncation rule is that a truncated
-    description which is a prefix of two bridged tools' descriptions, or a
-    bridged tool whose whole description is a prefix of another's, is ambiguous.
+    more than one. An exact match wins even when that description is a prefix
+    of another bridged tool's; the one cost of the truncation rule is that a
+    truncated declaration which could refer to both is ambiguous.
     """
     targets: list[_BridgedToolId] = []
     for declaration in declarations:
@@ -347,9 +347,18 @@ qualifies while a short description can never match another tool's as an
 accidental prefix.
 """
 
-_TRAILING_NON_ALNUM = re.compile(r"[^0-9A-Za-z]+$")
-_TRAILING_NON_ALNUM_KEEPING_CLOSERS = re.compile(r"[^0-9A-Za-z\])]+$")
 _TRAILING_BRACKETED = re.compile(r"[(\[][^()\[\]]{1,24}[)\]]$")
+
+
+def _strip_trailing_non_alnum(text: str, keep: str = "") -> str:
+    """Drop the trailing characters that are neither alphanumeric nor in `keep`.
+
+    Alphanumeric by `str.isalnum`, so letters of any script count as text.
+    """
+    end = len(text)
+    while end and not text[end - 1].isalnum() and text[end - 1] not in keep:
+        end -= 1
+    return text[:end]
 
 
 def _is_truncation_of(declared: str, served: str) -> bool:
@@ -359,11 +368,12 @@ def _is_truncation_of(declared: str, served: str) -> bool:
     non-alphanumeric characters (an ellipsis, ``...``) and at most one short
     bracketed suffix (``[truncated]``, ``[...]``) are dropped, then the rest must
     be at least `_MIN_TRUNCATED_PREFIX` characters and a prefix of the served
-    text. A scaffold that rewrites the leading text is not tolerated.
+    text. Alphanumeric means `str.isalnum`, so a non-Latin suffix is text, not a
+    marker. A scaffold that rewrites the leading text is not tolerated.
     """
-    prefix = _TRAILING_NON_ALNUM_KEEPING_CLOSERS.sub("", declared)
+    prefix = _strip_trailing_non_alnum(declared, keep=")]")
     prefix = _TRAILING_BRACKETED.sub("", prefix)
-    prefix = _TRAILING_NON_ALNUM.sub("", prefix)
+    prefix = _strip_trailing_non_alnum(prefix)
     return len(prefix) >= _MIN_TRUNCATED_PREFIX and served.startswith(prefix)
 
 

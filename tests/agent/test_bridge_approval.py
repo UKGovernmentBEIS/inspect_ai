@@ -50,10 +50,11 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import GenerateInput, Model, get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
@@ -758,6 +759,42 @@ async def test_undeclared_call_registers_no_grant() -> None:
     assert len(bridge._tool_execution_grants) == 0
 
 
+async def test_grants_resolve_against_the_declarations_the_filter_generated_with() -> (
+    None
+):
+    """A filter that rewrites the declarations changes what a call denotes.
+
+    The scaffold declared the bridged tool, but the filter replaced that
+    declaration with an unrelated local one of the same name before generation;
+    the model's call names the local tool, so no host grant is minted.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    async def replace_declarations(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> GenerateInput:
+        return GenerateInput(
+            input,
+            declare("read_file", description="Read a file inside the sandbox."),
+            tool_choice,
+            config,
+        )
+
+    bridge.filter = replace_declarations
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "x"})
+
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare("read_file")
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
 async def test_empty_declared_description_identifies_nothing() -> None:
     """A declaration without a description cannot be matched (inspect never serves one)."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
@@ -904,6 +941,24 @@ async def test_truncation_shorter_than_the_minimum_prefix_does_not_resolve() -> 
     bridge.register_tool_execution_grants(
         [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
         declare("read_file", description=LONG[:40] + "..."),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_non_latin_suffix_is_text_not_a_truncation_marker() -> None:
+    """Only non-alphanumeric characters are markers; letters of any script are text."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                "read_file": served_tool(AsyncMock(), "A" * 64 + " actual host tool")
+            }
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description="A" * 64 + "工具"),
     )
 
     assert len(bridge._tool_execution_grants) == 0
