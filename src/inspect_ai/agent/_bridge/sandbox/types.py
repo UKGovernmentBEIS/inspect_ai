@@ -121,7 +121,7 @@ class SandboxAgentBridge(AgentBridge):
         (`_proposed_call`): a call the scaffold declared no tool for denotes
         nothing, a Responses API namespace on the declaration pins the server,
         a tool the scaffold unmistakably declared under another name (a
-        namespaced declaration, or a qualified name carrying the tool's own
+        namespaced declaration, or a candidate name carrying the tool's own
         description) is not matched under this one, and Antigravity's
         `call_mcp_tool` dispatcher is recognized by its declared parameters
         outside any namespace. A call that still denotes more than one
@@ -419,17 +419,17 @@ def _claims(declaration: ToolInfo, server: str, tool: str, description: str) -> 
     Used to rule out a candidate: if the scaffold declared the bridged tool under
     another name, this call is not a proposal for it. A namespaced (Codex)
     declaration claims it through the (namespace, name) pair alone. A flat
-    declaration claims it only under a qualified candidate name (the bare name is
-    any local tool's to use) and with the description the bridge served for the
-    tool in `tools/list`, so an unrelated local tool whose name merely reads as
-    another scheme's qualified form does not stand in for it.
+    declaration claims it only under one of the tool's candidate names, the bare
+    name included, and with the description the bridge served for the tool in
+    `tools/list`: the description is what tells the scaffold's declaration of the
+    tool from an unrelated local tool whose name merely reads as one of the
+    tool's names under some scheme, in either direction.
     """
     namespace = _declaration_namespace(declaration)
     if namespace is not None:
         return (namespace, declaration.name) in _codex_cli_parts(server, tool)
-    qualified = _candidate_functions(server, tool) - {_bare_function(server, tool)}
     return (
-        declaration.name in qualified
+        declaration.name in _candidate_functions(server, tool)
         and declaration.description.strip() == description.strip()
     )
 

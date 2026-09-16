@@ -1009,7 +1009,9 @@ async def test_pass_through_declaration_beside_an_unrelated_local_tool_grants() 
 
     Its unrelated local host_read_file reads as OpenCode's name for the same
     bridged tool, but does not carry the tool's description, so it does not
-    claim it and the proposal for read_file is granted.
+    claim it and the proposal for read_file is granted; and because the bare
+    read_file declaration does carry the description, it claims the tool, so a
+    proposal for the local host_read_file grants nothing.
     """
     bridge = sandbox_bridge_with_servers(
         {"host": {"read_file": mock_tool("Read a file.")}}
@@ -1019,10 +1021,15 @@ async def test_pass_through_declaration_beside_an_unrelated_local_tool_grants() 
     )
 
     bridge.register_tool_execution_grants(
+        [ToolCall(id="local", function="host_read_file", arguments={"path": "x"})],
+        declared,
+    )
+    assert len(bridge._tool_execution_grants) == 0
+
+    bridge.register_tool_execution_grants(
         [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
         declared,
     )
-
     assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
 
 
