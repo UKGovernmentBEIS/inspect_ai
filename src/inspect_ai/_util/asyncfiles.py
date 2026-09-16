@@ -56,6 +56,9 @@ logger = logging.getLogger(__name__)
 
 _S3_MISSING_OBJECT_CODES = ("404", "NoSuchKey", "NotFound")
 
+# default chunk size for read_file_into
+_READ_INTO_CHUNK_SIZE = 1024 * 1024  # 1 MB
+
 
 @contextmanager
 def _map_missing_s3_object(filename: str) -> Iterator[None]:
@@ -212,13 +215,24 @@ class _S3ETagCapture:
 
 
 async def _read_exactly(source: BinaryIO, size: int, io_chunksize: int) -> bytearray:
+    """Read up to ``size`` bytes from ``source`` without blocking the event loop.
+
+    Each chunk is read in a worker thread: ``EvalRecorder.flush()`` and
+    checkpoint egress stream from disk, and a blocking read on the loop stalls
+    every other sample for its duration. ``run_sync`` is left non-abandoning
+    (the default), so a cancelled upload does not unwind while a read is still
+    in flight; callers reuse or close the source right after the upload
+    (``flush()`` reopens its temp-file zip in a ``finally``), and an abandoned
+    read would race that.
+    """
     data = bytearray()
     while len(data) < size:
-        chunk = source.read(min(io_chunksize, size - len(data)))
+        chunk = await anyio.to_thread.run_sync(
+            source.read, min(io_chunksize, size - len(data))
+        )
         if not chunk:
             break
         data += chunk
-        await anyio.sleep(0)
 
     return data
 
@@ -564,6 +578,58 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         finally:
             await stream.aclose()
         return b"".join(chunks)
+
+    async def read_file_into(
+        self, filename: str, dest: BinaryIO, chunk_size: int = _READ_INTO_CHUNK_SIZE
+    ) -> None:
+        """Copy a file's full contents into an open binary file object.
+
+        The download counterpart of :meth:`write_file_streaming`, for a
+        destination that is a file object rather than a path (an anonymous
+        temp file). A local source is copied in one worker thread
+        (a thread hop per chunk through an async file would cost more than
+        the copy), with cancellation checks between chunks. An S3 source
+        streams into ``dest`` chunk by chunk: under
+        trio the synchronous response is copied in a worker thread, with
+        cancellation checks between chunks; under asyncio a byte stream
+        from :meth:`read_file_bytes` is written inline (a buffered
+        write of one chunk lands in the page cache faster than a thread hop
+        would). Any other remote filesystem (``gs://``, ``az://``, ...) has
+        no async client and, per the fsspec rule in AGENTS.md, cannot be read
+        in a worker thread either, so it is read synchronously on the event
+        loop one chunk at a time with a checkpoint between chunks: each
+        stall is bounded by one chunk's fetch rather than the whole download.
+
+        Raises ``FileNotFoundError`` for a missing file on every backend.
+        Cancellation waits for an active worker to close its response before
+        returning, so the caller can safely close or reuse ``dest``.
+        """
+        if is_s3_filename(filename) and current_async_backend() != "asyncio":
+            bucket, key = s3_bucket_and_key(filename)
+            with _map_missing_s3_object(filename):
+                await anyio.to_thread.run_sync(
+                    s3_read_file_into, self.s3_client(), bucket, key, dest, chunk_size
+                )
+        elif is_s3_filename(filename):
+            stream = await self.read_file_bytes(filename, 0, None)
+            try:
+                while True:
+                    try:
+                        chunk = await stream.receive(chunk_size)
+                    except EndOfStream:
+                        break
+                    dest.write(chunk)
+            finally:
+                await stream.aclose()
+        elif filesystem(filename).is_local():
+            await anyio.to_thread.run_sync(
+                _copy_local_file_into, local_path(filename), dest, chunk_size
+            )
+        else:
+            with file(filename, "rb") as src:
+                while chunk := src.read(chunk_size):
+                    dest.write(chunk)
+                    await anyio.lowlevel.checkpoint()
 
     async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
         """Read the last suffix_length bytes of a file.
@@ -1138,6 +1204,27 @@ def s3_read_file_bytes(
     return cast(bytes, response["Body"].read())
 
 
+def s3_read_file_into(
+    s3: Any, bucket: str, key: str, dest: BinaryIO, chunk_size: int
+) -> None:
+    """Stream an S3 response into a caller-owned file from an AnyIO worker.
+
+    Memory is bounded by ``chunk_size``. Close the response on success,
+    failure or cancellation, leaving the destination's lifecycle to its owner.
+    """
+    response = s3.get_object(Bucket=bucket, Key=key)
+    body = response["Body"]
+    try:
+        while True:
+            anyio.from_thread.check_cancelled()
+            chunk = body.read(chunk_size)
+            if not chunk:
+                break
+            dest.write(chunk)
+    finally:
+        body.close()
+
+
 def s3_read_file_suffix(
     s3: Any, bucket: str, key: str, suffix_length: int
 ) -> SuffixResult:
@@ -1450,3 +1537,14 @@ _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
 _READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 _S3_ABORT_TIMEOUT = 30
+
+
+def _copy_local_file_into(path: str, dest: BinaryIO, chunk_size: int) -> None:
+    """Blocking local copy for ``read_file_into`` — run in a worker thread."""
+    with open(path, "rb") as src:
+        while True:
+            anyio.from_thread.check_cancelled()
+            chunk = src.read(chunk_size)
+            if not chunk:
+                break
+            dest.write(chunk)

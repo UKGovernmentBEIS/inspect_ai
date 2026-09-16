@@ -5424,6 +5424,17 @@
             ],
             "title": "Extra Headers"
           },
+          "fail_on_refusal": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fail On Refusal"
+          },
           "fallback_models": {
             "anyOf": [
               {

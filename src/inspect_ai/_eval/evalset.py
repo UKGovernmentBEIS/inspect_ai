@@ -55,6 +55,7 @@ from inspect_ai._eval.task.scan import (
 )
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
+from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import (
     FileSystem,
@@ -486,6 +487,12 @@ def eval_set(
     # lifecycle aligned with eval()"). Refuse the combination
     # explicitly rather than silently giving a broken keep-alive
     # experience.
+    #
+    # Load the project `.env` first: resolving here (before the inner eval()
+    # would load it) must see the same INSPECT_EVAL_CTL_SERVER a bare eval()
+    # sees, and the value is passed down explicitly so the inner call can't
+    # recover it later.
+    init_dotenv()
     ctl = resolve_ctl_server(ctl_server)
     # clear a stale keep-alive intent left by a prior run in this process;
     # needed here as well as in eval_async because the all-reused short-circuit

@@ -1,5 +1,7 @@
 from typing import Any, cast
 
+import anyio
+
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 
@@ -10,8 +12,8 @@ class TaskLoggerShim(TaskLogger):
         self._samples_completed = 0
         self._logged_sample_keys = set()
         self._cancelled_sample_keys = set()
-        self.flush_quiet = []
-        self.flush_quiet_retry = False
         self._init_stale_flush_state()
         self._finished = False
-        self._destination_hold = False
+        self._prior_seeded = False
+        self._prior_read_limit = anyio.Semaphore(4)
+        self._seeded_pending = set()
