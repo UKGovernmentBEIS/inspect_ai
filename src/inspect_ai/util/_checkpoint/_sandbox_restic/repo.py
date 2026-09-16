@@ -22,6 +22,7 @@ The egress protocol that ships repo data back to the host lives in
 from __future__ import annotations
 
 from inspect_ai.util._restic import Platform, ResticBackupSummary, resolve_restic
+from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
@@ -56,7 +57,7 @@ async def inject_restic(env: SandboxEnvironment) -> None:
         f"cat > {_SANDBOX_RESTIC_PATH}; "
         f"chmod 0700 {_SANDBOX_RESTIC_PATH}"
     )
-    result = await env.exec(["sh", "-c", script], input=binary_bytes, user="root")
+    result = await privileged_shell(env, script, input=binary_bytes, user="root")
     if not result.success:
         raise RuntimeError(f"Failed to inject restic into sandbox: {result.stderr}")
 
@@ -67,12 +68,13 @@ async def init_sandbox_repo(env: SandboxEnvironment, password: str) -> None:
     Runs as root against the injected binary. Skip if the repo is
     already initialized.
     """
-    check = await env.exec(
-        ["test", "-e", f"{_SANDBOX_RESTIC_REPO}/config"], user="root"
+    check = await privileged_exec(
+        env, ["test", "-e", f"{_SANDBOX_RESTIC_REPO}/config"], user="root"
     )
     if check.success:
         return
-    result = await env.exec(
+    result = await privileged_exec(
+        env,
         [_SANDBOX_RESTIC_PATH, "-r", _SANDBOX_RESTIC_REPO, "init"],
         env={"RESTIC_PASSWORD": password},
         user="root",
@@ -120,7 +122,8 @@ async def run_sandbox_backup(
         "--json",
         "--quiet",
     ]
-    result = await env.exec(
+    result = await privileged_exec(
+        env,
         cmd,
         env={"RESTIC_PASSWORD": password, "RESTIC_PROGRESS_FPS": ""},
         user="root",

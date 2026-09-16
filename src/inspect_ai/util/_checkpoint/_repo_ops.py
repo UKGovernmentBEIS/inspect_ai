@@ -8,16 +8,26 @@ strategies — a cycle). ``hydrate`` still uses it for the host repo.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import subprocess
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import Any
 
 import anyio
+import anyio.abc
+from anyio.streams.buffered import BufferedByteReceiveStream
 
 from inspect_ai.util._restic.ops import restic_env
+
+_MAX_LS_LINE_BYTES = 1024 * 1024
+"""Longest ``restic ls --json`` record accepted: a node record is its
+path (at most a few KiB) plus a dozen short fields."""
+
+_MAX_STDERR_BYTES = 64 * 1024
+"""Most of restic's stderr kept for an error message."""
 
 
 def checkpoint_tag(checkpoint_id: int) -> str:
@@ -111,6 +121,136 @@ async def list_snapshots(
     )
     snapshots: list[dict[str, Any]] = json.loads(proc.stdout.decode())
     return snapshots
+
+
+async def walk_snapshot_nodes(
+    restic: Path,
+    repo: str,
+    password: str,
+    snapshot_id: str,
+    visit: Callable[[dict[str, Any]], None],
+) -> str:
+    """Stream ``restic ls --json <snapshot_id>`` on ``repo``; ``visit`` each node.
+
+    Returns the listed snapshot's full id (the leading ``snapshot``
+    record). The listing is untrusted and can be as long as the
+    snapshot is large, so it is consumed line by line off the process
+    pipe rather than buffered whole: memory stays bounded by one record
+    (:data:`_MAX_LS_LINE_BYTES`), and an exception from ``visit`` — a
+    rejected node — kills restic and propagates at once. A non-zero exit
+    (unknown snapshot, unopenable repo) raises with restic's stderr;
+    ``--no-lock`` because a metadata read needs no repository lock.
+    """
+    command = [
+        str(restic),
+        "-r",
+        repo,
+        "ls",
+        "--json",
+        "--no-lock",
+        snapshot_id,
+    ]
+    full_id: str | None = None
+    stderr = bytearray()
+    failure: Exception | None = None
+    async with await anyio.open_process(
+        command,
+        env=restic_env(password),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as proc:
+        assert proc.stdout is not None and proc.stderr is not None
+        stdout, stderr_stream = proc.stdout, proc.stderr
+
+        async def drain_stderr() -> None:
+            async for chunk in stderr_stream:
+                if len(stderr) < _MAX_STDERR_BYTES:
+                    stderr.extend(chunk)
+
+        try:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(drain_stderr)
+                try:
+                    full_id = await _consume_ls_records(stdout, repo, visit)
+                except Exception as exc:
+                    # Held and re-raised below rather than propagated out
+                    # of the group, which would wrap it in an ExceptionGroup.
+                    failure = exc
+                    _kill(proc)
+                    tg.cancel_scope.cancel()
+        except BaseException:
+            _kill(proc)
+            raise
+        returncode = await proc.wait()
+    if failure is not None:
+        raise failure
+    if returncode != 0:
+        raise RuntimeError(
+            f"restic ls failed (exit {returncode}) on {repo}: "
+            f"{stderr[:_MAX_STDERR_BYTES].decode(errors='replace').strip()}"
+        )
+    if not isinstance(full_id, str) or not re.fullmatch(r"[0-9a-f]{64}", full_id):
+        raise RuntimeError(
+            f"restic ls on {repo} produced no well-formed snapshot record for "
+            f"{snapshot_id}"
+        )
+    return full_id
+
+
+def _kill(proc: anyio.abc.Process) -> None:
+    """Kill ``proc`` if it is still running.
+
+    On asyncio, ``kill()`` on a child that has already exited (and whose
+    transport is torn down) raises ``ProcessLookupError``; that must not
+    replace the error being propagated.
+    """
+    if proc.returncode is None:
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+
+
+async def _consume_ls_records(
+    stdout: anyio.abc.ByteReceiveStream,
+    repo: str,
+    visit: Callable[[dict[str, Any]], None],
+) -> str | None:
+    """Parse ``restic ls --json`` line by line; return the snapshot record's id."""
+    full_id: str | None = None
+    lines = BufferedByteReceiveStream(stdout)
+    while True:
+        try:
+            raw = await lines.receive_until(b"\n", _MAX_LS_LINE_BYTES)
+            last = False
+        except anyio.IncompleteRead:
+            # EOF: whatever is buffered is an unterminated final line.
+            raw, last = lines.buffer, True
+        except anyio.DelimiterNotFound:
+            raise RuntimeError(
+                f"restic ls on {repo}: a record exceeds {_MAX_LS_LINE_BYTES} bytes"
+            ) from None
+        line = raw.strip()
+        if line:
+            try:
+                record = json.loads(line)
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"restic ls on {repo}: listing line is not JSON: "
+                    f"{line[:200].decode(errors='replace')!r}"
+                ) from exc
+            if not isinstance(record, dict):
+                raise RuntimeError(
+                    f"restic ls on {repo}: listing line is not a JSON object: "
+                    f"{line[:200].decode(errors='replace')!r}"
+                )
+            # restic 0.17+ emits ``message_type``; ``struct_type`` is the
+            # pre-0.17 key.
+            kind = record.get("message_type", record.get("struct_type"))
+            if kind == "snapshot" and full_id is None:
+                full_id = record.get("id")
+            elif kind == "node":
+                visit(record)
+        if last:
+            return full_id
 
 
 def match_snapshot_id(full_ids: Collection[str], recorded: str) -> str | None:
