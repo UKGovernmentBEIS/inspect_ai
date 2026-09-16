@@ -515,10 +515,17 @@ today (see Current behaviour), so the requested name has to reach the
 recording path independently of it. `inspect_google_api_request()` and its
 `_impl` gain a keyword-only `requested_model: str | None = None`; the
 dialect records `requested_model` when given and the routing name otherwise.
-In-process, `patched_async_request` (bridge.py:518-537) extracts the full
-segment between `models/` and the `:` with a new helper
-`_google_api_requested_model(path)` (pattern `models/([^:]+):`) and passes
-it as `requested_model`; the interception test and the routing input
+In-process, `patched_async_request` (bridge.py:518-537) extracts the whole
+model segment with a new helper `_google_api_requested_model(path)` and
+passes it as `requested_model`. The helper anchors on the terminal operation
+rather than on the first colon, because a model name may itself contain
+colons (Inspect accepts tagged specs such as `ollama/llama3:8b`,
+`src/inspect_ai/model/_providers/ollama.py:10-25`, and the SDK path for
+`inspect/ollama/llama3:8b` ends in `:8b:generateContent`): pattern
+`models/(.+):generateContent(?:\?.*)?$`, so `inspect`,
+`inspect/mockllm/other`, `inspect/ollama/llama3:8b` and
+`inspect/ollama/llama3:70b` are each recovered exactly. The interception
+test and the routing input
 (`_google_api_model_name` and the unmodified `request_dict`) are untouched,
 so in-process Google routing stays exactly as it is today, defect included.
 In the sandbox the proxy writes the slash-truncated segment into `model`
@@ -875,14 +882,18 @@ output; the resulting `ModelEvent` (the only one) carries
 `requested_model`, which is the filter-path case the context block exists
 to cover.
 `test_google_sdk_request_records_full_requested_model`, next to
-`test_google_bridge_returns_logprobs_to_client` (line 686): under
-`agent_bridge()` with a `mockllm` active model, a `google.genai` client
-calls `generate_content(model="inspect/mockllm/other", ...)`; the resulting
-`ModelEvent` has `requested_model == "inspect/mockllm/other"` and `model`
-equal to the active model (today's routing, unchanged). Invoking the dialect
-directly with a supplied `model` cannot catch this, because the SDK path
-never supplies one. Skipped with `pytest.importorskip("google.genai")` when
-the SDK is not installed.
+`test_google_bridge_returns_logprobs_to_client` (line 686), parametrized
+over `inspect`, `inspect/mockllm/other`, `inspect/ollama/llama3:8b` and
+`inspect/ollama/llama3:70b`: under `agent_bridge()` with a `mockllm` active
+model, a `google.genai` client calls `generate_content(model=<name>, ...)`
+with the dialect's generate stubbed so no provider is constructed; the
+resulting `ModelEvent` has `requested_model` equal to the exact string
+requested and `model` equal to the active model (today's routing,
+unchanged). The two tagged names must record as distinct strings, which is
+the case a first-colon pattern gets wrong. Invoking the dialect directly
+with a supplied `model` cannot catch any of this, because the SDK path never
+supplies one. Skipped with `pytest.importorskip("google.genai")` when the
+SDK is not installed.
 
 End to end with Docker, `tests/tools/test_tools_bridge.py` (existing
 `@skip_if_no_docker` file whose slow tests PR CI runs):
