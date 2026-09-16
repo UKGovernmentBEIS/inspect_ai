@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+import weakref
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -8,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import fsspec  # type: ignore
 import fsspec.core  # type: ignore
 import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import (
@@ -354,6 +356,51 @@ async def test_cleanup_s3_sessions_handles_errors() -> None:
 
         mock_creator2.__aexit__.assert_awaited_once_with(None, None, None)
         mock_s3fs.clear_instance_cache.assert_called_once()
+
+
+@skip_if_trio
+async def test_cleanup_s3_sessions_disarms_s3fs_finalizer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """cleanup_s3_sessions detaches s3fs's GC-time close_session finalizer.
+
+    The finalizer would otherwise exit the already-exited client a second time
+    as a bare task on the running loop, failing with "Session was never entered".
+    """
+    from s3fs import S3FileSystem  # type: ignore
+
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "unused_id")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "unused_key")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-west-1")
+
+    def close_session_finalizers(instance: object) -> list[weakref.finalize]:
+        finalizers: list[weakref.finalize] = []
+        for ref in weakref.getweakrefs(instance):
+            finalizer = ref.__callback__
+            if isinstance(finalizer, weakref.finalize):
+                info = finalizer.peek()
+                if info is not None and info[1] is S3FileSystem.close_session:
+                    finalizers.append(finalizer)
+        return finalizers
+
+    S3FileSystem.clear_instance_cache()
+    fs = S3FileSystem(cache_regions=False)
+    try:
+        await fs.set_session()
+        finalizers = close_session_finalizers(fs)
+        assert len(finalizers) == 1 and finalizers[0].alive
+        creator = fs._s3creator
+
+        await cleanup_s3_sessions()
+
+        assert close_session_finalizers(fs) == []
+        assert not finalizers[0].alive
+        # the creator was exited once; a second exit is what the finalizer would do
+        with pytest.raises(AssertionError, match="Session was never entered"):
+            await creator.__aexit__(None, None, None)
+    finally:
+        S3FileSystem.clear_instance_cache()
 
 
 async def test_cleanup_s3_sessions_no_s3creator() -> None:

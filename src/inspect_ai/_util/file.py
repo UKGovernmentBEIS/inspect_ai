@@ -7,6 +7,7 @@ import re
 import string
 import tempfile
 import unicodedata
+import weakref
 from contextlib import contextmanager
 from copy import deepcopy
 from importlib.metadata import PackageNotFoundError
@@ -649,8 +650,12 @@ async def cleanup_s3_sessions() -> None:
     aiohttp.ClientSession.__del__ to emit 'Unclosed client session' / 'Unclosed
     connector' warnings. See https://github.com/fsspec/s3fs/issues/943
 
-    This function explicitly closes the sessions via the proper async cleanup path
-    and clears the instance cache so the weakref finalizer has nothing to do.
+    This function explicitly closes the sessions via the proper async cleanup path,
+    disarms s3fs's finalizer for each instance it closed, and clears the instance
+    cache. Disarming matters: the finalizer would otherwise exit the same creator a
+    second time when the instance is garbage collected, as a bare task on whatever
+    event loop happens to be running, and that second exit fails with
+    ``AssertionError: Session was never entered`` in an unrelated context.
     """
     import sys
 
@@ -668,6 +673,7 @@ async def cleanup_s3_sessions() -> None:
         for instance in instances:
             s3creator = getattr(instance, "_s3creator", None)
             if s3creator is not None:
+                _detach_s3fs_finalizer(instance)
                 try:
                     await s3creator.__aexit__(None, None, None)
                 except Exception:
@@ -684,6 +690,24 @@ async def cleanup_s3_sessions() -> None:
                 "Cleaned up %d cached S3FileSystem instance(s)",
                 len(instances),
             )
+
+
+def _detach_s3fs_finalizer(instance: Any) -> None:
+    """Disarm the ``close_session`` finalizer s3fs registers on an S3FileSystem.
+
+    s3fs registers ``weakref.finalize(self, self.close_session, self.loop,
+    self._s3creator)`` when it creates the client. Once we have exited the creator
+    ourselves that finalizer must not run, so we look it up through the weak
+    references held on the instance and detach it.
+    """
+    close_session = getattr(type(instance), "close_session", None)
+    for ref in weakref.getweakrefs(instance):
+        finalizer = getattr(ref, "__callback__", None)
+        if not isinstance(finalizer, weakref.finalize):
+            continue
+        info = finalizer.peek()
+        if info is not None and info[1] is close_session:
+            finalizer.detach()
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
