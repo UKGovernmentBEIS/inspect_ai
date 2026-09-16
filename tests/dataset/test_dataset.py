@@ -78,6 +78,44 @@ def test_file_dataset_url_query_uses_path_extension(
 
 
 @pytest.mark.parametrize(
+    ("suffix", "expected_reader"),
+    [(".jsonl", "jsonlines_dataset_reader"), (".json", "json_dataset_reader")],
+)
+def test_json_dataset_url_query_uses_path_extension(
+    suffix: str,
+    expected_reader: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a query string on the URL must not change which reader is
+    # selected -- only the path component's extension should (see
+    # #5271: "?download=data.jsonl" on a ".json" URL, or
+    # "?signature=..." on a ".jsonl" URL, previously picked the wrong
+    # reader by string-matching the full URL instead of its path)
+    url = f"https://example.test/dataset{suffix}?download=data.jsonl"
+    mock_jsonlines = Mock(return_value=iter([]))
+    mock_json = Mock(return_value=iter([]))
+    monkeypatch.setattr(
+        "inspect_ai.dataset._sources.json.jsonlines_dataset_reader", mock_jsonlines
+    )
+    monkeypatch.setattr(
+        "inspect_ai.dataset._sources.json.json_dataset_reader", mock_json
+    )
+    mock_file = Mock()
+    mock_file.return_value.__enter__ = Mock(return_value=Mock())
+    mock_file.return_value.__exit__ = Mock(return_value=False)
+    monkeypatch.setattr("inspect_ai.dataset._sources.json.file", mock_file)
+
+    json_dataset(url)
+
+    if expected_reader == "jsonlines_dataset_reader":
+        mock_jsonlines.assert_called_once()
+        mock_json.assert_not_called()
+    else:
+        mock_json.assert_called_once()
+        mock_jsonlines.assert_not_called()
+
+
+@pytest.mark.parametrize(
     ("suffix", "delimiter"),
     [(".csv", None), (".tsv", "\t"), (".tab", "\t")],
 )

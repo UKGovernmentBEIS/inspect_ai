@@ -2,6 +2,7 @@ import json
 from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import jsonlines
 
@@ -67,10 +68,15 @@ def json_dataset(
     # resolve data_to_sample function
     data_to_sample = record_to_sample_fn(sample_fields)
 
-    # pick the right reader for the file extension
+    # pick the right reader for the file extension -- resolve against the
+    # URL's path component (not the full string) so a query string or
+    # fragment (e.g. a presigned URL's "?signature=...") can't masquerade
+    # as part of the extension, or hide the real one
+    parsed_json_file = urlparse(json_file)
+    json_file_path = parsed_json_file.path if parsed_json_file.scheme else json_file
     dataset_reader = (
         jsonlines_dataset_reader
-        if json_file.lower().endswith(".jsonl")
+        if json_file_path.lower().endswith(".jsonl")
         else json_dataset_reader
     )
 
