@@ -85,6 +85,10 @@
 - Model refusals: New `fail_on_refusal` generate config option (`--fail-on-refusal`) fails a sample with a `ModelRefusalError` when a model refuses a request, settable eval-wide, per task, per model, per model role, or per call.
 - Sandbox Services: Service directories are now private to the service user, and a service refuses to start if its directory or the shared `/var/tmp/sandbox-services` parent already exists with the wrong owner, mode, or type.
 - Sandboxes: The standard tool-support image now offers an opt-in non-root `nonroot` account (UID/GID 65532; default user unchanged) and installs the web browser's Playwright browsers to a shared path so the browser tool works under a non-root user.
+- Anthropic: Forced web searches (`tool_choice` naming `web_search`) now work on Claude 4.6+ models, including bridged agents' web search.
+- Agent Bridge: A provider error delivered during a streamed response now reaches the bridged agent as an error instead of a malformed HTTP 200 success.
+- Agent Bridge: A bridged Anthropic client now sees conflict, timeout, and billing errors as such instead of as generic server errors.
+- Agent Bridge: Sandboxed agents now receive exhausted provider errors with their original status and error details.
 
 ## 0.3.263 (03 September 2026)
 

@@ -443,7 +443,17 @@ def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
 
 
 @pytest.mark.anyio
-async def test_anthropic_generate_handles_midstream_content_filter() -> None:
+@pytest.mark.parametrize(
+    "error_type",
+    [
+        "invalid_request_error",
+        # a type the provider cannot classify still routes through handle_bad_request
+        "some_future_error",
+    ],
+)
+async def test_anthropic_generate_handles_midstream_content_filter(
+    error_type: str,
+) -> None:
     """generate() must convert a mid-stream APIStatusError into a content_filter refusal.
 
     Regression: the outer `except APIStatusError` block previously only handled
@@ -475,7 +485,7 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
             body={
                 "type": "error",
                 "error": {
-                    "type": "invalid_request_error",
+                    "type": error_type,
                     "message": "Output blocked by content filtering policy",
                 },
             },

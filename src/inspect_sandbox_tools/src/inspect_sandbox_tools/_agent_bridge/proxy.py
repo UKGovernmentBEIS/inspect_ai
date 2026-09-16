@@ -560,36 +560,67 @@ def _provider_error(result: Any) -> Optional[dict[str, Any]]:
     return None
 
 
-def _openai_error_body(status: int, message: str) -> dict[str, Any]:
-    """OpenAI-dialect error body (Chat Completions and Responses)."""
-    return {
-        "error": {
-            "message": message,
-            "type": "invalid_request_error" if 400 <= status < 500 else "api_error",
-            "param": None,
-            "code": None,
-        }
+def _openai_error_body(
+    status: int, message: str, provider_body: Optional[dict[str, Any]] = None
+) -> dict[str, Any]:
+    """OpenAI-dialect error body (Chat Completions and Responses).
+
+    ``provider_body`` is the provider's own error object when the host recovered
+    one (an exhausted retry of an OpenAI-compatible endpoint, say). Its keys are
+    forwarded verbatim over the dialect's own -- clients read ``code`` values such
+    as ``insufficient_quota`` from it -- but the dialect's guaranteed keys stay
+    present: a body that lacks ``message`` (a FastAPI ``{"detail": ...}``, an empty
+    object) still yields the host's recovered message and a ``type``.
+    """
+    error: dict[str, Any] = {
+        "message": message,
+        "type": "invalid_request_error" if 400 <= status < 500 else "api_error",
+        "param": None,
+        "code": None,
     }
+    if provider_body is not None:
+        error.update(provider_body)
+    return {"error": error}
 
 
+# The inverse of `status_code_of`: every status that helper can derive from a
+# provider error body must map back to its Anthropic error type here. A status
+# missing from this table degrades to `api_error`, and on the STREAMING route
+# that error type is the only machine-readable signal the client gets -- the
+# HTTP status is already 200 by the time the error is known -- so a missing
+# entry silently reclassifies a client error as a server error.
 _ANTHROPIC_ERROR_TYPES = {
     400: "invalid_request_error",
     401: "authentication_error",
+    402: "billing_error",
     403: "permission_error",
     404: "not_found_error",
+    409: "conflict_error",
     413: "request_too_large",
     429: "rate_limit_error",
     500: "api_error",
+    504: "timeout_error",
     529: "overloaded_error",
 }
 
 
 def _anthropic_error_body(status: int, message: str) -> dict[str, Any]:
-    """Anthropic-dialect error body."""
+    """Anthropic-dialect error body.
+
+    An unlisted 4xx keeps a CLIENT classification rather than degrading to
+    `api_error`: the SDK recognizes statuses the table does not name (422 ->
+    `UnprocessableEntityError`), and Anthropic's error documentation permits
+    `invalid_request_error` for other 4xx responses. Calling a client error a
+    server error is the same defect the table above exists to prevent, one
+    status further out.
+    """
+    kind = _ANTHROPIC_ERROR_TYPES.get(status)
+    if kind is None:
+        kind = "invalid_request_error" if 400 <= status < 500 else "api_error"
     return {
         "type": "error",
         "error": {
-            "type": _ANTHROPIC_ERROR_TYPES.get(status, "api_error"),
+            "type": kind,
             "message": message,
         },
     }
@@ -711,9 +742,14 @@ async def model_proxy_server(
             error = _provider_error(completion)
             if error is not None:
                 status = error.get("status") or _DEFAULT_ERROR_STATUS
+                body = error.get("body")
                 return {
                     "status": status,
-                    "body": _openai_error_body(status, error.get("message") or ""),
+                    "body": _openai_error_body(
+                        status,
+                        error.get("message") or "",
+                        body if isinstance(body, dict) else None,
+                    ),
                 }
 
             if stream:
@@ -1444,9 +1480,14 @@ async def model_proxy_server(
             error = _provider_error(completion)
             if error is not None:
                 status = error.get("status") or _DEFAULT_ERROR_STATUS
+                body = error.get("body")
                 return {
                     "status": status,
-                    "body": _openai_error_body(status, error.get("message") or ""),
+                    "body": _openai_error_body(
+                        status,
+                        error.get("message") or "",
+                        body if isinstance(body, dict) else None,
+                    ),
                 }
 
             if stream:
