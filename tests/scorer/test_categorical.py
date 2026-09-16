@@ -84,6 +84,50 @@ def test_frequency_normalize_false() -> None:
     assert result == {"yes": 3.0, "no": 1.0, "unsure": 0.0}
 
 
+def test_frequency_ignores_unscored_nan_scores() -> None:
+    scores = [
+        ss("yes"),
+        ss("no"),
+        SampleScore(score=Score.unscored(reason="refusal")),
+    ]
+    result = call(frequency(), scores)
+    assert "nan" not in result
+    assert result == {"yes": 0.5, "no": 0.5}
+
+
+def test_frequency_ignores_unscored_nan_with_declared_categories() -> None:
+    scores = [
+        ss("yes"),
+        SampleScore(score=Score.unscored(reason="refusal")),
+        SampleScore(score=Score.unscored(reason="grader_failed")),
+    ]
+    result = call(frequency(categories=Verdict), scores)
+    assert "nan" not in result
+    assert result == {"yes": 1.0, "no": 0.0, "unsure": 0.0}
+
+
+def test_frequency_all_unscored_nan_reports_empty_or_zeroes() -> None:
+    unscored_scores = [
+        SampleScore(score=Score.unscored(reason="refusal")),
+        SampleScore(score=Score.unscored(reason="grader_failed")),
+    ]
+    # Without declared categories, observed categories are empty
+    assert call(frequency(), unscored_scores) == {}
+    # With declared categories, declared categories are reported with 0.0
+    assert call(frequency(categories=Verdict), unscored_scores) == {
+        "yes": 0.0,
+        "no": 0.0,
+        "unsure": 0.0,
+    }
+
+
+def test_frequency_preserves_literal_nan_string() -> None:
+    # A legitimate string category "nan" emitted as text must not be dropped
+    scores = [ss("yes"), ss("nan")]
+    result = call(frequency(), scores)
+    assert result == {"yes": 0.5, "nan": 0.5}
+
+
 def test_frequency_rejects_dict_scores() -> None:
     with pytest.raises(TypeError, match="dict-valued"):
         call(frequency(), [ss({"k": "yes"})])
