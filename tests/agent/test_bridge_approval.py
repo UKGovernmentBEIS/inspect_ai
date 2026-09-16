@@ -51,7 +51,6 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
-from inspect_ai.model._openai_responses import RESPONSES_NAMESPACE
 from inspect_ai.tool._mcp._tools_bridge import (
     BridgedToolCall,
     BridgedToolName,
@@ -59,7 +58,7 @@ from inspect_ai.tool._mcp._tools_bridge import (
 )
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
-from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_info import RESPONSES_NAMESPACE, ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 TASK = "Tidy up the working directory."
