@@ -29,10 +29,14 @@ import pytest
 from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     EgressVerificationError,
     _build_validation_view,
+    _check_index_containment,
     _extract_verified,
+    _IndexCoverage,
     _merge_into_repo,
     _publish_into,
+    _read_index_manifest,
     _remove_files,
+    _write_index_manifest,
 )
 
 
@@ -762,3 +766,63 @@ async def test_build_validation_view_enumerates_lazily_and_cancels_early(
     # Lazy: at most the batches that ran plus one slice being prepared.
     assert existing.consumed <= (len(batches) + 1) * egress_mod._VIEW_LINK_BATCH
     assert existing.consumed < total
+
+
+# --- index containment and the index memo -------------------------------
+
+
+def test_index_containment_allows_own_packs_and_unindexed_residue() -> None:
+    """A new index may cover this transfer's packs and unindexed accepted packs."""
+    coverage = {
+        "i1": _IndexCoverage(packs=["p_new", "p_residue"], blobs=["data:b1", "tree:t1"])
+    }
+    residue = _check_index_containment(
+        coverage,
+        new_pack_ids={"p_new"},
+        unindexed_accepted={"p_residue", "p_other_residue"},
+        accepted_blobs={"data:old"},
+        label="t",
+    )
+    assert residue == {"p_residue"}  # only what the index actually uses
+
+
+def test_index_containment_rejects_pack_outside_the_transfer() -> None:
+    """A pack that is neither new nor unindexed residue is a reach into history."""
+    coverage = {"i1": _IndexCoverage(packs=["p_accepted_indexed"], blobs=["data:b1"])}
+    with pytest.raises(EgressVerificationError, match="neither in this transfer"):
+        _check_index_containment(
+            coverage,
+            new_pack_ids={"p_new"},
+            unindexed_accepted=set(),
+            accepted_blobs=set(),
+            label="t",
+        )
+
+
+def test_index_containment_rejects_remapped_blob() -> None:
+    """A new index may not locate a blob an accepted index already locates."""
+    coverage = {"i1": _IndexCoverage(packs=["p_new"], blobs=["data:new", "data:old"])}
+    with pytest.raises(EgressVerificationError, match="already locates"):
+        _check_index_containment(
+            coverage,
+            new_pack_ids={"p_new"},
+            unindexed_accepted=set(),
+            accepted_blobs={"data:old"},
+            label="t",
+        )
+
+
+def test_index_manifest_roundtrip_and_tolerance(tmp_path: Path) -> None:
+    """The memo round-trips, and anything absent or malformed reads as empty."""
+    path = tmp_path / ".indexes-default.json"
+    assert _read_index_manifest(path) == {}
+    entries = {"a" * 64: _IndexCoverage(packs=["p1"], blobs=["data:b1", "tree:t1"])}
+    _write_index_manifest(path, entries)
+    assert _read_index_manifest(path) == entries
+    assert not path.with_name(path.name + ".tmp").exists()
+    path.write_text("{not json")
+    assert _read_index_manifest(path) == {}
+    path.write_text('{"version": 99, "indexes": {}}')
+    assert _read_index_manifest(path) == {}
+    path.write_text('{"version": 1, "indexes": {"x": {"packs": "nope", "blobs": []}}}')
+    assert _read_index_manifest(path) == {}

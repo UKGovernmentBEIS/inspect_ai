@@ -63,6 +63,8 @@ from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     _MAX_VIEW_STDERR_BYTES,
     EgressVerificationError,
     _EgressBuild,
+    _index_manifest_path,
+    _read_index_manifest,
     _run_view_restic,
     _write_member,
     egress_sandbox,
@@ -176,10 +178,13 @@ class _ResticCrypto:
         raise AssertionError("no data blob found in the given indexes")
 
 
-def _plant_conflicting_index(repo: Path, password: str = PASSWORD) -> tuple[str, str]:
+def _plant_conflicting_index(
+    repo: Path, password: str = PASSWORD, index_names: Sequence[str] | None = None
+) -> tuple[str, str]:
     """Plant a conflicting validly-encrypted index plus its garbage pack.
 
-    The index maps an existing data blob into a garbage ``data`` pack added
+    The index maps an existing data blob — taken from ``index_names``
+    (default: every index in ``repo``) — into a garbage ``data`` pack added
     alongside it, in the in-sandbox ``repo``.
     This models one addition an agent that holds the repo key can ship: it
     passes ``restic check`` *without* ``--read-data`` and ``restic ls`` (both
@@ -188,7 +193,9 @@ def _plant_conflicting_index(repo: Path, password: str = PASSWORD) -> tuple[str,
     names.
     """
     crypto = _ResticCrypto(repo, password)
-    blob = crypto.a_data_blob(sorted(os.listdir(repo / "index")))
+    blob = crypto.a_data_blob(
+        sorted(os.listdir(repo / "index")) if index_names is None else index_names
+    )
     # A garbage pack sized to satisfy restic's pack-size arithmetic (36-byte
     # header/trailer + blob length + a per-blob index entry: 41 bytes for a
     # compressed v2 blob, 37 otherwise), so `check` without `--read-data`
@@ -519,13 +526,13 @@ async def test_egress_cancelled_during_validation_leaves_repo_untouched(
     id2 = repos.backup("ckpt-00002")
     verifying = anyio.Event()
 
-    async def stall(*_args: object, **_kwargs: object) -> str:
+    async def stall(*_args: object, **_kwargs: object) -> bytes:
         verifying.set()
         await anyio.sleep_forever()
-        return ""
+        return b""
 
     with patch(
-        "inspect_ai.util._checkpoint._sandbox_restic.egress._verify_fresh_snapshot",
+        "inspect_ai.util._checkpoint._sandbox_restic.egress._run_view_restic",
         new=stall,
     ):
         async with anyio.create_task_group() as tg:
@@ -576,17 +583,17 @@ async def test_egress_rejects_malformed_index_and_preserves_earlier(
     assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
 
 
-async def test_egress_rejects_conflicting_index_only_read_data_catches(
+async def test_egress_rejects_index_that_remaps_an_accepted_blob(
     repos: _Repos,
 ) -> None:
-    """A conflicting index + attacker pack is rejected by the content read.
+    """A new index locating a blob an accepted index already locates is refused.
 
     The addition passes ``restic check`` *without* ``--read-data`` and
-    ``restic ls`` (asserted here on the sandbox repo), so validation would
-    accept it and let a later fire silently corrupt an earlier snapshot's
-    restore if it did not read pack contents. The egress validation runs
-    ``check --read-data`` and rejects it, leaving the earlier checkpoint
-    intact.
+    ``restic ls`` (asserted here on the sandbox repo), and its garbage pack
+    would also fail the content read — but the containment rule rejects it
+    first, without reading anything: remapping an earlier blob is exactly
+    how a later transfer could change what an earlier snapshot restores to,
+    and an honest ``restic backup`` never does it.
     """
     pytest.importorskip("cryptography")
     id1 = repos.backup("ckpt-00001")
@@ -594,7 +601,12 @@ async def test_egress_rejects_conflicting_index_only_read_data_catches(
     files_after_1 = repos.dest_files()
     (repos.src / "notes.txt").write_text("v2\n")
     id2 = repos.backup("ckpt-00002")
-    _plant_conflicting_index(repos.repo)
+    # Remap a blob an *accepted* index (fire 1's) locates, not one of fire
+    # 2's own new blobs, which containment would rightly allow.
+    accepted_indexes = [
+        f.split("/", 1)[1] for f in files_after_1 if f.startswith("index/")
+    ]
+    _plant_conflicting_index(repos.repo, index_names=accepted_indexes)
 
     # The load-bearing property: plain `check` accepts the poisoned repo,
     # only `--read-data` rejects it — so the fix's check flag matters.
@@ -615,7 +627,7 @@ async def test_egress_rejects_conflicting_index_only_read_data_catches(
         != 0
     )
 
-    with pytest.raises(EgressVerificationError, match="content check"):
+    with pytest.raises(EgressVerificationError, match="already locates"):
         await repos.egress("ckpt-00002", id2)
 
     assert repos.dest_files() == files_after_1
@@ -623,6 +635,143 @@ async def test_egress_rejects_conflicting_index_only_read_data_catches(
     restored = repos.dest.parent.parent / "restore-A"
     repos.restore_dest(id1, restored)
     assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
+
+
+async def test_egress_rejects_garbage_pack_under_a_new_blob_id(
+    repos: _Repos,
+) -> None:
+    """A garbage pack that passes containment is rejected by the content read.
+
+    A forged index that locates a *new* blob id in a size-matched garbage
+    pack references only this transfer's packs and remaps nothing, so the
+    containment rule lets it through; ``restic check`` (no ``--read-data``)
+    also accepts it. ``check --read-data`` on the increment view decrypts
+    the pack and rejects it — the load-bearing step for the sandbox's own
+    new bytes.
+    """
+    pytest.importorskip("cryptography")
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    files_after_1 = repos.dest_files()
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    crypto = _ResticCrypto(repos.repo)
+    length = 100_000
+    garbage = os.urandom(length + 36 + 41)
+    pack_name = hashlib.sha256(garbage).hexdigest()
+    repos.plant_in_sandbox_repo(f"data/{pack_name[:2]}/{pack_name}", garbage)
+    crypto.write_index(
+        {
+            "packs": [
+                {
+                    "id": pack_name,
+                    "blobs": [
+                        {
+                            "id": hashlib.sha256(b"never stored").hexdigest(),
+                            "type": "data",
+                            "offset": 0,
+                            "length": length,
+                            "uncompressed_length": length,
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    with pytest.raises(EgressVerificationError, match="content check"):
+        await repos.egress("ckpt-00002", id2)
+
+    assert repos.dest_files() == files_after_1
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+
+
+async def test_egress_rejects_new_key_after_first_cycle(repos: _Repos) -> None:
+    """A key file in a later transfer is refused; only the first cycle opens the repo."""
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    files_after_1 = repos.dest_files()
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    key = b'{"kdf":"scrypt","not":"a real key"}'
+    repos.plant_in_sandbox_repo(f"keys/{hashlib.sha256(key).hexdigest()}", key)
+
+    with pytest.raises(EgressVerificationError, match="uninitialized"):
+        await repos.egress("ckpt-00002", id2)
+
+    assert repos.dest_files() == files_after_1
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+
+
+async def test_egress_rejects_malformed_snapshot_file(repos: _Repos) -> None:
+    """A hash-named snapshot file that does not decode never reaches the repo.
+
+    Left in the accepted repo it would make every snapshot listing warn and
+    skip it (and ``check`` fail); each new snapshot file is decoded on the
+    view first.
+    """
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    files_after_1 = repos.dest_files()
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    bad = b"not a snapshot"
+    repos.plant_in_sandbox_repo(f"snapshots/{hashlib.sha256(bad).hexdigest()}", bad)
+
+    with pytest.raises(EgressVerificationError, match="decoding snapshot"):
+        await repos.egress("ckpt-00002", id2)
+
+    assert repos.dest_files() == files_after_1
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+
+
+async def test_index_manifest_heals_from_repo_index_files(repos: _Repos) -> None:
+    """The index memo is rebuilt when absent and pruned when stale.
+
+    It is a cache of ``restic cat index``: a first fire over a repo that has
+    none (this code's first run, or a resume whose copy carries none)
+    decodes every accepted index once; an entry whose index file is gone is
+    dropped; and a fire appends its own indexes after publish.
+    """
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    path = _index_manifest_path(str(repos.dest))
+    indexes_1 = {
+        f.split("/", 1)[1] for f in repos.dest_files() if f.startswith("index/")
+    }
+    assert set(_read_index_manifest(path)) == indexes_1
+
+    # Absent: healed by decoding the accepted indexes.
+    path.unlink()
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    assert await repos.egress("ckpt-00002", id2) == id2
+    indexes_2 = {
+        f.split("/", 1)[1] for f in repos.dest_files() if f.startswith("index/")
+    }
+    assert set(_read_index_manifest(path)) == indexes_2 and len(indexes_2) == 2
+
+    # Stale: an entry with no index file is dropped, a missing one decoded.
+    manifest = _read_index_manifest(path)
+    dropped = next(iter(indexes_2))
+    manifest["0" * 64] = manifest.pop(dropped)
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "indexes": {
+                    k: {"packs": v.packs, "blobs": v.blobs} for k, v in manifest.items()
+                },
+            }
+        )
+    )
+    (repos.src / "notes.txt").write_text("v3\n")
+    id3 = repos.backup("ckpt-00003")
+    assert await repos.egress("ckpt-00003", id3) == id3
+    indexes_3 = {
+        f.split("/", 1)[1] for f in repos.dest_files() if f.startswith("index/")
+    }
+    assert set(_read_index_manifest(path)) == indexes_3 and len(indexes_3) == 3
 
 
 async def test_read_data_check_is_required_for_a_blob_length_lie(

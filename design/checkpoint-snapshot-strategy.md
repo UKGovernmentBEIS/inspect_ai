@@ -400,101 +400,98 @@ Implementation requirements:
 Content addressing keeps a committed repository file's *bytes* immutable,
 but a later transfer can still *add* a new, correctly-named file — a
 restic file's name is the SHA-256 of its own bytes, so any bytes can be
-shipped under their matching name. A malformed `index/<sha256>` (bytes
-that are not a decryptable index) added to the accepted repo makes restic
-abort while loading indexes and so blocks restoring *every* snapshot,
-including earlier committed ones; a valid index that maps an existing
-blob to an attacker-supplied `data` pack can leave an earlier snapshot's
-restore silently corrupt. Neither changes an accepted file, so the
-content-addressing checks alone do not prevent them.
+shipped under their matching name. Every repository file except an index
+is content-addressed and self-contained, so a new file can change what an
+earlier snapshot restores to only by changing where restic looks for one
+of its blobs, and only index files do that (plus key files, which decide
+whether the repository opens at all). Both demonstrated attacks are index
+attacks: a malformed `index/<sha256>` makes restic abort while loading
+indexes and so blocks restoring *every* snapshot, including earlier
+committed ones; a valid index that maps an existing blob to an
+attacker-supplied `data` pack, or understates a blob's recorded length,
+can leave an earlier snapshot's restore silently wrong (verified against
+restic 0.18.1: plain `check`/`ls` report no error and the restore
+succeeds, yet restores the wrong bytes).
 
-The restic strategy therefore validates every transfer before it reaches
-the accepted repo:
+The restic strategy therefore validates the *increment* of every transfer
+before it reaches the accepted repo, without re-proving history:
 
 - New files are received into a staging area beside (never inside) the
   accepted repo.
-- A throwaway *view* — the accepted repo (hard links) plus the staged
-  additions — is validated with `restic check --read-data` and `restic ls
-  <recorded id>`, run `--no-lock --no-cache` (the view shares the accepted
-  repo's `config` id, so its cache must be bypassed). `check` without
-  `--read-data` and `ls` reject a malformed or undecryptable index and an
-  index that references a missing pack, but both *accept* two additions that
-  silently corrupt a restore: a valid index pointing at a present-but-garbage
-  pack, and a valid index that understates the blobs of a multi-blob file (verified against restic
-  0.18.1: plain `check`/`ls` report no error and the restore succeeds, yet
-  restores the wrong bytes). `check --read-data` decrypts every
-  referenced blob
-  and checks its length against the pack, so it rejects both. It is therefore
-  required, not `check` alone — the reason validation reads pack data rather
-  than only listing and structurally checking.
-- Only if the view validates are the additions linked into the accepted
+- **Containment.** Each new index file is decoded on the host (`restic
+  cat index <id>`, output bounded) and rejected if it references a pack
+  that is neither in this transfer nor an accepted pack no accepted index
+  covers (the residue a hard kill leaves when packs published but their
+  index did not), or if it locates a blob an accepted index already
+  locates. An honest `restic backup` writes indexes covering only the
+  packs it just wrote and deduplicates against the existing index, so it
+  never re-stores an indexed blob; verified against restic 0.18.1 for a
+  second backup after a first, and for a backup following an interrupted
+  one, both of whose indexes referenced only their own packs and no
+  earlier blob. What each accepted index covers is kept in a host-side
+  memo beside the repo (`.indexes-<sandbox>.json`), a cache of `cat
+  index` output healed on every fire against the index files actually
+  present: entries whose file is gone are dropped, files it does not know
+  are decoded (normally none; every one of them on this code's first fire
+  over an existing repo or after a resume, whose copy carries no memo).
+- **Content.** A throwaway view holds config, keys, this transfer's packs
+  and indexes, and any accepted-but-unindexed packs the new indexes
+  reference — no earlier packs or indexes and no snapshot files — and
+  must pass `restic check --read-data --no-lock --no-cache`. Because the
+  new indexes reference only packs in the view, restic reads every new
+  pack, decrypts every new blob and checks its hash and length against
+  the index; a garbage pack under a new blob id or an understated blob
+  length fails here (plain `check` accepts both). Snapshot files stay out
+  of this step because a new snapshot's trees legitimately reference
+  earlier, deduplicated blobs that are not in the view.
+- **Snapshots and keys.** Each new snapshot file is then decoded on the
+  view (`restic cat snapshot`), so a malformed one never reaches the
+  accepted repo; any file under `keys/` after the first cycle is refused
+  (neither an honest backup nor a resume adds keys).
+- Only if the increment validates are its files linked into the accepted
   repo, packs before indexes before snapshots, so an interruption —
   including a hard kill, which cannot roll back — leaves every earlier
-  snapshot restorable at every prefix. Checking the live repo and rolling
-  back on failure would not do: a hard kill mid-rollback leaves the poison
-  visible. The accepted repo is never written by a transfer that fails
-  validation.
+  snapshot restorable at every prefix. The accepted repo's snapshot
+  listing is then checked as before (exactly the shipped snapshots
+  arrived; the reported one carries this checkpoint's tag), and a
+  protocol failure there unwinds this fire's validated files. The
+  accepted repo is never written by a transfer that fails validation.
 
 Guarantee and limits. A later transfer cannot make an earlier committed
-snapshot unrestorable, and cannot silently alter its restored contents:
-the additions are proven, on an isolated copy, to keep every snapshot
-loadable and every referenced blob decrypted and length-checked against
-its pack before anything is merged, so an index that would relayout or
-shorten an earlier snapshot's restore fails validation rather than
-merging.
-This is not authenticity of the sandbox's state. An agent that controls
-sandbox root holds the repository key and can mint validly-encrypted
-indexes, trees, and snapshots; validation establishes only that the view
-is loadable and internally consistent, not that its captures are honest —
-which does not matter, because the sandbox already controls its own
-current capture. What it can no longer do is reach back and break or
-corrupt a checkpoint an earlier fire committed.
+snapshot unrestorable and cannot alter its restored contents: earlier
+files are never overwritten; a new index may describe only this
+transfer's packs (and unindexed residue of earlier ones) and may not
+remap any blob an accepted index already locates; every new pack is read
+and every new blob decrypted and length-checked before publish; and no
+new key file is accepted. This is not authenticity of the sandbox's
+state. An agent that controls sandbox root holds the repository key and
+can mint validly-encrypted indexes, trees, and snapshots; validation
+establishes only that the increment is internally consistent and reaches
+nothing earlier, not that its captures are honest — which does not
+matter, because the sandbox already controls its own current capture.
+What it can no longer do is reach back and break or corrupt a checkpoint
+an earlier fire committed. The one thing given up relative to checking
+the whole repository on every fire: earlier packs are no longer re-read,
+so host-side bit rot or tampering with accepted files is not detected
+until restore — which was never a goal of this change.
 
-Cost. Every fire re-reads the whole accepted repository (`check
---read-data` on the view), so the per-fire cost is proportional to
-accumulated history and a run's cumulative validation I/O is quadratic in
-checkpoint count. Measured on restic 0.18.1 (Apple M4 Max, local SSD;
-reproduction in the #5443 PR body): per fire ≈ 1.0 s fixed (two restic
-key derivations for `snapshots` and `ls`) + 0.5 s + 0.7 s per GB of
-repository for `check --read-data` (≈ 1.45 CPU-s/GB, ≤ 125 MB RSS up to
-1.4 GB, memory tracking index size not data), + 0.24 ms per repository
-file to hard-link the view (0.07 s at 240 files; 4.9 s at 20 000). So a
-1.4 GB repo validates in ≈ 2.5 s per fire, and 40 fires that grew a repo
-to 1.4 GB spent 79 s validating in total; 52 small fires (112 MB) cost
-≈ 1.6 s each, dominated by the fixed floor. Restic's output on the view
-is attacker-shaped and is streamed with a 64 KiB stderr bound rather than
-buffered. The per-transfer cap bounds each increment, not the total, and
-nothing prunes mid-run, so the check's read cost keeps growing at ≈ 0.7
-s/GB; at 10 GB it is ≈ 8 s per fire. Routine turn and time triggers stay
-practical at checkpoint scales seen so far; a longer trigger interval is
-the operator's lever, and any relaxation of `--read-data` would trade
-away the guarantee above and is a design decision, not a tuning knob.
-
-Those bounds assume a checkpoint directory whose filesystem supports hard
-links, which is where the view costs O(files). On a filesystem that
-refuses them (exFAT/FAT, some CIFS and NFS mounts) the view is a *copy* of
-the whole accepted repository, so each fire additionally needs scratch
-space equal to the repository and copies it once, a cost that grows with
-history and is not bounded by the per-transfer cap. Measured on a real
-exFAT volume (a 4 GB disk image on the same SSD): 0.8 s for 0.35 GB,
-1.3 s for 0.7 GB, 2.8 s for 1.37 GB (≈ 440–570 MB/s; a network mount will
-be slower by its throughput), with scratch equal to those sizes. The
-build is interruptible at a bounded granularity in both modes and makes
-no up-front pass over the repository: the file pairs are enumerated
-lazily one 256-file slice at a time (nothing is sorted or materialised
-whole, so file count does not delay the first checkpoint), hard links are
-attempted one slice per worker-thread call, and a copy proceeds 8 MiB per
-call, so a cancellation waits for at most one slice plus one batch of
-links (~60 ms) or one block of one file — not for the repository's file
-count or bytes, and not for a whole staged file, which a hostile sandbox
-can make as large as the transfer cap
-(measured: cancelling a 1.37 GB copy-mode build returned in under
-10 ms). The accepted-repo publication step copies only this fire's
-validated increment, so it is bounded by the cap; it runs as one call and
-an interruption there is the safe-prefix case above. Keeping such
-checkpoint directories on a link-capable local filesystem is the
-operator's lever here; the fallback exists so the checkpoint keeps working
-rather than fail every fire.
+Cost. Per fire: five restic invocations (the accepted repo's snapshot
+listing before and after, `cat index` per new index, one `check
+--read-data` over the increment, `cat snapshot` per new snapshot), each
+paying restic's ~0.45 s key derivation, plus reading the increment's
+bytes; nothing scales with accumulated history. Measured with the real
+egress (restic 0.18.1, Apple M4 Max, local SSD, 70% incompressible / 30%
+text increments): with a fixed 50 MB increment the per-fire wall time is
+flat as the repo grows from 0.03 to 1.37 GB over 40 fires (2.4–3.1 s,
+least-squares slope 0.05 s/GB — noise); against increment size it is
+≈ 2.1 s + 4 ms/MB (2.2 s at 10 MB, 2.8 s at 50 MB, 3.3 s at 200 MB,
+3.7 s at 400 MB). Before this change the host paid two invocations plus
+work proportional to the increment, so the added cost is three fixed
+invocations. The view is O(increment files): on a filesystem without hard
+links (exFAT/FAT, some CIFS/NFS mounts) its copy fallback copies only the
+increment, bounded by the transfer cap, in 8 MiB blocks; file pairs are
+enumerated one 256-file slice at a time, so a cancellation waits for at
+most one slice plus one link batch or one copy block.
 
 ### 4.7 Strategy identity is recorded and pinned
 

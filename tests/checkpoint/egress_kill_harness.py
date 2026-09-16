@@ -132,8 +132,9 @@ async def _egress(state: _State, tag: str, snapshot_id: str) -> str:
 
 
 def _install_validation_kill() -> None:
-    async def _kill(*_a: Any, **_k: Any) -> None:
+    async def _kill(*_a: Any, **_k: Any) -> bytes:
         os.kill(os.getpid(), signal.SIGKILL)
+        return b""
 
     egress._run_view_restic = _kill
 
