@@ -16,6 +16,7 @@ from __future__ import annotations
 import errno
 import hashlib
 import io
+import sqlite3
 import tarfile
 import tracemalloc
 from collections.abc import Collection, Sequence
@@ -31,12 +32,12 @@ from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     _build_validation_view,
     _check_index_containment,
     _extract_verified,
+    _index_memo_path,
     _IndexCoverage,
+    _IndexMemo,
     _merge_into_repo,
     _publish_into,
-    _read_index_manifest,
     _remove_files,
-    _write_index_manifest,
 )
 
 
@@ -779,7 +780,8 @@ def test_index_containment_allows_own_packs_and_unindexed_residue() -> None:
     residue = _check_index_containment(
         coverage,
         new_pack_ids={"p_new"},
-        unindexed_accepted={"p_residue", "p_other_residue"},
+        accepted_packs={"p_residue", "p_other_residue", "p_indexed"},
+        covered_packs={"p_indexed"},
         accepted_blobs={"data:old"},
         label="t",
     )
@@ -788,15 +790,17 @@ def test_index_containment_allows_own_packs_and_unindexed_residue() -> None:
 
 def test_index_containment_rejects_pack_outside_the_transfer() -> None:
     """A pack that is neither new nor unindexed residue is a reach into history."""
-    coverage = {"i1": _IndexCoverage(packs=["p_accepted_indexed"], blobs=["data:b1"])}
-    with pytest.raises(EgressVerificationError, match="neither in this transfer"):
-        _check_index_containment(
-            coverage,
-            new_pack_ids={"p_new"},
-            unindexed_accepted=set(),
-            accepted_blobs=set(),
-            label="t",
-        )
+    for accepted, covered in (({"p_accepted"}, {"p_accepted"}), (set(), set())):
+        coverage = {"i1": _IndexCoverage(packs=["p_accepted"], blobs=["data:b1"])}
+        with pytest.raises(EgressVerificationError, match="neither in this transfer"):
+            _check_index_containment(
+                coverage,
+                new_pack_ids={"p_new"},
+                accepted_packs=accepted,
+                covered_packs=covered,
+                accepted_blobs=set(),
+                label="t",
+            )
 
 
 def test_index_containment_rejects_remapped_blob() -> None:
@@ -806,23 +810,100 @@ def test_index_containment_rejects_remapped_blob() -> None:
         _check_index_containment(
             coverage,
             new_pack_ids={"p_new"},
-            unindexed_accepted=set(),
+            accepted_packs=set(),
+            covered_packs=set(),
             accepted_blobs={"data:old"},
             label="t",
         )
 
 
-def test_index_manifest_roundtrip_and_tolerance(tmp_path: Path) -> None:
-    """The memo round-trips, and anything absent or malformed reads as empty."""
-    path = tmp_path / ".indexes-default.json"
-    assert _read_index_manifest(path) == {}
-    entries = {"a" * 64: _IndexCoverage(packs=["p1"], blobs=["data:b1", "tree:t1"])}
-    _write_index_manifest(path, entries)
-    assert _read_index_manifest(path) == entries
-    assert not path.with_name(path.name + ".tmp").exists()
-    path.write_text("{not json")
-    assert _read_index_manifest(path) == {}
-    path.write_text('{"version": 99, "indexes": {}}')
-    assert _read_index_manifest(path) == {}
-    path.write_text('{"version": 1, "indexes": {"x": {"packs": "nope", "blobs": []}}}')
-    assert _read_index_manifest(path) == {}
+def test_index_memo_path_is_outside_the_sandbox_namespace(tmp_path: Path) -> None:
+    """No sandbox name can collide with, or lengthen past a limit, a memo path."""
+    sandboxes = tmp_path / "sample" / "restic" / "sandboxes"
+    names = ["default", ".indexes-default.json", "index-memos", "x" * 255]
+    paths = {name: _index_memo_path(str(sandboxes / name)) for name in names}
+    assert len(set(paths.values())) == len(names)
+    for name, path in paths.items():
+        assert path.parent == sandboxes.parent / "index-memos"
+        assert len(path.name) == 64 + len(".sqlite")
+        for other in names:
+            repo = sandboxes / other
+            assert path != repo and repo not in path.parents
+    with pytest.raises(ValueError, match="sandboxes"):
+        _index_memo_path(str(tmp_path / "elsewhere" / "default"))
+
+
+def test_index_memo_roundtrip_and_tolerance(tmp_path: Path) -> None:
+    """The memo answers only for the ids asked, and anything unreadable is rebuilt."""
+    path = tmp_path / "index-memos" / "m.sqlite"
+    memo = _IndexMemo(path)
+    assert memo.index_ids() == set()
+    memo.add({"i1": _IndexCoverage(packs=["p1"], blobs=["data:b1", "tree:t1"])})
+    memo.add({"i2": _IndexCoverage(packs=["p2"], blobs=["data:b2"])})
+    assert memo.index_ids() == {"i1", "i2"}
+    assert memo.covered_packs(["p1", "p2", "p9"]) == {"p1", "p2"}
+    assert memo.located_blobs(["data:b1", "data:b2", "data:b9"]) == {
+        "data:b1",
+        "data:b2",
+    }
+    assert memo.located_blobs([]) == set()
+    memo.drop({"i1"})
+    assert memo.index_ids() == {"i2"}
+    assert memo.covered_packs(["p1", "p2"]) == {"p2"}
+    assert memo.located_blobs(["data:b1", "tree:t1", "data:b2"]) == {"data:b2"}
+    # Re-adding is idempotent, and lookups far past one IN batch work.
+    memo.add({"i2": _IndexCoverage(packs=["p2"], blobs=["data:b2"])})
+    assert memo.located_blobs([f"data:{i}" for i in range(1500)] + ["data:b2"]) == {
+        "data:b2"
+    }
+
+    # Not a database: discarded and rebuilt empty.
+    path.write_bytes(b"this is not sqlite" * 100)
+    assert memo.index_ids() == set()
+    memo.add({"i3": _IndexCoverage(packs=[], blobs=[])})
+    assert memo.index_ids() == {"i3"}
+    # Another schema version: discarded.
+    with sqlite3.connect(path) as conn:
+        conn.execute("PRAGMA user_version = 99")
+    assert memo.index_ids() == set()
+    # A foreign SQLite file with no version: discarded, not adopted.
+    path.unlink()
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE indexes (id INTEGER)")
+    assert memo.index_ids() == set()
+    assert memo.covered_packs(["p"]) == set()
+
+
+def test_index_memo_work_is_flat_in_history(tmp_path: Path) -> None:
+    """A fixed increment's memo work does not grow with the accepted history.
+
+    Would fail against a memo that is read, materialised or rewritten whole:
+    the large history below is about 14 MB of ids.
+    """
+
+    def increment_peak(history_indexes: int) -> int:
+        memo = _IndexMemo(tmp_path / f"h{history_indexes}.sqlite")
+        for n in range(history_indexes):
+            memo.add(
+                {
+                    f"i{n:06d}": _IndexCoverage(
+                        packs=[f"p{n:06d}"],
+                        blobs=[f"data:{n:06d}{b:058d}" for b in range(1000)],
+                    )
+                }
+            )
+        new = _IndexCoverage(
+            packs=["p_new"], blobs=[f"data:new{b:057d}" for b in range(1000)]
+        )
+        tracemalloc.start()
+        try:
+            memo.index_ids()
+            assert memo.covered_packs(new.packs) == set()
+            assert memo.located_blobs(new.blobs) == set()
+            memo.add({"i_new": new})
+            return tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+
+    small, large = increment_peak(2), increment_peak(200)
+    assert large < small + 512 * 1024, (small, large)

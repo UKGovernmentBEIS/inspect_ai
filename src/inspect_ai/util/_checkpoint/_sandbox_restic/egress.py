@@ -98,7 +98,7 @@ checkpoint stays restorable, and the leftover is dropped on resume by
 listing must show exactly the shipped snapshots, with the reported one
 carrying this checkpoint's tag; a protocol failure there unwinds this
 fire's (validated) files. The host-side memo of what each accepted index
-covers (``.indexes-<sandbox>.json`` beside the repo) is written after
+covers (a SQLite file under ``restic/index-memos/``) is appended to after
 that and healed from the repo's index files on every fire, so a kill at
 any point leaves nothing to repair by hand. Only after the additions are
 merged does the host tell the sandbox to mark the accepted files as
@@ -125,10 +125,11 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import tarfile
-from collections.abc import Collection, Iterator, Sequence
-from contextlib import contextmanager
+from collections.abc import Collection, Iterator, Mapping, Sequence
+from contextlib import contextmanager, suppress
 from functools import partial
 from itertools import islice
 from pathlib import Path
@@ -176,7 +177,21 @@ _MAX_INDEX_JSON_BYTES = 64 * 1024 * 1024
 index describes the blobs of one increment (a few hundred KiB for a transfer
 at the cap); a sandbox-supplied index that decodes to more than this is
 rejected rather than parsed."""
-_INDEX_MANIFEST_VERSION = 1
+_INDEX_MEMO_VERSION = 1
+"""SQLite ``user_version`` of the index memo; a file carrying another is
+discarded and rebuilt from the repo's index files."""
+_INDEX_MEMO_SCHEMA = (
+    "CREATE TABLE indexes (id TEXT PRIMARY KEY) WITHOUT ROWID",
+    "CREATE TABLE packs (index_id TEXT NOT NULL, id TEXT NOT NULL,"
+    " PRIMARY KEY (index_id, id)) WITHOUT ROWID",
+    "CREATE INDEX packs_by_id ON packs (id)",
+    "CREATE TABLE blobs (index_id TEXT NOT NULL, id TEXT NOT NULL,"
+    " PRIMARY KEY (index_id, id)) WITHOUT ROWID",
+    "CREATE INDEX blobs_by_id ON blobs (id)",
+)
+_SQL_IN_BATCH = 500
+"""Ids per ``IN (...)`` query against the memo, under SQLite's oldest bound
+variable limit (999)."""
 _VIEW_LINK_BATCH = 256
 """Hard links attempted per worker-thread call while building the validation
 view (~0.25 ms each), bounding how long a cancellation waits on the link
@@ -487,7 +502,7 @@ async def egress_sandbox(
                 label=label,
             )
         )
-        manifest = await _reconcile_index_manifest(
+        memo = await _reconcile_index_memo(
             host_restic, dest_repo, password, existing=before_files, label=label
         )
         coverage = await _validate_view(
@@ -498,7 +513,7 @@ async def egress_sandbox(
             staging=staging,
             existing=before_files,
             written=extracted.written,
-            manifest=manifest,
+            memo=memo,
             label=label,
         )
         await anyio.to_thread.run_sync(
@@ -529,17 +544,14 @@ async def egress_sandbox(
         # A protocol failure after publish (the reported id is not among the
         # snapshots that arrived, or carries the wrong tag) unwinds this
         # fire's files. Every one of them passed validation, so a hard kill
-        # mid-unwind leaves validated orphans, never poison; the manifest
-        # below is not yet written, so it has nothing to heal. Shielded so
+        # mid-unwind leaves validated orphans, never poison; the memo below
+        # is not yet appended, so it has nothing to heal. Shielded so
         # a cancellation arriving here still unwinds.
         with anyio.CancelScope(shield=True):
             await anyio.to_thread.run_sync(_remove_files, dest_repo, extracted.written)
         raise
 
-    manifest.update(coverage)
-    await anyio.to_thread.run_sync(
-        _write_index_manifest, _index_manifest_path(dest_repo), manifest
-    )
+    await anyio.to_thread.run_sync(memo.add, coverage)
     await _commit_egress(env, tag, extracted.members, paths)
     return verified_id
 
@@ -1191,54 +1203,140 @@ class _IndexCoverage(NamedTuple):
     blobs: list[str]
 
 
-def _index_manifest_path(dest_repo: str) -> Path:
-    """The host-side memo of what each accepted index covers.
+def _index_memo_path(dest_repo: str) -> Path:
+    """Where the host-side memo of what each accepted index covers lives.
 
-    A sibling of the repo (never inside it, never in the per-fire scratch,
-    which is swept each fire). It is a cache of ``restic cat index`` output,
-    not a source of truth: :func:`_reconcile_index_manifest` heals it from
-    the index files actually present.
+    ``dest_repo`` is ``<sample>/restic/sandboxes/<name>`` (see
+    ``strategy_storage_subpath``); the memo is
+    ``<sample>/restic/index-memos/<sha256(name)>.sqlite``. Every entry
+    under ``sandboxes/`` is a sandbox name the eval user chooses, so a
+    sibling there — even a dotted one — could be another sandbox's
+    repository; ``index-memos/`` is a directory no sandbox name can claim,
+    and the hashed basename is one fixed length whatever the name's. Never
+    inside the repo, never in the per-fire scratch (swept each fire).
     """
     dest = Path(dest_repo)
-    return dest.parent / f".indexes-{dest.name}.json"
+    if dest.parent.name != "sandboxes":
+        raise ValueError(
+            f"destination repo {dest_repo!r} is not under a 'sandboxes/' directory"
+        )
+    digest = hashlib.sha256(dest.name.encode("utf-8")).hexdigest()
+    return dest.parent.parent / "index-memos" / f"{digest}.sqlite"
 
 
-def _read_index_manifest(path: Path) -> dict[str, _IndexCoverage]:
-    """Load the manifest; anything absent, unreadable or malformed is empty."""
-    try:
-        data = json.loads(path.read_bytes())
-    except (OSError, ValueError):
-        return {}
-    if (
-        not isinstance(data, dict)
-        or data.get("version") != _INDEX_MANIFEST_VERSION
-        or not isinstance(data.get("indexes"), dict)
-    ):
-        return {}
-    manifest: dict[str, _IndexCoverage] = {}
-    for index_id, entry in data["indexes"].items():
-        if (
-            isinstance(index_id, str)
-            and isinstance(entry, dict)
-            and isinstance(entry.get("packs"), list)
-            and isinstance(entry.get("blobs"), list)
-        ):
-            manifest[index_id] = _IndexCoverage(
-                [str(x) for x in entry["packs"]], [str(x) for x in entry["blobs"]]
-            )
-    return manifest
+class _IndexMemo:
+    """The host-side memo of what each accepted index covers, in SQLite.
 
+    A cache of ``restic cat index`` output, not a source of truth:
+    :func:`_reconcile_index_memo` heals it against the index files actually
+    present. Every operation touches only the rows it names — the accepted
+    index ids, the packs and blobs this fire's new indexes reference, this
+    fire's own entries — so a fire's memo work is O(increment) however long
+    the history; the file grows with the accepted blob count (about 100
+    bytes per blob) but is never read or rewritten whole. Anything
+    unreadable — a torn copy carried through a resume, a foreign file, an
+    older schema — is discarded on open and rebuilt by the next
+    reconciliation, so a memo is never trusted over the repo.
 
-def _write_index_manifest(path: Path, manifest: dict[str, _IndexCoverage]) -> None:
-    payload = {
-        "version": _INDEX_MANIFEST_VERSION,
-        "indexes": {
-            k: {"packs": v.packs, "blobs": v.blobs} for k, v in sorted(manifest.items())
-        },
-    }
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(payload, separators=(",", ":")))
-    os.replace(tmp, path)
+    Synchronous; callers run each method in a worker thread (a local SQLite
+    file, no fsspec). Each method is one transaction, so a hard kill
+    mid-``add`` leaves the index unknown, to be decoded next fire, never
+    half-recorded.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def index_ids(self) -> set[str]:
+        """The index ids the memo knows."""
+        with self._connect() as conn:
+            return {row[0] for row in conn.execute("SELECT id FROM indexes")}
+
+    def drop(self, index_ids: Collection[str]) -> None:
+        """Forget these indexes and everything they covered."""
+        with self._connect() as conn:
+            for index_id in index_ids:
+                conn.execute("DELETE FROM blobs WHERE index_id = ?", (index_id,))
+                conn.execute("DELETE FROM packs WHERE index_id = ?", (index_id,))
+                conn.execute("DELETE FROM indexes WHERE id = ?", (index_id,))
+
+    def add(self, coverage: Mapping[str, _IndexCoverage]) -> None:
+        """Record what each of these indexes covers."""
+        with self._connect() as conn:
+            for index_id, entry in coverage.items():
+                conn.execute(
+                    "INSERT OR REPLACE INTO indexes (id) VALUES (?)", (index_id,)
+                )
+                conn.executemany(
+                    "INSERT OR IGNORE INTO packs (index_id, id) VALUES (?, ?)",
+                    ((index_id, pack) for pack in entry.packs),
+                )
+                conn.executemany(
+                    "INSERT OR IGNORE INTO blobs (index_id, id) VALUES (?, ?)",
+                    ((index_id, blob) for blob in entry.blobs),
+                )
+
+    def covered_packs(self, pack_ids: Collection[str]) -> set[str]:
+        """Those of ``pack_ids`` that some accepted index covers."""
+        return self._present("packs", pack_ids)
+
+    def located_blobs(self, blobs: Collection[str]) -> set[str]:
+        """Those of ``blobs`` (``type:id``) that some accepted index locates."""
+        return self._present("blobs", blobs)
+
+    def _present(self, table: str, ids: Collection[str]) -> set[str]:
+        wanted = sorted(set(ids))
+        found: set[str] = set()
+        with self._connect() as conn:
+            for start in range(0, len(wanted), _SQL_IN_BATCH):
+                chunk = wanted[start : start + _SQL_IN_BATCH]
+                marks = ",".join("?" * len(chunk))
+                found.update(
+                    row[0]
+                    for row in conn.execute(
+                        f"SELECT DISTINCT id FROM {table} WHERE id IN ({marks})", chunk
+                    )
+                )
+        return found
+
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            conn = self._open()
+        except sqlite3.DatabaseError:
+            self._discard()
+            conn = self._open()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
+    def _open(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.path)
+        try:
+            (version,) = conn.execute("PRAGMA user_version").fetchone()
+            if version == _INDEX_MEMO_VERSION:
+                return conn
+            (tables,) = conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
+            if version != 0 or tables != 0:
+                raise sqlite3.DatabaseError(
+                    f"index memo has schema version {version} with {tables} objects"
+                )
+            with conn:
+                for statement in _INDEX_MEMO_SCHEMA:
+                    conn.execute(statement)
+                conn.execute(f"PRAGMA user_version = {_INDEX_MEMO_VERSION}")
+            return conn
+        except BaseException:
+            conn.close()
+            raise
+
+    def _discard(self) -> None:
+        for suffix in ("", "-journal"):
+            with suppress(FileNotFoundError):
+                os.unlink(self.path.with_name(self.path.name + suffix))
 
 
 async def _decode_index(
@@ -1279,52 +1377,56 @@ async def _decode_index(
     return coverage
 
 
-async def _reconcile_index_manifest(
+async def _reconcile_index_memo(
     host_restic: Path,
     dest_repo: str,
     password: str,
     *,
     existing: Collection[str],
     label: str,
-) -> dict[str, _IndexCoverage]:
-    """The accepted indexes' coverage, healed against the index files present.
+) -> _IndexMemo:
+    """The accepted indexes' memo, healed against the index files present.
 
-    Entries whose index file is gone are dropped; index files the manifest
-    does not know are decoded (normally none, or one left by a hard kill
-    between publish and the manifest write; every one of them on the first
-    fire of this code over an existing repo, or after a resume, whose copy
-    carries no manifest). No separate rebuild path exists or is needed.
+    Entries whose index file is gone are dropped; index files the memo does
+    not know are decoded (normally none, or one left by a hard kill between
+    publish and the memo append; every one of them on the first fire of this
+    code over an existing repo, or after a resume, whose copy carries no
+    memo). No separate rebuild path exists or is needed.
     """
-    path = _index_manifest_path(dest_repo)
-    manifest = await anyio.to_thread.run_sync(_read_index_manifest, path)
+    memo = _IndexMemo(_index_memo_path(dest_repo))
+    known = await anyio.to_thread.run_sync(memo.index_ids)
     present = {rel.split("/", 1)[1] for rel in existing if rel.startswith("index/")}
-    stale = [index_id for index_id in manifest if index_id not in present]
-    for index_id in stale:
-        del manifest[index_id]
-    missing = sorted(present - set(manifest))
-    for index_id in missing:
-        manifest[index_id] = await _decode_index(
-            host_restic, Path(dest_repo), index_id, password, label=label
-        )
-    if stale or missing:
-        await anyio.to_thread.run_sync(_write_index_manifest, path, manifest)
-    return manifest
+    stale = known - present
+    if stale:
+        await anyio.to_thread.run_sync(memo.drop, stale)
+    missing = sorted(present - known)
+    if missing:
+        decoded = {}
+        for index_id in missing:
+            decoded[index_id] = await _decode_index(
+                host_restic, Path(dest_repo), index_id, password, label=label
+            )
+        await anyio.to_thread.run_sync(memo.add, decoded)
+    return memo
 
 
 def _check_index_containment(
     coverage: dict[str, _IndexCoverage],
     *,
     new_pack_ids: Collection[str],
-    unindexed_accepted: Collection[str],
+    accepted_packs: Collection[str],
+    covered_packs: Collection[str],
     accepted_blobs: Collection[str],
     label: str,
 ) -> set[str]:
     """Reject a new index that reaches beyond this transfer; return residue it uses.
 
     A new index may describe only this transfer's packs, plus accepted packs
-    that no accepted index covers (the residue a hard kill leaves when packs
-    published but their index did not), and may not locate any blob an
-    accepted index already locates. An honest ``restic backup`` writes
+    (``accepted_packs``) that no accepted index covers (``covered_packs``:
+    the residue a hard kill leaves when packs published but their index did
+    not), and may not locate any blob an accepted index already locates
+    (``accepted_blobs``). The caller need only answer for the packs and
+    blobs the new indexes reference, so the check is O(increment). An honest ``restic backup`` writes
     indexes covering only the packs it just wrote and deduplicates against
     the existing index, so it never violates either rule; an index that does
     is the only way a later transfer could change where restic looks for an
@@ -1336,7 +1438,7 @@ def _check_index_containment(
         for pack in entry.packs:
             if pack in new_pack_ids:
                 continue
-            if pack in unindexed_accepted:
+            if pack in accepted_packs and pack not in covered_packs:
                 residue.add(pack)
                 continue
             raise EgressVerificationError(
@@ -1363,7 +1465,7 @@ async def _validate_view(
     staging: Path,
     existing: Collection[str],
     written: Sequence[str],
-    manifest: dict[str, _IndexCoverage],
+    memo: _IndexMemo,
     label: str,
 ) -> dict[str, _IndexCoverage]:
     """Validate this fire's increment on a throwaway view; return the new indexes' coverage.
@@ -1380,7 +1482,7 @@ async def _validate_view(
        index``, bounded) and may describe only this transfer's packs plus
        accepted packs no accepted index covers, and may not locate a blob an
        accepted index already locates (:func:`_check_index_containment`,
-       against the healed manifest). A malformed or undecryptable index
+       against the healed memo). A malformed or undecryptable index
        fails to decode here.
     2. **Content.** The view holds config, keys, this transfer's packs and
        indexes, and any accepted-but-unindexed packs the new indexes
@@ -1421,25 +1523,28 @@ async def _validate_view(
         coverage[index_id] = await _decode_index(
             host_restic, view, index_id, password, label=label
         )
-    covered_packs = {pack for entry in manifest.values() for pack in entry.packs}
-    accepted_blobs = {blob for entry in manifest.values() for blob in entry.blobs}
-    unindexed = {
-        rel.rsplit("/", 1)[1]: rel
-        for rel in existing
-        if rel.startswith("data/") and rel.rsplit("/", 1)[1] not in covered_packs
+    referenced_packs = {pack for entry in coverage.values() for pack in entry.packs}
+    referenced_blobs = {blob for entry in coverage.values() for blob in entry.blobs}
+    accepted_packs = {
+        rel.rsplit("/", 1)[1]: rel for rel in existing if rel.startswith("data/")
     }
     residue = _check_index_containment(
         coverage,
         new_pack_ids={rel.rsplit("/", 1)[1] for rel in new_packs},
-        unindexed_accepted=unindexed,
-        accepted_blobs=accepted_blobs,
+        accepted_packs=accepted_packs,
+        covered_packs=await anyio.to_thread.run_sync(
+            memo.covered_packs, referenced_packs
+        ),
+        accepted_blobs=await anyio.to_thread.run_sync(
+            memo.located_blobs, referenced_blobs
+        ),
         label=label,
     )
     if residue:
         await _build_validation_view(
             view,
             existing_repo=dest_repo,
-            existing=[unindexed[pack] for pack in sorted(residue)],
+            existing=[accepted_packs[pack] for pack in sorted(residue)],
             staging=staging,
             written=[],
         )

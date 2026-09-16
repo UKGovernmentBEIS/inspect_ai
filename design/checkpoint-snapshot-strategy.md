@@ -429,11 +429,18 @@ before it reaches the accepted repo, without re-proving history:
   second backup after a first, and for a backup following an interrupted
   one, both of whose indexes referenced only their own packs and no
   earlier blob. What each accepted index covers is kept in a host-side
-  memo beside the repo (`.indexes-<sandbox>.json`), a cache of `cat
-  index` output healed on every fire against the index files actually
-  present: entries whose file is gone are dropped, files it does not know
-  are decoded (normally none; every one of them on this code's first fire
-  over an existing repo or after a resume, whose copy carries no memo).
+  memo, a SQLite file at `restic/index-memos/<sha256(sandbox)>.sqlite`
+  (a directory no sandbox name can claim, unlike a sibling of the repo
+  under `sandboxes/`, and a basename of one length whatever the name's).
+  It is a cache of `cat index` output healed on every fire against the
+  index files actually present: entries whose file is gone are dropped,
+  files it does not know are decoded (normally none; every one of them on
+  this code's first fire over an existing repo or after a resume, whose
+  copy carries no memo); anything unreadable is discarded and rebuilt the
+  same way. Only the rows a fire names are touched — the accepted index
+  ids, the packs and blobs its new indexes reference, its own entries —
+  so memo work is O(increment) too; the file grows with the accepted blob
+  count (about 100 bytes per blob) but is never read or rewritten whole.
 - **Content.** A throwaway view holds config, keys, this transfer's packs
   and indexes, and any accepted-but-unindexed packs the new indexes
   reference — no earlier packs or indexes and no snapshot files — and

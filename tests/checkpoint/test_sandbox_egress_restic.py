@@ -63,8 +63,9 @@ from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     _MAX_VIEW_STDERR_BYTES,
     EgressVerificationError,
     _EgressBuild,
-    _index_manifest_path,
-    _read_index_manifest,
+    _index_memo_path,
+    _IndexCoverage,
+    _IndexMemo,
     _run_view_restic,
     _write_member,
     egress_sandbox,
@@ -725,7 +726,7 @@ async def test_egress_rejects_malformed_snapshot_file(repos: _Repos) -> None:
     assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
 
 
-async def test_index_manifest_heals_from_repo_index_files(repos: _Repos) -> None:
+async def test_index_memo_heals_from_repo_index_files(repos: _Repos) -> None:
     """The index memo is rebuilt when absent and pruned when stale.
 
     It is a cache of ``restic cat index``: a first fire over a repo that has
@@ -735,43 +736,64 @@ async def test_index_manifest_heals_from_repo_index_files(repos: _Repos) -> None
     """
     id1 = repos.backup("ckpt-00001")
     await repos.egress("ckpt-00001", id1)
-    path = _index_manifest_path(str(repos.dest))
+    memo = _IndexMemo(_index_memo_path(str(repos.dest)))
     indexes_1 = {
         f.split("/", 1)[1] for f in repos.dest_files() if f.startswith("index/")
     }
-    assert set(_read_index_manifest(path)) == indexes_1
+    assert memo.index_ids() == indexes_1
 
     # Absent: healed by decoding the accepted indexes.
-    path.unlink()
+    memo.path.unlink()
     (repos.src / "notes.txt").write_text("v2\n")
     id2 = repos.backup("ckpt-00002")
     assert await repos.egress("ckpt-00002", id2) == id2
     indexes_2 = {
         f.split("/", 1)[1] for f in repos.dest_files() if f.startswith("index/")
     }
-    assert set(_read_index_manifest(path)) == indexes_2 and len(indexes_2) == 2
+    assert memo.index_ids() == indexes_2 and len(indexes_2) == 2
 
     # Stale: an entry with no index file is dropped, a missing one decoded.
-    manifest = _read_index_manifest(path)
     dropped = next(iter(indexes_2))
-    manifest["0" * 64] = manifest.pop(dropped)
-    path.write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "indexes": {
-                    k: {"packs": v.packs, "blobs": v.blobs} for k, v in manifest.items()
-                },
-            }
-        )
-    )
+    memo.drop({dropped})
+    memo.add({"0" * 64: _IndexCoverage(packs=["0" * 64], blobs=["data:" + "0" * 64])})
     (repos.src / "notes.txt").write_text("v3\n")
     id3 = repos.backup("ckpt-00003")
     assert await repos.egress("ckpt-00003", id3) == id3
     indexes_3 = {
         f.split("/", 1)[1] for f in repos.dest_files() if f.startswith("index/")
     }
-    assert set(_read_index_manifest(path)) == indexes_3 and len(indexes_3) == 3
+    assert memo.index_ids() == indexes_3 and len(indexes_3) == 3
+    assert memo.covered_packs(["0" * 64]) == set()
+
+
+async def test_two_sandboxes_with_colliding_names_keep_separate_memos(
+    tmp_path: Path,
+) -> None:
+    """A sandbox name never collides with another sandbox's memo path.
+
+    Sandbox names are eval-user chosen components under ``sandboxes/``; the
+    second name here is what a memo stored as a dotted sibling of the repo
+    would have been called, and a long name must not push the memo's
+    basename past the component limit (the third is the longest the
+    pre-existing ``.egress-<name>`` scratch directory itself tolerates).
+    """
+    restic = await resolve_restic()
+    names = ["default", ".indexes-default.json", "s" * (255 - len(".egress-"))]
+    verified = {}
+    for name in names:
+        repos = _Repos(tmp_path, restic, name)
+        verified[name] = await repos.egress("ckpt-00001", repos.backup("ckpt-00001"))
+        assert await repos.dest_snapshots() == {verified[name]: ["ckpt-00001"]}
+    memos = {
+        _index_memo_path(str(tmp_path / "sample/restic/sandboxes" / n)) for n in names
+    }
+    assert len(memos) == 3 and all(m.is_file() for m in memos)
+    # Each memo's transaction journal is gone once its fire returns.
+    assert set((tmp_path / "sample" / "restic" / "index-memos").iterdir()) == memos
+    for name in names:
+        repo = tmp_path / "sample" / "restic" / "sandboxes" / name
+        assert (repo / "config").is_file()
+        assert not (repo / "index-memos").exists()
 
 
 async def test_read_data_check_is_required_for_a_blob_length_lie(
