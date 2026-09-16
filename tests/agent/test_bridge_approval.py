@@ -51,10 +51,51 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.model._openai_responses import RESPONSES_NAMESPACE
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 TASK = "Tidy up the working directory."
+
+ANTIGRAVITY_DISPATCHER_PARAMETERS = ToolParams(
+    properties={
+        "ServerName": ToolParam(type="string"),
+        "ToolName": ToolParam(type="string"),
+        "Arguments": ToolParam(type="object"),
+    },
+    required=["ServerName", "ToolName", "Arguments"],
+)
+
+
+def declare(*names: str) -> list[ToolInfo]:
+    """The scaffold's declarations of these tools to the model.
+
+    `call_mcp_tool` is declared with Antigravity's dispatcher parameters.
+    """
+    return [
+        ToolInfo(
+            name=name,
+            description="",
+            parameters=(
+                ANTIGRAVITY_DISPATCHER_PARAMETERS
+                if name == "call_mcp_tool"
+                else ToolParams()
+            ),
+        )
+        for name in names
+    ]
+
+
+def declare_in_namespace(namespace: str, *names: str) -> list[ToolInfo]:
+    """Codex CLI's declarations: bare names inside a Responses API namespace."""
+    return [
+        ToolInfo(
+            name=name, description="", options={RESPONSES_NAMESPACE: (namespace, "")}
+        )
+        for name in names
+    ]
 
 
 @approver(name="test_bridge_reject")
@@ -136,8 +177,13 @@ async def run_bridge(
     approval: list[ApprovalPolicy] | None = None,
     bridge: AgentBridge | None = None,
     input: list[ChatMessage] | None = None,
+    tools: list[ToolInfo] | None = None,
 ) -> BridgeRun:
-    """Drive `bridge_generate`, recording the input each generation saw."""
+    """Drive `bridge_generate`, recording the input each generation saw.
+
+    `tools` are the declarations the scaffold made in the request; grants are
+    resolved against them.
+    """
     inputs: list[list[ChatMessage]] = []
     remaining = list(outputs)
 
@@ -159,7 +205,7 @@ async def run_bridge(
         bridge.approval = approval
 
     output, _ = await bridge_generate(
-        bridge, model, list(messages), [], None, GenerateConfig()
+        bridge, model, list(messages), list(tools or []), None, GenerateConfig()
     )
     return BridgeRun(output, inputs)
 
@@ -572,7 +618,9 @@ async def test_approved_host_tool_call_has_one_exact_execution_grant() -> None:
         id="approved", function="read_file", arguments={"path": "notes.txt"}
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     execute = call_host_tool(bridge)
     assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
@@ -591,7 +639,9 @@ async def test_host_tool_execution_grant_binds_arguments() -> None:
         id="approved", function="read_file", arguments={"path": "notes.txt"}
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     with pytest.raises(PermissionError, match="was not proposed by the model"):
         await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
@@ -608,7 +658,9 @@ async def test_host_tool_grant_matches_regardless_of_argument_key_order() -> Non
         id="approved", function="read_file", arguments={"path": "a", "mode": "r"}
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     # the scaffold re-issues the approved call with the keys in a different order
     result = await call_host_tool(bridge)(
@@ -636,7 +688,9 @@ async def test_host_tool_grant_matches_namespaced_tool_names(function: str) -> N
     )
     call = ToolCall(id="approved", function=function, arguments={"path": "notes.txt"})
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     result = await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
 
@@ -664,7 +718,8 @@ async def test_ambiguous_host_tool_name_registers_no_grant() -> None:
     )
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="approved", function="read_file", arguments={"path": "x"})]
+        [ToolCall(id="approved", function="read_file", arguments={"path": "x"})],
+        declare("read_file"),
     )
 
     assert not bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
@@ -707,7 +762,8 @@ async def test_host_tool_grant_matches_scaffold_rewritten_names(
     bridge = sandbox_bridge_with_servers({server: {"read_file": tool}})
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function=function, arguments={"path": "x"})]
+        [ToolCall(id="proposed", function=function, arguments={"path": "x"})],
+        declare(function),
     )
 
     assert bridge.consume_tool_execution_grant(server, "read_file", {"path": "x"})
@@ -746,7 +802,8 @@ async def test_host_tool_grant_matches_codex_cli_length_normalized_name(
     bridge = sandbox_bridge_with_servers({server: {tool: mock}})
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function=function, arguments={})]
+        [ToolCall(id="proposed", function=function, arguments={})],
+        declare(function),
     )
 
     assert bridge.consume_tool_execution_grant(server, tool, {})
@@ -777,7 +834,8 @@ async def test_host_tool_grant_matches_kimi_code_name(
     bridge = sandbox_bridge_with_servers({server: {tool: mock}})
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function=function, arguments={})]
+        [ToolCall(id="proposed", function=function, arguments={})],
+        declare(function),
     )
 
     assert bridge.consume_tool_execution_grant(server, tool, {})
@@ -801,7 +859,9 @@ async def test_host_tool_grant_from_antigravity_dispatcher_call() -> None:
         },
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     execute = call_host_tool(bridge)
     assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
@@ -827,10 +887,121 @@ async def test_antigravity_dispatcher_call_off_target_registers_no_grant(
     bridge = sandbox_bridge_with_tool(tool, None)
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function="call_mcp_tool", arguments=arguments)]
+        [ToolCall(id="proposed", function="call_mcp_tool", arguments=arguments)],
+        declare("call_mcp_tool"),
     )
 
     assert len(bridge._tool_execution_grants) == 0
+
+
+# ---------------------------------------------------------------------------
+# resolution follows the scaffold's declarations
+# ---------------------------------------------------------------------------
+
+
+async def test_undeclared_call_registers_no_grant() -> None:
+    """A name the scaffold never declared to the model denotes nothing."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={})], []
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+def cross_scheme_bridge() -> SandboxAgentBridge:
+    """Two bridged tools whose names collide across schemes.
+
+    `host/read_file` under Gemini CLI's scheme is `mcp_host_read_file`, which is
+    also the bare name of `a/mcp_host_read_file`.
+    """
+    return sandbox_bridge_with_servers(
+        {
+            "a": {"mcp_host_read_file": AsyncMock(return_value="a")},
+            "host": {"read_file": AsyncMock(return_value="host")},
+        }
+    )
+
+
+async def test_codex_namespace_pins_the_server_across_schemes() -> None:
+    """Codex declares a/mcp_host_read_file bare inside mcp__a; that is not host/read_file."""
+    bridge = cross_scheme_bridge()
+    declared = declare_in_namespace(
+        "mcp__a", "mcp_host_read_file"
+    ) + declare_in_namespace("mcp__host", "read_file")
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="mcp_host_read_file", arguments={})],
+        declared,
+    )
+
+    assert not bridge.consume_tool_execution_grant("host", "read_file", {})
+    assert bridge.consume_tool_execution_grant("a", "mcp_host_read_file", {})
+
+
+async def test_gemini_declarations_settle_a_cross_scheme_collision() -> None:
+    """Gemini declared a's tool as mcp_a_mcp_host_read_file, so mcp_host_read_file is host's."""
+    bridge = cross_scheme_bridge()
+    declared = declare("mcp_a_mcp_host_read_file", "mcp_host_read_file")
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="mcp_host_read_file", arguments={})],
+        declared,
+    )
+
+    assert not bridge.consume_tool_execution_grant("a", "mcp_host_read_file", {})
+    assert bridge.consume_tool_execution_grant("host", "read_file", {})
+
+
+async def test_local_tool_reading_as_another_schemes_name_registers_no_grant() -> None:
+    """Codex declared host/read_file as read_file in mcp__host; a local mcp_host_read_file is not it."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    declared = declare("mcp_host_read_file") + declare_in_namespace(
+        "mcp__host", "read_file"
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="mcp_host_read_file", arguments={})],
+        declared,
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_local_tool_sharing_a_bridged_tools_bare_name_registers_no_grant() -> (
+    None
+):
+    """OpenCode declares host/bash as host_bash; a call to its own bash is not a proposal for it."""
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"bash": AsyncMock(return_value="x")}}
+    )
+    declared = declare("bash", "host_bash")
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="local", function="bash", arguments={"cmd": "ls"})], declared
+    )
+    assert len(bridge._tool_execution_grants) == 0
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="host_bash", arguments={"cmd": "ls"})],
+        declared,
+    )
+    assert bridge.consume_tool_execution_grant("host", "bash", {"cmd": "ls"})
+
+
+async def test_bridged_tool_named_call_mcp_tool_is_not_the_dispatcher() -> None:
+    """The dispatcher is recognized by its declared parameters, not its name alone."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers({"host": {"call_mcp_tool": tool}})
+    declared = declare_in_namespace("mcp__host", "call_mcp_tool")
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="call_mcp_tool", arguments={"value": 1})],
+        declared,
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "call_mcp_tool", {"value": 1})
 
 
 async def test_host_tool_grant_matches_gemini_cli_truncated_name() -> None:
@@ -842,7 +1013,8 @@ async def test_host_tool_grant_matches_gemini_cli_truncated_name() -> None:
     truncated = "mcp_" + "s" * 26 + "..." + "s" * 20 + "_read_file"
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function=truncated, arguments={})]
+        [ToolCall(id="proposed", function=truncated, arguments={})],
+        declare(truncated),
     )
 
     assert bridge.consume_tool_execution_grant(server, "read_file", {})
@@ -854,7 +1026,8 @@ async def test_host_tool_grant_does_not_double_gemini_cli_prefix() -> None:
     bridge = sandbox_bridge_with_servers({"mcp_host": {"read_file": tool}})
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function="mcp_host_read_file", arguments={})]
+        [ToolCall(id="proposed", function="mcp_host_read_file", arguments={})],
+        declare("mcp_host_read_file"),
     )
 
     assert bridge.consume_tool_execution_grant("mcp_host", "read_file", {})
@@ -870,7 +1043,8 @@ async def test_names_that_rewrite_to_the_same_string_register_no_grant() -> None
     )
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function="a_b_c", arguments={})]
+        [ToolCall(id="proposed", function="a_b_c", arguments={})],
+        declare("a_b_c"),
     )
 
     assert len(bridge._tool_execution_grants) == 0
@@ -886,7 +1060,8 @@ async def test_single_underscore_name_denoting_two_tools_registers_no_grant() ->
     )
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function="a_b_c", arguments={})]
+        [ToolCall(id="proposed", function="a_b_c", arguments={})],
+        declare("a_b_c"),
     )
 
     assert len(bridge._tool_execution_grants) == 0
@@ -899,7 +1074,12 @@ async def test_qualified_name_binds_grant_to_exact_server() -> None:
     )
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="approved", function="mcp__a__read_file", arguments={"path": "x"})]
+        [
+            ToolCall(
+                id="approved", function="mcp__a__read_file", arguments={"path": "x"}
+            )
+        ],
+        declare("mcp__a__read_file"),
     )
 
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
@@ -914,7 +1094,8 @@ async def test_scaffold_local_tool_calls_are_not_stored() -> None:
     )
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="local", function="bash", arguments={"cmd": "ls"})]
+        [ToolCall(id="local", function="bash", arguments={"cmd": "ls"})],
+        declare("bash"),
     )
 
     assert len(bridge._tool_execution_grants) == 0
@@ -928,7 +1109,9 @@ async def test_host_tool_grant_matches_numeric_reserialization() -> None:
     )
     call = ToolCall(id="approved", function="read_file", arguments={"offset": 5.0})
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     result = await call_host_tool(bridge)("host", "read_file", {"offset": 5})
 
@@ -948,7 +1131,9 @@ async def test_host_tool_grant_normalizes_non_json_arguments() -> None:
     )
     call = ToolCall(id="approved", function="read_file", arguments={"path": "a.txt"})
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x.txt"})
 
@@ -961,7 +1146,9 @@ async def test_host_tool_grant_distinguishes_bool_from_number() -> None:
     )
     call = ToolCall(id="approved", function="read_file", arguments={"raw": True})
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     execute = call_host_tool(bridge)
     with pytest.raises(PermissionError, match="was not proposed by the model"):
@@ -1035,7 +1222,9 @@ async def test_host_tool_grant_binds_to_approver_modified_arguments() -> None:
         id="approved", function="read_file", arguments={"path": "original.txt"}
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     execute = call_host_tool(bridge)
     # the model's original arguments are not what the approver approved
@@ -1069,7 +1258,9 @@ async def test_proposed_host_tool_call_executes_once_without_approval_policy() -
         id="proposed", function="read_file", arguments={"path": "notes.txt"}
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     execute = call_host_tool(bridge)
     assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
@@ -1090,7 +1281,9 @@ async def test_host_tool_call_with_other_arguments_is_denied_without_approval_po
         id="proposed", function="read_file", arguments={"path": "notes.txt"}
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     with pytest.raises(PermissionError, match="was not proposed by the model"):
         await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
@@ -1103,7 +1296,8 @@ async def test_host_tool_grants_are_stored_without_approval_policy() -> None:
     bridge = sandbox_bridge_with_tool(tool, None)
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function="read_file", arguments={"path": "a"})]
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "a"})],
+        declare("read_file"),
     )
 
     assert len(bridge._tool_execution_grants) == 1
@@ -1126,7 +1320,8 @@ async def test_opted_out_server_stores_no_grants() -> None:
     bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function="read_file", arguments={"path": "a"})]
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "a"})],
+        declare("read_file"),
     )
 
     assert len(bridge._tool_execution_grants) == 0
@@ -1186,7 +1381,8 @@ async def test_host_tool_execution_grants_are_bounded() -> None:
                 arguments={"path": str(index)},
             )
             for index in range(_MAX_TOOL_EXECUTION_GRANTS + 1)
-        ]
+        ],
+        declare("read_file"),
     )
 
     assert len(bridge._tool_execution_grants) == _MAX_TOOL_EXECUTION_GRANTS

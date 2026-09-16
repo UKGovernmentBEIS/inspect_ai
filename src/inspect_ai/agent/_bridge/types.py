@@ -208,12 +208,16 @@ class AgentBridge:
     decide whether alternate choices must be dropped without an approval policy.
     """
 
-    def register_tool_execution_grants(self, calls: Sequence[ToolCall]) -> None:
+    def register_tool_execution_grants(
+        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+    ) -> None:
         """Register the calls in a response handed to the scaffold for execution-edge checks.
 
-        In-process bridges execute no host tools through a separate service, so the
-        base implementation has nothing to register. Sandbox bridges override this
-        to bind later service requests to the calls the model actually made.
+        `tools` are the declarations the scaffold made to the model in the request
+        that produced the response. In-process bridges execute no host tools through
+        a separate service, so the base implementation has nothing to register.
+        Sandbox bridges override this to bind later service requests to the calls
+        the model actually made.
         """
 
     def compaction(
