@@ -1231,7 +1231,7 @@ def responses_output_items_from_assistant_message(
                 output.append(
                     ResponseFunctionWebSearch(
                         type="web_search_call",
-                        id=content.id,
+                        id=content.id or uuid(),
                         action=cast(
                             WebSearchAction,
                             parse_web_search_action(content.arguments),
@@ -1241,6 +1241,7 @@ def responses_output_items_from_assistant_message(
                 )
             elif content.tool_type == "code_execution":
                 code_interpreter_param = tool_use_to_code_interpreter_param(content)
+                code_interpreter_param["id"] = code_interpreter_param["id"] or uuid()
                 output.append(
                     ResponseCodeInterpreterToolCall.model_validate(
                         code_interpreter_param
