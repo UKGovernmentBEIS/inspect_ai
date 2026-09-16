@@ -154,6 +154,11 @@ _MAX_VIEW_STDERR_BYTES = 64 * 1024
 """Most of a validation command's stderr kept for the error: the view is
 built from sandbox-supplied bytes, so restic's diagnostics are attacker-shaped
 and can dwarf the input (one forged index can produce megabytes)."""
+_VIEW_CHUNK_BYTES = 64 * 1024 * 1024
+"""Bytes of accepted-repo files handled per worker-thread call while building
+the validation view. Hard links make a chunk near-instant; on a filesystem
+without hard links each chunk is a copy of that many bytes, so this bounds how
+long a cancellation waits before the build yields."""
 
 
 class EgressVerificationError(RuntimeError):
@@ -454,15 +459,12 @@ async def egress_sandbox(
                 label=label,
             )
         )
-        await anyio.to_thread.run_sync(
-            partial(
-                _build_validation_view,
-                view,
-                existing_repo=dest_repo,
-                existing=before_files,
-                staging=staging,
-                written=extracted.written,
-            )
+        await _build_validation_view(
+            view,
+            existing_repo=dest_repo,
+            existing=before_files,
+            staging=staging,
+            written=extracted.written,
         )
         verified_id = await _validate_view(
             host_restic,
@@ -932,7 +934,34 @@ def _publish_into(src: Path, dst: Path) -> None:
         raise
 
 
-def _build_validation_view(
+def _view_chunks(
+    pairs: Sequence[tuple[Path, Path]],
+) -> list[list[tuple[Path, Path]]]:
+    """Split ``(src, dst)`` pairs into runs of about :data:`_VIEW_CHUNK_BYTES`.
+
+    Sizes come from ``stat``; a chunk closes once it reaches the budget, so
+    it can overshoot by at most one file (a restic pack, ~16 MiB by default).
+    """
+    chunks: list[list[tuple[Path, Path]]] = []
+    chunk: list[tuple[Path, Path]] = []
+    size = 0
+    for src, dst in pairs:
+        chunk.append((src, dst))
+        size += src.stat().st_size
+        if size >= _VIEW_CHUNK_BYTES:
+            chunks.append(chunk)
+            chunk, size = [], 0
+    if chunk:
+        chunks.append(chunk)
+    return chunks
+
+
+def _link_view_chunk(pairs: Sequence[tuple[Path, Path]]) -> None:
+    for src, dst in pairs:
+        _hardlink_into(src, dst)
+
+
+async def _build_validation_view(
     view: Path,
     *,
     existing_repo: str,
@@ -949,15 +978,24 @@ def _build_validation_view(
     repo. Hard links keep it O(files), not O(bytes); the validation only
     reads the repo, so sharing inodes with the accepted files is safe. The
     accepted repo and the staging dir share one filesystem (staging is a
-    sibling of the accepted repo), so every link resolves; a filesystem
-    without hard links falls back to copying (:func:`_hardlink_into`).
+    sibling of the accepted repo), so every link resolves.
+
+    A filesystem without hard links falls back to copying every file
+    (:func:`_hardlink_into`), which costs O(bytes of the whole accepted
+    repo) in scratch space and I/O per fire — outside the per-transfer cap,
+    since it scales with accumulated history rather than the increment.
+    The work is done in worker-thread calls of about :data:`_VIEW_CHUNK_BYTES`
+    each, so a cancellation (a sibling sandbox's failure, or the sample
+    ending) is honoured between chunks: it waits at most one chunk's copy,
+    not the whole repository's, and the caller's scratch sweep then removes
+    what was built.
     """
     view.mkdir(parents=True, exist_ok=True)
     src_repo = Path(existing_repo)
-    for rel in sorted(existing):
-        _hardlink_into(src_repo / rel, view / rel)
-    for rel in written:
-        _hardlink_into(staging / rel, view / rel)
+    pairs = [(src_repo / rel, view / rel) for rel in sorted(existing)]
+    pairs += [(staging / rel, view / rel) for rel in written]
+    for chunk in await anyio.to_thread.run_sync(_view_chunks, pairs):
+        await anyio.to_thread.run_sync(_link_view_chunk, chunk)
 
 
 def _merge_into_repo(dest_repo: str, staging: Path, written: Sequence[str]) -> None:

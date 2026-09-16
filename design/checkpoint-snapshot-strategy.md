@@ -470,6 +470,23 @@ practical at checkpoint scales seen so far; a longer trigger interval is
 the operator's lever, and any relaxation of `--read-data` would trade
 away the guarantee above and is a design decision, not a tuning knob.
 
+Those bounds assume a checkpoint directory whose filesystem supports hard
+links, which is where the view costs O(files). On a filesystem that
+refuses them (exFAT/FAT, some CIFS and NFS mounts) the view is a *copy* of
+the whole accepted repository, so each fire additionally needs scratch
+space equal to the repository and copies it once, a cost that grows with
+history and is not bounded by the per-transfer cap. Measured on a real
+exFAT volume (a 4 GB disk image on the same SSD): 1.2 s for 0.35 GB,
+1.6 s for 0.7 GB, 2.8 s for 1.37 GB (≈ 300–500 MB/s; a network mount will
+be slower by its throughput), with scratch equal to those sizes. The copy
+runs in worker-thread chunks of ≈ 64 MiB, so a cancellation waits for one
+chunk, not the repository: measured 0.09 s to return after cancelling a
+1.37 GB build, with 76 MB copied. The accepted-repo publication step
+copies only the increment, so it stays within the cap. Keeping such
+checkpoint directories on a link-capable local filesystem is the
+operator's lever here; the fallback exists so the checkpoint keeps working
+rather than fail every fire.
+
 ### 4.7 Strategy identity is recorded and pinned
 
 Resume must never run one strategy over another strategy's data, and a

@@ -22,6 +22,7 @@ from collections.abc import Collection, Sequence
 from pathlib import Path
 from unittest.mock import patch
 
+import anyio
 import pytest
 
 from inspect_ai.util._checkpoint._sandbox_restic.egress import (
@@ -548,7 +549,7 @@ def test_publish_copy_fallback_never_overwrites_an_accepted_file(
     assert not list(dest.rglob("*.partial"))
 
 
-def test_build_validation_view_copies_when_hard_links_unsupported(
+async def test_build_validation_view_copies_when_hard_links_unsupported(
     tmp_path: Path,
 ) -> None:
     """The throwaway view is built by copying where hard links are refused."""
@@ -559,7 +560,7 @@ def test_build_validation_view_copies_when_hard_links_unsupported(
     _stage(staging, ["data/cd/new", "index/i"])
 
     with patch(_LINK, new=_no_link):
-        _build_validation_view(
+        await _build_validation_view(
             view,
             existing_repo=str(accepted),
             existing=["config", "data/ab/old"],
@@ -575,3 +576,64 @@ def test_build_validation_view_copies_when_hard_links_unsupported(
     }
     assert (view / "data/ab/old").read_bytes() == b"data/ab/old"
     assert (view / "data/ab/old").stat().st_nlink == 1
+
+
+async def test_build_validation_view_copy_stops_at_a_chunk_on_cancellation(
+    tmp_path: Path,
+) -> None:
+    """A cancelled copy-mode view build yields between chunks, not at the end.
+
+    Without hard links the view is a copy of the whole accepted repo, which
+    grows with history and is not bounded by the per-transfer cap. The build
+    therefore works in worker-thread calls of about ``_VIEW_CHUNK_BYTES``
+    each, so a cancellation waits for at most one chunk. Here copies are
+    slowed and the chunk shrunk so the cancel demonstrably lands with most of
+    the repo still uncopied.
+    """
+    import shutil
+    import time
+
+    import inspect_ai.util._checkpoint._sandbox_restic.egress as egress_mod
+
+    accepted = tmp_path / "accepted"
+    files = [f"data/ab/{i:02d}" for i in range(24)]
+    for name in files:
+        (accepted / name).parent.mkdir(parents=True, exist_ok=True)
+        (accepted / name).write_bytes(b"x" * (256 * 1024))
+    view = tmp_path / "view"
+    real_copy = shutil.copyfile
+
+    def slow_copy(src: str, dst: str, *, follow_symlinks: bool = True) -> str:
+        time.sleep(0.02)
+        return real_copy(src, dst, follow_symlinks=follow_symlinks)
+
+    started = anyio.Event()
+
+    async def build() -> None:
+        started.set()
+        await _build_validation_view(
+            view,
+            existing_repo=str(accepted),
+            existing=files,
+            staging=tmp_path / "staging",
+            written=[],
+        )
+
+    # Four 256 KiB files per chunk (1 MiB budget); copies take ~20 ms each,
+    # so the whole view would take ~0.5 s and one chunk ~0.08 s.
+    with (
+        patch(_LINK, new=_no_link),
+        patch("shutil.copyfile", new=slow_copy),
+        patch.object(egress_mod, "_VIEW_CHUNK_BYTES", 1024 * 1024),
+    ):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(build)
+            await started.wait()
+            await anyio.sleep(0.05)
+            t0 = time.perf_counter()
+            tg.cancel_scope.cancel()
+        waited = time.perf_counter() - t0
+
+    copied = sum(1 for p in view.rglob("*") if p.is_file())
+    assert 0 < copied < len(files), copied  # stopped part-way, at a chunk edge
+    assert waited < 0.3  # one chunk, not the whole repo
