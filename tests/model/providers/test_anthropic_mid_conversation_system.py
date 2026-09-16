@@ -26,7 +26,7 @@ async def _resolve_system(
     api: AnthropicAPI, input: list[ChatMessage]
 ) -> tuple[list[Any] | None, list[Any]]:
     system_param, _, _, message_params, _ = await api.resolve_chat_input(
-        input=input, tools=[], config=GenerateConfig(cache_prompt=False)
+        input=input, tools=[], config=GenerateConfig(cache_prompt=False), cache_ttl=None
     )
     return system_param, message_params
 

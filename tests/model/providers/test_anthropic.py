@@ -913,8 +913,6 @@ async def test_anthropic_cache_marks_penultimate_block() -> None:
     api = create_autospec(AnthropicAPI, instance=True)
     api.service_model_name.return_value = "claude-sonnet-4-6"
     api.partition_tools.return_value = ([], [])
-    # instance attribute set in __init__, not captured by create_autospec
-    api.cache_ttl = None
     api.resolve_chat_input = types.MethodType(AnthropicAPI.resolve_chat_input, api)
 
     def marked(content: Any) -> list[int]:
@@ -923,7 +921,10 @@ async def test_anthropic_cache_marks_penultimate_block() -> None:
 
     async def resolve(input: list[ChatMessage], cache: bool = True) -> Any:
         return await api.resolve_chat_input(
-            input=input, tools=[], config=GenerateConfig(cache_prompt=cache)
+            input=input,
+            tools=[],
+            config=GenerateConfig(cache_prompt=cache),
+            cache_ttl=None,
         )
 
     # multi-block last message: mark content[-2]
