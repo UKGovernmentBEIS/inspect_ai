@@ -692,3 +692,73 @@ async def test_build_validation_view_links_yield_between_batches(
     linked = sum(1 for p in view.rglob("*") if p.is_file())
     assert 0 < linked < len(files), linked  # stopped at a batch edge
     assert waited < 0.2  # one batch (~50 ms), not the whole second
+
+
+async def test_build_validation_view_enumerates_lazily_and_cancels_early(
+    tmp_path: Path,
+) -> None:
+    """The builder never walks the whole file list before its first checkpoint.
+
+    A repository can hold hundreds of thousands of hash-named files (the
+    transfer cap admits that many tiny ones per fire, and history has no
+    total cap), so materialising or sorting every path up front would make a
+    cancellation wait on file count before any batch ran. The builder pulls
+    ``(src, dst)`` pairs one ``_VIEW_LINK_BATCH``-sized slice at a time. Here
+    the file list counts how many names it has yielded and the (no-op) batch
+    linker signals when the first batch is submitted; the test cancels on
+    that signal — no sleeping — and asserts only a slice or two of the
+    100,000 names was ever enumerated.
+    """
+    import threading
+    from collections.abc import Iterator
+
+    import inspect_ai.util._checkpoint._sandbox_restic.egress as egress_mod
+
+    total = 100_000
+    names = [f"data/{i & 255:02x}/{i:064x}" for i in range(total)]
+
+    class Counting:
+        """A Collection[str] that records how far it has been iterated."""
+
+        def __init__(self) -> None:
+            self.consumed = 0
+
+        def __len__(self) -> int:
+            return total
+
+        def __contains__(self, item: object) -> bool:
+            return item in names
+
+        def __iter__(self) -> Iterator[str]:
+            for name in names:
+                self.consumed += 1
+                yield name
+
+    existing = Counting()
+    first_batch = threading.Event()
+    batches: list[int] = []
+
+    def no_op_batch(pairs: list[tuple[Path, Path]]) -> list[tuple[Path, Path]]:
+        batches.append(len(pairs))
+        first_batch.set()
+        return []
+
+    async def build() -> None:
+        await _build_validation_view(
+            tmp_path / "view",
+            existing_repo=str(tmp_path / "accepted"),
+            existing=existing,
+            staging=tmp_path / "staging",
+            written=[],
+        )
+
+    with patch.object(egress_mod, "_link_view_batch", no_op_batch):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(build)
+            await anyio.to_thread.run_sync(first_batch.wait)
+            tg.cancel_scope.cancel()
+
+    assert batches and max(batches) <= egress_mod._VIEW_LINK_BATCH
+    # Lazy: at most the batches that ran plus one slice being prepared.
+    assert existing.consumed <= (len(batches) + 1) * egress_mod._VIEW_LINK_BATCH
+    assert existing.consumed < total

@@ -480,11 +480,14 @@ exFAT volume (a 4 GB disk image on the same SSD): 0.8 s for 0.35 GB,
 1.3 s for 0.7 GB, 2.8 s for 1.37 GB (≈ 440–570 MB/s; a network mount will
 be slower by its throughput), with scratch equal to those sizes. The
 build is interruptible at a bounded granularity in both modes and makes
-no up-front pass over the repository: hard links are attempted 256 files
-per worker-thread call, and a copy proceeds 8 MiB per call, so a
-cancellation waits for at most one batch of links (~60 ms) or one block
-of one file — not for the whole repository, and not for a whole staged
-file, which a hostile sandbox can make as large as the transfer cap
+no up-front pass over the repository: the file pairs are enumerated
+lazily one 256-file slice at a time (nothing is sorted or materialised
+whole, so file count does not delay the first checkpoint), hard links are
+attempted one slice per worker-thread call, and a copy proceeds 8 MiB per
+call, so a cancellation waits for at most one slice plus one batch of
+links (~60 ms) or one block of one file — not for the repository's file
+count or bytes, and not for a whole staged file, which a hostile sandbox
+can make as large as the transfer cap
 (measured: cancelling a 1.37 GB copy-mode build returned in under
 10 ms). The accepted-repo publication step copies only this fire's
 validated increment, so it is bounded by the cap; it runs as one call and

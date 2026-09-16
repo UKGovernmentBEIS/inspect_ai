@@ -114,6 +114,7 @@ import tarfile
 from collections.abc import Collection, Iterator, Sequence
 from contextlib import contextmanager
 from functools import partial
+from itertools import islice
 from pathlib import Path
 from typing import IO, Any, NamedTuple
 
@@ -1008,22 +1009,30 @@ async def _build_validation_view(
 
     Cancellation (a sibling sandbox's failure, or the sample ending) is
     honoured at a bounded granularity in both modes, with no up-front pass
-    over the repository: links are attempted :data:`_VIEW_LINK_BATCH` files
-    per worker-thread call, and a copy proceeds :data:`_VIEW_COPY_BLOCK`
-    bytes per call (:func:`_copy_file_interruptibly`). So a cancellation
-    waits for at most one batch of links or one block of one file — not for
-    the whole repository, and not for a whole staged file, which a hostile
-    sandbox can make as large as the transfer cap. The caller's scratch
-    sweep then removes what was built.
+    over the repository: the ``(src, dst)`` pairs are produced lazily, one
+    :data:`_VIEW_LINK_BATCH`-sized slice at a time (the view needs no
+    particular order, so nothing is sorted or materialised whole), links are
+    attempted one slice per worker-thread call, and a copy proceeds
+    :data:`_VIEW_COPY_BLOCK` bytes per call
+    (:func:`_copy_file_interruptibly`). So a cancellation waits for at most
+    one slice of path construction plus one batch of links, or one block of
+    one file — not for the repository's file count, not for the whole
+    repository, and not for a whole staged file, which a hostile sandbox can
+    make as large as the transfer cap. The caller's scratch sweep then
+    removes what was built.
     """
     view.mkdir(parents=True, exist_ok=True)
     src_repo = Path(existing_repo)
-    pairs = [(src_repo / rel, view / rel) for rel in sorted(existing)]
-    pairs += [(staging / rel, view / rel) for rel in written]
-    for start in range(0, len(pairs), _VIEW_LINK_BATCH):
-        to_copy = await anyio.to_thread.run_sync(
-            _link_view_batch, pairs[start : start + _VIEW_LINK_BATCH]
-        )
+
+    def pairs() -> Iterator[tuple[Path, Path]]:
+        for rel in existing:
+            yield src_repo / rel, view / rel
+        for rel in written:
+            yield staging / rel, view / rel
+
+    remaining = pairs()
+    while batch := list(islice(remaining, _VIEW_LINK_BATCH)):
+        to_copy = await anyio.to_thread.run_sync(_link_view_batch, batch)
         for src, dst in to_copy:
             await _copy_file_interruptibly(src, dst)
 
