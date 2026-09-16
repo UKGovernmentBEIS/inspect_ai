@@ -1,13 +1,17 @@
 import importlib
 import os
 import sys
+import weakref
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import fsspec  # type: ignore
 import fsspec.core  # type: ignore
 import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import (
@@ -354,6 +358,129 @@ async def test_cleanup_s3_sessions_handles_errors() -> None:
 
         mock_creator2.__aexit__.assert_awaited_once_with(None, None, None)
         mock_s3fs.clear_instance_cache.assert_called_once()
+
+
+def _close_session_finalizers(instance: Any) -> list[weakref.finalize]:
+    """The s3fs ``close_session`` finalizers still armed on ``instance``."""
+    close_session = type(instance).close_session
+    finalizers: list[weakref.finalize] = []
+    for ref in weakref.getweakrefs(instance):
+        finalizer = ref.__callback__
+        if isinstance(finalizer, weakref.finalize):
+            info = finalizer.peek()
+            if info is not None and info[1] is close_session:
+                finalizers.append(finalizer)
+    return finalizers
+
+
+@pytest.fixture
+def real_s3fs(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """An S3FileSystem class with credentials in place; clients are never connected."""
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "unused_id")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "unused_key")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-west-1")
+    S3FileSystem = fsspec.get_filesystem_class("s3")
+    S3FileSystem.clear_instance_cache()
+    yield S3FileSystem
+    S3FileSystem.clear_instance_cache()
+
+
+@skip_if_trio
+async def test_cleanup_s3_sessions_disarms_s3fs_finalizer(real_s3fs: Any) -> None:
+    """cleanup_s3_sessions detaches s3fs's GC-time close_session finalizer.
+
+    The finalizer would otherwise exit the already-exited client a second time
+    as a bare task on the running loop, failing with "Session was never entered".
+    """
+    fs = real_s3fs(cache_regions=False)
+    await fs.set_session()
+    finalizers = _close_session_finalizers(fs)
+    assert len(finalizers) == 1 and finalizers[0].alive
+    creator = fs._s3creator
+
+    await cleanup_s3_sessions()
+
+    assert _close_session_finalizers(fs) == []
+    assert not finalizers[0].alive
+    # the creator was exited once; a second exit is what the finalizer would do
+    with pytest.raises(AssertionError, match="Session was never entered"):
+        await creator.__aexit__(None, None, None)
+
+
+@skip_if_trio
+async def test_cleanup_s3_sessions_keeps_finalizers_of_other_creators(
+    real_s3fs: Any,
+) -> None:
+    """A refreshed session leaves an older creator whose finalizer must stay armed."""
+    fs = real_s3fs(cache_regions=False)
+    await fs.set_session()
+    old_creator = fs._s3creator
+    await fs.set_session(refresh=True)
+    assert fs._s3creator is not old_creator
+    assert len(_close_session_finalizers(fs)) == 2
+
+    await cleanup_s3_sessions()
+
+    remaining = _close_session_finalizers(fs)
+    assert len(remaining) == 1
+    info = remaining[0].peek()
+    assert info is not None and info[2][1] is old_creator
+    # the older client is still open and still closes cleanly
+    remaining[0].detach()
+    await old_creator.__aexit__(None, None, None)
+
+
+class _FakeS3FileSystem:
+    def __init__(self, creator: Any) -> None:
+        self._s3creator = creator
+
+    @staticmethod
+    def close_session(loop: Any, s3: Any) -> None:
+        pass
+
+
+async def test_cleanup_s3_sessions_keeps_finalizer_when_cancelled() -> None:
+    """A close that is cancelled mid-await leaves s3fs's finalizer in place."""
+    entered = anyio.Event()
+
+    class BlockingCreator:
+        async def __aexit__(self, *exc: Any) -> None:
+            entered.set()
+            await anyio.sleep_forever()
+
+    creator = BlockingCreator()
+    fs = _FakeS3FileSystem(creator)
+    finalizer = weakref.finalize(fs, _FakeS3FileSystem.close_session, None, creator)
+    try:
+        with patch("s3fs.S3FileSystem") as mock_s3fs:
+            mock_s3fs._cache = {"key": fs}
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(cleanup_s3_sessions)
+                await entered.wait()
+                tg.cancel_scope.cancel()
+
+            assert finalizer.alive
+            mock_s3fs.clear_instance_cache.assert_called_once()
+    finally:
+        finalizer.detach()
+
+
+async def test_cleanup_s3_sessions_keeps_finalizer_when_close_fails() -> None:
+    """A close that raises leaves s3fs's finalizer in place."""
+    creator = AsyncMock()
+    creator.__aexit__.side_effect = OSError("connection closed")
+    fs = _FakeS3FileSystem(creator)
+    finalizer = weakref.finalize(fs, _FakeS3FileSystem.close_session, None, creator)
+    try:
+        with patch("s3fs.S3FileSystem") as mock_s3fs:
+            mock_s3fs._cache = {"key": fs}
+            await cleanup_s3_sessions()
+
+            assert finalizer.alive
+            mock_s3fs.clear_instance_cache.assert_called_once()
+    finally:
+        finalizer.detach()
 
 
 async def test_cleanup_s3_sessions_no_s3creator() -> None:
