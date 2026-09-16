@@ -4,7 +4,7 @@ from typing import Literal, Sequence
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.content import Content, ContentText
-from inspect_ai.approval._policy import ApprovalPolicy
+from inspect_ai.approval._policy import ApprovalPolicies
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -22,7 +22,7 @@ from inspect_ai.model._compaction import (
 )
 from inspect_ai.model._model import Model, ModelRefusalError, get_model
 from inspect_ai.model._trim import partition_messages, trim_messages
-from inspect_ai.review._policy import ReviewPolicy
+from inspect_ai.review._policy import ReviewPolicies
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
@@ -63,8 +63,8 @@ def react(
     retry_refusals: int | None = None,
     compaction: CompactionStrategy | None = None,
     truncation: Literal["auto", "disabled"] | MessageFilter = "disabled",
-    approval: list[ApprovalPolicy] | None = None,
-    review: list[ReviewPolicy] | None = None,
+    approval: ApprovalPolicies | None = None,
+    review: ReviewPolicies | None = None,
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
@@ -421,8 +421,8 @@ def react_no_submit(
     retry_refusals: int | None,
     compaction: CompactionStrategy | None,
     truncation: Literal["auto", "disabled"] | MessageFilter,
-    approval: list[ApprovalPolicy] | None,
-    review: list[ReviewPolicy] | None = None,
+    approval: ApprovalPolicies | None,
+    review: ReviewPolicies | None = None,
 ) -> Agent:
     # resolve tools
     tools = list(tools) if tools is not None else []

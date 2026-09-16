@@ -13,7 +13,7 @@ from inspect_ai.agent._types import (
     AgentPrompt,
     AgentSubmit,
 )
-from inspect_ai.approval._policy import ApprovalPolicy
+from inspect_ai.approval._policy import ApprovalPolicies
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._compaction import CompactionAuto, CompactionStrategy
 from inspect_ai.model._model import Model
@@ -62,7 +62,7 @@ def deepagent(
     on_continue: str | AgentContinue | None = None,
     retry_refusals: int | None = 3,
     compaction: CompactionStrategy | Literal["auto"] | None = "auto",
-    approval: list[ApprovalPolicy] | None = None,
+    approval: ApprovalPolicies | None = None,
     instructions: str | None = None,
     prompt: str | None = None,
     max_depth: int = 1,

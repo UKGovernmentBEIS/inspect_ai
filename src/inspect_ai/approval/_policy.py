@@ -34,29 +34,29 @@ class ApprovalPolicy:
     tools: str | list[str]
     """Tools to use this approver for (can be full tool names or globs)."""
 
-    chain: str | None = None
-    """Chain this policy belongs to.
 
-    Policies sharing a chain name form one chain (asked in order, first
-    non-escalate decision wins). Every chain matching a call runs, and the
-    call proceeds only if every chain approves. `None` is the default chain.
-    """
+ApprovalPolicies = list[ApprovalPolicy] | dict[str, list[ApprovalPolicy]]
+"""Approval policies for an eval, task or agent.
+
+A list is one chain: approvers are asked in order and the first decision
+that is not `escalate` is final. A dict names independent chains: every
+chain runs on every call, each as a lone list would, and the call proceeds
+only if every chain approves.
+"""
 
 
-def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
+def policy_approver(policies: str | ApprovalPolicies) -> Approver:
     # if policies is a str, it is a config file or an approver
     if isinstance(policies, str):
         policies = approval_policies_from_config(policies)
 
-    # compile policies into chains of (globs, approver), in order of first appearance
-    chains: dict[str | None, list[tuple[list[str], Approver]]] = {}
-    for policy in policies:
-        tool_specs = [policy.tools] if isinstance(policy.tools, str) else policy.tools
-        tools: list[str] = []
-        for spec in tool_specs:
-            tools.extend([t.strip() for t in spec.split(",") if t.strip()])
-        globs = [tool if tool.endswith("*") else f"{tool}*" for tool in tools]
-        chains.setdefault(policy.chain, []).append((globs, policy.approver))
+    # compile each chain into (globs, approver) pairs; a list is the one
+    # unnamed chain
+    chains: dict[str | None, list[tuple[list[str], Approver]]] = (
+        {None: _compile_chain(policies)}
+        if isinstance(policies, list)
+        else {name: _compile_chain(members) for name, members in policies.items()}
+    )
 
     # approvers in one chain that match a tool call (matching is per chain,
     # since each chain decides on its own which of its policies apply)
@@ -156,6 +156,20 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
     return approve
 
 
+def _compile_chain(
+    policies: list[ApprovalPolicy],
+) -> list[tuple[list[str], Approver]]:
+    compiled: list[tuple[list[str], Approver]] = []
+    for policy in policies:
+        tool_specs = [policy.tools] if isinstance(policy.tools, str) else policy.tools
+        tools: list[str] = []
+        for spec in tool_specs:
+            tools.extend([t.strip() for t in spec.split(",") if t.strip()])
+        globs = [tool if tool.endswith("*") else f"{tool}*" for tool in tools]
+        compiled.append((globs, policy.approver))
+    return compiled
+
+
 def combine_chain_approvals(
     call: ToolCall,
     chains: list[str | None],
@@ -237,7 +251,6 @@ class ApproverPolicyConfig(BaseModel):
 
     name: str
     tools: str | list[str]
-    chain: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {
@@ -249,7 +262,7 @@ class ApproverPolicyConfig(BaseModel):
     def collect_unknown_fields(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        known_fields = set(["name", "tools", "chain", "params"])
+        known_fields = set(["name", "tools", "params"])
         unknown_fields = {k: v for k, v in data.items() if k not in known_fields}
 
         if unknown_fields:
@@ -261,7 +274,26 @@ class ApproverPolicyConfig(BaseModel):
 
 
 class ApprovalPolicyConfig(BaseModel):
-    approvers: list[ApproverPolicyConfig]
+    """
+    Approval policy configuration: a list of approvers, or named chains of them.
+
+    A list is one chain. A mapping names independent chains that all run on
+    every call:
+
+    ```yaml
+    approvers:
+      attempt:
+        - name: internet_attempt
+          tools: "*"
+        - name: human
+          tools: "*"
+      escape:
+        - name: sandbox_escape
+          tools: "*"
+    ```
+    """
+
+    approvers: list[ApproverPolicyConfig] | dict[str, list[ApproverPolicyConfig]]
 
 
 def approver_from_config(policy_config: str) -> Approver:
@@ -269,7 +301,7 @@ def approver_from_config(policy_config: str) -> Approver:
     return policy_approver(policies)
 
 
-def read_approval_policies(file: str) -> list[ApprovalPolicy]:
+def read_approval_policies(file: str) -> ApprovalPolicies:
     """Read approval policies from a JSON or YAML config file.
 
     Args:
@@ -283,13 +315,13 @@ def read_approval_policies(file: str) -> list[ApprovalPolicy]:
 
 def approval_policies_from_config(
     policy_config: str | ApprovalPolicyConfig,
-) -> list[ApprovalPolicy]:
+) -> ApprovalPolicies:
     # create approver policy
     def policy_from_config(config: ApproverPolicyConfig) -> ApprovalPolicy:
         approver = cast(
             Approver, create_registry_object("approver", config.name, config.params)
         )
-        return ApprovalPolicy(approver, config.tools, config.chain)
+        return ApprovalPolicy(approver, config.tools)
 
     # resolve config if its a string
     if isinstance(policy_config, str):
@@ -304,29 +336,41 @@ def approval_policies_from_config(
         else:
             raise ValueError(f"Invalid approval policy: {policy_config}")
 
-    # resolve into approval policies
-    return [policy_from_config(config) for config in policy_config.approvers]
+    # resolve into approval policies (a list, or a dict of named chains)
+    approvers = policy_config.approvers
+    if isinstance(approvers, list):
+        return [policy_from_config(config) for config in approvers]
+    return {
+        chain: [policy_from_config(config) for config in members]
+        for chain, members in approvers.items()
+    }
 
 
 def config_from_approval_policies(
-    policies: list[ApprovalPolicy],
+    policies: ApprovalPolicies,
 ) -> ApprovalPolicyConfig:
     from inspect_ai._util.registry import (
         registry_log_name,
         registry_params,
     )
 
-    approvers: list[ApproverPolicyConfig] = []
-    for policy in policies:
-        name = registry_log_name(policy.approver)
-        params = registry_params(policy.approver)
-        approvers.append(
-            ApproverPolicyConfig(
-                name=name, tools=policy.tools, chain=policy.chain, params=params
-            )
+    def config_from_policy(policy: ApprovalPolicy) -> ApproverPolicyConfig:
+        return ApproverPolicyConfig(
+            name=registry_log_name(policy.approver),
+            tools=policy.tools,
+            params=registry_params(policy.approver),
         )
 
-    return ApprovalPolicyConfig(approvers=approvers)
+    if isinstance(policies, list):
+        return ApprovalPolicyConfig(
+            approvers=[config_from_policy(policy) for policy in policies]
+        )
+    return ApprovalPolicyConfig(
+        approvers={
+            chain: [config_from_policy(policy) for policy in members]
+            for chain, members in policies.items()
+        }
+    )
 
 
 def read_policy_config(policy_config: str) -> ApprovalPolicyConfig:

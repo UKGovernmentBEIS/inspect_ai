@@ -3,13 +3,14 @@ from ._approval import Approval, ApprovalDecision
 from ._approver import Approver
 from ._auto import auto_approver
 from ._human.approver import human_approver
-from ._policy import ApprovalPolicy, read_approval_policies
+from ._policy import ApprovalPolicies, ApprovalPolicy, read_approval_policies
 from ._registry import approver
 
 __all__ = [
     "Approver",
     "Approval",
     "ApprovalDecision",
+    "ApprovalPolicies",
     "ApprovalPolicy",
     "approval",
     "approver",

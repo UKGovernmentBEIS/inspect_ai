@@ -31,8 +31,8 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from inspect_ai.approval import ApprovalPolicy
-    from inspect_ai.review import ReviewPolicy
+    from inspect_ai.approval import ApprovalPolicies
+    from inspect_ai.review import ReviewPolicies
 
 import anyio
 import yaml
@@ -108,8 +108,8 @@ async def execute_tools(
     messages: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
     max_output: int | None = None,
-    approval: list["ApprovalPolicy"] | None = None,
-    review: list["ReviewPolicy"] | None = None,
+    approval: "ApprovalPolicies | None" = None,
+    review: "ReviewPolicies | None" = None,
 ) -> ExecuteToolsResult:
     """Perform tool calls in the last assistant message.
 
@@ -119,11 +119,11 @@ async def execute_tools(
        max_output (int | None): Maximum output length (in bytes).
           Defaults to max_tool_output from active GenerateConfig
           (16 * 1024 by default).
-       approval (list[ApprovalPolicy] | None): Approval policies to
+       approval (ApprovalPolicies | None): Approval policies to
           use for tool calls within this execution. Temporarily
           replaces any active approval policies for the duration
           of the call.
-       review (list[ReviewPolicy] | None): Review policies to use for
+       review (ReviewPolicies | None): Review policies to use for
           the results of tool calls within this execution. Temporarily
           replaces any active review policies for the duration of the
           call.

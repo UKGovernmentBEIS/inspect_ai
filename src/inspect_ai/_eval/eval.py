@@ -62,7 +62,7 @@ from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup, registry_package_name
 from inspect_ai.approval._apply import init_tool_approval
 from inspect_ai.approval._policy import (
-    ApprovalPolicy,
+    ApprovalPolicies,
     ApprovalPolicyConfig,
     approval_policies_from_config,
     config_from_approval_policies,
@@ -85,7 +85,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.review._apply import init_tool_review
 from inspect_ai.review._policy import (
-    ReviewPolicy,
+    ReviewPolicies,
     ReviewPolicyConfig,
     config_from_review_policies,
     review_policies_from_config,
@@ -141,8 +141,8 @@ def eval(
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
-    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
-    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+    approval: str | ApprovalPolicies | ApprovalPolicyConfig | None = None,
+    review: str | ReviewPolicies | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -234,10 +234,10 @@ def eval(
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
-            Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
+            Either a path to an approval policy config file, an ApprovalPolicyConfig, a list of approval policies, or a dict of named policy chains.
             Defaults to no approval policy.
         review: Tool result review policies.
-            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, a list of review policies, or a dict of named policy chains.
             Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
@@ -442,8 +442,8 @@ async def eval_async(
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
-    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
-    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+    approval: str | ApprovalPolicies | ApprovalPolicyConfig | None = None,
+    review: str | ReviewPolicies | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -518,10 +518,10 @@ async def eval_async(
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         approval: Tool use approval policies.
-            Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
+            Either a path to an approval policy config file, an ApprovalPolicyConfig, a list of approval policies, or a dict of named policy chains.
             Defaults to no approval policy.
         review: Tool result review policies.
-            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, a list of review policies, or a dict of named policy chains.
             Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
@@ -719,8 +719,8 @@ async def _eval_async_inner(
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
-    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
-    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+    approval: str | ApprovalPolicies | ApprovalPolicyConfig | None = None,
+    review: str | ReviewPolicies | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -2035,15 +2035,15 @@ def eval_resolve_tasks(
     models: list[Model],
     model_roles: ModelRoles | None,
     config: GenerateConfig,
-    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None,
+    approval: str | ApprovalPolicies | ApprovalPolicyConfig | None,
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
     notification: bool | str | None = None,
     task_source: TaskSource | None = None,
     input_media_policy: InputMediaPolicy = "inline_only",
-    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
-) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None, list[ReviewPolicy] | None]:
+    review: str | ReviewPolicies | ReviewPolicyConfig | None = None,
+) -> tuple[list[ResolvedTask], ApprovalPolicies | None, ReviewPolicies | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
     # to pickup these mappings

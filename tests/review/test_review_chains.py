@@ -1,4 +1,4 @@
-"""Review policies grouped into chains: every covering chain runs, terminate wins."""
+"""Review policies as named chains: every covering chain runs, terminate wins."""
 
 import anyio
 
@@ -7,6 +7,7 @@ from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ChatMessage, ChatMessageTool
 from inspect_ai.review import Review, ReviewDecision, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.review._policy import (
+    ReviewPolicies,
     config_from_review_policies,
     policy_reviewer,
     review_policies_from_config,
@@ -69,7 +70,7 @@ def bash_call() -> ToolCall:
     return ToolCall(id="c1", function="bash", arguments={"cmd": "curl example.com"})
 
 
-async def decide(policies: list[ReviewPolicy], call: ToolCall | None = None) -> Review:
+async def decide(policies: ReviewPolicies, call: ToolCall | None = None) -> Review:
     init_transcript(Transcript())
     call = call or bash_call()
     result = ChatMessageTool(
@@ -88,10 +89,10 @@ async def test_every_chain_covering_the_call_runs_and_terminate_wins() -> None:
     seen: list[ToolCallView] = []
 
     review = await decide(
-        [
-            ReviewPolicy(recording_reviewer(seen), "*", chain="x"),
-            ReviewPolicy(fixed_reviewer("terminate"), "*", chain="y"),
-        ]
+        {
+            "x": [ReviewPolicy(recording_reviewer(seen), "*")],
+            "y": [ReviewPolicy(fixed_reviewer("terminate"), "*")],
+        }
     )
 
     assert review.decision == "terminate"
@@ -104,10 +105,10 @@ async def test_a_terminate_cancels_chains_still_running() -> None:
     cleaned_up = anyio.Event()
 
     review = await decide(
-        [
-            ReviewPolicy(fixed_reviewer("terminate"), "*", chain="x"),
-            ReviewPolicy(waiting_reviewer(cleaned_up), "*", chain="y"),
-        ]
+        {
+            "x": [ReviewPolicy(fixed_reviewer("terminate"), "*")],
+            "y": [ReviewPolicy(waiting_reviewer(cleaned_up), "*")],
+        }
     )
 
     assert review.decision == "terminate"
@@ -118,11 +119,13 @@ async def test_escalation_stays_within_its_chain_and_carries_its_reason() -> Non
     seen: list[ToolCallView] = []
 
     review = await decide(
-        [
-            ReviewPolicy(fixed_reviewer("escalate"), "*", chain="x"),
-            ReviewPolicy(recording_reviewer(seen), "*", chain="x"),
-            ReviewPolicy(fixed_reviewer("continue"), "*", chain="y"),
-        ]
+        {
+            "x": [
+                ReviewPolicy(fixed_reviewer("escalate"), "*"),
+                ReviewPolicy(recording_reviewer(seen), "*"),
+            ],
+            "y": [ReviewPolicy(fixed_reviewer("continue"), "*")],
+        }
     )
 
     assert review.decision == "continue"
@@ -135,10 +138,10 @@ async def test_an_unanswered_escalation_continues_and_is_recorded_for_its_chain(
     None
 ):
     review = await decide(
-        [
-            ReviewPolicy(fixed_reviewer("escalate"), "*", chain="x"),
-            ReviewPolicy(fixed_reviewer("continue"), "*", chain="y"),
-        ]
+        {
+            "x": [ReviewPolicy(fixed_reviewer("escalate"), "*")],
+            "y": [ReviewPolicy(fixed_reviewer("continue"), "*")],
+        }
     )
 
     assert review.decision == "continue"
@@ -150,10 +153,10 @@ async def test_a_chain_covering_none_of_the_call_continues_like_a_lone_chain() -
     seen: list[ToolCallView] = []
 
     review = await decide(
-        [
-            ReviewPolicy(recording_reviewer(seen), "bash", chain="x"),
-            ReviewPolicy(fixed_reviewer("terminate"), "*", chain="y"),
-        ],
+        {
+            "x": [ReviewPolicy(recording_reviewer(seen), "bash")],
+            "y": [ReviewPolicy(fixed_reviewer("terminate"), "*")],
+        },
         call=ToolCall(id="c2", function="python", arguments={"code": "1"}),
     )
 
@@ -164,7 +167,7 @@ async def test_a_chain_covering_none_of_the_call_continues_like_a_lone_chain() -
     assert summary.metadata["chains"]["x"]["decision"] == "continue"
 
 
-async def test_an_unlabelled_list_is_one_chain_and_behaves_as_before() -> None:
+async def test_a_list_is_one_chain_and_behaves_as_before() -> None:
     review = await decide(
         [
             ReviewPolicy(fixed_reviewer("escalate"), "*"),
@@ -179,12 +182,12 @@ async def test_an_unlabelled_list_is_one_chain_and_behaves_as_before() -> None:
     ]
 
 
-def test_the_chain_round_trips_through_config() -> None:
-    config = config_from_review_policies(
-        [ReviewPolicy(fixed_reviewer("continue"), "*", chain="x")]
-    )
+def test_chains_round_trip_through_config() -> None:
+    policies: ReviewPolicies = {"x": [ReviewPolicy(fixed_reviewer("continue"), "*")]}
 
-    assert config.reviewers[0].chain == "x"
-    assert config.reviewers[0].params == {"decision": "continue"}
-    [policy] = review_policies_from_config(config)
-    assert policy.chain == "x"
+    config = config_from_review_policies(policies)
+
+    assert isinstance(config.reviewers, dict)
+    assert config.reviewers["x"][0].params == {"decision": "continue"}
+    resolved = review_policies_from_config(config)
+    assert isinstance(resolved, dict) and list(resolved) == ["x"]

@@ -36,16 +36,18 @@ class ReviewPolicy:
     tools: str | list[str]
     """Tools to use this reviewer for (can be full tool names or globs)."""
 
-    chain: str | None = None
-    """Chain this policy belongs to.
 
-    Policies sharing a chain name form one chain (asked in order, first
-    non-escalate decision wins). Every chain matching a call runs, and the
-    sample continues only if every chain continues. `None` is the default chain.
-    """
+ReviewPolicies = list[ReviewPolicy] | dict[str, list[ReviewPolicy]]
+"""Review policies for an eval, task or agent.
+
+A list is one chain: reviewers are asked in order and the first decision
+that is not `escalate` is final. A dict names independent chains: every
+chain reviews every result, each as a lone list would, and the sample
+continues only if every chain continues.
+"""
 
 
-def policy_reviewer(policies: str | list[ReviewPolicy]) -> Reviewer:
+def policy_reviewer(policies: str | ReviewPolicies) -> Reviewer:
     """Compile review policies into a single reviewer.
 
     Reviewers whose tool pattern matches the call are asked in order until one
@@ -55,15 +57,13 @@ def policy_reviewer(policies: str | list[ReviewPolicy]) -> Reviewer:
     if isinstance(policies, str):
         policies = review_policies_from_config(policies)
 
-    # compile policies into chains of (globs, reviewer), in order of first appearance
-    chains: dict[str | None, list[tuple[list[str], Reviewer]]] = {}
-    for policy in policies:
-        tool_specs = [policy.tools] if isinstance(policy.tools, str) else policy.tools
-        tools: list[str] = []
-        for spec in tool_specs:
-            tools.extend([t.strip() for t in spec.split(",") if t.strip()])
-        globs = [tool if tool.endswith("*") else f"{tool}*" for tool in tools]
-        chains.setdefault(policy.chain, []).append((globs, policy.reviewer))
+    # compile each chain into (globs, reviewer) pairs; a list is the one
+    # unnamed chain
+    chains: dict[str | None, list[tuple[list[str], Reviewer]]] = (
+        {None: _compile_chain(policies)}
+        if isinstance(policies, list)
+        else {name: _compile_chain(members) for name, members in policies.items()}
+    )
 
     def tool_reviewers(
         chain: list[tuple[list[str], Reviewer]], tool_call: ToolCall
@@ -159,6 +159,20 @@ def policy_reviewer(policies: str | list[ReviewPolicy]) -> Reviewer:
     return review
 
 
+def _compile_chain(
+    policies: list[ReviewPolicy],
+) -> list[tuple[list[str], Reviewer]]:
+    compiled: list[tuple[list[str], Reviewer]] = []
+    for policy in policies:
+        tool_specs = [policy.tools] if isinstance(policy.tools, str) else policy.tools
+        tools: list[str] = []
+        for spec in tool_specs:
+            tools.extend([t.strip() for t in spec.split(",") if t.strip()])
+        globs = [tool if tool.endswith("*") else f"{tool}*" for tool in tools]
+        compiled.append((globs, policy.reviewer))
+    return compiled
+
+
 def combine_chain_reviews(
     chains: list[str | None], results: dict[str | None, Review]
 ) -> Review:
@@ -202,7 +216,6 @@ class ReviewerPolicyConfig(BaseModel):
 
     name: str
     tools: str | list[str]
-    chain: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {
@@ -214,7 +227,7 @@ class ReviewerPolicyConfig(BaseModel):
     def collect_unknown_fields(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        known_fields = set(["name", "tools", "chain", "params"])
+        known_fields = set(["name", "tools", "params"])
         unknown_fields = {k: v for k, v in data.items() if k not in known_fields}
 
         if unknown_fields:
@@ -226,10 +239,29 @@ class ReviewerPolicyConfig(BaseModel):
 
 
 class ReviewPolicyConfig(BaseModel):
-    reviewers: list[ReviewerPolicyConfig]
+    """
+    Review policy configuration: a list of reviewers, or named chains of them.
+
+    A list is one chain. A mapping names independent chains that all review
+    every result:
+
+    ```yaml
+    reviewers:
+      output:
+        - name: output_monitor
+          tools: "*"
+        - name: human
+          tools: "*"
+      exfil:
+        - name: exfiltration_monitor
+          tools: "*"
+    ```
+    """
+
+    reviewers: list[ReviewerPolicyConfig] | dict[str, list[ReviewerPolicyConfig]]
 
 
-def read_review_policies(file: str) -> list[ReviewPolicy]:
+def read_review_policies(file: str) -> ReviewPolicies:
     """Read review policies from a JSON or YAML config file.
 
     Args:
@@ -243,12 +275,12 @@ def read_review_policies(file: str) -> list[ReviewPolicy]:
 
 def review_policies_from_config(
     policy_config: str | ReviewPolicyConfig,
-) -> list[ReviewPolicy]:
+) -> ReviewPolicies:
     def policy_from_config(config: ReviewerPolicyConfig) -> ReviewPolicy:
         reviewer = cast(
             Reviewer, create_registry_object("reviewer", config.name, config.params)
         )
-        return ReviewPolicy(reviewer, config.tools, config.chain)
+        return ReviewPolicy(reviewer, config.tools)
 
     if isinstance(policy_config, str):
         policy_path = local_path(policy_config)
@@ -261,25 +293,37 @@ def review_policies_from_config(
         else:
             raise ValueError(f"Invalid review policy: {policy_config}")
 
-    return [policy_from_config(config) for config in policy_config.reviewers]
+    reviewers = policy_config.reviewers
+    if isinstance(reviewers, list):
+        return [policy_from_config(config) for config in reviewers]
+    return {
+        chain: [policy_from_config(config) for config in members]
+        for chain, members in reviewers.items()
+    }
 
 
 def config_from_review_policies(
-    policies: list[ReviewPolicy],
+    policies: ReviewPolicies,
 ) -> ReviewPolicyConfig:
     from inspect_ai._util.registry import registry_log_name, registry_params
 
-    reviewers: list[ReviewerPolicyConfig] = []
-    for policy in policies:
-        name = registry_log_name(policy.reviewer)
-        params = registry_params(policy.reviewer)
-        reviewers.append(
-            ReviewerPolicyConfig(
-                name=name, tools=policy.tools, chain=policy.chain, params=params
-            )
+    def config_from_policy(policy: ReviewPolicy) -> ReviewerPolicyConfig:
+        return ReviewerPolicyConfig(
+            name=registry_log_name(policy.reviewer),
+            tools=policy.tools,
+            params=registry_params(policy.reviewer),
         )
 
-    return ReviewPolicyConfig(reviewers=reviewers)
+    if isinstance(policies, list):
+        return ReviewPolicyConfig(
+            reviewers=[config_from_policy(policy) for policy in policies]
+        )
+    return ReviewPolicyConfig(
+        reviewers={
+            chain: [config_from_policy(policy) for policy in members]
+            for chain, members in policies.items()
+        }
+    )
 
 
 def read_policy_config(policy_config: str) -> ReviewPolicyConfig:

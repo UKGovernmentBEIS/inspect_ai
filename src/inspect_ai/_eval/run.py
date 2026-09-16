@@ -51,7 +51,7 @@ from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.exception import TaskRetryAbandonedError
 from inspect_ai._util.path import chdir
-from inspect_ai.approval._policy import ApprovalPolicy, config_from_approval_policies
+from inspect_ai.approval._policy import ApprovalPolicies, config_from_approval_policies
 from inspect_ai.dataset._dataset import Dataset, Sample
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
@@ -59,7 +59,7 @@ from inspect_ai.log._log import eval_error
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import Model, ModelName, ensure_model_controller
-from inspect_ai.review._policy import ReviewPolicy, config_from_review_policies
+from inspect_ai.review._policy import ReviewPolicies, config_from_review_policies
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -144,8 +144,8 @@ async def eval_run(
     recorder: Recorder,
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
-    approval: list[ApprovalPolicy] | None = None,
-    review: list[ReviewPolicy] | None = None,
+    approval: ApprovalPolicies | None = None,
+    review: ReviewPolicies | None = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
