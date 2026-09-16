@@ -20,15 +20,71 @@ the host process has.
 Scaffolds legitimately use several models. Claude Code has opus, sonnet,
 haiku and subagent tiers and makes background calls on haiku; OpenCode
 generates session titles with a side call; Gemini CLI hard-codes internal
-utility model names. With the pass-through default those calls silently run
-on other providers and bill the host's credentials for models the eval author
-never chose, and eval-internal model roles (graders, monitors) are reachable
-by name from inside the sandbox (util.py:678-679). None of this is visible in
+utility model names. With the pass-through default each such call is served
+by whatever Inspect model its name implies, on the host's credentials: a
+model the eval author never chose, on another provider when the eval's model
+is not on the scaffold's native API (an eval on `openai/gpt-5` whose Claude
+Code haiku calls go to Anthropic), and otherwise another model on the same
+provider (an eval on `anthropic/claude-fable-5` paying for haiku calls
+outside the eval model's config and accounting). Eval-internal model roles
+(graders, monitors) are also reachable by name from inside the sandbox
+(util.py:678-679). None of this is visible in
 the log: the `ModelEvent` records the model that served the call, not the
 name the scaffold asked for, and the response echoes the served model's name
 too (`completions.py:69,115`).
 
-The documented default and the implemented default disagree:
+### Who is untrusted
+
+Everything inside the sandbox: the scaffold, and the model under evaluation
+driving it with tool access. The model name in a request is a string that
+side chooses, delivered through the proxy in the JSON body or, for Google,
+parsed from the URL path (proxy.py:2044-2047). Today the resolver ends by
+handing that string to `get_model()`. The eval author's decisions live on
+the host: `model=`, `model_aliases`, `model_resolver`, and the eval's own
+model and roles. The design's rule is that only host-side configuration
+decides which model serves a request.
+
+### What that allows today, and what the design closes
+
+- **Use of the host's credentials as a confused deputy.** Sandboxed code
+  names any `provider/model` and the host instantiates that provider with
+  its own API keys and makes the call. A sandbox with no network egress of
+  its own still gains use of every provider the host has keys for: a spend
+  channel, and an outbound channel through the host. Under the new default
+  the untrusted string never reaches `get_model()` or provider construction;
+  it is compared against author-configured aliases and the eval's model, and
+  otherwise dropped in favour of the eval's model.
+- **Reaching eval-internal models.** A grader or monitor role is a host-side
+  trust boundary: a different model, prompt or configuration the evaluated
+  agent is not supposed to talk to. Today `grader` or `inspect/grader` from
+  inside the sandbox resolves to that role's model (util.py:678-679), so the
+  agent can query, probe or spend on its own grader. Roles become
+  unreachable by name unless the author aliases one in or opts into
+  pass-through.
+- **Eval integrity by model substitution.** An agent evaluated on a weak
+  model can send its hard sub-steps to `inspect/<the strongest model the
+  host has a key for>` and report the results as its own. Unrecognised
+  names go to the eval's model, so measured capability is the evaluated
+  model's.
+- **Data handling.** Conversation content that must stay on an approved
+  provider or deployment (an Azure tenant, say) can today be sent to public
+  OpenAI or Anthropic by naming them. The default keeps it on the model the
+  author chose.
+- **Invisibility.** None of the above shows in the log today, so an operator
+  cannot tell that sandboxed code called other providers. The
+  `requested_model` field and the once-per-name warning make every redirect,
+  and every alias hit, auditable after the fact.
+
+What the design deliberately leaves alone: provider-side tools
+(`web_search`, `code_execution`, remote MCP) are a separate, already
+withheld channel; `forward_model_names=True` reopens all of the above by
+explicit author choice; `model_resolver` still receives the untrusted
+string, but that is author code; the in-process bridge gets no mitigation
+because its scaffold already holds the host's credentials; and nothing here
+constrains what the sandbox sends *to* the eval's model.
+
+### The documented and implemented defaults disagree
+
 
 - The `sandbox_agent_bridge()` docstring says `model` "defaults to
   'inspect'" (`src/inspect_ai/agent/_bridge/sandbox/bridge.py:83-85`), which
@@ -50,8 +106,10 @@ where the author said and anything else collapses onto the main model
 `claude_code.py:342-346`). This design makes that behaviour the default for
 every sandbox bridge.
 
-This is a routing-correctness and cost-control change: the bridge should
-serve the model the eval author chose unless the author says otherwise.
+The rule the design enforces is the same from either angle, routing and
+cost or the trust boundary above: the bridge serves the model the eval
+author chose unless the author says otherwise, and the log shows when it
+had to decide.
 
 ## Goals and non-goals
 
@@ -60,15 +118,15 @@ Goals:
 1. By default, every request name that is not an alias, a resolver result,
    `"inspect"`, or the eval's active model routes to the eval's active model.
    A scaffold's sub-agent and side calls keep working, on the main model.
-   Nothing reaches another provider or a model role unless the author says
-   so.
+   No other model, on any provider, and no model role is reached unless the
+   author says so.
 2. Multi-model scaffolds route through the existing mechanisms:
    `model_aliases` for exact names (the inspect_swe pattern),
    `model_resolver` for routing by policy, plus one explicit opt-in that
    restores today's pass-through for the faithful-proxy case.
 3. Redirects are visible: one warning per redirected name pointing at
-   `model_aliases`, and the client-requested name recorded on the
-   `ModelEvent`.
+   `model_aliases`, and the client-requested name recorded in a new
+   `requested_model` field on the `ModelEvent`.
 4. `model=` has one documented meaning for direct names, bare `"inspect"`,
    `inspect/` names, aliases, roles and the active-model match, backed by a
    table-driven test.
@@ -163,11 +221,12 @@ role or `get_model(spec)`. The documented
 
 ### Where a record of the requested name would go
 
-`ModelEvent` is built in `Model._record_model_interaction`
-(`src/inspect_ai/model/_model.py:1964-1975`) without metadata, but
-`BaseEvent.metadata: dict[str, Any] | None` exists
-(`src/inspect_ai/event/_base.py:29-30`) and is serialised with every event,
-so a natural field exists and no schema change is needed. The bridge calls
+`ModelEvent` (`src/inspect_ai/event/_model.py:85-137`) records the model
+that served the call (`model`, `role`) but has no field for the name the
+client asked for; it is built in `Model._record_model_interaction`
+(`src/inspect_ai/model/_model.py:1964-1975`) from the `Model` alone.
+`BaseEvent.metadata` (`src/inspect_ai/event/_base.py:29-30`) is a free-form
+dict that neither the viewer nor the events dataframe reads. The bridge calls
 `model.generate()` from `bridge_generate()` inside two context managers
 (`bridge_model_generate()` and `use_model_event_sink()`, util.py:562), so a
 third context manager is the established shape. Installing a sink to stamp
@@ -177,7 +236,15 @@ events is not an option: a sink disables partial-progress publishing
 ### inspect_swe today
 
 Every inspect_swe agent built on `sandbox_agent_bridge()` pins `model=`,
-except the two ACP agents noted last:
+except the two ACP agents noted last. "Bridge options" is what the agent
+passes to `sandbox_agent_bridge()` for the two routing parameters: `model=`
+(the pin; each agent has its own `model: str | None` argument, defaulting to
+the task's main model, and builds `"inspect/<model>"` from it or `"inspect"`
+when unset) and `model_aliases=`. "Under today's code" is the resolver step
+that ends up serving the scaffold's requests: "alias, else pin" means the
+names the agent aliased hit step 1 and every other name is captured by the
+pin at step 4; "pin" means no aliases are needed because the pin captures
+everything.
 
 | Agent | Name the scaffold sends | Bridge options | Under today's code |
 |---|---|---|---|
@@ -251,26 +318,26 @@ model without a warning, because the name denotes the active model.
 
 ### What `model=` means (the matrix)
 
-Active model `A`; role `grader`; pin target `D`.
+Active model `A`; role `grader`; pin target `D`. "warn" means the redirect
+warning below fires once per requested name; the warning is new wherever it
+appears, so the last column lists routing changes only.
 
-| requested name | default (`model=None` or `"inspect"`) | pinned (`model="inspect/<spec>"` or `"<spec>"`) | pass-through (`forward_model_names=True`, no pin) |
-|---|---|---|---|
-| alias key | alias target | alias target | alias target |
-| resolver returns a model | resolver result | resolver result | resolver result |
-| `inspect` | `A` | `A` (**change**: today replaced by a pin spelled without `inspect/`) | `A` |
-| `A`'s full name, or its short name (bare, any endpoint) | `A` instance, no warning | `D`, warn (unchanged: pin wins) | `A` instance |
-| `inspect/<A's spec>` | `A` instance | `D`, warn | `A` instance |
-| `grader` (role) | `A`, warn (**change**) | `D`, warn (unchanged) | role `grader` |
-| `inspect/grader` | `A`, warn (**change**) | `D`, warn (unchanged) | role `grader` |
-| `grader` when `A`'s short name is also `grader` | `A` instance, no warning (the name denotes `A`) | `D`, warn (unchanged) | role `grader` (unchanged: role beats the active match) |
-| `inspect/grader` when `A`'s short name is also `grader` | `A` instance, no warning | `D`, warn (unchanged) | role `grader` (unchanged) |
-| `inspect/openai/gpt-4o-mini` | `A`, warn (**change**) | `D`, warn (unchanged) | `get_model("openai/gpt-4o-mini")` |
-| `gpt-4o-mini` on the OpenAI endpoint | `A`, warn (**change**) | `D`, warn (unchanged) | `get_model("openai/gpt-4o-mini")` |
-| `unknown-model` with no endpoint provider | `A`, warn (**change**: today `ValueError`) | `D`, warn | `ValueError` from `get_model` (unchanged) |
-| pinned spec names `A` | n/a | `A` instance | n/a |
-| `forward_model_names=True` with a pin | n/a | `ValueError` at construction | n/a |
-
-"warn" means the redirect warning below fires once per requested name.
+| requested name | default (`model=None` or `"inspect"`) | pinned (`model="inspect/<spec>"` or `"<spec>"`) | pass-through (`forward_model_names=True`, no pin) | change from today: example, previous behaviour, who is affected |
+|---|---|---|---|---|
+| a name listed in `model_aliases` | the model it maps to | the model it maps to | the model it maps to | none |
+| a name the `model_resolver` returns a model for | the resolver's model | the resolver's model | the resolver's model | none |
+| `inspect` | `A` | `A` (**change**) | `A` | Only for a pin spelled without `inspect/`. Example: `model="openai/gpt-4o"` and the scaffold sends `inspect`: today `openai/gpt-4o`, now `A`. Affects bridges pinned without the prefix whose scaffold sends `inspect`: none in this repo or inspect_swe (ACP Gemini pins that way, but Gemini CLI never sends `inspect`). |
+| `A`'s full name, or its short name (bare, any endpoint) | `A` instance, no warning | `D`, warn (pin wins) | `A` instance | none in routing |
+| `inspect/<A's spec>` | `A` instance | `D`, warn | `A` instance | none in routing |
+| `grader` (a role) | `A`, warn (**change**) | `D`, warn | role `grader` | Unpinned bridges only. Example: `eval(..., model_roles={"grader": "openai/gpt-4o-mini"})`, `sandbox_agent_bridge(state)`, scaffold sends `grader`: today the grader model, now `A`. Affects unpinned bridges whose scaffold names a role: none found (inspect_swe's unpinned ACP agents send provider model ids). Fix: `model_aliases={"grader": get_model(role="grader")}` or `forward_model_names=True`. |
+| `inspect/grader` | `A`, warn (**change**) | `D`, warn | role `grader` | As the row above. |
+| `grader` when `A`'s short name is also `grader` | `A` instance, no warning (**change**) | `D`, warn | role `grader` | Default only: today the role wins over the active-model match; now roles are not reachable by default, so the name resolves as `A`'s own. Same population and fix as the `grader` row. |
+| `inspect/grader` when `A`'s short name is also `grader` | `A` instance, no warning (**change**) | `D`, warn | role `grader` | As the row above. |
+| `inspect/openai/gpt-4o-mini` | `A`, warn (**change**) | `D`, warn | `get_model("openai/gpt-4o-mini")` | Unpinned bridges only. Example: `sandbox_agent_bridge(state)`, scaffold sends `inspect/openai/gpt-4o-mini`: today Inspect's OpenAI provider on the host's `OPENAI_API_KEY`, now `A`. Affects unpinned sandbox bridges whose scaffold uses the `inspect/` form for another model: none in this repo (the docs example is in-process, unchanged). Fix: alias or `forward_model_names=True`. |
+| `gpt-4o-mini` on the OpenAI endpoint (any bare native name) | `A`, warn (**change**) | `D`, warn | `get_model("openai/gpt-4o-mini")` | Unpinned bridges only; the case this design exists for. Example: eval on `openai/gpt-5`, `sandbox_agent_bridge(state)`, Claude Code's background call sends `claude-haiku-4-5` on the Anthropic endpoint: today Inspect's Anthropic provider on the host's `ANTHROPIC_API_KEY`, now `A`. Affects inspect_swe's ACP Claude Code and Codex agents (`model=None`) and any direct `sandbox_agent_bridge()` caller without `model=`. Fix: alias the tier, pin, or `forward_model_names=True`. |
+| `unknown-model` with no endpoint provider | `A`, warn (**change**) | `D`, warn | `ValueError` from `get_model` | Resolver level only: every bridge dialect passes a provider, so no bridged request reaches this row. Direct callers of `resolve_inspect_model()` without a provider or pin: none (Kimi pins). |
+| pinned spec names `A` | n/a | `A` instance | n/a | none |
+| `forward_model_names=True` with a pin | n/a | `ValueError` at construction | n/a | New: the flag does not exist today. |
 
 ### The opt-in: `forward_model_names`
 
@@ -336,63 +403,68 @@ model role; expose it with model_aliases={'grader': get_model(role='grader')}".
 Dedupe is a module-level `set[str]` of requested names in util.py (not
 `warn_once`, whose list membership is linear in distinct messages), capped
 at `_MAX_REDIRECT_WARNINGS = 64` names; on reaching the cap one final
-warning says further redirects are not reported and points at the
-`ModelEvent` metadata. The requested name is `repr()`-escaped and truncated
-to 200 characters in the message.
+warning says further redirects are not reported and points at
+`ModelEvent.requested_model`. The requested name is `repr()`-escaped and
+truncated to 200 characters in the message.
 
 ### Recording the requested name on the `ModelEvent`
 
-A small generic hook in the model layer, then one use in the bridge.
+A new optional field on the event, set through a small context-variable
+hook in the model layer, used once by the bridge.
+
+`src/inspect_ai/event/_model.py`, after `role` (94-95):
+
+```python
+requested_model: str | None = Field(default=None)
+"""Model name the client requested, for calls made through an agent bridge
+(`None` for direct calls). Differs from `model` when the bridge routed the
+request elsewhere: an alias, a resolver, a pin, or the default of serving
+an unrecognised name with the eval's model."""
+```
 
 `src/inspect_ai/model/_model.py`:
 
 ```python
-_model_event_metadata: ContextVar[dict[str, Any] | None] = ContextVar(
-    "_model_event_metadata", default=None
+_requested_model: ContextVar[str | None] = ContextVar(
+    "_requested_model", default=None
 )
 
 @contextmanager
-def model_event_metadata(metadata: dict[str, Any]) -> Iterator[None]:
-    """Merge `metadata` into every ModelEvent recorded within the block.
-
-    Nested blocks merge, inner keys winning. Not part of the public API.
-    """
-    token = _model_event_metadata.set(
-        {**(_model_event_metadata.get() or {}), **metadata}
-    )
+def requested_model(name: str) -> Iterator[None]:
+    """Record `name` as `ModelEvent.requested_model` for every generation
+    in the block. Not part of the public API."""
+    token = _requested_model.set(name)
     try:
         yield
     finally:
-        _model_event_metadata.reset(token)
+        _requested_model.reset(token)
 ```
+
+`_record_model_interaction` passes `requested_model=_requested_model.get()`
+to `ModelEvent(...)` (1964-1975). Cache reads, retries and sink routing are
+untouched: they all go through this one constructor.
 
 The `finally` reset is what makes this state safe: a generation that is
 cancelled or raises unwinds through it, so the next generation in the same
-task sees no stale keys. A `ContextVar` is per task and anyio copies the
+task sees no stale name. A `ContextVar` is per task and anyio copies the
 context when a task starts, so two bridged requests in flight in different
-tasks never see each other's routing. Both properties are tested (see
-Testing).
-
-`_record_model_interaction` passes `metadata=dict(current) if current else
-None` to `ModelEvent(...)` (1964-1975). Cache reads, retries and sink
-routing are untouched: they all go through this one constructor.
+tasks never see each other's name. Both properties are tested (see Testing).
+A context variable rather than a `generate()` parameter because a
+`GenerateFilter` may call `model.generate()` itself (below); a parameter
+would miss that event unless every filter author remembered to pass it.
 
 `bridge_generate()` gains a keyword-only `routing: BridgeModelResolution |
 None = None`. Inside its retry loop, the block that runs the filter and the
 default generation (util.py:532-579) is enclosed in a fresh
-`model_event_metadata(...)` context on every attempt:
+`requested_model(...)` context on every attempt:
 
 ```python
-def _routing_metadata(routing: BridgeModelResolution | None) -> AbstractContextManager[None]:
-    if routing is None:
-        return nullcontext()
-    return model_event_metadata(
-        {"bridge_requested_model": routing.requested, "bridge_route": routing.route}
-    )
+def _routing_context(routing: BridgeModelResolution | None) -> AbstractContextManager[None]:
+    return requested_model(routing.requested) if routing else nullcontext()
 
 while True:
     input_messages, tools, tool_choice, config = ...   # reset per attempt
-    with _routing_metadata(routing):
+    with _routing_context(routing):
         output: ModelOutput | None = None
         if bridge.filter:
             ...                                        # a filter may generate itself
@@ -411,16 +483,22 @@ the filter and must carry the requested name too. Compaction
 approval (600) stay outside: a summarisation or approver call is not the
 client's request and must not be labelled as one.
 
-Every bridged call records both keys, not only redirects: an alias hit is
+Every bridged call records the field, not only redirects: an alias hit is
 also a name-to-model mapping worth seeing in the log, and one rule is
 simpler to test than a conditional one. A filter that returns a
 `ModelOutput` without generating produces no `ModelEvent` and so nothing to
-stamp. The keys are serialised under `metadata` on the event, so they are
-in the `.eval` log and visible to `read_eval_log()` and anything that
-walks events. The viewer does not render event metadata at the pinned
-ts-mono revision (`ModelEventView.tsx` shows configuration, messages, tools
-and API data only), so a dedicated presentation is a separate change (see
-Not this design).
+record. The route is not logged: it stays on `BridgeModelResolution` for
+the warning and the tests, and a reader sees a redirect as `requested_model`
+differing from `model` while knowing their own aliases.
+
+Because it is a typed field, the name is a first-class part of the log: in
+`.eval` files, through `read_eval_log()`, as a new
+`model_event_requested_model` column in the events dataframe
+(`ModelEventColumns`, `src/inspect_ai/analysis/_dataframe/events/columns.py:62-75`),
+and in the viewer's generated TypeScript types, so the viewer can show it
+(a separate small change; see Not this design). The first draft recorded
+the name in `BaseEvent.metadata` instead; see Alternatives for why the
+field won (decision: Ransom, 2026-09-16).
 
 ### Code changes
 
@@ -491,8 +569,17 @@ docstring rewritten:
 
 `src/inspect_ai/agent/_bridge/bridge.py`: pass `forward_model_names=True`.
 
-`src/inspect_ai/model/_model.py`: `model_event_metadata` and the
-constructor change.
+`src/inspect_ai/event/_model.py`: the `requested_model` field.
+
+`src/inspect_ai/model/_model.py`: the `requested_model()` context manager
+and the constructor change.
+
+`src/inspect_ai/analysis/_dataframe/events/columns.py`: the
+`model_event_requested_model` column in `ModelEventColumns`.
+
+Generated schema and types: the OpenAPI spec and the viewer's TypeScript
+types are regenerated per `design/type-generation-pipeline.md` and landed
+with the ts-mono pointer bump (`.agents/skills/land-ts-mono/SKILL.md`).
 
 `docs/agent-bridge.qmd`: the "Models" section (196-204) is rewritten to
 state the default, show the alias pattern for a scaffold's sub-agent tiers,
@@ -528,8 +615,9 @@ either, since aliases and roles live on the host. Substitution plus a
 visible record is the behaviour inspect_swe already chose for every agent.
 
 **Keep pass-through as the default and add an allowlist parameter.** The
-default would still bill other providers for every scaffold whose author
-did not enumerate its names, and enumerating them is the hard part: the
+default would still serve unlisted names with whatever model they imply,
+billed to the host, for every scaffold whose author did not enumerate its
+names, and enumerating them is the hard part: the
 author has to know every id the scaffold emits. `model_aliases` is already
 an allowlist that also says where each name goes; an allowlist that maps a
 name to itself would be a second spelling of the same thing.
@@ -552,6 +640,13 @@ names.** The prefix is the scaffold's spelling, not the eval author's
 intent, and it keeps roles reachable via `inspect/grader`. It is the right
 behaviour for the in-process bridge, where it stays.
 
+**Record the requested name in `ModelEvent.metadata`.** The first draft of
+this design. No schema, OpenAPI or TypeScript change and old logs untouched,
+but the keys are untyped strings nobody validates, the viewer and the events
+dataframe never see them, and discoverability is by convention. An explicit
+optional field costs one regenerated-types landing and gives a real
+contract. Decision: Ransom, 2026-09-16.
+
 **Warn per bridge instance instead of per process.** One warning per sample
 per name is hundreds of identical lines in a large eval. The per-call
 record lives on the `ModelEvent`; the warning only needs to be noticed
@@ -567,7 +662,8 @@ inspect_evals has no `sandbox_agent_bridge()` caller. In inspect_swe, the
 non-ACP agents all pin and are unchanged; the ACP Claude Code and Codex
 agents pass `model=None` with aliases (table above), so a name outside
 their alias map moves from `get_model(name)` on the host's credentials to
-the eval's active model, with a warning and a metadata record. When such an
+the eval's active model, with a warning and the requested name on the
+event. When such an
 agent runs a model other than the eval's active model and wants unknown
 names to collapse onto *its* model, it pins `model=str(model)` as the ACP
 Gemini agent already does (`acp/_agents/gemini_cli/gemini_cli.py:70-76`).
@@ -610,17 +706,30 @@ variant.
 **In-process `agent_bridge()`.** Shares the resolver and the dialect
 functions; constructed with pass-through on, so its routing is unchanged
 and the LangChain `inspect/google/...` example keeps working. Its
-`ModelEvent`s gain the two metadata keys.
+`ModelEvent`s gain `requested_model` (`"inspect"` or the `inspect/` name).
 
-**Stored formats and the viewer.** `ModelEvent.metadata` is an existing
-optional field; the two keys are plain strings inside it. No JSON schema,
-OpenAPI or generated TypeScript change; old logs read unchanged; the
-`inspect_sandbox_tools` binaries are untouched.
+**Stored formats and the viewer.** `ModelEvent` is a persisted public
+model, so the field is a public-contract change and its consumers are
+named here. Log readers: the field is optional with default `None`, so logs
+written before the change read unchanged, and logs written after it read
+on older `inspect_ai` versions too (neither `BaseEvent` nor `ModelEvent`
+sets a pydantic `extra` policy, so the default `ignore` applies). Events
+dataframe: one new column. Viewer: the JSON schema, OpenAPI spec and
+generated TypeScript change; they are regenerated per
+`design/type-generation-pipeline.md` and landed with a ts-mono pointer bump,
+which the `check-schema-and-types` CI job enforces. `str | None` is not
+required in TypeScript under the pipeline's Noneability rule, so existing
+viewer code compiles unchanged. ACP event mapping
+(`src/inspect_ai/agent/_acp/event_mapping.py`) reads the event fields it
+names and is unaffected. inspect_scout consumes `ModelEvent` through
+`inspect_ai`'s own models (`src/inspect_scout/_transcript/messages.py:322-324`)
+and gains an optional attribute it can ignore. The `inspect_sandbox_tools`
+binaries are untouched. Round-trip coverage is under Testing.
 
 **Public API.** `sandbox_agent_bridge()`, `AgentBridge` and
 `SandboxAgentBridge` gain one keyword argument with a default. `ModelResolver`
-is unchanged. `model_event_metadata` and `resolve_bridge_model` are
-internal.
+is unchanged. `ModelEvent` gains one optional field. The `requested_model()`
+context manager and `resolve_bridge_model` are internal.
 
 ## Security
 
@@ -632,7 +741,7 @@ reaches only: an exact-match dictionary lookup, string concatenation for
 provider qualification, the author's `model_resolver` (which already
 receives it today), string comparison against the active model's names, the
 warning message (escaped with `repr()`, truncated, deduped with a capped
-set) and the `ModelEvent` metadata (stored verbatim, as the rest of the
+set) and `ModelEvent.requested_model` (stored verbatim, as the rest of the
 request body already is in the bridge's tracked messages). `get_model()`,
 `model_roles()` and provider construction see it only under
 `forward_model_names=True`, which restores today's exposure by explicit
@@ -670,28 +779,37 @@ Warning, same file, with `caplog`:
   silence.
 - `test_active_and_alias_hits_do_not_warn`.
 
-Model layer, `tests/model/test_model_event_metadata.py` (new file: no
-existing model test covers a context manager's cancellation and task
+Model layer, `tests/model/test_model_event_requested_model.py` (new file:
+no existing model test covers a context manager's cancellation and task
 isolation; `test_model_event_timing.py` is about snapshot timing):
 
-- `test_model_event_metadata_stamps_event`: a `mockllm` generate inside the
-  block yields an event with the keys; nested blocks merge with the inner
-  key winning; no block means `metadata is None`.
-- `test_model_event_metadata_reset_after_cancel`: a stub `ModelAPI`
-  registered with `@modelapi` (as `tests/agent/test_bridge_provider_errors.py`
-  does around line 254) whose `generate` sets an `anyio.Event` (started) and
-  then awaits a second event that is never set. The test awaits started,
-  cancels the enclosing `anyio.CancelScope`, then generates again with
-  `mockllm` outside any block and asserts `metadata is None`. No sleeps.
-- `test_model_event_metadata_reset_after_failure`: the same with a stub
-  whose `generate` raises; the next event carries no stale keys.
-- `test_model_event_metadata_isolated_between_tasks`: two tasks under
-  `tg_collect`, each in its own block with a different requested name, each
-  awaiting a shared "both started" `anyio.Event` before generating so they
-  are in flight together; each task's event carries only its own keys.
+- `test_requested_model_stamps_event`: a `mockllm` generate inside the block
+  yields an event with `requested_model` set; a nested block wins; no block
+  means `requested_model is None`.
+- `test_requested_model_reset_after_cancel`: a stub `ModelAPI` registered
+  with `@modelapi` (as `tests/agent/test_bridge_provider_errors.py` does
+  around line 254) whose `generate` sets an `anyio.Event` (started) and then
+  awaits a second event that is never set. The test awaits started, cancels
+  the enclosing `anyio.CancelScope`, then generates again with `mockllm`
+  outside any block and asserts `requested_model is None`. No sleeps.
+- `test_requested_model_reset_after_failure`: the same with a stub whose
+  `generate` raises; the next event carries no stale name.
+- `test_requested_model_isolated_between_tasks`: two tasks under
+  `tg_collect`, each in its own block with a different name, each awaiting a
+  shared "both started" `anyio.Event` before generating so they are in
+  flight together; each task's event carries only its own name.
 
 All four are plain `async def` tests, so the conftest hook runs them on both
 backends; the PR runs them with `--runtrio` as well as the default.
+
+Log and dataframe: a round-trip test in `tests/log/test_eval_log.py`
+(existing file) writes an eval log whose `ModelEvent` has `requested_model`
+set, reads it back with `read_eval_log()` and asserts the value, and reads
+an existing fixture log written before the field to assert `None`. No test
+under `tests/analysis/` names `ModelEventColumns`, so one small test is
+added there asserting the `model_event_requested_model` column of the
+events dataframe for a log with a bridged call. The `check-schema-and-types`
+CI job fails until the OpenAPI spec and TypeScript types are regenerated.
 
 End to end without Docker, `tests/agent/test_agent_bridge.py` (existing
 file, `eval()` with `mockllm`): a solver builds `SandboxAgentBridge(...)` by
@@ -699,23 +817,23 @@ hand (pattern: `tests/agent/test_bridge_provider_errors.py:110-119`) and
 calls `inspect_completions_api_request({"model": "gpt-4o-mini", ...}, None,
 bridge)` directly. The dialect functions do not touch the sandbox, so this
 covers dialect → resolver → `bridge_generate` → `ModelEvent`. Asserts: the
-response came from `mockllm/model`, the log's `ModelEvent.metadata` is
-`{"bridge_requested_model": "gpt-4o-mini", "bridge_route": "default"}`, and
-a second test with `forward_model_names=True` and `"model": "mockllm/other"`
-records `route == "passthrough"`. Repeat one redirected case for the
-Anthropic and Google dialect functions.
+response came from `mockllm/model`, and the log's `ModelEvent` has
+`model == "mockllm/model"` and `requested_model == "gpt-4o-mini"`; a second
+test with `forward_model_names=True` and `"model": "mockllm/other"` is
+served by `mockllm/other` with `requested_model == "mockllm/other"`. Repeat
+one redirected case for the Anthropic and Google dialect functions.
 `test_bridge_filter_generated_event_records_requested_name`: the bridge has
 a `GenerateFilter` that calls `model.generate()` itself and returns that
-output; the resulting `ModelEvent` (the only one) carries the requested
-name and route, which is the filter-path case the metadata block exists to
-cover.
+output; the resulting `ModelEvent` (the only one) carries
+`requested_model`, which is the filter-path case the context block exists
+to cover.
 
 End to end with Docker, `tests/tools/test_tools_bridge.py` (existing
 `@skip_if_no_docker` file whose slow tests PR CI runs):
 `test_sandbox_bridge_redirects_unknown_model_to_eval_model`, modelled on
 `test_sandbox_bridge_rejection_hides_the_call_from_the_agent` (552-600):
 `post_completions` with `"model": "claude-haiku-4-5"` through the real proxy,
-assert the reply and the `ModelEvent` metadata.
+assert the reply and `requested_model` on the `ModelEvent`.
 
 Trio: the bridge is async plumbing, so the touched async tests run once
 normally and once with `--runtrio` before the PR opens, per
@@ -730,14 +848,22 @@ under `mockllm`.
 
 ## Implementation plan
 
-One PR, in commits an implementer can land in order:
+One PR, with a companion ts-mono PR for the regenerated types, in commits
+an implementer can land in order:
 
-1. **Model-layer hook.** `model_event_metadata()` and the
-   `_record_model_interaction` change in `src/inspect_ai/model/_model.py`;
-   the four tests in `tests/model/test_model_event_metadata.py` (stamping,
-   reset after cancel, reset after failure, task isolation). Independent of
-   the bridge and safe alone.
-2. **Resolver.** `BridgeModelRoute`, `BridgeModelResolution`,
+1. **Field and hook.** `requested_model` on `ModelEvent`
+   (`src/inspect_ai/event/_model.py`); the `requested_model()` context
+   manager and the `_record_model_interaction` change in
+   `src/inspect_ai/model/_model.py`; the four tests in
+   `tests/model/test_model_event_requested_model.py` (stamping, reset after
+   cancel, reset after failure, task isolation) and the log round-trip
+   test. Independent of the bridge.
+2. **Schema, types and dataframe.** Regenerate the OpenAPI spec and the
+   viewer's TypeScript types and land them with the ts-mono pointer bump per
+   `.agents/skills/land-ts-mono/SKILL.md`; add `model_event_requested_model`
+   to `ModelEventColumns` with its test. This step is what makes the PR a
+   coordinated ts-mono landing rather than a Python-only change.
+3. **Resolver.** `BridgeModelRoute`, `BridgeModelResolution`,
    `resolve_bridge_model`, the wrapper and the warning in
    `src/inspect_ai/agent/_bridge/util.py`; `forward_model_names` on
    `AgentBridge` (`types.py`) with the `ValueError`; `SandboxAgentBridge`
@@ -745,15 +871,15 @@ One PR, in commits an implementer can land in order:
    (`bridge.py`). Rewrite `tests/agent/test_bridge_model_resolver.py` with
    the matrix and warning tests; adjust the three pass-through assertions
    named under Compatibility.
-3. **Dialects.** `completions.py`, `responses_impl.py`,
+4. **Dialects.** `completions.py`, `responses_impl.py`,
    `anthropic_api_impl.py`, `google_api_impl.py` call `resolve_bridge_model`
-   and pass `routing=` to `bridge_generate`; `bridge_generate` stamps the
-   metadata. Add the no-Docker end-to-end tests to
+   and pass `routing=` to `bridge_generate`; `bridge_generate` sets the
+   requested name. Add the no-Docker end-to-end tests to
    `tests/agent/test_agent_bridge.py`.
-4. **Sandbox surface and Docker test.** `sandbox_agent_bridge()` parameter
+5. **Sandbox surface and Docker test.** `sandbox_agent_bridge()` parameter
    and docstrings (`sandbox/bridge.py`); the Docker test in
    `tests/tools/test_tools_bridge.py`.
-5. **Docs and CHANGELOG.** `docs/agent-bridge.qmd` Models section and the
+6. **Docs and CHANGELOG.** `docs/agent-bridge.qmd` Models section and the
    alias example; the `## Unreleased` entry.
 
 Follow-up outside this repo (not blocking): inspect_swe's ACP Claude Code
@@ -787,10 +913,12 @@ from the eval's, matching its ACP Gemini agent.
 - `warn_once()` in `src/inspect_ai/_util/logger.py:277-283` keeps its
   history in a list with linear membership; fine for its fixed messages,
   worth a set if it is ever used with per-input messages.
-- A public API for attaching metadata to `ModelEvent`s
-  (`model_event_metadata` stays private until a second consumer appears).
-- Viewer presentation of `ModelEvent.metadata`. The requested name is in
-  the log, but `ModelEventView` in ts-mono does not render event metadata;
-  showing it is a viewer change on its own.
+- Showing `requested_model` in the viewer's `ModelEventView`. The field
+  and its TypeScript type land with this design; rendering it next to the
+  served model is a small ts-mono change on its own.
+- Logging the resolution route on the event. `BridgeModelResolution.route`
+  exists for the warning and the tests; a second field would record a
+  distinction (alias versus redirect) the author already knows from their
+  own configuration.
 - The in-process bridge exposing `model=`, `model_aliases` or
   `model_resolver`.
