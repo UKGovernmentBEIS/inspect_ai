@@ -562,8 +562,9 @@ the log already carries.
 
 ### Error mapping
 
-The exception-to-`ToolCallError` mapping at `_call_tools.py:220-284` is
-extracted into a helper in `src/inspect_ai/model/_call_tools.py`:
+The exception-to-`ToolCallError` mapping that was the `except` chain at
+`_call_tools.py:220-284` is a helper in `src/inspect_ai/model/_call_tools.py`
+(landed with this document, see Implementation plan PR A):
 
 ```python
 class ToolCallFailure(NamedTuple):
@@ -1149,13 +1150,15 @@ fixture proves no change.
 
 Three inspect_ai PRs plus the ts-mono companion. The first two are
 standalone, behaviour-preserving or policy-only changes to shared code that
-review more easily on their own and can merge in any order; the third is
-the design proper and depends on both and on #5428.
+review more easily on their own; the third is the design proper and depends
+on both and on #5428.
 
 **PR A: extract the native error mapping** (`src/inspect_ai/model/_call_tools.py`,
-`tests/tools/test_call_tools.py`). Add `ToolCallFailure` and
-`tool_call_failure`, switch `call_tool_task` to it with no behaviour change,
-add the mapping test.
+`tests/tools/test_call_tools.py`). Lands with this document in #5427
+(decision: Ransom, 2026-09-16). `ToolCallFailure` and `tool_call_failure`
+replace the `except` chain in `call_tool_task` with no behaviour change; the
+parametrised test covers every mapped exception type, the `None` cases, and
+that a plain `ValueError` still propagates out of `execute_tools`.
 
 **PR B: tool result media follow the logging policy**
 (`src/inspect_ai/log/_condense.py`, `tests/log/test_log_attachments.py`,
@@ -1163,7 +1166,7 @@ add the mapping test.
 add the round-trip tests. Fixes the existing `log_images=False` gap for
 native tool events on its own.
 
-**PR C: record host tool events** (after #5428, PR A and PR B):
+**PR C: record host tool events** (after #5428, PR B and this PR):
 
 1. **Grant record carries the proposal and span**
    (`src/inspect_ai/agent/_bridge/types.py`,
