@@ -22,6 +22,7 @@ from inspect_ai.model._openai_responses import RESPONSES_NAMESPACE
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 
@@ -119,9 +120,11 @@ class SandboxAgentBridge(AgentBridge):
         declarations the scaffold made to the model in this request
         (`_proposed_call`): a call the scaffold declared no tool for denotes
         nothing, a Responses API namespace on the declaration pins the server,
-        a tool the scaffold declared under one name is not matched under another
-        scheme's name, and Antigravity's `call_mcp_tool` dispatcher is recognized
-        by its declared parameters. A call that still denotes more than one
+        a tool the scaffold unmistakably declared under another name (a
+        namespaced declaration, or a qualified name carrying the tool's own
+        description) is not matched under this one, and Antigravity's
+        `call_mcp_tool` dispatcher is recognized by its declared parameters
+        outside any namespace. A call that still denotes more than one
         bridged tool is ambiguous — no grant is registered (fail closed, with a
         warning). No grant is stored for a server in `proposal_exempt_servers`,
         since none is needed to execute its tools.
@@ -397,23 +400,38 @@ def _declaration_namespace(declaration: ToolInfo) -> str | None:
     return None
 
 
-def _denotes(
-    declaration: ToolInfo, server: str, tool: str, *, qualified_only: bool
-) -> bool:
-    """Whether a declared tool is how the scaffold presented this bridged tool.
+def _denotes(declaration: ToolInfo, server: str, tool: str) -> bool:
+    """Whether a declared tool could be how the scaffold presented this bridged tool.
 
     A declaration made inside a namespace denotes the tool only through Codex's
-    (namespace, name) pairs. Otherwise its name must be one of the tool's
-    candidate names; with `qualified_only` the bare tool name does not count,
-    since any scaffold-local tool could carry it.
+    (namespace, name) pairs, which are definitive. Otherwise its name must be one
+    of the tool's candidate names under some scheme.
     """
     namespace = _declaration_namespace(declaration)
     if namespace is not None:
         return (namespace, declaration.name) in _codex_cli_parts(server, tool)
-    candidates = _candidate_functions(server, tool)
-    if qualified_only:
-        candidates.discard(_bare_function(server, tool))
-    return declaration.name in candidates
+    return declaration.name in _candidate_functions(server, tool)
+
+
+def _claims(declaration: ToolInfo, server: str, tool: str, description: str) -> bool:
+    """Whether a declared tool is unmistakably this bridged tool, declared elsewhere.
+
+    Used to rule out a candidate: if the scaffold declared the bridged tool under
+    another name, this call is not a proposal for it. A namespaced (Codex)
+    declaration claims it through the (namespace, name) pair alone. A flat
+    declaration claims it only under a qualified candidate name (the bare name is
+    any local tool's to use) and with the description the bridge served for the
+    tool in `tools/list`, so an unrelated local tool whose name merely reads as
+    another scheme's qualified form does not stand in for it.
+    """
+    namespace = _declaration_namespace(declaration)
+    if namespace is not None:
+        return (namespace, declaration.name) in _codex_cli_parts(server, tool)
+    qualified = _candidate_functions(server, tool) - {_bare_function(server, tool)}
+    return (
+        declaration.name in qualified
+        and declaration.description.strip() == description.strip()
+    )
 
 
 def _resolve_bridged_tools(
@@ -423,18 +441,18 @@ def _resolve_bridged_tools(
 ) -> list[_BridgedToolId]:
     """Every bridged (server, tool) a declared tool denotes, given all declarations.
 
-    A bridged tool the scaffold declared under another name (a qualified
-    candidate, or a namespaced Codex name) is not denoted by this declaration,
-    however its name reads under some other scheme: that settles which scheme is
-    active and keeps a scaffold-local tool from standing in for a bridged one.
+    A bridged tool that another declaration in the request claims (`_claims`) is
+    not denoted by this one, however its name reads under some other scheme: that
+    settles which scheme is active and keeps a scaffold-local tool from standing
+    in for a bridged one.
     """
     return [
         _BridgedToolId(server=server, tool=tool)
         for server, tools in bridged_tools.items()
-        for tool in tools
-        if _denotes(declaration, server, tool, qualified_only=False)
+        for tool, tool_fn in tools.items()
+        if _denotes(declaration, server, tool)
         and not any(
-            _denotes(other, server, tool, qualified_only=True)
+            _claims(other, server, tool, ToolDef(tool_fn).description)
             for other in declared.values()
             if other is not declaration
         )
@@ -442,6 +460,20 @@ def _resolve_bridged_tools(
 
 
 _ANTIGRAVITY_DISPATCHER_PARAMETERS = frozenset({"ServerName", "ToolName", "Arguments"})
+
+
+def _is_antigravity_dispatcher(declaration: ToolInfo) -> bool:
+    """Whether a declaration is Antigravity's `call_mcp_tool` dispatcher.
+
+    Recognized by name and declared parameters, and never for a declaration made
+    inside a Responses API namespace: that is a Codex tool of the same name and
+    shape, and the namespace is definitive.
+    """
+    return (
+        declaration.name == _ANTIGRAVITY_DISPATCHER
+        and _declaration_namespace(declaration) is None
+        and set(declaration.parameters.properties) == _ANTIGRAVITY_DISPATCHER_PARAMETERS
+    )
 
 
 class _ProposedCall(NamedTuple):
@@ -463,18 +495,15 @@ def _proposed_call(
     scaffolds declare each bridged tool as its own function, so the declaration
     denotes the tool (`_resolve_bridged_tools`) and the call's arguments are the
     tool's. Antigravity instead declares one dispatcher,
-    ``call_mcp_tool(ServerName, ToolName, Arguments)``: when the declaration has
-    exactly those parameters, the target and the arguments come from the call's
-    arguments; the server is named explicitly, so there is nothing ambiguous to
-    resolve, and a target that is not a bridged tool denotes nothing.
+    ``call_mcp_tool(ServerName, ToolName, Arguments)`` (`_is_antigravity_dispatcher`):
+    the target and the arguments then come from the call's arguments; the server
+    is named explicitly, so there is nothing ambiguous to resolve, and a target
+    that is not a bridged tool denotes nothing.
     """
     declaration = declared.get(call.function)
     if declaration is None:
         return _ProposedCall([], {})
-    if (
-        call.function == _ANTIGRAVITY_DISPATCHER
-        and set(declaration.parameters.properties) == _ANTIGRAVITY_DISPATCHER_PARAMETERS
-    ):
+    if _is_antigravity_dispatcher(declaration):
         server = call.arguments.get("ServerName")
         tool = call.arguments.get("ToolName")
         arguments = call.arguments.get("Arguments")

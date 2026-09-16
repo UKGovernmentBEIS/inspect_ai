@@ -214,8 +214,10 @@ class AgentBridge:
         """Register the calls in a response handed to the scaffold for execution-edge checks.
 
         `tools` are the declarations the scaffold made to the model in the request
-        that produced the response. In-process bridges execute no host tools through
-        a separate service, so the base implementation has nothing to register.
+        that produced the response; a subclass overriding this hook must accept
+        them (the parameter is new, and required, since the calls cannot be
+        resolved without it). In-process bridges execute no host tools through a
+        separate service, so the base implementation has nothing to register.
         Sandbox bridges override this to bind later service requests to the calls
         the model actually made.
         """

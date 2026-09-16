@@ -69,7 +69,7 @@ ANTIGRAVITY_DISPATCHER_PARAMETERS = ToolParams(
 )
 
 
-def declare(*names: str) -> list[ToolInfo]:
+def declare(*names: str, description: str = "") -> list[ToolInfo]:
     """The scaffold's declarations of these tools to the model.
 
     `call_mcp_tool` is declared with Antigravity's dispatcher parameters.
@@ -77,7 +77,7 @@ def declare(*names: str) -> list[ToolInfo]:
     return [
         ToolInfo(
             name=name,
-            description="",
+            description=description,
             parameters=(
                 ANTIGRAVITY_DISPATCHER_PARAMETERS
                 if name == "call_mcp_tool"
@@ -88,14 +88,26 @@ def declare(*names: str) -> list[ToolInfo]:
     ]
 
 
-def declare_in_namespace(namespace: str, *names: str) -> list[ToolInfo]:
+def declare_in_namespace(
+    namespace: str, *names: str, parameters: ToolParams | None = None
+) -> list[ToolInfo]:
     """Codex CLI's declarations: bare names inside a Responses API namespace."""
     return [
         ToolInfo(
-            name=name, description="", options={RESPONSES_NAMESPACE: (namespace, "")}
+            name=name,
+            description="",
+            parameters=parameters or ToolParams(),
+            options={RESPONSES_NAMESPACE: (namespace, "")},
         )
         for name in names
     ]
+
+
+def mock_tool(description: str, result: str = "contents") -> AsyncMock:
+    """A bridged tool whose `tools/list` description is `description`."""
+    tool = AsyncMock(return_value=result)
+    tool.__doc__ = description
+    return tool
 
 
 @approver(name="test_bridge_reject")
@@ -918,8 +930,8 @@ def cross_scheme_bridge() -> SandboxAgentBridge:
     """
     return sandbox_bridge_with_servers(
         {
-            "a": {"mcp_host_read_file": AsyncMock(return_value="a")},
-            "host": {"read_file": AsyncMock(return_value="host")},
+            "a": {"mcp_host_read_file": mock_tool("Tool a.", "a")},
+            "host": {"read_file": mock_tool("Read a file.", "host")},
         }
     )
 
@@ -943,7 +955,9 @@ async def test_codex_namespace_pins_the_server_across_schemes() -> None:
 async def test_gemini_declarations_settle_a_cross_scheme_collision() -> None:
     """Gemini declared a's tool as mcp_a_mcp_host_read_file, so mcp_host_read_file is host's."""
     bridge = cross_scheme_bridge()
-    declared = declare("mcp_a_mcp_host_read_file", "mcp_host_read_file")
+    declared = declare("mcp_a_mcp_host_read_file", description="Tool a.") + declare(
+        "mcp_host_read_file", description="Read a file."
+    )
 
     bridge.register_tool_execution_grants(
         [ToolCall(id="proposed", function="mcp_host_read_file", arguments={})],
@@ -973,10 +987,10 @@ async def test_local_tool_sharing_a_bridged_tools_bare_name_registers_no_grant()
     None
 ):
     """OpenCode declares host/bash as host_bash; a call to its own bash is not a proposal for it."""
-    bridge = sandbox_bridge_with_servers(
-        {"host": {"bash": AsyncMock(return_value="x")}}
+    bridge = sandbox_bridge_with_servers({"host": {"bash": mock_tool("Run bash.")}})
+    declared = declare("bash", description="OpenCode's shell.") + declare(
+        "host_bash", description="Run bash."
     )
-    declared = declare("bash", "host_bash")
 
     bridge.register_tool_execution_grants(
         [ToolCall(id="local", function="bash", arguments={"cmd": "ls"})], declared
@@ -988,6 +1002,28 @@ async def test_local_tool_sharing_a_bridged_tools_bare_name_registers_no_grant()
         declared,
     )
     assert bridge.consume_tool_execution_grant("host", "bash", {"cmd": "ls"})
+
+
+async def test_pass_through_declaration_beside_an_unrelated_local_tool_grants() -> None:
+    """A pass-through scaffold declares host/read_file as read_file.
+
+    Its unrelated local host_read_file reads as OpenCode's name for the same
+    bridged tool, but does not carry the tool's description, so it does not
+    claim it and the proposal for read_file is granted.
+    """
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": mock_tool("Read a file.")}}
+    )
+    declared = declare("read_file", description="Read a file.") + declare(
+        "host_read_file", description="Read the host's own file."
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declared,
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
 
 
 async def test_bridged_tool_named_call_mcp_tool_is_not_the_dispatcher() -> None:
@@ -1002,6 +1038,38 @@ async def test_bridged_tool_named_call_mcp_tool_is_not_the_dispatcher() -> None:
     )
 
     assert bridge.consume_tool_execution_grant("host", "call_mcp_tool", {"value": 1})
+
+
+async def test_namespaced_dispatcher_shaped_tool_is_a_codex_tool() -> None:
+    """A Codex declaration is definitive even when its shape matches the dispatcher.
+
+    The proposal is for host/call_mcp_tool with its whole arguments, not for the
+    other bridged tool the arguments happen to name.
+    """
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {"call_mcp_tool": AsyncMock(return_value="host")},
+            "other": {"read_file": AsyncMock(return_value="other")},
+        }
+    )
+    declared = declare_in_namespace(
+        "mcp__host", "call_mcp_tool", parameters=ANTIGRAVITY_DISPATCHER_PARAMETERS
+    ) + declare_in_namespace("mcp__other", "read_file")
+    arguments = {
+        "ServerName": "other",
+        "ToolName": "read_file",
+        "Arguments": {"path": "secret"},
+    }
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="call_mcp_tool", arguments=arguments)],
+        declared,
+    )
+
+    assert not bridge.consume_tool_execution_grant(
+        "other", "read_file", {"path": "secret"}
+    )
+    assert bridge.consume_tool_execution_grant("host", "call_mcp_tool", arguments)
 
 
 async def test_host_tool_grant_matches_gemini_cli_truncated_name() -> None:
