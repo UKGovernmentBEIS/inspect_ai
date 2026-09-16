@@ -54,6 +54,7 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
+import threading
 import weakref
 from logging import getLogger
 from typing import Any, overload
@@ -244,33 +245,39 @@ class LoopScopedTransport(httpx.AsyncBaseTransport):
             asyncio.AbstractEventLoop, httpx.AsyncHTTPTransport
         ] = weakref.WeakKeyDictionary()
         self._shared: httpx.AsyncHTTPTransport | None = None
+        # Loops on different threads reach the maps together, and two of them
+        # pruning the same closed loop at once would KeyError.
+        self._lock = threading.Lock()
 
     def current(self) -> httpx.AsyncHTTPTransport:
         """The transport for the running event loop, built on first use."""
-        if sniffio.current_async_library() != "asyncio":
-            if self._shared is None:
-                self._shared = httpx.AsyncHTTPTransport(**self._kwargs)
-            return self._shared
-        loop = asyncio.get_running_loop()
-        transport = self._per_loop.get(loop)
-        if transport is None:
-            for other in list(self._per_loop):
-                if other.is_closed():
-                    del self._per_loop[other]
-            transport = httpx.AsyncHTTPTransport(**self._kwargs)
-            self._per_loop[loop] = transport
-        return transport
+        with self._lock:
+            if sniffio.current_async_library() != "asyncio":
+                if self._shared is None:
+                    self._shared = httpx.AsyncHTTPTransport(**self._kwargs)
+                return self._shared
+            loop = asyncio.get_running_loop()
+            transport = self._per_loop.get(loop)
+            if transport is None:
+                for other in list(self._per_loop):
+                    if other.is_closed():
+                        del self._per_loop[other]
+                transport = httpx.AsyncHTTPTransport(**self._kwargs)
+                self._per_loop[loop] = transport
+            return transport
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         return await self.current().handle_async_request(request)
 
     async def aclose(self) -> None:
         """Close the running loop's transport, the only one that can be, and drop the rest."""
-        if sniffio.current_async_library() != "asyncio":
-            transport, self._shared = self._shared, None
-        else:
-            transport = self._per_loop.pop(asyncio.get_running_loop(), None)
-        self._per_loop.clear()
+        with self._lock:
+            if sniffio.current_async_library() != "asyncio":
+                transport = self._shared
+            else:
+                transport = self._per_loop.get(asyncio.get_running_loop())
+            self._shared = None
+            self._per_loop.clear()
         if transport is not None:
             await transport.aclose()
 
@@ -323,6 +330,12 @@ def default_client_kwargs(**overrides: Any) -> dict[str, Any]:
             else LoopScopedTransport(proxy=httpx.Proxy(url), **transport_kwargs)
             for key, url in environment_proxies.items()
         }
+        # httpx would build the mount for an explicit proxy itself, from a
+        # transport that is not loop scoped.
+        if kwargs.get("proxy") is not None:
+            mounts["all://"] = LoopScopedTransport(
+                proxy=httpx.Proxy(kwargs.pop("proxy")), **transport_kwargs
+            )
         mounts.update(kwargs.get("mounts") or {})
         kwargs["mounts"] = mounts
         kwargs["transport"] = LoopScopedTransport(**transport_kwargs)

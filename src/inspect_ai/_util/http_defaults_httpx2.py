@@ -57,6 +57,7 @@ import re
 import socket
 import ssl
 import sys
+import threading
 import weakref
 from logging import getLogger
 from typing import Any, overload
@@ -288,33 +289,39 @@ class LoopScopedTransport(httpx2.AsyncBaseTransport):
             asyncio.AbstractEventLoop, httpx2.AsyncHTTPTransport
         ] = weakref.WeakKeyDictionary()
         self._shared: httpx2.AsyncHTTPTransport | None = None
+        # Loops on different threads reach the maps together, and two of them
+        # pruning the same closed loop at once would KeyError.
+        self._lock = threading.Lock()
 
     def current(self) -> httpx2.AsyncHTTPTransport:
         """The transport for the running event loop, built on first use."""
-        if sniffio.current_async_library() != "asyncio":
-            if self._shared is None:
-                self._shared = httpx2.AsyncHTTPTransport(**self._kwargs)
-            return self._shared
-        loop = asyncio.get_running_loop()
-        transport = self._per_loop.get(loop)
-        if transport is None:
-            for other in list(self._per_loop):
-                if other.is_closed():
-                    del self._per_loop[other]
-            transport = httpx2.AsyncHTTPTransport(**self._kwargs)
-            self._per_loop[loop] = transport
-        return transport
+        with self._lock:
+            if sniffio.current_async_library() != "asyncio":
+                if self._shared is None:
+                    self._shared = httpx2.AsyncHTTPTransport(**self._kwargs)
+                return self._shared
+            loop = asyncio.get_running_loop()
+            transport = self._per_loop.get(loop)
+            if transport is None:
+                for other in list(self._per_loop):
+                    if other.is_closed():
+                        del self._per_loop[other]
+                transport = httpx2.AsyncHTTPTransport(**self._kwargs)
+                self._per_loop[loop] = transport
+            return transport
 
     async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
         return await self.current().handle_async_request(request)
 
     async def aclose(self) -> None:
         """Close the running loop's transport, the only one that can be, and drop the rest."""
-        if sniffio.current_async_library() != "asyncio":
-            transport, self._shared = self._shared, None
-        else:
-            transport = self._per_loop.pop(asyncio.get_running_loop(), None)
-        self._per_loop.clear()
+        with self._lock:
+            if sniffio.current_async_library() != "asyncio":
+                transport = self._shared
+            else:
+                transport = self._per_loop.get(asyncio.get_running_loop())
+            self._shared = None
+            self._per_loop.clear()
         if transport is not None:
             await transport.aclose()
 
@@ -354,8 +361,6 @@ def default_client_kwargs(**overrides: Any) -> dict[str, Any]:
             context = _default_ssl_context()
             if context is not None:
                 kwargs["verify"] = context
-        if kwargs.get("proxy") is not None:
-            kwargs["proxy"] = _default_proxy(kwargs["proxy"])
         transport_kwargs = _transport_kwargs(limits, kwargs)
         # Supplying a transport turns off httpx's environment proxy discovery,
         # so rebuild the mounts with the same settings rather than losing
@@ -373,6 +378,12 @@ def default_client_kwargs(**overrides: Any) -> dict[str, Any]:
             else LoopScopedTransport(proxy=_default_proxy(url), **transport_kwargs)
             for key, url in environment_proxies.items()
         }
+        # httpx would build the mount for an explicit proxy itself, from a
+        # transport that is not loop scoped.
+        if kwargs.get("proxy") is not None:
+            mounts["all://"] = LoopScopedTransport(
+                proxy=_default_proxy(kwargs.pop("proxy")), **transport_kwargs
+            )
         mounts.update(kwargs.get("mounts") or {})
         kwargs["mounts"] = mounts
         kwargs["transport"] = LoopScopedTransport(**transport_kwargs)
