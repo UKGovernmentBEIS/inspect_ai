@@ -337,8 +337,8 @@ async def test_model_proxy_multiple_methods_same_path(
             data = await response.json()
             assert data["method"] == "GET"
 
-        # Test POST
-        async with session.post(f"{base_url}/resource") as response:
+        # Test POST (every POST route takes a JSON object body)
+        async with session.post(f"{base_url}/resource", json={}) as response:
             assert response.status == 200
             data = await response.json()
             assert data["method"] == "POST"
@@ -934,7 +934,6 @@ async def test_model_proxy_responses_non_streaming(
     ("path", "invalid_body", "valid_body"),
     [
         ("/v1/responses", {}, {"model": "gpt-4o", "input": "Hello"}),
-        ("/v1/responses", [], {"model": "gpt-4o", "input": "Hello"}),
         (
             "/v1/responses",
             {"model": []},
@@ -943,11 +942,6 @@ async def test_model_proxy_responses_non_streaming(
         (
             "/v1/chat/completions",
             {},
-            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
-        ),
-        (
-            "/v1/chat/completions",
-            [],
             {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
         ),
         (
@@ -2837,6 +2831,91 @@ def _assert_no_cross_origin_headers(headers: Any) -> None:
 
 
 _BROWSER_HEADERS = {"Origin": "http://example.test"}
+
+
+@pytest.fixture
+async def proxy_server_recording_bridge() -> AsyncGenerator[
+    tuple[str, list[tuple[str, dict[str, Any]]]], None
+]:
+    """The model proxy over a bridge stub that records every call it receives."""
+    from inspect_sandbox_tools._agent_bridge.proxy import model_proxy_server
+
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def recording_bridge(
+        method: str, json_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        calls.append((method, json_data))
+        return {"error": {"message": "unexpected bridge call"}}
+
+    server = await model_proxy_server(
+        port=0, call_bridge_model_service_async=recording_bridge
+    )
+    server.server = await asyncio.start_server(
+        server._handle_client, server.host, server.port
+    )
+    port = server.server.sockets[0].getsockname()[1]
+    try:
+        yield f"http://127.0.0.1:{port}", calls
+    finally:
+        server.server.close()
+        await server.server.wait_closed()
+
+
+_POST_ROUTES = [
+    "/v1beta/models/inspect:generateContent",
+    "/models/inspect:generateContent",
+    "/v1/chat/completions",
+    "/v1/responses",
+    "/v1/messages",
+    "/mcp/test-server",
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", _POST_ROUTES)
+async def test_preflight_free_post_never_reaches_the_bridge(
+    proxy_server_recording_bridge: tuple[str, list[tuple[str, dict[str, Any]]]],
+    path: str,
+) -> None:
+    """A cross-origin POST a browser sends without a preflight is rejected unserved.
+
+    `fetch(url, {mode: "no-cors", method: "POST", body: "{}"})` arrives with a
+    `text/plain` content type. The Google routes take the model from the URL,
+    so without this check they would generate on such a request.
+    """
+    base_url, calls = proxy_server_recording_bridge
+    headers = {**_BROWSER_HEADERS, "Content-Type": "text/plain;charset=UTF-8"}
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}{path}", data=b"{}", headers=headers
+        ) as response:
+            assert response.status == 415
+            _assert_no_cross_origin_headers(response.headers)
+            body = await response.json()
+            assert body["error"]["code"] == 415
+    assert calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", _POST_ROUTES)
+@pytest.mark.parametrize("data", [b"", b"[]", b"not json"])
+async def test_json_post_without_object_body_never_reaches_the_bridge(
+    proxy_server_recording_bridge: tuple[str, list[tuple[str, dict[str, Any]]]],
+    path: str,
+    data: bytes,
+) -> None:
+    """A JSON POST whose body is empty, not an object, or unparseable is rejected."""
+    base_url, calls = proxy_server_recording_bridge
+    headers = {"Content-Type": "application/json"}
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}{path}", data=data, headers=headers
+        ) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["error"]["code"] == 400
+    assert calls == []
 
 
 @pytest.mark.asyncio

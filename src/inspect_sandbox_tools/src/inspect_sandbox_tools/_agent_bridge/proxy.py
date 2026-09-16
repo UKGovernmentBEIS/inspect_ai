@@ -361,6 +361,41 @@ class AsyncHTTPServer:
                     await writer.drain()
 
     # -------- Connection handler --------
+    def _reject_non_json_post(self, ctype: str, parsed_json: Any) -> bytes | None:
+        """Response rejecting a POST that does not carry a JSON object body, or None.
+
+        Every POST route is a JSON API, so the body contract is enforced here
+        rather than in each handler. This is also the browser boundary: a
+        cross-origin request a browser sends without a preflight can only carry
+        a `text/plain`, form or multipart body, so refusing anything but
+        `application/json` before the handler runs means such a request never
+        reaches the bridge, whatever the handler would otherwise infer from the
+        URL alone. `OPTIONS` is 405, so a preflighted request is never sent.
+        """
+        if not ctype.startswith("application/json"):
+            return self._build_response(
+                415,
+                {
+                    "error": {
+                        "message": "Content-Type must be application/json",
+                        "type": "invalid_request_error",
+                        "code": 415,
+                    }
+                },
+            )
+        if not isinstance(parsed_json, dict):
+            return self._build_response(
+                400,
+                {
+                    "error": {
+                        "message": "Request body must be a JSON object",
+                        "type": "invalid_request_error",
+                        "code": 400,
+                    }
+                },
+            )
+        return None
+
     async def _handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
@@ -409,6 +444,13 @@ class AsyncHTTPServer:
                             )
                     elif ctype.startswith("text/"):
                         request_data["text"] = body.decode("utf-8", errors="replace")
+
+                if method == "POST":
+                    rejection = self._reject_non_json_post(ctype, request_data["json"])
+                    if rejection is not None:
+                        writer.write(rejection)
+                        await writer.drain()
+                        return
 
                 # Call handler
                 response = await handler(request_data)
