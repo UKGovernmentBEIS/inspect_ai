@@ -53,6 +53,22 @@ async def test_perplexity_scorer_basic() -> None:
 
 
 @pytest.mark.anyio
+async def test_perplexity_scorer_overflowing_nll_records_infinite_perplexity() -> None:
+    """An NLL beyond exp()'s range scores with infinite perplexity instead of raising."""
+    prompt_lps = [Logprob(token="x", logprob=-10000.0)]
+    state = _task_state_with_prompt_logprobs(prompt_lps)
+    scorer = perplexity()
+
+    result = await scorer(state, Target(["unused"]))
+
+    assert result is not None
+    assert result.as_float() == pytest.approx(10000.0)
+    assert result.metadata is not None
+    assert result.metadata["perplexity"] == float("inf")
+    assert "perplexity: inf" in (result.explanation or "")
+
+
+@pytest.mark.anyio
 async def test_perplexity_scorer_no_logprobs() -> None:
     """Scorer returns NaN when no prompt logprobs are available."""
     state = simple_task_state(model_output="test")

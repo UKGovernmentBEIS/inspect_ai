@@ -17,6 +17,7 @@ from inspect_ai._util.cpu import effective_cpu_count
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
+from .._privileged import pinned_command, pinned_shell_command
 from ..compose import COMPOSE_FILES, DOCKERFILE, ComposeConfig
 from ..environment import (
     HostMapping,
@@ -345,8 +346,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # alone leaves orphaned processes inside the container).
         in_container_cmd = cmd
         if timeout is not None:
-            # Resolve the wrapper independently of the image's potentially
-            # user-writable PATH, while preserving PATH for the requested command.
+            # Absolute path: the wrapper runs as `user` (root for privileged
+            # commands) before anything of ours, so it must not be resolved
+            # through the image's possibly user-writable PATH. The requested
+            # command keeps whatever PATH the caller gave it (see the `exec`
+            # contract in `environment.py`).
             in_container_cmd = ["/usr/bin/timeout", "-k", "5s", f"{timeout}s", *cmd]
 
         # add a buffer to the host timeout so the in-container timeout
@@ -455,10 +459,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # resolve relative file paths
         file = self.container_file(file)
 
-        # ensure that the directory exists
+        # These run as the container's default user (root in most images), so the
+        # utilities must not come from the image's PATH.
         parent = Path(file).parent.as_posix()
         if parent != ".":
-            result = await self.exec(["mkdir", "-p", parent])
+            result = await self.exec(pinned_command(["mkdir", "-p", parent]))
             if not result.success:
                 msg = f"Failed to create container directory {parent}: {result.stderr}"
                 raise RuntimeError(msg)
@@ -466,34 +471,22 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # write the file
         if isinstance(contents, str):
             result = await self.exec(
-                [
-                    "sh",
-                    "-e",
-                    "-c",
-                    'tee -- "$1" > /dev/null',
-                    "write_file_script",
-                    file,
-                ],
+                pinned_shell_command('set -e\ntee -- "$1" > /dev/null', file),
                 input=contents,
                 timeout=TIMEOUT,
             )
         else:
             base64_contents = base64.b64encode(contents).decode("US-ASCII")
             result = await self.exec(
-                [
-                    "sh",
-                    "-e",
-                    "-c",
-                    'base64 -d | tee -- "$1" > /dev/null',
-                    "write_file_script",
-                    file,
-                ],
+                pinned_shell_command(
+                    'set -e\nbase64 -d | tee -- "$1" > /dev/null', file
+                ),
                 input=base64_contents,
                 timeout=TIMEOUT,
             )
         if result.returncode != 0:
             if "permission denied" in result.stderr.casefold():
-                ls_result = await self.exec(["ls", "-la", "."])
+                ls_result = await self.exec(pinned_command(["ls", "-la", "."]))
                 error_string = f"Permission was denied. Error details: {result.stderr}; ls -la: {ls_result.stdout}"
                 raise PermissionError(error_string)
             elif (
@@ -692,7 +685,7 @@ async def container_working_dir(
     service: str, project: ComposeProject, default: str = "/"
 ) -> str:
     result = await compose_exec(
-        [service, "sh", "-c", "pwd"], timeout=60, project=project
+        [service, *pinned_shell_command("pwd")], timeout=60, project=project
     )
     if result.success:
         return result.stdout.strip()
