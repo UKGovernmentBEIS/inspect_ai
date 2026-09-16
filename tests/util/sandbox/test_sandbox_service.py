@@ -27,9 +27,9 @@ from inspect_ai.util._sandbox._framework_directory import (
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
-    SHELL_PATH,
     FrameworkDirectoryError,
 )
+from inspect_ai.util._sandbox._privileged import SHELL_PATH, pinned_command
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import (
@@ -40,6 +40,17 @@ from inspect_ai.util._sandbox.service import (
     sandbox_service,
 )
 from inspect_ai.util._subprocess import ExecResult
+
+
+def _argv(cmd: list[str]) -> list[str]:
+    """The command a service ``exec`` issues, unwrapped from its PATH-pinning shell.
+
+    The service runs its commands through ``privileged_exec`` (see ``_privileged``);
+    the fakes below dispatch on the wrapped command, as the real utilities would.
+    """
+    if len(cmd) > 4 and cmd == pinned_command(cmd[4:]):
+        return cmd[4:]
+    return cmd
 
 
 @pytest.mark.slow
@@ -502,9 +513,13 @@ class _RequestReadSandbox:
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         self.calls.append(cmd)
         call = framework_directory_call(cmd)
         if call is not None:
@@ -833,9 +848,13 @@ class _RealListingSandbox(_RequestReadSandbox):
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         if cmd[0] == "find":
             self.calls.append(cmd)
             completed = subprocess.run(cmd, capture_output=True, text=True)
@@ -1160,9 +1179,13 @@ class _QueueSandbox:
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         call = framework_directory_call(cmd)
         if call is not None:
             if (target := _tee_target(call)) is not None:
@@ -1300,9 +1323,13 @@ class _DelayedWriteSandbox(_QueueSandbox):
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         call = framework_directory_call(cmd)
         if (
             call is not None
