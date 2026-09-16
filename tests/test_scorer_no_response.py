@@ -14,13 +14,13 @@ from inspect_ai.scorer import Score, answer, exact, f1, includes, match, pattern
 EMPTY = ["", "   ", "\n\t "]
 
 
-def score_once(scorer, completion: str) -> Score:
+def score_once(scorer, completion: str, target: str = "4") -> Score:
     model = get_model(
         "mockllm/model",
         custom_outputs=[ModelOutput.from_content("mockllm/model", completion)],
     )
     task = Task(
-        dataset=[Sample(input="What is 2+2?", target="4")],
+        dataset=[Sample(input="What is 2+2?", target=target)],
         scorer=scorer,
     )
     log = eval(task, model=model, display="none")[0]
@@ -145,3 +145,32 @@ def test_nullable_pattern_on_empty_completion_is_no_response(
     scoring_pattern, completion
 ):
     assert score_once(pattern(scoring_pattern), completion).reason == "no_response"
+
+
+@pytest.mark.parametrize(
+    "name,scorer,target",
+    [
+        # THE CORRECT RETURN, not the incorrect one. str_match_scorer has two
+        # exits and the first version of this change only tagged the second, so
+        # an empty completion that happened to score CORRECT carried no reason.
+        #
+        # match() with a target of "." normalizes that target to empty under
+        # ignore_punctuation, and "".endswith("") is True. includes() with an
+        # empty target is contained in anything. Both grade a completion the
+        # model never produced as CORRECT, which is exactly the state the tag
+        # exists to make visible.
+        ("match, target normalizes to empty", match(), "."),
+        ("includes, empty target", includes(), ""),
+    ],
+)
+@pytest.mark.parametrize("completion", EMPTY)
+def test_empty_completion_scoring_correct_is_still_no_response(
+    name, scorer, target, completion
+):
+    score = score_once(scorer, completion, target=target)
+    # The VALUE is preserved. The accepted scope tags a raw-empty completion
+    # regardless of the score it ended up with, so this stays CORRECT and only
+    # gains a reason. A version that flipped it to INCORRECT would be a scoring
+    # change, which this PR promises not to make.
+    assert score.value == "C"
+    assert score.reason == "no_response"
