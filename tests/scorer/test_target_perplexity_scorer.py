@@ -55,6 +55,22 @@ async def test_uses_num_target_tokens_argument() -> None:
 
 
 @pytest.mark.anyio
+async def test_target_perplexity_overflowing_nll_records_infinite_perplexity() -> None:
+    """An NLL beyond exp()'s range scores with infinite perplexity instead of raising."""
+    lps = [Logprob(token="x", logprob=-10000.0)]
+    state = _state_with_prompt_logprobs(lps)
+    scorer = target_perplexity(num_target_tokens=1)
+
+    result = await scorer(state, Target(["x"]))
+
+    assert result is not None
+    assert result.as_float() == pytest.approx(10000.0)
+    assert result.metadata is not None
+    assert result.metadata["perplexity"] == float("inf")
+    assert "perplexity=inf" in (result.explanation or "")
+
+
+@pytest.mark.anyio
 async def test_uses_num_target_tokens_from_metadata() -> None:
     """num_target_tokens in metadata, no tokenization needed."""
     lps = [
