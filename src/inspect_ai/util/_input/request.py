@@ -33,7 +33,9 @@ async def request_input(
 
     Args:
         message: Prompt shown to the user.
-        schema: ACP `ElicitationSchema` describing the answer fields.
+        schema: ACP `ElicitationSchema` describing the answer fields. Annotated
+            by name only, so `typing.get_type_hints(request_input)` is not
+            supported; see `InputRequest`.
 
     Returns:
         `InputResult` with outcome (accepted / declined / cancelled) and

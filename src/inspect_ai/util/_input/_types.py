@@ -2,8 +2,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    # Deferred: `acp.schema` is the single largest cost of `import inspect_ai`,
-    # so the field below names it as a string; it is not runtime-resolvable.
+    # Deferred: `acp.schema` is the single largest cost of `import inspect_ai`.
     from acp.schema import ElicitationSchema
 
 InputOutcome = Literal["accepted", "declined", "cancelled"]
@@ -18,7 +17,14 @@ Possible values:
 
 @dataclass
 class InputRequest:
-    """A structured question posted to the user via `request_input`."""
+    """A structured question posted to the user via `request_input`.
+
+    The `schema` annotation is a forward reference to
+    `acp.schema.ElicitationSchema` that is never resolved at runtime (the
+    module is imported only when a question is asked), so
+    `typing.get_type_hints(InputRequest)` and pydantic validation or schema
+    generation for `InputRequest` are not supported.
+    """
 
     message: str
     """The prompt shown to the user."""

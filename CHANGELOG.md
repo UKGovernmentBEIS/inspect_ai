@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Faster `inspect` CLI startup and `import inspect_ai`.
+- Faster `inspect` CLI startup and `import inspect_ai`; `InputRequest` and `request_input` now annotate `schema` by name only, so `typing.get_type_hints` and pydantic schema generation for `InputRequest` are unsupported.
 - Review: `human_reviewer()` lets an operator review a tool call together with its result and continue or terminate the sample, on the same surfaces as the human approver.
 - Agents: `react()` accepts `review` policies, which apply to the agent's tool calls in place of any eval-level or task-level reviewers, as `approval` does for approvers.
 - OpenAI-compatible token-counting and compaction endpoints that return 405 are now handled the same as those that return 404.
