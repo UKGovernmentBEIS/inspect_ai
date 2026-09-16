@@ -46,8 +46,9 @@ Goals:
 - Every `call_tool` request produces exactly one `ToolEvent` in the sample
   transcript: executed, denied, or rejected (unknown server or tool,
   arguments that are not a JSON object or nest too deeply).
-- An executed call carries the function name as the model saw it, the
-  bridged server and tool, the arguments as executed, the result as
+- An executed call carries the bridged server and tool (the tool name is
+  the event's `function`), the function name as the model saw it (in
+  `metadata.bridge.function`), the arguments as executed, the result as
   delivered to the scaffold (or the error), start and completion times,
   working time, and a marker that it ran on the host through the bridge.
 - An executed call that consumed a grant carries the proposing
@@ -354,6 +355,22 @@ class _ToolExecutionGrant(NamedTuple):
   executed proposals occupy slots until evicted. #5428's
   `test_opted_out_server_stores_no_grants` inverts accordingly (decision:
   Ransom, 2026-09-15).
+- Pairing limits. Attribution inherits #5428's matching: a grant is
+  identified by (server, tool, JSON-equal arguments) and consumed oldest
+  first, and a scaffold-local call whose name denotes a bridged tool also
+  mints a grant (`register_tool_execution_grants` docstring). Two cases can
+  therefore attach the wrong proposal's `id` and span to an event, while
+  `server`, `tool` and `arguments` on the event stay exact: (1) two
+  proposals in flight for the same tool with identical arguments, whose
+  executions are consumed in proposal order rather than the scaffold's
+  execution order, so their ids may be swapped between two otherwise
+  identical events; (2) a scaffold-local tool with the same name and
+  arguments as a bridged tool, whose call mints a grant that a later host
+  call with the same arguments can consume, taking that call's id. The
+  execution contract already tells eval authors to give bridged tools names
+  unique across servers and distinct from the agent's own tools
+  (`docs/agent-bridge.qmd:244`); with that, case 2 does not arise, and case
+  1 swaps ids only between events that record the same action.
 
 Capturing the proposing event's span, in `bridge_generate`
 (`src/inspect_ai/agent/_bridge/util.py:562`):
@@ -375,6 +392,20 @@ Capturing the proposing event's span, in `bridge_generate`
   closed. With claude_code's `LiveConsumer`, main-agent proposals capture
   `None` (it attributes them to the current span) and sub-agent proposals
   capture `agent-<tool_use_id>`.
+- Lifetime of a captured span. `LiveConsumer` closes `agent-<tool_use_id>`
+  when Claude Code reports the Task's `tool_result`
+  (`live_consumer.py:282-301`), which Claude Code emits only after the
+  sub-agent has finished, so a sub-agent's host calls execute while its
+  span is open. The residual case, a call issued after the span closed, is
+  a retry of an already-executed proposal, which #5428 denies unless the
+  server is exempt. If it does happen, both event trees nest by `span_id`
+  (viewer `transcript/transform/treeify.ts:231`, Python
+  `src/inspect_ai/event/_tree.py:71-89`), so the event still lands in its
+  proposal's span node; only the stream order shows it after the
+  `span_end`. The ACP sub-agent filter classifies by stream order in every
+  case (below), so the stored id does not change what ACP does. A
+  closed-span fallback would need the bridge to track `SpanEndEvent`s
+  through a transcript subscription; not added (see "Not this design").
 
 ### A span parent helper
 
@@ -446,14 +477,14 @@ Control flow, in order:
    with parent_span(grant.span_id if grant else None):
        event = ToolEvent(                                  # stamped with the parent span
            id=grant.call.id if grant else uuid(),          # shortuuid, as for event uuids
-           function=grant.call.function if grant else tool,
+           function=tool,                                  # the registered ToolDef name, always
            arguments=arguments,                            # as executed
            view=grant.call.view if grant else None,
            pending=True,
-           metadata={"bridge": {...}},                     # see below
+           metadata={"bridge": {..., "function": grant.call.function if grant else None}},
        )
        waiting_start = sample_waiting_time()
-       async with span(name=event.function, type="tool"):  # parent = the event's span
+       async with span(name=tool, type="tool"):            # parent = the event's span
            transcript()._event(event)
            with observer.track_tool_call(event.id, event):
                try:
@@ -520,6 +551,15 @@ Compatibility); for evals that configure a limit it also bounds the inline
 copy of the result in the log, which `walk_tool_event` never condenses into
 an attachment.
 
+Condensing long text results into attachments would not bound the log
+instead: attachments are stored in the same log file, and the scaffold's own
+copy of the result, the `ChatMessageTool` it sends back in the next request,
+stays inline text in the message pool (`messages_attachment_fn` handles
+images only, `_condense.py:442-458`), so nothing would deduplicate. The size
+bound for a bridged tool's output is a configured `max_tool_output` or
+`ToolDef.max_output`; without one the event holds one more copy of a result
+the log already carries.
+
 ### Error mapping
 
 The exception-to-`ToolCallError` mapping at `_call_tools.py:220-284` is
@@ -554,8 +594,13 @@ unchanged for every failure that exists today:
 - Unmapped exception: `error=ToolCallError("unknown", str(ex))`,
   `failed=True`; re-raise `ex`. The native path leaves `error=None` here
   because the exception goes on to fail the sample; over the bridge it does
-  not (the service converts it to an RPC error, unchanged by this design),
-  so the message is recorded on the event instead.
+  not today (the service converts it to an RPC error), so the message is
+  recorded on the event instead. Whether an unmapped host tool exception
+  should also fail the sample, as it does natively, is Open question 1; the
+  mechanism exists (`bridge.request_fail(ex)`, `types.py:169-187`, raised
+  into the agent's task group by `_monitor_failure`, `bridge.py:283-294`,
+  while the RPC still answers the scaffold), and the event fields above are
+  the same either way.
 - Operator cancel (`scope.cancel_called`): `error=ToolCallError("timeout",
   "Command timed out before completing.")`, `failed=None`, the contract at
   `_call_tools.py:549-556`; raise `ToolError` with that message. This path
@@ -576,12 +621,23 @@ No new field. `BaseEvent.metadata` (`_base.py:29`) carries:
   "bridge": {
     "server": "calc",
     "tool": "calculator_add",
+    "function": "mcp__calc__calculator_add",
     "grant": "consumed"
   }
 }
 ```
 
 - `server`, `tool`: the `BridgedToolsSpec` name and the tool name within it.
+  `ToolEvent.function` is always `tool`, the registered `ToolDef` name, for
+  every outcome (executed, denied, rejected), so a scanner or dataframe
+  grouping by `function` sees one spelling per host tool, and ACP's
+  kind mapping (`_tool_kind_for(event.function)`) sees the bare name.
+- `function`: the model-facing name the proposing call used, which
+  scaffolds rewrite (Claude Code's `mcp__calc__calculator_add`, OpenCode's
+  `calc_calculator_add`, and so on, per #5428's `_candidate_functions`);
+  `null` when no proposal matched. This is "the function name as the
+  model saw it", kept out of `ToolEvent.function` so the same tool is not
+  recorded under two spellings in one transcript.
 - `grant`: `"consumed"` (a proposal matched: `id` is the proposing call's id
   and the event sits in that proposal's span), `"denied"` (server requires a
   proposal and none matched), `"exempt"` (server registered with
@@ -605,6 +661,10 @@ the `ToolEvent` docstring and in `docs/agent-bridge.qmd`.
   `ModelEvent` whose input carries its result, which is what the viewer's
   per-level pairing (`resolveMessageToEvent.ts:223-236`) and the
   coverage-keyed rules below require.
+- Both consumers that build a tree from the flat event list nest by
+  `span_id` (`treeify.ts:231`, `_tree.py:71-89`), so the placement is
+  what determines where the event appears, independent of where in the
+  stream the service task happened to emit it.
 - Unpaired and single-shot events are placed under the span current in the
   service task: the agent span, or the checkpointer's current
   `checkpoint N` span via the shared `_SpanCell`
@@ -628,7 +688,9 @@ host tool's span. The `ToolEvent` itself carries the tool span's parent.
 That is the native shape verified above, and it renders as native tool
 calls do: the tool panel, then a sibling `tool` span node containing the
 nested events (`transform/transform.ts:196-198`), not as children of the
-panel. The timeline turns a `tool` span that contains model events into a
+panel. A host call with no nested events shows only the panel: the viewer
+drops span nodes with no children (`transform/treeify.ts:344-353`), so no
+extra span row appears for the common case. The timeline turns a `tool` span that contains model events into a
 tool-spawned agent (`transcript/timeline/core.ts:989`), the same
 classification a native tool that generates gets.
 
@@ -714,7 +776,9 @@ actions, and the native path has no switch either.
   card already exists and the real event maps to an update carrying the
   real result. Popping it stops `_map_bridge_tool_completions` from
   settling the same card a second time when the scaffold's `ChatMessageTool`
-  arrives in the next input. Today the ordering would be: synth start,
+  arrives in the next input. The card keeps the title the synthesised start
+  gave it from the model-facing name; the real event's `function` (the
+  registered tool name) only feeds the update's content and kind. Today the ordering would be: synth start,
   update (real event pending), update (real event completed), update
   (message settle); after the change the last update is gone.
 - Unpaired host events (fresh id) map as their own start and update. With
@@ -785,17 +849,19 @@ either way.
 
 ### Outcomes, summarised
 
-| Outcome | `id` | `function` | `error` | `failed` | `metadata.bridge.grant` | RPC/MCP result to scaffold |
+| Outcome | `id` | `metadata.bridge.function` | `error` | `failed` | `metadata.bridge.grant` | RPC/MCP result to scaffold |
 |---|---|---|---|---|---|---|
 | Executed, grant consumed | proposing `ToolCall.id` | as the model saw it | mapped failure or `None` | `True` only for an unmapped exception | `consumed` | unchanged; on failure the original exception text |
-| Executed on an exempt server, no grant | fresh | MCP tool name | as above | as above | `exempt` | unchanged |
+| Executed on an exempt server, no grant | fresh | `null` | as above | as above | `exempt` | unchanged |
 | Executed, string result over a configured output limit | as executed | as executed | `None` | `None` | as executed | **changed**: the native truncation wrapper text; event `truncated=(raw, limit)` |
-| Denied (server requires a proposal, none matched) | fresh | MCP tool name | `permission` | `None` | `denied` | unchanged from #5428 (`PermissionError` text) |
-| Unknown server or tool | fresh | MCP tool name as sent | `parsing` | `None` | `null` | unchanged (`ValueError` text) |
-| Arguments not an object, or nested over 100 deep | fresh | MCP tool name | `parsing` | `None` | `null` | **changed**: `ValueError` text instead of a `TypeError` text or execution |
+| Denied (server requires a proposal, none matched) | fresh | `null` | `permission` | `None` | `denied` | unchanged from #5428 (`PermissionError` text) |
+| Unknown server or tool | fresh | `null` | `parsing` | `None` | `null` | unchanged (`ValueError` text) |
+| Arguments not an object, or nested over 100 deep | fresh | `null` | `parsing` | `None` | `null` | **changed**: `ValueError` text instead of a `TypeError` text or execution |
 | Tool raised `LimitExceededError` | as executed | as executed | `limit` | `None` | as executed | unchanged (limit handling and error text) |
 | Operator cancel | as executed | as executed | `timeout` | `None` | as executed | new: MCP error "Command timed out before completing." |
 | Bridge teardown mid-call | as executed | as executed | `cancelled` | `None` | as executed | none (request abandoned, as today) |
+
+`ToolEvent.function` is the registered tool name in every row.
 
 In ACP a denial is a failed card whose content is the input view plus the
 error message (`src/inspect_ai/agent/_acp/tool_content.py:532-534`); in the
@@ -955,10 +1021,12 @@ at `:24`; install a fresh `Transcript` via `_transcript.set` as the ACP
 tests do, and subscribe a recorder to count emissions):
 
 - Proposed and executed (with and without an approval policy, as #5428's
-  parametrised tests do): the event has the proposing call's id and
-  function, the executed arguments (key order as sent), the result,
-  `metadata.bridge.grant == "consumed"`, `completed` and `working_time`
-  set, `pending is None`.
+  parametrised tests do): the event has the proposing call's id,
+  `function` equal to the registered tool name, `metadata.bridge.function`
+  equal to the model-facing name the proposal used (a `mcp__host__read_file`
+  case proves the two differ), the executed arguments (key order as sent),
+  the result, `metadata.bridge.grant == "consumed"`, `completed` and
+  `working_time` set, `pending is None`.
 - Event tree: run the call inside an outer `span()`; assert the stream is
   `span_begin(tool)`, `tool`, `info`, `span_end`; `ToolEvent.span_id`
   equals the outer span; the tool span's `parent_id` equals the outer span;
@@ -1047,9 +1115,11 @@ Docker (slow), `tests/tools/test_tools_bridge.py`; these run in PR CI's
 
 - Extend `test_sandbox_bridge_executes_proposed_host_tool_call_once`: the
   log has two `tool` events, one with `id == "approved"`, `function ==
-  "calculator_add"`, `arguments == {"y": 3, "x": 5}`, result `"8"`, `grant
-  == "consumed"`, and one denied with a fresh id and `permission` error;
-  both sit in `tool` spans under the same parent as the `ModelEvent`.
+  "calculator_add"`, `metadata.bridge.function == "calculator_add"`,
+  `arguments == {"y": 3, "x": 5}`, result `"8"`, `grant == "consumed"`, and
+  one denied with a fresh id, `function == "calculator_add"` and a
+  `permission` error; both sit in `tool` spans under the same parent as the
+  `ModelEvent`.
 - Extend `test_single_tool_call_returns_correct_result` (an exempt server):
   one `tool` event with a fresh id and `grant == "exempt"`.
 - Extend `test_sandbox_bridge_denies_unproposed_host_tool_call` (both
@@ -1070,11 +1140,30 @@ event, and the next `ModelEvent` whose input carries the result message.
 Assert: the scaffold-run call still renders inline, its result is still
 surfaced, the host call is omitted inline and rendered once as a tool
 panel with an empty child list followed by a sibling `tool` span node
-holding its nested `SandboxEvent`, and navigation from the host result
-message resolves to the host event inside the agent span. A native fixture
-proves no change.
+holding its nested `SandboxEvent` (and, for a second host call with no
+nested events, a panel and no span row), and navigation from the host
+result message resolves to the host event inside the agent span. A native
+fixture proves no change.
 
 ## Implementation plan
+
+Three inspect_ai PRs plus the ts-mono companion. The first two are
+standalone, behaviour-preserving or policy-only changes to shared code that
+review more easily on their own and can merge in any order; the third is
+the design proper and depends on both and on #5428.
+
+**PR A: extract the native error mapping** (`src/inspect_ai/model/_call_tools.py`,
+`tests/tools/test_call_tools.py`). Add `ToolCallFailure` and
+`tool_call_failure`, switch `call_tool_task` to it with no behaviour change,
+add the mapping test.
+
+**PR B: tool result media follow the logging policy**
+(`src/inspect_ai/log/_condense.py`, `tests/log/test_log_attachments.py`,
+`CHANGELOG.md`). Add `walk_tool_result`, call it from `walk_tool_event`,
+add the round-trip tests. Fixes the existing `log_images=False` gap for
+native tool events on its own.
+
+**PR C: record host tool events** (after #5428, PR A and PR B):
 
 1. **Grant record carries the proposal and span**
    (`src/inspect_ai/agent/_bridge/types.py`,
@@ -1088,44 +1177,48 @@ proves no change.
    `_SpanCapturingSink` and the capture in `bridge_generate`, update the
    grant check in `call_tool` to the new return type. Invert
    `test_opted_out_server_stores_no_grants`; add the span-capture tests;
-   confirm the in-process `bridge_generate` tests still pass. Rebase onto
-   `main` once #5428 has merged.
+   confirm the in-process `bridge_generate` tests still pass.
 2. **Span parent helper** (`src/inspect_ai/util/_span.py`, `tests/util/`):
    `parent_span()` with a test that a constructed event and a nested
    `span()` take the given parent and the previous value is restored.
-3. **Extract the native error mapping** (`src/inspect_ai/model/_call_tools.py`,
-   `tests/tools/test_call_tools.py`). Add `ToolCallFailure` and
-   `tool_call_failure`, switch `call_tool_task` to it with no behaviour
-   change, add the mapping test.
-4. **Tool result media follow the logging policy**
-   (`src/inspect_ai/log/_condense.py`, `tests/log/test_log_attachments.py`).
-   Add `walk_tool_result`, call it from `walk_tool_event`, add the round-trip
-   tests.
-5. **Record host tool events** (new
+3. **Record host tool events** (new
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`; `service.py`
    delegates; `src/inspect_ai/event/_tool.py` docstring for
-   `metadata.bridge`; `util.py:365-369` docstring). Includes the output truncation of string
-   results. Unit tests from the Testing section, including the event tree,
-   cancellation counts (direct, outer, and ACP `cancel_current_turn`), RPC
-   text preservation, truncation and trio.
-6. **ACP mapping** (`src/inspect_ai/agent/_acp/event_mapping.py`,
+   `metadata.bridge`; `util.py:365-369` docstring). Includes the argument
+   checks and the output truncation under an explicit limit. Unit tests
+   from the Testing section, including the event tree, cancellation counts
+   (direct, outer, and ACP `cancel_current_turn`), RPC text preservation,
+   truncation and trio.
+4. **ACP mapping** (`src/inspect_ai/agent/_acp/event_mapping.py`,
    `tests/agent/test_acp/test_router_bridge_tools.py`). Pop `pending` in
    `_map_tool_event`, update docstrings, add the three tests.
-7. **Docker tests and docs** (`tests/tools/test_tools_bridge.py`,
+5. **Docker tests and docs** (`tests/tools/test_tools_bridge.py`,
    `docs/agent-bridge.qmd` Transcript section and the bridged-tools section
-   for the argument restriction, `CHANGELOG.md`).
-8. **Viewer companion** (ts-mono PR): coverage-keyed `showToolCalls` and
+   for the argument checks and output limit, `CHANGELOG.md`).
+6. **Viewer companion** (ts-mono PR): coverage-keyed `showToolCalls` and
    tool-message hiding at the timeline level, with the two fixtures. Lands
-   together with the inspect_ai PR through the submodule pointer bump, per
+   together with PR C through the submodule pointer bump, per
    `.agents/skills/land-ts-mono/SKILL.md` (decision: Ransom, 2026-09-15), so
    no release carries host tool events without the viewer rules.
 
-Steps 1 to 7 are one inspect_ai PR (each step a commit); step 8 is the
-coordinated ts-mono PR.
-
 ## Open questions
 
-None outstanding.
+1. **Should an unmapped host tool exception fail the sample?** Natively an
+   exception that is not a `ToolError` or one of the mapped types sets
+   `failed=True` on the event and fails the sample. Over the bridge the
+   service converts every exception into an RPC error and the sample
+   continues, so a bug in a host tool surfaces to the model as tool output
+   and the eval keeps going (`util/_sandbox/service.py:562-581`). This
+   design records `failed=True` and the message but leaves that behaviour
+   alone. Recommendation: fail the sample, for parity and because
+   `failed=True` should mean what it means natively. The mechanism exists:
+   call `bridge.request_fail(ex)` after finalising the event, so
+   `_monitor_failure` raises in the agent's task group while the RPC still
+   answers the scaffold (the pattern `_forward_provider_errors` uses for
+   `ModelRefusalError`, `service.py:59-63`). Error retries then apply as
+   for native failures. The cost is that a bridged eval whose host tool
+   raises intermittently now loses samples where the agent used to carry
+   on, which is the native behaviour those tools would have had anyway.
 
 Decided (Ransom, 2026-09-15): arguments that are not a JSON object or nest
 deeper than the native bound are rejected before execution; a denial is
@@ -1168,7 +1261,10 @@ together with the Python change, as cross-repo PRs normally do.
   time.
 - **A viewer badge** rendering `metadata.bridge` (host execution, denied,
   exempt) on the tool panel.
-- **Host tool exceptions do not fail the sample** (the service converts
-  them to RPC errors); unchanged here, worth a deliberate decision.
+- **A closed-span fallback for captured spans**: tracking `SpanEndEvent`s
+  through a bridge-side transcript subscription so an execution whose
+  proposal's span has since closed is placed under the current span
+  instead. Not needed for the known sink (its sub-agent spans outlive the
+  sub-agent's calls) and both trees nest by `span_id` regardless.
 - **Scaffold-run tool calls** remain without `ToolEvent`s; the
   `in_bridge_model_generate` synthesis in ACP stays for them.
