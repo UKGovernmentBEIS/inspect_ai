@@ -1,0 +1,15 @@
+---
+title: "Inspect Monitors"
+---
+
+## Overview
+
+Inspect Monitors is a package for defining, developing, and deploying monitors: functions that watch agents and intervene in their execution. Key design elements include:
+
+1.  A single interface that encompasses monitoring tool calls and model generations, with execution either before or after steps.
+2.  Monitors report either a suspicion score (for a protocol to threshold and act on) or a direct action similar to the current Inspect tool call approval interface (e.g. continue, modify, reject, escalate, terminate).
+3.  Support for layering control protocols (thresholds, audit budgets, resampling, defer to trusted, human review, etc.) on top of monitors.
+4.  Core interfaces decoupled from the Inspect runtime so that monitors can be deployed elsewhere (e.g. in network proxies).
+5.  Development tools for validating, calibrating, and backtesting monitors on test or production transcripts.
+
+The purpose of this document is to solicit feedback on the core concepts and Python API used to implement monitors and protocols.
