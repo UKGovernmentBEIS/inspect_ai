@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent Bridge: An unexpected exception from a host tool called through `sandbox_agent_bridge(bridged_tools=...)` now fails the sample as a native tool exception does, and malformed arguments are reported to the model as a parsing error.
+
 ## 0.3.265 (17 September 2026)
 
 - Agent Bridge: Bridged host tools are no longer denied under an approval policy when the sandboxed agent presents them to its model under a different name.
