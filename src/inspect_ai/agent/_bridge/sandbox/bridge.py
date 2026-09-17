@@ -202,6 +202,7 @@ async def sandbox_agent_bridge(
                 seen_names.add(spec.name)
                 config = _register_bridged_tools(bridge, spec, port)
                 bridge.mcp_server_configs.append(config)
+            bridge.warn_indistinct_tools()
 
             # sandbox service that receives model requests (and tool calls)
             tg.start_soon(

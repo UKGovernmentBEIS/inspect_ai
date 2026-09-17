@@ -6,8 +6,9 @@ instead, and resolves a rejection by telling the model and regenerating rather
 than by editing the response the scaffold sees.
 """
 
+import logging
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, Iterator
 from unittest.mock import AsyncMock
 
 import pytest
@@ -867,8 +868,12 @@ async def test_schema_shape_tolerates_properties_the_scaffold_added() -> None:
     assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
 
 
-async def test_same_description_and_schema_fails_closed() -> None:
-    """Two bridged tools the served content cannot tell apart: no grant, with a warning."""
+async def test_same_description_and_schema_grants_each_once() -> None:
+    """Two bridged tools the served content cannot tell apart: one grant each.
+
+    Whichever the scaffold's `tools/call` targets runs once with the proposed
+    arguments; a second call to the same tool, or other arguments, is denied.
+    """
     bridge = two_tools_one_description(("path",), ("path",))
 
     bridge.register_tool_execution_grants(
@@ -876,8 +881,74 @@ async def test_same_description_and_schema_fails_closed() -> None:
         declare("read_file"),
     )
 
+    assert not bridge.consume_tool_execution_grant("a", "read_file", {"path": "y"})
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
     assert not bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+
+
+@pytest.fixture
+def capture_bridge_warnings(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
+    """Route the sandbox bridge module's warnings to caplog.
+
+    Attached directly because `init_logger` stops the inspect_ai logger
+    propagating once an earlier test has triggered it.
+    """
+    module_logger = logging.getLogger(SandboxAgentBridge.__module__)
+    module_logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.WARNING, logger=module_logger.name):
+            yield
+    finally:
+        module_logger.removeHandler(caplog.handler)
+
+
+@pytest.mark.usefixtures("capture_bridge_warnings")
+def test_setup_warns_once_naming_every_tool_sharing_a_description(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    bridge = two_tools_one_description(("path",), ("path",))
+
+    bridge.warn_indistinct_tools()
+
+    warnings = [r.getMessage() for r in caplog.records]
+    assert len(warnings) == 1
+    assert "sharing a description" in warnings[0]
+    assert "a/read_file" in warnings[0] and "b/read_file" in warnings[0]
+
+
+@pytest.mark.usefixtures("capture_bridge_warnings")
+def test_setup_warns_about_an_empty_description(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`ToolDef` rejects a missing description, so a whitespace-only one is the empty case."""
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), description=" ")}}
+    )
+
+    bridge.warn_indistinct_tools()
+
+    warnings = [r.getMessage() for r in caplog.records]
+    assert len(warnings) == 1
+    assert "empty description" in warnings[0] and "host/read_file" in warnings[0]
+    assert "will be denied" in warnings[0]
+
+
+@pytest.mark.usefixtures("capture_bridge_warnings")
+def test_setup_is_silent_for_distinct_descriptions(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), "Read from a.")},
+            "b": {"read_file": served_tool(AsyncMock(), "Read from b.")},
+        }
+    )
+
+    bridge.warn_indistinct_tools()
+
+    assert caplog.records == []
 
 
 async def test_description_selects_the_server_whatever_the_name() -> None:
@@ -995,7 +1066,7 @@ async def test_truncation_matching_two_tools_falls_to_the_schema_tiebreaker() ->
     assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
 
 
-async def test_truncation_matching_two_tools_of_one_shape_fails_closed() -> None:
+async def test_truncation_matching_two_tools_of_one_shape_grants_both() -> None:
     bridge = two_tools_sharing_a_prefix(("path",), ("path",))
 
     bridge.register_tool_execution_grants(
@@ -1003,10 +1074,12 @@ async def test_truncation_matching_two_tools_of_one_shape_fails_closed() -> None
         declare("read_file", description=LONG[:2048] + "… [truncated]"),
     )
 
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
     assert len(bridge._tool_execution_grants) == 0
 
 
-async def test_served_description_that_prefixes_another_fails_closed_when_truncated() -> (
+async def test_served_description_that_prefixes_another_grants_both_when_truncated() -> (
     None
 ):
     """A truncation ending exactly at the shorter description could be either tool."""
@@ -1022,7 +1095,8 @@ async def test_served_description_that_prefixes_another_fails_closed_when_trunca
         declare("read_file", description=LONG.rstrip() + "…"),
     )
 
-    assert len(bridge._tool_execution_grants) == 0
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
 
 
 async def test_exact_match_wins_over_a_prefix_match() -> None:

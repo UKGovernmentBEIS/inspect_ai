@@ -123,9 +123,14 @@ class SandboxAgentBridge(AgentBridge):
         schema shape, whatever the scaffold renamed the tool to; failing that, a
         dispatcher call whose arguments name a bridged server and tool
         (Antigravity's shape) denotes that tool. A call that still denotes more
-        than one bridged tool is ambiguous — no grant is registered (fail closed,
-        with a warning). No grant is stored for a server in
-        `proposal_exempt_servers`, since none is needed to execute its tools.
+        than one bridged tool (they share a description the schema shape cannot
+        separate; `warn_indistinct_tools` names them at setup) gets a grant for
+        each of them, all bound to the call's arguments, so the scaffold's
+        `tools/call` to whichever it targets is authorized once; the price, one
+        proposal authorizing one execution of each same-described tool, is
+        bounded by the argument binding and the one-shot rule. No grant is
+        stored for a server in `proposal_exempt_servers`, since none is needed to
+        execute its tools.
 
         A grant is not scoped to the turn it was proposed in: it persists until
         consumed (or evicted, with a warning, once `_MAX_TOOL_EXECUTION_GRANTS`
@@ -141,35 +146,68 @@ class SandboxAgentBridge(AgentBridge):
             targets, arguments = _proposed_call(
                 self.bridged_tools, self._served_tools(), call, declared
             )
-            if not targets:
-                continue
             if len(targets) > 1:
                 warn_once(
                     logger,
-                    f"Tool call '{call.function}' matches more than one "
-                    "bridged tool by served description and schema; no "
-                    "execution grant registered (the call will be denied). "
-                    "Give bridged tools distinct descriptions.",
+                    f"Tool call '{call.function}' denotes several bridged tools "
+                    "sharing a description ("
+                    + ", ".join(f"{t.server}/{t.tool}" for t in targets)
+                    + "); an execution grant was registered for each of them.",
                 )
-                continue
-            target = targets[0]
-            if target.server in self.proposal_exempt_servers:
-                continue
-            if len(self._tool_execution_grants) == self._tool_execution_grants.maxlen:
-                warn_once(
-                    logger,
-                    "Bridged tool execution grants exceeded "
-                    f"{_MAX_TOOL_EXECUTION_GRANTS}; evicting the oldest "
-                    "unconsumed grant. A proposed-but-never-executed call "
-                    "that old can no longer be executed.",
+            for target in targets:
+                if target.server in self.proposal_exempt_servers:
+                    continue
+                if (
+                    len(self._tool_execution_grants)
+                    == self._tool_execution_grants.maxlen
+                ):
+                    warn_once(
+                        logger,
+                        "Bridged tool execution grants exceeded "
+                        f"{_MAX_TOOL_EXECUTION_GRANTS}; evicting the oldest "
+                        "unconsumed grant. A proposed-but-never-executed call "
+                        "that old can no longer be executed.",
+                    )
+                self._tool_execution_grants.append(
+                    _ToolExecutionGrant(
+                        server=target.server,
+                        tool=target.tool,
+                        arguments=to_jsonable_python(arguments, fallback=str),
+                    )
                 )
-            self._tool_execution_grants.append(
-                _ToolExecutionGrant(
-                    server=target.server,
-                    tool=target.tool,
-                    arguments=to_jsonable_python(arguments, fallback=str),
+
+    def warn_indistinct_tools(self) -> None:
+        """Warn the eval author about bridged tools a proposal cannot single out.
+
+        Run once, after every `BridgedToolsSpec` is registered and before the
+        service starts, so the collision is visible at setup rather than at the
+        first call. Two or more bridged tools with the same served description
+        (whitespace-trimmed) are each granted by a proposal for any of them
+        (`register_tool_execution_grants`); a tool whose description is empty once
+        trimmed can never be matched, so its calls are denied unless its server is in
+        `proposal_exempt_servers`.
+        """
+        by_description: dict[str, list[_BridgedToolId]] = {}
+        for tool_id, info in self._served_tools().items():
+            by_description.setdefault(info.description.strip(), []).append(tool_id)
+        for description, tool_ids in by_description.items():
+            names = ", ".join(f"{t.server}/{t.tool}" for t in tool_ids)
+            if not description:
+                exempt = all(t.server in self.proposal_exempt_servers for t in tool_ids)
+                if not exempt:
+                    logger.warning(
+                        f"Bridged tool(s) with an empty description ({names}): a "
+                        "proposed call can never be matched to them, so their "
+                        "calls will be denied unless their server is registered "
+                        "with BridgedToolsSpec(require_proposal=False). Give them "
+                        "a docstring."
+                    )
+            elif len(tool_ids) > 1:
+                logger.warning(
+                    f"Bridged tools sharing a description ({names}): a proposal "
+                    "for one of them grants each of them one execution. Give "
+                    "them distinct docstrings to restore one-to-one matching."
                 )
-            )
 
     def _served_tools(self) -> dict["_BridgedToolId", ToolInfo]:
         """What `list_tools` served the scaffold for each bridged tool, memoized.
@@ -306,10 +344,9 @@ def _resolve_by_served_content(
     the model sees it. When several bridged tools match, the input schema breaks
     the tie, conservatively: scaffolds do rewrite schemas, so only property and
     required names are compared, as a subset (`_same_schema_shape`). Tools that
-    still cannot be told apart are all returned, and the caller fails closed on
-    more than one. An exact match wins even when that description is a prefix
-    of another bridged tool's; the one cost of the truncation rule is that a
-    truncated declaration which could refer to both is ambiguous.
+    still cannot be told apart are all returned, and the caller grants each. An
+    exact match wins even when that description is a prefix of another bridged
+    tool's; a truncated declaration which could refer to both denotes both.
     """
     targets: list[_BridgedToolId] = []
     for declaration in declarations:
