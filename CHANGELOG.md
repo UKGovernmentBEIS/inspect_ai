@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.265 (17 September 2026)
 
 - Agent Bridge: Bridged host tools are no longer denied under an approval policy when the sandboxed agent presents them to its model under a different name.
 
