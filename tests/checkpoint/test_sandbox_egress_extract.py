@@ -16,18 +16,21 @@ from __future__ import annotations
 import errno
 import hashlib
 import io
+import json
+import re
 import sqlite3
 import tarfile
 import tracemalloc
 from collections.abc import Collection, Sequence
 from pathlib import Path
-from typing import IO
+from typing import IO, Any
 from unittest.mock import patch
 
 import anyio
 import pytest
 
 from inspect_ai.util._checkpoint._sandbox_restic.egress import (
+    _MIN_SNAPSHOT_FILE_BYTES,
     EgressVerificationError,
     _build_validation_view,
     _check_index_containment,
@@ -36,6 +39,7 @@ from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     _IndexCoverage,
     _IndexMemo,
     _merge_into_repo,
+    _parse_index_json,
     _publish_into,
     _remove_files,
 )
@@ -97,7 +101,7 @@ def _extract(
 
 PACK = b"pack bytes " * 100
 INDEX = b"index bytes"
-SNAP = b"snapshot bytes"
+SNAP = b"snapshot bytes, long enough to be a ciphertext"
 PACK_NAME = _data_name(PACK)
 INDEX_NAME = f"index/{_blob(INDEX)}"
 SNAP_NAME = f"snapshots/{_blob(SNAP)}"
@@ -137,6 +141,27 @@ def test_config_and_keys_accepted_only_on_first_cycle(tmp_path: Path) -> None:
         with pytest.raises(EgressVerificationError, match="uninitialized"):
             _extract(tar, later, ["config", key_name], first_cycle=False)
     assert _files(later) == set()
+
+
+def test_rejects_snapshot_file_shorter_than_a_ciphertext(tmp_path: Path) -> None:
+    """A snapshot member below restic's nonce-plus-MAC size never reaches staging.
+
+    Such a file can never load, and restic 0.18.1 panics on one shorter than
+    its nonce instead of skipping it, which would wedge every later listing.
+    """
+    assert len(SNAP) >= _MIN_SNAPSHOT_FILE_BYTES
+    short = b"x" * (_MIN_SNAPSHOT_FILE_BYTES - 1)
+    name = f"snapshots/{_blob(short)}"
+    dest = _dest(tmp_path)
+    tar = _tar(tmp_path, _file(PACK_NAME, PACK), _file(name, short))
+    with pytest.raises(EgressVerificationError, match="shorter than restic"):
+        _extract(tar, dest, [PACK_NAME, name])
+    assert _files(dest) == set()
+    # A pack that short is fine: only snapshot files are floored.
+    tiny_pack = b"p" * 4
+    tiny_name = f"data/{_blob(tiny_pack)[:2]}/{_blob(tiny_pack)}"
+    tar = _tar(tmp_path, _file(tiny_name, tiny_pack))
+    assert _extract(tar, dest, [tiny_name]) == [tiny_name]
 
 
 def test_rejects_member_not_in_diff_list(tmp_path: Path) -> None:
@@ -193,7 +218,9 @@ def test_rejects_reship_of_existing_file_with_different_content(
     existing = dest / SNAP_NAME
     existing.parent.mkdir(parents=True)
     existing.write_bytes(SNAP)
-    tar = _tar(tmp_path, _file(SNAP_NAME, b"different bytes"))
+    tar = _tar(
+        tmp_path, _file(SNAP_NAME, b"different bytes, long enough to be a ciphertext")
+    )
 
     with pytest.raises(EgressVerificationError, match="different content"):
         _extract(tar, dest, [SNAP_NAME], existing={SNAP_NAME})
@@ -777,7 +804,7 @@ def test_index_containment_allows_own_packs_and_unindexed_residue() -> None:
     coverage = {
         "i1": _IndexCoverage(packs=["p_new", "p_residue"], blobs=["data:b1", "tree:t1"])
     }
-    residue = _check_index_containment(
+    _check_index_containment(
         coverage,
         new_pack_ids={"p_new"},
         accepted_packs={"p_residue", "p_other_residue", "p_indexed"},
@@ -785,7 +812,6 @@ def test_index_containment_allows_own_packs_and_unindexed_residue() -> None:
         accepted_blobs={"data:old"},
         label="t",
     )
-    assert residue == {"p_residue"}  # only what the index actually uses
 
 
 def test_index_containment_rejects_pack_outside_the_transfer() -> None:
@@ -815,6 +841,110 @@ def test_index_containment_rejects_remapped_blob() -> None:
             accepted_blobs={"data:old"},
             label="t",
         )
+
+
+_HEX_A = "a" * 64
+_HEX_B = "b" * 64
+_HONEST_INDEX = {
+    "packs": [
+        {
+            "id": _HEX_A,
+            "blobs": [
+                {"id": _HEX_B, "type": "data", "offset": 0, "length": 10},
+                {
+                    "id": "c" * 64,
+                    "type": "tree",
+                    "offset": 10,
+                    "length": 20,
+                    "uncompressed_length": 30,
+                },
+            ],
+        }
+    ]
+}
+
+
+def _index_with(**changes: Any) -> bytes:
+    """A restic-shaped index with one change applied at the named path."""
+    obj: Any = json.loads(json.dumps(_HONEST_INDEX))
+    for path, value in changes.items():
+        target = obj
+        keys = path.split("__")
+        for key in keys[:-1]:
+            target = target[int(key)] if isinstance(target, list) else target[key]
+        last = keys[-1]
+        if value is _DELETE:
+            del target[last]
+        elif isinstance(target, list):
+            target[int(last)] = value
+        else:
+            target[last] = value
+    return json.dumps(obj).encode()
+
+
+_DELETE = object()
+
+
+def test_strict_index_parser_accepts_restic_shape() -> None:
+    """The exact shape restic 0.18.1 writes parses to its packs and blobs."""
+    coverage = _parse_index_json(
+        json.dumps(_HONEST_INDEX).encode(), index_id="i" * 64, label="t"
+    )
+    assert coverage.packs == [_HEX_A]
+    assert coverage.blobs == [f"data:{_HEX_B}", "tree:" + "c" * 64]
+    # `supersedes` is accepted (restic ignores it); a repeated pack id is
+    # tolerated, as restic tolerates it.
+    obj = json.loads(json.dumps(_HONEST_INDEX))
+    obj["supersedes"] = ["d" * 64]
+    obj["packs"].append(obj["packs"][0])
+    coverage = _parse_index_json(json.dumps(obj).encode(), index_id="i" * 64, label="t")
+    assert coverage.packs == [_HEX_A, _HEX_A]
+    # No packs at all loads (restic: an empty index).
+    assert _parse_index_json(b'{"packs": []}', index_id="i" * 64, label="t") == (
+        [],
+        [],
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw", "why"),
+    [
+        (b"not json", "not JSON"),
+        (b"[]", "v1 index format"),
+        (json.dumps([{"id": _HEX_A, "blobs": []}]).encode(), "v1 index format"),
+        (b'{"packs": null}', "'packs' is missing or not a list"),
+        (b"{}", "'packs' is missing or not a list"),
+        (_index_with(extra=1), "unknown top-level field"),
+        (_index_with(supersedes="x"), "'supersedes' is not a list"),
+        (_index_with(supersedes=["x"]), "'supersedes' entry is not a 64-digit"),
+        (_index_with(packs__0__extra=1), "unknown pack field"),
+        (_index_with(packs__0__id=_DELETE), "pack id is not a 64-digit"),
+        (_index_with(packs__0__id=_HEX_A.upper()), "pack id is not a 64-digit"),
+        (_index_with(packs__0__id=_HEX_A[:63]), "pack id is not a 64-digit"),
+        (_index_with(packs__0__blobs=None), "'blobs' is missing or not a list"),
+        (_index_with(packs__0__blobs__0="x"), "a blob is not an object"),
+        (_index_with(packs__0__blobs__0__extra=1), "unknown blob field"),
+        (_index_with(packs__0__blobs__0__type="Data"), "not 'data' or 'tree'"),
+        (_index_with(packs__0__blobs__0__type=_DELETE), "not 'data' or 'tree'"),
+        (_index_with(packs__0__blobs__0__id=_HEX_B.upper()), "blob id is not a 64"),
+        (_index_with(packs__0__blobs__0__id="zz" * 32), "blob id is not a 64"),
+        (_index_with(packs__0__blobs__0__offset=-1), "offset is outside"),
+        (_index_with(packs__0__blobs__0__offset=2**32), "offset is outside"),
+        (_index_with(packs__0__blobs__0__offset=1.5), "offset is not an integer"),
+        (_index_with(packs__0__blobs__0__offset=True), "offset is not an integer"),
+        (_index_with(packs__0__blobs__0__offset=None), "offset is not an integer"),
+        (_index_with(packs__0__blobs__0__length=_DELETE), "length is not an integer"),
+        (_index_with(packs__0__blobs__0__length="10"), "length is not an integer"),
+        (
+            _index_with(packs__0__blobs__1__uncompressed_length=2**32),
+            "uncompressed_length is outside",
+        ),
+    ],
+)
+def test_strict_index_parser_fails_closed(raw: bytes, why: str) -> None:
+    """Every departure from restic's index shape rejects the transfer."""
+    with pytest.raises(EgressVerificationError, match=re.escape(why)):
+        _parse_index_json(raw, index_id="i" * 64, label="t")
 
 
 def test_index_memo_path_is_outside_the_sandbox_namespace(tmp_path: Path) -> None:

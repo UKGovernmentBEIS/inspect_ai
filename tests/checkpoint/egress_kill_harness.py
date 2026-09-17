@@ -8,7 +8,7 @@ It builds a real per-sandbox restic repo pair (``LocalShellSandbox`` + the
 real restic binary, no Docker), commits checkpoint A, then runs checkpoint
 B's egress with a hook that ``SIGKILL``s this process at ``<boundary>``:
 
-- ``validation``      — during ``restic check``/``ls`` of the view, before any
+- ``validation``      — during ``restic cat index`` on the view, before any
   file is merged into the accepted repo.
 - ``after_packs``     — after the packs are linked, before indexes.
 - ``after_indexes``   — after the indexes are linked, before snapshots.

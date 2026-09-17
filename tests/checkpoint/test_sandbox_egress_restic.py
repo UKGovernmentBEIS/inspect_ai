@@ -28,7 +28,6 @@ import errno
 import hashlib
 import json
 import os
-import random
 import re
 import shutil
 import signal
@@ -61,11 +60,13 @@ from inspect_ai.util._checkpoint._restore_scope import (
 )
 from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     _MAX_VIEW_STDERR_BYTES,
+    _MIN_SNAPSHOT_FILE_BYTES,
     EgressVerificationError,
     _EgressBuild,
     _index_memo_path,
     _IndexCoverage,
     _IndexMemo,
+    _parse_index_json,
     _run_view_restic,
     _write_member,
     egress_sandbox,
@@ -189,9 +190,8 @@ def _plant_conflicting_index(
     alongside it, in the in-sandbox ``repo``.
     This models one addition an agent that holds the repo key can ship: it
     passes ``restic check`` *without* ``--read-data`` and ``restic ls`` (both
-    accept it), so only the ``--read-data`` content read catches it (the
-    garbage pack fails decryption). Returns the (pack, index) repo-relative
-    names.
+    accept it) — the egress rejects it by the containment rule, because it
+    locates an accepted blob. Returns the (pack, index) repo-relative names.
     """
     crypto = _ResticCrypto(repo, password)
     blob = crypto.a_data_blob(
@@ -200,7 +200,7 @@ def _plant_conflicting_index(
     # A garbage pack sized to satisfy restic's pack-size arithmetic (36-byte
     # header/trailer + blob length + a per-blob index entry: 41 bytes for a
     # compressed v2 blob, 37 otherwise), so `check` without `--read-data`
-    # passes and only the content read rejects it.
+    # passes.
     compressed = "uncompressed_length" in blob
     entry = 41 if compressed else 37
     garbage = os.urandom(blob["length"] + 36 + entry)
@@ -234,8 +234,7 @@ def _understate_blob_lengths(
     out using the understated length, so a *multi-blob* file comes out shorter
     than it was (understating the sole blob of a single-blob file has no size
     effect, since nothing follows it); plain ``restic check`` and ``restic ls``
-    accept the repo, and only ``check --read-data`` (which decompresses each
-    blob) rejects it. Understating every blob (rather than one) makes the short
+    accept the repo. Understating every blob (rather than one) makes the short
     restore deterministic regardless of which blob the content-defined chunker
     made last. The returned count lets a caller assert its input really is
     multi-blob.
@@ -589,12 +588,12 @@ async def test_egress_rejects_index_that_remaps_an_accepted_blob(
 ) -> None:
     """A new index locating a blob an accepted index already locates is refused.
 
-    The addition passes ``restic check`` *without* ``--read-data`` and
-    ``restic ls`` (asserted here on the sandbox repo), and its garbage pack
-    would also fail the content read — but the containment rule rejects it
-    first, without reading anything: remapping an earlier blob is exactly
-    how a later transfer could change what an earlier snapshot restores to,
-    and an honest ``restic backup`` never does it.
+    The addition passes ``restic check`` (without ``--read-data``) and
+    ``restic ls``; the containment rule rejects it without reading a pack:
+    remapping an earlier blob is exactly how a later transfer could change
+    what an earlier snapshot restores to, and an honest ``restic backup``
+    never does it. The same shape aimed at a *new* blob id is accepted
+    (:func:`test_egress_accepts_garbage_pack_under_a_new_blob_id`).
     """
     pytest.importorskip("cryptography")
     id1 = repos.backup("ckpt-00001")
@@ -609,25 +608,6 @@ async def test_egress_rejects_index_that_remaps_an_accepted_blob(
     ]
     _plant_conflicting_index(repos.repo, index_names=accepted_indexes)
 
-    # The load-bearing property: plain `check` accepts the poisoned repo,
-    # only `--read-data` rejects it — so the fix's check flag matters.
-    env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
-    base = [str(repos.restic), "-r", str(repos.repo)]
-    assert (
-        subprocess.run(
-            [*base, "check", "--no-lock", "--no-cache"], env=env, capture_output=True
-        ).returncode
-        == 0
-    )
-    assert (
-        subprocess.run(
-            [*base, "check", "--read-data", "--no-lock", "--no-cache"],
-            env=env,
-            capture_output=True,
-        ).returncode
-        != 0
-    )
-
     with pytest.raises(EgressVerificationError, match="already locates"):
         await repos.egress("ckpt-00002", id2)
 
@@ -638,22 +618,23 @@ async def test_egress_rejects_index_that_remaps_an_accepted_blob(
     assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
 
 
-async def test_egress_rejects_garbage_pack_under_a_new_blob_id(
+async def test_egress_accepts_garbage_pack_under_a_new_blob_id(
     repos: _Repos,
 ) -> None:
-    """A garbage pack that passes containment is rejected by the content read.
+    """A garbage pack under a *new* blob id is the sandbox's own problem.
 
-    A forged index that locates a *new* blob id in a size-matched garbage
-    pack references only this transfer's packs and remaps nothing, so the
-    containment rule lets it through; ``restic check`` (no ``--read-data``)
-    also accepts it. ``check --read-data`` on the increment view decrypts
-    the pack and rejects it — the load-bearing step for the sandbox's own
-    new bytes.
+    A forged index that locates a new blob id in a size-matched garbage pack
+    references only this transfer's packs and remaps nothing, so containment
+    lets it through and nothing reads the pack: with every earlier blob
+    still located where its own accepted index put it, the garbage can harm
+    only a snapshot that references that new id — the sandbox's own capture,
+    which this design does not authenticate. The earlier checkpoint restores
+    unchanged. The same shape aimed at an accepted blob id is rejected
+    (:func:`test_egress_rejects_index_that_remaps_an_accepted_blob`).
     """
     pytest.importorskip("cryptography")
     id1 = repos.backup("ckpt-00001")
     await repos.egress("ckpt-00001", id1)
-    files_after_1 = repos.dest_files()
     (repos.src / "notes.txt").write_text("v2\n")
     id2 = repos.backup("ckpt-00002")
     crypto = _ResticCrypto(repos.repo)
@@ -661,7 +642,7 @@ async def test_egress_rejects_garbage_pack_under_a_new_blob_id(
     garbage = os.urandom(length + 36 + 41)
     pack_name = hashlib.sha256(garbage).hexdigest()
     repos.plant_in_sandbox_repo(f"data/{pack_name[:2]}/{pack_name}", garbage)
-    crypto.write_index(
+    forged = crypto.write_index(
         {
             "packs": [
                 {
@@ -680,11 +661,14 @@ async def test_egress_rejects_garbage_pack_under_a_new_blob_id(
         }
     )
 
-    with pytest.raises(EgressVerificationError, match="content check"):
-        await repos.egress("ckpt-00002", id2)
+    assert await repos.egress("ckpt-00002", id2) == id2
 
-    assert repos.dest_files() == files_after_1
-    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"], id2: ["ckpt-00002"]}
+    assert forged in repos.dest_files()
+    for snapshot_id, expected in ((id1, "v1\n"), (id2, "v2\n")):
+        restored = repos.dest.parent.parent / f"restore-{snapshot_id[:8]}"
+        repos.restore_dest(snapshot_id, restored)
+        assert next(restored.rglob("notes.txt")).read_text() == expected
 
 
 async def test_egress_rejects_new_key_after_first_cycle(repos: _Repos) -> None:
@@ -705,25 +689,121 @@ async def test_egress_rejects_new_key_after_first_cycle(repos: _Repos) -> None:
 
 
 async def test_egress_rejects_malformed_snapshot_file(repos: _Repos) -> None:
-    """A hash-named snapshot file that does not decode never reaches the repo.
+    """A hash-named snapshot file that does not load is unwound after publish.
 
-    Left in the accepted repo it would make every snapshot listing warn and
-    skip it (and ``check`` fail); each new snapshot file is decoded on the
-    view first.
+    Nothing decodes a new snapshot file before publish (restic skips one it
+    cannot load, so it can harm only its own checkpoint), but the accepted
+    repo's listing afterwards does not show it, which fails "the destination
+    gained exactly the shipped snapshots" and removes this fire's files.
     """
     id1 = repos.backup("ckpt-00001")
     await repos.egress("ckpt-00001", id1)
     files_after_1 = repos.dest_files()
     (repos.src / "notes.txt").write_text("v2\n")
     id2 = repos.backup("ckpt-00002")
-    bad = b"not a snapshot"
+    bad = os.urandom(100)
     repos.plant_in_sandbox_repo(f"snapshots/{hashlib.sha256(bad).hexdigest()}", bad)
 
-    with pytest.raises(EgressVerificationError, match="decoding snapshot"):
+    with pytest.raises(EgressVerificationError, match="destination gained snapshot"):
         await repos.egress("ckpt-00002", id2)
 
     assert repos.dest_files() == files_after_1
     assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+
+
+async def test_egress_refuses_snapshot_file_shorter_than_a_ciphertext(
+    repos: _Repos,
+) -> None:
+    """A snapshot file too short to be a ciphertext is refused at extraction.
+
+    restic 0.18.1 panics (exit 2) in ``LoadUnpacked`` on a snapshot file
+    shorter than its 16-byte nonce instead of skipping it, so such a file
+    left in the accepted repo would fail every later listing; the floor
+    keeps it from ever being published. Asserted against the real binary so
+    a restic fix or regression shows up here.
+    """
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    files_after_1 = repos.dest_files()
+    short = b"not a snapshot"
+    assert len(short) < 16
+    name = hashlib.sha256(short).hexdigest()
+    (repos.dest / "snapshots" / name).write_bytes(short)
+    env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
+    crashed = subprocess.run(
+        [str(repos.restic), "-r", str(repos.dest), "snapshots", "--json", "--no-lock"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert crashed.returncode == 2 and "panic" in crashed.stderr
+    (repos.dest / "snapshots" / name).unlink()
+
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    repos.plant_in_sandbox_repo(f"snapshots/{name}", short)
+    with pytest.raises(EgressVerificationError, match="shorter than restic"):
+        await repos.egress("ckpt-00002", id2)
+    assert repos.dest_files() == files_after_1
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+
+
+async def test_unloadable_snapshot_file_in_accepted_repo_is_inert(
+    repos: _Repos,
+) -> None:
+    """What a hard kill between publish and unwind can leave behind is inert.
+
+    Verifies against restic 0.18.1 that an undecodable ``snapshots/<hash>``
+    of at least the size floor beside a good snapshot is skipped with a
+    warning: ``snapshots --json``, ``ls`` and ``restore`` of the good one all
+    still work. The next fire's before/after arithmetic is file-based, so
+    the file is in "before" and absent from the listing and produces no
+    false positive; it is left in place (documented residual), not swept.
+    """
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    bad = os.urandom(_MIN_SNAPSHOT_FILE_BYTES)
+    inert = repos.dest / "snapshots" / hashlib.sha256(bad).hexdigest()
+    inert.write_bytes(bad)
+
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+    env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
+    listed = subprocess.run(
+        [str(repos.restic), "-r", str(repos.dest), "ls", id1, "--no-lock"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert listed.returncode == 0 and "notes.txt" in listed.stdout
+    restored = repos.dest.parent.parent / "restore-A"
+    repos.restore_dest(id1, restored)
+    assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
+
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    assert await repos.egress("ckpt-00002", id2) == id2
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"], id2: ["ckpt-00002"]}
+    assert inert.is_file()
+
+
+async def test_strict_index_parser_accepts_a_restic_produced_index(
+    repos: _Repos,
+) -> None:
+    """Every index restic 0.18.1 writes passes the fail-closed host parser.
+
+    A restic upgrade that adds an index field would fail here first.
+    """
+    (repos.src / "big.txt").write_text("compressible " * 40_000)
+    repos.backup("ckpt-00001")
+    names = sorted(os.listdir(repos.repo / "index"))
+    assert names
+    for name in names:
+        coverage = _parse_index_json(
+            repos._run("cat", "index", name).encode(), index_id=name, label="t"
+        )
+        assert coverage.packs and coverage.blobs
+        for pack in coverage.packs:
+            assert (repos.repo / "data" / pack[:2] / pack).is_file()
 
 
 async def test_index_memo_heals_from_repo_index_files(repos: _Repos) -> None:
@@ -796,121 +876,79 @@ async def test_two_sandboxes_with_colliding_names_keep_separate_memos(
         assert not (repo / "index-memos").exists()
 
 
-async def test_read_data_check_is_required_for_a_blob_length_lie(
-    tmp_path: Path,
-) -> None:
-    """`check --read-data` rejects a blob-length lie that plain check accepts.
+async def test_egress_accepts_understated_length_on_new_blobs(repos: _Repos) -> None:
+    """A length lie on the sandbox's *own new* blobs is accepted and confined.
 
-    Establishes the restic 0.18.1 behaviour the egress validation depends on,
-    and answers "is `--read-data` load-bearing?". For a multi-blob file, an
-    index that understates the data blobs' recorded uncompressed lengths keeps
-    the packs' sizes and bytes valid, so `restic check` (no `--read-data`) and
-    `restic ls` both report no error, and a restore *succeeds* — but yields
-    the wrong bytes, because restic lays each blob out at the understated
-    length. Only `check --read-data`, which decompresses every blob and checks
-    its length, rejects it. This is the conflicting-mapping case content
-    addressing alone does not stop, so the validation must read pack data, not
-    merely list and structurally check.
-    """
-    pytest.importorskip("cryptography")
-    restic = await resolve_restic()
-    repo = tmp_path / "repo"
-    src = tmp_path / "src"
-    src.mkdir()
-    # 24 MiB of deterministic pseudo-random bytes. Restic's chunker caps a
-    # chunk at 8 MiB, so a file this size is always split into several data
-    # blobs (asserted below via the understated count) — the condition under
-    # which the length lie shortens the restore.
-    size = 24 * 1024 * 1024
-    payload = random.Random(496).randbytes(size)
-    (src / "big.bin").write_bytes(payload)
-    env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
-
-    def run(*args: str, ok: bool = True) -> subprocess.CompletedProcess[str]:
-        proc = subprocess.run(
-            [str(restic), "-r", str(repo), *args],
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-        if ok:
-            assert proc.returncode == 0, proc.stderr
-        return proc
-
-    run("init", "-q")
-    snap = ResticBackupSummary.from_stdout(
-        run("backup", str(src), "--json", "--quiet").stdout
-    ).snapshot_id
-    understated = _understate_blob_lengths(repo, sorted(os.listdir(repo / "index")))
-    assert understated >= 2, f"expected a multi-blob file, understated {understated}"
-
-    # Plain check and ls accept the lie.
-    assert run("check", "--no-lock", "--no-cache", ok=False).returncode == 0
-    assert run("ls", snap, "--no-lock", "--no-cache", ok=False).returncode == 0
-    # Restore succeeds at exit 0 but silently yields the wrong bytes: the
-    # blobs land at understated offsets, so the file is either short (where
-    # the filesystem does not preallocate, e.g. APFS) or padded to its
-    # recorded size with the tail wrong (where restic preallocates, e.g.
-    # ext4). Assert on content, which is platform-independent.
-    out = tmp_path / "restored"
-    run("restore", snap, "--target", str(out), "--no-lock", "--no-cache")
-    assert next(out.rglob("big.bin")).read_bytes() != payload
-    # Only --read-data rejects it.
-    assert run("check", "--read-data", "--no-lock", "--no-cache", ok=False).returncode
-
-
-async def test_egress_rejects_understated_blob_length(repos: _Repos) -> None:
-    """A later fire whose index understates a blob's length is rejected.
-
-    The realizable form of the length-lie attack through the egress protocol:
-    fire 2's own new index understates one of its new blobs, so no honest
-    duplicate for that blob reaches the host. The addition passes `restic
-    check` (no --read-data) and `restic ls`; the egress validation's
-    `check --read-data` rejects it, so the accepted repo and the earlier
-    checkpoint are untouched.
+    Fire 2 ships a multi-blob file whose index understates each new data
+    blob's recorded plaintext length. Plain ``restic check`` and ``ls``
+    accept it, and so does the egress: the lying index references only
+    this transfer's packs and remaps nothing, so containment holds and the
+    new packs are not read. The harm is confined to fire 2's own snapshot,
+    which restores with the wrong bytes (restic lays each blob out at the
+    understated length; verified against 0.18.1) — indistinguishable from
+    an honest sandbox with a wrecked filesystem, and not something this
+    design authenticates — while fire 1's snapshot restores unchanged.
     """
     pytest.importorskip("cryptography")
     id1 = repos.backup("ckpt-00001")
     await repos.egress("ckpt-00001", id1)
-    files_after_1 = repos.dest_files()
-    # Compressible payload so fire 2's data blob is stored compressed and
-    # carries an `uncompressed_length` to understate.
-    (repos.src / "notes.txt").write_text("compressible " * 40_000)
+    # 24 MiB of compressible text: restic's chunker caps a chunk at 8 MiB,
+    # so the file spans several data blobs (asserted below), each stored
+    # compressed and so carrying an `uncompressed_length` to understate.
+    payload = "".join(f"line {i}\n" for i in range(3_000_000))
+    (repos.src / "big.txt").write_text(payload)
     id2 = repos.backup("ckpt-00002")
     new_indexes = [
         f.split("/", 1)[1]
         for f in repos.repo_files()
         if f.startswith("index/") and f not in repos.manifest()
     ]
-    _understate_blob_lengths(repos.repo, sorted(new_indexes))
+    understated = _understate_blob_lengths(repos.repo, sorted(new_indexes))
+    assert understated >= 2, f"expected a multi-blob file, understated {understated}"
 
-    # Load-bearing: plain check accepts the poisoned repo, only --read-data
-    # rejects it.
-    env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
-    base = [str(repos.restic), "-r", str(repos.repo)]
-    assert (
-        subprocess.run(
-            [*base, "check", "--no-lock", "--no-cache"], env=env, capture_output=True
-        ).returncode
-        == 0
-    )
-    assert (
-        subprocess.run(
-            [*base, "check", "--read-data", "--no-lock", "--no-cache"],
-            env=env,
-            capture_output=True,
-        ).returncode
-        != 0
-    )
+    assert await repos.egress("ckpt-00002", id2) == id2
 
-    with pytest.raises(EgressVerificationError, match="content check"):
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"], id2: ["ckpt-00002"]}
+    restored_1 = repos.dest.parent.parent / "restore-A"
+    repos.restore_dest(id1, restored_1)
+    assert next(restored_1.rglob("notes.txt")).read_text() == "v1\n"
+    restored_2 = repos.dest.parent.parent / "restore-B"
+    repos.restore_dest(id2, restored_2)
+    assert next(restored_2.rglob("big.txt")).read_text() != payload
+
+
+async def test_egress_rejects_understated_length_on_an_accepted_blob(
+    repos: _Repos,
+) -> None:
+    """A length lie aimed at an *accepted* blob is a reach into history: refused.
+
+    Fire 2 ships an index that re-describes fire 1's data blob with an
+    understated length. It references an accepted pack an accepted index
+    already covers and locates an accepted blob, so containment rejects it
+    before anything is published, and fire 1 restores unchanged.
+    """
+    pytest.importorskip("cryptography")
+    (repos.src / "notes.txt").write_text("compressible " * 40_000)
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    files_after_1 = repos.dest_files()
+    accepted_indexes = sorted(
+        f.split("/", 1)[1] for f in files_after_1 if f.startswith("index/")
+    )
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    _understate_blob_lengths(repos.repo, accepted_indexes)
+
+    with pytest.raises(
+        EgressVerificationError, match="neither in this transfer|already locates"
+    ):
         await repos.egress("ckpt-00002", id2)
 
     assert repos.dest_files() == files_after_1
     assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
     restored = repos.dest.parent.parent / "restore-A"
     repos.restore_dest(id1, restored)
-    assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
+    assert next(restored.rglob("notes.txt")).read_text() == "compressible " * 40_000
 
 
 async def test_egress_rejects_index_referencing_missing_pack(repos: _Repos) -> None:
@@ -918,8 +956,9 @@ async def test_egress_rejects_index_referencing_missing_pack(repos: _Repos) -> N
 
     A real fire's data pack is dropped from the sandbox repo after the
     backup, so the egress ships the index and snapshot that reference it
-    but not the pack itself. The view then has an index pointing at a pack
-    that does not exist; validation rejects it.
+    but not the pack itself. The pack is neither in this transfer nor an
+    accepted pack, so the containment rule — the only thing that enforces
+    the pack half now that nothing reads the packs — rejects it.
     """
     id1 = repos.backup("ckpt-00001")
     await repos.egress("ckpt-00001", id1)
@@ -933,7 +972,7 @@ async def test_egress_rejects_index_referencing_missing_pack(repos: _Repos) -> N
     for pack in new_packs:
         (repos.repo / pack).unlink()
 
-    with pytest.raises(EgressVerificationError, match="failed validation"):
+    with pytest.raises(EgressVerificationError, match="neither in this transfer"):
         await repos.egress("ckpt-00002", id2)
 
     assert repos.dest_files() == files_after_1
@@ -1350,11 +1389,11 @@ async def test_view_restic_bounds_attacker_shaped_stderr(tmp_path: Path) -> None
         with pytest.raises(EgressVerificationError, match="stderr truncated") as info:
             await _run_view_restic(
                 restic,
-                ["check", "--read-data"],
+                ["cat", "index", "x"],
                 tmp_path / "view",
                 PASSWORD,
                 label="egress",
-                what="content check",
+                what="decoding index",
             )
         _, peak = tracemalloc.get_traced_memory()
     finally:
@@ -1370,7 +1409,12 @@ async def test_view_restic_kills_child_on_cancellation(tmp_path: Path) -> None:
 
     async def run() -> None:
         await _run_view_restic(
-            restic, ["check"], tmp_path / "view", PASSWORD, label="egress", what="x"
+            restic,
+            ["cat", "index", "x"],
+            tmp_path / "view",
+            PASSWORD,
+            label="egress",
+            what="x",
         )
 
     async with anyio.create_task_group() as tg:
