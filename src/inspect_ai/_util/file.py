@@ -7,6 +7,7 @@ import re
 import string
 import tempfile
 import unicodedata
+import weakref
 from contextlib import contextmanager
 from copy import deepcopy
 from importlib.metadata import PackageNotFoundError
@@ -649,8 +650,14 @@ async def cleanup_s3_sessions() -> None:
     aiohttp.ClientSession.__del__ to emit 'Unclosed client session' / 'Unclosed
     connector' warnings. See https://github.com/fsspec/s3fs/issues/943
 
-    This function explicitly closes the sessions via the proper async cleanup path
-    and clears the instance cache so the weakref finalizer has nothing to do.
+    This function explicitly closes the sessions via the proper async cleanup path,
+    disarms s3fs's finalizer for each creator it closed, and clears the instance
+    cache. Disarming matters: the finalizer would otherwise exit the same creator a
+    second time when the instance is garbage collected, as a bare task on whatever
+    event loop happens to be running, and that second exit fails with
+    ``AssertionError: Session was never entered`` in an unrelated context. The
+    finalizer is detached only once the close has succeeded, so a failed or
+    cancelled close still leaves s3fs's own fallback in place.
     """
     import sys
 
@@ -672,6 +679,8 @@ async def cleanup_s3_sessions() -> None:
                     await s3creator.__aexit__(None, None, None)
                 except Exception:
                     pass
+                else:
+                    _detach_s3fs_finalizer(instance, s3creator)
     finally:
         try:
             S3FileSystem.clear_instance_cache()
@@ -684,6 +693,27 @@ async def cleanup_s3_sessions() -> None:
                 "Cleaned up %d cached S3FileSystem instance(s)",
                 len(instances),
             )
+
+
+def _detach_s3fs_finalizer(instance: Any, s3creator: Any) -> None:
+    """Disarm the ``close_session`` finalizer s3fs registered for ``s3creator``.
+
+    s3fs registers ``weakref.finalize(self, self.close_session, self.loop,
+    self._s3creator)`` each time it creates a client, so an instance whose session
+    was refreshed carries one finalizer per creator. Only the finalizer holding the
+    creator we have just exited is detached; the others still own their clients.
+    """
+    close_session = getattr(type(instance), "close_session", None)
+    for ref in weakref.getweakrefs(instance):
+        finalizer = getattr(ref, "__callback__", None)
+        if not isinstance(finalizer, weakref.finalize):
+            continue
+        info = finalizer.peek()
+        if info is None:
+            continue
+        _obj, func, args, _kwargs = info
+        if func is close_session and len(args) == 2 and args[1] is s3creator:
+            finalizer.detach()
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
