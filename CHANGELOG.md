@@ -1,3 +1,8 @@
+## Unreleased
+
+- Inspect View: Find on the Messages tab now searches the whole sample (including running ones) case- and accent-insensitively, paging through matches beyond the loaded rows.
+- Logs: `read_eval_log_sample()` now reads samples stored in the chunked per-sample layout (previously raised `IndexError` for them).
+
 ## 0.3.264 (16 September 2026)
 
 - Agent Bridge: Sandboxed agents using the Responses API no longer stall after a single model turn when the model calls a tool; `function_call` and `custom_tool_call` output items now carry a non-null item id, and streamed custom tool calls now report `completed` status so client SDKs dispatch them.
