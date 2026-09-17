@@ -7,7 +7,7 @@ from typing import Type, TypeVar
 from unittest.mock import Mock
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from test_helpers.utils import skip_if_github_action
 
 from inspect_ai._util.content import ContentImage
@@ -23,6 +23,7 @@ from inspect_ai.dataset import (
 )
 from inspect_ai.dataset._util import read_choices
 from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.util._checkpoint.config import CheckpointSampleConfig
 
 T_ds = TypeVar("T_ds")
 
@@ -648,3 +649,47 @@ def test_read_choices_drops_empty_entries() -> None:
     assert read_choices(None) is None
     assert read_choices(["Paris", "", "London"]) == ["Paris", "London"]
     assert read_choices(["Paris", " ", "London"]) == ["Paris", "London"]
+
+
+def test_json_dataset_preserves_sample_checkpoint(tmp_path: Path) -> None:
+    """json_dataset must round-trip a serialized Sample's checkpoint config (#5374)."""
+    sample = Sample(
+        input="q",
+        target="a",
+        checkpoint=CheckpointSampleConfig(
+            sandbox_paths={"web": ["/app/data"]},
+            max_consecutive_failures=0,
+        ),
+    )
+    file = tmp_path / "samples.json"
+    file.write_text(f"[{sample.model_dump_json()}]", encoding="utf-8")
+
+    (loaded,) = json_dataset(str(file))
+    assert loaded.checkpoint is not None
+    assert loaded.checkpoint.max_consecutive_failures == 0
+    assert loaded.checkpoint.sandbox_paths == {"web": ["/app/data"]}
+
+
+def test_json_dataset_rejects_malformed_checkpoint(tmp_path: Path) -> None:
+    """A checkpoint value that is not a config shape fails loudly (#5374)."""
+    file = tmp_path / "bad.json"
+    file.write_text(
+        '[{"input": "q", "target": "a", "checkpoint": "nope"}]', encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError):
+        json_dataset(str(file))
+
+
+def test_csv_dataset_reads_checkpoint_from_json_cell(tmp_path: Path) -> None:
+    """A CSV checkpoint column of JSON text parses like the other cell readers (#5374)."""
+    checkpoint_json = json_module.dumps({"max_consecutive_failures": 0})
+    file = tmp_path / "samples.csv"
+    with file.open("w", encoding="utf-8", newline="") as f:
+        writer = csv_module.writer(f)
+        writer.writerow(["input", "target", "checkpoint"])
+        writer.writerow(["q", "a", checkpoint_json])
+
+    (loaded,) = csv_dataset(str(file))
+    assert loaded.checkpoint is not None
+    assert loaded.checkpoint.max_consecutive_failures == 0

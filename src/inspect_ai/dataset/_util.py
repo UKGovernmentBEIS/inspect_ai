@@ -2,7 +2,7 @@ import json
 import math
 from typing import Any, Iterable, cast
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from inspect_ai.model import (
     ChatMessage,
@@ -11,6 +11,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.util._checkpoint.config import CheckpointSampleConfig
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from ._dataset import (
@@ -99,6 +100,7 @@ def record_to_sample_fn(
                 sandbox=read_sandbox(record.get(sample_fields.sandbox)),
                 files=read_files(record.get(sample_fields.files)),
                 setup=read_setup(record.get(sample_fields.setup)),
+                checkpoint=read_checkpoint(record.get(sample_fields.checkpoint)),
             )
 
         return record_to_sample
@@ -211,6 +213,31 @@ def read_setup(setup: Any | None) -> str | None:
         return str(setup)
     else:
         return None
+
+
+def read_checkpoint(checkpoint: Any | None) -> CheckpointSampleConfig | None:
+    """Read a sample's checkpoint config from a dataset record.
+
+    Accepts the dict shape produced by serializing a `Sample`, a JSON string
+    carrying that same shape (CSV/Excel cells arrive as strings, like the
+    other `read_*` helpers), or an already-built config; anything else
+    raises a validation error rather than silently dropping the checkpoint.
+
+    Note: a `TokenInterval` trigger cannot round-trip through the
+    undiscriminated `CheckpointTrigger` union (it loads as `TurnInterval`);
+    that union-level ambiguity predates this helper and is tracked
+    separately.
+    """
+    if is_none_or_nan(checkpoint):
+        return None
+    if isinstance(checkpoint, CheckpointSampleConfig):
+        return checkpoint
+    if isinstance(checkpoint, str):
+        checkpoint = json.loads(checkpoint)
+    return _CHECKPOINT_ADAPTER.validate_python(checkpoint)
+
+
+_CHECKPOINT_ADAPTER = TypeAdapter(CheckpointSampleConfig)
 
 
 def read_sandbox(sandbox: Any | None) -> SandboxEnvironmentSpec | None:

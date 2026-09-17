@@ -1,3 +1,7 @@
+## Unreleased
+
+- Loading a sample-shaped JSON dataset now preserves each sample's `checkpoint` configuration (capture paths and failure tolerance) instead of silently dropping it.
+
 ## 0.3.264 (16 September 2026)
 
 - Agent Bridge: Sandboxed agents using the Responses API no longer stall after a single model turn when the model calls a tool; `function_call` and `custom_tool_call` output items now carry a non-null item id, and streamed custom tool calls now report `completed` status so client SDKs dispatch them.

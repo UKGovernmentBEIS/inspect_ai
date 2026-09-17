@@ -248,6 +248,9 @@ class FieldSpec:
     setup: str = field(default="setup")
     """Setup script to run for sample (run within default SandboxEnvironment)."""
 
+    checkpoint: str = field(default="checkpoint")
+    """Checkpoint configuration for the sample."""
+
 
 RecordToSample = Callable[[DatasetRecord], Sample | list[Sample]]
 r"""Callable that maps raw dictionary record to a Sample."""
