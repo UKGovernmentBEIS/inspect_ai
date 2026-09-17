@@ -928,9 +928,9 @@ def test_strict_index_parser_accepts_restic_shape() -> None:
         (_index_with(packs__0__blobs__0__type=_DELETE), "not 'data' or 'tree'"),
         (_index_with(packs__0__blobs__0__id=_HEX_B.upper()), "blob id is not a 64"),
         (_index_with(packs__0__blobs__0__id="zz" * 32), "blob id is not a 64"),
-        (_index_with(packs__0__blobs__0__offset=-1), "offset is outside"),
+        (_index_with(packs__0__blobs__0__offset=-1), "not an unsigned decimal"),
         (_index_with(packs__0__blobs__0__offset=2**32), "offset is outside"),
-        (_index_with(packs__0__blobs__0__offset=1.5), "offset is not an integer"),
+        (_index_with(packs__0__blobs__0__offset=1.5), "is not an integer"),
         (_index_with(packs__0__blobs__0__offset=True), "offset is not an integer"),
         (_index_with(packs__0__blobs__0__offset=None), "offset is not an integer"),
         (_index_with(packs__0__blobs__0__length=_DELETE), "length is not an integer"),
@@ -945,6 +945,68 @@ def test_strict_index_parser_fails_closed(raw: bytes, why: str) -> None:
     """Every departure from restic's index shape rejects the transfer."""
     with pytest.raises(EgressVerificationError, match=re.escape(why)):
         _parse_index_json(raw, index_id="i" * 64, label="t")
+
+
+_HONEST_RAW = json.dumps(_HONEST_INDEX, separators=(",", ":")).encode()
+
+
+def _raw(old: bytes, new: bytes) -> bytes:
+    """The honest index's exact bytes with one substitution."""
+    assert _HONEST_RAW.count(old) == 1, old
+    return _HONEST_RAW.replace(old, new)
+
+
+@pytest.mark.parametrize(
+    ("raw", "why"),
+    [
+        # Duplicate keys at each object level, an invalid value first: Go
+        # processes both and fails on the first; Python alone would keep
+        # only the valid second.
+        (_raw(b'{"packs":', b'{"packs":"x","packs":'), "repeats a key"),
+        (
+            _raw(b'{"id":"' + b"a" * 64, b'{"id":"x","id":"' + b"a" * 64),
+            "repeats a key",
+        ),
+        (_raw(b'"type":"data"', b'"type":"x","type":"data"'), "repeats a key"),
+        (_raw(b'"offset":0', b'"offset":0,"offset":0'), "repeats a key"),
+        # Escaped spellings decode to the right string but restic's ID and
+        # BlobType decoders look at the raw token.
+        (_raw(b'"id":"' + b"a" * 64, b'"id":"\\u0061' + b"a" * 63), "escape sequence"),
+        (_raw(b'"type":"data"', b'"type":"\\u0064ata"'), "escape sequence"),
+        (_raw(b'"type":"tree"', b'"type":"tr\\u0065e"'), "escape sequence"),
+        (_raw(b'"packs":', b'"pack\\u0073":'), "escape sequence"),
+        # Negative zero is 0 to Python and an error for a Go uint.
+        (_raw(b'"offset":0', b'"offset":-0'), "not an unsigned decimal"),
+        (_raw(b'"length":10', b'"length":-0'), "not an unsigned decimal"),
+        (
+            _raw(b'"uncompressed_length":30', b'"uncompressed_length":-0'),
+            "not an unsigned decimal",
+        ),
+        (_raw(b'"offset":0', b'"offset":00'), "not JSON"),
+        (_raw(b'"offset":0', b'"offset":1.0'), "not an integer"),
+        (_raw(b'"offset":0', b'"offset":1e2'), "not an integer"),
+        (_raw(b'"offset":0', b'"offset":NaN'), "not an integer"),
+        # Encodings: Go reads UTF-8 without a BOM; Python's bytes decoder
+        # would strip a BOM or decode UTF-16.
+        (b"\xef\xbb\xbf" + _HONEST_RAW, "not ASCII JSON"),
+        (_HONEST_RAW.decode().encode("utf-16"), "not ASCII JSON"),
+        (_HONEST_RAW.decode().encode("utf-16-le"), "not ASCII JSON"),
+        (_raw(b'"type":"data"', b'"type":"dat\xc3\xa1"'), "not ASCII JSON"),
+        (_raw(b'{"packs":', b'{\x00"packs":'), "not ASCII JSON"),
+        (_raw(b'{"packs":', b'{\x1f"packs":'), "not ASCII JSON"),
+    ],
+)
+def test_strict_index_parser_checks_the_representation(raw: bytes, why: str) -> None:
+    """Representations restic's decoders refuse are refused before decoding.
+
+    ``json.dumps`` fixtures cannot express these; each case edits the honest
+    index's exact bytes.
+    """
+    with pytest.raises(EgressVerificationError, match=re.escape(why)):
+        _parse_index_json(raw, index_id="i" * 64, label="t")
+    # JSON whitespace is fine anywhere restic accepts it.
+    spaced = _HONEST_RAW.replace(b",", b" ,\n\t").replace(b":", b"\r: ")
+    assert _parse_index_json(spaced, index_id="i" * 64, label="t").packs == [_HEX_A]
 
 
 def test_index_memo_path_is_outside_the_sandbox_namespace(tmp_path: Path) -> None:

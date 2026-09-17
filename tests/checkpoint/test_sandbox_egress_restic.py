@@ -166,7 +166,13 @@ class _ResticCrypto:
 
     def write_index(self, index_obj: dict[str, Any]) -> str:
         """Write ``index_obj`` as a raw-JSON encrypted index; return its name."""
-        sealed = self._seal(json.dumps(index_obj, separators=(",", ":")).encode())
+        return self.write_index_bytes(
+            json.dumps(index_obj, separators=(",", ":")).encode()
+        )
+
+    def write_index_bytes(self, plaintext: bytes) -> str:
+        """Encrypt exactly ``plaintext`` as an index file; return its name."""
+        sealed = self._seal(plaintext)
         name = hashlib.sha256(sealed).hexdigest()
         (self.repo / "index" / name).write_bytes(sealed)
         return f"index/{name}"
@@ -609,6 +615,68 @@ async def test_egress_rejects_index_that_remaps_an_accepted_blob(
     _plant_conflicting_index(repos.repo, index_names=accepted_indexes)
 
     with pytest.raises(EgressVerificationError, match="already locates"):
+        await repos.egress("ckpt-00002", id2)
+
+    assert repos.dest_files() == files_after_1
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+    restored = repos.dest.parent.parent / "restore-A"
+    repos.restore_dest(id1, restored)
+    assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        pytest.param(
+            ("dup-id", "is not a restic index"), id="duplicate-id-invalid-first"
+        ),
+        pytest.param(("escaped-type", "is not a restic index"), id="escaped-blob-type"),
+        pytest.param(("neg-zero", "is not a restic index"), id="negative-zero-offset"),
+        # restic itself refuses to `cat` this one: the BOM byte is neither
+        # '{' nor its zstd marker, so decompressUnpacked fails before any
+        # JSON is printed. It fails closed either way.
+        pytest.param(("bom", "decoding index"), id="utf8-bom"),
+    ],
+)
+async def test_egress_rejects_index_restic_cannot_decode_by_representation(
+    repos: _Repos, edit: tuple[str, str]
+) -> None:
+    """An index restic's decoder refuses is refused here, whatever Python sees.
+
+    Each shape decodes, through Python's ``json``, to an honest-looking
+    index, but restic 0.18.1 rejects the raw representation and would abort
+    every restore once the file is in the repo. Encrypted like a real index
+    and shipped through the real egress; the earlier checkpoint restores.
+    """
+    pytest.importorskip("cryptography")
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    files_after_1 = repos.dest_files()
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    crypto = _ResticCrypto(repos.repo)
+    # Start from fire 2's own honest index bytes so the only departure from
+    # what restic wrote is the representation under test.
+    new_index = next(
+        f.split("/", 1)[1]
+        for f in repos.repo_files()
+        if f.startswith("index/") and f not in repos.manifest()
+    )
+    honest = json.dumps(crypto.load_index(new_index), separators=(",", ":")).encode()
+    kind, expected = edit
+    if kind == "dup-id":
+        raw = honest.replace(b'{"id":"', b'{"id":"x","id":"', 1)
+    elif kind == "escaped-type":
+        raw = honest.replace(b'"type":"data"', b'"type":"\\u0064ata"', 1)
+    elif kind == "neg-zero":
+        raw = honest.replace(b'"offset":0,', b'"offset":-0,', 1)
+    else:
+        raw = b"\xef\xbb\xbf" + honest
+    assert raw != honest
+    (repos.repo / "index" / new_index).unlink()
+    crypto.write_index_bytes(raw)
+
+    with pytest.raises(EgressVerificationError, match=expected):
         await repos.egress("ckpt-00002", id2)
 
     assert repos.dest_files() == files_after_1

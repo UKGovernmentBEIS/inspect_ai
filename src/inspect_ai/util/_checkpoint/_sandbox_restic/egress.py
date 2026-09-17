@@ -108,7 +108,12 @@ hard kill between publish and that unwind can leave an unloadable
 ``snapshots/<hash>`` file behind; restic skips one with a warning (given
 the size floor :data:`_MIN_SNAPSHOT_FILE_BYTES` enforces at extraction),
 and a later fire's arithmetic ignores it, so it is inert and is left in
-place. The host-side memo of what each accepted index
+place. Open (design §4.6): a snapshot file restic *loads* but cannot
+*encode* — Go's RFC 3339 parser accepts a zone offset hour of 24 that its
+JSON encoder refuses — is not inert: while it exists every full ``restic
+snapshots --json`` prints nothing, so later fires' after-listings and
+resume's ``forget_unrecorded_snapshots`` fail (``ls``/``restore`` by id
+still work). Closing that needs a design decision. The host-side memo of what each accepted index
 covers (a SQLite file under ``restic/index-memos/``) is appended to after
 that and healed from the repo's index files on every fire, so a kill at
 any point leaves nothing to repair by hand. Only after the additions are
@@ -185,8 +190,9 @@ MAC (``crypto.Extension`` in ``internal/crypto/crypto.go``, v0.18.1), so a
 nonce off without a length check and *panics* on a file shorter than 16
 bytes, which makes every ``restic snapshots`` listing exit 2 while the file
 exists; from 16 bytes up an unloadable snapshot file is skipped with a
-warning. Refusing short ones at extraction keeps an unloadable snapshot file
-inert, which is what lets the egress publish snapshot files undecoded."""
+warning. Refusing short ones at extraction keeps an *unloadable* snapshot
+file inert (a loadable-but-unencodable one is the open case noted in the
+module docstring)."""
 _HASH_CHUNK = 1024 * 1024
 _MAX_TAR_METADATA_BYTES = 64 * 1024
 _MAX_VIEW_STDERR_BYTES = 64 * 1024
@@ -202,6 +208,10 @@ before any restore, so an enormous accepted index would be a
 repository-wide cost, which this bound caps per index."""
 _HEX_ID_RE = re.compile(r"[0-9a-f]{64}")
 """A restic object id as restic writes it: 32 bytes, lowercase hex."""
+_UINT_LITERAL_RE = re.compile(r"0|[1-9][0-9]*")
+"""A JSON integer literal Go's decoder accepts for a ``uint``: no sign (Go
+rejects ``-0``), no leading zeros, no fraction or exponent."""
+_JSON_WHITESPACE = frozenset(b" \t\n\r")
 _BLOB_FIELDS = frozenset({"id", "type", "offset", "length", "uncompressed_length"})
 _MAX_UINT32 = 2**32 - 1
 _INDEX_MEMO_VERSION = 1
@@ -1442,6 +1452,24 @@ def _parse_index_json(raw: bytes, *, index_id: str, label: str) -> _IndexCoverag
       be the same blob to restic but a different string to the containment
       rule; refusing it keeps the two in agreement.
 
+    The check runs on the *representation*, not on what Python's decoder
+    makes of it, because restic's custom decoders look at the raw JSON
+    tokens: ``ID.UnmarshalJSON`` hex-decodes the 66 raw bytes of the token
+    and ``BlobType.UnmarshalJSON`` compares the raw token to ``"data"`` /
+    ``"tree"``, so an escaped spelling (``data`` written with a JSON unicode
+    escape) is rejected there though it decodes to the same string; Go rejects ``-0`` for a ``uint``
+    though it is the integer 0; Go processes every occurrence of a
+    duplicated key, so an invalid first value fails restic though a later
+    valid one is all Python would keep; and Go reads UTF-8 without a BOM,
+    while Python's ``json.loads(bytes)`` would strip a BOM or decode
+    UTF-16. So: the bytes must be ASCII with no control bytes outside JSON
+    whitespace (an honest index is pure ASCII), must contain no backslash
+    (no string in an honest index has an escape, and without one a token
+    is its decoded value), every integer literal must match
+    :data:`_UINT_LITERAL_RE` (no floats, exponents or ``NaN``), and no
+    object may repeat a key. Each of these refuses a transfer restic would
+    load; none admits one it would not.
+
     Fail closed: any unknown field, wrong type, bad hex or unknown blob type
     rejects the transfer. Go's JSON decoder ignores unknown fields, so a
     restic upgrade that adds a field to its index format fails honest
@@ -1468,8 +1496,34 @@ def _parse_index_json(raw: bytes, *, index_id: str, label: str) -> _IndexCoverag
             raise refuse(f"{what} is outside 0..2**32-1")
         return value
 
+    def strict_int(literal: str) -> int:
+        if not _UINT_LITERAL_RE.fullmatch(literal):
+            raise refuse(f"integer literal {literal!r} is not an unsigned decimal")
+        return int(literal)
+
+    def no_float(literal: str) -> None:
+        raise refuse(f"number {literal!r} is not an integer")
+
+    def no_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        obj = dict(pairs)
+        if len(obj) != len(pairs):
+            raise refuse("an object repeats a key")
+        return obj
+
+    if not raw.isascii() or any(
+        byte < 0x20 and byte not in _JSON_WHITESPACE for byte in raw
+    ):
+        raise refuse("not ASCII JSON (a BOM, another encoding or a control byte)")
+    if b"\\" in raw:
+        raise refuse("a string uses an escape sequence")
     try:
-        data = json.loads(raw)
+        data = json.loads(
+            raw.decode("ascii"),
+            object_pairs_hook=no_duplicate_keys,
+            parse_int=strict_int,
+            parse_float=no_float,
+            parse_constant=no_float,
+        )
     except ValueError as exc:
         raise refuse(f"not JSON: {exc}") from exc
     if not isinstance(data, dict):

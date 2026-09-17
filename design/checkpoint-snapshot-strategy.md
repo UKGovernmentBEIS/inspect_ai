@@ -533,6 +533,25 @@ that on a version bump (`test_strict_index_parser_accepts_a_restic_produced_inde
   `forget` cannot load and a later fire's arithmetic ignores. It is left in
   place (the smaller change; a sweep would need to consult the checkpoint
   records to know the file is unrecorded, which is outside the egress).
+  **Open (review round 8, B2).** Not every loadable snapshot file is
+  listable: Go's RFC 3339 parser accepts a zone offset hour of exactly 24
+  (`hr > 24` is the range test) that `Time.MarshalJSON` then refuses, and
+  restic 0.18.1 encodes the whole listing as one array, so with such a file
+  present `restic snapshots --json` prints nothing and exits 0 (`error
+  printing snapshots` on stderr), while `snapshots --json <id>`, a
+  `--tag`-filtered listing, the table listing, and `ls`/`restore` by id all
+  still work (verified). This fire's own after-listing catches it — empty
+  output fails the check and the unwind removes the file — so the exposure
+  is the hard kill between publish and unwind, after which every later
+  fire's after-listing and resume's `forget_unrecorded_snapshots` (a full
+  `snapshots --json`) fail while the file exists. That is not inert. The
+  fix is a design decision: a pre-publish `snapshots --json` on a view of
+  config, keys, the accepted snapshot files (hard links, O(fires)) and the
+  new ones, which reproduces the after-diff and refuses the file before it
+  is published — either as a third process or replacing the after-publish
+  listing (with a stat check of the published paths standing in for "our
+  own publish mistakes") — or a resume path tolerant of such a file. See
+  the PR.
 
 *View.* The throwaway view now holds only config, keys and the new index
 files — a handful of small files. The lazy builder (256-file slices) and the
@@ -559,6 +578,21 @@ SSD, 50 MB increments of 70% incompressible / 30% text, 40 fires):
 
 All 40 fires fell in 1.21–1.26 s; least-squares slope 0.00 s/GB.
 
+*Strict parser, representation.* The check runs on the raw bytes, not on
+what Python's decoder makes of them, because restic's custom decoders look
+at raw JSON tokens: `ID.UnmarshalJSON` hex-decodes the 66 token bytes and
+`BlobType.UnmarshalJSON` compares the token to `"data"`/`"tree"`, so an
+escaped spelling that decodes to the same string is refused there; Go
+rejects `-0` for a `uint`; Go processes every occurrence of a duplicated key
+and fails on an invalid first value that Python alone would discard; Go
+reads UTF-8 without a BOM. So the bytes must be ASCII without control bytes
+outside JSON whitespace, contain no backslash, every integer literal must be
+an unsigned decimal without leading zeros, and no object may repeat a key.
+Each refuses a transfer restic would load; none admits one it would not
+(pure raw-byte tests for the family, and four shapes shipped through the
+real egress as encrypted indexes, each refused with the earlier snapshot
+restoring).
+
 *What is given up relative to the earlier designs.* Accepted packs are not
 re-read, so host-side bit rot or tampering with accepted files surfaces at
 restore, not at fire time. The new snapshot's own bytes are not verified at
@@ -568,7 +602,8 @@ restore time, indistinguishable from an honest sandbox with a wrecked
 filesystem (`test_egress_accepts_garbage_pack_under_a_new_blob_id`,
 `test_egress_accepts_understated_length_on_new_blobs`; aimed at an accepted
 blob the same shapes are rejected by containment). And an inert unloadable
-snapshot file can be left by a hard kill, as above.
+snapshot file can be left by a hard kill, as above — with the
+loadable-but-unlistable case still open.
 
 ### 4.7 Strategy identity is recorded and pinned
 
