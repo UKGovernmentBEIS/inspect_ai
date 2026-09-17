@@ -113,8 +113,9 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def process_common_options(options: CommonOptions) -> None:
-    # set environment variables
-    env_args = parse_cli_args(options["env"])
+    # set environment variables (preserve comma-containing values verbatim,
+    # e.g. NO_PROXY=localhost,127.0.0.1 or CUDA_VISIBLE_DEVICES=0,1)
+    env_args = parse_cli_args(options["env"], split_lists=False)
     init_cli_env(env_args)
 
     # set traceback locals env var
