@@ -1,6 +1,8 @@
 ## Unreleased
 
 - Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
+- Fixed duplicated task prompt and redundant context sent to the model when using `CompactionAuto` with providers that support native compaction.
+- Transcripts now show which compaction strategy actually ran, and flag when `CompactionAuto` fell back from native to summary compaction.
 
 ## 0.3.265 (17 September 2026)
 
@@ -96,8 +98,6 @@
 - Model refusals: New `fail_on_refusal` generate config option (`--fail-on-refusal`) fails a sample with a `ModelRefusalError` when a model refuses a request, settable eval-wide, per task, per model, per model role, or per call.
 - Sandbox Services: Service directories are now private to the service user, and a service refuses to start if its directory or the shared `/var/tmp/sandbox-services` parent already exists with the wrong owner, mode, or type.
 - Sandboxes: The standard tool-support image now offers an opt-in non-root `nonroot` account (UID/GID 65532; default user unchanged) and installs the web browser's Playwright browsers to a shared path so the browser tool works under a non-root user.
-- Fixed duplicated task prompt and redundant context sent to the model when using `CompactionAuto` with providers that support native compaction.
-- Transcripts now show which compaction strategy actually ran, and flag when `CompactionAuto` fell back from native to summary compaction.
 
 ## 0.3.263 (03 September 2026)
 
