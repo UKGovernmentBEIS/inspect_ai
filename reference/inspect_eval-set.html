@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -13,10 +13,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -43,10 +46,10 @@ ul.task-list li input[type="checkbox"] {
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -2192,13 +2195,72 @@ ul.task-list li input[type="checkbox"] {
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.scorer</span></a>
+            <a href="../reference/inspect_ai.review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.review</span></a>
           <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
       <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.review.html#human_reviewer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">human_reviewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.review.html#read_review_policies" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_review_policies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.review.html#review" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">review</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.review.html#reviewer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reviewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.review.html#review" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Review</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.review.html#reviewdecision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ReviewDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.review.html#reviewpolicy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ReviewPolicy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.review.html#reviewer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">reviewer</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.scorer</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
@@ -2511,11 +2573,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.solver</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
@@ -2618,11 +2680,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.tool.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.tool</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.tool.html#web_search" class="sidebar-item-text sidebar-link">
@@ -2899,11 +2961,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.util.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.util</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
@@ -3462,11 +3524,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.viewer.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.viewer</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.viewer.html#viewerconfig" class="sidebar-item-text sidebar-link">
@@ -3535,11 +3597,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">CLI Commands</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
@@ -3923,400 +3985,412 @@ ul.task-list li input[type="checkbox"] {
 <td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
+<td><code>--review</code></td>
+<td>text</td>
+<td>Config file for tool result review.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr class="even">
 <td><code>--notification</code></td>
 <td>text</td>
 <td>Send out-of-band notifications when a human-in-the-loop interaction (<code>ask_user</code> or human approval) is posted. Bare <code>--notification</code> reads URL(s) from the <code>INSPECT_EVAL_NOTIFICATION</code> environment variable (a single Apprise URL, a comma-separated list, or a path to an Apprise config file). <code>--notification &lt;path&gt;</code> reads from an Apprise YAML/text config file. URLs are not accepted directly on the command line so secrets never end up in shell history. Requires <code>pip install apprise</code>.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--sandbox</code></td>
 <td>text</td>
 <td>Sandbox environment type (with optional config file). e.g.&nbsp;‘docker’ or ‘docker:compose.yml’</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-sandbox-cleanup</code></td>
 <td>boolean</td>
 <td>Do not cleanup sandbox environments after task completes</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--sandbox-prebuilt</code></td>
 <td>boolean</td>
 <td>Treat sandbox images as prebuilt (skip builds and fail at startup when an image is missing)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--checkpoint</code></td>
 <td>text</td>
 <td>Periodically checkpoint sample state so the eval can be resumed via <code>inspect eval retry</code>. Specify –checkpoint for the default (every 500k tokens), –checkpoint=token:N{k,m,b} / time:N{s,m,h,d} / <a href="turn:N" class="uri">turn:N</a> / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--acp-server</code></td>
 <td>text</td>
 <td>Expose this eval via an Agent Client Protocol server for various clients (e.g.&nbsp;the <code>inspect acp</code> command). Bare flag enables a default AF_UNIX socket; pass an integer to bind a TCP loopback port (e.g.&nbsp;<code>--acp-server=4444</code>); pass <code>host:port</code> to bind on a specific interface (e.g.&nbsp;<code>--acp-server=0.0.0.0:4444</code>); pass a filesystem path for a custom UNIX socket. When this flag is set, all human-in-the-loop interactions (<code>approver: human</code> and the <code>ask_user</code> tool) route exclusively through attached ACP clients; the in-proc Textual panel and console handlers are bypassed. If no client is connected when an interaction fires, the eval parks until one attaches.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--ctl-server</code></td>
 <td>text</td>
 <td>Control-channel server for this eval process (default: enabled on an AF_UNIX socket — the endpoint the <code>inspect ctl</code> CLI, scripted agents, and TUIs query). Pass <code>false</code> to disable it. Pass <code>keep</code> to also keep the process running after the eval finishes so its state and results stay readable; the process exits when <code>inspect ctl process release</code> is run (or POST /release is sent to the control endpoint). Without <code>keep</code> the process exits as soon as the eval body returns, taking the control surface with it. Observe the run from another shell with <code>inspect ctl task list</code>.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--limit</code></td>
 <td>text</td>
 <td>Limit samples to evaluate e.g.&nbsp;10 or 10-20</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--sample-id</code></td>
 <td>text</td>
 <td>Evaluate specific sample(s) (comma separated list of ids)</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--sample-shuffle</code></td>
 <td>text</td>
 <td>Shuffle order of samples (pass a seed to make the order deterministic)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--epochs</code></td>
 <td>integer</td>
 <td>Number of times to repeat dataset (defaults to 1)</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--epochs-reducer</code></td>
 <td>text</td>
 <td>Method for reducing per-epoch sample scores into a single score. Built in reducers include ‘mean’, ‘median’, ‘mode’, ‘max’, and ‘at_least_{n}’.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-epochs-reducer</code></td>
 <td>boolean</td>
 <td>Do not reduce per-epoch sample scores.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-connections</code></td>
 <td>integer</td>
 <td>Maximum number of concurrent connections to Model API (defaults to 10)</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--adaptive-connections</code></td>
 <td>text</td>
 <td>Adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback (default: enabled, with min=10, start=20, max=100). Pass <code>false</code> to opt out, an integer N for a custom max (e.g.&nbsp;<code>200</code>), or bounds as <code>min-max</code> (e.g.&nbsp;<code>4-80</code>) or <code>min-start-max</code> (e.g.&nbsp;<code>4-20-80</code>). Explicit <code>--max-connections</code> and <code>--batch</code> take precedence.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-retries</code></td>
 <td>integer</td>
 <td>Maximum number of times to retry model API requests (defaults to unlimited)</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--timeout</code></td>
 <td>integer</td>
 <td>Model API request timeout in seconds (defaults to no timeout)</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--attempt-timeout</code></td>
 <td>integer</td>
 <td>Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--stream-idle-timeout</code></td>
 <td>integer</td>
 <td>Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries). Setting it requests streaming; it has no effect on calls that do not stream.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-samples</code></td>
 <td>integer</td>
 <td>Maximum number of samples to run in parallel (default is running all samples in parallel)</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-dataset-memory</code></td>
 <td>integer range (<code>0</code> and above)</td>
 <td>Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-tasks</code></td>
 <td>integer</td>
 <td>Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-subprocesses</code></td>
 <td>integer</td>
 <td>Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-sandboxes</code></td>
 <td>integer</td>
 <td>Maximum number of sandboxes (per-provider) to run in parallel.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--message-limit</code></td>
 <td>integer</td>
 <td>Limit on total messages used for each sample.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--token-limit</code></td>
 <td>text</td>
 <td>Limit on tokens used for each sample (e.g.&nbsp;500000, ‘500k’, or ‘1m’; prefix with ‘output:’ to limit only output tokens, e.g.&nbsp;‘output:1m’, or with a formula over ‘input’/‘output’, e.g.&nbsp;’(input*0.1)+output:1m’).</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--turn-limit</code></td>
 <td>integer</td>
 <td>Limit on total turns (model generations) used for each sample.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--cost-limit</code></td>
 <td>float</td>
 <td>Limit on total cost (in dollars) for each sample.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--model-cost-config</code></td>
 <td>text</td>
 <td>YAML or JSON file with model prices for cost tracking.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--time-limit</code></td>
 <td>integer</td>
 <td>Limit on total running time for each sample.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--working-limit</code></td>
 <td>integer</td>
 <td>Limit on total working time (e.g.&nbsp;model generation, tool calls, etc.) for each sample.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--fail-on-error</code></td>
 <td>float</td>
 <td>Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-fail-on-error</code></td>
 <td>boolean</td>
 <td>Do not fail the eval if errors occur within samples (instead, continue running other samples)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--continue-on-fail</code></td>
 <td>boolean</td>
 <td>Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--retry-on-error</code></td>
 <td>text</td>
 <td>Retry samples if they encounter errors (by default, no retries occur). Specify –retry-on-error to retry a single time, or specify e.g.&nbsp;<code>--retry-on-error=3</code> to retry multiple times.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--score-on-error</code></td>
 <td>boolean</td>
 <td>Score samples that error rather than failing the eval mid-run. Errors still count toward the –fail-on-error threshold for marking the log as ‘error’. Only fires after retries (if any) are exhausted.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-log-samples</code></td>
 <td>boolean</td>
 <td>Do not include samples in the log file.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--no-log-realtime</code></td>
 <td>boolean</td>
 <td>Do not log events in realtime (affects live viewing of samples in inspect view)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-images</code> / <code>--no-log-images</code></td>
 <td>boolean</td>
 <td>Retain inline image and other media bytes in the log file. This option does not control media fetching.</td>
 <td><code>True</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-model-api</code> / <code>--no-log-model-api</code></td>
 <td>boolean</td>
 <td>Log raw model api requests and responses. Note that error requests/responses are always logged.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-refusals</code> / <code>--no-log-refusals</code></td>
 <td>boolean</td>
 <td>Log warnings for model refusals.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-buffer</code></td>
 <td>integer</td>
 <td>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems).</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-shared</code></td>
 <td>text</td>
 <td>Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every <code>n</code> seconds).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--no-score</code></td>
 <td>boolean</td>
 <td>Do not score model output (use the inspect score command to score output later)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-score-display</code></td>
 <td>boolean</td>
 <td>Do not display scoring metrics in realtime.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--generate-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with GenerateConfig (alternatively, use the options for individual config values).</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-tokens</code></td>
 <td>integer</td>
 <td>The maximum number of tokens that can be generated in the completion (default is model specific)</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--system-message</code></td>
 <td>text</td>
 <td>Override the default system message.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--best-of</code></td>
 <td>integer</td>
 <td>Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--frequency-penalty</code></td>
 <td>float</td>
 <td>Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--presence-penalty</code></td>
 <td>float</td>
 <td>Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--logit-bias</code></td>
 <td>text</td>
 <td>Map token Ids to an associated bias value from -100 to 100 (e.g.&nbsp;“42=10,43=-10”). OpenAI, Grok, and Grok only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--seed</code></td>
 <td>integer</td>
 <td>Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--stop-seqs</code></td>
 <td>text</td>
 <td>Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--temperature</code></td>
 <td>float</td>
 <td>What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--top-p</code></td>
 <td>float</td>
 <td>An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--top-k</code></td>
 <td>integer</td>
 <td>Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--num-choices</code></td>
 <td>integer</td>
 <td>How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--logprobs</code></td>
 <td>boolean</td>
 <td>Return log probabilities of the output tokens. OpenAI, Google, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--top-logprobs</code></td>
 <td>integer</td>
 <td>Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, TogetherAI, Huggingface, and vLLM only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--prompt-logprobs</code></td>
 <td>integer</td>
 <td>Number of log probabilities to return per prompt token (1-20). vLLM only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--parallel-tool-calls</code> / <code>--no-parallel-tool-calls</code></td>
 <td>boolean</td>
 <td>Whether to enable parallel function calling during tool use (defaults to True) OpenAI and Groq only.</td>
 <td><code>True</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--internal-tools</code> / <code>--no-internal-tools</code></td>
 <td>boolean</td>
 <td>Whether to automatically map tools to model internal implementations (e.g.&nbsp;‘computer’ for anthropic).</td>
 <td><code>True</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-tool-output</code></td>
 <td>integer</td>
 <td>Maximum size of tool output (in bytes). Defaults to 16 * 1024.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--cache-prompt</code></td>
 <td>choice (<code>auto</code> | <code>true</code> | <code>false</code>)</td>
 <td>Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--fallback-models</code></td>
 <td>text</td>
 <td>Fallback models (comma-separated, tried in order) when the model’s safety classifiers refuse the request. Anthropic Claude API only.</td>
 <td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr class="even">
+<td><code>--fail-on-refusal</code> / <code>--no-fail-on-refusal</code></td>
+<td>boolean</td>
+<td>Fail a sample (with a ModelRefusalError) when a model refuses a request (stop_reason ‘content_filter’). Applies to every model used by the eval, including model roles (a role’s own setting wins). Note that with the default –fail-on-error the first refusal fails the whole eval; combine with –no-fail-on-error or –continue-on-fail to keep running. Use –no-fail-on-refusal to override a task or model config that enables it.</td>
+<td>None</td>
 </tr>
 <tr class="odd">
 <td><code>--verbosity</code></td>

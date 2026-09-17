@@ -13,6 +13,7 @@
 | [inspect_ai.log](../reference/inspect_ai.log.html.md) | List, read, write, and analyse logs. |
 | [inspect_ai.model](../reference/inspect_ai.model.html.md) | Model interface and providers. |
 | [inspect_ai](../reference/inspect_ai.html.md) | Tasks, evaluation, and scoring. |
+| [inspect_ai.review](../reference/inspect_ai.review.html.md) | Reviewers and review policies. |
 | [inspect_ai.scorer](../reference/inspect_ai.scorer.html.md) | Task scoring and metrics. |
 | [inspect_ai.solver](../reference/inspect_ai.solver.html.md) | Prompting and elicitation. |
 | [inspect_ai.tool](../reference/inspect_ai.tool.html.md) | Built-in and custom tool functions. |

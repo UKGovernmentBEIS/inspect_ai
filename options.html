@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -554,6 +557,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Tool Approval</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Result Review</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -968,58 +977,62 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Fallback models (comma-separated, tried in order) when the model’s safety classifiers refuse the request. Anthropic Claude API only.</td>
 </tr>
 <tr class="even">
+<td><code>--fail-on-refusal</code></td>
+<td>Fail a sample (with a <code>ModelRefusalError</code>) when a model refuses a request (<code>stop_reason</code> of <code>content_filter</code>). Applies to every model used by the eval, including model roles (a role’s own setting wins). With the default <code>--fail-on-error</code> the first refusal fails the whole eval; combine with <code>--no-fail-on-error</code> or <code>--continue-on-fail</code> to keep running. Use <code>--no-fail-on-refusal</code> to override a task or model config that enables it.</td>
+</tr>
+<tr class="odd">
 <td><code>--effort</code></td>
 <td>Values: <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, or <code>max</code>. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency (Claude 4.5, 4.6, 4.7 only, <code>max</code> only supported on 4.6 and 4.7, <code>xhigh</code> supported only on 4.7).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--verbosity</code></td>
 <td>Values <code>low</code>, <code>medium</code>, or <code>high</code>. Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-effort</code></td>
 <td>Values: <code>none</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, or <code>max</code>. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--reasoning-mode</code></td>
 <td>Values: <code>standard</code> or <code>pro</code>. Reasoning mode. “pro” performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only (“standard” is the default).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-tokens</code></td>
 <td>Maximum number of tokens to use for reasoning. Anthropic Claude models only.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--reasoning-history</code></td>
 <td>Values: <code>none</code>, <code>all</code>, <code>last</code>, or <code>auto</code>. Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--response-format</code></td>
 <td>JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--parallel-tool-calls</code></td>
 <td>Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-tool-output</code></td>
 <td>Maximum size of tool output (in bytes). Defaults to 16 * 1024.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--internal-tools</code></td>
 <td>Whether to automatically map tools to model internal implementations (e.g.&nbsp;‘computer’ for Anthropic).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-retries</code></td>
 <td>Maximum number of times to retry generate request (defaults to unlimited)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--timeout</code></td>
 <td>Generate timeout in seconds (defaults to no timeout)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--attempt-timeout</code></td>
 <td>Timeout (in seconds) for any given generate attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--stream-idle-timeout</code></td>
 <td>Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries). Setting it requests streaming; it has no effect on calls that do not stream.</td>
 </tr>
@@ -1076,15 +1089,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>--epochs</code></td>
-<td>Number of times to repeat each sample (defaults to 1)</td>
+<td>Number of times to repeat each sample (defaults to 1). This preserves any reducer defined by the task.</td>
 </tr>
 <tr class="even">
 <td><code>--epochs-reducer</code></td>
-<td>Method for building the reduced score view from per-epoch sample scores. Built in reducers include <code>mean</code>, <code>median</code>, <code>mode</code>, <code>max</code>, <code>at_least_{n}</code>, <code>pass_at_{k}</code>, and <code>pass_k_{k}</code>. Metrics that require unreduced scores still receive raw sample-epoch scores.</td>
+<td>Method for building the reduced score view from per-epoch sample scores. Use with <code>--epochs</code> to replace any reducer defined by the task. Built in reducers include <code>mean</code>, <code>median</code>, <code>mode</code>, <code>max</code>, <code>at_least_{n}</code>, <code>pass_at_{k}</code>, and <code>pass_k_{k}</code>. Metrics that require unreduced scores still receive raw sample-epoch scores.</td>
 </tr>
 <tr class="odd">
 <td><code>--no-epochs-reducer</code></td>
-<td>Do not build a reduced score view. Legacy metrics compute across all sample-epoch scores.</td>
+<td>Do not build a reduced score view. Use with <code>--epochs</code> to disable any reducer defined by the task. Legacy metrics compute across all sample-epoch scores.</td>
 </tr>
 </tbody>
 </table>

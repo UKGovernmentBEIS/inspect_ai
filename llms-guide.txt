@@ -814,6 +814,7 @@ For more detail on the different methods of configuration, see [Configuration](.
 | `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
 | `--cache-prompt` | Values: `auto`, `true`, or `false`. Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only. |
 | `--fallback-models` | Fallback models (comma-separated, tried in order) when the model’s safety classifiers refuse the request. Anthropic Claude API only. |
+| `--fail-on-refusal` | Fail a sample (with a `ModelRefusalError`) when a model refuses a request (`stop_reason` of `content_filter`). Applies to every model used by the eval, including model roles (a role’s own setting wins). With the default `--fail-on-error` the first refusal fails the whole eval; combine with `--no-fail-on-error` or `--continue-on-fail` to keep running. Use `--no-fail-on-refusal` to override a task or model config that enables it. |
 | `--effort` | Values: `low`, `medium`, `high`, `xhigh`, or `max`. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency (Claude 4.5, 4.6, 4.7 only, `max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7). |
 | `--verbosity` | Values `low`, `medium`, or `high`. Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models). |
 | `--reasoning-effort` | Values: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). |
@@ -847,9 +848,9 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 |----|----|
 | `--limit` | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`) |
 | `--sample-id` | Evaluate a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
-| `--epochs` | Number of times to repeat each sample (defaults to 1) |
-| `--epochs-reducer` | Method for building the reduced score view from per-epoch sample scores. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, `pass_at_{k}`, and `pass_k_{k}`. Metrics that require unreduced scores still receive raw sample-epoch scores. |
-| `--no-epochs-reducer` | Do not build a reduced score view. Legacy metrics compute across all sample-epoch scores. |
+| `--epochs` | Number of times to repeat each sample (defaults to 1). This preserves any reducer defined by the task. |
+| `--epochs-reducer` | Method for building the reduced score view from per-epoch sample scores. Use with `--epochs` to replace any reducer defined by the task. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, `pass_at_{k}`, and `pass_k_{k}`. Metrics that require unreduced scores still receive raw sample-epoch scores. |
+| `--no-epochs-reducer` | Do not build a reduced score view. Use with `--epochs` to disable any reducer defined by the task. Legacy metrics compute across all sample-epoch scores. |
 
 ## Parallelism
 
@@ -3039,7 +3040,7 @@ Compute the F1 score (the harmonic mean of precision and recall) over token over
 Score multiple-choice questions produced by the [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) solver. Unshuffles any choices the solver shuffled before scoring, and supports multiple correct answers via a comma-separated `target` (e.g. `"A,B"`). Raises a scoring error if the sample has no choices.
 
 [math()](./reference/inspect_ai.scorer.html.md#math)  
-Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both `\boxed{}` LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; a sample with no usable reference answer raises a scoring error. Requires the optional math dependencies (install with `pip install inspect-ai[math]`).
+Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both `\boxed{}` LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Output with no readable answer at all, or an answer that trips a parsing limit, is `INCORRECT` with `reason="invalid_response_format"`; prose that simply fails to match, or an answer that exceeds the scoring time limit, is `INCORRECT` with no reason. A sample with no usable reference answer raises a scoring error. Requires the optional math dependencies (install with `pip install inspect-ai[math]`).
 
 [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity)  
 Compute per-token negative log-likelihood (NLL) from prompt log probabilities, for full-text perplexity benchmarks (WikiText, C4). Requires `prompt_logprobs` in [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig). See [Perplexity](./perplexity.html.md).
@@ -3095,10 +3096,10 @@ Inspect has support for a wide variety of language model APIs and can be extende
 |----|----|
 | Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Perplexity](./providers.html.md#perplexity) |
 | Cloud APIs | [AWS Bedrock](./providers.html.md#aws-bedrock), [AWS SageMaker](./providers.html.md#aws-sagemaker), and [Azure AI](./providers.html.md#azure-ai) |
-| Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
+| Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hugging-face-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
-  
+\
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
@@ -3527,10 +3528,10 @@ Inspect has support for a wide variety of language model APIs and can be extende
 |----|----|
 | Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Perplexity](./providers.html.md#perplexity) |
 | Cloud APIs | [AWS Bedrock](./providers.html.md#aws-bedrock), [AWS SageMaker](./providers.html.md#aws-sagemaker), and [Azure AI](./providers.html.md#azure-ai) |
-| Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
+| Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hugging-face-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
-  
+\
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
@@ -3799,13 +3800,17 @@ Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build
 
 ### Cache TTL
 
-Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default, using the standard 5-minute cache TTL. Use the `cache_ttl` model arg (`-M`) to specify a different TTL. Valid values are “5m” (the default) and “1h”:
+Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default. Use the `cache_ttl` model arg (`-M`) to control the cache TTL. Valid values are:
+
+- “auto” (the default): requests use the standard 5-minute cache TTL, and a sample is automatically switched to the 1-hour TTL for the remainder of its execution when more than 5 minutes pass between requests that use the cache (e.g. due to slow tool calls, long generations, or queuing behind `max_connections`). By that point the 5-minute cache has expired and the full prompt prefix is being rewritten regardless, so escalating protects the rest of the sample from repeated cache misses. Escalations are reported in a log message.
+
+- “5m” or “1h”: pin the TTL for all requests (disables automatic escalation).
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
 ```
 
-Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart.
+Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API (not Bedrock, Vertex, or Azure) and does not apply in [batch mode](./models-batch.html.md).
 
 ### Streaming
 
@@ -4118,7 +4123,7 @@ This requires no configuration. Note that the header is not sent for [batch](./m
 
 ## AWS Bedrock
 
-To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, install the `aioboto3` package, set your credentials, and specify a model using the `--model` option:
+To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, set your credentials and specify a model using the `--model` option:
 
 ``` bash
 export AWS_ACCESS_KEY_ID=access-key-id
@@ -4127,7 +4132,7 @@ export AWS_DEFAULT_REGION=us-east-1
 inspect eval bedrock/meta.llama2-70b-chat-v1
 ```
 
-For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
+For the `bedrock` provider, custom model args (`-M`) are forwarded to the `create_client` method of the `aiobotocore.session.AioSession` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
 
 Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
@@ -4145,10 +4150,9 @@ inspect eval arc.py --model bedrock/us.anthropic.claude-sonnet-4-6 -M streaming=
 
 ## AWS SageMaker
 
-To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, install the `aioboto3` package, set your credentials, and specify a SageMaker endpoint name using the `--model` option:
+To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, set your credentials and specify a SageMaker endpoint name using the `--model` option:
 
 ``` bash
-pip install aioboto3
 export AWS_ACCESS_KEY_ID=access-key-id
 export AWS_SECRET_ACCESS_KEY=secret-access-key
 inspect eval arc.py --model sagemaker/my-endpoint-name \
@@ -4795,7 +4799,7 @@ vLLM only applies `add_special_tokens` when tokenizing a string prompt, so for `
 
 ### Tool Use and Reasoning
 
-vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
+vLLM supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
 
 For vLLM reasoning models, pass the model-specific parser and chat-template kwargs through `-M`. See [Reasoning](./reasoning.html.md#vllmsglang) for CLI examples.
 
@@ -4875,7 +4879,7 @@ $ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model
 
 ### Tool Use and Reasoning
 
-SGLang supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
+SGLang supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
 
 ### Batching
 
@@ -5684,7 +5688,9 @@ Here are all options available for [CompactionSummary](./reference/inspect_ai.mo
 | `instructions` | None | Additional instructions to give the model about compaction (e.g. “Focus on preserving code snippets and technical decisions.”). These instructions will be inserted into the `prompt`. |
 | `prompt` | None | Custom prompt for summarization. Uses a built-in default prompt if not provided. |
 
-The default summarization prompt asks the model to capture the task overview, current state, important discoveries, next steps, and context to preserve. You can provide custom `instructions` or even completely override the `prompt` to tailor the summary to your specific use case.
+The default summarization prompt asks the model for a detailed, structured summary: the original request and intent, technical decisions, code changes, errors and their fixes, and the work that remains. It also asks the model to preserve verbatim any security-relevant constraints stated earlier in the conversation.
+
+You can provide custom `instructions` or even completely override the `prompt` to tailor the summary to your specific use case.
 
 ## Edit Compaction
 
@@ -5830,6 +5836,31 @@ Without fallbacks configured (or when every fallback also declines), the refusal
 | `categories` | All triggering categories (list of `StopCategory`). |
 
 When a fallback serves a request, the API does not report the declining attempt’s refusal category (the declined attempt is unbilled and only its token counts appear in the response diagnostics). Refusal categories are available only on responses that actually ended in a refusal.
+
+## Failing on Refusals
+
+By default a refusal is just another model output: agents like [react()](./reference/inspect_ai.agent.html.md#react) retry it if `retry_refusals` is set and otherwise stop, and the sample proceeds to scoring (typically scoring zero, which is indistinguishable from a genuine failure of the task). If you would rather be told loudly that a refusal occurred, set the `fail_on_refusal` generation option. When enabled, [generate()](./reference/inspect_ai.solver.html.md#generate) raises a `ModelRefusalError` after a generation ends with `stop_reason="content_filter"`, which fails the sample with an error whose message starts with `Model refusal` and includes the model, role and refusal category:
+
+``` bash
+inspect eval ctf.py --model anthropic/claude-fable-5 --fail-on-refusal
+```
+
+Like other generation config, `fail_on_refusal` can be set eval-wide (as above, or `eval(..., fail_on_refusal=True)`), on a [Task](./reference/inspect_ai.html.md#task) (`config=GenerateConfig(fail_on_refusal=True)`), on a model (`--model-spec` or `get_model(..., config=...)`), or on an individual [generate()](./reference/inspect_ai.solver.html.md#generate) call. Eval-wide and task settings also apply to any other model used by the eval, including [model roles](./models.html.md#model-roles) such as graders and ad hoc [get_model()](./reference/inspect_ai.model.html.md#get_model) calls in solvers or scorers, but a model’s own setting wins, so you can fail on refusals from the agent while letting a grader refuse normally:
+
+``` bash
+inspect eval ctf.py --fail-on-refusal \
+  --model-role grader="{model: openai/gpt-5, fail_on_refusal: false}"
+```
+
+Some things to be aware of:
+
+- With the default `fail_on_error`, the first sample error fails the whole eval, so `--fail-on-refusal` on its own stops the eval at the first refusal. To record failed samples and keep running, combine it with `--no-fail-on-error` (or a `--fail-on-error` threshold, or `--continue-on-fail`). See [Handling Errors](./handling-errors.html.md) for details.
+- Refusal retries still apply: `retry_refusals=N` on [react()](./reference/inspect_ai.agent.html.md#react), [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) or the agent bridge means the sample fails only after N+1 consecutive refusals in one step ([deepagent()](./reference/inspect_ai.agent.html.md#deepagent) defaults to 3 retries, [react()](./reference/inspect_ai.agent.html.md#react) to none).
+- `retry_on_error` and `score_on_error` treat a refusal like any other sample error, and [eval_set()](./reference/inspect_ai.html.md#eval_set) retries a task whose log status is `error` as usual.
+- The refusal counter and `--log-refusals` still run, and `ModelRefusalError` (exported from `inspect_ai.model`) carries the refused `output`, so the category is available to code that catches it.
+- Because the CLI flag is unset by default, `--fail-on-refusal` never disables an option enabled by a task or model config; pass `--no-fail-on-refusal` to do that.
+- For scaffolds bridged in-process with [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge), the error surfaces as an exception from the scaffold’s own SDK call, so a scaffold that catches broad exceptions around its API calls will swallow it. Scaffolds running in a sandbox via [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) fail the sample regardless of how they handle the error response they receive.
+- A refusal during an MCP sampling request (a generation an [MCP server](./tools-mcp.html.md) asks Inspect to perform on its behalf) is returned to the server as an MCP error rather than failing the sample, the same as an exceeded limit there today.
 
 ## Fallback Logging
 
@@ -6905,7 +6936,7 @@ Compute the F1 score (the harmonic mean of precision and recall) over token over
 Score multiple-choice questions produced by the [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) solver. Unshuffles any choices the solver shuffled before scoring, and supports multiple correct answers via a comma-separated `target` (e.g. `"A,B"`). Raises a scoring error if the sample has no choices.
 
 [math()](./reference/inspect_ai.scorer.html.md#math)  
-Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both `\boxed{}` LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; a sample with no usable reference answer raises a scoring error. Requires the optional math dependencies (install with `pip install inspect-ai[math]`).
+Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both `\boxed{}` LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Output with no readable answer at all, or an answer that trips a parsing limit, is `INCORRECT` with `reason="invalid_response_format"`; prose that simply fails to match, or an answer that exceeds the scoring time limit, is `INCORRECT` with no reason. A sample with no usable reference answer raises a scoring error. Requires the optional math dependencies (install with `pip install inspect-ai[math]`).
 
 [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity)  
 Compute per-token negative log-likelihood (NLL) from prompt log probabilities, for full-text perplexity benchmarks (WikiText, C4). Requires `prompt_logprobs` in [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig). See [Perplexity](./perplexity.html.md).
@@ -7281,7 +7312,7 @@ The sections below work through each outcome and the details recorded by Inspect
 
 ### Verdicts on the model
 
-An incorrect answer stays in the denominator. This includes output that doesn’t follow the requested format: [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` with `reason="invalid_response_format"` when the expected answer pattern is absent. Use extraction rules that match the answer format requested in the task.
+An incorrect answer stays in the denominator. This includes output that doesn’t follow the requested format: [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` with `reason="invalid_response_format"` when the expected answer pattern is absent, and [math()](./reference/inspect_ai.scorer.html.md#math) does the same when the output contains no readable answer at all. Use extraction rules that match the answer format requested in the task.
 
 Inspect provides two labels for incorrect or missing answers. Both map to `0.0` by default and both stay in the denominator:
 
@@ -7894,6 +7925,12 @@ The eval log reports `mean`, `stderr`, and `pass_rate` for the `word_overlap` sc
 If a task is run over more than one `epoch`, multiple scores will be generated for each sample. Metrics normally operate on a reduced score view, where epoch scores for each sample are combined into a single score.
 
 By default, the reduced view is built with `mean`. You may specify other strategies by passing an [Epochs](./reference/inspect_ai.html.md#epochs), which includes both a count and one or more reducers to combine sample scores with. For example:
+
+> **NOTE: Note**
+>
+> An integer epoch override changes the count and preserves the reducer defined by the task. This applies to `eval(..., epochs=n)`, `eval_set(..., epochs=n)`, and `--epochs n`. To replace the task reducer, pass `Epochs(n, reducer)` or combine `--epochs n` with `--epochs-reducer reducer`. Combine `--epochs n` with `--no-epochs-reducer` to disable epoch reduction.
+>
+> A task with a fixed custom reducer can define its count directly in [Task](./reference/inspect_ai.html.md#task); the reducer remains active when users override the count. An `epochs` task parameter is useful when changing the count should also change the reducer configuration.
 
 ``` python
 @task
@@ -8807,6 +8844,8 @@ react(
 
 Retries will be triggered when [ModelOutput](./reference/inspect_ai.model.html.md#modeloutput) has a `stop_reason` of “content_filter”.
 
+Once retries are exhausted the agent stops and the sample proceeds to scoring. If you would rather have a refusal fail the sample (so it shows up as a sample error instead of a low score), set the `fail_on_refusal` generation option; see [Failing on Refusals](./fallbacks.html.md#failing-on-refusals).
+
 ## Continuation
 
 In some cases models in a tool use loop will simply fail to call a tool (or just talk about calling the `submit()` tool but not actually call it!). This is typically an oversight, and models simply need to be encouraged to call `submit()` or alternatively continue if they haven’t yet completed the task.
@@ -9308,7 +9347,7 @@ Pass `submit=False` to disable the submit tool entirely (the agent will terminat
 
 [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) supports several additional options from [react()](./reference/inspect_ai.agent.html.md#react):
 
-- `retry_refusals` — Retry when the model refuses a request due to content filters (default: 3). Applies to the top-level agent and all subagents. If a subagent refuses and retries are exhausted, the refusal text becomes the subagent’s return value to the parent. See [Refusals](./react-agent.html.md#refusals) for details.
+- `retry_refusals` — Retry when the model refuses a request due to content filters (default: 3). Applies to the top-level agent and all subagents. If a subagent refuses and retries are exhausted, the refusal text becomes the subagent’s return value to the parent (or, with the `fail_on_refusal` generation option set, the sample fails, including for background subagents). See [Refusals](./react-agent.html.md#refusals) for details.
 
 - `on_continue` — Control continuation behavior when the model stops calling tools. Applies to the top-level agent only. See [Continuation](./react-agent.html.md#continuation) for details.
 
@@ -9419,7 +9458,7 @@ inspect eval-retry logs/<log-file-name>.eval # recover
 For incomplete samples, Inspect locates the checkpoint directory, restores each sample’s most recent committed checkpoint, and continues. The following is restored before the agent runs:
 
 1.  Agent State: Any state values the agent registered (e.g. message or compaction history).
-2.  Sandbox: The sandbox setup script is run and the configured sandbox paths are restored from backup into a fresh sandbox container.
+2.  Sandbox: The sandbox setup script is run and the configured sandbox paths are restored from backup into a fresh sandbox container (only those paths — see [What can be restored](#restore-constraints)).
 3.  Events and Store: Inspect’s internal per-sample state is rehydrated (the events appear under a synthesized `prior_run` span in the new `.eval` log).
 
 By default checkpoints are deleted once the eval completes successfully; use `retention="retain"` in the [CheckpointConfig](./reference/inspect_ai.util.html.md#checkpointconfig) to preserve them.
@@ -9550,6 +9589,17 @@ When more than one of the sample / task / eval layers supplies a configuration, 
 `sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. The exception is [snapshot-strategy](#snapshot-strategies) selection: `strategy` values merge per-sandbox across all layers (eval \> sample \> task) regardless of which layer’s paths dict won, so a paths-only override never silently resets a selected strategy. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g. `sandbox_paths={"tools": []}`) opts that sandbox out of checkpointing entirely.
 
 Cache directories are never backed up: any `.cache` directory at any depth (`**/.cache`, including the user’s XDG cache dir) is always excluded from sandbox backups — even when you specify `sandbox_paths` explicitly. Agents should not keep state they need across a resume under a `.cache` directory.
+
+#### What can be restored
+
+A resume writes into the fresh sandbox as root, so the snapshot it restores is checked before anything is written. The rules below are what a retry enforces; a capture that breaks them fails hydration with an error naming the sandbox and the offending path, and the sample is not resumed.
+
+- Paths must be absolute and cannot be `/`. A relative `sandbox_paths` entry or a bare `/` fails when the sample starts (before its first checkpoint) rather than at resume. An image whose default user has `HOME=/` gets no automatic home-directory capture (a warning is logged); configure `sandbox_paths` for it instead.
+- Only the captured paths are written. A snapshot node outside them is refused, as is any device, fifo or socket node, a hard link to a file outside the captured paths, and any regular file carrying a setuid, setgid or sticky bit. An agent that builds a setuid binary or creates a fifo under a captured path makes that sample unresumable; keep such files outside `sandbox_paths`. Directories keep their sticky and setgid bits (`/tmp`, a `chmod g+s` shared directory), so such a directory can be a captured path.
+- Symbolic links that the sandbox image ships under a captured path are removed before the restore and replaced by whatever the snapshot holds at that path, so a snapshot can never write through one of them to a location outside the captured paths. A link the snapshot also holds comes back unchanged.
+- `sandbox_paths` must not change between attempts. A snapshot captured from one set of paths is refused when the retry captures another; restore the original configuration and resume.
+- A sandbox no committed checkpoint records is never restored from an older or unrelated snapshot; resume fails for it instead.
+- Ownership under an automatically captured home directory is normalized on resume: everything restored under it is re-owned to the home directory’s owner (including files the prior attempt created via `sudo`). Paths you configure explicitly keep their recorded owners.
 
 ### Snapshot Strategies
 
@@ -10749,7 +10799,7 @@ Sandbox services make available a set of methods to a sandbox for calling back i
 
 > **NOTE:**
 >
-> Sandbox services use a filesystem queue and are intended for callers with the same sandbox-user authority as the service. They are not an authentication or privilege-separation boundary between sandbox users. Service names must be ASCII Python identifiers; instance names must begin with a letter or number and may then contain letters, numbers, `.`, `_`, or `-`.
+> Sandbox services use a filesystem queue and are intended for callers with the same sandbox-user authority as the service. The service directory is private (mode `0700`) to the user the service runs as, so callers must run as that user (or as root). They are not an authentication or privilege-separation boundary between sandbox users. Service names must be ASCII Python identifiers; instance names must begin with a letter or number and may then contain letters, numbers, `.`, `_`, or `-`.
 
 Sandbox service are often run using the [background()](./reference/inspect_ai.util.html.md#background) function to make them available for the lifetime of a sample.
 
@@ -10889,6 +10939,8 @@ The [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_
 2.  Write a standard Inspect agent that uses the [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) context manager and the `sandbox().exec()` method to invoke the custom agent.
 
 The sandbox bridge works via running a proxy server inside the sandbox container which receives requests for the OpenAI, Anthropic, and Google APIs. This proxy server in turn relays requests to the current Inspect model provider.
+
+The proxy listens on the sandbox’s loopback interface and is reachable only by processes running inside the sandbox, such as the agent binary launched with `sandbox().exec()`. It is not a browser-facing service: it sends no cross-origin headers, does not answer preflight requests, and accepts only `application/json` request bodies. A web page rendered inside the sandbox therefore cannot reach the model or bridged tools through the proxy: a request that needs a preflight is refused by the browser, and a request sent without one carries a body type the proxy rejects before any handler runs.
 
 For example, here we build an agent that runs a custom agent binary (passing it input on the command line and reading output from stdout):
 
@@ -11222,6 +11274,8 @@ Or from the CLI, use the `-S` option:
 --solver human_cli -S user=myuser
 ```
 
+The `task` command’s shell hook is appended to that user’s `~/.bashrc` running as that user, so if the image ships a `.bashrc` it must be a regular file the user can write (for example, a Dockerfile `COPY` of a `.bashrc` needs `--chown` for the login user, otherwise installation fails with a permission error).
+
 ## Recording
 
 By default, human agent terminal sessions are recorded using the LInux [script command](https://www.redhat.com/en/blog/linux-script-command). Recorded sessions are saved in the sample store and available for playback within the Inspect View:
@@ -11281,7 +11335,7 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 Agentic tools include:
 
 - [Skill](./tools-standard.html.md#sec-skill) which provides agent skill specifications to the model with specialized knowledge and expertise for specific tasks (requires a [sandbox](./sandboxing.html.md)).
-- [Update Plan](./tools-standard.html.md#sec-update-plan) which helps the model tracks steps and progress across longer horizon tasks.
+- [Todo Write](./tools-standard.html.md#sec-todo-write) which helps the model tracks steps and progress across longer horizon tasks.
 - [Memory](./tools-standard.html.md#sec-memory) which enables storing and retrieving information through a memory file directory.
 - [Think](./tools-standard.html.md#sec-think), which provides models the ability to include an additional thinking step as part of getting to its final answer.
 - [Intervention](./tools-standard.html.md#sec-intervention), which enable the model to ask questions or send notifications to the user.
@@ -11395,7 +11449,7 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 Agentic tools include:
 
 - [Skill](./tools-standard.html.md#sec-skill) which provides agent skill specifications to the model with specialized knowledge and expertise for specific tasks (requires a [sandbox](./sandboxing.html.md)).
-- [Update Plan](./tools-standard.html.md#sec-update-plan) which helps the model tracks steps and progress across longer horizon tasks.
+- [Todo Write](./tools-standard.html.md#sec-todo-write) which helps the model tracks steps and progress across longer horizon tasks.
 - [Memory](./tools-standard.html.md#sec-memory) which enables storing and retrieving information through a memory file directory.
 - [Think](./tools-standard.html.md#sec-think), which provides models the ability to include an additional thinking step as part of getting to its final answer.
 - [Intervention](./tools-standard.html.md#sec-intervention), which enable the model to ask questions or send notifications to the user.
@@ -11941,6 +11995,8 @@ Note that Playwright (used for the [web_browser()](./reference/inspect_ai.tool.h
 >     init: true
 >     # network_mode is omitted because the browser visits external sites.
 > ```
+>
+> The pre-built image runs as root by default and also provides a `nonroot` account (UID/GID 65532) for evaluations that should not run the agent as root; add `user: nonroot` to the service to use it. The web browser tool works under either user.
 
 ### Task Setup
 
@@ -13991,7 +14047,7 @@ A `modify` decision leaves the original call intact in the log: the recorded mod
 
 ## Custom Approvers
 
-Inspect includes two built-an approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.
+Inspect includes two built-in approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.
 
 Custom approvers are functions that return an [Approval](./reference/inspect_ai.approval.html.md#approval), which consists of a decision and an explanation. Here is the source code for the `auto` approver, which just reflects back the decision that it is initialised with:
 
@@ -14110,6 +14166,172 @@ def bash(timeout: int | None = None) -> Tool:
 The `ToolCallViewer` gets passed the `ToolCall` and returns a `ToolCallView` that provides one or both of `context` (additional information for understand the call) and `call` (alternate rendering of the call). In the case of the bash tool we provide a markdown code block rendering of the bash code to be executed.
 
 The `context` is typically used for stateful tools that need to present some context from the current state. For example, the web browsing tool provides a snippet from the currently loaded page.
+
+
+# Tool Result Review – Inspect
+
+## Overview
+
+[Approvers](./approval.html.md) decide whether a tool call may run. *Reviewers* look at what a tool call returned and decide whether the sample may continue. A reviewer runs inside the tool execution loop the moment a result exists, before that result is returned to the model, so it can end a sample based on evidence that only exists in tool output (for example, a command that succeeded when the policy required it to fail).
+
+Reviewers are configured with *review policies* that mirror approval policies: each policy names a reviewer and the tools it covers, policies are evaluated in order, and the first reviewer that does not escalate decides. Like approvers, reviewers can be specified at the eval level or the task level.
+
+## Decisions
+
+A reviewer returns a [Review](./reference/inspect_ai.review.html.md#review) with one of three decisions:
+
+| Decision | Effect |
+|----|----|
+| `continue` | The result is returned to the model unchanged. |
+| `terminate` | The sample ends and is recorded as an operator limit, exactly like an approver’s `terminate`. Parallel tool calls still running are cancelled. |
+| `escalate` | The next matching reviewer in the policy decides. |
+
+There is no `reject` or `modify`: the call has already run, so there is nothing to reject or rewrite. A result that no policy covers, or that every matching reviewer escalates, continues.
+
+Only calls that executed are reviewed. A call an approver rejected, or that failed before running because its arguments could not be parsed, produced no result and is not reviewed. Handoffs to sub-agents are not reviewed either; the sub-agent’s own tool calls are reviewed as they run.
+
+Errors reported by an executed tool are reviewed when they would otherwise be returned to the model, including parsing or approval errors raised from inside the tool.
+
+## Human Reviewer
+
+[human_reviewer()](./reference/inspect_ai.review.html.md#human_reviewer) shows an operator the tool call together with the result it returned and asks for a decision, on the same surfaces as the human approver: an attached ACP client, the approvals panel in the full-screen display, or the console. It offers `continue` and `terminate` by default; pass `choices` to add `escalate`. The surfaces are the approval ones, so `continue` appears there as “Approve”, and a request the operator dismisses without choosing terminates the sample.
+
+Review the result of every tool call by using the `--review human` CLI option (or the `review = "human"` argument to [eval()](./reference/inspect_ai.html.md#eval)):
+
+``` bash
+inspect eval browser.py --review human
+```
+
+Use it as the last reviewer in a policy so that model reviewers can hand a call’s result to a person (an `escalate` from the last reviewer in a policy continues, as with any unanswered escalation):
+
+``` yaml
+reviewers:
+  - name: output_monitor
+    tools: "*"
+
+  - name: human
+    tools: "*"
+```
+
+## Custom Reviewers
+
+A reviewer is an async function that receives the tool call, its result, and the conversation, and returns a [Review](./reference/inspect_ai.review.html.md#review):
+
+``` python
+from inspect_ai.review import Review, Reviewer, reviewer
+from inspect_ai.model import ChatMessage, ChatMessageTool
+from inspect_ai.tool import ToolCall, ToolCallView, ToolResult
+
+@reviewer
+def no_network() -> Reviewer:
+    async def review(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        if "HTTP/1.1 200" in str(output):
+            return Review(
+                decision="terminate",
+                explanation="The agent reached the network.",
+            )
+        return Review(decision="continue")
+
+    return review
+```
+
+The arguments are:
+
+| Argument | Description |
+|----|----|
+| `message` | Text the assistant produced alongside the tool call. |
+| `call` | The call as executed (after any modification by an approver). |
+| `result` | The [ChatMessageTool](./reference/inspect_ai.model.html.md#chatmessagetool) the model will receive. Long output is truncated to the tool loop’s `max_output` before this message is built. |
+| `output` | The tool’s untruncated return value, so evidence cut from the model’s view is still available to the reviewer. |
+| `view` | The tool’s optional human-readable rendering of the call. |
+| `history` | The conversation up to and including the assistant message that made the call. |
+
+Exceptions raised by a reviewer end the sample as an error, as exceptions from approvers do. Model calls made by a reviewer do not count towards the sample’s token or turn limits.
+
+Cancelling a tool call while its review is unfinished stops the sample with an operator limit. The completed tool result remains in the transcript, and an information event records that review was cancelled. If the sample stops for another reason, unfinished reviewers are cancelled and their tools’ completed results are also preserved. An interrupted review does not record a review decision.
+
+## Review Policies
+
+Policies can be written in YAML and passed with `--review`:
+
+``` yaml
+reviewers:
+  - name: no_network
+    tools: ["bash", "python"]
+```
+
+``` bash
+inspect eval task.py --review review.yaml
+```
+
+Reviewers defined in your own Python modules are referenced by their registry name; use the `@reviewer(name=...)` decorator to control it. The `tools` field uses the same glob syntax as approval policies, matching either the tool name or the tool name and its arguments.
+
+In Python, pass a list of [ReviewPolicy](./reference/inspect_ai.review.html.md#reviewpolicy) objects:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.review import ReviewPolicy
+
+eval(task, review=[ReviewPolicy(no_network(), tools=["bash", "python"])])
+```
+
+## Task Reviewers
+
+Tasks can declare their own reviewers with the `review` parameter, which accepts a policy file or a list of [ReviewPolicy](./reference/inspect_ai.review.html.md#reviewpolicy) objects:
+
+``` python
+@task
+def sandbox_task():
+    return Task(
+        dataset=dataset,
+        solver=react(tools=[bash(), python()]),
+        scorer=includes(),
+        review=[ReviewPolicy(no_network(), tools="*")],
+    )
+```
+
+A `review` passed to [eval()](./reference/inspect_ai.html.md#eval) or `--review` overrides the task’s reviewers.
+
+## Agent Reviewers
+
+The [execute_tools()](./reference/inspect_ai.model.html.md#execute_tools) function and the [react()](./reference/inspect_ai.agent.html.md#react) agent also accept a `review` parameter for convenience, which applies review policies for the duration of tool execution:
+
+``` python
+from inspect_ai.model import execute_tools
+from inspect_ai.review import ReviewPolicy
+
+result = await execute_tools(
+    messages, tools,
+    review=[ReviewPolicy(no_network(), tools="*")]
+)
+```
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.review import ReviewPolicy
+
+agent = react(
+    tools=[bash(), python()],
+    review=[ReviewPolicy(no_network(), tools="*")]
+)
+```
+
+These policies replace the eval-level and task-level reviewers for the duration of tool execution, and the previous policies are restored when it completes. The replacement is total: a tool the agent’s own policies do not cover is not reviewed, even when an eval-level policy covers it. A react agent that hands off to another agent carries its policies into the sub-agent’s tool calls.
+
+## Bridged Agents
+
+Agents integrated via the [Agent Bridge](./agent-bridge.html.md) run their own tool loop, so their tool results never pass through Inspect’s tool execution and are not reviewed. Approval policies are applied to bridged agents’ tool calls (see [Bridged Agents](./approval.html.md#bridged-agents)); the equivalent for review is not yet implemented.
+
+## Transcript
+
+Each decision is recorded as a `ReviewEvent` once the tool call completes, after the [ToolEvent](./reference/inspect_ai.event.html.md#toolevent) for the call it reviewed and any events the tool itself emitted. The event records the reviewer’s name, the call, the decision, and the reviewer’s explanation; the result and the call’s view are on the [ToolEvent](./reference/inspect_ai.event.html.md#toolevent) with the same call id.
 
 
 # Running Evals – Inspect
@@ -14901,6 +15123,10 @@ If a sample is retried, the original error(s) that induced the retries will be r
 >
 > Consequently, when enabling `retry_on_error` you should do some post-hoc analysis to ensure that retried samples don’t have significantly different results than samples which are not retried.
 
+## Model Refusals
+
+A model refusal (`stop_reason="content_filter"`) is not an error by default: the sample continues and is scored on whatever the agent produced. Set the `fail_on_refusal` generation option (`--fail-on-refusal`) to have refusals fail the sample with a `ModelRefusalError` instead, so they appear as sample errors and count toward `fail_on_error`. See [Failing on Refusals](./fallbacks.html.md#failing-on-refusals) for details, including how it interacts with `retry_refusals` and model roles.
+
 ## Scoring Errored Samples
 
 Some evaluations are designed so that an error during the agent run is itself a meaningful (often failing) outcome — for example, a tool-using agent that crashes after producing partial state, or a benchmark where “the model errored” should count as a scoreable result rather than as missing data.
@@ -15647,7 +15873,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl process pause` | Pause a whole running eval or eval-set (`--now` also holds in-flight samples). |
 | `inspect ctl process resume` | Resume a paused eval or eval-set. |
 
-e its work-so-far is scored).
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `store` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, `task drain` stops new samples while in-flight ones finish naturally, `sample requeue` re-runs an errored or cancelled sample (all idempotently, with `--dry-run` support), and `task score` / `sample score` score a running task’s samples (or one sample) without ending them (each in-flight sample is briefly held while its work-so-far is scored).
 
 The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -15931,7 +16157,7 @@ $ inspect ctl sample cancel gpqa 17
 $ inspect ctl sample cancel gpqa 17 3
 ```
 
-`--action cancel` also works on a sample that *hasn’t started yet*, resolved by where it stands. A never-started sample (shown as `pending` in `sample list`) is cancelled before it starts: it is removed from the queue, listed as `cancelled`, and absent from the final log — an `inspect eval-retry` on the log will run it later. A queued *re-run* has its pending requeue withdrawn instead (see [Requeue](#requeue)): the prior terminal record stands, and the sample is requeueable again. A cancel-before-start is reversible while the sample still holds its place in the queue — `sample requeue` withdraws the cancel and the sample runs normally when it gets a slot. The other actions are rejected for samples that haven’t started (there is no work to score and no error to record), as is the one blind window: a sample that has just left the queue but is not yet running (initializing — its sandbox may still be starting) can’t be cancelled until it is running — retry.
+`--action cancel` also works on a sample that *hasn’t started yet*, resolved by where it stands. A never-started sample (shown as `pending` in `sample list`) is cancelled before it starts: it is removed from the queue, listed as `cancelled`, and absent from the final log — an `inspect eval-retry` on the log will run it later. A queued *re-run* has its pending requeue withdrawn instead (see [Requeue](#requeue)): the prior terminal record stands, and the sample is requeueable again. A cancel-before-start is reversible while the sample still holds its place in the queue — `sample requeue` withdraws the cancel and the sample runs normally when it gets a slot. The other actions are rejected for samples that haven’t started (there is no work to score and no error to record). A sample that has left the queue and is *initializing* (its sandbox may still be starting) accepts any action, deferred: the request is recorded and applied the moment the sample starts, before its solver runs, so a sample held up by slow sandbox provisioning no longer has to be polled until it is running (the sandbox is still fully built and then torn down normally). `sample list` marks the pending request in the row’s status — `queued (cancel requested)` — and a repeat while the sample is still initializing is a no-op naming it. Unlike a cancel-before-start, a deferred request cannot be withdrawn: it resolves as the sample starts, after which the sample can be requeued like any other terminal one. Only the instant between leaving the queue and being registered is rejected — retry.
 
 When a sample is not merely slow but stuck on one hung *tool call* — a sandbox command wedged against a dead daemon with no timeout configured, or a timeout whose teardown never completed — cancelling the whole sample discards its progress unnecessarily. `inspect ctl sample cancel-tool-call` cancels just that call: the model receives an ordinary tool timeout (“Command timed out before completing.”) and the sample continues, using the same per-call cancel primitive as the in-process TUI’s timeout button and ACP’s `inspect/cancel_tool_call`.
 
@@ -15955,7 +16181,7 @@ Pass `--action score` or `--action error` to resolve the task *gracefully* inste
 $ inspect ctl task cancel gpqa --action score
 ```
 
-Both commands are idempotent — cancelling something already finished, already cancelling, or already cancelled before start is a clean no-op, reported as `changed: false` in the `--json` detail, escalation over a strictly weaker pending resolution (see [Draining](#draining)) being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. A task *between attempts*, whose last attempt errored (or is still writing its final error log) and whose retry is coming but not yet started, has nothing running to interrupt: a plain `task cancel` abandons the pending retry — the task ends with its last attempt’s error log, exactly the shape an exhausted retry budget produces — while `--action score`/`error` are rejected there (no samples for a resolution to apply to). And `sample cancel` keeps the rejections described above: a sample that has just left the queue but is not yet running, and `--action score|error` on a sample that hasn’t started.
+Both commands are idempotent — cancelling something already finished, already cancelling, or already cancelled before start is a clean no-op, reported as `changed: false` in the `--json` detail, escalation over a strictly weaker pending resolution (see [Draining](#draining)) being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. A task *between attempts*, whose last attempt errored (or is still writing its final error log) and whose retry is coming but not yet started, has nothing running to interrupt: a plain `task cancel` abandons the pending retry — the task ends with its last attempt’s error log, exactly the shape an exhausted retry budget produces — while `--action score`/`error` are rejected there (no samples for a resolution to apply to). And `sample cancel` keeps the rejections described above: a sample that has just left the queue but is not yet registered, and `--action score|error` on a sample that hasn’t started.
 
 ## Draining
 
@@ -16155,7 +16381,7 @@ The control server is on by default. To run an eval without it:
 inspect eval ctf.py --ctl-server=false
 ```
 
-The `INSPECT_EVAL_CTL_SERVER` environment variable mirrors the option (for example, set `INSPECT_EVAL_CTL_SERVER=false` to disable it across a CI job). If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.
+The `INSPECT_EVAL_CTL_SERVER` environment variable mirrors the option (for example, set `INSPECT_EVAL_CTL_SERVER=false` to disable it across a CI job). It applies to [eval()](./reference/inspect_ai.html.md#eval) / [eval_set()](./reference/inspect_ai.html.md#eval_set) called from Python as well as to the CLI, whenever `ctl_server` is not passed explicitly — including `INSPECT_EVAL_CTL_SERVER=keep`, which makes a Python [eval()](./reference/inspect_ai.html.md#eval) park after it finishes just as `--ctl-server=keep` does. If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.
 
 
 # Early Stopping – Inspect
@@ -16881,6 +17107,8 @@ inspect eval ctf.py --log-refusals
 ```
 
 Note that in all cases a counter of refusals during the eval or eval set is provided at the bottom right of the task display.
+
+To fail a sample when a refusal occurs (rather than only logging a warning), use the `--fail-on-refusal` generation option; see [Failing on Refusals](./fallbacks.html.md#failing-on-refusals).
 
 ## Model API Logging
 

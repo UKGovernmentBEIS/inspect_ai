@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -554,6 +557,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Tool Approval</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Result Review</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -884,7 +893,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td>Open (Hosted)</td>
-<td><a href="./providers.html#groq">Groq</a>, <a href="./providers.html#together-ai">Together AI</a>, <a href="./providers.html#fireworks-ai">Fireworks AI</a>, <a href="./providers.html#cloudflare">Cloudflare</a>, <a href="./providers.html#hf-inference-providers">HF Inference Providers</a>, <a href="./providers.html#sambanova">SambaNova</a></td>
+<td><a href="./providers.html#groq">Groq</a>, <a href="./providers.html#together-ai">Together AI</a>, <a href="./providers.html#fireworks-ai">Fireworks AI</a>, <a href="./providers.html#cloudflare">Cloudflare</a>, <a href="./providers.html#hugging-face-inference-providers">HF Inference Providers</a>, <a href="./providers.html#sambanova">SambaNova</a></td>
 </tr>
 <tr class="even">
 <td>Open (Local)</td>
@@ -1002,7 +1011,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="5368b778" class="cell">
+<div id="4325abd7" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
@@ -1214,9 +1223,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="anthropic-cache-ttl" class="level3">
 <h3 class="anchored" data-anchor-id="anthropic-cache-ttl">Cache TTL</h3>
-<p>Inspect enables Anthropic <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">prompt caching</a> by default, using the standard 5-minute cache TTL. Use the <code>cache_ttl</code> model arg (<code>-M</code>) to specify a different TTL. Valid values are “5m” (the default) and “1h”:</p>
+<p>Inspect enables Anthropic <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">prompt caching</a> by default. Use the <code>cache_ttl</code> model arg (<code>-M</code>) to control the cache TTL. Valid values are:</p>
+<ul>
+<li><p>“auto” (the default): requests use the standard 5-minute cache TTL, and a sample is automatically switched to the 1-hour TTL for the remainder of its execution when more than 5 minutes pass between requests that use the cache (e.g.&nbsp;due to slow tool calls, long generations, or queuing behind <code>max_connections</code>). By that point the 5-minute cache has expired and the full prompt prefix is being rewritten regardless, so escalating protects the rest of the sample from repeated cache misses. Escalations are reported in a log message.</p></li>
+<li><p>“5m” or “1h”: pin the TTL for all requests (disables automatic escalation).</p></li>
+</ul>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/claude-sonnet-4-6 <span class="at">-M</span> cache_ttl=1h</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Note that 1-hour cache writes are billed at 2x the base input token price (vs.&nbsp;1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart.</p>
+<p>Note that 1-hour cache writes are billed at 2x the base input token price (vs.&nbsp;1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API (not Bedrock, Vertex, or Azure) and does not apply in <a href="./models-batch.html">batch mode</a>.</p>
 </section>
 <section id="streaming" class="level3">
 <h3 class="anchored" data-anchor-id="streaming">Streaming</h3>
@@ -1595,12 +1608,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="aws-bedrock" class="level2">
 <h2 class="anchored" data-anchor-id="aws-bedrock">AWS Bedrock</h2>
-<p>To use the <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a> provider, install the <code>aioboto3</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
+<p>To use the <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a> provider, set your credentials and specify a model using the <code>--model</code> option:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb44"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_ACCESS_KEY_ID</span><span class="op">=</span>access-key-id</span>
 <span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_SECRET_ACCESS_KEY</span><span class="op">=</span>secret-access-key</span>
 <span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_DEFAULT_REGION</span><span class="op">=</span>us-east-1</span>
 <span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval bedrock/meta.llama2-70b-chat-v1</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>For the <code>bedrock</code> provider, custom model args (<code>-M</code>) are forwarded to the <code>client</code> method of the <code>aioboto3.Session</code> class, save for the <code>read_timeout</code> and <code>connect_timeout</code> args which are passed in the <code>config</code> parameter.</p>
+<p>For the <code>bedrock</code> provider, custom model args (<code>-M</code>) are forwarded to the <code>create_client</code> method of the <code>aiobotocore.session.AioSession</code> class, save for the <code>read_timeout</code> and <code>connect_timeout</code> args which are passed in the <code>config</code> parameter.</p>
 <p>Note that all models on AWS Bedrock require that you <a href="https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html">request model access</a> before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).</p>
 <p>You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren’t likely to need to, but you can also specify a custom base URL for AWS Bedrock using the <code>BEDROCK_BASE_URL</code> environment variable.</p>
 <p>If you are using Anthropic models on Bedrock, you can alternatively use the <a href="#anthropic-on-aws-bedrock">Anthropic provider</a> as your means of access. If you are using OpenAI models on Bedrock, access them via the <code>openai</code> provider with the <code>bedrock</code> qualifier — see <a href="#openai-on-aws-bedrock">OpenAI on AWS Bedrock</a>.</p>
@@ -1612,12 +1625,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="aws-sagemaker" class="level2">
 <h2 class="anchored" data-anchor-id="aws-sagemaker">AWS SageMaker</h2>
-<p>To use the <a href="https://aws.amazon.com/sagemaker/">AWS SageMaker</a> provider, install the <code>aioboto3</code> package, set your credentials, and specify a SageMaker endpoint name using the <code>--model</code> option:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb46"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install aioboto3</span>
-<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_ACCESS_KEY_ID</span><span class="op">=</span>access-key-id</span>
-<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_SECRET_ACCESS_KEY</span><span class="op">=</span>secret-access-key</span>
-<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> sagemaker/my-endpoint-name <span class="dt">\</span></span>
-<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> region_name=us-west-2</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>To use the <a href="https://aws.amazon.com/sagemaker/">AWS SageMaker</a> provider, set your credentials and specify a SageMaker endpoint name using the <code>--model</code> option:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb46"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_ACCESS_KEY_ID</span><span class="op">=</span>access-key-id</span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_SECRET_ACCESS_KEY</span><span class="op">=</span>secret-access-key</span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> sagemaker/my-endpoint-name <span class="dt">\</span></span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> region_name=us-west-2</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Deploy your preferred model via Sagemaker studio jumpstart UI/SDK/CLI (<a href="https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-jumpstart-model.html">link</a>). The model name after <code>sagemaker/</code> is the SageMaker endpoint name.</p>
 <section id="model-args-2" class="level3">
 <h3 class="anchored" data-anchor-id="model-args-2">Model Args</h3>
@@ -2252,7 +2264,7 @@ Note
 </section>
 <section id="tool-use-and-reasoning" class="level3">
 <h3 class="anchored" data-anchor-id="tool-use-and-reasoning">Tool Use and Reasoning</h3>
-<p>vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the <a href="https://docs.vllm.ai/en/stable/features/tool_calling.html">Tool Use</a> and <a href="https://docs.vllm.ai/en/stable/features/reasoning_outputs.html">Reasoning</a> sections of the vLLM documentation for details.</p>
+<p>vLLM supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the <a href="https://docs.vllm.ai/en/stable/features/tool_calling.html">Tool Use</a> and <a href="https://docs.vllm.ai/en/stable/features/reasoning_outputs.html">Reasoning</a> sections of the vLLM documentation for details.</p>
 <p>For vLLM reasoning models, pass the model-specific parser and chat-template kwargs through <code>-M</code>. See <a href="./reasoning.html#vllmsglang">Reasoning</a> for CLI examples.</p>
 </section>
 <section id="prompt-log-probabilities" class="level3">
@@ -2332,7 +2344,7 @@ Note
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb104"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb104-1"><a href="#cb104-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> sglang/meta-llama/Meta-Llama-3-8B-Instruct <span class="at">--model-base-url</span> http://localhost:8080/v1 <span class="at">-M</span> api_key=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="tool-use-and-reasoning-1" class="level3">
 <h3 class="anchored" data-anchor-id="tool-use-and-reasoning-1">Tool Use and Reasoning</h3>
-<p>SGLang supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the <a href="https://docs.sglang.ai/backend/function_calling.html">Tool Use</a> and <a href="https://docs.sglang.ai/backend/separate_reasoning.html">Reasoning</a> sections of the SGLang documentation for details.</p>
+<p>SGLang supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the <a href="https://docs.sglang.ai/backend/function_calling.html">Tool Use</a> and <a href="https://docs.sglang.ai/backend/separate_reasoning.html">Reasoning</a> sections of the SGLang documentation for details.</p>
 </section>
 <section id="batching-2" class="level3">
 <h3 class="anchored" data-anchor-id="batching-2">Batching</h3>

@@ -47,7 +47,7 @@ The sections below work through each outcome and the details recorded by Inspect
 
 ### Verdicts on the model
 
-An incorrect answer stays in the denominator. This includes output that doesn’t follow the requested format: [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` with `reason="invalid_response_format"` when the expected answer pattern is absent. Use extraction rules that match the answer format requested in the task.
+An incorrect answer stays in the denominator. This includes output that doesn’t follow the requested format: [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` with `reason="invalid_response_format"` when the expected answer pattern is absent, and [math()](./reference/inspect_ai.scorer.html.md#math) does the same when the output contains no readable answer at all. Use extraction rules that match the answer format requested in the task.
 
 Inspect provides two labels for incorrect or missing answers. Both map to `0.0` by default and both stay in the denominator:
 

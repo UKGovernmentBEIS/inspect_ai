@@ -104,6 +104,10 @@ If a sample is retried, the original error(s) that induced the retries will be r
 >
 > Consequently, when enabling `retry_on_error` you should do some post-hoc analysis to ensure that retried samples don’t have significantly different results than samples which are not retried.
 
+## Model Refusals
+
+A model refusal (`stop_reason="content_filter"`) is not an error by default: the sample continues and is scored on whatever the agent produced. Set the `fail_on_refusal` generation option (`--fail-on-refusal`) to have refusals fail the sample with a `ModelRefusalError` instead, so they appear as sample errors and count toward `fail_on_error`. See [Failing on Refusals](./fallbacks.html.md#failing-on-refusals) for details, including how it interacts with `retry_refusals` and model roles.
+
 ## Scoring Errored Samples
 
 Some evaluations are designed so that an error during the agent run is itself a meaningful (often failing) outcome — for example, a tool-using agent that crashes after producing partial state, or a benchmark where “the model errored” should count as a scoreable result rather than as missing data.

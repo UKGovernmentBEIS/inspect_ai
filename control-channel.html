@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -552,6 +555,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./approval.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Tool Approval</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Result Review</span></a>
   </div>
 </li>
       </ul>
@@ -1192,7 +1201,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample cancel gpqa 17</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><code>EPOCH</code> defaults to 1 but is <em>required</em> whenever the task runs more than one epoch — a defaulted epoch would silently cancel the epoch-1 attempt rather than erroring:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample cancel gpqa 17 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><code>--action cancel</code> also works on a sample that <em>hasn’t started yet</em>, resolved by where it stands. A never-started sample (shown as <code>pending</code> in <code>sample list</code>) is cancelled before it starts: it is removed from the queue, listed as <code>cancelled</code>, and absent from the final log — an <code>inspect eval-retry</code> on the log will run it later. A queued <em>re-run</em> has its pending requeue withdrawn instead (see <a href="#requeue">Requeue</a>): the prior terminal record stands, and the sample is requeueable again. A cancel-before-start is reversible while the sample still holds its place in the queue — <code>sample requeue</code> withdraws the cancel and the sample runs normally when it gets a slot. The other actions are rejected for samples that haven’t started (there is no work to score and no error to record), as is the one blind window: a sample that has just left the queue but is not yet running (initializing — its sandbox may still be starting) can’t be cancelled until it is running — retry.</p>
+<p><code>--action cancel</code> also works on a sample that <em>hasn’t started yet</em>, resolved by where it stands. A never-started sample (shown as <code>pending</code> in <code>sample list</code>) is cancelled before it starts: it is removed from the queue, listed as <code>cancelled</code>, and absent from the final log — an <code>inspect eval-retry</code> on the log will run it later. A queued <em>re-run</em> has its pending requeue withdrawn instead (see <a href="#requeue">Requeue</a>): the prior terminal record stands, and the sample is requeueable again. A cancel-before-start is reversible while the sample still holds its place in the queue — <code>sample requeue</code> withdraws the cancel and the sample runs normally when it gets a slot. The other actions are rejected for samples that haven’t started (there is no work to score and no error to record). A sample that has left the queue and is <em>initializing</em> (its sandbox may still be starting) accepts any action, deferred: the request is recorded and applied the moment the sample starts, before its solver runs, so a sample held up by slow sandbox provisioning no longer has to be polled until it is running (the sandbox is still fully built and then torn down normally). <code>sample list</code> marks the pending request in the row’s status — <code>queued (cancel requested)</code> — and a repeat while the sample is still initializing is a no-op naming it. Unlike a cancel-before-start, a deferred request cannot be withdrawn: it resolves as the sample starts, after which the sample can be requeued like any other terminal one. Only the instant between leaving the queue and being registered is rejected — retry.</p>
 <p>When a sample is not merely slow but stuck on one hung <em>tool call</em> — a sandbox command wedged against a dead daemon with no timeout configured, or a timeout whose teardown never completed — cancelling the whole sample discards its progress unnecessarily. <code>inspect ctl sample cancel-tool-call</code> cancels just that call: the model receives an ordinary tool timeout (“Command timed out before completing.”) and the sample continues, using the same per-call cancel primitive as the in-process TUI’s timeout button and ACP’s <code>inspect/cancel_tool_call</code>.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample cancel-tool-call gpqa 17</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>With no <code>--tool-call-id</code>, the command targets the sample’s sole pending tool call, and errors if there are two or more — it never guesses among targets, and never cancels them all (pass explicit ids for that). <code>--dry-run</code> without an id enumerates the pending calls, and each running sample’s <code>activity</code> in <code>sample list --json</code> carries a per-call list (<code>id</code>, <code>function</code>, <code>started_at</code>, <code>cancel_requested</code>), so a watchdog script can spot a stalled tool call and cancel it by id in one poll loop. Like the other sample mutations it is idempotent — repeating a cancel, naming a call that is no longer pending, or targeting a finished sample is a clean no-op — and <code>EPOCH</code> is required whenever the task runs more than one epoch.</p>
@@ -1201,7 +1210,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task cancel gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Pass <code>--action score</code> or <code>--action error</code> to resolve the task <em>gracefully</em> instead of aborting it: each in-flight sample is scored on the work done so far (or marked errored), still-queued samples are abandoned, and the task runs to natural completion — so the eval finishes with a completed status rather than an error. This is how to abandon a task’s last few stragglers while still bringing the eval to a completed state. Note that a completed status doesn’t mean every sample ran: abandoned samples are absent from the log (visible as <code>completed_samples &lt; total_samples</code> in its results); re-invoking <code>inspect eval-set</code> on the same log directory later — or an explicit <code>inspect eval-retry</code> on the log — will run them if you change your mind, reusing the samples that completed. <code>--action error</code> is not permitted when the task’s samples are configured to fail on errors. If a graceful cancel stalls — say on a hung scorer — issuing a plain <code>inspect ctl task cancel</code> escalates it to an abort.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task cancel gpqa <span class="at">--action</span> score</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Both commands are idempotent — cancelling something already finished, already cancelling, or already cancelled before start is a clean no-op, reported as <code>changed: false</code> in the <code>--json</code> detail, escalation over a strictly weaker pending resolution (see <a href="#draining">Draining</a>) being the one exception — and both accept <code>--dry-run</code> to report what would be cancelled without doing it. A task <em>between attempts</em>, whose last attempt errored (or is still writing its final error log) and whose retry is coming but not yet started, has nothing running to interrupt: a plain <code>task cancel</code> abandons the pending retry — the task ends with its last attempt’s error log, exactly the shape an exhausted retry budget produces — while <code>--action score</code>/<code>error</code> are rejected there (no samples for a resolution to apply to). And <code>sample cancel</code> keeps the rejections described above: a sample that has just left the queue but is not yet running, and <code>--action score|error</code> on a sample that hasn’t started.</p>
+<p>Both commands are idempotent — cancelling something already finished, already cancelling, or already cancelled before start is a clean no-op, reported as <code>changed: false</code> in the <code>--json</code> detail, escalation over a strictly weaker pending resolution (see <a href="#draining">Draining</a>) being the one exception — and both accept <code>--dry-run</code> to report what would be cancelled without doing it. A task <em>between attempts</em>, whose last attempt errored (or is still writing its final error log) and whose retry is coming but not yet started, has nothing running to interrupt: a plain <code>task cancel</code> abandons the pending retry — the task ends with its last attempt’s error log, exactly the shape an exhausted retry budget produces — while <code>--action score</code>/<code>error</code> are rejected there (no samples for a resolution to apply to). And <code>sample cancel</code> keeps the rejections described above: a sample that has just left the queue but is not yet registered, and <code>--action score|error</code> on a sample that hasn’t started.</p>
 </section>
 <section id="draining" class="level2">
 <h2 class="anchored" data-anchor-id="draining">Draining</h2>
@@ -1420,7 +1429,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="disabling-the-control-server">Disabling the Control Server</h2>
 <p>The control server is on by default. To run an eval without it:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The <code>INSPECT_EVAL_CTL_SERVER</code> environment variable mirrors the option (for example, set <code>INSPECT_EVAL_CTL_SERVER=false</code> to disable it across a CI job). If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.</p>
+<p>The <code>INSPECT_EVAL_CTL_SERVER</code> environment variable mirrors the option (for example, set <code>INSPECT_EVAL_CTL_SERVER=false</code> to disable it across a CI job). It applies to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> / <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> called from Python as well as to the CLI, whenever <code>ctl_server</code> is not passed explicitly — including <code>INSPECT_EVAL_CTL_SERVER=keep</code>, which makes a Python <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> park after it finishes just as <code>--ctl-server=keep</code> does. If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.</p>
 
 
 </section>

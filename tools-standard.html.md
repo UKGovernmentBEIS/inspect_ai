@@ -15,7 +15,7 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 Agentic tools include:
 
 - [Skill](./tools-standard.html.md#sec-skill) which provides agent skill specifications to the model with specialized knowledge and expertise for specific tasks (requires a [sandbox](./sandboxing.html.md)).
-- [Update Plan](./tools-standard.html.md#sec-update-plan) which helps the model tracks steps and progress across longer horizon tasks.
+- [Todo Write](./tools-standard.html.md#sec-todo-write) which helps the model tracks steps and progress across longer horizon tasks.
 - [Memory](./tools-standard.html.md#sec-memory) which enables storing and retrieving information through a memory file directory.
 - [Think](./tools-standard.html.md#sec-think), which provides models the ability to include an additional thinking step as part of getting to its final answer.
 - [Intervention](./tools-standard.html.md#sec-intervention), which enable the model to ask questions or send notifications to the user.
@@ -561,6 +561,8 @@ Note that Playwright (used for the [web_browser()](./reference/inspect_ai.tool.h
 >     init: true
 >     # network_mode is omitted because the browser visits external sites.
 > ```
+>
+> The pre-built image runs as root by default and also provides a `nonroot` account (UID/GID 65532) for evaluations that should not run the agent as root; add `user: nonroot` to the service to use it. The web browser tool works under either user.
 
 ### Task Setup
 

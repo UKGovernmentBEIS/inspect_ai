@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -554,6 +557,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Tool Approval</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Result Review</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -722,6 +731,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#basic-usage" id="toc-basic-usage" class="nav-link" data-scroll-target="#basic-usage">Basic Usage</a></li>
   <li><a href="#refusals" id="toc-refusals" class="nav-link" data-scroll-target="#refusals">Refusals</a></li>
+  <li><a href="#failing-on-refusals" id="toc-failing-on-refusals" class="nav-link" data-scroll-target="#failing-on-refusals">Failing on Refusals</a></li>
   <li><a href="#fallback-logging" id="toc-fallback-logging" class="nav-link" data-scroll-target="#fallback-logging">Fallback Logging</a>
   <ul class="collapse">
   <li><a href="#costs" id="toc-costs" class="nav-link" data-scroll-target="#costs">Costs</a></li>
@@ -821,6 +831,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 <p>When a fallback serves a request, the API does not report the declining attempt’s refusal category (the declined attempt is unbilled and only its token counts appear in the response diagnostics). Refusal categories are available only on responses that actually ended in a refusal.</p>
 </section>
+<section id="failing-on-refusals" class="level2">
+<h2 class="anchored" data-anchor-id="failing-on-refusals">Failing on Refusals</h2>
+<p>By default a refusal is just another model output: agents like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> retry it if <code>retry_refusals</code> is set and otherwise stop, and the sample proceeds to scoring (typically scoring zero, which is indistinguishable from a genuine failure of the task). If you would rather be told loudly that a refusal occurred, set the <code>fail_on_refusal</code> generation option. When enabled, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> raises a <code>ModelRefusalError</code> after a generation ends with <code>stop_reason="content_filter"</code>, which fails the sample with an error whose message starts with <code>Model refusal</code> and includes the model, role and refusal category:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> anthropic/claude-fable-5 <span class="at">--fail-on-refusal</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Like other generation config, <code>fail_on_refusal</code> can be set eval-wide (as above, or <code>eval(..., fail_on_refusal=True)</code>), on a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> (<code>config=GenerateConfig(fail_on_refusal=True)</code>), on a model (<code>--model-spec</code> or <code>get_model(..., config=...)</code>), or on an individual <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> call. Eval-wide and task settings also apply to any other model used by the eval, including <a href="./models.html#model-roles">model roles</a> such as graders and ad hoc <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> calls in solvers or scorers, but a model’s own setting wins, so you can fail on refusals from the agent while letting a grader refuse normally:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--fail-on-refusal</span> <span class="dt">\</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model-role</span> grader=<span class="st">"{model: openai/gpt-5, fail_on_refusal: false}"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Some things to be aware of:</p>
+<ul>
+<li>With the default <code>fail_on_error</code>, the first sample error fails the whole eval, so <code>--fail-on-refusal</code> on its own stops the eval at the first refusal. To record failed samples and keep running, combine it with <code>--no-fail-on-error</code> (or a <code>--fail-on-error</code> threshold, or <code>--continue-on-fail</code>). See <a href="./handling-errors.html">Handling Errors</a> for details.</li>
+<li>Refusal retries still apply: <code>retry_refusals=N</code> on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> or the agent bridge means the sample fails only after N+1 consecutive refusals in one step (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> defaults to 3 retries, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> to none).</li>
+<li><code>retry_on_error</code> and <code>score_on_error</code> treat a refusal like any other sample error, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> retries a task whose log status is <code>error</code> as usual.</li>
+<li>The refusal counter and <code>--log-refusals</code> still run, and <code>ModelRefusalError</code> (exported from <code>inspect_ai.model</code>) carries the refused <code>output</code>, so the category is available to code that catches it.</li>
+<li>Because the CLI flag is unset by default, <code>--fail-on-refusal</code> never disables an option enabled by a task or model config; pass <code>--no-fail-on-refusal</code> to do that.</li>
+<li>For scaffolds bridged in-process with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span>, the error surfaces as an exception from the scaffold’s own SDK call, so a scaffold that catches broad exceptions around its API calls will swallow it. Scaffolds running in a sandbox via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> fail the sample regardless of how they handle the error response they receive.</li>
+<li>A refusal during an MCP sampling request (a generation an <a href="./tools-mcp.html">MCP server</a> asks Inspect to perform on its behalf) is returned to the server as an MCP error rather than failing the sample, the same as an exceeded limit there today.</li>
+</ul>
+</section>
 <section id="fallback-logging" class="level2">
 <h2 class="anchored" data-anchor-id="fallback-logging">Fallback Logging</h2>
 <p>When a fallback serves a generation, Inspect records it on the model output, in the message content, and in a per-sample rollup.</p>
@@ -857,15 +885,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 <p>The assistant message also carries a content marker at the point of the handoff, which is what allows Inspect to replay fallen-back conversations on subsequent turns.</p>
 <p>At the sample level, <code>EvalSample.model_fallbacks</code> (and sample summaries) aggregate the fallbacks that occurred during the sample (across solvers, subagents, and scorers) as a list of <code>ModelFallback</code> entries keyed by requested and serving model. The rollup is also available in <a href="./dataframe.html">dataframes</a>: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> includes a <code>fallbacks</code> column with the total count, and the full detail is available via a custom column:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> SampleColumn, SampleSummary, samples_df</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> samples_df(</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"logs"</span>,</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>SampleSummary <span class="op">+</span> [</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        SampleColumn(<span class="st">"model_fallbacks"</span>, path<span class="op">=</span><span class="st">"model_fallbacks"</span>)</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>df[df.fallbacks <span class="op">&gt;</span> <span class="dv">0</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> SampleColumn, SampleSummary, samples_df</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> samples_df(</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"logs"</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>SampleSummary <span class="op">+</span> [</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        SampleColumn(<span class="st">"model_fallbacks"</span>, path<span class="op">=</span><span class="st">"model_fallbacks"</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>df[df.fallbacks <span class="op">&gt;</span> <span class="dv">0</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="costs" class="level3">
 <h3 class="anchored" data-anchor-id="costs">Costs</h3>
 <p>Cost estimation (including the <code>cost_limit</code> option) prices fallen-back requests at the requested model’s rates, as if no refusal had occurred. This keeps estimated costs comparable across samples, and is conservative for <code>cost_limit</code> since fallback targets are cheaper than the requested model (Anthropic bills each attempt at the rates of the model that ran it, and declined attempts that produced no output are unbilled). If you need actual-spend accounting, the per-attempt billing record is preserved in <code>ModelFallback.metadata["iterations"]</code> on each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#modelevent">ModelEvent</a></span>’s output.</p>
@@ -884,26 +912,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="fallback-scanning" class="level2">
 <h2 class="anchored" data-anchor-id="fallback-scanning">Fallback Scanning</h2>
 <p>Scanners from <a href="https://meridianlabs-ai.github.io/inspect_scout/">Inspect Scout</a> can locate fallbacks in a set of logs. The scanner below emits a result for each generation served by a fallback model, with the handoff as the value, an explanation noting the refusal followed by the served message content, and a reference to the originating event:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.event <span class="im">import</span> ModelEvent</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_scout <span class="im">import</span> Reference, Result, Scanner, scanner</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="at">@scanner</span>(events<span class="op">=</span>[<span class="st">"model"</span>])</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_fallbacks() <span class="op">-&gt;</span> Scanner[ModelEvent]:</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Find generations served by a fallback model."""</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> scan(event: ModelEvent) <span class="op">-&gt;</span> Result:</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        fallback <span class="op">=</span> event.output.fallback</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> fallback <span class="kw">is</span> <span class="va">None</span>:</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> Result(value<span class="op">=</span><span class="va">None</span>)</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Result(</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>            value<span class="op">=</span><span class="ss">f"</span><span class="sc">{</span>fallback<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> → </span><span class="sc">{</span>fallback<span class="sc">.</span>fallback_model<span class="sc">}</span><span class="ss">"</span>,</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>            explanation<span class="op">=</span><span class="ss">f"</span><span class="sc">{</span>fallback<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> refused this request: "</span></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>            <span class="op">+</span> event.output.message.text,</span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>            references<span class="op">=</span>[Reference(<span class="bu">type</span><span class="op">=</span><span class="st">"event"</span>, <span class="bu">id</span><span class="op">=</span>event.uuid <span class="kw">or</span> <span class="st">""</span>)],</span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> scan</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.event <span class="im">import</span> ModelEvent</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_scout <span class="im">import</span> Reference, Result, Scanner, scanner</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="at">@scanner</span>(events<span class="op">=</span>[<span class="st">"model"</span>])</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_fallbacks() <span class="op">-&gt;</span> Scanner[ModelEvent]:</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Find generations served by a fallback model."""</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> scan(event: ModelEvent) <span class="op">-&gt;</span> Result:</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        fallback <span class="op">=</span> event.output.fallback</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> fallback <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> Result(value<span class="op">=</span><span class="va">None</span>)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Result(</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>            value<span class="op">=</span><span class="ss">f"</span><span class="sc">{</span>fallback<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> → </span><span class="sc">{</span>fallback<span class="sc">.</span>fallback_model<span class="sc">}</span><span class="ss">"</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>            explanation<span class="op">=</span><span class="ss">f"</span><span class="sc">{</span>fallback<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> refused this request: "</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>            <span class="op">+</span> event.output.message.text,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>            references<span class="op">=</span>[Reference(<span class="bu">type</span><span class="op">=</span><span class="st">"event"</span>, <span class="bu">id</span><span class="op">=</span>event.uuid <span class="kw">or</span> <span class="st">""</span>)],</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> scan</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>

@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -554,6 +557,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Tool Approval</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Result Review</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -848,7 +857,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>For incomplete samples, Inspect locates the checkpoint directory, restores each sample’s most recent committed checkpoint, and continues. The following is restored before the agent runs:</p>
 <ol type="1">
 <li>Agent State: Any state values the agent registered (e.g.&nbsp;message or compaction history).</li>
-<li>Sandbox: The sandbox setup script is run and the configured sandbox paths are restored from backup into a fresh sandbox container.</li>
+<li>Sandbox: The sandbox setup script is run and the configured sandbox paths are restored from backup into a fresh sandbox container (only those paths — see <a href="#restore-constraints">What can be restored</a>).</li>
 <li>Events and Store: Inspect’s internal per-sample state is rehydrated (the events appear under a synthesized <code>prior_run</code> span in the new <code>.eval</code> log).</li>
 </ol>
 <p>By default checkpoints are deleted once the eval completes successfully; use <code>retention="retain"</code> in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#checkpointconfig">CheckpointConfig</a></span> to preserve them.</p>
@@ -1004,6 +1013,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sandbox-paths">Sandbox Paths</h3>
 <p><code>sandbox_paths</code> is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the <code>"default"</code> key to refer to that container. Note that <code>sandbox_paths</code> is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. The exception is <a href="#snapshot-strategies">snapshot-strategy</a> selection: <code>strategy</code> values merge per-sandbox across all layers (eval &gt; sample &gt; task) regardless of which layer’s paths dict won, so a paths-only override never silently resets a selected strategy. Also, while sandbox home directories are included by default, if you specify <code>sandbox_paths</code> explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g.&nbsp;<code>sandbox_paths={"tools": []}</code>) opts that sandbox out of checkpointing entirely.</p>
 <p>Cache directories are never backed up: any <code>.cache</code> directory at any depth (<code>**/.cache</code>, including the user’s XDG cache dir) is always excluded from sandbox backups — even when you specify <code>sandbox_paths</code> explicitly. Agents should not keep state they need across a resume under a <code>.cache</code> directory.</p>
+<section id="restore-constraints" class="level4">
+<h4 class="anchored" data-anchor-id="restore-constraints">What can be restored</h4>
+<p>A resume writes into the fresh sandbox as root, so the snapshot it restores is checked before anything is written. The rules below are what a retry enforces; a capture that breaks them fails hydration with an error naming the sandbox and the offending path, and the sample is not resumed.</p>
+<ul>
+<li>Paths must be absolute and cannot be <code>/</code>. A relative <code>sandbox_paths</code> entry or a bare <code>/</code> fails when the sample starts (before its first checkpoint) rather than at resume. An image whose default user has <code>HOME=/</code> gets no automatic home-directory capture (a warning is logged); configure <code>sandbox_paths</code> for it instead.</li>
+<li>Only the captured paths are written. A snapshot node outside them is refused, as is any device, fifo or socket node, a hard link to a file outside the captured paths, and any regular file carrying a setuid, setgid or sticky bit. An agent that builds a setuid binary or creates a fifo under a captured path makes that sample unresumable; keep such files outside <code>sandbox_paths</code>. Directories keep their sticky and setgid bits (<code>/tmp</code>, a <code>chmod g+s</code> shared directory), so such a directory can be a captured path.</li>
+<li>Symbolic links that the sandbox image ships under a captured path are removed before the restore and replaced by whatever the snapshot holds at that path, so a snapshot can never write through one of them to a location outside the captured paths. A link the snapshot also holds comes back unchanged.</li>
+<li><code>sandbox_paths</code> must not change between attempts. A snapshot captured from one set of paths is refused when the retry captures another; restore the original configuration and resume.</li>
+<li>A sandbox no committed checkpoint records is never restored from an older or unrelated snapshot; resume fails for it instead.</li>
+<li>Ownership under an automatically captured home directory is normalized on resume: everything restored under it is re-owned to the home directory’s owner (including files the prior attempt created via <code>sudo</code>). Paths you configure explicitly keep their recorded owners.</li>
+</ul>
+</section>
 </section>
 <section id="snapshot-strategies" class="level3">
 <h3 class="anchored" data-anchor-id="snapshot-strategies">Snapshot Strategies</h3>

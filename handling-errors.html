@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -554,6 +557,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Tool Approval</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Result Review</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -724,6 +733,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#eval-retries" id="toc-eval-retries" class="nav-link" data-scroll-target="#eval-retries">Eval Retries</a></li>
   <li><a href="#failure-threshold" id="toc-failure-threshold" class="nav-link" data-scroll-target="#failure-threshold">Failure Threshold</a></li>
   <li><a href="#sample-retries" id="toc-sample-retries" class="nav-link" data-scroll-target="#sample-retries">Sample Retries</a></li>
+  <li><a href="#model-refusals" id="toc-model-refusals" class="nav-link" data-scroll-target="#model-refusals">Model Refusals</a></li>
   <li><a href="#scoring-errored-samples" id="toc-scoring-errored-samples" class="nav-link" data-scroll-target="#scoring-errored-samples">Scoring Errored Samples</a></li>
   <li><a href="#crash-recovery" id="toc-crash-recovery" class="nav-link" data-scroll-target="#crash-recovery">Crash Recovery</a>
   <ul class="collapse">
@@ -858,6 +868,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Consequently, when enabling <code>retry_on_error</code> you should do some post-hoc analysis to ensure that retried samples don’t have significantly different results than samples which are not retried.</p>
 </div>
 </div>
+</section>
+<section id="model-refusals" class="level2">
+<h2 class="anchored" data-anchor-id="model-refusals">Model Refusals</h2>
+<p>A model refusal (<code>stop_reason="content_filter"</code>) is not an error by default: the sample continues and is scored on whatever the agent produced. Set the <code>fail_on_refusal</code> generation option (<code>--fail-on-refusal</code>) to have refusals fail the sample with a <code>ModelRefusalError</code> instead, so they appear as sample errors and count toward <code>fail_on_error</code>. See <a href="./fallbacks.html#failing-on-refusals">Failing on Refusals</a> for details, including how it interacts with <code>retry_refusals</code> and model roles.</p>
 </section>
 <section id="scoring-errored-samples" class="level2">
 <h2 class="anchored" data-anchor-id="scoring-errored-samples">Scoring Errored Samples</h2>

@@ -504,7 +504,7 @@ Sandbox services make available a set of methods to a sandbox for calling back i
 
 > **NOTE:**
 >
-> Sandbox services use a filesystem queue and are intended for callers with the same sandbox-user authority as the service. They are not an authentication or privilege-separation boundary between sandbox users. Service names must be ASCII Python identifiers; instance names must begin with a letter or number and may then contain letters, numbers, `.`, `_`, or `-`.
+> Sandbox services use a filesystem queue and are intended for callers with the same sandbox-user authority as the service. The service directory is private (mode `0700`) to the user the service runs as, so callers must run as that user (or as root). They are not an authentication or privilege-separation boundary between sandbox users. Service names must be ASCII Python identifiers; instance names must begin with a letter or number and may then contain letters, numbers, `.`, `_`, or `-`.
 
 Sandbox service are often run using the [background()](./reference/inspect_ai.util.html.md#background) function to make them available for the lifetime of a sample.
 

@@ -44,6 +44,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--tags` | text | Tags to associate with this evaluation run. | `Sentinel.UNSET` |
 | `--metadata` | text | Metadata to associate with this evaluation run (more than one –metadata argument can be specified). | `Sentinel.UNSET` |
 | `--approval` | text | Config file for tool call approval. | `Sentinel.UNSET` |
+| `--review` | text | Config file for tool result review. | `Sentinel.UNSET` |
 | `--notification` | text | Send out-of-band notifications when a human-in-the-loop interaction (`ask_user` or human approval) is posted. Bare `--notification` reads URL(s) from the `INSPECT_EVAL_NOTIFICATION` environment variable (a single Apprise URL, a comma-separated list, or a path to an Apprise config file). `--notification <path>` reads from an Apprise YAML/text config file. URLs are not accepted directly on the command line so secrets never end up in shell history. Requires `pip install apprise`. | None |
 | `--sandbox` | text | Sandbox environment type (with optional config file). e.g. ‘docker’ or ‘docker:compose.yml’ | `Sentinel.UNSET` |
 | `--no-sandbox-cleanup` | boolean | Do not cleanup sandbox environments after task completes | `False` |
@@ -110,6 +111,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--max-tool-output` | integer | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. | `Sentinel.UNSET` |
 | `--cache-prompt` | choice (`auto` \| `true` \| `false`) | Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only. | `Sentinel.UNSET` |
 | `--fallback-models` | text | Fallback models (comma-separated, tried in order) when the model’s safety classifiers refuse the request. Anthropic Claude API only. | `Sentinel.UNSET` |
+| `--fail-on-refusal` / `--no-fail-on-refusal` | boolean | Fail a sample (with a ModelRefusalError) when a model refuses a request (stop_reason ‘content_filter’). Applies to every model used by the eval, including model roles (a role’s own setting wins). Note that with the default –fail-on-error the first refusal fails the whole eval; combine with –no-fail-on-error or –continue-on-fail to keep running. Use –no-fail-on-refusal to override a task or model config that enables it. | None |
 | `--verbosity` | choice (`low` \| `medium` \| `high`) | Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models) | `Sentinel.UNSET` |
 | `--effort` | choice (`low` \| `medium` \| `high` \| `xhigh` \| `max`) | Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Claude 4.5, 4.6, 4.7 only (`max` only supported on 4.6+, `xhigh` only supported on 4.7). | `Sentinel.UNSET` |
 | `--reasoning-effort` | choice (`none` \| `minimal` \| `low` \| `medium` \| `high` \| `xhigh` \| `max`) | Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). | `Sentinel.UNSET` |

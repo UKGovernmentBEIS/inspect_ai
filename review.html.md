@@ -1,0 +1,164 @@
+# Tool Result Review – Inspect
+
+## Overview
+
+[Approvers](./approval.html.md) decide whether a tool call may run. *Reviewers* look at what a tool call returned and decide whether the sample may continue. A reviewer runs inside the tool execution loop the moment a result exists, before that result is returned to the model, so it can end a sample based on evidence that only exists in tool output (for example, a command that succeeded when the policy required it to fail).
+
+Reviewers are configured with *review policies* that mirror approval policies: each policy names a reviewer and the tools it covers, policies are evaluated in order, and the first reviewer that does not escalate decides. Like approvers, reviewers can be specified at the eval level or the task level.
+
+## Decisions
+
+A reviewer returns a [Review](./reference/inspect_ai.review.html.md#review) with one of three decisions:
+
+| Decision | Effect |
+|----|----|
+| `continue` | The result is returned to the model unchanged. |
+| `terminate` | The sample ends and is recorded as an operator limit, exactly like an approver’s `terminate`. Parallel tool calls still running are cancelled. |
+| `escalate` | The next matching reviewer in the policy decides. |
+
+There is no `reject` or `modify`: the call has already run, so there is nothing to reject or rewrite. A result that no policy covers, or that every matching reviewer escalates, continues.
+
+Only calls that executed are reviewed. A call an approver rejected, or that failed before running because its arguments could not be parsed, produced no result and is not reviewed. Handoffs to sub-agents are not reviewed either; the sub-agent’s own tool calls are reviewed as they run.
+
+Errors reported by an executed tool are reviewed when they would otherwise be returned to the model, including parsing or approval errors raised from inside the tool.
+
+## Human Reviewer
+
+[human_reviewer()](./reference/inspect_ai.review.html.md#human_reviewer) shows an operator the tool call together with the result it returned and asks for a decision, on the same surfaces as the human approver: an attached ACP client, the approvals panel in the full-screen display, or the console. It offers `continue` and `terminate` by default; pass `choices` to add `escalate`. The surfaces are the approval ones, so `continue` appears there as “Approve”, and a request the operator dismisses without choosing terminates the sample.
+
+Review the result of every tool call by using the `--review human` CLI option (or the `review = "human"` argument to [eval()](./reference/inspect_ai.html.md#eval)):
+
+``` bash
+inspect eval browser.py --review human
+```
+
+Use it as the last reviewer in a policy so that model reviewers can hand a call’s result to a person (an `escalate` from the last reviewer in a policy continues, as with any unanswered escalation):
+
+``` yaml
+reviewers:
+  - name: output_monitor
+    tools: "*"
+
+  - name: human
+    tools: "*"
+```
+
+## Custom Reviewers
+
+A reviewer is an async function that receives the tool call, its result, and the conversation, and returns a [Review](./reference/inspect_ai.review.html.md#review):
+
+``` python
+from inspect_ai.review import Review, Reviewer, reviewer
+from inspect_ai.model import ChatMessage, ChatMessageTool
+from inspect_ai.tool import ToolCall, ToolCallView, ToolResult
+
+@reviewer
+def no_network() -> Reviewer:
+    async def review(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        if "HTTP/1.1 200" in str(output):
+            return Review(
+                decision="terminate",
+                explanation="The agent reached the network.",
+            )
+        return Review(decision="continue")
+
+    return review
+```
+
+The arguments are:
+
+| Argument | Description |
+|----|----|
+| `message` | Text the assistant produced alongside the tool call. |
+| `call` | The call as executed (after any modification by an approver). |
+| `result` | The [ChatMessageTool](./reference/inspect_ai.model.html.md#chatmessagetool) the model will receive. Long output is truncated to the tool loop’s `max_output` before this message is built. |
+| `output` | The tool’s untruncated return value, so evidence cut from the model’s view is still available to the reviewer. |
+| `view` | The tool’s optional human-readable rendering of the call. |
+| `history` | The conversation up to and including the assistant message that made the call. |
+
+Exceptions raised by a reviewer end the sample as an error, as exceptions from approvers do. Model calls made by a reviewer do not count towards the sample’s token or turn limits.
+
+Cancelling a tool call while its review is unfinished stops the sample with an operator limit. The completed tool result remains in the transcript, and an information event records that review was cancelled. If the sample stops for another reason, unfinished reviewers are cancelled and their tools’ completed results are also preserved. An interrupted review does not record a review decision.
+
+## Review Policies
+
+Policies can be written in YAML and passed with `--review`:
+
+``` yaml
+reviewers:
+  - name: no_network
+    tools: ["bash", "python"]
+```
+
+``` bash
+inspect eval task.py --review review.yaml
+```
+
+Reviewers defined in your own Python modules are referenced by their registry name; use the `@reviewer(name=...)` decorator to control it. The `tools` field uses the same glob syntax as approval policies, matching either the tool name or the tool name and its arguments.
+
+In Python, pass a list of [ReviewPolicy](./reference/inspect_ai.review.html.md#reviewpolicy) objects:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.review import ReviewPolicy
+
+eval(task, review=[ReviewPolicy(no_network(), tools=["bash", "python"])])
+```
+
+## Task Reviewers
+
+Tasks can declare their own reviewers with the `review` parameter, which accepts a policy file or a list of [ReviewPolicy](./reference/inspect_ai.review.html.md#reviewpolicy) objects:
+
+``` python
+@task
+def sandbox_task():
+    return Task(
+        dataset=dataset,
+        solver=react(tools=[bash(), python()]),
+        scorer=includes(),
+        review=[ReviewPolicy(no_network(), tools="*")],
+    )
+```
+
+A `review` passed to [eval()](./reference/inspect_ai.html.md#eval) or `--review` overrides the task’s reviewers.
+
+## Agent Reviewers
+
+The [execute_tools()](./reference/inspect_ai.model.html.md#execute_tools) function and the [react()](./reference/inspect_ai.agent.html.md#react) agent also accept a `review` parameter for convenience, which applies review policies for the duration of tool execution:
+
+``` python
+from inspect_ai.model import execute_tools
+from inspect_ai.review import ReviewPolicy
+
+result = await execute_tools(
+    messages, tools,
+    review=[ReviewPolicy(no_network(), tools="*")]
+)
+```
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.review import ReviewPolicy
+
+agent = react(
+    tools=[bash(), python()],
+    review=[ReviewPolicy(no_network(), tools="*")]
+)
+```
+
+These policies replace the eval-level and task-level reviewers for the duration of tool execution, and the previous policies are restored when it completes. The replacement is total: a tool the agent’s own policies do not cover is not reviewed, even when an eval-level policy covers it. A react agent that hands off to another agent carries its policies into the sub-agent’s tool calls.
+
+## Bridged Agents
+
+Agents integrated via the [Agent Bridge](./agent-bridge.html.md) run their own tool loop, so their tool results never pass through Inspect’s tool execution and are not reviewed. Approval policies are applied to bridged agents’ tool calls (see [Bridged Agents](./approval.html.md#bridged-agents)); the equivalent for review is not yet implemented.
+
+## Transcript
+
+Each decision is recorded as a `ReviewEvent` once the tool call completes, after the [ToolEvent](./reference/inspect_ai.event.html.md#toolevent) for the call it reviewed and any events the tool itself emitted. The event records the reviewer’s name, the call, the decision, and the reviewer’s explanation; the result and the call’s view are on the [ToolEvent](./reference/inspect_ai.event.html.md#toolevent) with the same call id.

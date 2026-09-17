@@ -134,7 +134,9 @@ Here are all options available for [CompactionSummary](./reference/inspect_ai.mo
 | `instructions` | None | Additional instructions to give the model about compaction (e.g. “Focus on preserving code snippets and technical decisions.”). These instructions will be inserted into the `prompt`. |
 | `prompt` | None | Custom prompt for summarization. Uses a built-in default prompt if not provided. |
 
-The default summarization prompt asks the model to capture the task overview, current state, important discoveries, next steps, and context to preserve. You can provide custom `instructions` or even completely override the `prompt` to tailor the summary to your specific use case.
+The default summarization prompt asks the model for a detailed, structured summary: the original request and intent, technical decisions, code changes, errors and their fixes, and the work that remains. It also asks the model to preserve verbatim any security-relevant constraints stated earlier in the conversation.
+
+You can provide custom `instructions` or even completely override the `prompt` to tailor the summary to your specific use case.
 
 ## Edit Compaction
 
