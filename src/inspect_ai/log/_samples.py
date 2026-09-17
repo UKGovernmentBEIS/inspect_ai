@@ -406,19 +406,26 @@ class ActiveSample:
             return 0
 
     def interrupt(self, action: SampleCancelAction) -> None:
-        """Terminate this running sample.
+        """Terminate this sample — now if it has started, otherwise as it starts.
 
         ``action`` selects the outcome: ``"score"`` completes the sample and
         runs the scorer on the work done so far; ``"error"`` marks it errored;
         ``"cancel"`` records it as cancelled (transcript preserved, no
         scoring, not counted as an error).
+
+        Before :meth:`start` (the sample is registered but still
+        initializing — sandbox provisioning may be in flight) there is no
+        task group to cancel, so the call only stamps the intent: the
+        sample reads :attr:`terminal`, and the task runner fires the
+        interrupt (by calling this method again) the moment the sample
+        starts, before any of its plan runs. The ``on_interrupt`` hook fires
+        at that point too, so a binder sees the same sequence it sees for a
+        running sample. See ``design/ctl/initializing-sample-cancel.md``.
         """
         self._interrupt_action = action
         self._fire_terminal()
         if self.tg is None:
-            raise RuntimeError(
-                "Attempted to interrupt sample without enclosing task group."
-            )
+            return
         self._fire_on_interrupt("user_cancel")
         self.tg.cancel_scope.cancel()
 

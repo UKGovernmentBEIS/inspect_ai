@@ -214,7 +214,13 @@ async def inspect_responses_api_request_impl(
 ) -> Response:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
+    model = resolve_inspect_model(
+        bridge_model_name,
+        bridge.model_aliases,
+        bridge.model,
+        model_resolver=bridge.model_resolver,
+        provider="openai",
+    )
     model_name = model.api.model_name
     is_openai = _is_openai_responses_provider(model)
 
@@ -1225,7 +1231,7 @@ def responses_output_items_from_assistant_message(
                 output.append(
                     ResponseFunctionWebSearch(
                         type="web_search_call",
-                        id=content.id,
+                        id=content.id or uuid(),
                         action=cast(
                             WebSearchAction,
                             parse_web_search_action(content.arguments),
@@ -1235,6 +1241,7 @@ def responses_output_items_from_assistant_message(
                 )
             elif content.tool_type == "code_execution":
                 code_interpreter_param = tool_use_to_code_interpreter_param(content)
+                code_interpreter_param["id"] = code_interpreter_param["id"] or uuid()
                 output.append(
                     ResponseCodeInterpreterToolCall.model_validate(
                         code_interpreter_param
@@ -1277,16 +1284,28 @@ def responses_output_items_from_assistant_message(
         elif tool_call.type == "custom":
             output.append(
                 ResponseCustomToolCall(
+                    # See note on `id` for function_call below: Responses output
+                    # items need a non-null item id for streaming clients.
+                    id=uuid(),
                     type="custom_tool_call",
                     call_id=tool_call.id,
                     name=tool_call.function,
                     input=next(iter(tool_call.arguments.values())),
+                    namespace=(tool_namespaces or {}).get(tool_call.function),
                 )
             )
         else:
             namespace = (tool_namespaces or {}).get(tool_call.function)
             output.append(
                 ResponseFunctionToolCall(
+                    # A Responses output item must carry a non-null `id` (the
+                    # item id, distinct from `call_id`). Streaming clients such
+                    # as opencode's AI SDK key the emitted tool call on this
+                    # item id; when it is null the tool call is never registered
+                    # and the turn ends with `finish_reason=stop`, so the agent
+                    # stalls after one model call. Match the id convention used
+                    # by the other tool-call item types above.
+                    id=uuid(),
                     type="function_call",
                     call_id=tool_call.id,
                     name=tool_call.function,

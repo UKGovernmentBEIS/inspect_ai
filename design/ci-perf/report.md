@@ -1,3 +1,5 @@
+> Archived before the artifact-storage migration. See [current output locations](README.md). Raw snapshot references below are available in Git history.
+
 # CI performance report — 2026-09-01
 
 Data: 200 PR runs, 2026-08-31 19:17 .. 2026-09-01 05:30 UTC (**10.2h**, 19.6

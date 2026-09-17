@@ -54,11 +54,11 @@ def csv_dataset(
     shuffle_choices: bool | int | None = None,
     limit: int | None = None,
     dialect: str = "unix",
-    encoding: str = "utf-8",
+    encoding: str = "utf-8-sig",
     name: str | None = None,
     fs_options: dict[str, Any] | None = None,
     fieldnames: list[str] | None = None,
-    delimiter: str = ",",
+    delimiter: str | None = None,
 ) -> Dataset:
     r"""Read dataset from CSV file.
 
@@ -77,7 +77,8 @@ def csv_dataset(
         shuffle_choices: Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
         limit: Limit the number of records to read.
         dialect: CSV dialect ("unix", "excel" or"excel-tab"). Defaults to "unix". See https://docs.python.org/3/library/csv.html#dialects-and-formatting-parameters for more details
-        encoding: Text encoding for file (defaults to "utf-8").
+        encoding: Text encoding for file (defaults to "utf-8-sig", which accepts
+            UTF-8 with or without a byte-order mark).
         name: Optional name for dataset (for logging). If not specified,
             defaults to the stem of the filename
         fs_options: Optional. Additional arguments to pass through
@@ -86,7 +87,8 @@ def csv_dataset(
         fieldnames: Optional. A list of fieldnames to use for the CSV.
             If None, the values in the first row of the file will be used as the fieldnames.
             Useful for files without a header.
-        delimiter: Optional. The delimiter to use when parsing the file. Defaults to ",".
+        delimiter: Optional. Override the dialect's delimiter when parsing the file.
+            Defaults to the dialect's delimiter ("," for the default "unix" dialect).
 
     Returns:
         Dataset read from CSV file.
@@ -141,8 +143,9 @@ def csv_dataset_reader(
     file: TextIOWrapper,
     dialect: str = "unix",
     fieldnames: list[str] | None = None,
-    delimiter: str = ",",
+    delimiter: str | None = None,
 ) -> "csv.DictReader[str]":
-    return csv.DictReader(
-        file, dialect=dialect, fieldnames=fieldnames, delimiter=delimiter
+    fmtparams: dict[str, Any] = (
+        {"delimiter": delimiter} if delimiter is not None else {}
     )
+    return csv.DictReader(file, dialect=dialect, fieldnames=fieldnames, **fmtparams)
