@@ -563,6 +563,72 @@ def test_collection_repeated_page_is_bounded(monkeypatch: pytest.MonkeyPatch) ->
     assert calls == 6
 
 
+def test_untrusted_head_repository_runs_are_dropped_before_any_fetch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import collect_ci_data as collector
+
+    started, updated = "2026-09-09T00:00:00Z", "2026-09-09T00:10:00Z"
+
+    def run(run_id: int, head_repo: str | None) -> dict[str, Any]:
+        return {
+            "id": run_id,
+            "name": "Build",
+            "head_branch": "topic",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "run_started_at": started,
+            "updated_at": updated,
+            "head_repository": {"full_name": head_repo} if head_repo else None,
+        }
+
+    fetched = [
+        run(1, "UKGovernmentBEIS/inspect_ai"),
+        run(2, "outsider/inspect_ai"),
+        run(3, "meridianlabs-ai/inspect_ai"),
+        run(4, None),
+    ]
+    requested: list[str] = []
+
+    def fake_api(path: str) -> Any:
+        requested.append(path)
+        run_id = int(path.split("/runs/")[1].split("/")[0])
+        job = {
+            "id": run_id * 10,
+            "name": "test (3.11)",
+            "conclusion": "success",
+            "started_at": started,
+            "completed_at": updated,
+            "steps": [],
+        }
+        return {"jobs": [job]}
+
+    def fake_log(path: str) -> str:
+        requested.append(path)
+        return "1.50s call tests/a.py::test_a\n== 1 passed in 1.50s =="
+
+    monkeypatch.setattr(collector, "fetch_runs", lambda repo, limit, days: fetched)
+    monkeypatch.setattr(collector, "gh_api", fake_api)
+    monkeypatch.setattr(collector, "gh_api_text", fake_log)
+    out, summary_out = tmp_path / "raw.json", tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys, "argv", ["collect", "--out", str(out), "--summary-out", str(summary_out)]
+    )
+    collector.main()
+
+    result = json.loads(out.read_text())
+    assert [r["id"] for r in result["runs"]] == [1, 3]
+    assert result["run_count"] == 2
+    assert result["excluded_untrusted_runs"] == 2
+    assert set(result["pytest_durations"]) == {"1/test (3.11)", "3/test (3.11)"}
+    assert not [p for p in requested if "/runs/2/" in p or "/jobs/20/" in p]
+    assert not [p for p in requested if "/runs/4/" in p or "/jobs/40/" in p]
+    assert "excluded 2 from untrusted head repositories" in capsys.readouterr().err
+    assert (
+        json.loads(summary_out.read_text())["workflow_wall_seconds"]["Build"]["n"] == 2
+    )
+
+
 def test_invalid_distribution_timings_are_counted_and_excluded(
     snapshot: dict[str, Any],
 ) -> None:

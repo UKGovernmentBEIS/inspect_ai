@@ -53,6 +53,10 @@ from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 # `isolate_active_model` (autouse) comes from tests/conftest.py, and
 # `short_data_dir` from tests/_control/conftest.py.
 
+# These runs observe the live control surface (discovery files, the bound
+# server), so opt out of the suite-wide control-server disable.
+pytestmark = pytest.mark.real_ctl_server
+
 # --- ls / GET /evals: per-eval listing -------------------------------------
 
 
