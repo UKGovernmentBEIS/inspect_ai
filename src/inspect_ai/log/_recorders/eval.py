@@ -1114,10 +1114,7 @@ class ZipLogFile:
             attachments = _sample_history_attachments(
                 sample, history, events, events_data
             )
-            # Header = the event-less sample's own fields (small). The large
-            # collections are streamed after it chunk-by-chunk, so the
-            # whole-sample jsonable tree and byte blob never exist at once
-            # and the event loop gets a checkpoint between chunks.
+            # Serialize history separately to avoid a second full-sample copy.
             header: dict[str, JsonValue] = jsonable_dict(
                 sample.model_dump(
                     mode="python",
@@ -1127,22 +1124,13 @@ class ZipLogFile:
                 )
             )
             header_bytes = to_json_safe(header, indent=None)
-            # non-empty dict ({...} not {}): id/epoch are required non-None
-            assert len(header_bytes) > 2
-            # Shielded: sample members must always be complete JSON (_read_log
-            # parses every one eagerly, so a truncated member fails the whole
-            # log read). Without the shield, a cancellation delivered at one
-            # of the checkpoints below would let _zip_open_write's __exit__
-            # finalize a truncated member. Checkpoints still yield under the
-            # shield (liveness is retained); cancellation is simply deferred
-            # until this entry completes.
+            # A truncated sample member makes the entire log unreadable.
+            # Keep yielding, but defer cancellation until the entry is complete.
             with anyio.CancelScope(shield=True):
                 filename = _sample_filename(sample.id, sample.epoch)
                 try:
                     with self._zip_open_write(filename) as stream:
-                        # header always has fields (id/epoch), so stripping the
-                        # closing brace and continuing with comma-prefixed
-                        # fields is well-formed
+                        # Required id/epoch fields make the header non-empty.
                         stream.write(header_bytes[:-1])
                         await write_json_array_field(
                             stream, "events", events, comma=True
@@ -1153,14 +1141,8 @@ class ZipLogFile:
                         await write_events_data_field(stream, events_data, comma=True)
                         stream.write(b"}")
                 except BaseException:
-                    # the failed write already registered a truncated member,
-                    # which would make every sample unreadable (_read_log
-                    # parses each member eagerly); supersede it with the
-                    # event-less header (readers resolve duplicate names to
-                    # the last entry), then propagate. Timelines are dropped
-                    # too: their events serialize as UUID strings that cannot
-                    # rebind against the stub's empty events, which would fail
-                    # the read the stub exists to protect.
+                    # Supersede the truncated member with a readable stub.
+                    # Timeline UUIDs cannot resolve against the stub's empty events.
                     header.pop("timelines", None)
                     self._zip_writestr(filename, header)
                     raise
@@ -1759,18 +1741,9 @@ class ZipLogFile:
     def _zip_open_write(
         self, filename: str
     ) -> Generator[BinaryWriteStream, None, None]:
-        """Open a ZIP entry for streaming writes.
-
-        Returns a writable binary stream. The caller writes raw bytes
-        (typically JSON) directly. The entry is finalized when the
-        context manager exits. Repeated member names are deliberate
-        superseding (same rule as ``_zip_writestr``).
-        """
+        """Open a ZIP entry, finalizing it on exit; duplicate names supersede."""
         assert self._zip
-        # the duplicate-name warning is emitted by ZipFile.open itself, so
-        # suppress it only there: catch_warnings mutates process-global state
-        # and must not span the caller's await checkpoints while the entry
-        # is open
+        # Warning filters are process-global; don't hold them across caller awaits.
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore", message="Duplicate name:", category=UserWarning

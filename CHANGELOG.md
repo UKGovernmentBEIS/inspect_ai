@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Logging: Reduced memory usage and event-loop stalls when finalizing long samples with realtime logging; summary-only hooks can opt out of full-sample materialization via `Hooks.needs_full_sample`.
+- Logging: Reduced memory usage and event-loop stalls when finalizing long samples; hooks can opt out of receiving full event histories.
 
 ## 0.3.268 (22 September 2026)
 
