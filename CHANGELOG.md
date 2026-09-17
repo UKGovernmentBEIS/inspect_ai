@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent Bridge: Approval policies now match bridged host tools that a sandboxed agent calls through a single MCP dispatcher function (Antigravity's `call_mcp_tool`) by the tool's own name, and approvers see and modify the tool's own arguments.
+
 ## 0.3.265 (17 September 2026)
 
 - Agent Bridge: Bridged host tools are no longer denied under an approval policy when the sandboxed agent presents them to its model under a different name.
