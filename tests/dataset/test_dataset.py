@@ -7,7 +7,7 @@ from typing import Type, TypeVar
 from unittest.mock import Mock
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from test_helpers.utils import skip_if_github_action
 
 from inspect_ai._util.content import ContentImage
