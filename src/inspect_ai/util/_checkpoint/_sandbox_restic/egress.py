@@ -67,9 +67,11 @@ files it added during this attempt. Only after these checks succeed
 does it tell the sandbox to mark the accepted files as shipped. If
 that acknowledgment fails, the next attempt can safely resend them.
 
-Ingress is the inverse: on resume, copy a host-side repo back into the
-sandbox and restic-restore the recorded snapshot at its original
-absolute paths.
+Ingress is the inverse: on resume, list the recorded snapshot on the
+host and refuse one that reaches outside this attempt's capture roots
+or carries special nodes or mode bits, then copy the host-side repo
+back into the sandbox and restic-restore each root at its original
+absolute path (see :func:`ingress_sandbox`).
 
 Layout under the same ``/root/.cache/inspect/`` root as :mod:`.repo`:
 - ``./egress-manifest.txt`` — sorted list of files already shipped
@@ -97,7 +99,18 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._async_fs import async_mkdir
 from .._copy import DEFAULT_COPY_CHUNK_SIZE, copy_out
-from .._repo_ops import SNAPSHOT_ID_RE, list_snapshots, match_snapshot_id
+from .._repo_ops import (
+    SNAPSHOT_ID_RE,
+    list_snapshots,
+    match_snapshot_id,
+    walk_snapshot_nodes,
+)
+from .._restore_scope import (
+    RESTORED_XATTRS,
+    RestoreRoots,
+    restic_node,
+    restic_restore_args,
+)
 from .repo import _SANDBOX_RESTIC_DIR
 
 _HEX64 = r"[0-9a-f]{64}"
@@ -138,25 +151,44 @@ async def ingress_sandbox(
     env: SandboxEnvironment,
     src_repo: str,
     password: str,
-    snapshot_id: str | None = None,
+    snapshot_id: str,
     *,
+    roots: RestoreRoots,
+    host_restic: Path,
     sandbox_dir: str = _SANDBOX_RESTIC_DIR,
 ) -> None:
     """Copy a host-side restic repo into the sandbox + restore from it.
 
     Inverse of :func:`egress_sandbox`. Used on resume:
 
-    1. Tar the host-side repo dir (put in place by the retry startup
+    1. List ``snapshot_id`` on the host (``restic ls --json`` against
+       the adopted repo, which the host already opens for ``snapshots``)
+       and check every node against ``roots`` — this attempt's capture
+       set — before any byte enters the sandbox: nothing outside a root,
+       no device/fifo/socket nodes, no setuid/setgid/sticky bits (see
+       ``_restore_scope``). A snapshot that fails is refused with the
+       offending path and the sandbox is left untouched.
+    2. Tar the host-side repo dir (put in place by the retry startup
        copy, or by the prior run of this sample on an in-eval requeue).
-    2. Stream the tarball into the sandbox via root ``sh`` so the agent
+    3. Stream the tarball into the sandbox via root ``sh`` so the agent
        never sees the bytes in flight, extracting into the standard
        in-sandbox repo location (``/root/.cache/inspect/repo``).
-    3. Run ``restic restore <snapshot_id> --target /`` inside the
-       sandbox so restored files land at their original absolute paths,
-       replacing whatever the fresh sandbox came up with.
-       ``snapshot_id`` is the latest committed checkpoint's recorded
-       id; ``None`` restores ``latest`` — the degenerate
-       resume with no committed record for this sandbox.
+    4. For each root, ``restic restore <id>:<parent> --target <parent>
+       --include /<name> --include-xattr user.*`` inside the sandbox, so
+       the root lands at its original absolute path and nothing above
+       it is written (restic would otherwise restore the recorded
+       metadata of every ancestor directory on the way to a selected
+       node). Only ``user.*`` extended attributes are restored: the
+       listing cannot see xattrs, and restic running as root would
+       otherwise reapply a recorded ``security.capability`` — a setuid
+       bit by another name — or a ``system.posix_acl_*`` grant.
+
+    ``snapshot_id`` is the latest committed checkpoint's recorded id;
+    the caller resolves it, there is no ``latest`` fallback. The caller
+    has also already deleted every symlink the fresh image ships under a
+    root (``_restore_scope.remove_existing_symlinks``, run by the core
+    before the strategy's ``setup`` injected restic), so neither the repo
+    extracted in step 3 nor a snapshot node is written through one.
 
     Egress's two-phase manifest is reseeded by writing a manifest line
     for every file in the freshly-populated repo, so the next fire's
@@ -167,12 +199,16 @@ async def ingress_sandbox(
         raise RuntimeError(
             f"resume: expected sandbox repo at {src}, but it doesn't exist"
         )
-    if snapshot_id is not None and not SNAPSHOT_ID_RE.fullmatch(snapshot_id):
+    if not SNAPSHOT_ID_RE.fullmatch(snapshot_id):
         raise RuntimeError(
             f"resume: checkpoint record has malformed sandbox snapshot id "
             f"{snapshot_id!r}"
         )
     paths = _sandbox_paths(sandbox_dir)
+    label = f"resume: sandbox snapshot {snapshot_id[:8]} from {src}"
+    full_id = await _check_snapshot_scope(
+        host_restic, src_repo, password, snapshot_id, roots, label=label
+    )
 
     tar_bytes = _build_repo_tar(src)
 
@@ -197,24 +233,56 @@ async def ingress_sandbox(
     if not result.success:
         raise RuntimeError(f"Failed to ingress sandbox restic repo: {result.stderr}")
 
-    restore = await privileged_exec(
-        env,
-        [
-            paths.restic,
-            "-r",
-            paths.repo,
-            "restore",
-            snapshot_id if snapshot_id is not None else "latest",
-            "--target",
-            "/",
-        ],
-        env={"RESTIC_PASSWORD": password},
-        user="root",
-    )
-    if not restore.success:
-        raise RuntimeError(
-            f"Failed to restore sandbox state from in-container repo: {restore.stderr}"
+    for root in roots.roots:
+        args = restic_restore_args(full_id, root)
+        restore = await privileged_exec(
+            env,
+            [
+                paths.restic,
+                "-r",
+                paths.repo,
+                "restore",
+                args.snapshot_spec,
+                "--target",
+                args.target,
+                "--include",
+                args.include,
+                "--include-xattr",
+                RESTORED_XATTRS,
+            ],
+            env={"RESTIC_PASSWORD": password},
+            user="root",
         )
+        if not restore.success:
+            raise RuntimeError(
+                f"Failed to restore sandbox state under {root} from in-container "
+                f"repo: {restore.stderr}"
+            )
+
+
+async def _check_snapshot_scope(
+    host_restic: Path,
+    repo: str,
+    password: str,
+    snapshot_id: str,
+    roots: RestoreRoots,
+    *,
+    label: str,
+) -> str:
+    """Host-side listing check of the snapshot about to be restored; return its full id.
+
+    Every node must pass the :class:`RestoreWalk` and every root must be
+    present in the snapshot. Nothing has been sent to the sandbox when
+    this runs, so a refused snapshot leaves it untouched.
+    """
+    walk = roots.walker(label=label)
+
+    def visit(record: dict[str, Any]) -> None:
+        walk.visit(restic_node(record, label=label))
+
+    full_id = await walk_snapshot_nodes(host_restic, repo, password, snapshot_id, visit)
+    walk.finish()
+    return full_id
 
 
 def _build_repo_tar(repo: Path) -> bytes:

@@ -30,9 +30,28 @@ Capture mechanics (design §7.2/§8, first implementation):
   reported by the sandbox. This detects mismatches, such as accidental
   corruption during copying. A compromised sandbox can supply matching
   bytes and a matching digest; agreement does not authenticate the
-  archive. On restore, a digest check runs inside the sandbox before
-  extraction. It detects mismatches when that sandbox follows the
-  protocol; it cannot constrain a sandbox controlled by the agent.
+  archive. On restore the host walks the archive's member headers
+  first (``_check_archive``): every member must lie at or under one of
+  this attempt's capture roots, be a regular file, directory, symlink
+  or in-scope hard link, carry no PAX records, and (a regular file) no
+  setuid/setgid/sticky bit; the raw header stream may hold no PAX,
+  sparse, device or fifo header and at most one GNU long-name and one
+  long-link header per member; the compressed payload is decoded the way
+  the sandbox decodes it (every gzip member, every zstd frame); nothing
+  but zero padding may follow the last member ``tarfile`` parsed; and
+  the bytes must hash to the recorded digest — all before any of it is
+  copied in. Every symlink the image left under a root is already gone
+  (the core runs ``_restore_scope.remove_existing_symlinks`` before
+  ``setup``), so no member is written, or hard-linked, through one into
+  a path outside the root. Extraction names the roots as tar member
+  arguments so only they are written, and a ``find`` over the roots
+  afterwards fails the restore if the sandbox's tar nonetheless produced
+  a special file or device node
+  (``_restore_scope.find_special_nodes_command``) — the layer that does
+  not depend on ``tarfile`` and the image's tar agreeing on member
+  boundaries. A second digest check runs inside the sandbox before
+  extraction; it detects corruption in transit when that sandbox
+  follows the protocol and cannot constrain one controlled by the agent.
 - Compression is zstd when available in the sandbox, else gzip
   (present in effectively every image, busybox included) — the
   archive is always compressed. ``setup`` probes and records the
@@ -42,13 +61,23 @@ Capture mechanics (design §7.2/§8, first implementation):
 
 from __future__ import annotations
 
+import gzip
 import hashlib
+import io
 import re
 import shlex
+import tarfile
 import time
-from collections.abc import Sequence
+import zlib
+from collections.abc import Callable, Sequence
+from functools import partial
 from logging import getLogger
 from pathlib import Path
+from typing import Protocol
+
+import anyio
+import zstandard
+from typing_extensions import Buffer
 
 from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
@@ -56,6 +85,15 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from .._copy import DD_FULLBLOCK_PROBE, DEFAULT_COPY_CHUNK_SIZE, copy_out
 from .._layout.schemas import SnapshotDetails
 from .._repo_ops import checkpoint_tag
+from .._restore_scope import (
+    RestoreRoots,
+    RestoreScopeError,
+    TarHeaderScan,
+    check_recorded_roots,
+    find_special_nodes_command,
+    tar_member_argument,
+    tar_member_node,
+)
 from ..sandbox_paths import SandboxBackupPaths
 from .types import (
     CommittedSnapshot,
@@ -71,6 +109,9 @@ parent is unlistable by the agent and ``.cache`` falls inside the
 always-on capture exclude, so staging never captures itself."""
 
 _DEFAULT_CHUNK_SIZE = DEFAULT_COPY_CHUNK_SIZE
+
+_TAIL_READ_SIZE = 1024 * 1024
+"""Chunk size for reading past the last tar member (padding check, digest)."""
 
 _ARCHIVE_NAME_RE = re.compile(r"ckpt-\d{5,}\.tar\.(?:zst|gz)")
 """The exact archive filename form ``snapshot()`` generates — also the
@@ -163,8 +204,8 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         finally:
             await self._clean_staging(env)
 
-        # `strategy` and the archive metadata ride as extra fields (see
-        # `snapshot_strategy_name`).
+        # `strategy`, `roots` and the archive metadata ride as extra fields
+        # (see `snapshot_strategy_name` and `_restore_scope.recorded_roots`).
         return SnapshotDetails.model_validate(
             dict(
                 snapshot_id=tag,
@@ -173,6 +214,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 strategy=self.name,
                 archive=archive_name,
                 content_sha256=sandbox_digest,
+                roots=list(paths.include),
             )
         )
 
@@ -238,56 +280,47 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
     async def restore(
         self,
         env: SandboxEnvironment,
-        ref: SnapshotDetails | None,
+        paths: SandboxBackupPaths,
+        ref: SnapshotDetails,
         ctx: SnapshotContext,
     ) -> None:
-        expected_digest: str | None
-        if ref is None:
-            # No committed checkpoint records a snapshot for this sandbox —
-            # e.g. the kill tore the only checkpoint file mid-write. Restic
-            # parity (see ``ResticStrategy.restore``): orphan discard is
-            # skipped in exactly this case, so restore the newest adopted
-            # archive. The digest check below compares against a digest
-            # computed during copy-in, not a committed checkpoint record.
-            archive_name = self._latest_archive_name(ctx)
-            expected_digest = None
-        else:
-            extra = ref.model_extra or {}
-            archive_name_extra = extra.get("archive")
-            digest_extra = extra.get("content_sha256")
-            if not isinstance(archive_name_extra, str) or not isinstance(
-                digest_extra, str
-            ):
-                raise RuntimeError(
-                    f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                    f"checkpoint record for {ref.snapshot_id} lacks archive "
-                    f"metadata (archive/content_sha256)"
-                )
-            # `archive_name` is joined into a host path and interpolated into
-            # root shell scripts below. Require the filename form generated
-            # by `snapshot()` so a malformed record fails before becoming a
-            # path-traversal or shell-injection surface (or a confusing
-            # shell error).
-            if not _ARCHIVE_NAME_RE.fullmatch(archive_name_extra):
-                raise RuntimeError(
-                    f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                    f"checkpoint record for {ref.snapshot_id} has malformed "
-                    f"archive name {archive_name_extra!r}"
-                )
-            if not re.fullmatch(r"[0-9a-f]{64}", digest_extra):
-                raise RuntimeError(
-                    f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                    f"checkpoint record for {ref.snapshot_id} has malformed "
-                    f"content_sha256 {digest_extra!r}"
-                )
-            archive_name = archive_name_extra
-            expected_digest = digest_extra
+        label = f"archive snapshot restore for sandbox {ctx.sandbox_name!r}"
+        roots = RestoreRoots.from_include(paths.include, label=label)
+        check_recorded_roots(ref, roots, label=label)
+        extra = ref.model_extra or {}
+        archive_name = extra.get("archive")
+        expected_digest = extra.get("content_sha256")
+        if not isinstance(archive_name, str) or not isinstance(expected_digest, str):
+            raise RuntimeError(
+                f"{label}: checkpoint record for {ref.snapshot_id} lacks archive "
+                f"metadata (archive/content_sha256)"
+            )
+        # `archive_name` is joined into a host path and interpolated into
+        # root shell scripts below. Require the filename form generated
+        # by `snapshot()` so a malformed record fails before becoming a
+        # path-traversal or shell-injection surface (or a confusing
+        # shell error).
+        if not _ARCHIVE_NAME_RE.fullmatch(archive_name):
+            raise RuntimeError(
+                f"{label}: checkpoint record for {ref.snapshot_id} has malformed "
+                f"archive name {archive_name!r}"
+            )
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
+            raise RuntimeError(
+                f"{label}: checkpoint record for {ref.snapshot_id} has malformed "
+                f"content_sha256 {expected_digest!r}"
+            )
         local_path = Path(ctx.storage_dir) / archive_name
         if not local_path.is_file():
             raise RuntimeError(
-                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                f"expected archive at {local_path}, but it doesn't exist"
+                f"{label}: expected archive at {local_path}, but it doesn't exist"
             )
+        # Threaded: this decompresses and walks the whole archive on the
+        # host. Nothing has been sent to the sandbox yet, so a refused
+        # archive leaves it untouched.
+        await anyio.to_thread.run_sync(
+            partial(_check_archive, local_path, roots, expected_digest, label=label)
+        )
 
         staging = f"{self._staging_root}/restore"
         staged = f"{staging}/{archive_name}"
@@ -307,14 +340,12 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         # input bytes, so streaming the whole archive through one exec
         # would buffer it entirely in host RAM (and can exceed per-call
         # provider limits) — the copy-out problem in reverse.
-        digest = hashlib.sha256()
         with open(local_path, "rb") as f:
             first = True
             while True:
                 data = f.read(self._chunk_size)
                 if not data:
                     break
-                digest.update(data)
                 redirect = ">" if first else ">>"
                 result = await privileged_shell(
                     env, f"cat {redirect} {staged}", input=data, user="root"
@@ -325,15 +356,22 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                         f"{ctx.sandbox_name!r}: {result.stderr}"
                     )
                 first = False
-        if expected_digest is None:
-            expected_digest = digest.hexdigest()
 
         # Verify-then-extract: a corrupt archive is rejected before any
-        # byte reaches a final path.
+        # byte reaches a final path. Extraction names each capture root
+        # as a member argument, so
+        # tar writes only members at or under a root — the second layer
+        # behind the host-side listing check. The find afterwards is the
+        # third: whatever this tar made of the member boundaries, a
+        # special file or device node under a root fails the restore
+        # (the sandbox is discarded on failure).
+        members = " ".join(
+            shlex.quote(tar_member_argument(root)) for root in roots.roots
+        )
         extract = (
-            f"zstd -dc {staged} | tar -xf - -C /"
+            f"zstd -dc {staged} | tar -xf - -C / -- {members}"
             if archive_name.endswith(".tar.zst")
-            else f"tar -xzf {staged} -C /"
+            else f"tar -xzf {staged} -C / -- {members}"
         )
         script = (
             "set -e\n"
@@ -342,6 +380,9 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             f'{{ echo "archive digest mismatch: $digest != {expected_digest}" >&2; '
             f"exit 1; }}\n"
             f"{extract}\n"
+            f"bad=$({find_special_nodes_command(roots.roots)})\n"
+            f'[ -z "$bad" ] || {{ echo "extraction produced $bad: a setuid, setgid '
+            f'or sticky regular file, or a fifo or device node" >&2; exit 1; }}\n'
             f"rm -rf {self._staging_root}\n"
         )
         result = await privileged_shell(env, script, user="root")
@@ -350,21 +391,6 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 f"archive snapshot restore failed for sandbox "
                 f"{ctx.sandbox_name!r}: {result.stderr}"
             )
-
-    def _latest_archive_name(self, ctx: SnapshotContext) -> str:
-        """Newest inherited archive, for restores with no committed record."""
-        candidates = [
-            entry.name
-            for entry in Path(ctx.storage_dir).glob("ckpt-*")
-            if _ARCHIVE_NAME_RE.fullmatch(entry.name)
-        ]
-        if not candidates:
-            raise RuntimeError(
-                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                f"no committed checkpoint records a snapshot and no inherited "
-                f"archives exist in {ctx.storage_dir}"
-            )
-        return max(candidates, key=lambda name: _archive_checkpoint_id(name) or 0)
 
     async def discard_orphans(
         self, committed: Sequence[CommittedSnapshot], ctx: SnapshotContext
@@ -412,6 +438,113 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 "archive snapshot: failed to clean in-sandbox staging: %s",
                 result.stderr,
             )
+
+
+class _Readable(Protocol):
+    def read(self, size: int, /) -> bytes: ...
+
+
+class _TeeRaw(io.RawIOBase):
+    """Raw binary reader that passes every byte read to ``sink``, in order."""
+
+    def __init__(self, raw: _Readable, sink: Callable[[bytes], object]) -> None:
+        super().__init__()
+        self._raw = raw
+        self._sink = sink
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: Buffer) -> int:
+        view = memoryview(buffer).cast("B")
+        data = self._raw.read(len(view))
+        view[: len(data)] = data
+        self._sink(data)
+        return len(data)
+
+
+def _check_archive(
+    path: Path, roots: RestoreRoots, expected_digest: str, *, label: str
+) -> None:
+    """Host-side check of a stored archive before any of it enters the sandbox.
+
+    Walks the member headers in stream mode so nothing is extracted on
+    the host and memory stays bounded by one header; every member must
+    pass the :class:`RestoreWalk` and every root must be present. The
+    bytes are hashed as they stream by and compared with the recorded
+    digest, so a corrupt or substituted archive is refused here, before
+    the copy-in (the in-sandbox digest check before extraction remains
+    as the guard against corruption in transit).
+
+    The decompressor must see the payload the way the sandbox's will:
+    ``gzip -d`` and busybox gunzip decode every concatenated gzip member
+    and ``zstd -d`` every frame, so gzip goes through ``GzipFile`` (which
+    reads across members; ``tarfile``'s own ``r|gz`` stops at the first)
+    and zstd is read across frames. Members hidden in a second gzip
+    member thereby reach the walk instead of only the extracting tar.
+
+    The decompressed bytes also pass through a :class:`TarHeaderScan`
+    on their way into ``tarfile``, for what the yielded members cannot
+    show: a repeated long header, or a PAX header ``tarfile`` consumes
+    without yielding.
+
+    ``tarfile`` ends its listing quietly at the first header it cannot
+    parse past offset 0 (a bad checksum, a malformed PAX record), where
+    busybox and GNU tar skip the block and keep extracting — the members
+    behind it would never reach the walk. So after the loop the rest of
+    the decompressed stream must be zero padding; anything else is
+    refused. Read through ``tar.fileobj`` (tarfile's stream wrapper),
+    not ``stream``: the wrapper reads ahead of what tarfile consumed.
+    """
+    digest = hashlib.sha256()
+    walk = roots.walker(label=label)
+    scan = TarHeaderScan(label=label)
+    with open(path, "rb") as raw:
+        hashed = io.BufferedReader(_TeeRaw(raw, digest.update))
+        decompressed: zstandard.ZstdDecompressionReader | gzip.GzipFile
+        if path.name.endswith(".tar.zst"):
+            decompressed = zstandard.ZstdDecompressor().stream_reader(
+                hashed, read_across_frames=True
+            )
+        else:
+            decompressed = gzip.GzipFile(fileobj=hashed, mode="rb")
+        stream = io.BufferedReader(_TeeRaw(decompressed, scan.feed))
+        try:
+            with tarfile.open(fileobj=stream, mode="r|") as tar:
+                for member in tar:
+                    walk.visit(tar_member_node(member, label=label))
+                if tar.fileobj is None:
+                    raise RuntimeError(f"{label}: tarfile closed its stream early")
+                while chunk := tar.fileobj.read(_TAIL_READ_SIZE):
+                    if chunk.strip(b"\0"):
+                        raise RestoreScopeError(
+                            f"{label}: archive {path.name} holds data after the last "
+                            f"member the host could parse; the extracting tar could "
+                            f"read it as further members, so the archive is refused"
+                        )
+        except (
+            tarfile.TarError,
+            zstandard.ZstdError,
+            gzip.BadGzipFile,
+            EOFError,
+            zlib.error,
+        ) as exc:
+            # GzipFile reports a bad header or trailing non-gzip bytes as
+            # BadGzipFile, a truncated member as EOFError and a corrupt
+            # deflate body as zlib.error; none is a TarError.
+            raise RestoreScopeError(
+                f"{label}: archive {path.name} is unreadable (corrupt or "
+                f"truncated): {exc}"
+            ) from exc
+        # tar stops at the end-of-archive marker; hash whatever trails it.
+        while hashed.read(_TAIL_READ_SIZE):
+            pass
+    if digest.hexdigest() != expected_digest:
+        raise RestoreScopeError(
+            f"{label}: archive digest mismatch: {digest.hexdigest()} != recorded "
+            f"{expected_digest}"
+        )
+    walk.finish()
 
 
 def _archive_checkpoint_id(filename: str) -> int | None:

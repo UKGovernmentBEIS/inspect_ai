@@ -77,6 +77,8 @@ The `sandbox_agent_bridge()` can bridge agents written against the OpenAI Comple
 
 The sandbox bridge works via running a proxy server inside the sandbox container which receives requests for the OpenAI, Anthropic, and Google APIs. This proxy server in turn relays requests to the current Inspect model provider.
 
+The proxy listens on the sandbox's loopback interface and is reachable only by processes running inside the sandbox, such as the agent binary launched with `sandbox().exec()`. It is not a browser-facing service: it sends no cross-origin headers, does not answer preflight requests, and accepts only `application/json` request bodies. A web page rendered inside the sandbox therefore cannot reach the model or bridged tools through the proxy: a request that needs a preflight is refused by the browser, and a request sent without one carries a body type the proxy rejects before any handler runs.
+
 For example, here we build an agent that runs a custom agent binary (passing it input on the command line and reading output from stdout):
 
 ``` python
