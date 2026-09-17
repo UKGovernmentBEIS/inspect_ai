@@ -197,9 +197,10 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#september-2026" id="toc-september-2026" class="nav-link active" data-scroll-target="#september-2026">0.3.264 (16 September 2026)</a></li>
-  <li><a href="#september-2026-1" id="toc-september-2026-1" class="nav-link" data-scroll-target="#september-2026-1">0.3.263 (03 September 2026)</a></li>
-  <li><a href="#september-2026-2" id="toc-september-2026-2" class="nav-link" data-scroll-target="#september-2026-2">0.3.262 (02 September 2026)</a></li>
+  <li><a href="#september-2026" id="toc-september-2026" class="nav-link active" data-scroll-target="#september-2026">0.3.265 (17 September 2026)</a></li>
+  <li><a href="#september-2026-1" id="toc-september-2026-1" class="nav-link" data-scroll-target="#september-2026-1">0.3.264 (16 September 2026)</a></li>
+  <li><a href="#september-2026-2" id="toc-september-2026-2" class="nav-link" data-scroll-target="#september-2026-2">0.3.263 (03 September 2026)</a></li>
+  <li><a href="#september-2026-3" id="toc-september-2026-3" class="nav-link" data-scroll-target="#september-2026-3">0.3.262 (02 September 2026)</a></li>
   <li><a href="#august-2026" id="toc-august-2026" class="nav-link" data-scroll-target="#august-2026">0.3.261 (30 August 2026)</a></li>
   <li><a href="#august-2026-1" id="toc-august-2026-1" class="nav-link" data-scroll-target="#august-2026-1">0.3.260 (21 August 2026)</a></li>
   <li><a href="#august-2026-2" id="toc-august-2026-2" class="nav-link" data-scroll-target="#august-2026-2">0.3.259 (16 August 2026)</a></li>
@@ -468,7 +469,13 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="september-2026" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026">0.3.264 (16 September 2026)</h2>
+<h2 class="anchored" data-anchor-id="september-2026">0.3.265 (17 September 2026)</h2>
+<ul>
+<li>Agent Bridge: Bridged host tools are no longer denied under an approval policy when the sandboxed agent presents them to its model under a different name.</li>
+</ul>
+</section>
+<section id="september-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-1">0.3.264 (16 September 2026)</h2>
 <ul>
 <li>Agent Bridge: Sandboxed agents using the Responses API no longer stall after a single model turn when the model calls a tool; <code>function_call</code> and <code>custom_tool_call</code> output items now carry a non-null item id, and streamed custom tool calls now report <code>completed</code> status so client SDKs dispatch them.</li>
 <li>Bugfix: Closing cached S3 sessions after an eval no longer leaves s3fs to close them again at garbage collection, which raised a stray <code>AssertionError: Session was never entered</code> in unrelated code.</li>
@@ -560,8 +567,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Sandboxes: The standard tool-support image now offers an opt-in non-root <code>nonroot</code> account (UID/GID 65532; default user unchanged) and installs the web browser’s Playwright browsers to a shared path so the browser tool works under a non-root user.</li>
 </ul>
 </section>
-<section id="september-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026-1">0.3.263 (03 September 2026)</h2>
+<section id="september-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-2">0.3.263 (03 September 2026)</h2>
 <ul>
 <li>OpenAI: Added support for GPT-6 Astra (<code>gpt-6-astra</code>).</li>
 <li>OpenAI: Fixed <code>temperature</code>, <code>top_p</code>, and <code>logprobs</code> causing a 400 error on GPT-5.5+ models when no <code>reasoning_effort</code> is set (they are now dropped with a warning).</li>
@@ -585,8 +592,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).</li>
 </ul>
 </section>
-<section id="september-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026-2">0.3.262 (02 September 2026)</h2>
+<section id="september-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-3">0.3.262 (02 September 2026)</h2>
 <ul>
 <li>Scorer (breaking): Model-graded scorers with a panel of graders now require a strict majority: samples with no majority grade (even-split ties, three-way splits, or ties after a grader returns no parseable grade) come back unscored and leave the metric denominator, rather than the most common grade winning with ties broken by grader order. Pass <code>reducer="mode"</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span> to restore the previous behavior. (#4721)</li>
 <li>Scorer: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span> now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)</li>
