@@ -7,12 +7,20 @@ from pydantic import JsonValue, TypeAdapter
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
-from inspect_ai.model._call_tools import get_tools_info
+from inspect_ai.model._call_tools import (
+    get_tools_info,
+    tool_params,
+    validate_tool_input,
+)
 from inspect_ai.model._model import ModelRefusalError
+from inspect_ai.tool._tool import ToolError, ToolParsingError
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
+from inspect_ai.util._sandbox.environment import SandboxUnavailableError
+from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
@@ -215,10 +223,48 @@ def _mcp_tool_result_content(
             return [_mcp_tool_content_block(content)]
 
 
+_TOOL_CALL_ERRORS: tuple[type[Exception], ...] = (
+    TimeoutError,
+    UnicodeDecodeError,
+    SandboxUnavailableError,
+    PermissionError,
+    FileNotFoundError,
+    IsADirectoryError,
+    OutputLimitExceededError,
+    LimitExceededError,
+    ToolError,
+)
+"""Exception types `execute_tools` reports to the model as a `ToolCallError`.
+
+Mirrors the `except` chain in `inspect_ai.model._call_tools.execute_tools`;
+keep the two in step.
+"""
+
+
+def _is_tool_call_error(ex: Exception) -> bool:
+    """Whether a native tool call would report `ex` to the model rather than fail.
+
+    `execute_tools` maps a fixed set of exception types to a `ToolCallError` the
+    model sees and treats anything else as the eval's fault (the sample errors).
+    """
+    if isinstance(ex, ValueError) and "embedded null byte" in str(ex):
+        return True
+    return isinstance(ex, _TOOL_CALL_ERRORS)
+
+
 def call_tool(
     bridge: SandboxAgentBridge,
 ) -> Callable[[str, str, dict[str, JsonValue]], Awaitable[JsonValue]]:
-    """Execute a bridged tool and return result."""
+    """Execute a bridged tool and return result.
+
+    Arguments are validated and converted as for a native call, so a scaffold's
+    malformed arguments surface as a `ToolParsingError` the model can recover
+    from. Exceptions a native call would show the model (`_is_tool_call_error`)
+    propagate as the RPC error the scaffold reads as tool output. Any other
+    exception is a bug in the eval's tool, which natively fails the sample: the
+    RPC still gets its error reply, and the failure is signalled through
+    `bridge.request_fail` so the bridge's monitor task ends the sample.
+    """
 
     async def execute(
         server: str, tool: str, arguments: dict[str, JsonValue]
@@ -235,7 +281,17 @@ def call_tool(
         # under names the grant resolution does not recognise, so every approved
         # call was denied here. Approval still runs at generate time.
         tool_fn = server_tools[tool]
-        result = await tool_fn(**arguments)
+        try:
+            validation_errors = validate_tool_input(
+                arguments, ToolDef(tool_fn).parameters
+            )
+            if validation_errors:
+                raise ToolParsingError(validation_errors)
+            result = await tool_fn(**tool_params(arguments, tool_fn))
+        except Exception as ex:
+            if not _is_tool_call_error(ex):
+                bridge.request_fail(ex)
+            raise
 
         # Plain strings are returned verbatim (the MCP `tools/call` text part
         # carries them as-is). For anything else, use pydantic_core.to_json so
