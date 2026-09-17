@@ -255,10 +255,15 @@ def _dispatched_call(
     name the target. The one such shape in the wild is Antigravity's
     ``call_mcp_tool(ServerName, ToolName, Arguments)``: string ``ServerName`` and
     ``ToolName`` naming a registered bridged tool and an object ``Arguments``
-    denote that tool with those arguments. Anything else (including a dispatcher
-    with other parameter names, or a target that is not a bridged tool) is not a
-    dispatched call and is reviewed as the call it is.
+    denote that tool with those arguments. Anything else is not a dispatched call
+    and is reviewed as the call it is: a dispatcher with another name or other
+    parameter names, a target that is not a bridged tool, and in particular an
+    ordinary call whose own arguments happen to carry these fields (the function
+    name is checked first, so no other tool's call can borrow a bridged tool's
+    policy by naming it in its arguments).
     """
+    if call.function != "call_mcp_tool":
+        return None
     server = call.arguments.get("ServerName")
     tool = call.arguments.get("ToolName")
     arguments = call.arguments.get("Arguments")

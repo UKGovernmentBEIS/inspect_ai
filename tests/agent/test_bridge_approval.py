@@ -1015,6 +1015,63 @@ async def test_call_that_dispatches_nothing_is_reviewed_as_itself(
     assert run.output.message.tool_calls == [call]
 
 
+@pytest.mark.parametrize(
+    "function", ["bash", "read_file", "mcp__host__read_file", "host__read_file"]
+)
+async def test_only_the_dispatcher_function_is_unwrapped(function: str) -> None:
+    """An ordinary call whose arguments carry the dispatcher fields is itself."""
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(), [ApprovalPolicy(recording_approver(seen), "*")]
+    )
+    call = ToolCall(
+        id="1",
+        function=function,
+        arguments={
+            "cmd": "ls",
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "a.txt"},
+        },
+    )
+
+    run = await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    ((_, reviewed, _),) = seen
+    assert reviewed is call
+    assert run.output.message.tool_calls == [call]
+
+
+async def test_dispatcher_shaped_arguments_do_not_borrow_another_tools_policy() -> None:
+    """A rejected tool cannot be approved by naming a permitted one in its arguments."""
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(),
+        [
+            ApprovalPolicy(reject_approver(), "bash"),
+            ApprovalPolicy(auto_approver(), "read_file"),
+            ApprovalPolicy(auto_approver(), "*"),
+        ],
+    )
+    decoy = ToolCall(
+        id="1",
+        function="bash",
+        arguments={
+            "cmd": "rm -rf /",
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "a.txt"},
+        },
+    )
+    safe = ToolCall(id="2", function="ls", arguments={})
+
+    run = await run_bridge(
+        [tool_calls_output(decoy), tool_calls_output(safe)], bridge=bridge
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [safe]
+
+
 async def test_in_process_bridge_does_not_unwrap_dispatcher_shaped_calls() -> None:
     """Without bridged tools there is nothing a call could dispatch to."""
     seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
