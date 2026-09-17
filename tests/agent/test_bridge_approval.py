@@ -51,6 +51,7 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 TASK = "Tidy up the working directory."
@@ -615,8 +616,8 @@ async def test_host_tool_grant_matches_regardless_of_argument_key_order() -> Non
 
 @pytest.mark.parametrize(
     "function",
-    ["mcp__host__read_file", "host__read_file"],
-    ids=["claude-code-style", "server-qualified"],
+    ["mcp__host__read_file", "host__read_file", "mcp_host_read_file", "host_read_file"],
+    ids=["claude-code", "server-qualified", "gemini-cli", "opencode"],
 )
 async def test_host_tool_grant_matches_namespaced_tool_names(function: str) -> None:
     """Scaffolds declare MCP tools to the model under qualified names."""
@@ -673,6 +674,146 @@ async def test_qualified_name_binds_grant_to_exact_server() -> None:
 
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
     assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+
+
+def sandbox_bridge_with_servers(
+    bridged_tools: dict[str, dict[str, Tool]],
+) -> SandboxAgentBridge:
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+        bridged_tools=bridged_tools,
+    )
+
+
+@pytest.mark.parametrize(
+    ("server", "function"),
+    [
+        ("host.tools", "mcp_host.tools_read_file"),
+        ("host.tools", "host_tools_read_file"),
+        ("host-tools", "host-tools_read_file"),
+    ],
+    ids=["gemini-cli-keeps-dot", "opencode-rewrites-dot", "opencode-keeps-dash"],
+)
+async def test_host_tool_grant_matches_scaffold_rewritten_names(
+    server: str, function: str
+) -> None:
+    """A server name the scaffold rewrites for its model API still resolves."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers({server: {"read_file": tool}})
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="approved", function=function, arguments={"path": "x"})]
+    )
+
+    assert bridge.consume_tool_execution_grant(server, "read_file", {"path": "x"})
+
+
+async def test_host_tool_grant_matches_gemini_cli_truncated_name() -> None:
+    """Gemini CLI collapses a model-facing name over 63 characters to 30...30."""
+    tool = AsyncMock(return_value="contents")
+    server = "s" * 60
+    bridge = sandbox_bridge_with_servers({server: {"read_file": tool}})
+    # mcp_ + 60 s + _read_file is 74 characters: the first 30 and the last 30 survive
+    truncated = "mcp_" + "s" * 26 + "..." + "s" * 20 + "_read_file"
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="approved", function=truncated, arguments={})]
+    )
+
+    assert bridge.consume_tool_execution_grant(server, "read_file", {})
+
+
+async def test_host_tool_grant_does_not_double_gemini_cli_prefix() -> None:
+    """A server already named mcp_... gets no second mcp_ prefix from Gemini CLI."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers({"mcp_host": {"read_file": tool}})
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="approved", function="mcp_host_read_file", arguments={})]
+    )
+
+    assert bridge.consume_tool_execution_grant("mcp_host", "read_file", {})
+
+
+@pytest.mark.parametrize(
+    "bridged_tools",
+    [
+        {"a.b": {"c": AsyncMock()}, "a_b": {"c": AsyncMock()}},
+        {"a": {"b_c": AsyncMock()}, "a_b": {"c": AsyncMock()}},
+    ],
+    ids=["rewritten-collision", "underscore-split-collision"],
+)
+async def test_names_that_rewrite_to_the_same_string_register_no_grant(
+    bridged_tools: dict[str, dict[str, Tool]],
+) -> None:
+    """Both servers present their tool as `a_b_c` to OpenCode; the collision fails closed."""
+    bridge = sandbox_bridge_with_servers(bridged_tools)
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="approved", function="a_b_c", arguments={})]
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_host_tool_grant_from_antigravity_dispatcher_call() -> None:
+    """Antigravity proposes `call_mcp_tool(ServerName, ToolName, Arguments)`.
+
+    The grant binds the named server and tool with the nested `Arguments`, which
+    is what the harness sends to the MCP server.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+    call = ToolCall(
+        id="approved",
+        function="call_mcp_tool",
+        arguments={
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "notes.txt"},
+        },
+    )
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    with pytest.raises(PermissionError, match="was not approved for execution"):
+        await execute("host", "read_file", {"path": "notes.txt"})
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"ServerName": "other", "ToolName": "read_file", "Arguments": {}},
+        {"ServerName": "host", "ToolName": "write_file", "Arguments": {}},
+        {"ServerName": "host", "ToolName": "read_file", "Arguments": "{}"},
+        {"ServerName": "host", "ToolName": "read_file"},
+    ],
+    ids=["unknown-server", "unknown-tool", "arguments-not-an-object", "no-arguments"],
+)
+async def test_antigravity_dispatcher_call_off_target_registers_no_grant(
+    arguments: dict[str, object],
+) -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="approved", function="call_mcp_tool", arguments=arguments)]
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
 
 
 async def test_scaffold_local_tool_calls_are_not_stored() -> None:

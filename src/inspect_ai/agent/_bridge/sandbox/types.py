@@ -1,3 +1,4 @@
+import re
 from collections import deque
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
@@ -91,24 +92,27 @@ class SandboxAgentBridge(AgentBridge):
     def register_tool_execution_grants(self, calls: Sequence[ToolCall]) -> None:
         """Add one-shot host-tool grants from an approved response.
 
-        Each grant binds the exact bridged (server, tool) the approved call's
-        model-facing function name denotes plus the approved arguments
-        (JSON-normalized, since the scaffold re-sends them as parsed JSON), and
-        is consumed once. A name that denotes more than one bridged tool is
-        ambiguous — no grant is registered (fail closed, with a warning). A
-        grant is not scoped to the turn it was approved in: it persists until
-        consumed (or evicted, with a warning, once `_MAX_TOOL_EXECUTION_GRANTS`
-        unconsumed grants accumulate) — including when the approved response
-        never reached the scaffold (serialization or transport failure) — but
-        only ever re-authorizes the exact approved action. The approval API carries no execution target, so an
-        approved scaffold-local call whose name denotes a bridged tool also
-        mints a grant for it — still bounded to the approved arguments.
+        Each grant binds the exact bridged (server, tool) the approved call
+        denotes (`_proposed_call`: by its model-facing function name, or for
+        Antigravity's `call_mcp_tool` dispatcher by the server and tool named in
+        its arguments) plus the approved arguments (JSON-normalized, since the
+        scaffold re-sends them as parsed JSON), and is consumed once. A name
+        that denotes more than one bridged tool is ambiguous — no grant is
+        registered (fail closed, with a warning). A grant is not scoped to the
+        turn it was approved in: it persists until consumed (or evicted, with a
+        warning, once `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants
+        accumulate) — including when the approved response never reached the
+        scaffold (serialization or transport failure) — but only ever
+        re-authorizes the exact approved action. The approval API carries no
+        execution target, so an approved scaffold-local call whose name denotes
+        a bridged tool also mints a grant for it — still bounded to the approved
+        arguments.
         """
         if not self.tool_approval_required():
             return
 
         for call in calls:
-            targets = _resolve_bridged_tools(self.bridged_tools, call.function)
+            targets, arguments = _proposed_call(self.bridged_tools, call)
             if not targets:
                 continue
             if len(targets) > 1:
@@ -134,7 +138,7 @@ class SandboxAgentBridge(AgentBridge):
                 _ToolExecutionGrant(
                     server=target.server,
                     tool=target.tool,
-                    arguments=to_jsonable_python(dict(call.arguments), fallback=str),
+                    arguments=to_jsonable_python(arguments, fallback=str),
                 )
             )
 
@@ -211,16 +215,52 @@ class _ToolExecutionGrant(NamedTuple):
     """The approved arguments, JSON-normalized and matched via `_json_equal`."""
 
 
-def _candidate_functions(server: str, tool: str) -> tuple[str, str, str]:
+_GEMINI_CLI_INVALID = re.compile(r"[^a-zA-Z0-9_.:-]")
+_GEMINI_CLI_MAX_LENGTH = 63
+_OPENCODE_INVALID = re.compile(r"[^a-zA-Z0-9_-]")
+_ANTIGRAVITY_DISPATCHER = "call_mcp_tool"
+
+
+def _candidate_functions(server: str, tool: str) -> set[str]:
     """The names a scaffold could have declared this bridged tool as to its model.
 
-    Scaffolds name MCP tools under their own scheme: the bare tool name, Claude
-    Code's ``mcp__<server>__<tool>``, or Gemini CLI's ``<server>__<tool>`` (used
-    for conflicting names). Each candidate is an exact string computed from the
-    known (server, tool) — never parsed out of a call name — so an unrecognized
-    scheme matches nothing (deny-safe) rather than the wrong tool.
+    Scaffolds name MCP tools under their own scheme: the bare tool name (Codex
+    CLI, inside a namespace), Claude Code's ``mcp__<server>__<tool>``, the
+    ``<server>__<tool>`` older Gemini CLI releases used for conflicting names,
+    Gemini CLI's ``mcp_<server>_<tool>`` (`_gemini_cli_function`) and OpenCode's
+    ``<server>_<tool>`` with characters outside ``[A-Za-z0-9_-]`` in either part
+    replaced by ``_``. Each candidate is an exact string computed from the known
+    (server, tool) — never parsed out of a call name — so an unrecognized scheme
+    matches nothing (deny-safe) rather than the wrong tool, and two bridged tools
+    whose names rewrite to the same string are ambiguous and fail closed in
+    `_resolve_bridged_tools`. Antigravity declares no per-tool functions; its
+    dispatcher is recognized in `_proposed_call` instead.
     """
-    return (tool, f"mcp__{server}__{tool}", f"{server}__{tool}")
+    opencode = _OPENCODE_INVALID.sub
+    return {
+        tool,
+        f"mcp__{server}__{tool}",
+        f"{server}__{tool}",
+        _gemini_cli_function(server, tool),
+        f"{opencode('_', server)}_{opencode('_', tool)}",
+    }
+
+
+def _gemini_cli_function(server: str, tool: str) -> str:
+    """Gemini CLI's model-facing name for a bridged tool (its `generateValidName`).
+
+    ``mcp_<server>_<tool>``, the prefix not doubled when the server name already
+    starts with ``mcp_``, characters outside ``[A-Za-z0-9_.:-]`` replaced by
+    ``_``, and a name over 63 characters collapsed to its first and last 30
+    around ``...``.
+    """
+    name = f"{server}_{tool}"
+    if not name.startswith("mcp_"):
+        name = f"mcp_{name}"
+    name = _GEMINI_CLI_INVALID.sub("_", name)
+    if len(name) > _GEMINI_CLI_MAX_LENGTH:
+        name = f"{name[:30]}...{name[-30:]}"
+    return name
 
 
 class _BridgedToolId(NamedTuple):
@@ -240,6 +280,43 @@ def _resolve_bridged_tools(
         for tool in tools
         if function in _candidate_functions(server, tool)
     ]
+
+
+class _ProposedCall(NamedTuple):
+    """What an approved call would execute: the bridged tools it could denote, with what."""
+
+    targets: list[_BridgedToolId]
+    arguments: dict[str, Any]
+
+
+def _proposed_call(
+    bridged_tools: dict[str, dict[str, Tool]], call: ToolCall
+) -> _ProposedCall:
+    """Resolve an approved call to the bridged tools it denotes and its arguments.
+
+    Most scaffolds declare each bridged tool to the model as its own function, so
+    the call's name denotes the tool (`_resolve_bridged_tools`) and its arguments
+    are the tool's. Antigravity instead declares one dispatcher,
+    ``call_mcp_tool(ServerName, ToolName, Arguments)``, so for that name the
+    target and the arguments come from the call's arguments; the server is named
+    explicitly, so there is nothing ambiguous to resolve, and a target that is not
+    a bridged tool denotes nothing.
+    """
+    if call.function == _ANTIGRAVITY_DISPATCHER:
+        server = call.arguments.get("ServerName")
+        tool = call.arguments.get("ToolName")
+        arguments = call.arguments.get("Arguments")
+        if (
+            isinstance(server, str)
+            and isinstance(tool, str)
+            and isinstance(arguments, dict)
+            and tool in bridged_tools.get(server, {})
+        ):
+            return _ProposedCall([_BridgedToolId(server=server, tool=tool)], arguments)
+        return _ProposedCall([], {})
+    return _ProposedCall(
+        _resolve_bridged_tools(bridged_tools, call.function), dict(call.arguments)
+    )
 
 
 def _json_equal(a: Any, b: Any) -> bool:

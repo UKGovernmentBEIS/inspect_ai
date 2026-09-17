@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent Bridge: Bridged host tools under an approval policy are no longer denied when called from Gemini CLI, OpenCode, or Antigravity, which name MCP tools differently from Claude Code.
+
 ## 0.3.264 (16 September 2026)
 
 - Agent Bridge: Sandboxed agents using the Responses API no longer stall after a single model turn when the model calls a tool; `function_call` and `custom_tool_call` output items now carry a non-null item id, and streamed custom tool calls now report `completed` status so client SDKs dispatch them.
