@@ -196,7 +196,7 @@ A `modify` decision leaves the original call intact in the log: the recorded mod
 
 ## Custom Approvers
 
-Inspect includes two built-an approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.
+Inspect includes two built-in approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.
 
 Custom approvers are functions that return an `Approval`, which consists of a decision and an explanation. Here is the source code for the `auto` approver, which just reflects back the decision that it is initialised with:
 

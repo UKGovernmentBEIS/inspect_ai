@@ -369,7 +369,7 @@ async def test_bedrock_fable_5_1_forced_tool_choice_wiring(
             return False
 
     with patch.object(
-        api.session, "client", lambda *args, **kwargs: _FakeClientContext()
+        api.session, "create_client", lambda *args, **kwargs: _FakeClientContext()
     ):
         result = await api.generate(
             input=[ChatMessageUser(content="What is 1 + 1?")],

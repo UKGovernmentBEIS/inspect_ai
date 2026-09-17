@@ -163,6 +163,8 @@ inspect eval ctf.py --log-refusals
 
 Note that in all cases a counter of refusals during the eval or eval set is provided at the bottom right of the task display.
 
+To fail a sample when a refusal occurs (rather than only logging a warning), use the `--fail-on-refusal` generation option; see [Failing on Refusals](fallbacks.qmd#failing-on-refusals).
+
 ## Model API Logging
 
 By default, Inspect logs the raw model API request and response for the first few calls per model (as well as all error calls). This provides enough data to verify that the expected payload is being sent and received without the storage cost of logging every call.

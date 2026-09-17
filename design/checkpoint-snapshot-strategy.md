@@ -41,13 +41,43 @@
 >    records — not just ids past the latest — and the strategy must
 >    raise if the latest committed record's snapshot is absent from the
 >    adopted storage area. `restore` restores the recorded
->    `ref.snapshot_id`, whose receipt was checked during egress. When
->    this sandbox has no committed record, restore still falls back to
->    `latest` and skips orphan discard.
+>    `ref.snapshot_id`, whose receipt was checked during egress. A
+>    sandbox with no committed record is a hard error at hydration
+>    (nothing in its storage area can be vouched for), not a fallback
+>    to `latest`.
 >    The shared chunked copy-out (`_checkpoint/_copy.py`, capped by
 >    `SnapshotContext.max_snapshot_bytes` from
 >    `CheckpointConfig.max_sandbox_snapshot_bytes`) landed with this
 >    change; both strategies use it.
+> 5. **`restore` takes this attempt's `SandboxBackupPaths`** and is
+>    scoped to them: `restore(env, paths, ref, ctx)`. The snapshot is
+>    listed on the host before any byte enters the sandbox (`restic ls
+>    --json` against the adopted repo; `tarfile` over the stored
+>    archive) and refused if any node lies outside `paths.include`
+>    (directories on the way to a root excepted), is a device, fifo or
+>    socket, is a hard link out of scope, or is a regular file carrying
+>    a setuid, setgid or sticky bit (`_checkpoint/_restore_scope.py`;
+>    directory sticky/setgid bits carry no privilege and are kept, so
+>    `/tmp` or a `g+s` shared dir can be a root). For the archive the
+>    host's `tarfile` and the image's `tar` must also agree on member
+>    boundaries: the raw header stream is scanned alongside `tarfile`
+>    and refused on a PAX, sparse, device or fifo header (`tarfile`
+>    consumes a PAX header without listing it), a repeated GNU long
+>    header or one claiming more than 64 KiB (which `tarfile` would
+>    read into memory whole), members carrying PAX records are refused,
+>    only zero padding may follow the last parsed member, and
+>    a `find` over the roots after extraction fails the restore on any
+>    special file or device node the sandbox's tar produced anyway.
+>    Each root is then restored individually (`restic restore
+>    <id>:<parent> --target <parent> --include /<name> --include-xattr
+>    user.*`; `tar -x -- <root>`) so nothing above a root is written or
+>    has its metadata restored, and no `security.*`/`system.*` extended
+>    attribute (file capabilities, ACLs) is reapplied. `snapshot()` records
+>    `paths.include` as a `roots` extra on `SnapshotDetails`; a recorded
+>    set that differs from this attempt's is an error naming both. For
+>    an auto-included home dir the core re-owns everything restored
+>    under it to the home dir's owner; configured `sandbox_paths` keep
+>    recorded ownership (the documented residual).
 >
 > Strategy selection is accepted at every config layer — sample, task,
 > and eval: `sandbox_paths` values are `list[str] |
@@ -352,6 +382,19 @@ Implementation requirements:
 - All in-sandbox execution runs as `user="root"`; output must respect
   `MAX_EXEC_OUTPUT_SIZE` (suppress progress streams — see
   `run_sandbox_backup`'s `--quiet` note).
+- A restore writes as root into a fresh sandbox from data the resume
+  source supplied, so it is scoped to this attempt's resolved capture
+  roots and structurally validated on the host before any byte enters
+  the sandbox (implementation-status item 5; `_restore_scope`). The
+  resume source is not authenticated; structural validation is the
+  whole defense. The validation is lexical, and the restoring tool
+  resolves paths through what the fresh image already has, so on
+  resume the core deletes every symlink the image ships under a root
+  before the strategy's `setup` places anything in the sandbox
+  (`_restore_scope.remove_existing_symlinks`); the strategy's own
+  tooling under `/root/.cache/inspect` is inside the root when the
+  default user is root, so a later pass would sever it. The snapshot
+  recreates the links it holds.
 
 ### 4.7 Strategy identity is recorded and pinned
 
