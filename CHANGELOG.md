@@ -1,6 +1,10 @@
 ## Unreleased
 
-- Sandbox agent bridge: host tools exposed with `bridged_tools` now execute only for calls the model proposed in a bridged generation, once per proposal, with or without an approval policy; `BridgedToolsSpec(require_proposal=False)` opts a server out.
+- Sandbox agent bridge: host tools exposed with `bridged_tools` are again denied unless the model proposed the call in a bridged generation, once per proposal, with or without an approval policy (0.3.265 ran them regardless as a stopgap); `BridgedToolsSpec(require_proposal=False)` opts a server out.
+
+## 0.3.265 (17 September 2026)
+
+- Agent Bridge: Bridged host tools are no longer denied under an approval policy when the sandboxed agent presents them to its model under a different name.
 
 ## 0.3.264 (16 September 2026)
 
