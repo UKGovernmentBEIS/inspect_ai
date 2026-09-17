@@ -819,3 +819,50 @@ def test_grok_native_code_execution_call_stays_server_side() -> None:
     assert len(tool_uses) == 1
     assert tool_uses[0].tool_type == "code_execution"
     assert tool_uses[0].name == "code_execution"
+
+
+def test_grok_native_web_search_call_named_like_client_function_stays_server_side() -> (
+    None
+):
+    """A native web_search call keeps its type even if a client function shares its name."""
+    from xai_sdk.chat import Response, chat_pb2
+
+    from inspect_ai._util.content import ContentToolUse
+    from inspect_ai.model._providers.grok import GrokAPI
+    from inspect_ai.tool._tool_info import ToolInfo
+
+    native_web_search = ToolInfo(
+        name="web_search", description="Native web search", options={"grok": {}}
+    )
+    client_browse_page = ToolInfo(name="browse_page", description="Local function")
+    proto = chat_pb2.GetChatCompletionResponse(
+        outputs=[
+            chat_pb2.CompletionOutput(
+                index=0,
+                finish_reason="REASON_STOP",
+                message=chat_pb2.CompletionMessage(
+                    role=chat_pb2.MessageRole.ROLE_ASSISTANT,
+                    content="Done",
+                    tool_calls=[
+                        chat_pb2.ToolCall(
+                            id="call-1",
+                            type=chat_pb2.ToolCallType.TOOL_CALL_TYPE_WEB_SEARCH_TOOL,
+                            function=chat_pb2.FunctionCall(
+                                name="browse_page", arguments='{"url":"https://x.ai"}'
+                            ),
+                        )
+                    ],
+                ),
+            )
+        ]
+    )
+
+    api = GrokAPI(model_name="grok-4-fast", api_key="test-key")
+    output = api._model_output_from_response(
+        Response(proto, 0), [native_web_search, client_browse_page]
+    )
+
+    message = output.message
+    assert message.tool_calls is None
+    tool_uses = [c for c in message.content if isinstance(c, ContentToolUse)]
+    assert [(t.tool_type, t.name) for t in tool_uses] == [("web_search", "browse_page")]

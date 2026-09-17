@@ -742,16 +742,24 @@ class GrokAPI(ModelAPI):
     ) -> bool:
         """Whether a returned tool call is for a client-side function tool.
 
-        xAI sometimes types a call to a client function that shares a name
-        with one of its built-in tools (e.g. `code_execution`) as that
-        built-in tool, even though the request declared it as a plain
-        function and the server did not run it. Trusting the reported type
-        would render the call as a completed server tool use and never
-        execute it, so a server-typed call whose name matches a tool the
-        request sent as a function is treated as a call to that function.
+        xAI sometimes types a call to a client function named
+        `code_execution` as its built-in code execution tool, even though
+        the request declared it as a plain function and the server did not
+        run it. Trusting the reported type would render the call as a
+        completed server tool use and never execute it. So when the request
+        sent no native code execution tool, a code-execution-typed call whose
+        name matches a tool sent as a function is treated as a call to that
+        function. Other server types keep their reported type: a native web
+        search call, for example, may legitimately share a name with a
+        client function.
         """
-        if get_tool_call_type(tool_call) == "client_side_tool":
+        tool_call_type = get_tool_call_type(tool_call)
+        if tool_call_type == "client_side_tool":
             return True
+        if tool_call_type != "code_execution_tool" or any(
+            self._is_internal_code_execution_tool(tool) for tool in tools
+        ):
+            return False
         return any(
             tool.name == tool_call.function.name
             and self._grok_tool(tool).HasField("function")
