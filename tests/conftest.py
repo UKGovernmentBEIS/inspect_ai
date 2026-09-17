@@ -341,25 +341,12 @@ def protect_registrations(
 
 
 @pytest.fixture
-def isolated_hooks_registry():
-    """Hide hooks registered elsewhere in the process for the test's duration.
-
-    Tests asserting that *no* enabled hook needs a full sample (the
-    ``needs_full_sample`` negatives) are assertions about the process-wide
-    hooks registry: a single always-enabled hook from an installed extension's
-    entry point (CI pre-installs ``tests/test_package``) or a leak from
-    another test flips them. Force entry-point loading *before* snapshotting —
-    with the registry emptied, the first ``get_all_hooks()`` in the test would
-    otherwise hit ``registry_find``'s empty-result fallback and re-register
-    every extension's hooks mid-test. Restore only what was removed and leave
-    hooks registered during the test in place: an entry-point hook deleted
-    here could never be re-registered, since ``ensure_entry_points`` only
-    re-imports and ``@hooks`` decorators don't re-run for a module already in
-    ``sys.modules`` (tests clean up their own registrations).
-    """
+def isolated_hooks_registry() -> Iterator[None]:
+    """Temporarily hide existing hooks; tests must clean up their own registrations."""
     from inspect_ai._util import registry as registry_mod
     from inspect_ai._util.entrypoints import ensure_entry_points
 
+    # Load extensions first so an empty registry cannot load their hooks mid-test.
     ensure_entry_points()
     saved = {
         key: value
@@ -372,10 +359,7 @@ def isolated_hooks_registry():
         yield
     finally:
         registry_mod._registry.update(saved)
-        # Restoring via direct dict update bumps neither the registry version
-        # nor (when the test registered and removed hooks of its own) the
-        # length, so get_all_hooks()'s (version, len) cache can hold a stale
-        # list; bump the version so it re-walks.
+        # Direct dict updates don't invalidate get_all_hooks()'s cache.
         registry_mod._registry_version += 1
 
 
