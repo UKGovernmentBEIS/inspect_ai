@@ -117,9 +117,11 @@ async def sandbox_agent_bridge(
             exposing tools you choose.
         bridged_tools: Host-side Inspect tools to expose to the sandboxed agent
             via MCP protocol. Each BridgedToolsSpec creates an MCP server that
-            makes the specified tools available to the agent. The resolved
-            MCPServerConfigStdio objects to pass to CLI agents are available via
-            bridge.mcp_server_configs.
+            makes the specified tools available to the agent. A bridged tool
+            executes only for a call the model proposed in a bridged generation,
+            once per proposal, unless its spec sets `require_proposal=False`
+            (see `BridgedToolsSpec`). The resolved MCPServerConfigStdio objects
+            to pass to CLI agents are available via bridge.mcp_server_configs.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
             installs it around `model.generate()` so the sink decides when and
@@ -200,6 +202,7 @@ async def sandbox_agent_bridge(
                 seen_names.add(spec.name)
                 config = _register_bridged_tools(bridge, spec, port)
                 bridge.mcp_server_configs.append(config)
+            bridge.warn_indistinct_tools()
 
             # sandbox service that receives model requests (and tool calls)
             tg.start_soon(
@@ -270,6 +273,8 @@ def _register_bridged_tools(
     # Build tool registry for this server
     tools_dict = {ToolDef(tool).name: tool for tool in spec.tools}
     bridge.bridged_tools[spec.name] = tools_dict
+    if not spec.require_proposal:
+        bridge.proposal_exempt_servers.add(spec.name)
 
     # Return MCP config with HTTP URL
     return MCPServerConfigHTTP(
