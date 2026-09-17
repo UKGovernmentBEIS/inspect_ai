@@ -735,3 +735,87 @@ def test_grok_prompt_cache_across_turns_live() -> None:
     assert second is not None
     assert second.input_tokens_cache_read is not None
     assert second.input_tokens_cache_read > 0
+
+
+# -- Built-in-typed calls to client function tools ------------------------------
+
+
+def _code_execution_tool_info(native: bool) -> Any:
+    """The `code_execution()` tool as sent to Grok, native or client-side."""
+    from inspect_ai.tool._tool_info import ToolInfo
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    return ToolInfo(
+        name="code_execution",
+        description="Execute Python code.",
+        parameters=ToolParams(
+            properties={"code": ToolParam(type="string")}, required=["code"]
+        ),
+        options={"providers": {"grok": {}} if native else {"python": {}}},
+    )
+
+
+def _code_execution_typed_response() -> Any:
+    """A completion whose one tool call xAI typed as its built-in code_execution."""
+    from xai_sdk.chat import Response, chat_pb2
+
+    proto = chat_pb2.GetChatCompletionResponse(
+        outputs=[
+            chat_pb2.CompletionOutput(
+                index=0,
+                finish_reason="REASON_TOOL_CALLS",
+                message=chat_pb2.CompletionMessage(
+                    role=chat_pb2.MessageRole.ROLE_ASSISTANT,
+                    tool_calls=[
+                        chat_pb2.ToolCall(
+                            id="call-1",
+                            type=chat_pb2.ToolCallType.TOOL_CALL_TYPE_CODE_EXECUTION_TOOL,
+                            function=chat_pb2.FunctionCall(
+                                name="code_execution",
+                                arguments='{"code":"print(435678 + 23457)"}',
+                            ),
+                        )
+                    ],
+                ),
+            )
+        ]
+    )
+    return Response(proto, 0)
+
+
+def test_grok_builtin_typed_call_to_client_function_is_executed() -> None:
+    """A code_execution-typed call to a client `code_execution` function is a tool call."""
+    from inspect_ai._util.content import ContentToolUse
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4-fast", api_key="test-key")
+    output = api._model_output_from_response(
+        _code_execution_typed_response(), [_code_execution_tool_info(native=False)]
+    )
+
+    message = output.message
+    assert message.tool_calls is not None
+    assert [(tc.id, tc.function) for tc in message.tool_calls] == [
+        ("call-1", "code_execution")
+    ]
+    assert message.tool_calls[0].arguments == {"code": "print(435678 + 23457)"}
+    assert not any(isinstance(c, ContentToolUse) for c in message.content)
+    assert output.stop_reason == "tool_calls"
+
+
+def test_grok_native_code_execution_call_stays_server_side() -> None:
+    """With native code execution enabled the same call is a server tool use."""
+    from inspect_ai._util.content import ContentToolUse
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4-fast", api_key="test-key")
+    output = api._model_output_from_response(
+        _code_execution_typed_response(), [_code_execution_tool_info(native=True)]
+    )
+
+    message = output.message
+    assert message.tool_calls is None
+    tool_uses = [c for c in message.content if isinstance(c, ContentToolUse)]
+    assert len(tool_uses) == 1
+    assert tool_uses[0].tool_type == "code_execution"
+    assert tool_uses[0].name == "code_execution"

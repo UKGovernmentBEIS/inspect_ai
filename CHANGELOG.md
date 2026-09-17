@@ -1,3 +1,7 @@
+## Unreleased
+
+- Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
+
 ## 0.3.265 (17 September 2026)
 
 - Agent Bridge: Bridged host tools are no longer denied under an approval policy when the sandboxed agent presents them to its model under a different name.

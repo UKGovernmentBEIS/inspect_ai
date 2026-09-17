@@ -668,7 +668,7 @@ class GrokAPI(ModelAPI):
         server_tool_calls: list[chat_pb2.ToolCall] = []
         client_tool_calls: list[chat_pb2.ToolCall] = []
         for tool_call in response.tool_calls:
-            if get_tool_call_type(tool_call) == "client_side_tool":
+            if self._is_client_tool_call(tool_call, tools):
                 client_tool_calls.append(tool_call)
             else:
                 server_tool_calls.append(tool_call)
@@ -736,6 +736,27 @@ class GrokAPI(ModelAPI):
             return "grok" in tool.options.get("providers", {})
         else:
             return False
+
+    def _is_client_tool_call(
+        self, tool_call: chat_pb2.ToolCall, tools: list[ToolInfo]
+    ) -> bool:
+        """Whether a returned tool call is for a client-side function tool.
+
+        xAI sometimes types a call to a client function that shares a name
+        with one of its built-in tools (e.g. `code_execution`) as that
+        built-in tool, even though the request declared it as a plain
+        function and the server did not run it. Trusting the reported type
+        would render the call as a completed server tool use and never
+        execute it, so a server-typed call whose name matches a tool the
+        request sent as a function is treated as a call to that function.
+        """
+        if get_tool_call_type(tool_call) == "client_side_tool":
+            return True
+        return any(
+            tool.name == tool_call.function.name
+            and self._grok_tool(tool).HasField("function")
+            for tool in tools
+        )
 
 
 async def _report_grok_stream_chunk(chunk: Chunk) -> None:
