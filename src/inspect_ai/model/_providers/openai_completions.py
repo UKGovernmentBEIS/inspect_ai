@@ -22,6 +22,7 @@ from .._generate_config import GenerateConfig
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelOutput
 from .._openai import (
+    apply_initial_system_checkpoint,
     chat_choices_from_openai,
     messages_to_openai,
     model_output_from_openai,
@@ -32,6 +33,7 @@ from .._openai import (
     openai_handle_bad_request,
     openai_handle_stream_error,
     openai_media_filter,
+    resolve_explicit_prompt_cache,
 )
 from .util.hooks import HttpxHooks
 
@@ -78,9 +80,25 @@ async def generate_completions(
     else:
         system_role = "system"
 
+    # explicit cache breakpoints (ContentText.cache_breakpoint): see
+    # `resolve_explicit_prompt_cache` for the gating (model, budget, position,
+    # cache_prompt) — any condition failing falls back to the model's normal
+    # implicit caching for the whole request rather than honoring part of a
+    # marked layout.
+    explicit_cache = resolve_explicit_prompt_cache(
+        input, openai_api.api_model_name(), config.cache_prompt
+    )
+    if explicit_cache:
+        # retain a checkpoint at the end of the initial system/developer
+        # block (cumulatively covering preceding tools) when the caller left
+        # it unmarked — see `apply_initial_system_checkpoint`.
+        input = apply_initial_system_checkpoint(input)
+
     # prepare request (we do this so we can log the ModelCall)
     request = dict(
-        messages=await messages_to_openai(input, system_role),
+        messages=await messages_to_openai(
+            input, system_role, cache_breakpoints=explicit_cache
+        ),
         tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
         tool_choice=openai_chat_tool_choice(tool_choice)
         if len(tools) > 0
@@ -89,6 +107,8 @@ async def generate_completions(
         | (config.extra_headers or {}),
         **completion_params_completions(openai_api, config, len(tools) > 0),
     )
+    if explicit_cache:
+        request["prompt_cache_options"] = {"mode": "explicit"}
     if isinstance(prompt_cache_key, str):
         request["prompt_cache_key"] = prompt_cache_key
     if isinstance(prompt_cache_retention, str):

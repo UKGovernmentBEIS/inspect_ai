@@ -299,12 +299,13 @@ async def openai_responses_inputs(
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
     swap_todo_write: bool = False,
+    cache_breakpoints: bool = False,
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
         for item in await _openai_input_item_from_chat_message(
-            message, model_info, synthesize_phase, swap_todo_write
+            message, model_info, synthesize_phase, swap_todo_write, cache_breakpoints
         )
     ]
 
@@ -314,9 +315,12 @@ async def _openai_input_item_from_chat_message(
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
     swap_todo_write: bool = False,
+    cache_breakpoints: bool = False,
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
-        content = await _openai_responses_content_list_param(message.content)
+        content = await _openai_responses_content_list_param(
+            message.content, cache_breakpoints
+        )
         return [Message(type="message", role="developer", content=content)]
     elif message.role == "user":
         # Check if this is a compaction marker message
@@ -335,7 +339,9 @@ async def _openai_input_item_from_chat_message(
             Message(
                 type="message",
                 role="user",
-                content=await _openai_responses_content_list_param(message.content),
+                content=await _openai_responses_content_list_param(
+                    message.content, cache_breakpoints
+                ),
             )
         ]
     elif message.role == "assistant":
@@ -471,18 +477,23 @@ async def _openai_responses_custom_tool_call_output(
 
 async def _openai_responses_content_list_param(
     content: str | list[Content],
+    cache_breakpoints: bool = False,
 ) -> ResponseInputMessageContentListParam:
     return [
-        await _openai_responses_content_param(c)
+        await _openai_responses_content_param(c, cache_breakpoints)
         for c in ([ContentText(text=content)] if isinstance(content, str) else content)
     ]
 
 
 async def _openai_responses_content_param(
     content: Content,
+    cache_breakpoints: bool = False,
 ) -> ResponseInputContentParam:  # type: ignore[return]
     if isinstance(content, ContentText):
-        return ResponseInputTextParam(type="input_text", text=content.text)
+        part = ResponseInputTextParam(type="input_text", text=content.text)
+        if cache_breakpoints and content.cache_breakpoint:
+            part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+        return part
     elif isinstance(content, ContentImage):
         return ResponseInputImageParam(
             type="input_image",

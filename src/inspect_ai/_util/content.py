@@ -29,7 +29,7 @@ class ContentText(ContentBase):
     """Citations supporting the text block."""
 
     cache_breakpoint: bool | None = Field(default=None)
-    """Place an explicit prompt-cache breakpoint after this block (the prefix up to and including it is cached). When any block in the request carries a breakpoint, the provider adds no automatic message breakpoints of its own. If the marked layout can't be represented exactly (e.g. a breakpoint on a non-final tool-result block), the provider silently falls back to its normal automatic caching instead of relocating or widening the mark. Anthropic Claude API only; at most 2 per request (system and tools use the other two slots)."""
+    """Place an explicit prompt-cache breakpoint after this block (the prefix up to and including it is cached). When any block in the request carries a breakpoint, the provider adds no automatic message breakpoints of its own. If the marked layout can't be represented exactly (e.g. a breakpoint on a non-final tool-result block), or the model doesn't support explicit breakpoints, the provider silently falls back to its normal automatic (or implicit) caching instead of relocating or widening the mark. Anthropic Claude API (at most 2 per request; system and tools use the other two slots) and OpenAI `gpt-5.6`+ (at most 4 per request, user message text blocks only) only."""
 
 
 class ContentReasoning(ContentBase):
