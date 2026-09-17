@@ -92,7 +92,7 @@ Event data is owned by the framework. In particular, objects reachable from `Sam
 
 Hooks run within the evaluation, so keep them fast and resilient. Events from different samples and tasks may fire concurrently, and any exception raised by a hook is caught and logged as a warning (it does not fail the run) — with the exception of `LimitExceededError`, which is allowed to propagate so that hooks can enforce limits.
 
-In addition to these lifecycle events, three non-event controls let you tune hook behaviour: the [`enabled()`](#disabling-hooks) method gates whether a hook is active, the [`needs_full_sample()`](#skipping-full-sample-materialization) method lets summary-only hooks skip full-sample materialization, and the [`override_api_key()`](#api-key-override) method can rewrite model API keys. All are covered below.
+Hooks can also control whether they are active with [`enabled()`](#disabling-hooks), opt out of full sample histories with [`needs_full_sample()`](#skipping-full-sample-materialization), and rewrite model API keys with [`override_api_key()`](#api-key-override).
 
 ## Hook Object Lifecycle
 
@@ -162,7 +162,7 @@ Because `enabled()` is consulted before every hook invocation (potentially many 
 
 ## Skipping Full Sample Materialization
 
-By default, `SampleEnd.sample` is the fully materialized `EvalSample`, complete `events` and `attachments` included. For long samples this can be expensive to reconstruct, so hooks whose `on_sample_end` reads only summary-level fields (scores, error, timings, etc.) can opt out by overriding the `needs_full_sample()` method to return `False`:
+By default, `on_sample_end` receives the full sample history. Reconstructing it for long samples can be expensive. Hooks that read only summary fields, such as scores or timings, can opt out:
 
 ``` python
 @hooks(name="score_tracker", description="Tracks sample scores")
@@ -174,7 +174,7 @@ class ScoreTracker(Hooks):
         record(data.sample_id, data.sample.scores)
 ```
 
-This is a permission: it allows the framework to deliver a sample with empty `events` and `attachments` and `timelines` set to `None`, but the reduction only happens when *every* enabled hook has opted out and nothing else in the eval needs the full sample. If you override `needs_full_sample()` to return `False` you must tolerate both forms.
+Returning `False` permits empty `events` and `attachments` and `timelines=None`. This reduction requires every enabled hook to opt out and no other consumer to need the history. Opted-out hooks must accept both full and reduced samples.
 
 ## Requiring Hooks
 
