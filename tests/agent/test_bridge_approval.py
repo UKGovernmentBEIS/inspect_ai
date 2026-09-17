@@ -575,6 +575,10 @@ async def test_approved_host_tool_call_has_one_exact_execution_grant() -> None:
 
     await run_bridge([tool_calls_output(call)], bridge=bridge)
 
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    tool.assert_awaited_once_with(path="notes.txt")
+
     assert bridge.consume_tool_execution_grant(
         "host", "read_file", {"path": "notes.txt"}
     )
@@ -740,6 +744,10 @@ async def test_host_tool_grant_distinguishes_bool_from_number() -> None:
 
     await run_bridge([tool_calls_output(call)], bridge=bridge)
 
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"raw": True}) == "contents"
+    tool.assert_awaited_once_with(raw=True)
+
     assert not bridge.consume_tool_execution_grant("host", "read_file", {"raw": 1})
     assert bridge.consume_tool_execution_grant("host", "read_file", {"raw": True})
 
@@ -811,6 +819,10 @@ async def test_host_tool_grant_binds_to_approver_modified_arguments() -> None:
     )
 
     await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "rewritten.txt"}) == "contents"
+    tool.assert_awaited_once_with(path="rewritten.txt")
 
     # the model's original arguments are not what the approver approved
     assert not bridge.consume_tool_execution_grant(
