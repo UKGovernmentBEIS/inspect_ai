@@ -99,8 +99,6 @@ class MlflowTrackingHooks(Hooks):
     def enabled(self) -> bool:
         return os.getenv("MLFLOW_TRACKING_URI") is not None
 
-    # on_sample_end reads only summary fields (scores, timing), so the
-    # framework may skip rebuilding full sample events/attachments/timelines
     def needs_full_sample(self) -> bool:
         return False
 
