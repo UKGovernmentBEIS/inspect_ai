@@ -977,12 +977,12 @@ async def test_bridged_tool_exception_unwinds_the_bridge_task_group() -> None:
 def test_sandbox_bridge_host_tool_exception_ends_the_sample() -> None:
     """An unexpected host tool exception must reach the sample runner via MCP.
 
-    The scaffold still gets its MCP error reply; the bridge then unwinds before
-    the agent can carry on, and the sample ends in error as a native tool
-    exception would.
+    The bridge unwinds the agent as soon as the failure is signalled (usually
+    before the MCP error reply reaches the caller, so the reply is not asserted
+    here; the service-level test covers it), and the sample ends in error as
+    with a native tool exception.
     """
     completed: list[bool] = []
-    mcp_errors: list[dict] = []
 
     @solver
     def test_solver():
@@ -995,11 +995,11 @@ def test_sandbox_bridge_host_tool_exception_ends_the_sample() -> None:
                 ]
             ) as bridge:
                 config = bridge.mcp_server_configs[0]
-                mcp_errors.append(
+                try:
                     await call_mcp_tool(config, "raising_tool", {"text": "hi"})
-                )
-                # give the monitor task the chance to unwind the bridge before
-                # the agent body completes
+                except Exception:
+                    pass
+                # must not be reached: the failure unwinds the bridge
                 await anyio.sleep(30)
                 completed.append(True)
             return state
@@ -1011,8 +1011,6 @@ def test_sandbox_bridge_host_tool_exception_ends_the_sample() -> None:
     assert log.status == "error"
     assert log.error is not None
     assert "KeyError" in log.error.message
-    assert len(mcp_errors) == 1
-    assert "missing" in mcp_errors[0]["error"]["message"]
     assert completed == []
 
 
