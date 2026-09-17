@@ -186,7 +186,17 @@ def _cache_key(entry: CacheEntry) -> str:
     components = [
         _cache_key_config(entry.config),
         ",".join(
-            [str(message.model_dump(exclude=set(["id"]))) for message in entry.input]
+            [
+                str(
+                    message.model_dump(
+                        exclude={
+                            "id": True,
+                            "content": {"__all__": {"cache_breakpoint"}},
+                        }
+                    )
+                )
+                for message in entry.input
+            ]
         ),
         entry.base_url,
         entry.tool_choice,

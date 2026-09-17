@@ -136,11 +136,9 @@ eval("ctf.py", cache_prompt=False)
 
 Providers will typically provide various means of customising the scope of cache usage. The Inspect `cache-prompt` option will by default attempt to make maximum use of provider caches (in the Anthropic implementation system messages, tool definitions, and all messages up to the last user message are included in the cache).
 
-The Anthropic implementation places cache breakpoints at the end of the system prompt, on the last tool definition, on the second-to-last message block, and (automatically) at the end of the prompt. The automatic breakpoint cache-writes whatever the final block is, which is wasted when that block changes on every call and is never read back (e.g. an LLM judge with a fixed rubric and a varying item). Two options address this:
+The Anthropic implementation places cache breakpoints at the end of the system prompt, on the last tool definition, on the second-to-last message block, and (automatically) at the end of the prompt. The automatic breakpoint cache-writes whatever the final block is, which is wasted when that block changes on every call and is never read back (e.g. an LLM judge with a fixed rubric and a varying item).
 
-- `cache_prompt="prefix"` keeps the explicit breakpoints but omits the automatic end-of-prompt breakpoint. With the rubric in the system prompt and the item in the user message, only the rubric is cached.
-
-- `ContentText(text=..., cache_breakpoint=True)` places a breakpoint on a specific block. When any message block carries one, Inspect adds no message breakpoints of its own (the system and tool breakpoints remain), so the cache layout is exactly what you marked. Anthropic allows 4 breakpoints per request and the system prompt and tools use one each, so mark at most 2 blocks.
+`ContentText(text=..., cache_breakpoint=True)` places an explicit breakpoint on a specific block instead. When any block carries one — a message block or a system-prompt block — Inspect adds no automatic message breakpoints (no lookback marker, no end-of-prompt marker); the system-prompt and tool-definition breakpoints are kept alongside your marks only if the budget allows. Anthropic allows 4 breakpoints per request, so you can mark up to 4 blocks yourself; if your marks and the automatic system/tools breakpoints would together exceed 4, Inspect drops the automatic ones first to make room. A request with more than 4 explicit marks doesn't fit even after dropping both automatic points, so it silently falls back to normal automatic caching instead.
 
 ``` python
 from inspect_ai.model import ChatMessageUser, ContentText
@@ -152,6 +150,10 @@ judge_prompt = ChatMessageUser(
     ]
 )
 ```
+
+Explicit marks are supported on the leading system message and on ordinary user/assistant message blocks. A mark on a tool result, or on a mid-conversation system message, is not supported — Anthropic has no way to mark a boundary inside either without relocating or widening it, so those placements conservatively fall back rather than being honored. If *any* mark in the request can't be honored (an unsupported placement, or more than 4 marks total), Inspect silently discards every mark and falls back to the normal automatic caching behavior for the whole request, rather than relocating, widening, or partially honoring the marked layout.
+
+OpenAI's `gpt-5.6` and later models support the same `ContentText(cache_breakpoint=True)` marker on user and system/developer message text blocks. Unmarked requests use OpenAI's automatic (implicit) caching as they always have; marking a block switches the request to explicit mode for that call, so only the marked boundaries are cache points. OpenAI's guide distinguishes a 4-write-per-request budget from a much larger lookup history (the first two and latest fifty explicit markers) and documents no cap on the number of markers a request may supply, so Inspect applies none — unlike Anthropic's genuine 4-breakpoint request limit. Earlier OpenAI models silently keep the model's normal implicit caching instead of sending the (rejected) explicit fields. When an otherwise-supported explicit request leaves its leading system/developer block unmarked, Inspect also retains a checkpoint at the end of that block (cumulatively covering any preceding tool definitions), so the stable prefix has a boundary to reuse when a later marked block changes; a caller's own mark on that block takes priority and suppresses this automatic one.
 
 ### Usage Reporting
 
