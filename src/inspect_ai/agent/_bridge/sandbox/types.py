@@ -183,9 +183,9 @@ class SandboxAgentBridge(AgentBridge):
         service starts, so the collision is visible at setup rather than at the
         first call. Two or more bridged tools with the same served description
         (whitespace-trimmed) are each granted by a proposal for any of them
-        (`register_tool_execution_grants`); a tool whose description is empty once
-        trimmed can never be matched, so its calls are denied unless its server is in
-        `proposal_exempt_servers`.
+        (`register_tool_execution_grants`). An empty description (once trimmed)
+        is matched like any other, so such a tool is indistinguishable from every
+        other undocumented tool, bridged or agent-local.
         """
         by_description: dict[str, list[_BridgedToolId]] = {}
         for tool_id, info in self._served_tools().items():
@@ -193,15 +193,12 @@ class SandboxAgentBridge(AgentBridge):
         for description, tool_ids in by_description.items():
             names = ", ".join(f"{t.server}/{t.tool}" for t in tool_ids)
             if not description:
-                exempt = all(t.server in self.proposal_exempt_servers for t in tool_ids)
-                if not exempt:
-                    logger.warning(
-                        f"Bridged tool(s) with an empty description ({names}): a "
-                        "proposed call can never be matched to them, so their "
-                        "calls will be denied unless their server is registered "
-                        "with BridgedToolsSpec(require_proposal=False). Give them "
-                        "a docstring."
-                    )
+                logger.warning(
+                    f"Bridged tool(s) with an empty description ({names}): an "
+                    "empty docstring makes a tool indistinguishable from any "
+                    "other undocumented tool, so a proposal for one grants each "
+                    "of them. Give them a docstring."
+                )
             elif len(tool_ids) > 1:
                 logger.warning(
                     f"Bridged tools sharing a description ({names}): a proposal "
@@ -337,9 +334,10 @@ def _resolve_by_served_content(
 
     The description is the key: the scaffolds forward the MCP description to
     their models unchanged (verified per scaffold in the PR), so equality after
-    trimming whitespace identifies the tool whatever name it was given. An empty
-    description identifies nothing. Failing an exact match, a declaration that is
-    a truncation of a served description identifies it too
+    trimming whitespace identifies the tool whatever name it was given; an empty
+    description is matched like any other, so it identifies every bridged tool
+    served without one. Failing an exact match, a declaration that is a
+    truncation of a served description identifies it too
     (`_is_truncation_of`), since a scaffold may cut a long description before
     the model sees it. When several bridged tools match, the input schema breaks
     the tie, conservatively: scaffolds do rewrite schemas, so only property and
@@ -351,8 +349,6 @@ def _resolve_by_served_content(
     targets: list[_BridgedToolId] = []
     for declaration in declarations:
         description = declaration.description.strip()
-        if not description:
-            continue
         matched = [
             tool_id
             for tool_id, info in served.items()

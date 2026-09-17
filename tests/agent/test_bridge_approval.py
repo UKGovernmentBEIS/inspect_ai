@@ -796,16 +796,39 @@ async def test_grants_resolve_against_the_declarations_the_filter_generated_with
     assert len(bridge._tool_execution_grants) == 0
 
 
-async def test_empty_declared_description_identifies_nothing() -> None:
-    """A declaration without a description cannot be matched (inspect never serves one)."""
-    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+async def test_empty_declared_description_resolves_an_empty_served_one() -> None:
+    """An empty description is matched like any other, so an undocumented tool stays usable.
+
+    `ToolDef` rejects a missing description, so whitespace-only is the served
+    empty case.
+    """
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), description=" ")}}
+    )
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function="read_file", arguments={})],
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
         declare("read_file", description=""),
     )
 
-    assert len(bridge._tool_execution_grants) == 0
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
+
+
+async def test_empty_descriptions_are_told_apart_by_schema_shape() -> None:
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), " ", ("path",))},
+            "b": {"read_file": served_tool(AsyncMock(), " ", ("path", "encoding"))},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description="", parameters=("path",)),
+    )
+
+    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
 
 
 async def test_local_tool_with_a_bridged_tools_description_grants_it() -> None:
@@ -932,7 +955,7 @@ def test_setup_warns_about_an_empty_description(
     warnings = [r.getMessage() for r in caplog.records]
     assert len(warnings) == 1
     assert "empty description" in warnings[0] and "host/read_file" in warnings[0]
-    assert "will be denied" in warnings[0]
+    assert "Give them a docstring" in warnings[0]
 
 
 @pytest.mark.usefixtures("capture_bridge_warnings")
