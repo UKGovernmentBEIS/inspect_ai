@@ -7,16 +7,13 @@ from pydantic import JsonValue, TypeAdapter
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
-from inspect_ai.model._call_tools import (
-    get_tools_info,
-    tool_params,
-    validate_tool_input,
-)
+from inspect_ai.model._call_tools import get_tools_info, validate_tool_input
 from inspect_ai.model._model import ModelRefusalError
 from inspect_ai.tool._tool import ToolError, ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
@@ -257,13 +254,17 @@ def call_tool(
 ) -> Callable[[str, str, dict[str, JsonValue]], Awaitable[JsonValue]]:
     """Execute a bridged tool and return result.
 
-    Arguments are validated and converted as for a native call, so a scaffold's
-    malformed arguments surface as a `ToolParsingError` the model can recover
-    from. Exceptions a native call would show the model (`_is_tool_call_error`)
-    propagate as the RPC error the scaffold reads as tool output. Any other
-    exception is a bug in the eval's tool, which natively fails the sample: the
-    RPC still gets its error reply, and the failure is signalled through
-    `bridge.request_fail` so the bridge's monitor task ends the sample.
+    Arguments are validated against the tool's schema as for a native call, so
+    a scaffold's malformed arguments surface as a `ToolParsingError` the model
+    can recover from; they are otherwise forwarded as the scaffold sent them.
+    Exceptions are unwrapped from any task-group `ExceptionGroup` first, as
+    `execute_tools` does. Those a native call would show the model
+    (`_is_tool_call_error`) propagate as the RPC error the scaffold reads as
+    tool output. Any other exception is a bug in the eval's tool, which
+    natively fails the sample: it is signalled through `bridge.request_fail`
+    so the bridge's monitor task ends the sample at once, and still propagates
+    so the RPC unwinds with an error reply (the teardown may pre-empt its
+    delivery; the scaffold's turn is over either way).
     """
 
     async def execute(
@@ -287,11 +288,12 @@ def call_tool(
             )
             if validation_errors:
                 raise ToolParsingError(validation_errors)
-            result = await tool_fn(**tool_params(arguments, tool_fn))
+            result = await tool_fn(**arguments)
         except Exception as ex:
-            if not _is_tool_call_error(ex):
-                bridge.request_fail(ex)
-            raise
+            inner_ex = inner_exception(ex)
+            if not _is_tool_call_error(inner_ex):
+                bridge.request_fail(inner_ex)
+            raise inner_ex.with_traceback(inner_ex.__traceback__)
 
         # Plain strings are returned verbatim (the MCP `tools/call` text part
         # carries them as-is). For anything else, use pydantic_core.to_json so

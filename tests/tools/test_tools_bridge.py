@@ -934,6 +934,94 @@ async def test_bridged_tool_malformed_arguments_are_a_parsing_error() -> None:
     assert await execute("srv", "calculator_add", {"x": 5, "y": 3}) == "8"
 
 
+@tool
+def raising_in_task_group_tool(error: Exception):
+    async def execute(text: str) -> str:
+        """Raise `error` from a child task, so it arrives wrapped in a group.
+
+        Args:
+            text: Ignored.
+        """
+
+        async def child() -> None:
+            raise error
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(child)
+        return text
+
+    return execute
+
+
+async def test_bridged_tool_grouped_tool_error_is_unwrapped_for_the_model() -> None:
+    """A mapped exception raised inside a task group is still the model's problem.
+
+    `execute_tools` unwraps the `ExceptionGroup` before classifying; so must
+    the bridge, or a recoverable error from a tool using a task group (real MCP
+    tools do) would fail the sample.
+    """
+    bridge = _bridge_with_tools([raising_in_task_group_tool(ToolError("recoverable"))])
+
+    with pytest.raises(ToolError, match="recoverable"):
+        await call_tool(bridge)("srv", "raising_in_task_group_tool", {"text": "hi"})
+
+    assert not bridge._failure_requested.is_set()
+
+
+async def test_bridged_tool_grouped_unexpected_exception_fails_the_sample() -> None:
+    error = KeyError("missing")
+    bridge = _bridge_with_tools([raising_in_task_group_tool(error)])
+
+    with pytest.raises(KeyError):
+        await call_tool(bridge)("srv", "raising_in_task_group_tool", {"text": "hi"})
+
+    assert bridge._failure is error
+
+
+@pytest.mark.parametrize("annotated", [False, True], ids=["bare", "Any"])
+async def test_bridged_tool_with_explicit_schema_keeps_keyword_forwarding(
+    annotated: bool,
+) -> None:
+    """A tool declared via `ToolDef(parameters=...)` need not have a typed signature.
+
+    Arguments are validated against the declared schema and forwarded as sent,
+    so variadic tools (as the MCP adapter uses) keep working.
+    """
+    from typing import Any
+
+    from inspect_ai.tool._tool_def import ToolDef
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    received: list[dict] = []
+
+    async def bare(**arguments) -> str:
+        received.append(arguments)
+        return "hello"
+
+    async def typed(**arguments: Any) -> str:
+        received.append(arguments)
+        return "hello"
+
+    schema = ToolParams(
+        properties={"text": ToolParam(type="string", description="Text.")},
+        required=["text"],
+    )
+    tool = ToolDef(
+        typed if annotated else bare,
+        name="echo",
+        description="Echo.",
+        parameters=schema,
+    ).as_tool()
+    bridge = _bridge_with_tools([tool])
+    execute = call_tool(bridge)
+
+    assert await execute("srv", "echo", {"text": "hi"}) == "hello"
+    assert received == [{"text": "hi"}]
+    with pytest.raises(ToolParsingError):
+        await execute("srv", "echo", {"other": "hi"})
+    assert not bridge._failure_requested.is_set()
+
+
 async def test_bridged_tool_exception_unwinds_the_bridge_task_group() -> None:
     """The shape `sandbox_agent_bridge` relies on.
 
