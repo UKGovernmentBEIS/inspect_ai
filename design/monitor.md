@@ -613,7 +613,7 @@ The literature's protocols are all arrangements of three resources with differen
 
 | Protocol | The arrangement |
 |------------------------|------------------------|
-| `strictest` | run every child, strongest recommendation wins; what a bare list compiles to. Not from the literature — it is the concurrent composition itself, named |
+| `concurrent` | run every child, strongest recommendation wins; what a bare list compiles to. Not from the literature — it is the concurrent composition itself, named |
 | `chain` | run children in order, first non-`escalate` decides; approval's chain as a protocol |
 | `observe_only` | score and record; never act. Also how a benign distribution gets collected |
 | `trusted_monitoring` | the trusted model scores the untrusted model's output; the most suspicious slice goes to human audit, the rest is accepted |
@@ -819,11 +819,11 @@ def chain(monitors: Monitors) -> ProtocolMonitor:
 
 Three properties fall out of writing it as ordinary code. An `Observation` in a chain is recorded and falls through, since it cannot be "the first decision" — ordered composition is Recommendation-shaped in substance. An all-escalate chain returns `continue` if anything participated, matching review's default and this document's rule; the [approval adapter](#a-protocol-layer-for-approval-too) keeps approval's fail-closed `reject` on its own path, so existing approval users see no change, and a monitor chain that wants fail-closed ends with a rejecting monitor, as approval lists end with `auto` today. And sequential dispatch stops being a violation of the independence rule, because the loop is a named, shipped protocol whose mode the transcript shows.
 
-**`strictest()`** is the concurrent one, and it is also what the top of a configuration compiles to (see [Configuration](#configuration)):
+**`concurrent()`** is the concurrent composition, and it is also what the top of a configuration compiles to (see [Configuration](#configuration)):
 
 ``` python
 @protocol
-def strictest(monitors: Monitors) -> ProtocolMonitor:
+def concurrent(monitors: Monitors) -> ProtocolMonitor:
     async def run(context: Context, step: Step) -> Recommendation | None:
         reports = await run_monitors(monitors, context, step)
         strongest = reports.strongest()
@@ -839,9 +839,9 @@ def strictest(monitors: Monitors) -> ProtocolMonitor:
     return run
 ```
 
-That settles the `modify` question this document previously left open: concurrent children cannot see each other's rewrites, so a `modify` when more than one child recommended is a rejection naming the modifier. Re-approving modified arguments is more machinery than the decision is worth for now, and #5423 reached the same answer independently. The name is not settled; `all_of` is the alternative.
+That settles the `modify` question this document previously left open: concurrent children cannot see each other's rewrites, so a `modify` when more than one child recommended is a rejection naming the modifier. Re-approving modified arguments is more machinery than the decision is worth for now, and #5423 reached the same answer independently. The name pairs with `chain`: both say how the children run and leave the decision rule to the docs. `concurrent` and `all_of` were the alternatives; the first named only the recommendation half of the reduction (observations aggregate by max, not strictness) and the second named what the configuration means rather than its shape.
 
-**Concurrent is the default, and ordered is one explicit word.** The argument for making ordered the default is that many people will want a chain, which is true. The argument against is that ordered-by-default silences monitors, and silencing is a safety failure while concurrency's cost is latency and tokens. A default should fail safe, and changing one later is a silent semantic change for everyone. So a bare list is `strictest`, and a chain is `chain(...)`. The mistake the wrong default would produce most often — a `human()` in a concurrent group, prompting on every call — is caught at configuration time with a message that names `chain()`.
+**Concurrent is the default, and ordered is one explicit word.** The argument for making ordered the default is that many people will want a chain, which is true. The argument against is that ordered-by-default silences monitors, and silencing is a safety failure while concurrency's cost is latency and tokens. A default should fail safe, and changing one later is a silent semantic change for everyone. So a bare list is `concurrent`, and a chain is `chain(...)`. The mistake the wrong default would produce most often — a `human()` in a concurrent group, prompting on every call — is caught at configuration time with a message that names `chain()`.
 
 ### The boundary check {#the-boundary-check}
 
@@ -1063,7 +1063,7 @@ eval(monitor=...)
 inspect eval task.py --monitor monitors.yaml
 ```
 
-`Task(monitor=)` accepts one monitor, a list, or a mapping of names to monitors. **A list or mapping is sugar for `strictest(...)`**: every top-level configuration compiles to a protocol, so there is always a layer that owns the combined decision and emits the summary event #5423 asked for. A single monitor is `strictest` of one, which emits no event of its own, so the single-monitor log is exactly what a lone approver's is today.
+`Task(monitor=)` accepts one monitor, a list, or a mapping of names to monitors. **A list or mapping is sugar for `concurrent(...)`**: every top-level configuration compiles to a protocol, so there is always a layer that owns the combined decision and emits the summary event #5423 asked for. A single monitor is `concurrent` of one, which emits no event of its own, so the single-monitor log is exactly what a lone approver's is today.
 
 ``` python
 Task(monitor=no_curl())
@@ -1138,7 +1138,7 @@ The escape hatch is per-monitor and declared, following `portable=False`: `@moni
 
 ## Composition {#composition}
 
-Composition is the protocol's job: it collects reports from every configured monitor and produces one outcome. This section describes the **concurrent** composition, which is the default and what `strictest()` implements; the ordered alternative, `chain()`, is in [Two compositions](#two-compositions-concurrent-and-ordered). Approval's ordered chain — first non-`escalate` decides, later approvers never see the call — is right for an authorisation chain ending in a person and wrong as the default for a set of observers.
+Composition is the protocol's job: it collects reports from every configured monitor and produces one outcome. This section describes the **concurrent** composition, which is the default and what `concurrent()` implements; the ordered alternative, `chain()`, is in [Two compositions](#two-compositions-concurrent-and-ordered). Approval's ordered chain — first non-`escalate` decides, later approvers never see the call — is right for an authorisation chain ending in a person and wrong as the default for a set of observers.
 
 - **Observation is unconditional.** Every monitor configured for a point runs at it, whether or not another has already formed a view.
 - **Every report is recorded**, including the ones that lost.
@@ -1156,13 +1156,13 @@ Then the protocol reconciles the two halves with its thresholds and budget, subj
 
 Three LLM monitors in sequence triple the added latency at every step, which argues for `tg_collect()` (not `asyncio.gather`, per AGENTS.md). TraceGuard gives a stronger reason: **independence is the point**. Its 95%-versus-0% result against a colluding monitor comes from fragmenting evaluation so no single model sees the whole assessment, which requires monitors that cannot observe each other's conclusions.
 
-So concurrent dispatch is the default, and the cost is that `modify` becomes incoherent — a concurrent monitor cannot see another's rewrite. Settled in `strictest()`: a `modify` is honoured only when it was the only recommendation; when more than one child recommended, it becomes a `reject` naming the modifier. Last-wins in configuration order and "two is an error" were the alternatives; the rejection is chosen because the other children approved the *original* arguments and nothing has approved the modified ones. A chain has no such problem, since only one link decides.
+So concurrent dispatch is the default, and the cost is that `modify` becomes incoherent — a concurrent monitor cannot see another's rewrite. Settled in `concurrent()`: a `modify` is honoured only when it was the only recommendation; when more than one child recommended, it becomes a `reject` naming the modifier. Last-wins in configuration order and "two is an error" were the alternatives; the rejection is chosen because the other children approved the *original* arguments and nothing has approved the modified ones. A chain has no such problem, since only one link decides.
 
 ### A second axis: concurrent with the *agent*
 
 Separately from monitors running concurrently with each other, a monitor can run concurrently with the agent rather than blocking it — the OpenAI Agents SDK's `run_in_parallel`. Blocking costs latency; running in parallel means the agent may consume tokens, or take a step, before a violation is caught.
 
-This is a real knob and it belongs on the protocol, not the monitor: whether late detection is acceptable is a deployment judgement.
+This is a real knob and it belongs on the protocol, not the monitor: whether late detection is acceptable is a deployment judgement. It is a different axis from `concurrent()`, which is about children running concurrently with *each other*; to keep the two apart the knob should be named for what it withholds, `blocking=True`, rather than reuse the word.
 
 ## Transcript
 
@@ -1201,10 +1201,10 @@ monitor="internet_attempt",  path="attempt/internet_attempt",  kind="recommendat
 monitor="human",             path="attempt/human",             kind="recommendation",  recommend="reject",  authoritative=True
 monitor="chain",             path="attempt",                   kind="recommendation",  recommend="reject"
 monitor="sandbox_escape",    path="escape",                    kind="recommendation",  recommend="continue"
-monitor="strictest",         path="",                          kind="recommendation",  recommend="reject"
+monitor="concurrent",        path="",                          kind="recommendation",  recommend="reject"
 ```
 
-The last line is the summary event #5423 wanted: the top-level `strictest` records the combined decision, and its explanation lists each child's. It is emitted only when more than one child participated, so a configuration with a single monitor logs one event per step, as approval does today.
+The last line is the summary event #5423 wanted: the top-level `concurrent` records the combined decision, and its explanation lists each child's. It is emitted only when more than one child participated, so a configuration with a single monitor logs one event per step, as approval does today.
 
 An earlier draft added a `strategy: str` here and on `Recommendation`, to record whether a `modify` came from a deferral, a resample or a trusted edit. It was removed: **the layer's identity already is the strategy.** A protocol named `defer_to_trusted` returning `modify` has said what it did, and the aggregate query that justified the field — how often did this protocol defer — is `monitor == "defer_to_trusted" and recommend == "modify"`. Worse, on `Recommendation` it was a field every leaf monitor carried and never set.
 
@@ -1463,9 +1463,9 @@ That proposal will not land as written; the group has agreed to build on monitor
 | an ordered chain inside each group, with `escalate` staying within it | `chain()`; escalations never cross layers |
 | a human at the end of a chain who sees who escalated and why | `human()`, reading `step.escalations` |
 | named chains, and the name in the log | instance names from the mapping; `MonitorEvent.path` |
-| a summary event when several chains participated | the top-level `strictest` layer's own event |
+| a summary event when several chains participated | the top-level `concurrent` layer's own event |
 | `terminate` cancels the other chains | `run_monitors` |
-| `modify` with several participants is a rejection naming the chain | `strictest()` |
+| `modify` with several participants is a rejection naming the chain | `concurrent()` |
 | an uncovered call rejects, as a lone policy list does today | on the approval adapter path only; a monitor chain that nothing covers is `continue`, matching review |
 | concurrent by default (their open question 1) | yes |
 
@@ -1527,10 +1527,10 @@ several stages (yes — a protocol annotates `Step`, so it is load-bearing);
 too); whether the protocol layer lands first (there is no separate layer after
 [the collapse](#protocols-are-monitors)); whether proxy portability is a
 goal or an observation, which now lives only in `monitor-deployment.md`;
-whether `modify` composes (settled in [`strictest()`](#two-compositions-concurrent-and-ordered):
+whether `modify` composes (settled in [`concurrent()`](#two-compositions-concurrent-and-ordered):
 a `modify` with more than one participant is a rejection naming the modifier);
 what happens in a mixed configuration with no protocol (there is no such
-configuration — a bare list compiles to `strictest`, which honours
+configuration — a bare list compiles to `concurrent`, which honours
 recommendations and records observations, and the config-time warning about
 scores nobody reads stays); whether protocols need their own construct (a
 [decorator](#the-protocol-marker), not a constructor or a type); and whether
@@ -1542,7 +1542,7 @@ ordered composition should be the default (no — see [Two compositions](#two-co
 4.  **Score aggregation.** Max across monitors is the obvious default; per-dimension max when scores are structured. Weighted combination and requiring agreement are protocol policy — but the framework has to pick a default and say so.
 5.  **Where does threshold calibration get its benign distribution?** Answered in `monitor-development.md`: replay the `Observation` monitor over a known-benign corpus as a Scout scanner, and the results dataframe's score column is the distribution; a budget becomes a threshold by percentile, and a labelled corpus gives the precision–recall curve. What remains open there is hygiene — holding the calibration corpus out of the validation split.
 6.  **Does anything in v1 actually need per-task state?** The audit budget does not — it is per-episode, hence per-sample. Cross-sample gating ("terminate once 3 samples are flagged") does, and it is the case where in-memory state resets in the *unsafe* direction. If nothing in v1 needs it, [Per-task](#per-task) can be deferred whole; if something does, its scope wants deciding between task, run and eval-set.
-7.  **What is the default protocol called?** `strictest` says what it does to recommendations; `all_of` says what the configuration means. It appears in every multi-monitor log, so the name is worth getting right once.
+7.  **What is the default protocol called?** Settled: `concurrent`. It names the execution shape, as `chain` does, and leaves the reduction to `Reports.strongest()` and the docs. `concurrent` named only the recommendation half of the rule, and `all_of` named the configuration's meaning rather than its shape.
 8.  **Does substituting `choices[0].message` need a usage convention?** [Settled](#one-vocabulary-across-stages) that `modified` carries a `ChatMessageAssistant` at `AfterGenerate`, leaving `usage` untouched. Open is whether a protocol that spent extra inference resampling should be able to *add* to the recorded usage, so cost accounting reflects what the protocol really cost.
 9.  **Does the monitor see `ContentReasoning`?** Answered in [Views](#views): visible by default at whatever fidelity the provider or wire supplies, excluded via the preprocessor, and a protocol withholds it from a child by transforming `step` before the call.
 10.  **Lifecycle stages**: `SampleStart` / `SampleEnd` payloads would give per-sample state a place to initialise and a monitor a place to file a final verdict on a trajectory it watched but never interrupted. Natural, and cheap now that adding a stage means adding a payload type rather than a method to a base class — but it starts to overlap `Hooks`, and neither travels to a proxy.

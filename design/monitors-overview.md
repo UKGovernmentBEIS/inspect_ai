@@ -109,7 +109,7 @@ A protocol is a monitor that takes other monitors as arguments, runs them, and t
 
 Two built-in protocols cover most compositions:
 
-|   | `strictest()` | `chain()` |
+|   | `concurrent()` | `chain()` |
 |------------------------|------------------------|------------------------|
 | Runs | Every child, concurrently | Children in order, until one decides |
 | Decides | Strongest recommendation (`terminate` \> `reject` \> `modify` \> `continue`) | First non-`escalate` |

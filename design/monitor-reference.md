@@ -66,7 +66,7 @@ The pieces:
 | `Recommendation` | A report carrying an action (`continue`, `modify`, `reject`, `terminate`, `escalate`). Applied directly if nothing wraps it. |
 | Protocol | A monitor that takes other monitors as arguments, runs them through the runner, and turns their reports into one `Recommendation`. Owns thresholds, budgets, and aggregation. |
 | `run_monitor`, `run_monitors` | The runner. The only way a protocol invokes a child. Names, records, and applies the failure policy. |
-| `strictest`, `chain` | The two shipped compositions: concurrent (every child runs, strongest wins) and ordered (first non-`escalate` decides). A bare list or dict compiles to `strictest`. |
+| `concurrent`, `chain` | The two shipped compositions: concurrent (every child runs, strongest wins) and ordered (first non-`escalate` decides). A bare list or dict compiles to `concurrent`. |
 | `human` | A `Recommendation` monitor that asks a person through the human approval surfaces. Its reports are authoritative. |
 | `MonitorEvent` | Transcript record of every report, keyed by instance path. |
 
@@ -594,7 +594,7 @@ The check runs at every layer of a nested configuration.
 
 ### Two compositions
 
-| | `strictest()` | `chain()` |
+| | `concurrent()` | `chain()` |
 |---|---|---|
 | Runs | every child, concurrently | children in order, until one decides |
 | Decides | strongest recommendation | first non-`escalate` |
@@ -604,7 +604,7 @@ The check runs at every layer of a nested configuration.
 | `terminate` | cancels the other children | ends the loop |
 | Use for | independent guards that must all be satisfied | a cheap rule ahead of an expensive judge; a human at the end |
 
-`strictest` is the default. A bare list or mapping in `Task(monitor=)` compiles to it. `chain` is one explicit word.
+`concurrent` is the default. A bare list or mapping in `Task(monitor=)` compiles to it. `chain` is one explicit word.
 
 Rules:
 
@@ -661,7 +661,7 @@ Runtime only: per-stage action legality, the authority rule, whether a body went
 
 Rules:
 
-These rules describe the concurrent composition, which `strictest()` implements and which is the default.
+These rules describe the concurrent composition, which `concurrent()` implements and which is the default.
 
 - **Every monitor configured for a stage runs.** No monitor is skipped because another already formed a view. `chain()` is the explicit exception.
 - **Every report is recorded,** including the ones that lost.
@@ -671,25 +671,25 @@ These rules describe the concurrent composition, which `strictest()` implements 
 - **Child recommendations are advisory.** A protocol may honour or override them. `observe_only()` ignores every child recommendation, which makes it useful as a dry run.
 - **Authoritative reports are a floor.** A protocol's return may not be weaker than an authoritative child report. The dispatcher enforces this at every layer.
 - **Run children concurrently.** Sequential dispatch triples latency with three LLM monitors, and it lets a colluding monitor see the others' conclusions. TraceGuard's result (95% safety versus 0%) depends on independence. Use `tg_collect()`, not `asyncio.gather`. The runner does this for you.
-- **A `modify` with more than one participant is a rejection.** Concurrent children cannot see each other's rewrites, and the others approved the original arguments. `strictest()` returns `reject` with an explanation naming the modifier. A `modify` that was the only recommendation is honoured.
+- **A `modify` with more than one participant is a rejection.** Concurrent children cannot see each other's rewrites, and the others approved the original arguments. `concurrent()` returns `reject` with an explanation naming the modifier. A `modify` that was the only recommendation is honoured.
 - **Decide on the protocol whether monitors block the agent or run alongside it.** Blocking costs latency. Running alongside means the agent may spend tokens or take a step before a violation is caught. This is a deployment judgement, so the knob belongs on the protocol, not the monitor.
 
 ### The top level
 
-Every `Task(monitor=)` configuration compiles to a protocol. A single monitor, a list, or a mapping is `strictest(...)`, so one layer always owns the combined decision.
+Every `Task(monitor=)` configuration compiles to a protocol. A single monitor, a list, or a mapping is `concurrent(...)`, so one layer always owns the combined decision.
 
 | Configured | Behaviour |
 |---|---|
-| a `Recommendation` monitor | `strictest` of one; applied directly, like an approver; no extra event |
-| an `Observation` monitor | `strictest` of one; recorded, never acted on |
+| a `Recommendation` monitor | `concurrent` of one; applied directly, like an approver; no extra event |
+| an `Observation` monitor | `concurrent` of one; recorded, never acted on |
 | a protocol | whatever the protocol decides |
-| a list or mapping | `strictest` over the children; recommendations act, scores record; the framework warns if a score has no reader |
+| a list or mapping | `concurrent` over the children; recommendations act, scores record; the framework warns if a score has no reader |
 
 An `Observation` monitor with nothing reading it records and does not act. This is deliberate. Acting on a score requires a threshold, and no one has set or calibrated one. It is also the first step of a control experiment: run the scorers over known-benign tasks with nothing consuming the scores, and the recorded scores become the benign distribution.
 
 A `Recommendation` monitor with nothing wrapping it is applied directly. The author chose the action explicitly, so there is no uncalibrated threshold involved. `@approver` already works this way.
 
-The top-level `strictest` emits its own `MonitorEvent` only when more than one child participated. A single-monitor configuration logs one event per step, as approval does today.
+The top-level `concurrent` emits its own `MonitorEvent` only when more than one child participated. A single-monitor configuration logs one event per step, as approval does today.
 
 At configuration time the framework checks for reports that nothing will consume and names them:
 
@@ -711,7 +711,7 @@ Use one of these rather than writing threshold and budget logic by hand. The con
 
 | Protocol | Where | What it does |
 |---|---|---|
-| `strictest` | core | runs every child; strongest recommendation wins; what a bare list compiles to. Name open; `all_of` is the alternative |
+| `concurrent` | core | runs every child; strongest recommendation wins; what a bare list compiles to |
 | `chain` | core | runs children in order; first non-`escalate` decides; hands escalations forward |
 | `observe_only` | core | records every report, acts on none |
 | `trusted_monitoring` | core | thresholds scores, spends an audit budget |
@@ -730,7 +730,7 @@ eval(monitor=...)
 inspect eval task.py --monitor monitors.yaml
 ```
 
-`Task(monitor=)` takes one monitor, a list, or a mapping of instance names to monitors. A list or mapping compiles to `strictest(...)`.
+`Task(monitor=)` takes one monitor, a list, or a mapping of instance names to monitors. A list or mapping compiles to `concurrent(...)`.
 
 ```python
 Task(monitor=no_curl())
@@ -830,7 +830,7 @@ Rules:
   monitor="human",             path="attempt/human",             kind="recommendation",  recommend="reject",  authoritative=True
   monitor="chain",             path="attempt",                   kind="recommendation",  recommend="reject"
   monitor="sandbox_escape",    path="escape",                    kind="recommendation",  recommend="continue"
-  monitor="strictest",         path="",                          kind="recommendation",  recommend="reject"
+  monitor="concurrent",        path="",                          kind="recommendation",  recommend="reject"
   ```
 
   The last line is the summary event. The top-level protocol emits it only when more than one child participated, and its explanation lists each child's decision.
@@ -909,9 +909,9 @@ Issue #5423 proposed that `approval` and `review` accept a dict of named policy 
 | an ordered chain inside each group; `escalate` stays inside it | `chain()`; escalations never cross layers |
 | a human at the end who sees who escalated and why | `human()`, reading `step.escalations` |
 | named chains, and the name in the log | mapping keys as instance names; `MonitorEvent.path` |
-| a summary event when several chains participated | the top-level `strictest` event |
+| a summary event when several chains participated | the top-level `concurrent` event |
 | `terminate` cancels the other chains | `run_monitors` |
-| `modify` with several participants is a rejection naming the chain | `strictest()` |
+| `modify` with several participants is a rejection naming the chain | `concurrent()` |
 | an uncovered call rejects, as a lone policy list does | on the approval adapter path only; a monitor chain returns `continue`, matching review |
 | concurrent by default | yes |
 
@@ -1032,7 +1032,7 @@ A chain hands earlier escalations to the next link so a human sees who is asking
 
 ### Why the top level always compiles to a protocol
 
-Without it, a bare list combined recommendations by severity but no layer owned the decision, so nothing recorded the combined outcome. Compiling to `strictest()` gives the summary event #5423 asked for, gives the `modify` rule and the authority check one place to live, and replaces a four-row table of special cases with one sentence.
+Without it, a bare list combined recommendations by severity but no layer owned the decision, so nothing recorded the combined outcome. Compiling to `concurrent()` gives the summary event #5423 asked for, gives the `modify` rule and the authority check one place to live, and replaces a four-row table of special cases with one sentence.
 
 ### Why the protocol calls the monitors
 
@@ -1178,7 +1178,7 @@ What keeps the simple case simple:
 4. **Score aggregation default.** Max, per-dimension when structured, is the obvious default. The framework has to pick one and document it.
 5. **Where does calibration get its benign distribution?** Answered in `monitor-development.md`: replay the monitor over a benign corpus as a Scout scanner and take percentiles of the score column. Holding the calibration corpus out of the validation split is the open hygiene question.
 6. **Does anything in v1 need per-task state?** The audit budget does not. Cross-sample gating ("terminate once 3 samples are flagged") does, and it resets in the unsafe direction. If nothing in v1 needs it, per-task state can be deferred whole. If something does, its scope needs deciding between task, run, and eval-set.
-7. **What is the default protocol called?** `strictest` says what it does to recommendations; `all_of` says what the configuration means. It appears in every multi-monitor log.
+7. **What is the default protocol called?** Settled: `concurrent`. It names the execution shape, as `chain` does; the reduction lives in `Reports.strongest()`.
 8. **Should a protocol be able to add to recorded usage?** `modified` at `AfterGenerate` leaves `usage` untouched. A protocol that spent extra inference resampling may want cost accounting to reflect that.
 9. **Does the monitor see `ContentReasoning`?** Answered by [View](#view): rendered by default at whatever fidelity exists, excluded via the preprocessor, and a protocol withholds it from a child by transforming `step`.
 10. **Lifecycle stages.** `SampleStart` and `SampleEnd` payloads would give state a place to initialise and a monitor a place to file a final verdict. Cheap now that a stage is a payload type, but it overlaps `Hooks`, and neither travels to a proxy.
