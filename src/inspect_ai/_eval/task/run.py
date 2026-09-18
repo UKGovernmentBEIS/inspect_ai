@@ -3126,6 +3126,15 @@ async def _task_run_sample_attempt(
                                 logger.buffer_db is None
                                 or not sample_transcript.history.resident_events_truncated
                             )
+                            materialize_full_sample = (
+                                log_from_memory
+                                or _finalization_consumes_events(
+                                    scanning=scanner is not None
+                                    and scan_id is not None,
+                                    sample_feed=sample_feed,
+                                    task_source=task_source,
+                                )
+                            )
                             eval_sample = await log_sample(
                                 eval_sample=make_eval_sample(
                                     include_events=log_from_memory
@@ -3133,6 +3142,7 @@ async def _task_run_sample_attempt(
                                 logger=logger,
                                 log_images=log_images,
                                 from_memory=log_from_memory,
+                                materialize_full_sample=materialize_full_sample,
                             )
                             results = scores_as_logged(results, eval_sample)
                         else:
@@ -3363,20 +3373,41 @@ def create_eval_sample(
     )
 
 
+def _finalization_consumes_events(
+    *,
+    scanning: bool,
+    sample_feed: SampleSource | None,
+    task_source: TaskSource | None,
+) -> bool:
+    """Whether a finalization consumer needs the sample's event history."""
+    from inspect_ai.hooks._hooks import any_hook_needs_full_sample
+
+    # Hook enablement must stay stable until on_sample_end dispatch.
+    return (
+        scanning
+        or sample_feed is not None
+        or task_source is not None
+        or any_hook_needs_full_sample()
+    )
+
+
 async def log_sample(
     eval_sample: EvalSample,
     logger: TaskLogger,
     log_images: bool,
     *,
     from_memory: bool,
+    materialize_full_sample: bool,
 ) -> EvalSample:
+    """Log a sample, returning the data needed by finalization consumers.
+
+    With ``from_memory=True``, ``eval_sample`` must contain the full history.
+    On buffer readback, ``materialize_full_sample=False`` returns a sample
+    without events, attachments or timelines; the written log remains complete.
+    """
     try:
-        # No realtime buffer DB, or the full history is still resident in memory:
-        # log directly from the in-memory sample (which carries its events). This
-        # avoids the open_sample_history -> materialize_streaming_sample round-trip
-        # (read every event back out of SQLite + re-validate). `complete_sample`
-        # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
-        # buffer exists it stays consistent for live viewing.
+        # Avoid reading resident events back from the buffer. complete_sample
+        # still finalizes the buffer for live viewing.
         if logger.buffer_db is None or from_memory:
             await logger.complete_sample(
                 condense_sample(eval_sample, log_images), flush=True
@@ -3393,8 +3424,15 @@ async def log_sample(
         with logger.buffer_db.open_sample_history(
             eval_sample.id, eval_sample.epoch
         ) as sample_history:
-            materialized_sample = materialize_streaming_sample(
-                eval_sample, sample_history
+            # Restored attachments may exist only in eval_sample, so retain
+            # them in logging_sample. Clear timelines only in the reduced
+            # return value: their event references also retain history.
+            materialized_sample = (
+                materialize_streaming_sample(eval_sample, sample_history)
+                if materialize_full_sample
+                else eval_sample.model_copy(
+                    update={"attachments": {}, "timelines": None}
+                )
             )
             await logger.complete_sample_streaming(
                 logging_sample, sample_history, flush=True
