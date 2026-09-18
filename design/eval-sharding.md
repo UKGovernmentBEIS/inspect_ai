@@ -96,9 +96,13 @@ Constraints and context that shape the options:
   registry (`score.py:653-665`, via `load_file_tasks`). So recomputation
   (a) requires a Python process with the eval's metric code installed or
   importable, and (b) is a trust boundary: a reader that recomputes
-  automatically would import code named by the log it is reading. Today only
-  `inspect score` and log recovery take that path
-  (`src/inspect_ai/log/_recover/_write.py:270-285`); ordinary readers
+  automatically would import code named by the log it is reading. Today
+  scoring, metric recomputation (`recompute_metrics`,
+  `src/inspect_ai/log/_metric.py:39-41`, and by default `edit_score`,
+  `src/inspect_ai/log/_score.py:146-147`) and recovery
+  (`src/inspect_ai/log/_recover/_write.py:270-285`) can load task code, and
+  recovery also runs opportunistically during eval-set resume and eval retry
+  (`_eval/evalset.py:1494`, `_eval/eval.py:1697-1708`). Ordinary log reads
   deserialize stored results, and the browser client can only ever read
   stored results (`remoteLogFile.ts:420-429`). Any option therefore has to
   say *where* aggregation runs (a trusted Python step whose output is stored)
@@ -300,10 +304,12 @@ merged header (which shards, their `eval_id`s).
 Keep the shards as the durable format. Teach readers to group logs by the
 shard marker and present the group as one `EvalLog`: `list_eval_logs` returns
 one entry per group, `read_eval_log` of a group routes sample reads to the
-shard holding each `(id, epoch)`, summaries are concatenated, and `results`
-are recomputed on read (or read from a small cached results object once the
-group is complete). The viewer's listing and log reader do the same in
-TypeScript; eval-set completeness reasons over the union.
+shard holding each `(id, epoch)`, summaries are concatenated, and whole-task
+`results` come either from recomputation in a Python reader (B1) or from a
+stored group results object written by a trusted aggregator (B2). The
+viewer's TypeScript client groups the listing and routes sample reads the
+same way but only ever reads stored results; eval-set completeness reasons
+over the union.
 
 - **Advantages.** No post-run step for *samples*: a group is readable as a
   unit as soon as any shard has flushed, and no second copy of the data is
@@ -320,13 +326,15 @@ TypeScript; eval-set completeness reasons over the union.
   no server to synthesise anything). **Whole-task metrics are not free of a
   post-run step.** Per "Constraints" they need Python plus the metric code,
   so B has two sub-variants: (B1) a Python reader recomputes on each group
-  read, which means `read_eval_log` and `evals_df` start importing metric
-  code and, via the `task_file` fallback, code named by the log, and the
-  browser client still cannot show whole-task metrics in any host; or (B2)
-  a trusted aggregation step (the last shard to finish, or the runner)
-  writes a stored results object for the group, which is Option A's
-  post-run step and ownership question with a different output file.
-  Without B2 a reader shows per-shard metrics and sample counts only.
+  read using metric code that is already installed and trusted in the
+  reader's process, with the `task_file` fallback disabled per "Security",
+  which means `read_eval_log` and `evals_df` start executing metric code and
+  fail on a group whose metrics are not installed, and the browser client
+  still cannot show whole-task metrics in any host; or (B2) a trusted
+  aggregation step (the last shard to finish, or the runner) writes a stored
+  results object for the group, which is Option A's post-run step and
+  ownership question with a different output file. Without B2 a browser
+  reader shows per-shard metrics and sample counts only.
   Directly contradicts the self-contained-log constraint; the "newest log is
   the truth" rule for retries has to be restated for groups.
 - **Complexity.** Large. Two codebases (Python and `ts-mono`), a
@@ -350,7 +358,8 @@ be chosen) holding `manifest.json` and the shard `.eval` files, with a
 `read_eval_log*` and `list_eval_logs` see one location (`EvalLogInfo.type`
 already allows `"directory"`, `_file.py:57`). Workers write ordinary `.eval`
 shards into the directory; a finalise step writes `manifest.json` with the
-whole-task results, or readers compute them when the manifest is absent.
+whole-task results, and readers never recompute (before the manifest exists
+they see the shards' stored per-shard results).
 
 - **Advantages.** One location per task, so the Python API's "a log is a
   location" model survives and the recorder abstraction contains the
@@ -495,9 +504,12 @@ Two boundaries are new:
 - **Recomputation executes code the log names.** `resolve_scorers_info`
   imports the header's `task_file` when a metric is not registered
   (`score.py:653-665`), and `metric_from_log` instantiates whatever the
-  registry holds under the header's metric names. Today that runs only in
-  `inspect score` and recovery, both invoked deliberately on a log the user
-  chose. An option in which an ordinary reader recomputes group results (B1)
+  registry holds under the header's metric names. Today scoring, metric
+  recomputation (including score edits, which recompute by default) and
+  recovery can load task code this way, and recovery can also run during
+  eval-set resume and eval retry rather than only as a chosen command;
+  ordinary log reads deserialize stored results. An option in which an
+  ordinary reader recomputes group results (B1)
   would make `read_eval_log`, `evals_df` or the viewer server import code
   named by a received log. Aggregation should run only where the log's code
   is trusted, which is the merger (A), aggregator (B2) or finaliser (C), and
@@ -536,9 +548,12 @@ Two boundaries are new:
 - Per-epoch sharding (running one epoch of a sample on one worker) is not
   expressible with `sample_id`/`limit` and is out of scope.
 - `resolve_scorers_info` imports a log's `task_file` to find unregistered
-  metrics (`score.py:653-665`). That is today's behaviour for `inspect score`
-  and recovery on any log, sharded or not; whether those commands should
-  require an opt-in before importing log-named code is a separate question.
+  metrics (`score.py:653-665`). That is today's behaviour for `inspect score`,
+  the public `recompute_metrics` and `edit_score` (`log/_metric.py:39-41`,
+  `log/_score.py:146-147`) and recovery, including recovery triggered during
+  eval-set resume and eval retry, on any log, sharded or not; whether those
+  operations should require an opt-in before importing log-named code is a
+  separate question.
 - `EvalDataset.samples` records the full dataset size while `sample_ids` is
   the slice; the pair is the only present hint that a log is partial and its
   documentation could say so.
