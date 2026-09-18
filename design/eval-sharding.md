@@ -1,10 +1,13 @@
 # Eval sharding with per-worker log files: options and trade-offs
 
-Status: options document (phase 1), 2026-09-18. No approach is selected here;
-this document exists so an approach can be chosen with the trade-offs in view.
-Decisions recorded so far: the #420 self-contained-log constraint is relaxed
-for sharded output only (Ransom, 2026-09-18; see "Goals and constraints" and
-key question 2).
+Status: options analysis with a chosen phased direction, 2026-09-18. The
+options are kept whole for comparison; "Direction" records the phased plan
+Ransom and JJ Allaire agreed on 2026-09-18 (Step 1: opt-in merge of shard
+files into one canonical log; Step 2: periodic header-and-summary rollup;
+Step 3: targeted live-view improvements). Also recorded: the #420
+self-contained-log constraint is relaxed for sharded output only (Ransom,
+2026-09-18). Still open: who owns the end-of-run merge (explored under
+"Direction"). No API signatures or implementation plan yet; that is phase 2.
 Issue: https://github.com/meridianlabs-ai/inspect_ai/issues/509.
 Author: agent (Claude), reviewed by Codex; see the PR.
 
@@ -133,8 +136,10 @@ Constraints and context that shape the options:
   recovery does (`_recover/_write.py:162-177`), which on remote storage is
   the whole group's sample bytes rather than N small `summaries.json` reads.
 
-Non-goals for this document: a chosen approach, API signatures, exhaustive edge
-cases, an implementation plan. Those are phase 2.
+Non-goals for this document: API signatures, exhaustive edge cases, an
+implementation plan. Those are phase 2. The options analysis below is kept
+whole; the phased direction chosen on 2026-09-18 is recorded in "Direction"
+after the key questions.
 
 ## Current behaviour
 
@@ -461,12 +466,15 @@ and reducers over score `value`; anything else needs full sample reads.
 
 ## Key questions to choose
 
+The questions are kept as asked, with the answers recorded where a decision
+has been made. Dates and deciders are on each answer.
+
 1. **Is a post-run merge acceptable, or must a sharded task read as one log
-   while shards are still running?** This is the A-versus-B/C decision. The
-   issue text ("read the sharded copies as a single logical log") reads as B;
-   the "one sample per machine" motivation makes the during-run view
-   valuable. If the answer is "after the run is fine", A dominates on cost
-   and risk.
+   while shards are still running?** Answered (Ransom and JJ Allaire,
+   2026-09-18): a post-run merge is acceptable, phased. Step 1 ships the
+   merge alone (Option A); a during-run whole-task view arrives as Step 2
+   (periodic rollup of headers and summaries) and Step 3 (targeted live-view
+   work). See "Direction".
 2. **Does the #420 self-contained-log constraint apply here?** Answered
    (Ransom, 2026-09-18): the constraint may be relaxed for this sharding and
    continues to hold in every other case. B and C are therefore open on this
@@ -474,29 +482,206 @@ and reducers over score `value`; anything else needs full sample reads.
    must be keyed on the explicit shard marker so unsharded logs and retries
    keep today's semantics.
 3. **Who owns the merge or finalise step, and is shard identity exposed to
-   ordinary callers?** Two independent decisions. (a) Ownership of A's merge,
-   B2's aggregation or C's finalise: the external runner, `eval_set()`, or
-   the user via CLI. (b) Whether `eval()` and `inspect eval` grow a way to
-   stamp the shard marker and group selection, or whether only the selection
-   protocol can. If (b) is yes, every option serves shell-script users: A
-   with a CLI merge, B with user-stamped markers, C with a user-created group
-   location plus a CLI finaliser. If (b) is no, sharding is a runner-only
-   feature in every option.
-7. **Recompute input and metric support.** Summaries-only recompute keeps
-   aggregation cheap but changes results for custom metrics that read more
-   than `value`; full-sample recompute is lossless but reads every shard's
-   sample bytes. Is a value-only guarantee acceptable for a first version,
-   with full-sample recompute as an option or a later step?
-4. **Is the viewer in scope for the first implementation?** A needs no viewer
-   work. B and C are mostly viewer work, across the server, VS Code and
-   static-bundle hosts, in a separate repository with its own release.
-5. **Shard identity.** A new `EvalSpec` field versus reusing `task_id` or
-   `eval_set_id`. The `retry_cleanup` deletion hazard argues for a new field;
-   the cost is a schema and generated-types change.
-6. **Partial groups.** What a reader or merge does when a shard is missing,
-   failed or still running: refuse, present with a non-`success` status, or
-   present the partial set. This matters in every option but is the whole
-   design in B.
+   ordinary callers?** Two independent decisions.
+   (a) Ownership of the end-of-run merge: **open**, pending the exploration
+   under "Direction" (launcher-owned versus distributed), which ends with a
+   recommendation for Ransom to confirm.
+   (b) Exposure: for Step 1's CLI merge to serve shell-script users, shard
+   identity and the group's intended selection must be stampable from
+   `eval()` and `inspect eval`, not only from the selection protocol. Noted
+   as a Step 1 requirement (Ransom, 2026-09-18); the exact surface is phase
+   2.
+4. **Is the viewer in scope for the first implementation?** Answered (Ransom
+   and JJ Allaire, 2026-09-18): no. Step 1 needs no viewer behaviour change;
+   the viewer sees an ordinary merged log and, while shards run, ordinary
+   per-shard logs. The `ts-mono` generated types still change because the
+   marker is an `EvalSpec` field (see Step 1 requirements). Viewer work is
+   Step 3.
+5. **Shard identity.** Answered (Ransom and JJ Allaire, 2026-09-18): a new
+   `EvalSpec` group field; shards keep distinct `task_id`s and never share
+   one, because of the `retry_cleanup` deletion hazard.
+6. **Partial groups.** Answered (Ransom and JJ Allaire, 2026-09-18) for the
+   merge: it refuses a partial group unless explicitly told to emit a log
+   with a non-`success` status, which then acts as an ordinary resumable
+   log. Partial-group *display* in readers is a Step 3 question.
+7. **Recompute input and metric support.** Answered (Ransom and JJ Allaire,
+   2026-09-18): the merge recomputes from full samples, as recovery does,
+   not from summaries; correctness is contained to the merging process,
+   which must have the task's metric code importable. Step 2's rollup, which
+   reads summaries, is therefore a live approximation with a value-only
+   guarantee, not the recorded result (see Step 2).
+
+## Direction (phase 2 entry)
+
+Decision (Ransom and JJ Allaire, 2026-09-18): proceed in three steps, each
+shippable on its own, with Option B in full kept as the comparison
+alternative. This section records the direction and the requirements the
+options analysis attaches to it. It does not fix API signatures or an
+implementation plan; those are the next document.
+
+### Step 1: separate shard files, merged into one canonical log (Option A)
+
+Shards are written as ordinary `.eval` files carrying the group marker, and
+are merged into one canonical log at three triggers: at eval end, at
+`eval_set()` startup, and by a new CLI command. The whole feature is opt-in:
+nothing changes for a run that does not set the marker, so Step 1 can ship
+alone.
+
+What is lost while shards are running is the whole-task rollup only, not
+per-sample liveness. Each shard is a normal in-progress log, so the viewer
+lists it, shows its samples as they complete, and the running-sample view
+works through the per-log sample buffer (`/pending-samples`,
+`fastapi_server.py:507`). What no reader has until the merge is one row and
+one set of metrics for the task.
+
+Requirements and open points Step 1 carries from the options analysis:
+
+- **Shard disposition after the merge.** Shards left beside the merged log
+  break "no reader changes": `list_eval_logs` recurses over every `.eval`
+  file (`_file.py:146`), `evals_df` dedupes by `eval_id` only
+  (`analysis/_dataframe/evals/table.py:160`), and the viewer lists per file.
+  Three dispositions: (i) *delete* the shards, which loses the ability to
+  re-merge after a merge bug and, if a merge ran prematurely, could delete a
+  shard that is still writing; (ii) *move to an archive prefix*, which on S3
+  is a copy plus a delete per shard and needs the listing to skip the prefix,
+  since the walker filters by extension only and skips no directory (the
+  `.buffer` sibling directory is invisible today only because it holds no
+  `.eval` files, `filestore.py:662`); (iii) a *listing convention* that hides
+  marked shards without opening them, which means encoding the marker in the
+  file name, because `EvalLogInfo` is built from the name and only falls
+  back to reading the header (`_file.py:1178-1250`). Recommendation: (ii),
+  an archive prefix such as `.shards/<group>/` under the log directory,
+  with a one-line exclusion in the listing walker shared by the Python API,
+  the viewer server and `bundle_log_dir`; keep archived shards until the
+  merged log is verified, and offer delete as an explicit option. Deleting
+  by default is the one choice that cannot be undone after a bad merge.
+- **Eval-set bookkeeping is shard-aware.** Today completeness compares
+  counts (`evalset.py:1837`), pairing takes the first log with a matching
+  identifier (`evalset.py:1483-1489`), and `retry_cleanup` (on by default)
+  deletes every non-`started` log sharing a `task_id` except the newest
+  (`evalset.py:1962-1975`). Shards therefore carry the new group field and
+  distinct `task_id`s, never a shared one, and `eval_set()` startup merges or
+  excludes marked shards before any pairing, at the point where it lists the
+  directory today (`evalset.py:1043-1060`). Upside: merging a partial group
+  at startup into a log with a non-`success` status turns a sharded run into
+  an ordinary resume; the missing samples are re-run by the normal retry
+  path, unsharded unless the runner re-shards them.
+- **Metric correctness, contained to the merger.** The merge recomputes
+  results from full samples, as recovery does
+  (`_recover/_write.py:162-177`), not from summaries. It needs the task's
+  metric code importable: a runner or an `eval_set()` process has it; a CLI
+  merge from a laptop may not, and then `resolve_scorers_info`'s `task_file`
+  fallback imports log-named code exactly as recovery does today
+  (`score.py:653-665`). The merge must say clearly which of the two it did,
+  and fail rather than store metrics computed from a lossy input.
+- **Group validation in the merge.** Before combining: same task identifier,
+  `task_version`, model, plan and config with the selectors (`sample_id`,
+  `limit`, `sample_shuffle`) excluded from the comparison, equal epochs,
+  disjoint id sets whose union is the group's intended selection. The merge
+  refuses on any mismatch and refuses a partial group unless told to emit a
+  non-`success` log (key question 6).
+- **Opt-in is not schema-free.** The group marker is an `EvalSpec` field, so
+  the JSON schema and the `ts-mono` generated types change even though the
+  viewer ignores the field in Step 1. Step 1 therefore needs a coordinated
+  `ts-mono` landing (`.agents/skills/land-ts-mono/SKILL.md`).
+- **Shard identity must be stampable from `eval()` and `inspect eval`** as
+  well as from the selection protocol, or the CLI merge serves only runner
+  users (key question 3b).
+
+### Who owns the end-of-run merge (open, explored)
+
+Ransom asked for this to be explored this round and is unsure which is
+better. Two owners are viable; both are compared against the other two
+triggers and against runner protocols that already watch workers.
+
+**Launcher-owned.** One process launches the workers, watches for the shard
+logs to complete, and merges. Advantages: a single, race-free owner; it
+matches the external-runner owner in "Who orchestrates" and the selection
+protocol's existing division of labour (the runner already owns the
+directory's eval-set metadata and knows when each worker exits); the merger
+is the process most likely to have the task's code importable; no worker
+pays the merge cost. Disadvantage: a single point of failure. If the
+launcher dies between the last worker finishing and the merge, no merged log
+exists; the `eval_set()`-startup merge is the recovery path, and the CLI
+merge is the manual one. "At eval end" in this model means the launcher's
+end, which is also the natural point when one process ran the shards itself.
+
+**Distributed.** Each worker, on finishing, lists the group and merges if it
+sees every shard complete. Advantages: no launcher dependency, and the merge
+happens as soon as the last shard lands. Disadvantages: two near-simultaneous
+finishers can both observe a complete group, so the merge must be idempotent
+and deterministic (output name derived from the group id, refuse if it
+already exists) rather than lock-based, because a create-if-absent
+conditional write is not available uniformly: Inspect's own S3 writer
+supports `IfMatch` for replacing an object with a known ETag
+(`_recorders/eval.py:753-761`), not create-if-absent, and only for S3
+through boto, not through fsspec. With a deterministic merge the residual
+race is two writers producing byte-equivalent output to one key, which S3's
+per-object atomic put and a local atomic rename both tolerate. In a
+one-sample-per-machine job the last worker downloads the whole task's
+samples to merge them, which puts the largest transfer on an arbitrary
+worker at the end of the job. It also needs every worker to have the task's
+metric code, which workers do.
+
+**Against the other triggers.** The `eval_set()`-startup merge is the safety
+net for both owners: whichever owner fails to merge, the next `eval_set()`
+over the directory merges or excludes the shards before pairing. The CLI
+merge serves users without a runner and repairs any state by hand. Runner
+protocols that already watch workers (the capture/selection runner,
+`inspect_steward` per `eval_set_manifest.py`) get launcher-owned merging
+for free, since they already sit where the launcher would.
+
+**Recommendation.** Launcher-owned as the default, with the merge itself
+built idempotent and deterministic so that the distributed model is a
+configuration rather than a different design: a worker can be told to
+attempt the merge on exit, and a duplicate attempt is harmless. The
+reasoning: the runner protocol already has a single watching owner, the
+launcher is the process with the task's code and the whole-group view, and
+its failure mode is covered by the startup merge, whereas the distributed
+model's failure mode (two merges, or a worker without the code) has to be
+designed away in every deployment. This is a recommendation for Ransom to
+confirm, not a decision.
+
+### Step 2: periodic rollup while the eval runs
+
+A periodic rollup of shard headers and summaries into a stored group results
+object (Option B2, in its light form: no sample merging, only the stored
+whole-task results), so the viewer can show live whole-task metrics while
+shards run. Samples are merged once, at the end, by Step 1's merge.
+
+Why not a periodic full merge: Python's `zipfile` has no raw member copy, so
+each full merge rewrites every sample, which on S3 is a full download and
+upload per tick and quadratic over the run; it would read in-progress shards
+through their `_journal/` members; and its output would have to carry a
+`started` status so that `eval_set()` never treats it as complete.
+
+Open points for Step 2: the rollup reads summaries, so per key question 7 its
+metrics are a value-only live approximation, correct for built-in metrics
+over `value` and not guaranteed for custom metrics that read other fields;
+the stored object must be labelled as such and must not be mistaken for the
+merge's recorded results. Where the object lives and how the viewer finds
+it are phase-2 questions. JJ Allaire: Step 2 may be skipped if Step 3 is
+imminent.
+
+### Step 3: targeted live-view improvements
+
+Live-view work for the high-value scenarios that want to be more live than
+the merge allows (`inspect ctl`, the running-sample viewer, and similar). A
+slice of Option B: the group marker plus the merged log's provenance let the
+viewer collapse rows that share a group id and show per-shard metrics,
+without routing sample reads across files. The three-host constraint
+(server, VS Code, static bundle) and per-member read authorization from
+"Security" still apply to whatever this step touches.
+
+### Alternative kept for comparison: Option B in full
+
+Readers understand shard groups as one logical log. Better live visibility
+than any of the steps above, at the cost of significant changes across the
+Python API, the dataframe layer, eval-set bookkeeping, Scout and the
+TypeScript client in three hosts, and with metric computation hard to get
+right because whole-task metrics need user-defined Python that readers, and
+never browsers, would have to run. Kept as the reference the phased plan is
+measured against.
 
 ## Compatibility notes (at options level)
 
