@@ -1,6 +1,8 @@
 ## Unreleased
 
 - Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
+- Fixed duplicated task prompt and redundant context sent to the model when using `CompactionAuto` with providers that support native compaction.
+- Transcripts now show which compaction strategy actually ran, and flag when `CompactionAuto` fell back from native to summary compaction.
 
 ## 0.3.265 (17 September 2026)
 
