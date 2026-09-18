@@ -85,18 +85,40 @@ Constraints and context that shape the options:
   (`eval_set_selection.py:16-18`). Sample sharding is the case that invariant
   excludes, so the protocol is the natural home for shard orchestration and
   also the thing most directly changed by it.
-- **Results are recomputable from summaries.** `eval_results`
+- **Whole-task results need Python, the metric code, and trust.** Shard
+  headers hold per-shard metrics only; the whole-task values have to be
+  computed somewhere. `eval_results`
   (`src/inspect_ai/_eval/task/results.py:90`) takes sample scores plus the
-  scorer, metric and reducer definitions, all of which the header records and
-  `score.py` already rebuilds (`metrics_from_log_header`,
-  `reducers_from_log_header`, `resolve_scorers_info`,
-  `src/inspect_ai/_eval/score.py:562-648`); log recovery does the same
-  recompute (`src/inspect_ai/log/_recover/_write.py:270-285`). Summary rows
-  keep score values intact and thin only text and oversize metadata
-  (`EvalSampleSummary.thin_data`, `src/inspect_ai/log/_log.py:371`;
-  `thin_metadata`, `src/inspect_ai/log/_util.py:147`), so whole-task metrics
-  can be recomputed from `summaries.json` alone, except grouped metrics keyed
-  on metadata values larger than 1 KB.
+  scorer, metric and reducer definitions, which the header records only by
+  *name*: `metric_from_log` instantiates registered Python metrics
+  (`src/inspect_ai/_eval/score.py:590`), and `resolve_scorers_info` falls
+  back to importing the header's `task_file` when a metric name is not in the
+  registry (`score.py:653-665`, via `load_file_tasks`). So recomputation
+  (a) requires a Python process with the eval's metric code installed or
+  importable, and (b) is a trust boundary: a reader that recomputes
+  automatically would import code named by the log it is reading. Today only
+  `inspect score` and log recovery take that path
+  (`src/inspect_ai/log/_recover/_write.py:270-285`); ordinary readers
+  deserialize stored results, and the browser client can only ever read
+  stored results (`remoteLogFile.ts:420-429`). Any option therefore has to
+  say *where* aggregation runs (a trusted Python step whose output is stored)
+  and what a reader without Python or without the code can show (stored
+  per-shard results, sample counts, and nothing that needs a metric
+  function).
+- **Summaries are a lossy input for recomputation.** `EvalSampleSummary`
+  keeps score *values* intact but truncates score `answer`, `explanation`,
+  `reason` and metadata, and thins sample metadata
+  (`EvalSampleSummary.thin_data`, `src/inspect_ai/log/_log.py:371-400`;
+  `thin_metadata`, `src/inspect_ai/log/_util.py:147`). Metrics receive the
+  full `SampleScore` including `sample_metadata`
+  (`src/inspect_ai/scorer/_metric.py:245-254`; `results.py:601`), so a
+  custom metric that reads anything but `value` computes a different number
+  from summaries than from samples (the reviewer's probe: an answer-length
+  metric returned 2000 from the sample and 3 from its summary). Built-in
+  metrics over `value` (`accuracy`, `mean`, `stderr`, bootstrap) and reducers
+  over values are safe; general metric support needs full sample reads, as
+  recovery does (`_recover/_write.py:162-177`), which on remote storage is
+  the whole group's sample bytes rather than N small `summaries.json` reads.
 
 Non-goals for this document: a chosen approach, API signatures, exhaustive edge
 cases, an implementation plan. Those are phase 2.
@@ -199,9 +221,27 @@ repeated:
   choice and every option below assumes one; it is a public log-schema change
   (JSON schema, generated TypeScript types, `EvalSpec` consumers).
 - **Whole-task results computation.** Every option needs to compute results
-  over the union of shards' scores. The recompute path exists (see
-  "Constraints"); the options differ in *when* it runs and *where the answer
-  lives*.
+  over the union of shards' scores, and per "Constraints" that is a Python
+  step that needs the metric code and trusts the log's header. The options
+  differ in *when* it runs, *who* runs it, and *where the answer lives*:
+  once, by a trusted aggregator, stored for every reader (A, C's manifest),
+  or per read by a Python reader that has the code (B without a stored
+  result). Readers that cannot run it, which is the browser client in all
+  three hosts, can show only stored values. Whether the input is summaries
+  (cheap, value-only metrics) or full samples (lossless, expensive on remote
+  storage) is a separate cost every option pays.
+- **Group membership validation.** Before combining, an aggregator or reader
+  must check that members really are shards of one task: same task
+  identifier, same `task_version`, model, plan and config, disjoint id sets
+  that together equal the group's intended selection, and equal epochs. A
+  reused group id that skipped this check would yield plausible metrics over
+  incompatible samples. The exact rule is a phase-2 decision; the cost is
+  common to all options.
+- **Writer-side surface.** Whoever stamps the marker needs a way to say it:
+  the external runner through the selection document, and, if ordinary
+  `eval()` and `inspect eval` callers are in scope, a parameter or flag on
+  those. This surface is the same for every option and is separate from who
+  runs any merge or finalisation step (see "Who orchestrates").
 
 ### Option A: merge shards into one canonical log after the run
 
@@ -214,17 +254,32 @@ header whose `dataset.sample_ids` is the union in dataset order and whose
 deleted or kept beside it. The shard marker also records provenance in the
 merged header (which shards, their `eval_id`s).
 
-- **Advantages.** Zero reader changes: the viewer, `read_eval_log*`,
+- **Advantages.** No reader changes, **provided the shards leave the tree
+  readers list** (deleted, or moved to an archive prefix outside the
+  recursively listed log directory) or readers are pointed at the merged
+  file explicitly. Under that condition the viewer, `read_eval_log*`,
   dataframes, Scout, `inspect score`, log editing and eval-set matching all
-  see one normal log. Fully honours the self-contained-log constraint; the
-  merged log *is* the whole truth. Old Inspect versions can open the output.
-  Smallest surface; most of the work is in one module and mirrors what
-  `recover_eval_log` already does (combine sample sources, recompute
-  results).
+  see one normal log with stored whole-task results. Aggregation runs
+  exactly once, in the merge, which is a trusted Python step run by the
+  runner or user who owns the eval and has its metric code, so no reader
+  ever recomputes or imports log-named code. Fully honours the
+  self-contained-log constraint; the merged log *is* the whole truth. Old
+  Inspect versions can open the output. Smallest surface; most of the work
+  is in one module and mirrors what `recover_eval_log` already does
+  (combine sample sources, recompute results).
 - **Disadvantages.** Someone must run the merge after the last shard
   finishes, so it needs an owner (see "Who orchestrates" below). No
   whole-task view while shards are still running or if a shard fails and is
-  never retried. Storage is doubled until shards are deleted; the merge
+  never retried. If shards must stay beside the merged file in the same
+  listed directory, the zero-change claim fails: `list_eval_logs` lists every
+  file (`_file.py:146`), dataframe directory expansion recurses over them
+  (`analysis/_dataframe/util.py:93-109`), `evals_df` dedupes by `eval_id`
+  only (`analysis/_dataframe/evals/table.py:160`), the viewer lists per file
+  and eval-set pairing still meets the shard logs (the reviewer's probe with
+  two shards plus their merge gave three listed files and three eval rows;
+  `samples_df` alone collapses on sample `uuid`). Hiding retained shards
+  then costs listing, dataframe, viewer and eval-set changes, which is a
+  slice of Option B. Storage is doubled until shards are deleted; the merge
   rewrites every sample member (Python's `zipfile` has no raw member copy),
   which for very large logs on remote storage is a full download and upload
   per merge. Retry of a failed shard is a retry of *that shard's* log, then a
@@ -250,21 +305,30 @@ are recomputed on read (or read from a small cached results object once the
 group is complete). The viewer's listing and log reader do the same in
 TypeScript; eval-set completeness reasons over the union.
 
-- **Advantages.** No post-run step and no second copy of the data. A partial
-  view of a sharded task exists as soon as any shard has flushed, which fits
-  the "one sample per machine" case where the last shard may be hours behind
-  the first. Closest to the Scout analogy in the issue.
+- **Advantages.** No post-run step for *samples*: a group is readable as a
+  unit as soon as any shard has flushed, and no second copy of the data is
+  kept. A partial view of a sharded task (its samples, summaries and
+  per-shard metrics) exists during the run, which fits the "one sample per
+  machine" case where the last shard may be hours behind the first. Closest
+  to the Scout analogy in the issue.
 - **Disadvantages.** Touches every reader: the Python log API (a log
   "location" becomes a group, which breaks `EvalLog.location: str`,
   `write_eval_log`, log editing, `inspect log dump/convert`, header-only
   reads that assume one central directory), the dataframe layer, eval-set
   pairing and cleanup, Scout's eval-log transcript reader, and the
   TypeScript client in every host (server, VS Code, static bundle, which has
-  no server to synthesise anything). Results are recomputed on every read of
-  a group unless a cache is written, and writing a cache is Option A's
-  problem in disguise. Directly contradicts the self-contained-log
-  constraint; the "newest log is the truth" rule for retries has to be
-  restated for groups.
+  no server to synthesise anything). **Whole-task metrics are not free of a
+  post-run step.** Per "Constraints" they need Python plus the metric code,
+  so B has two sub-variants: (B1) a Python reader recomputes on each group
+  read, which means `read_eval_log` and `evals_df` start importing metric
+  code and, via the `task_file` fallback, code named by the log, and the
+  browser client still cannot show whole-task metrics in any host; or (B2)
+  a trusted aggregation step (the last shard to finish, or the runner)
+  writes a stored results object for the group, which is Option A's
+  post-run step and ownership question with a different output file.
+  Without B2 a reader shows per-shard metrics and sample counts only.
+  Directly contradicts the self-contained-log constraint; the "newest log is
+  the truth" rule for retries has to be restated for groups.
 - **Complexity.** Large. Two codebases (Python and `ts-mono`), a
   cross-repo release, and a new concept in the public API.
 - **Compatibility.** Old readers see N independent logs (no worse than
@@ -291,8 +355,11 @@ whole-task results, or readers compute them when the manifest is absent.
 - **Advantages.** One location per task, so the Python API's "a log is a
   location" model survives and the recorder abstraction contains the
   change. Grouping is explicit on disk rather than inferred from headers.
-  Shards remain valid `.eval` files. Whole-task results can be written once
-  (in the manifest) and read cheaply.
+  Shards remain valid `.eval` files. Whole-task results are written once by
+  the trusted finaliser (into the manifest) and read cheaply by every reader,
+  including the browser client; readers never recompute. Before the manifest
+  exists a reader has only the shards' stored per-shard results, the same
+  limit as B without B2.
 - **Disadvantages.** A new on-disk format that every consumer must learn,
   including the TypeScript client and Scout; old Inspect versions cannot
   open the directory as a log at all (they would list the shards inside it
@@ -339,23 +406,33 @@ Any option with a post-run step (A's merge, C's finalise) needs an owner:
 3. **The user, via CLI.** `inspect log merge <dir-or-files>` run by hand or
    from a job script. Simplest to ship; least automatic.
 
-Option B has no post-run step but needs the runner or user to stamp the
-shard marker consistently, so it depends on (1) or (3) for the writer side.
+Option B has no post-run step for samples but, per its B2 variant, needs one
+for whole-task metrics unless readers recompute; its marker is stamped by
+the same writer-side surface every option needs, by the runner (1) or by the
+user through `eval()`/CLI (3). Ownership of the merge or finalise step and
+exposure of shard identity to ordinary callers are separate questions, and
+each of A, B and C can be served by either owner.
 
 ## Comparison
 
 | | A: merge after run | B: readers group shards | C: directory + manifest | D: shared log |
 |---|---|---|---|---|
-| Reader changes | none | Python API, dataframes, eval-set, viewer TS (3 hosts), Scout | recorder layer, listing, viewer TS, Scout | as C plus a third reader |
+| Reader changes | none if shards leave the listed tree; listing/dataframe/viewer/eval-set changes if shards stay beside the merge | Python API, dataframes, eval-set, viewer TS (3 hosts), Scout | recorder layer, listing, viewer TS, Scout | as C plus a third reader |
 | Writer changes | shard marker | shard marker | shard marker, directory layout | new writer |
-| Post-run step | merge (owner needed) | none | finalise (owner needed) | finalise |
-| Whole-task view during run | no | yes (partial) | yes if readers compute without manifest | yes |
+| Post-run step | merge (owner needed) | none for samples; B2 aggregation (owner needed) for whole-task metrics | finalise (owner needed) | finalise |
+| Whole-task samples during run | no | yes (partial) | yes | yes |
+| Whole-task metrics during run | no | B1: Python readers with the code only; B2: after aggregation | after finalise | after finalise |
+| Who runs metric code | merger (trusted, once) | B1: every Python reader; B2: aggregator | finaliser | finaliser |
+| Browser client shows whole-task metrics | yes (stored) | B2 only (stored) | yes once manifest exists | yes once finalised |
 | Old readers open the result | yes | shards only | no | no |
 | Self-contained-log constraint | kept | relaxed | relaxed (per directory) | relaxed |
 | Storage | 2× until shards deleted | 1× | 1× | 1× |
-| Where results live | merged header | recomputed per read, or cache | manifest | header |
+| Where results live | merged header | B1 recomputed per read; B2 stored group results | manifest | header |
 | Complexity | S–M | L | L | L |
-| Main risk | partial merge presented as whole | partial-group semantics across many consumers | format adoption, S3 directory semantics | S3 object counts, concurrency |
+| Main risk | partial merge presented as whole; shards left in the listed tree | partial-group semantics across many consumers; readers importing log-named code (B1) | format adoption, S3 directory semantics | S3 object counts, concurrency |
+
+Recompute input applies to every column: summaries suffice only for metrics
+and reducers over score `value`; anything else needs full sample reads.
 
 ## Key questions to choose
 
@@ -368,11 +445,20 @@ shard marker consistently, so it depends on (1) or (3) for the writer side.
 2. **Does the #420 self-contained-log constraint apply here?** If yes, only A
    (and a C variant that finalises into one file) qualifies. If it was meant
    for retries only, B and C are open.
-3. **Who owns orchestration?** If sharding is only ever driven by the external
-   runner, the shard marker and merge/finalise belong in the selection
-   protocol and the runner. If arbitrary users sharding with `--sample-id`
-   from a shell script are in scope, a CLI merge (A) is the only option that
-   serves them without a runner.
+3. **Who owns the merge or finalise step, and is shard identity exposed to
+   ordinary callers?** Two independent decisions. (a) Ownership of A's merge,
+   B2's aggregation or C's finalise: the external runner, `eval_set()`, or
+   the user via CLI. (b) Whether `eval()` and `inspect eval` grow a way to
+   stamp the shard marker and group selection, or whether only the selection
+   protocol can. If (b) is yes, every option serves shell-script users: A
+   with a CLI merge, B with user-stamped markers, C with a user-created group
+   location plus a CLI finaliser. If (b) is no, sharding is a runner-only
+   feature in every option.
+7. **Recompute input and metric support.** Summaries-only recompute keeps
+   aggregation cheap but changes results for custom metrics that read more
+   than `value`; full-sample recompute is lossless but reads every shard's
+   sample bytes. Is a value-only guarantee acceptable for a first version,
+   with full-sample recompute as an option or a later step?
 4. **Is the viewer in scope for the first implementation?** A needs no viewer
    work. B and C are mostly viewer work, across the server, VS Code and
    static-bundle hosts, in a separate repository with its own release.
@@ -401,18 +487,37 @@ shard marker consistently, so it depends on (1) or (3) for the writer side.
 
 The new code reads log headers, file names and, in C, a manifest naming other
 files. Headers and file names are already untrusted inputs to the existing
-readers and go through `filesystem()`/`local_path()`; a merge (A) or group
-read (B) adds no new kind of input beyond reading more of them. C's manifest
-is a new pointer type and must be constrained to entries inside its own
-directory to avoid a log that reads arbitrary paths. Sample JSON from shards
+readers and go through `filesystem()`/`local_path()`; sample JSON from shards
 is parsed by the same Pydantic models as today.
+
+Two boundaries are new:
+
+- **Recomputation executes code the log names.** `resolve_scorers_info`
+  imports the header's `task_file` when a metric is not registered
+  (`score.py:653-665`), and `metric_from_log` instantiates whatever the
+  registry holds under the header's metric names. Today that runs only in
+  `inspect score` and recovery, both invoked deliberately on a log the user
+  chose. An option in which an ordinary reader recomputes group results (B1)
+  would make `read_eval_log`, `evals_df` or the viewer server import code
+  named by a received log. Aggregation should run only where the log's code
+  is trusted, which is the merger (A), aggregator (B2) or finaliser (C), and
+  any reader-side recompute must not follow the `task_file` fallback.
+- **Manifests and groups resolve other files.** C's manifest is a new pointer
+  type and must be constrained to entries inside its own directory; B's
+  grouping resolves members from headers. In the viewer both must apply the
+  per-file `_validate_read` authorization to each member, not only to the
+  group entry.
 
 ## Testing (at options level)
 
 - A: unit tests over mock-model shards like the spike (merge whole group,
-  refuse partial group, recomputed metrics equal an unsharded run's,
-  `evals_df` one row, eval-set accepts the merged log). All local, no
-  network, in `tests/log/` and `tests/test_eval_set.py`.
+  refuse partial group, recomputed metrics equal an unsharded run's for a
+  built-in metric and for a custom metric that reads `answer`, to pin the
+  recompute-input decision; `evals_df` one row once shards are removed from
+  the listed tree; eval-set accepts the merged log). All local, no network,
+  in `tests/log/` and `tests/test_eval_set.py`.
+- All options that recompute: a test that a header naming an unregistered
+  metric with a `task_file` does not import that file from a reader path.
 - B and C: the same Python assertions plus listing/grouping tests, and
   viewer end-to-end tests in `ts-mono` for grouped listing and grouped
   sample reads across the three hosts.
@@ -430,6 +535,10 @@ is parsed by the same Pydantic models as today.
   clearer error would help.
 - Per-epoch sharding (running one epoch of a sample on one worker) is not
   expressible with `sample_id`/`limit` and is out of scope.
+- `resolve_scorers_info` imports a log's `task_file` to find unregistered
+  metrics (`score.py:653-665`). That is today's behaviour for `inspect score`
+  and recovery on any log, sharded or not; whether those commands should
+  require an opt-in before importing log-named code is a separate question.
 - `EvalDataset.samples` records the full dataset size while `sample_ids` is
   the slice; the pair is the only present hint that a log is partial and its
   documentation could say so.
