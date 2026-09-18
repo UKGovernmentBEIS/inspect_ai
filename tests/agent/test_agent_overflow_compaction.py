@@ -4,10 +4,12 @@ import pytest
 from typing_extensions import override
 
 from inspect_ai import Task, eval
-from inspect_ai.agent import react
+from inspect_ai.agent import Agent, AgentState, react
 from inspect_ai.dataset import Sample
+from inspect_ai.event import CompactionEvent
 from inspect_ai.model import (
     ChatMessage,
+    ChatMessageAssistant,
     ChatMessageUser,
     Model,
     ModelOutput,
@@ -16,6 +18,7 @@ from inspect_ai.model import (
 from inspect_ai.model._compaction import CompactionStrategy
 from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.trim import CompactionTrim
+from inspect_ai.tool import Tool
 from inspect_ai.tool._tool_info import ToolInfo
 
 
@@ -248,3 +251,138 @@ def test_model_length_without_recovery_terminates() -> None:
         assert "submit" not in (
             last_message.content if isinstance(last_message.content, str) else ""
         ), "Agent should not have reached submit when no recovery is configured"
+
+
+class _WithholdsPrefixCompaction(CompactionStrategy):
+    """Native-shaped strategy, matching CompactionNative on Anthropic."""
+
+    def __init__(self) -> None:
+        # High threshold so only forced compaction (force=True) invokes this.
+        super().__init__(type="summary", threshold=10_000, memory=False)
+
+    @property
+    @override
+    def preserve_prefix(self) -> bool:
+        # the provider re-emits or encodes the user turns itself
+        return False
+
+    @override
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        return [
+            ChatMessageAssistant(content="[COMPACTED BLOCK]"),
+            ChatMessageUser(content="Please continue working."),
+        ], None
+
+
+def test_overflow_recovery_keeps_the_conversation_in_the_record() -> None:
+    """What a strategy withholds from the model must still reach the record."""
+    task_prompt = "UNIQUE-TASK-PROMPT: solve the widget problem."
+    sentinel = "SENTINEL-EARLY-TURN"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(model="mockllm/model", content=sentinel),
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Failed turn (overflow)",
+                stop_reason="model_length",
+            ),
+            ModelOutput.from_content(
+                model="mockllm/model", content="Recovered after compaction"
+            ),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "done"},
+            ),
+        ],
+    )
+
+    task = Task(
+        dataset=[Sample(input=task_prompt, target="done")],
+        solver=react(compaction=_WithholdsPrefixCompaction()),
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+
+    # without this, the agent simply terminating would satisfy the
+    # history assertions vacuously
+    compaction_events = [
+        e for e in log.samples[0].events if isinstance(e, CompactionEvent)
+    ]
+    assert "forced" in [(e.metadata or {}).get("trigger") for e in compaction_events]
+    assert "done" in (log.samples[0].output.completion or "")
+
+    texts = [m.text for m in log.samples[0].messages]
+    assert any(task_prompt in t for t in texts), (
+        f"sample input missing from the recorded conversation: {texts}"
+    )
+    assert any(sentinel in t for t in texts), (
+        f"pre-overflow turn missing from the recorded conversation: {texts}"
+    )
+    assert not any("Failed turn (overflow)" in t for t in texts), (
+        f"the failed overflow turn should not be recorded: {texts}"
+    )
+
+    # the retry must be sent the handler's reduced view, not the retained
+    # record — otherwise it would overflow again immediately
+    retry_input = [e.input for e in log.samples[0].events if e.event == "model"][-1]
+    retry_texts = [m.text for m in retry_input]
+    assert any("[COMPACTED BLOCK]" in t for t in retry_texts), (
+        f"retry was not sent the compacted view: {retry_texts}"
+    )
+    assert not any(sentinel in t or task_prompt in t for t in retry_texts), (
+        f"retry re-sent messages the strategy withheld: {retry_texts}"
+    )
+
+
+def _overflow_executor(calls: list[str]) -> Agent:
+    """Bare callable as the model: always reports a context overflow."""
+
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        calls.append("call")
+        if len(calls) > 3:
+            raise RuntimeError(
+                "overflow recovery looped: the agent was handed the same "
+                "overflowing conversation again"
+            )
+        state.output = ModelOutput.from_content(
+            model="custom/agent",
+            content="Failed turn (overflow)",
+            stop_reason="model_length",
+        )
+        state.messages.append(state.output.message)
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=["react", "react_no_submit"])
+def test_custom_agent_model_does_not_loop_on_overflow(submit: bool) -> None:
+    """Forced compaction must not claim recovery for a directly-invoked model.
+
+    `_agent_generate` invokes anything that is not `str | Model | None`
+    itself, so it never consults the compaction handler, and claiming
+    recovery would hand it the same conversation forever. The dispatch is
+    structural, so an unregistered callable is the case that discriminates.
+    """
+    calls: list[str] = []
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(
+            model=_overflow_executor(calls),
+            submit=submit,
+            compaction=CompactionTrim(threshold=10_000, preserve=0.5),
+        ),
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert log.status == "success"
+    assert len(calls) == 1, (
+        f"expected the agent to be called once and then terminate; got {len(calls)}"
+    )
