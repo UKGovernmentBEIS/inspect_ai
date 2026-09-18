@@ -64,9 +64,8 @@ from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     EgressVerificationError,
     _EgressBuild,
     _index_memo_path,
-    _IndexCoverage,
     _IndexMemo,
-    _parse_index_json,
+    _list_index_blobs,
     _run_view_restic,
     _write_member,
     egress_sandbox,
@@ -640,28 +639,35 @@ async def test_egress_rejects_index_that_remaps_an_accepted_blob(
 
 
 @pytest.mark.parametrize(
-    "edit",
+    ("edit", "restic_loads"),
     [
-        pytest.param(
-            ("dup-id", "is not a restic index"), id="duplicate-id-invalid-first"
-        ),
-        pytest.param(("escaped-type", "is not a restic index"), id="escaped-blob-type"),
-        pytest.param(("neg-zero", "is not a restic index"), id="negative-zero-offset"),
-        # restic itself refuses to `cat` this one: the BOM byte is neither
-        # '{' nor its zstd marker, so decompressUnpacked fails before any
-        # JSON is printed. It fails closed either way.
-        pytest.param(("bom", "decoding index"), id="utf8-bom"),
+        pytest.param("dup-id", False, id="duplicate-id-invalid-first"),
+        pytest.param("escaped-type", False, id="escaped-blob-type"),
+        pytest.param("neg-zero", False, id="negative-zero-offset"),
+        pytest.param("float", False, id="float-offset"),
+        pytest.param("bom", False, id="utf8-bom"),
+        pytest.param("v1", False, id="v1-array-format"),
+        pytest.param("bad-hex", False, id="non-hex-id"),
+        pytest.param("bad-type", False, id="capitalised-type"),
+        pytest.param("oversize", False, id="offset-above-uint32-panic"),
+        pytest.param("unknown-fields", True, id="unknown-fields-accepted"),
+        pytest.param("uppercase", True, id="uppercase-id-accepted"),
     ],
 )
-async def test_egress_rejects_index_restic_cannot_decode_by_representation(
-    repos: _Repos, edit: tuple[str, str]
+async def test_egress_follows_restic_on_hostile_index_shapes(
+    repos: _Repos, edit: str, restic_loads: bool
 ) -> None:
-    """An index restic's decoder refuses is refused here, whatever Python sees.
+    """Restic's own index decoder decides what an index is; egress follows it.
 
-    Each shape decodes, through Python's ``json``, to an honest-looking
-    index, but restic 0.18.1 rejects the raw representation and would abort
-    every restore once the file is in the repo. Encrypted like a real index
-    and shipped through the real egress; the earlier checkpoint restores.
+    Each shape is fire 2's honest index with one edit, encrypted like a real
+    index and shipped through the real egress. Where restic 0.18.1's
+    ``DecodeIndex`` refuses the file (or ``Index.store`` panics on an
+    oversized offset), ``list blobs`` on the view fails and the transfer is
+    refused with the earlier checkpoint restoring; where restic loads it
+    (unknown fields, which Go's decoder ignores; an uppercase id, which
+    restic prints back in lowercase), the transfer is accepted and both
+    checkpoints restore. Nothing is decided by a host re-implementation of
+    the decoder.
     """
     pytest.importorskip("cryptography")
     id1 = repos.backup("ckpt-00001")
@@ -670,28 +676,58 @@ async def test_egress_rejects_index_restic_cannot_decode_by_representation(
     (repos.src / "notes.txt").write_text("v2\n")
     id2 = repos.backup("ckpt-00002")
     crypto = _ResticCrypto(repos.repo)
-    # Start from fire 2's own honest index bytes so the only departure from
-    # what restic wrote is the representation under test.
     new_index = next(
         f.split("/", 1)[1]
         for f in repos.repo_files()
         if f.startswith("index/") and f not in repos.manifest()
     )
-    honest = json.dumps(crypto.load_index(new_index), separators=(",", ":")).encode()
-    kind, expected = edit
-    if kind == "dup-id":
+    obj = crypto.load_index(new_index)
+    honest = json.dumps(obj, separators=(",", ":")).encode()
+    blob0 = obj["packs"][0]["blobs"][0]
+    type_field = b'"type":"' + blob0["type"].encode() + b'"'
+    if edit == "dup-id":
         raw = honest.replace(b'{"id":"', b'{"id":"x","id":"', 1)
-    elif kind == "escaped-type":
-        raw = honest.replace(b'"type":"data"', b'"type":"\\u0064ata"', 1)
-    elif kind == "neg-zero":
+    elif edit == "escaped-type":
+        raw = honest.replace(type_field, b'"type":"\\u0064ata"', 1)
+    elif edit == "neg-zero":
         raw = honest.replace(b'"offset":0,', b'"offset":-0,', 1)
-    else:
+    elif edit == "float":
+        raw = honest.replace(b'"offset":0,', b'"offset":0.5,', 1)
+    elif edit == "bom":
         raw = b"\xef\xbb\xbf" + honest
+    elif edit == "v1":
+        raw = json.dumps(obj["packs"], separators=(",", ":")).encode()
+    elif edit == "bad-hex":
+        raw = honest.replace(blob0["id"].encode(), b"zz" * 32, 1)
+    elif edit == "bad-type":
+        raw = honest.replace(type_field, b'"type":"Data"', 1)
+    elif edit == "oversize":
+        blob0["offset"] = 2**32
+        raw = json.dumps(obj, separators=(",", ":")).encode()
+    elif edit == "unknown-fields":
+        obj["future"] = {"x": 1}
+        obj["packs"][0]["extra"] = 1
+        blob0["also"] = "new"
+        raw = json.dumps(obj, separators=(",", ":")).encode()
+    else:
+        raw = honest.replace(blob0["id"].encode(), blob0["id"].upper().encode(), 1)
     assert raw != honest
     (repos.repo / "index" / new_index).unlink()
     crypto.write_index_bytes(raw)
 
-    with pytest.raises(EgressVerificationError, match=expected):
+    if restic_loads:
+        assert await repos.egress("ckpt-00002", id2) == id2
+        assert await repos.dest_snapshots() == {
+            id1: ["ckpt-00001"],
+            id2: ["ckpt-00002"],
+        }
+        for snapshot_id, expected in ((id1, "v1\n"), (id2, "v2\n")):
+            restored = repos.dest.parent.parent / f"restore-{snapshot_id[:8]}"
+            repos.restore_dest(snapshot_id, restored)
+            assert next(restored.rglob("notes.txt")).read_text() == expected
+        return
+
+    with pytest.raises(EgressVerificationError, match="listing blobs"):
         await repos.egress("ckpt-00002", id2)
 
     assert repos.dest_files() == files_after_1
@@ -934,24 +970,29 @@ async def test_unloadable_snapshot_file_in_accepted_repo_is_inert(
     assert inert.is_file()
 
 
-async def test_strict_index_parser_accepts_a_restic_produced_index(
-    repos: _Repos,
-) -> None:
-    """Every index restic 0.18.1 writes passes the fail-closed host parser.
+async def test_list_blobs_reports_a_restic_produced_index(repos: _Repos) -> None:
+    """``list blobs`` on a view of one index file reports exactly that index's blobs.
 
-    A restic upgrade that adds an index field would fail here first.
+    The blob set the containment rule works from is what restic itself
+    decodes; here it is compared with the index's decrypted JSON.
     """
+    pytest.importorskip("cryptography")
     (repos.src / "big.txt").write_text("compressible " * 40_000)
     repos.backup("ckpt-00001")
-    names = sorted(os.listdir(repos.repo / "index"))
-    assert names
-    for name in names:
-        coverage = _parse_index_json(
-            repos._run("cat", "index", name).encode(), index_id=name, label="t"
-        )
-        assert coverage.packs and coverage.blobs
-        for pack in coverage.packs:
-            assert (repos.repo / "data" / pack[:2] / pack).is_file()
+    crypto = _ResticCrypto(repos.repo)
+    for name in sorted(os.listdir(repos.repo / "index")):
+        view = repos.dest.parent.parent / f"view-{name[:8]}"
+        (view / "index").mkdir(parents=True)
+        shutil.copy(repos.repo / "config", view / "config")
+        shutil.copytree(repos.repo / "keys", view / "keys")
+        shutil.copy(repos.repo / "index" / name, view / "index" / name)
+        listed = await _list_index_blobs(repos.restic, view, PASSWORD, label="t")
+        expected = {
+            f"{blob['type']}:{blob['id']}"
+            for pack in crypto.load_index(name)["packs"]
+            for blob in pack["blobs"]
+        }
+        assert listed == expected and listed
 
 
 async def test_index_memo_heals_from_repo_index_files(repos: _Repos) -> None:
@@ -983,7 +1024,7 @@ async def test_index_memo_heals_from_repo_index_files(repos: _Repos) -> None:
     # Stale: an entry with no index file is dropped, a missing one decoded.
     dropped = next(iter(indexes_2))
     memo.drop({dropped})
-    memo.add({"0" * 64: _IndexCoverage(packs=["0" * 64], blobs=["data:" + "0" * 64])})
+    memo.add({"0" * 64: ["data:" + "0" * 64]})
     (repos.src / "notes.txt").write_text("v3\n")
     id3 = repos.backup("ckpt-00003")
     assert await repos.egress("ckpt-00003", id3) == id3
@@ -991,7 +1032,7 @@ async def test_index_memo_heals_from_repo_index_files(repos: _Repos) -> None:
         f.split("/", 1)[1] for f in repos.dest_files() if f.startswith("index/")
     }
     assert memo.index_ids() == indexes_3 and len(indexes_3) == 3
-    assert memo.covered_packs(["0" * 64]) == set()
+    assert memo.located_blobs(["data:" + "0" * 64]) == set()
 
 
 async def test_two_sandboxes_with_colliding_names_keep_separate_memos(
@@ -1071,9 +1112,9 @@ async def test_egress_rejects_understated_length_on_an_accepted_blob(
     """A length lie aimed at an *accepted* blob is a reach into history: refused.
 
     Fire 2 ships an index that re-describes fire 1's data blob with an
-    understated length. It references an accepted pack an accepted index
-    already covers and locates an accepted blob, so containment rejects it
-    before anything is published, and fire 1 restores unchanged.
+    understated length. It locates a blob an accepted index already locates,
+    so containment rejects it before anything is published, and fire 1
+    restores unchanged.
     """
     pytest.importorskip("cryptography")
     (repos.src / "notes.txt").write_text("compressible " * 40_000)
@@ -1087,9 +1128,7 @@ async def test_egress_rejects_understated_length_on_an_accepted_blob(
     id2 = repos.backup("ckpt-00002")
     _understate_blob_lengths(repos.repo, accepted_indexes)
 
-    with pytest.raises(
-        EgressVerificationError, match="neither in this transfer|already locates"
-    ):
+    with pytest.raises(EgressVerificationError, match="already locates"):
         await repos.egress("ckpt-00002", id2)
 
     assert repos.dest_files() == files_after_1
@@ -1099,32 +1138,49 @@ async def test_egress_rejects_understated_length_on_an_accepted_blob(
     assert next(restored.rglob("notes.txt")).read_text() == "compressible " * 40_000
 
 
-async def test_egress_rejects_index_referencing_missing_pack(repos: _Repos) -> None:
-    """An index whose pack never arrives is rejected before merge.
+async def test_egress_accepts_index_referencing_missing_pack(repos: _Repos) -> None:
+    """An index whose pack never arrives harms only the snapshot that needs it.
 
     A real fire's data pack is dropped from the sandbox repo after the
     backup, so the egress ships the index and snapshot that reference it
-    but not the pack itself. The pack is neither in this transfer nor an
-    accepted pack, so the containment rule — the only thing that enforces
-    the pack half now that nothing reads the packs — rejects it.
+    but not the pack itself. restic reads a pack only at the offsets its own
+    index entries give for a requested blob id, and the missing pack holds
+    only new blob ids, so the earlier checkpoint is untouched; the pack half
+    of containment that used to refuse this carried none of the guarantee
+    and is gone. The new checkpoint's restore fails at restore time, which is
+    the sandbox's own business.
     """
     id1 = repos.backup("ckpt-00001")
     await repos.egress("ckpt-00001", id1)
-    files_after_1 = repos.dest_files()
     (repos.src / "notes.txt").write_text("v2\n")
     id2 = repos.backup("ckpt-00002")
-    # Drop this fire's new data pack so its index references a missing pack.
     shipped = repos.repo_files() - repos.manifest()
     new_packs = [f for f in shipped if f.startswith("data/")]
     assert new_packs, "expected the second backup to add a data pack"
     for pack in new_packs:
         (repos.repo / pack).unlink()
 
-    with pytest.raises(EgressVerificationError, match="neither in this transfer"):
-        await repos.egress("ckpt-00002", id2)
+    assert await repos.egress("ckpt-00002", id2) == id2
 
-    assert repos.dest_files() == files_after_1
-    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"], id2: ["ckpt-00002"]}
+    restored = repos.dest.parent.parent / "restore-A"
+    repos.restore_dest(id1, restored)
+    assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
+    broken = subprocess.run(
+        [
+            str(repos.restic),
+            "-r",
+            str(repos.dest),
+            "restore",
+            id2,
+            "--target",
+            str(repos.dest.parent.parent / "restore-B"),
+            "--no-lock",
+        ],
+        env={"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]},
+        capture_output=True,
+    )
+    assert broken.returncode != 0
 
 
 @pytest.mark.parametrize(
@@ -1537,7 +1593,7 @@ async def test_view_restic_bounds_attacker_shaped_stderr(tmp_path: Path) -> None
         with pytest.raises(EgressVerificationError, match="stderr truncated") as info:
             await _run_view_restic(
                 restic,
-                ["cat", "index", "x"],
+                ["list", "blobs"],
                 tmp_path / "view",
                 PASSWORD,
                 label="egress",
@@ -1558,7 +1614,7 @@ async def test_view_restic_kills_child_on_cancellation(tmp_path: Path) -> None:
     async def run() -> None:
         await _run_view_restic(
             restic,
-            ["cat", "index", "x"],
+            ["list", "blobs"],
             tmp_path / "view",
             PASSWORD,
             label="egress",

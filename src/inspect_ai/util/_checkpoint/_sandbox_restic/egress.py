@@ -46,27 +46,29 @@ Host protections:
   index, which aborts restic's index loading for the whole repository, or
   a valid index that maps an earlier blob to an attacker-supplied pack) —
   and so leave an earlier checkpoint unrestorable or silently corrupt.
-  Each new index is decrypted on the host (``restic cat index`` on a
-  throwaway view of config, keys and the new index files), parsed by a
-  strict parser that accepts only what restic's own decoder loads, and
-  must describe only this transfer's packs (plus accepted packs no
-  accepted index covers) and locate no blob an accepted index already
-  locates (:func:`_check_index_containment`). On the same view — which
-  also holds every accepted snapshot file and the new ones — ``restic
-  snapshots --json`` must list, beyond the snapshots present before, exactly
-  the shipped snapshot files, the reported one with this checkpoint's tag
+  Each new index is loaded by restic's own index decoder on the host
+  (``restic list blobs`` on a throwaway view of config, keys and that one
+  index file: an index restic cannot decode fails the command, and the
+  command prints the blob ids the index maps), and none of those blob ids
+  may be one an accepted index already locates
+  (:func:`_check_index_containment`). On a second view — config, keys,
+  every accepted snapshot file and the new ones — ``restic snapshots
+  --json`` must list, beyond the snapshots present before, exactly the
+  shipped snapshot files, the reported one with this checkpoint's tag
   (:func:`_verify_fresh_snapshot`); a new snapshot restic cannot load, or
   loads but cannot encode, fails here. New key files are refused after the
-  first cycle. A transfer that fails is rejected on the copy, so the
+  first cycle. A transfer that fails is rejected on the copies, so the
   accepted repo is never touched by a transfer that would break it; the
-  cost is two restic processes per fire, run concurrently, and work
-  proportional to the increment, nothing proportional to history. Only then are the additions
-  linked in — packs, then indexes, then snapshots — so even a hard kill
-  mid-merge leaves every earlier checkpoint restorable. Nothing here reads
-  the new packs or decodes the new snapshot: a garbage pack, an
-  understated length or an unloadable snapshot file can harm only the
-  snapshot that shipped it, which is the sandbox's own capture and not
-  something this code authenticates.
+  cost is two restic processes per fire (one per new index file plus the
+  listing; a fire normally writes one index), run concurrently, and work
+  proportional to the increment, nothing proportional to history. Only
+  then are the additions linked in — packs, then indexes, then snapshots —
+  so even a hard kill mid-merge leaves every earlier checkpoint
+  restorable. Nothing here reads the new packs or decodes the new
+  snapshot: a garbage pack, an understated length, a pack that never
+  arrived or an unloadable snapshot file can harm only the snapshot that
+  shipped it, which is the sandbox's own capture and not something this
+  code authenticates.
 
 Transfer protocol checks reject inconsistent transfers. A compromised
 sandbox can satisfy them while supplying fabricated state:
@@ -147,7 +149,7 @@ import sqlite3
 import stat
 import subprocess
 import tarfile
-from collections.abc import Collection, Iterator, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Collection, Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from functools import partial
 from itertools import islice
@@ -202,34 +204,27 @@ _MAX_VIEW_STDERR_BYTES = 64 * 1024
 """Most of a validation command's stderr kept for the error: the view is
 built from sandbox-supplied bytes, so restic's diagnostics are attacker-shaped
 and can dwarf the input (one forged index can produce megabytes)."""
-_MAX_INDEX_JSON_BYTES = 64 * 1024 * 1024
-"""Most decrypted index JSON accepted from ``restic cat index``. One fire's
-honest index describes the blobs of one increment (a few hundred KiB for a
-transfer at the cap); a sandbox-supplied index that decrypts to more than
-this is rejected rather than parsed. restic loads every index into memory
-before any restore, so an enormous accepted index would be a
+_MAX_BLOB_LISTING_BYTES = 64 * 1024 * 1024
+"""Most ``restic list blobs`` output accepted from an index view: one ~70-byte
+line per blob the index maps. One fire's honest index describes the blobs of
+one increment (thousands of lines for a transfer at the cap); an index whose
+listing exceeds this is a rejected transfer. restic loads every index into
+memory before any restore, so an enormous accepted index would be a
 repository-wide cost, which this bound caps per index."""
 _MAX_LISTING_JSON_BYTES = 64 * 1024 * 1024
 """Most ``restic snapshots --json`` output accepted from the validation view.
 The listing is O(accepted snapshots) of about 1 KiB each for honest
 snapshots; a sandbox-supplied snapshot can pad its paths and tags, and one
 that pushes the listing past this is a rejected transfer."""
-_HEX_ID_RE = re.compile(r"[0-9a-f]{64}")
-"""A restic object id as restic writes it: 32 bytes, lowercase hex."""
-_UINT_LITERAL_RE = re.compile(r"0|[1-9][0-9]*")
-"""A JSON integer literal Go's decoder accepts for a ``uint``: no sign (Go
-rejects ``-0``), no leading zeros, no fraction or exponent."""
-_JSON_WHITESPACE = frozenset(b" \t\n\r")
-_BLOB_FIELDS = frozenset({"id", "type", "offset", "length", "uncompressed_length"})
-_MAX_UINT32 = 2**32 - 1
-_INDEX_MEMO_VERSION = 1
+_BLOB_LINE_RE = re.compile(r"(data|tree) ([0-9a-fA-F]{64})")
+"""One line of ``restic list blobs``: ``<type> <id>`` as ``cmd/restic/cmd_list.go``
+prints it (``Printf("%v %v\\n", blobs.Type, blobs.ID)``)."""
+_INDEX_MEMO_VERSION = 2
 """SQLite ``user_version`` of the index memo; a file carrying another is
-discarded and rebuilt from the repo's index files."""
+discarded and rebuilt from the repo's index files. Version 1 also recorded
+the packs each index covered, for a pack rule that is gone."""
 _INDEX_MEMO_SCHEMA = (
     "CREATE TABLE indexes (id TEXT PRIMARY KEY) WITHOUT ROWID",
-    "CREATE TABLE packs (index_id TEXT NOT NULL, id TEXT NOT NULL,"
-    " PRIMARY KEY (index_id, id)) WITHOUT ROWID",
-    "CREATE INDEX packs_by_id ON packs (id)",
     "CREATE TABLE blobs (index_id TEXT NOT NULL, id TEXT NOT NULL,"
     " PRIMARY KEY (index_id, id)) WITHOUT ROWID",
     "CREATE INDEX blobs_by_id ON blobs (id)",
@@ -501,11 +496,11 @@ async def egress_sandbox(
     # would load it:
     #
     #   1. the tarball is copied out and extracted into a staging dir;
-    #   2. on a throwaway *view* (config, keys, the new index files, the
-    #      accepted and new snapshot files) each new index is decrypted,
-    #      strictly parsed and checked for containment against the accepted
-    #      indexes, and the snapshots are listed — on copies, before the
-    #      accepted repo is touched;
+    #   2. on throwaway *views* (config and keys plus, per view, one new
+    #      index file, or the accepted and new snapshot files) restic loads
+    #      each new index and lists its blobs, which are checked for
+    #      containment against the accepted indexes, and lists the
+    #      snapshots — on copies, before the accepted repo is touched;
     #   3. only then are the staged files linked into the accepted repo,
     #      packs before indexes before snapshots, so even a hard kill
     #      mid-merge leaves every earlier checkpoint restorable.
@@ -546,7 +541,13 @@ async def egress_sandbox(
             )
         )
         memo = await _reconcile_index_memo(
-            host_restic, dest_repo, password, existing=before_files, label=label
+            host_restic,
+            dest_repo,
+            password,
+            existing=before_files,
+            staging=staging,
+            view=view,
+            label=label,
         )
         validated = await _validate_view(
             host_restic,
@@ -1096,10 +1097,10 @@ async def _build_validation_view(
     """Hard-link the named accepted and staged files into ``view``.
 
     ``view`` is a throwaway repository holding just what the caller names —
-    the opening files (config, keys), the new index files and the accepted
-    and new snapshot files, a handful of small files plus O(fires) snapshot
-    files — so ``restic`` runs against a copy and a rejected fire never
-    touched the accepted repo. Hard links
+    the opening files (config, keys) plus one new index file, or the accepted
+    and new snapshot files: a handful of small files, or O(fires) of them —
+    so ``restic`` runs against a copy and a rejected fire never touched the
+    accepted repo. Hard links
     keep it O(files), not O(bytes); the validation only reads the repo, so
     sharing inodes with the accepted files is safe. The accepted repo and
     the staging dir share one filesystem (staging is a sibling of the
@@ -1143,9 +1144,10 @@ async def _build_validation_view(
 def _merge_into_repo(dest_repo: str, staging: Path, written: Sequence[str]) -> None:
     """Publish this fire's validated new files into the accepted repo.
 
-    Reached only once every new index passed containment and every new
-    snapshot listed on the view, so the accepted repo gains no index that
-    reaches into its history and no snapshot file restic cannot list. Files are
+    Reached only once restic loaded every new index and none of their blobs
+    reached into history, and every new snapshot listed on the view, so the
+    accepted repo gains no index restic cannot load or that redirects an
+    accepted blob, and no snapshot file restic cannot list. Files are
     published in restic-layout order (keys, config, packs, indexes,
     snapshots), each atomically (:func:`_publish_into`: a hard link, or a
     copy renamed into place where links are unsupported), so an
@@ -1293,13 +1295,6 @@ def _verify_published(dest_repo: str, staging: Path, written: Sequence[str]) -> 
             )
 
 
-class _IndexCoverage(NamedTuple):
-    """What one restic index file locates: pack ids and ``type:id`` blobs."""
-
-    packs: list[str]
-    blobs: list[str]
-
-
 def _index_memo_path(dest_repo: str) -> Path:
     """Where the host-side memo of what each accepted index covers lives.
 
@@ -1324,11 +1319,12 @@ def _index_memo_path(dest_repo: str) -> Path:
 class _IndexMemo:
     """The host-side memo of what each accepted index covers, in SQLite.
 
-    A cache of ``restic cat index`` output, not a source of truth:
-    :func:`_reconcile_index_memo` heals it against the index files actually
-    present. Every operation touches only the rows it names — the accepted
-    index ids, the packs and blobs this fire's new indexes reference, this
-    fire's own entries — so a fire's memo work is O(increment) however long
+    A cache of ``restic list blobs`` output per accepted index (``type:id``
+    keys), not a source of truth: :func:`_reconcile_index_memo` heals it
+    against the index files actually present. Every operation touches only
+    the rows it names — the accepted index ids, the blobs this fire's new
+    indexes map, this fire's own entries — so a fire's memo work is
+    O(increment) however long
     the history; the file grows with the accepted blob count (about 100
     bytes per blob) but is never read or rewritten whole. Anything
     unreadable — a torn copy carried through a resume, a foreign file, an
@@ -1354,35 +1350,23 @@ class _IndexMemo:
         with self._connect() as conn:
             for index_id in index_ids:
                 conn.execute("DELETE FROM blobs WHERE index_id = ?", (index_id,))
-                conn.execute("DELETE FROM packs WHERE index_id = ?", (index_id,))
                 conn.execute("DELETE FROM indexes WHERE id = ?", (index_id,))
 
-    def add(self, coverage: Mapping[str, _IndexCoverage]) -> None:
-        """Record what each of these indexes covers."""
+    def add(self, coverage: Mapping[str, Collection[str]]) -> None:
+        """Record the ``type:id`` blobs each of these indexes locates."""
         with self._connect() as conn:
-            for index_id, entry in coverage.items():
+            for index_id, blobs in coverage.items():
                 conn.execute(
                     "INSERT OR REPLACE INTO indexes (id) VALUES (?)", (index_id,)
                 )
                 conn.executemany(
-                    "INSERT OR IGNORE INTO packs (index_id, id) VALUES (?, ?)",
-                    ((index_id, pack) for pack in entry.packs),
-                )
-                conn.executemany(
                     "INSERT OR IGNORE INTO blobs (index_id, id) VALUES (?, ?)",
-                    ((index_id, blob) for blob in entry.blobs),
+                    ((index_id, blob) for blob in blobs),
                 )
-
-    def covered_packs(self, pack_ids: Collection[str]) -> set[str]:
-        """Those of ``pack_ids`` that some accepted index covers."""
-        return self._present("packs", pack_ids)
 
     def located_blobs(self, blobs: Collection[str]) -> set[str]:
         """Those of ``blobs`` (``type:id``) that some accepted index locates."""
-        return self._present("blobs", blobs)
-
-    def _present(self, table: str, ids: Collection[str]) -> set[str]:
-        wanted = sorted(set(ids))
+        wanted = sorted(set(blobs))
         found: set[str] = set()
         with self._connect() as conn:
             for start in range(0, len(wanted), _SQL_IN_BATCH):
@@ -1391,7 +1375,7 @@ class _IndexMemo:
                 found.update(
                     row[0]
                     for row in conn.execute(
-                        f"SELECT DISTINCT id FROM {table} WHERE id IN ({marks})", chunk
+                        f"SELECT DISTINCT id FROM blobs WHERE id IN ({marks})", chunk
                     )
                 )
         return found
@@ -1436,177 +1420,64 @@ class _IndexMemo:
                 os.unlink(self.path.with_name(self.path.name + suffix))
 
 
-async def _decode_index(
-    host_restic: Path, repo: Path, index_id: str, password: str, *, label: str
-) -> _IndexCoverage:
-    """``restic cat index <id>`` on ``repo``, strictly parsed into what it locates.
+def _index_view_dir(view: Path, index_id: str) -> Path:
+    """The throwaway view restic loads one index file from, beside ``view``."""
+    return view.with_name(f"{view.name}-index-{index_id[:16]}")
 
-    The host holds the password, so restic does the decryption; the
-    resulting JSON, bounded by :data:`_MAX_INDEX_JSON_BYTES`, is then parsed
-    by :func:`_parse_index_json`. An index that does not decrypt (the
-    demonstrated poisoning) or that the parser refuses is a rejected
-    transfer.
+
+async def _list_index_blobs(
+    host_restic: Path, view: Path, password: str, *, label: str
+) -> set[str]:
+    """The ``type:id`` blobs the index file(s) in ``view`` locate, by restic's own decoder.
+
+    ``restic list blobs`` (``cmd/restic/cmd_list.go``, v0.18.1) calls
+    ``repo.LoadIndex`` — ``MasterIndex.Load`` in
+    ``internal/repository/index/master_index.go``, which returns the first
+    ``DecodeIndex`` error from ``internal/repository/index/index.go`` — and
+    then prints ``<type> <id>`` for every entry of every loaded index
+    (``MasterIndex.Each``). So an index restic cannot decode fails the
+    command (the demonstrated poisoning: an undecryptable file; also a
+    malformed one, which would otherwise block *every* restore), an index
+    whose offset or length exceeds ``math.MaxUint32`` panics *this* process
+    (``Index.store``) instead of a later restore's, and what comes back for
+    a view holding one new index file is exactly the set of blob ids that
+    index maps, produced by the authority itself. The host normalises rather
+    than validates: restic has already accepted the file, so a line is
+    split, its hex lowercased (restic prints lowercase; the id it parsed may
+    have been spelled either way), and a blob two index files both map is
+    counted once. ``list`` takes ``--no-lock``/``--no-cache`` like the
+    listing; the view holds no packs, and ``list blobs`` reads none.
     """
     raw = await _run_view_restic(
         host_restic,
-        ["cat", "index", index_id],
-        repo,
+        ["list", "blobs"],
+        view,
         password,
         label=label,
-        what=f"decoding index {index_id[:8]}",
-        max_stdout_bytes=_MAX_INDEX_JSON_BYTES,
+        what="listing blobs",
+        max_stdout_bytes=_MAX_BLOB_LISTING_BYTES,
     )
-    return _parse_index_json(raw, index_id=index_id, label=label)
+    return _parse_blob_listing(raw, label=label)
 
 
-def _parse_index_json(raw: bytes, *, index_id: str, label: str) -> _IndexCoverage:
-    """Parse a decrypted restic index, accepting only what restic can load.
+def _parse_blob_listing(raw: bytes, *, label: str) -> set[str]:
+    """``restic list blobs`` output as a set of lowercase ``type:id`` keys.
 
-    ``restic cat index`` prints the decrypted bytes without running restic's
-    index decoder, and an index restic cannot decode aborts index loading
-    for the whole repository — ``MasterIndex.Load`` returns the first error
-    (``internal/repository/index/master_index.go``) — which blocks every
-    restore. Nothing else in the egress runs that decoder before publish,
-    so this parser stands in for it: it accepts a strict subset of what
-    restic 0.18.1's decoder accepts, so that anything the host publishes is
-    something restic can load. The authority is ``DecodeIndex`` and the
-    ``jsonIndex``/``packJSON``/``blobJSON`` structs in
-    ``internal/repository/index/index.go``, ``ID.UnmarshalJSON`` in
-    ``internal/restic/id.go`` and ``BlobType.UnmarshalJSON`` in
-    ``internal/restic/blob.go``, all at tag v0.18.1:
-
-    - top-level: an object with ``packs`` (a list) and optionally
-      ``supersedes`` (a list of ids; restic 0.18.1 has dropped the field
-      from its struct and ignores it), nothing else. The obsolete v1
-      top-level-array format is refused (restic 0.18.1 no longer decodes
-      it either);
-    - each pack: an object with ``id`` and ``blobs`` (a list), nothing else;
-      a pack id repeated within one file is tolerated, as restic tolerates
-      it (``addToPacks`` appends);
-    - each blob: an object with ``id``, ``type`` in ``data``/``tree`` (the
-      only two ``BlobType.UnmarshalJSON`` accepts), ``offset`` and
-      ``length``, optionally ``uncompressed_length``, nothing else; the
-      three numbers are non-negative integers at most 2**32 - 1 — Go
-      rejects negative or fractional values for ``uint``, and
-      ``Index.store`` *panics* on anything above ``math.MaxUint32``, which
-      would crash every later restic process;
-    - every id: exactly 64 lowercase hex digits. restic decodes hex of
-      either case, so an uppercase spelling of an accepted blob's id would
-      be the same blob to restic but a different string to the containment
-      rule; refusing it keeps the two in agreement.
-
-    The check runs on the *representation*, not on what Python's decoder
-    makes of it, because restic's custom decoders look at the raw JSON
-    tokens: ``ID.UnmarshalJSON`` hex-decodes the 66 raw bytes of the token
-    and ``BlobType.UnmarshalJSON`` compares the raw token to ``"data"`` /
-    ``"tree"``, so an escaped spelling (``data`` written with a JSON unicode
-    escape) is rejected there though it decodes to the same string; Go rejects ``-0`` for a ``uint``
-    though it is the integer 0; Go processes every occurrence of a
-    duplicated key, so an invalid first value fails restic though a later
-    valid one is all Python would keep; and Go reads UTF-8 without a BOM,
-    while Python's ``json.loads(bytes)`` would strip a BOM or decode
-    UTF-16. So: the bytes must be ASCII with no control bytes outside JSON
-    whitespace (an honest index is pure ASCII), must contain no backslash
-    (no string in an honest index has an escape, and without one a token
-    is its decoded value), every integer literal must match
-    :data:`_UINT_LITERAL_RE` (no floats, exponents or ``NaN``), and no
-    object may repeat a key. Each of these refuses a transfer restic would
-    load; none admits one it would not.
-
-    Fail closed: any unknown field, wrong type, bad hex or unknown blob type
-    rejects the transfer. Go's JSON decoder ignores unknown fields, so a
-    restic upgrade that adds a field to its index format fails honest
-    transfers closed until this parser learns it; the real-restic tests
-    (``tests/checkpoint/test_sandbox_egress_restic.py``) run against the
-    pinned binary and are what catch that on a version bump.
+    A line that is not ``data|tree <64 hex>`` is not something restic prints
+    for a loaded index and rejects the transfer.
     """
-
-    def refuse(why: str) -> EgressVerificationError:
-        return EgressVerificationError(
-            f"{label}: the received repository files failed validation "
-            f"(index {index_id[:8]} is not a restic index: {why})"
-        )
-
-    def hex_id(value: object, what: str) -> str:
-        if not isinstance(value, str) or not _HEX_ID_RE.fullmatch(value):
-            raise refuse(f"{what} is not a 64-digit lowercase hex id")
-        return value
-
-    def uint32(value: object, what: str) -> int:
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise refuse(f"{what} is not an integer")
-        if not 0 <= value <= _MAX_UINT32:
-            raise refuse(f"{what} is outside 0..2**32-1")
-        return value
-
-    def strict_int(literal: str) -> int:
-        if not _UINT_LITERAL_RE.fullmatch(literal):
-            raise refuse(f"integer literal {literal!r} is not an unsigned decimal")
-        return int(literal)
-
-    def no_float(literal: str) -> None:
-        raise refuse(f"number {literal!r} is not an integer")
-
-    def no_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-        obj = dict(pairs)
-        if len(obj) != len(pairs):
-            raise refuse("an object repeats a key")
-        return obj
-
-    if not raw.isascii() or any(
-        byte < 0x20 and byte not in _JSON_WHITESPACE for byte in raw
-    ):
-        raise refuse("not ASCII JSON (a BOM, another encoding or a control byte)")
-    if b"\\" in raw:
-        raise refuse("a string uses an escape sequence")
-    try:
-        data = json.loads(
-            raw.decode("ascii"),
-            object_pairs_hook=no_duplicate_keys,
-            parse_int=strict_int,
-            parse_float=no_float,
-            parse_constant=no_float,
-        )
-    except ValueError as exc:
-        raise refuse(f"not JSON: {exc}") from exc
-    if not isinstance(data, dict):
-        raise refuse("top level is not an object (v1 index format?)")
-    if unknown := set(data) - {"packs", "supersedes"}:
-        raise refuse(f"unknown top-level field(s) {sorted(unknown)}")
-    supersedes = data.get("supersedes", [])
-    if not isinstance(supersedes, list):
-        raise refuse("'supersedes' is not a list")
-    for sup in supersedes:
-        hex_id(sup, "a 'supersedes' entry")
-    packs = data.get("packs")
-    if not isinstance(packs, list):
-        raise refuse("'packs' is missing or not a list")
-    pack_ids: list[str] = []
-    blobs: list[str] = []
-    for pack in packs:
-        if not isinstance(pack, dict):
-            raise refuse("a pack is not an object")
-        if unknown := set(pack) - {"id", "blobs"}:
-            raise refuse(f"unknown pack field(s) {sorted(unknown)}")
-        pack_ids.append(hex_id(pack.get("id"), "a pack id"))
-        pack_blobs = pack.get("blobs")
-        if not isinstance(pack_blobs, list):
-            raise refuse("a pack's 'blobs' is missing or not a list")
-        for blob in pack_blobs:
-            if not isinstance(blob, dict):
-                raise refuse("a blob is not an object")
-            if unknown := set(blob) - _BLOB_FIELDS:
-                raise refuse(f"unknown blob field(s) {sorted(unknown)}")
-            blob_type = blob.get("type")
-            if blob_type not in ("data", "tree"):
-                raise refuse(f"blob type {blob_type!r} is not 'data' or 'tree'")
-            blob_id = hex_id(blob.get("id"), "a blob id")
-            uint32(blob.get("offset"), "a blob offset")
-            uint32(blob.get("length"), "a blob length")
-            if "uncompressed_length" in blob:
-                uint32(blob["uncompressed_length"], "a blob uncompressed_length")
-            blobs.append(f"{blob_type}:{blob_id}")
-    return _IndexCoverage(packs=pack_ids, blobs=blobs)
+    blobs: set[str] = set()
+    for line in raw.decode("ascii", errors="replace").splitlines():
+        if not line:
+            continue
+        match = _BLOB_LINE_RE.fullmatch(line)
+        if match is None:
+            raise EgressVerificationError(
+                f"{label}: the received repository files failed validation "
+                f"(restic's blob listing has an unexpected line {line[:80]!r})"
+            )
+        blobs.add(f"{match.group(1)}:{match.group(2).lower()}")
+    return blobs
 
 
 async def _reconcile_index_memo(
@@ -1615,15 +1486,19 @@ async def _reconcile_index_memo(
     password: str,
     *,
     existing: Collection[str],
+    staging: Path,
+    view: Path,
     label: str,
 ) -> _IndexMemo:
     """The accepted indexes' memo, healed against the index files present.
 
     Entries whose index file is gone are dropped; index files the memo does
-    not know are decoded (normally none, or one left by a hard kill between
-    publish and the memo append; every one of them on the first fire of this
-    code over an existing repo, or after a resume, whose copy carries no
-    memo). No separate rebuild path exists or is needed.
+    not know are listed by restic (``list blobs`` on a view holding just that
+    index file plus config and keys, one process per missing index: normally
+    none, or one left by a hard kill between publish and the memo append;
+    every one of them on the first fire of this code over an existing repo,
+    after a resume whose copy carries no memo, or after a memo schema bump).
+    No separate rebuild path exists or is needed.
     """
     memo = _IndexMemo(_index_memo_path(dest_repo))
     known = await anyio.to_thread.run_sync(memo.index_ids)
@@ -1633,50 +1508,51 @@ async def _reconcile_index_memo(
         await anyio.to_thread.run_sync(memo.drop, stale)
     missing = sorted(present - known)
     if missing:
-        decoded = {}
+        opening = [
+            rel for rel in existing if rel == "config" or rel.startswith("keys/")
+        ]
+        decoded: dict[str, set[str]] = {}
         for index_id in missing:
-            decoded[index_id] = await _decode_index(
-                host_restic, Path(dest_repo), index_id, password, label=label
+            index_view = _index_view_dir(view, index_id)
+            await _build_validation_view(
+                index_view,
+                existing_repo=dest_repo,
+                existing=[*opening, f"index/{index_id}"],
+                staging=staging,
+                written=[],
+            )
+            decoded[index_id] = await _list_index_blobs(
+                host_restic, index_view, password, label=label
             )
         await anyio.to_thread.run_sync(memo.add, decoded)
     return memo
 
 
 def _check_index_containment(
-    coverage: dict[str, _IndexCoverage],
+    coverage: Mapping[str, Collection[str]],
     *,
-    new_pack_ids: Collection[str],
-    accepted_packs: Collection[str],
-    covered_packs: Collection[str],
     accepted_blobs: Collection[str],
     label: str,
 ) -> None:
-    """Reject a new index that reaches beyond this transfer.
+    """Reject a new index that locates a blob an accepted index already locates.
 
-    A new index may describe only this transfer's packs, plus accepted packs
-    (``accepted_packs``) that no accepted index covers (``covered_packs``:
-    the residue a hard kill leaves when packs published but their index did
-    not), and may not locate any blob an accepted index already locates
-    (``accepted_blobs``). The caller need only answer for the packs and
-    blobs the new indexes reference, so the check is O(increment). An honest ``restic backup`` writes
-    indexes covering only the packs it just wrote and deduplicates against
-    the existing index, so it never violates either rule; an index that does
-    is the only way a later transfer could change where restic looks for an
-    earlier snapshot's blob. The pack half is enforced only here: nothing
-    downstream reads the new packs or would fail on a missing one.
+    ``coverage`` maps each new index id to the ``type:id`` blobs restic says
+    it locates; ``accepted_blobs`` is the subset of those that some accepted
+    index already locates (the caller asks the memo only about the blobs the
+    new indexes map, so the check is O(increment)). An honest ``restic
+    backup`` deduplicates against the existing index, so it never re-stores
+    an indexed blob and never violates this; an index that does is the only
+    way a later transfer could change where restic looks for an earlier
+    snapshot's blob. restic looks blobs up by ``(type, id)``, so the key is
+    ``type:id``: an entry for ``data:X`` cannot redirect a lookup of
+    ``tree:X``. There is no rule about which packs a new index may
+    reference: restic reads a pack only at the offsets its own index entries
+    give for a requested blob id, so an entry that points a *new* blob id at
+    any pack — accepted, new, or absent — affects lookups of that new blob
+    only, which is the new snapshot's own business.
     """
-    for index_id, entry in coverage.items():
-        for pack in entry.packs:
-            if pack in new_pack_ids:
-                continue
-            if pack in accepted_packs and pack not in covered_packs:
-                continue
-            raise EgressVerificationError(
-                f"{label}: the received repository files failed validation "
-                f"(index {index_id[:8]} references pack {pack[:8]}, which is "
-                f"neither in this transfer nor an accepted pack without an index)"
-            )
-        remapped = [blob for blob in entry.blobs if blob in accepted_blobs]
+    for index_id, blobs in coverage.items():
+        remapped = sorted(blob for blob in blobs if blob in accepted_blobs)
         if remapped:
             raise EgressVerificationError(
                 f"{label}: the received repository files failed validation "
@@ -1686,9 +1562,9 @@ def _check_index_containment(
 
 
 class _Validated(NamedTuple):
-    """What validating the view established: the new indexes' coverage and the id."""
+    """What validating the views established: the new indexes' blobs and the id."""
 
-    coverage: dict[str, _IndexCoverage]
+    coverage: dict[str, set[str]]
     verified_id: str
 
 
@@ -1707,66 +1583,74 @@ async def _validate_view(
     tag: str,
     label: str,
 ) -> _Validated:
-    """Validate this fire's increment on a throwaway view, before anything is published.
+    """Validate this fire's increment on throwaway views, before anything is published.
 
     Every repository file but an index is content-addressed and self-
     contained, and an accepted file is never overwritten, so a later transfer
     can only affect an earlier snapshot by changing where restic looks for
     one of its blobs — which only index files do (and key files, which decide
     whether the repo opens at all; those are refused after the first cycle by
-    :func:`_extract_verified`). The view holds config, keys, the new index
-    files, every accepted snapshot file and the new snapshot files — a
-    handful of small files plus O(fires) snapshot files, hard-linked (or
-    copied where links are unsupported). Two restic processes run on it
-    concurrently (they are independent, so the wall-time floor is one key
-    derivation):
+    :func:`_extract_verified`). Two kinds of view, all small, hard-linked (or
+    copied where links are unsupported), and every restic process on them
+    runs concurrently, since they are independent (the wall-time floor is one
+    key derivation):
 
-    1. ``restic cat index`` per new index, parsed by :func:`_parse_index_json`,
-       which accepts only what restic's own decoder loads, so a malformed or
-       undecryptable index — the one shape that would block *every* restore —
-       fails here; then each may describe only this transfer's packs plus
-       accepted packs no accepted index covers, and may not locate a blob an
-       accepted index already locates (:func:`_check_index_containment`,
-       against the healed memo). ``cat index`` neither reads snapshot files
-       nor loads indexes, so the snapshot files in the view change nothing
-       it validates.
-    2. ``restic snapshots --json`` (:func:`_verify_fresh_snapshot`), which
-       must list exactly the shipped snapshot files beyond those present
-       before, the reported one with this checkpoint's tag. ``snapshots``
-       does not load indexes, so the new index files in the view change
-       nothing it validates either.
+    1. Per new index file, a view of config, keys and that file, on which
+       ``restic list blobs`` (:func:`_list_index_blobs`) makes restic's own
+       decoder load the index — a malformed or undecryptable index, the one
+       shape that would block *every* restore, fails here — and print the
+       blob ids it maps; none may be one an accepted index already locates
+       (:func:`_check_index_containment`, against the healed memo). One view
+       per index rather than one for all, because ``list blobs`` prints the
+       union and the memo records blobs per index so that a dropped index
+       file releases exactly its own. A fire normally writes one index.
+    2. A view of config, keys, every accepted snapshot file and the new
+       ones, on which ``restic snapshots --json``
+       (:func:`_verify_fresh_snapshot`) must list exactly the shipped
+       snapshot files beyond those present before, the reported one with
+       this checkpoint's tag.
 
     The new packs are not read: with containment holding, every earlier
     snapshot's blobs stay located where their own accepted indexes put them,
-    so a garbage pack or an understated length can harm only the snapshot
-    that shipped them.
+    so a garbage pack, an understated length or a missing pack can harm only
+    the snapshot that shipped them.
     """
-    new_packs = [rel for rel in written if rel.startswith("data/")]
     new_indexes = [rel for rel in written if rel.startswith("index/")]
     new_snapshots = [rel for rel in written if rel.startswith("snapshots/")]
     opening = [rel for rel in written if rel == "config" or rel.startswith("keys/")]
-    accepted_view = [
-        rel
-        for rel in existing
-        if rel == "config" or rel.startswith(("keys/", "snapshots/"))
+    accepted_opening = [
+        rel for rel in existing if rel == "config" or rel.startswith("keys/")
     ]
+    accepted_snapshots = [rel for rel in existing if rel.startswith("snapshots/")]
     await _build_validation_view(
         view,
         existing_repo=dest_repo,
-        existing=accepted_view,
+        existing=accepted_opening + accepted_snapshots,
         staging=staging,
-        written=opening + new_indexes + new_snapshots,
+        written=opening + new_snapshots,
     )
+    index_views: dict[str, Path] = {}
+    for rel in new_indexes:
+        index_id = rel.split("/", 1)[1]
+        index_views[index_id] = _index_view_dir(view, index_id)
+        await _build_validation_view(
+            index_views[index_id],
+            existing_repo=dest_repo,
+            existing=accepted_opening,
+            staging=staging,
+            written=opening + [rel],
+        )
 
-    coverage: dict[str, _IndexCoverage] = {}
+    coverage: dict[str, set[str]] = {}
     verified: list[str] = []
 
-    async def decode_indexes() -> None:
-        for rel in new_indexes:
-            index_id = rel.split("/", 1)[1]
-            coverage[index_id] = await _decode_index(
-                host_restic, view, index_id, password, label=label
+    def list_index(index_id: str) -> Callable[[], Awaitable[None]]:
+        async def run() -> None:
+            coverage[index_id] = await _list_index_blobs(
+                host_restic, index_views[index_id], password, label=label
             )
+
+        return run
 
     async def list_view_snapshots() -> None:
         verified.append(
@@ -1782,20 +1666,13 @@ async def _validate_view(
             )
         )
 
-    await tg_collect([decode_indexes, list_view_snapshots])
+    await tg_collect(
+        [list_index(index_id) for index_id in index_views] + [list_view_snapshots]
+    )
     (verified_id,) = verified
-    referenced_packs = {pack for entry in coverage.values() for pack in entry.packs}
-    referenced_blobs = {blob for entry in coverage.values() for blob in entry.blobs}
-    accepted_packs = {
-        rel.rsplit("/", 1)[1] for rel in existing if rel.startswith("data/")
-    }
+    referenced_blobs = {blob for blobs in coverage.values() for blob in blobs}
     _check_index_containment(
         coverage,
-        new_pack_ids={rel.rsplit("/", 1)[1] for rel in new_packs},
-        accepted_packs=accepted_packs,
-        covered_packs=await anyio.to_thread.run_sync(
-            memo.covered_packs, referenced_packs
-        ),
         accepted_blobs=await anyio.to_thread.run_sync(
             memo.located_blobs, referenced_blobs
         ),

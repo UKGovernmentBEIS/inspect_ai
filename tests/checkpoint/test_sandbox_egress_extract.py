@@ -16,14 +16,12 @@ from __future__ import annotations
 import errno
 import hashlib
 import io
-import json
-import re
 import sqlite3
 import tarfile
 import tracemalloc
 from collections.abc import Collection, Sequence
 from pathlib import Path
-from typing import IO, Any
+from typing import IO
 from unittest.mock import patch
 
 import anyio
@@ -36,10 +34,9 @@ from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     _check_index_containment,
     _extract_verified,
     _index_memo_path,
-    _IndexCoverage,
     _IndexMemo,
     _merge_into_repo,
-    _parse_index_json,
+    _parse_blob_listing,
     _publish_into,
     _remove_files,
     _verify_published,
@@ -822,214 +819,46 @@ async def test_build_validation_view_enumerates_lazily_and_cancels_early(
 # --- index containment and the index memo -------------------------------
 
 
-def test_index_containment_allows_own_packs_and_unindexed_residue() -> None:
-    """A new index may cover this transfer's packs and unindexed accepted packs."""
-    coverage = {
-        "i1": _IndexCoverage(packs=["p_new", "p_residue"], blobs=["data:b1", "tree:t1"])
-    }
-    _check_index_containment(
-        coverage,
-        new_pack_ids={"p_new"},
-        accepted_packs={"p_residue", "p_other_residue", "p_indexed"},
-        covered_packs={"p_indexed"},
-        accepted_blobs={"data:old"},
-        label="t",
-    )
-
-
-def test_index_containment_rejects_pack_outside_the_transfer() -> None:
-    """A pack that is neither new nor unindexed residue is a reach into history."""
-    for accepted, covered in (({"p_accepted"}, {"p_accepted"}), (set(), set())):
-        coverage = {"i1": _IndexCoverage(packs=["p_accepted"], blobs=["data:b1"])}
-        with pytest.raises(EgressVerificationError, match="neither in this transfer"):
-            _check_index_containment(
-                coverage,
-                new_pack_ids={"p_new"},
-                accepted_packs=accepted,
-                covered_packs=covered,
-                accepted_blobs=set(),
-                label="t",
-            )
-
-
 def test_index_containment_rejects_remapped_blob() -> None:
-    """A new index may not locate a blob an accepted index already locates."""
-    coverage = {"i1": _IndexCoverage(packs=["p_new"], blobs=["data:new", "data:old"])}
+    """A new index may not locate a blob an accepted index already locates.
+
+    There is no pack rule any more (a new index may point its own new blobs
+    at any pack; only entries for accepted blob ids reach back), so the
+    former "own packs and unindexed residue" and "pack outside the transfer"
+    cases are gone with it.
+    """
+    coverage = {"i1": {"data:new", "data:old", "tree:t"}}
+    _check_index_containment(coverage, accepted_blobs=set(), label="t")
     with pytest.raises(EgressVerificationError, match="already locates"):
-        _check_index_containment(
-            coverage,
-            new_pack_ids={"p_new"},
-            accepted_packs=set(),
-            covered_packs=set(),
-            accepted_blobs={"data:old"},
-            label="t",
-        )
+        _check_index_containment(coverage, accepted_blobs={"data:old"}, label="t")
+    # Keys are type:id — restic looks blobs up by (type, id), so the same
+    # hash as a tree and as a data blob are different lookups.
+    _check_index_containment(coverage, accepted_blobs={"data:t"}, label="t")
 
 
 _HEX_A = "a" * 64
 _HEX_B = "b" * 64
-_HONEST_INDEX = {
-    "packs": [
-        {
-            "id": _HEX_A,
-            "blobs": [
-                {"id": _HEX_B, "type": "data", "offset": 0, "length": 10},
-                {
-                    "id": "c" * 64,
-                    "type": "tree",
-                    "offset": 10,
-                    "length": 20,
-                    "uncompressed_length": 30,
-                },
-            ],
-        }
-    ]
-}
 
 
-def _index_with(**changes: Any) -> bytes:
-    """A restic-shaped index with one change applied at the named path."""
-    obj: Any = json.loads(json.dumps(_HONEST_INDEX))
-    for path, value in changes.items():
-        target = obj
-        keys = path.split("__")
-        for key in keys[:-1]:
-            target = target[int(key)] if isinstance(target, list) else target[key]
-        last = keys[-1]
-        if value is _DELETE:
-            del target[last]
-        elif isinstance(target, list):
-            target[int(last)] = value
-        else:
-            target[last] = value
-    return json.dumps(obj).encode()
+def test_parse_blob_listing_normalises_restic_output() -> None:
+    """``list blobs`` lines become lowercase ``type:id`` keys, deduplicated.
 
-
-_DELETE = object()
-
-
-def test_strict_index_parser_accepts_restic_shape() -> None:
-    """The exact shape restic 0.18.1 writes parses to its packs and blobs."""
-    coverage = _parse_index_json(
-        json.dumps(_HONEST_INDEX).encode(), index_id="i" * 64, label="t"
-    )
-    assert coverage.packs == [_HEX_A]
-    assert coverage.blobs == [f"data:{_HEX_B}", "tree:" + "c" * 64]
-    # `supersedes` is accepted (restic ignores it); a repeated pack id is
-    # tolerated, as restic tolerates it.
-    obj = json.loads(json.dumps(_HONEST_INDEX))
-    obj["supersedes"] = ["d" * 64]
-    obj["packs"].append(obj["packs"][0])
-    coverage = _parse_index_json(json.dumps(obj).encode(), index_id="i" * 64, label="t")
-    assert coverage.packs == [_HEX_A, _HEX_A]
-    # No packs at all loads (restic: an empty index).
-    assert _parse_index_json(b'{"packs": []}', index_id="i" * 64, label="t") == (
-        [],
-        [],
-    )
-
-
-@pytest.mark.parametrize(
-    ("raw", "why"),
-    [
-        (b"not json", "not JSON"),
-        (b"[]", "v1 index format"),
-        (json.dumps([{"id": _HEX_A, "blobs": []}]).encode(), "v1 index format"),
-        (b'{"packs": null}', "'packs' is missing or not a list"),
-        (b"{}", "'packs' is missing or not a list"),
-        (_index_with(extra=1), "unknown top-level field"),
-        (_index_with(supersedes="x"), "'supersedes' is not a list"),
-        (_index_with(supersedes=["x"]), "'supersedes' entry is not a 64-digit"),
-        (_index_with(packs__0__extra=1), "unknown pack field"),
-        (_index_with(packs__0__id=_DELETE), "pack id is not a 64-digit"),
-        (_index_with(packs__0__id=_HEX_A.upper()), "pack id is not a 64-digit"),
-        (_index_with(packs__0__id=_HEX_A[:63]), "pack id is not a 64-digit"),
-        (_index_with(packs__0__blobs=None), "'blobs' is missing or not a list"),
-        (_index_with(packs__0__blobs__0="x"), "a blob is not an object"),
-        (_index_with(packs__0__blobs__0__extra=1), "unknown blob field"),
-        (_index_with(packs__0__blobs__0__type="Data"), "not 'data' or 'tree'"),
-        (_index_with(packs__0__blobs__0__type=_DELETE), "not 'data' or 'tree'"),
-        (_index_with(packs__0__blobs__0__id=_HEX_B.upper()), "blob id is not a 64"),
-        (_index_with(packs__0__blobs__0__id="zz" * 32), "blob id is not a 64"),
-        (_index_with(packs__0__blobs__0__offset=-1), "not an unsigned decimal"),
-        (_index_with(packs__0__blobs__0__offset=2**32), "offset is outside"),
-        (_index_with(packs__0__blobs__0__offset=1.5), "is not an integer"),
-        (_index_with(packs__0__blobs__0__offset=True), "offset is not an integer"),
-        (_index_with(packs__0__blobs__0__offset=None), "offset is not an integer"),
-        (_index_with(packs__0__blobs__0__length=_DELETE), "length is not an integer"),
-        (_index_with(packs__0__blobs__0__length="10"), "length is not an integer"),
-        (
-            _index_with(packs__0__blobs__1__uncompressed_length=2**32),
-            "uncompressed_length is outside",
-        ),
-    ],
-)
-def test_strict_index_parser_fails_closed(raw: bytes, why: str) -> None:
-    """Every departure from restic's index shape rejects the transfer."""
-    with pytest.raises(EgressVerificationError, match=re.escape(why)):
-        _parse_index_json(raw, index_id="i" * 64, label="t")
-
-
-_HONEST_RAW = json.dumps(_HONEST_INDEX, separators=(",", ":")).encode()
-
-
-def _raw(old: bytes, new: bytes) -> bytes:
-    """The honest index's exact bytes with one substitution."""
-    assert _HONEST_RAW.count(old) == 1, old
-    return _HONEST_RAW.replace(old, new)
-
-
-@pytest.mark.parametrize(
-    ("raw", "why"),
-    [
-        # Duplicate keys at each object level, an invalid value first: Go
-        # processes both and fails on the first; Python alone would keep
-        # only the valid second.
-        (_raw(b'{"packs":', b'{"packs":"x","packs":'), "repeats a key"),
-        (
-            _raw(b'{"id":"' + b"a" * 64, b'{"id":"x","id":"' + b"a" * 64),
-            "repeats a key",
-        ),
-        (_raw(b'"type":"data"', b'"type":"x","type":"data"'), "repeats a key"),
-        (_raw(b'"offset":0', b'"offset":0,"offset":0'), "repeats a key"),
-        # Escaped spellings decode to the right string but restic's ID and
-        # BlobType decoders look at the raw token.
-        (_raw(b'"id":"' + b"a" * 64, b'"id":"\\u0061' + b"a" * 63), "escape sequence"),
-        (_raw(b'"type":"data"', b'"type":"\\u0064ata"'), "escape sequence"),
-        (_raw(b'"type":"tree"', b'"type":"tr\\u0065e"'), "escape sequence"),
-        (_raw(b'"packs":', b'"pack\\u0073":'), "escape sequence"),
-        # Negative zero is 0 to Python and an error for a Go uint.
-        (_raw(b'"offset":0', b'"offset":-0'), "not an unsigned decimal"),
-        (_raw(b'"length":10', b'"length":-0'), "not an unsigned decimal"),
-        (
-            _raw(b'"uncompressed_length":30', b'"uncompressed_length":-0'),
-            "not an unsigned decimal",
-        ),
-        (_raw(b'"offset":0', b'"offset":00'), "not JSON"),
-        (_raw(b'"offset":0', b'"offset":1.0'), "not an integer"),
-        (_raw(b'"offset":0', b'"offset":1e2'), "not an integer"),
-        (_raw(b'"offset":0', b'"offset":NaN'), "not an integer"),
-        # Encodings: Go reads UTF-8 without a BOM; Python's bytes decoder
-        # would strip a BOM or decode UTF-16.
-        (b"\xef\xbb\xbf" + _HONEST_RAW, "not ASCII JSON"),
-        (_HONEST_RAW.decode().encode("utf-16"), "not ASCII JSON"),
-        (_HONEST_RAW.decode().encode("utf-16-le"), "not ASCII JSON"),
-        (_raw(b'"type":"data"', b'"type":"dat\xc3\xa1"'), "not ASCII JSON"),
-        (_raw(b'{"packs":', b'{\x00"packs":'), "not ASCII JSON"),
-        (_raw(b'{"packs":', b'{\x1f"packs":'), "not ASCII JSON"),
-    ],
-)
-def test_strict_index_parser_checks_the_representation(raw: bytes, why: str) -> None:
-    """Representations restic's decoders refuse are refused before decoding.
-
-    ``json.dumps`` fixtures cannot express these; each case edits the honest
-    index's exact bytes.
+    The host normalises rather than validates: restic already loaded the
+    index. Only a line restic would never print for a loaded index rejects.
     """
-    with pytest.raises(EgressVerificationError, match=re.escape(why)):
-        _parse_index_json(raw, index_id="i" * 64, label="t")
-    # JSON whitespace is fine anywhere restic accepts it.
-    spaced = _HONEST_RAW.replace(b",", b" ,\n\t").replace(b":", b"\r: ")
-    assert _parse_index_json(spaced, index_id="i" * 64, label="t").packs == [_HEX_A]
+    raw = (
+        f"data {_HEX_A}\ntree {_HEX_B}\ndata {_HEX_A.upper()}\n\ntree {_HEX_B}\n"
+    ).encode()
+    assert _parse_blob_listing(raw, label="t") == {f"data:{_HEX_A}", f"tree:{_HEX_B}"}
+    assert _parse_blob_listing(b"", label="t") == set()
+    for bad in (
+        b"data " + b"a" * 63,
+        b"blob " + b"a" * 64,
+        b"data  " + b"a" * 64,
+        b"x",
+    ):
+        with pytest.raises(EgressVerificationError, match="unexpected line"):
+            _parse_blob_listing(bad + b"\n", label="t")
 
 
 def test_index_memo_path_is_outside_the_sandbox_namespace(tmp_path: Path) -> None:
@@ -1053,10 +882,9 @@ def test_index_memo_roundtrip_and_tolerance(tmp_path: Path) -> None:
     path = tmp_path / "index-memos" / "m.sqlite"
     memo = _IndexMemo(path)
     assert memo.index_ids() == set()
-    memo.add({"i1": _IndexCoverage(packs=["p1"], blobs=["data:b1", "tree:t1"])})
-    memo.add({"i2": _IndexCoverage(packs=["p2"], blobs=["data:b2"])})
+    memo.add({"i1": ["data:b1", "tree:t1"]})
+    memo.add({"i2": {"data:b2"}})
     assert memo.index_ids() == {"i1", "i2"}
-    assert memo.covered_packs(["p1", "p2", "p9"]) == {"p1", "p2"}
     assert memo.located_blobs(["data:b1", "data:b2", "data:b9"]) == {
         "data:b1",
         "data:b2",
@@ -1064,10 +892,9 @@ def test_index_memo_roundtrip_and_tolerance(tmp_path: Path) -> None:
     assert memo.located_blobs([]) == set()
     memo.drop({"i1"})
     assert memo.index_ids() == {"i2"}
-    assert memo.covered_packs(["p1", "p2"]) == {"p2"}
     assert memo.located_blobs(["data:b1", "tree:t1", "data:b2"]) == {"data:b2"}
     # Re-adding is idempotent, and lookups far past one IN batch work.
-    memo.add({"i2": _IndexCoverage(packs=["p2"], blobs=["data:b2"])})
+    memo.add({"i2": ["data:b2"]})
     assert memo.located_blobs([f"data:{i}" for i in range(1500)] + ["data:b2"]) == {
         "data:b2"
     }
@@ -1075,7 +902,7 @@ def test_index_memo_roundtrip_and_tolerance(tmp_path: Path) -> None:
     # Not a database: discarded and rebuilt empty.
     path.write_bytes(b"this is not sqlite" * 100)
     assert memo.index_ids() == set()
-    memo.add({"i3": _IndexCoverage(packs=[], blobs=[])})
+    memo.add({"i3": []})
     assert memo.index_ids() == {"i3"}
     # Another schema version: discarded.
     with sqlite3.connect(path) as conn:
@@ -1086,7 +913,7 @@ def test_index_memo_roundtrip_and_tolerance(tmp_path: Path) -> None:
     with sqlite3.connect(path) as conn:
         conn.execute("CREATE TABLE indexes (id INTEGER)")
     assert memo.index_ids() == set()
-    assert memo.covered_packs(["p"]) == set()
+    assert memo.located_blobs(["data:b"]) == set()
 
 
 def test_index_memo_work_is_flat_in_history(tmp_path: Path) -> None:
@@ -1099,22 +926,12 @@ def test_index_memo_work_is_flat_in_history(tmp_path: Path) -> None:
     def increment_peak(history_indexes: int) -> int:
         memo = _IndexMemo(tmp_path / f"h{history_indexes}.sqlite")
         for n in range(history_indexes):
-            memo.add(
-                {
-                    f"i{n:06d}": _IndexCoverage(
-                        packs=[f"p{n:06d}"],
-                        blobs=[f"data:{n:06d}{b:058d}" for b in range(1000)],
-                    )
-                }
-            )
-        new = _IndexCoverage(
-            packs=["p_new"], blobs=[f"data:new{b:057d}" for b in range(1000)]
-        )
+            memo.add({f"i{n:06d}": [f"data:{n:06d}{b:058d}" for b in range(1000)]})
+        new = [f"data:new{b:057d}" for b in range(1000)]
         tracemalloc.start()
         try:
             memo.index_ids()
-            assert memo.covered_packs(new.packs) == set()
-            assert memo.located_blobs(new.blobs) == set()
+            assert memo.located_blobs(new) == set()
             memo.add({"i_new": new})
             return tracemalloc.get_traced_memory()[1]
         finally:

@@ -425,66 +425,86 @@ with an understated length, leaves an earlier snapshot's restore silently
 wrong (verified against restic 0.18.1: plain `check`/`ls` report no error and
 the restore succeeds with the wrong bytes).
 
-*Containment rule.* Each new index file is decrypted on the host (`restic
-cat index <id>` on a throwaway view of config, keys and the new index files)
-and rejected if it references a pack that is neither in this transfer nor an
-accepted pack no accepted index covers, or if it locates a blob an accepted
-index already locates. An honest `restic backup` never violates either
-half: it writes indexes covering only the packs it just wrote, and it
-deduplicates against the existing index, so it never re-stores an indexed
-blob (verified against restic 0.18.1 for a second backup after a first, and
-for a backup following an interrupted one). The accepted-but-unindexed pack
-allowance is for the residue a hard kill leaves when a fire's packs were
-published but its index was not: the next honest backup may reference them.
-The pack half is enforced only by this rule — nothing downstream reads the
-new packs or would fail on a missing one. What each accepted index covers is
-kept in a host-side memo, a SQLite file at
-`restic/index-memos/<sha256(sandbox)>.sqlite` (a directory no sandbox name
-can claim, with a fixed-length basename), a cache of `cat index` output
-healed on every fire against the index files actually present: entries whose
-file is gone are dropped, files it does not know are decoded (normally none;
-every one of them on this code's first fire over an existing repo or after a
-resume), anything unreadable is discarded and rebuilt. A fire touches only
-the rows it names, so memo work is O(increment); the file grows with the
-accepted blob count but is never read or rewritten whole.
+*Containment rule.* Each new index file is loaded by restic's own index
+decoder on the host — `restic list blobs` on a throwaway view of config,
+keys and that one index file — and the `type:id` blobs restic prints for it
+may not include any that an accepted index already locates. An honest
+`restic backup` never violates this: it deduplicates against the existing
+index, so it never re-stores an indexed blob (verified against restic 0.18.1
+for a second backup after a first, and for a backup following an interrupted
+one). The key is `type:id`, not the id alone, because restic looks blobs up
+by `(type, id)`: an entry for `data:X` cannot redirect a lookup of `tree:X`,
+and a file whose content is exactly a tree's JSON gives a data blob with a
+tree blob's id. What each accepted index locates is kept in a host-side
+memo, a SQLite file at `restic/index-memos/<sha256(sandbox)>.sqlite` (a
+directory no sandbox name can claim, with a fixed-length basename), a cache
+of `list blobs` output per index healed on every fire against the index
+files actually present: entries whose file is gone are dropped, files it
+does not know are listed by restic (one process per missing index, on a view
+of config, keys and that file; normally none; every one of them on this
+code's first fire over an existing repo, after a resume, or after a memo
+schema bump, which discards the old file), anything unreadable is discarded
+and rebuilt. A fire touches only the rows it names, so memo work is
+O(increment); the file grows with the accepted blob count but is never read
+or rewritten whole.
 
-*Strict parser.* `cat index` prints the decrypted bytes without running
-restic's index decoder, and nothing else in the egress runs that decoder
-before publish, so the host parser (`_parse_index_json`) stands in for it as
-the authority on loadability: it accepts a strict subset of what restic
-0.18.1's `DecodeIndex` accepts, so that anything the host publishes is
-something restic can load. Top-level object with `packs` (list) and optional
-`supersedes` (list of ids; restic 0.18.1 ignores it), nothing else; the
-obsolete v1 top-level-array format refused; each pack an object with `id`
-and `blobs`, nothing else (a repeated pack id tolerated, as restic tolerates
-it); each blob an object with `id`, `type` in `data`/`tree`, `offset`,
-`length`, optional `uncompressed_length`, nothing else; the three numbers
-non-negative integers at most 2^32 − 1 (restic's `Index.store` *panics*
-above `math.MaxUint32`, which would crash every later restic process); every
-id exactly 64 lowercase hex digits (restic decodes either case, so an
-uppercase spelling of an accepted blob's id would be the same blob to restic
-and a different string to the containment rule). The decrypted JSON is
-bounded at 64 MiB per index — restic loads every index into memory before a
-restore, so an enormous accepted index is a repository-wide cost. Fail
-closed: any unknown field, wrong type, bad hex or unknown blob type rejects
-the transfer. Go's JSON decoder ignores unknown fields, so a restic upgrade
-that adds an index field fails honest transfers closed until the parser
-learns it; the real-restic tests run against the pinned binary and catch
-that on a version bump (`test_strict_index_parser_accepts_a_restic_produced_index`).
+*No pack rule.* Earlier rounds also required a new index to reference only
+this transfer's packs (or accepted packs no accepted index covered, the
+residue a hard kill leaves). That half carried none of the guarantee, and
+`list blobs` prints no pack ids, so it is gone. restic reads a pack only at
+the offsets its own index entries give for a requested blob id; a
+new-index entry that points a *new* blob id at an accepted pack, a new pack
+or a pack that never arrived affects lookups of that new blob only, which is
+the new snapshot's own business. Entries for *accepted* blob ids are what
+reach back, and that is the blob half, which `list blobs` covers completely.
+Honest backups never reference foreign packs anyway, so nothing honest is
+newly permitted; the residue allowance and the memo's `packs` table went
+with the rule (`test_egress_accepts_index_referencing_missing_pack`: the
+earlier checkpoint restores, the new one fails at restore time).
+
+*restic is the decoder.* `list blobs` (`cmd/restic/cmd_list.go`, v0.18.1)
+calls `repo.LoadIndex` — `MasterIndex.Load` in
+`internal/repository/index/master_index.go`, which returns the first
+`DecodeIndex` error from `internal/repository/index/index.go` — and then
+prints `<type> <id>` for every entry of every loaded index
+(`MasterIndex.Each`). So an index restic cannot decode fails the command
+before publish (an undecryptable file; a malformed one, which would
+otherwise abort index loading for the whole repository and block *every*
+restore), an index whose offset or length exceeds `math.MaxUint32` panics
+*this* process (`Index.store`, exit 2) instead of a later restore's, and the
+blob ids come from the authority itself. Verified against restic 0.18.1:
+the output is one lowercase `<type> <id>` line per entry, a blob two index
+files both map prints twice (the host dedupes), `list` accepts
+`--no-lock`/`--no-cache`, an undecodable index exits 1, the oversize offset
+exits 2 with a Go panic on stderr (within the bounded stderr capture), and a
+view holding no packs is fine because `list blobs` reads none. The host
+normalises rather than validates (split lines, lowercase the hex, refuse a
+line that is not `data|tree <64 hex>`, which restic never prints for a
+loaded index): whatever restic accepts, egress accepts — unknown fields,
+which Go's decoder ignores; an uppercase id, which restic prints back in
+lowercase so containment compares canonical spellings
+(`test_egress_follows_restic_on_hostile_index_shapes`). Earlier rounds
+re-implemented restic's decoder as a strict host parser with an allowlist
+and representation rules; that duplication, which review round 8 showed is
+hard to keep faithful and every restic upgrade puts at risk, is gone, and
+with it the "restic upgrade adding an index field fails honest transfers
+closed" behaviour: a new field is loaded by the new restic and accepted.
 
 *The two restic invocations per fire, and why each is there.* Both run on
-one throwaway view — config, keys, the new index files, every accepted
-snapshot file and the new snapshot files (hard links to the inodes the
-accepted repo holds or will hold; copies where links are unsupported) —
-and concurrently, since they are independent, so the wall-time floor is
-one key derivation. One view serves both without changing what either
-validates: `cat index` reads only the index file it names and never loads
-snapshot files, and `snapshots` never loads indexes.
+throwaway views — config and keys plus, per view, one new index file, or
+every accepted snapshot file and the new ones (hard links to the inodes the
+accepted repo holds or will hold; copies where links are unsupported) — and
+concurrently, since they are independent, so the wall-time floor is one key
+derivation. One view per new index rather than one for all, because `list
+blobs` prints the union and the memo records blobs per index so that a
+dropped index file releases exactly its own; a fire normally writes one
+index, so normally two processes.
 
-1. `restic cat index <id>`, one per new index file (normally one), before
-   publish. Kept: it is the only source of the new index's pack and blob
-   ids, which the containment rule needs, and containment is what carries
-   the guarantee.
+1. `restic list blobs --no-lock --no-cache`, one per new index file, before
+   publish. Kept: restic's own index decoder is the authority on whether the
+   index loads, and its output is the only source of the new index's blob
+   ids, which the containment rule needs; containment is what carries the
+   guarantee.
 2. `restic snapshots --json --no-lock --no-cache`, before publish (moved
    from after publish on the accepted repository; decision: Ransom,
    2026-09-18, option A of review round 8's B2). The checks are the ones
@@ -526,9 +546,9 @@ snapshot files, and `snapshots` never loads indexes.
   so a garbage new pack, an understated length or a missing pack can affect
   only blobs the new snapshot's trees reference — the sandbox's own capture,
   which this design does not authenticate. What `check` still provided was
-  restic's own authority that the new index *loads*; the strict parser
-  above is the condition for dropping it. Residual: the new snapshot's own
-  bytes are not verified at fire time (below).
+  restic's own authority that the new index *loads*; `list blobs` now
+  supplies exactly that. Residual: the new snapshot's own bytes are not
+  verified at fire time (below).
 - *`restic cat snapshot <id>` on the view* decoded each new snapshot file
   before publish. It stays removed because the pre-publish listing now
   covers it: a snapshot file restic cannot load is absent from the view's
@@ -592,27 +612,20 @@ SSD, 50 MB increments of 70% incompressible / 30% text, 40 fires):
 
 | fire | accepted repo | egress wall |
 |---|---|---|
-| 1 | 0.03 GB | 0.74 s |
+| 1 | 0.03 GB | 0.69 s |
 | 20 | 0.70 GB | 0.70 s |
 | 40 | 1.40 GB | 0.71 s |
 
-All 40 fires fell in 0.69–0.74 s; least-squares slope 0.00 s/GB (the two
-processes in sequence measured 1.21–1.26 s on the same host).
+All 40 fires fell in 0.68–0.76 s; least-squares slope 0.02 s/GB, noise (the
+two processes in sequence measured 1.21–1.26 s on the same host; `list
+blobs` costs the same as the `cat index` it replaced).
 
-*Strict parser, representation.* The check runs on the raw bytes, not on
-what Python's decoder makes of them, because restic's custom decoders look
-at raw JSON tokens: `ID.UnmarshalJSON` hex-decodes the 66 token bytes and
-`BlobType.UnmarshalJSON` compares the token to `"data"`/`"tree"`, so an
-escaped spelling that decodes to the same string is refused there; Go
-rejects `-0` for a `uint`; Go processes every occurrence of a duplicated key
-and fails on an invalid first value that Python alone would discard; Go
-reads UTF-8 without a BOM. So the bytes must be ASCII without control bytes
-outside JSON whitespace, contain no backslash, every integer literal must be
-an unsigned decimal without leading zeros, and no object may repeat a key.
-Each refuses a transfer restic would load; none admits one it would not
-(pure raw-byte tests for the family, and four shapes shipped through the
-real egress as encrypted indexes, each refused with the earlier snapshot
-restoring).
+*Guarantee, restated.* A later transfer cannot make an earlier committed
+snapshot unrestorable or alter its restored contents because: earlier files
+are never overwritten; every new index file is one restic's own decoder
+loads; no blob an accepted index locates is located by a new index; every
+new snapshot file was listed by restic before it was published; and no new
+key file is accepted after the first cycle.
 
 *What is given up relative to the earlier designs — decisions (Ransom,
 2026-09-18), not open questions.*
@@ -628,8 +641,9 @@ restoring).
   `test_egress_accepts_understated_length_on_new_blobs`; aimed at an
   accepted blob the same shapes are rejected by containment).
 - Unloadable snapshot residue (a file restic skips) is retained as
-  harmless, and a restic upgrade that adds an index field fails honest
-  transfers closed until the strict parser is updated.
+  harmless. (The earlier "a restic upgrade that adds an index field fails
+  honest transfers closed until the strict parser is updated" went with the
+  parser: restic is the decoder, so a new restic's new field is accepted.)
 - restic itself no longer reads the accepted repository after publish; the
   view listing before publish plus the stat check after stand in for it,
   as above.
