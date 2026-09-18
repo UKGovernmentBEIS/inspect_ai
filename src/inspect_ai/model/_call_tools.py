@@ -319,12 +319,16 @@ async def _execute_tools_impl(
 
             except Exception as ex:
                 mapped = tool_call_error(ex, call.function)
-                if mapped is None:
-                    tool_exception = ex
-                else:
+                if mapped is not None:
                     tool_error = mapped.error
                     if mapped.result is not None:
                         result = mapped.result
+                elif isinstance(ex, ValueError):
+                    # pre-existing: a ValueError other than the null-byte case
+                    # escapes the per-call handler rather than being captured
+                    raise
+                else:
+                    tool_exception = ex
 
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
