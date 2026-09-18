@@ -5,6 +5,7 @@ via the MCP protocol using BridgedToolsSpec and sandbox_agent_bridge.
 """
 
 import json
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -28,6 +29,9 @@ from inspect_ai.util import sandbox
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 if TYPE_CHECKING:
     from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
@@ -958,21 +962,26 @@ async def test_bridged_tool_grouped_tool_error_is_unwrapped_for_the_model() -> N
 
     `execute_tools` unwraps the `ExceptionGroup` before classifying; so must
     the bridge, or a recoverable error from a tool using a task group (real MCP
-    tools do) would fail the sample.
+    tools do) would fail the sample. The group itself still propagates, as it
+    did before, so the service dispatcher sees what it always saw.
     """
+    from inspect_ai.util._anyio import inner_exception
+
     bridge = _bridge_with_tools([raising_in_task_group_tool(ToolError("recoverable"))])
 
-    with pytest.raises(ToolError, match="recoverable"):
+    with pytest.raises(ExceptionGroup) as excinfo:
         await call_tool(bridge)("srv", "raising_in_task_group_tool", {"text": "hi"})
 
+    assert isinstance(inner_exception(excinfo.value), ToolError)
     assert not bridge._failure_requested.is_set()
 
 
 async def test_bridged_tool_grouped_unexpected_exception_fails_the_sample() -> None:
+    """The sample fails with the unwrapped exception, as it would natively."""
     error = KeyError("missing")
     bridge = _bridge_with_tools([raising_in_task_group_tool(error)])
 
-    with pytest.raises(KeyError):
+    with pytest.raises(ExceptionGroup):
         await call_tool(bridge)("srv", "raising_in_task_group_tool", {"text": "hi"})
 
     assert bridge._failure is error

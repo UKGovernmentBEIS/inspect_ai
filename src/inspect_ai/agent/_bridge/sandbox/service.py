@@ -257,14 +257,15 @@ def call_tool(
     Arguments are validated against the tool's schema as for a native call, so
     a scaffold's malformed arguments surface as a `ToolParsingError` the model
     can recover from; they are otherwise forwarded as the scaffold sent them.
-    Exceptions are unwrapped from any task-group `ExceptionGroup` first, as
-    `execute_tools` does. Those a native call would show the model
-    (`_is_tool_call_error`) propagate as the RPC error the scaffold reads as
-    tool output. Any other exception is a bug in the eval's tool, which
-    natively fails the sample: it is signalled through `bridge.request_fail`
-    so the bridge's monitor task ends the sample at once, and still propagates
-    so the RPC unwinds with an error reply (the teardown may pre-empt its
-    delivery; the scaffold's turn is over either way).
+    Exceptions are classified after unwrapping any task-group
+    `ExceptionGroup`, as `execute_tools` does. Those a native call would show
+    the model (`_is_tool_call_error`) propagate unchanged as the RPC error the
+    scaffold reads as tool output. Any other exception is a bug in the eval's
+    tool, which natively fails the sample: the unwrapped exception is
+    signalled through `bridge.request_fail` so the bridge's monitor task ends
+    the sample at once, and the original still propagates so the RPC unwinds
+    with an error reply (the teardown may pre-empt its delivery; the
+    scaffold's turn is over either way).
     """
 
     async def execute(
@@ -290,10 +291,13 @@ def call_tool(
                 raise ToolParsingError(validation_errors)
             result = await tool_fn(**arguments)
         except Exception as ex:
-            inner_ex = inner_exception(ex)
-            if not _is_tool_call_error(inner_ex):
-                bridge.request_fail(inner_ex)
-            raise inner_ex.with_traceback(inner_ex.__traceback__)
+            # classify the unwrapped exception, but let the original propagate:
+            # the service dispatcher special-cases a bare LimitExceededError
+            # (ending the sample), and unwrapping a grouped one would newly
+            # route it there
+            if not _is_tool_call_error(inner_exception(ex)):
+                bridge.request_fail(inner_exception(ex))
+            raise
 
         # Plain strings are returned verbatim (the MCP `tools/call` text part
         # carries them as-is). For anything else, use pydantic_core.to_json so
