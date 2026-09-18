@@ -14,14 +14,23 @@ import logging
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, Literal, cast
+from uuid import uuid4
 
 import anyio
 import pytest
 from anthropic.types import MessageParam, TextBlockParam
+from test_helpers.utils import skip_if_no_anthropic
 
 import inspect_ai.model._providers.anthropic as anthropic_module
-from inspect_ai._util.content import ContentText
-from inspect_ai.model._chat_message import ChatMessageSystem, ChatMessageUser
+from inspect_ai._util.content import Content, ContentText
+from inspect_ai.model import get_model
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.model._providers.anthropic import (
@@ -32,6 +41,8 @@ from inspect_ai.model._providers.anthropic import (
 from inspect_ai.model._providers.anthropic import (
     add_lookback_cache_control as _add_lookback_cache_control,
 )
+from inspect_ai.tool import ToolCall, ToolInfo
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 CACHE = {"type": "ephemeral"}
 
@@ -788,3 +799,982 @@ def test_never_tags_thinking_block(block_type: str) -> None:
                 "redacted_thinking",
             ):
                 assert "cache_control" not in b
+
+
+# ---------------------------------------------------------------------------
+# (h) explicit breakpoints (ContentText.cache_breakpoint)
+# ---------------------------------------------------------------------------
+
+
+async def _generate_request(
+    api: AnthropicAPI,
+    input: list[ChatMessage],
+    config: GenerateConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    tools: list[ToolInfo] | None = None,
+) -> dict[str, Any]:
+    """The single request `generate()` issues for `input` under `config`."""
+    requests = _capture_requests(api, monkeypatch)
+    await api.generate(
+        input=input, tools=tools or [], tool_choice="auto", config=config
+    )
+    assert len(requests) == 1
+    return requests[0]
+
+
+def _rubric_then_items(*, breakpoint: bool, items: int = 1) -> list[ChatMessage]:
+    """A judge-shaped user turn: a fixed rubric block, then varying item blocks."""
+    content: list[Content] = [ContentText(text="rubric", cache_breakpoint=breakpoint)]
+    content.extend(ContentText(text=f"item-{i}") for i in range(items))
+    return [ChatMessageUser(content=content)]
+
+
+@pytest.mark.anyio
+async def test_default_caching_tags_lookback_and_auto_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(),
+        [ChatMessageSystem(content="system")] + _rubric_then_items(breakpoint=False),
+        GenerateConfig(),
+        monkeypatch,
+    )
+    assert request["cache_control"] == CACHE
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert tagged(request["messages"]) == [(0, 0)]
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_replaces_lookback_and_auto_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # three blocks: lookback alone would tag the middle (varying) block
+    request = await _generate_request(
+        _auto_api(),
+        _rubric_then_items(breakpoint=True, items=2),
+        GenerateConfig(),
+        monkeypatch,
+    )
+    assert "cache_control" not in request
+    assert tagged(request["messages"]) == [(0, 0)]
+    assert request["messages"][0]["content"][0]["cache_control"] == CACHE
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_keeps_system_breakpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(),
+        [ChatMessageSystem(content="system")] + _rubric_then_items(breakpoint=True),
+        GenerateConfig(),
+        monkeypatch,
+    )
+    assert "cache_control" not in request
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert tagged(request["messages"]) == [(0, 0)]
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_carries_request_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(cache_ttl="1h"),
+        _rubric_then_items(breakpoint=True),
+        GenerateConfig(),
+        monkeypatch,
+    )
+    assert request["messages"][0]["content"][0]["cache_control"] == {
+        "type": "ephemeral",
+        "ttl": "1h",
+    }
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_stripped_when_cache_prompt_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(),
+        _rubric_then_items(breakpoint=True),
+        GenerateConfig(cache_prompt=False),
+        monkeypatch,
+    )
+    assert "cache_control" not in request
+    assert tagged(request["messages"]) == []
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_keeps_tools_breakpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = _auto_api()
+    requests = _capture_requests(api, monkeypatch)
+    await api.generate(
+        input=[ChatMessageSystem(content="system")]
+        + _rubric_then_items(breakpoint=True),
+        tools=[ToolInfo(name="f", description="a tool")],
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+    request = requests[0]
+    assert "cache_control" not in request
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert request["tools"][-1]["cache_control"] == CACHE
+    assert tagged(request["messages"]) == [(0, 0)]
+
+
+@pytest.mark.anyio
+async def test_system_only_mark_suppresses_message_lookback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller mark on the system block alone must suppress the automatic message-lookback marker.
+
+    A lookback point on the variable tool result would write past the
+    caller's chosen boundary.
+    """
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content=[ContentText(text="stable", cache_breakpoint=True)]),
+        ChatMessageUser(content="task"),
+        ChatMessageAssistant(
+            content="", tool_calls=[ToolCall(id="t1", function="f", arguments={})]
+        ),
+        ChatMessageTool(content="variable result", tool_call_id="t1", function="f"),
+    ]
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert tagged(request["messages"]) == []
+
+
+@pytest.mark.anyio
+async def test_four_system_marks_suppress_message_lookback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Four explicit system marks plus a two-block user message must total exactly 4 real markers.
+
+    Not 5 (four system marks plus a lookback point on the user content the
+    budget calculation didn't count).
+    """
+    system_blocks: list[Content] = [
+        ContentText(text=f"system-{i}", cache_breakpoint=True) for i in range(4)
+    ]
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content=system_blocks),
+        ChatMessageUser(content=[ContentText(text="a"), ContentText(text="b")]),
+    ]
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    assert len(request["system"]) == 4
+    assert all(block["cache_control"] == CACHE for block in request["system"])
+    assert tagged(request["messages"]) == []
+
+
+@pytest.mark.anyio
+async def test_marked_mid_conversation_reminder_forces_whole_layout_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A mark flattened into a `<system-reminder>` must not be silently dropped.
+
+    Models without mid-conversation support convert a mid-conversation
+    system message into a `<system-reminder>` user turn. If that message
+    carried an explicit mark, it must not be silently dropped while a
+    surviving user mark is still honored — the whole layout falls back to
+    normal automatic caching instead of a partial explicit layout.
+    """
+    input: list[ChatMessage] = [
+        ChatMessageUser(content=[ContentText(text="rubric", cache_breakpoint=True)]),
+        ChatMessageAssistant(content="ok"),
+        ChatMessageSystem(
+            content=[ContentText(text="mid-system", cache_breakpoint=True)]
+        ),
+        ChatMessageUser(content="question"),
+    ]
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    # whole-request fallback: the user's own mark is discarded too, and
+    # normal automatic (top-level) caching takes over instead
+    assert request["cache_control"] == CACHE
+    assert "cache_control" not in request["messages"][0]["content"][0]
+
+
+def _input_with_marks(marked: int) -> list[ChatMessage]:
+    content: list[Content] = [
+        ContentText(text=f"doc-{i}", cache_breakpoint=True) for i in range(marked)
+    ]
+    content.append(ContentText(text="item"))
+    return [ChatMessageSystem(content="system"), ChatMessageUser(content=content)]
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoints_over_budget_falls_back_to_automatic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # system + tools + 2 explicit markers is the ceiling
+    api = _auto_api()
+    requests = _capture_requests(api, monkeypatch)
+    tools = [ToolInfo(name="f", description="a tool")]
+
+    await api.generate(
+        input=_input_with_marks(2),
+        tools=tools,
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+    # 5 explicit marks alone exceed the budget even with every automatic
+    # marker dropped. Anthropic rejects a request over the budget, so this
+    # must fall back to normal automatic caching for the whole request
+    # rather than raising or sending a truncated explicit layout.
+    await api.generate(
+        input=_input_with_marks(5),
+        tools=tools,
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+    request = requests[-1]
+    # normal automatic caching: lookback marks the second-to-last cacheable
+    # block (doc-4, index 4 of 6), not any of the caller's discarded marks
+    assert tagged(request["messages"]) == [(0, 4)]
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert request["tools"][-1]["cache_control"] == CACHE
+
+
+@pytest.mark.anyio
+async def test_explicit_breakpoints_take_priority_over_automatic_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 3 explicit marks + system + tools = 5, one over budget. The caller's
+    # explicit marks are kept; the automatic tools marker is dropped instead
+    # of rejecting the request.
+    tools = [ToolInfo(name="f", description="a tool")]
+    api = _auto_api()
+    requests = _capture_requests(api, monkeypatch)
+    await api.generate(
+        input=_input_with_marks(3),
+        tools=tools,
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+    request = requests[0]
+    assert "cache_control" not in request["tools"][-1]
+    assert request["system"][-1]["cache_control"] == CACHE
+    assert tagged(request["messages"]) == [(0, 0), (0, 1), (0, 2)]
+
+
+def _tool_result_input() -> list[ChatMessage]:
+    """A tool loop whose result carries a breakpoint, then a follow-up question."""
+    return [
+        ChatMessageUser(content="task"),
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[ToolCall(id="t1", function="f", arguments={})],
+        ),
+        ChatMessageTool(
+            content=[ContentText(text="big document", cache_breakpoint=True)],
+            tool_call_id="t1",
+            function="f",
+        ),
+        ChatMessageUser(content="question"),
+    ]
+
+
+def _tool_result_positions(messages: list[dict[str, Any]]) -> list[tuple[int, int]]:
+    return [
+        (mi, bi)
+        for mi, message in enumerate(messages)
+        if isinstance(message["content"], list)
+        for bi, block in enumerate(message["content"])
+        if block.get("type") == "tool_result"
+    ]
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_in_tool_result_falls_back_to_automatic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a marked tool result is not supported (conservative fallback, not
+    # every placement): the whole request falls back to normal automatic
+    # caching rather than moving the mark to the enclosing tool_result block.
+    input = _tool_result_input()
+    marked_request = await _generate_request(
+        _auto_api(), input, GenerateConfig(), monkeypatch
+    )
+    unmarked_request = await _generate_request(
+        _auto_api(), _strip_marks(input), GenerateConfig(), monkeypatch
+    )
+    _assert_matches_hints_removed_baseline(marked_request, unmarked_request)
+    # the mark itself was discarded: the tool_result's inner content block
+    # never carries cache_control (not widened there). Whether the outer
+    # tool_result block is tagged is up to normal automatic-caching lookback
+    # (already asserted identical to the unmarked baseline above).
+    messages = marked_request["messages"]
+    tool_result = messages[_tool_result_positions(messages)[0][0]]["content"][
+        _tool_result_positions(messages)[0][1]
+    ]
+    assert all("cache_control" not in block for block in tool_result["content"])
+
+
+@pytest.mark.anyio
+async def test_cache_prompt_false_strips_hoisted_tool_result_breakpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(),
+        _tool_result_input(),
+        GenerateConfig(cache_prompt=False),
+        monkeypatch,
+    )
+    assert "cache_control" not in request
+    messages = request["messages"]
+    assert tagged(messages) == []
+    (position,) = _tool_result_positions(messages)
+    tool_result = messages[position[0]]["content"][position[1]]
+    assert all("cache_control" not in block for block in tool_result["content"])
+
+
+def test_content_text_cache_breakpoint_round_trips() -> None:
+    block = ContentText(text="rubric", cache_breakpoint=True)
+    assert ContentText.model_validate_json(block.model_dump_json()) == block
+    # logs written before the field existed load with it unset
+    legacy = ContentText.model_validate({"type": "text", "text": "rubric"})
+    assert legacy.cache_breakpoint is None
+
+
+def _non_final_tool_result_input(*, breakpoint: bool) -> list[ChatMessage]:
+    return [
+        ChatMessageUser(content="task"),
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[ToolCall(id="t1", function="f", arguments={})],
+        ),
+        ChatMessageTool(
+            content=[
+                ContentText(text="stable prefix", cache_breakpoint=breakpoint),
+                ContentText(text="varying suffix"),
+            ],
+            tool_call_id="t1",
+            function="f",
+        ),
+        ChatMessageUser(content="question"),
+    ]
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoint_in_non_final_tool_result_block_falls_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a mark on a non-final block of a multi-block tool result can't be
+    # honored at its requested position (Anthropic can only mark the whole
+    # result); the whole request must fall back to normal automatic caching
+    # rather than silently widening the mark past the unmarked suffix
+    marked_request = await _generate_request(
+        _auto_api(),
+        _non_final_tool_result_input(breakpoint=True),
+        GenerateConfig(),
+        monkeypatch,
+    )
+    unmarked_request = await _generate_request(
+        _auto_api(),
+        _non_final_tool_result_input(breakpoint=False),
+        GenerateConfig(),
+        monkeypatch,
+    )
+    # the inner content blocks never carry cache_control (not widened there),
+    # and the overall request is indistinguishable from the unmarked case —
+    # the unsupported mark was discarded, not relocated
+    messages = marked_request["messages"]
+    tool_pos = _tool_result_positions(messages)[0]
+    tool_result = messages[tool_pos[0]]["content"][tool_pos[1]]
+    assert all("cache_control" not in block for block in tool_result["content"])
+    ignore = {"extra_headers"}
+    assert {k: v for k, v in marked_request.items() if k not in ignore} == {
+        k: v for k, v in unmarked_request.items() if k not in ignore
+    }
+
+
+# ---------------------------------------------------------------------------
+# (i) system content boundaries (ContentText.cache_breakpoint in system content)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_system_cache_breakpoint_preserves_stable_varying_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a marked stable system block followed by a varying one must not be
+    # flattened into a single string and cached through the varying part
+    request = await _generate_request(
+        _auto_api(),
+        [
+            ChatMessageSystem(
+                content=[
+                    ContentText(text="stable rubric", cache_breakpoint=True),
+                    ContentText(text="varying instructions"),
+                ]
+            ),
+            ChatMessageUser(content="item"),
+        ],
+        GenerateConfig(),
+        monkeypatch,
+    )
+    system = request["system"]
+    assert [b["text"] for b in system] == ["stable rubric", "varying instructions"]
+    assert system[0]["cache_control"] == CACHE
+    # the varying tail is not auto-marked (that would cache-write it every call)
+    assert "cache_control" not in system[1]
+    # no other automatic breakpoints appear since messages are unmarked and
+    # cache_prompt has no explicit message marks, so lookback still applies
+    assert tagged(request["messages"]) == []
+
+
+@pytest.mark.anyio
+async def test_system_without_explicit_mark_keeps_automatic_last_block(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(),
+        [
+            ChatMessageSystem(
+                content=[
+                    ContentText(text="block a"),
+                    ContentText(text="block b"),
+                ]
+            ),
+            ChatMessageUser(content="item"),
+        ],
+        GenerateConfig(),
+        monkeypatch,
+    )
+    system = request["system"]
+    # unmarked system content keeps its prior flattened representation (a
+    # single joined block), not one block per ContentText part
+    assert [b["text"] for b in system] == ["block a\nblock b"]
+    assert system[0]["cache_control"] == CACHE
+
+
+# ---------------------------------------------------------------------------
+# (j) disabled/fallback payloads must match the same request with hints
+# removed — not a hint-stripped version of an already-marked conversion.
+# ---------------------------------------------------------------------------
+
+
+def _strip_marks(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Test-local copy of `messages` with every `cache_breakpoint` cleared."""
+    result: list[ChatMessage] = []
+    for m in messages:
+        if isinstance(m.content, list):
+            m = m.model_copy(
+                update={
+                    "content": [
+                        b.model_copy(update={"cache_breakpoint": None})
+                        if isinstance(b, ContentText)
+                        else b
+                        for b in m.content
+                    ]
+                }
+            )
+        result.append(m)
+    return result
+
+
+def _assert_matches_hints_removed_baseline(
+    request: dict[str, Any], baseline: dict[str, Any]
+) -> None:
+    ignore = {"extra_headers"}
+    assert {k: v for k, v in request.items() if k not in ignore} == {
+        k: v for k, v in baseline.items() if k not in ignore
+    }
+
+
+@pytest.mark.anyio
+async def test_cache_prompt_false_matches_hints_removed_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # cache_prompt=False must produce exactly the same request as the same
+    # messages with every cache_breakpoint hint removed — not the marked
+    # conversion (multiple system blocks) with only `cache_control` fields
+    # stripped back out.
+    input: list[ChatMessage] = [
+        ChatMessageSystem(
+            content=[
+                ContentText(text="stable", cache_breakpoint=True),
+                ContentText(text="varying"),
+            ]
+        ),
+        ChatMessageUser(content="q"),
+    ]
+    before = [m.model_dump() for m in input]
+    request = await _generate_request(
+        _auto_api(), input, GenerateConfig(cache_prompt=False), monkeypatch
+    )
+    assert [m.model_dump() for m in input] == before  # no caller mutation
+
+    baseline = await _generate_request(
+        _auto_api(),
+        _strip_marks(input),
+        GenerateConfig(cache_prompt=False),
+        monkeypatch,
+    )
+    _assert_matches_hints_removed_baseline(request, baseline)
+    assert request["system"] == [{"type": "text", "text": "stable\nvarying"}]
+
+
+@pytest.mark.anyio
+async def test_legacy_model_matches_hints_removed_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a model that predates cache_control (e.g. claude-3-sonnet) must also
+    # get the hints-removed payload, not a stripped marked conversion.
+    api = AnthropicAPI(model_name="claude-3-sonnet-20240229", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(
+            content=[
+                ContentText(text="stable", cache_breakpoint=True),
+                ContentText(text="varying"),
+            ]
+        ),
+        ChatMessageUser(content="q"),
+    ]
+    request = await _generate_request(api, input, GenerateConfig(), monkeypatch)
+    baseline = await _generate_request(
+        api, _strip_marks(input), GenerateConfig(), monkeypatch
+    )
+    _assert_matches_hints_removed_baseline(request, baseline)
+    assert request["system"] == [{"type": "text", "text": "stable\nvarying"}]
+    assert "cache_control" not in request
+
+
+@pytest.mark.anyio
+async def test_empty_marked_system_block_matches_hints_removed_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # an empty marked block can't itself carry cache_control, so the whole
+    # layout falls back; the fallback must be the same automatic-caching
+    # payload as the unmarked baseline (one joined block), not the marked
+    # conversion's per-mark segmentation with cache_control stripped.
+    input: list[ChatMessage] = [
+        ChatMessageSystem(
+            content=[
+                ContentText(text="a", cache_breakpoint=True),
+                ContentText(text="", cache_breakpoint=True),
+                ContentText(text="b"),
+            ]
+        ),
+        ChatMessageUser(content="q"),
+    ]
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    baseline = await _generate_request(
+        _auto_api(), _strip_marks(input), GenerateConfig(), monkeypatch
+    )
+    _assert_matches_hints_removed_baseline(request, baseline)
+    assert request["system"] == [
+        {"type": "text", "text": "a\n\nb", "cache_control": CACHE}
+    ]
+
+
+@pytest.mark.anyio
+async def test_trailing_empty_marked_system_block_matches_hints_removed_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a marked block followed by exactly one empty unmarked block: that
+    # trailing run's text ("") can't be sent as its own text block, so
+    # emitting it would silently drop the separator it contributes to the
+    # unmarked text ("a\n"). The whole layout must fall back instead of
+    # losing it.
+    input: list[ChatMessage] = [
+        ChatMessageSystem(
+            content=[
+                ContentText(text="a", cache_breakpoint=True),
+                ContentText(text=""),
+            ]
+        ),
+        ChatMessageUser(content="q"),
+    ]
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    baseline = await _generate_request(
+        _auto_api(), _strip_marks(input), GenerateConfig(), monkeypatch
+    )
+    _assert_matches_hints_removed_baseline(request, baseline)
+    assert request["system"] == [
+        {"type": "text", "text": "a\n", "cache_control": CACHE}
+    ]
+
+
+@pytest.mark.anyio
+async def test_trailing_empty_marked_system_block_with_user_mark_matches_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the same trailing-empty-block layout, alongside an otherwise-valid
+    # user mark: the whole request falls back, not just the system field.
+    input: list[ChatMessage] = [
+        ChatMessageSystem(
+            content=[
+                ContentText(text="a", cache_breakpoint=True),
+                ContentText(text=""),
+            ]
+        ),
+        ChatMessageUser(content=[ContentText(text="rubric", cache_breakpoint=True)]),
+    ]
+    before = [m.model_dump() for m in input]
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    assert [m.model_dump() for m in input] == before  # no caller mutation
+
+    baseline = await _generate_request(
+        _auto_api(), _strip_marks(input), GenerateConfig(), monkeypatch
+    )
+    _assert_matches_hints_removed_baseline(request, baseline)
+    assert request["system"] == [
+        {"type": "text", "text": "a\n", "cache_control": CACHE}
+    ]
+    assert "cache_control" not in request["messages"][0]["content"][0]
+
+
+@pytest.mark.anyio
+async def test_five_system_marks_over_budget_matches_hints_removed_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # more than Anthropic's 4-breakpoint budget: the fallback payload must
+    # be a single joined block with automatic caching, matching the
+    # hints-removed baseline, not five separately marked blocks with
+    # cache_control removed.
+    input: list[ChatMessage] = [
+        ChatMessageSystem(
+            content=[ContentText(text=str(i), cache_breakpoint=True) for i in range(5)]
+        ),
+        ChatMessageUser(content="q"),
+    ]
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    baseline = await _generate_request(
+        _auto_api(), _strip_marks(input), GenerateConfig(), monkeypatch
+    )
+    _assert_matches_hints_removed_baseline(request, baseline)
+    assert request["system"] == [
+        {"type": "text", "text": "0\n1\n2\n3\n4", "cache_control": CACHE}
+    ]
+
+
+@pytest.mark.anyio
+async def test_orphan_tool_mark_loss_forces_whole_layout_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a mark on an orphaned tool result (its tool_use_id has no match, e.g.
+    # native compaction summarized the tool_use away) can't survive
+    # conversion to plain text. That loss must force the whole layout back
+    # to normal automatic caching — even though another mark (the user
+    # rubric) would otherwise be honorable on its own — rather than retain
+    # a partial explicit layout that only honors the surviving mark.
+    input: list[ChatMessage] = [
+        ChatMessageUser(content=[ContentText(text="rubric", cache_breakpoint=True)]),
+        ChatMessageTool(
+            content=[ContentText(text="result", cache_breakpoint=True)],
+            tool_call_id="missing",
+        ),
+    ]
+    before = [m.model_dump() for m in input]
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    assert [m.model_dump() for m in input] == before  # no caller mutation
+
+    baseline = await _generate_request(
+        _auto_api(), _strip_marks(input), GenerateConfig(), monkeypatch
+    )
+    _assert_matches_hints_removed_baseline(request, baseline)
+    # the rubric's own mark was not retained in a partial explicit layout:
+    # the request matches plain automatic caching (a lookback marker, not an
+    # explicit cache_control from the discarded mark) exactly like the
+    # hints-removed baseline above.
+    assert request["cache_control"] == CACHE
+
+
+# ---------------------------------------------------------------------------
+# (j) ordinary-path full-request regression: the complete wire shape for an
+# unmarked system + tool-definition + tool-use + matched tool-result +
+# continuation conversation, pinned against the literal payload commit
+# 64358f1be463d actually produced (before explicit breakpoints existed).
+# Captured by hand from that commit's code, not regenerated by the current
+# implementation, so a shared-helper regression can't slip past both.
+# ---------------------------------------------------------------------------
+
+_ORDINARY_TOOLS = [
+    ToolInfo(
+        name="get_weather",
+        description="Look up the current weather for a city.",
+        parameters=ToolParams(
+            properties={"city": ToolParam(type="string", description="City name")},
+            required=["city"],
+        ),
+    )
+]
+
+
+def _ordinary_input() -> list[ChatMessage]:
+    """System + tool definition + assistant tool-use + matched tool-result + user continuation, unmarked."""
+    return [
+        ChatMessageSystem(content="You are a weather assistant."),
+        ChatMessageUser(content="What's the weather in Boston?"),
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id="t1", function="get_weather", arguments={"city": "Boston"})
+            ],
+        ),
+        ChatMessageTool(
+            content="72F and sunny.", tool_call_id="t1", function="get_weather"
+        ),
+        ChatMessageUser(content="Thanks -- reply with just the temperature."),
+    ]
+
+
+def _ordinary_expected_request(cache_control: dict[str, Any] | None) -> dict[str, Any]:
+    """The literal request commit 64358f1be463d produced for `_ordinary_input()`.
+
+    `cache_control` is the ephemeral object applied at the top level, on the
+    system block, on the tool definition, and on the lookback-tagged
+    tool-result block -- or `None` for the disabled case, where no block or
+    top-level key carries `cache_control` at all.
+    """
+    tool_result_block: dict[str, Any] = {
+        "tool_use_id": "t1",
+        "type": "tool_result",
+        "content": [{"type": "text", "text": "72F and sunny."}],
+        "is_error": False,
+    }
+    system_block: dict[str, Any] = {
+        "type": "text",
+        "text": "You are a weather assistant.",
+    }
+    tool_def: dict[str, Any] = {
+        "name": "get_weather",
+        "description": "Look up the current weather for a city.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"city": {"type": "string", "description": "City name"}},
+            "required": ["city"],
+            "additionalProperties": False,
+        },
+    }
+    if cache_control is not None:
+        tool_result_block["cache_control"] = cache_control
+        system_block["cache_control"] = cache_control
+        tool_def["cache_control"] = cache_control
+
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "user", "content": "What's the weather in Boston?"},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "(no content)"},
+                    {
+                        "type": "tool_use",
+                        "id": "t1",
+                        "name": "get_weather",
+                        "input": {"city": "Boston"},
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    tool_result_block,
+                    {
+                        "type": "text",
+                        "text": "Thanks -- reply with just the temperature.",
+                    },
+                ],
+            },
+        ],
+        "system": [system_block],
+        "tools": [tool_def],
+        "tool_choice": {"type": "auto"},
+        "model": "claude-sonnet-4-6",
+        "max_tokens": None,
+    }
+    if cache_control is not None:
+        request["cache_control"] = cache_control
+    return request
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("api_kwargs", "config", "cache_control"),
+    [
+        pytest.param({}, GenerateConfig(), {"type": "ephemeral"}, id="default"),
+        pytest.param(
+            {},
+            GenerateConfig(cache_prompt=True),
+            {"type": "ephemeral"},
+            id="enabled",
+        ),
+        pytest.param({}, GenerateConfig(cache_prompt=False), None, id="disabled"),
+        pytest.param(
+            {"cache_ttl": "5m"},
+            GenerateConfig(),
+            {"type": "ephemeral", "ttl": "5m"},
+            id="ttl-5m",
+        ),
+        pytest.param(
+            {"cache_ttl": "1h"},
+            GenerateConfig(),
+            {"type": "ephemeral", "ttl": "1h"},
+            id="ttl-1h",
+        ),
+    ],
+)
+async def test_ordinary_unmarked_request_matches_original_wire_shape(
+    api_kwargs: dict[str, Any],
+    config: GenerateConfig,
+    cache_control: dict[str, Any] | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = await _generate_request(
+        _auto_api(**api_kwargs),
+        _ordinary_input(),
+        config,
+        monkeypatch,
+        tools=_ORDINARY_TOOLS,
+    )
+    request.pop("extra_headers", None)
+    assert request == _ordinary_expected_request(cache_control)
+
+
+def test_ordinary_unmarked_request_disabled_carries_no_cache_control() -> None:
+    request = _ordinary_expected_request(None)
+    assert "cache_control" not in request
+    assert "cache_control" not in request["system"][0]
+    assert "cache_control" not in request["tools"][0]
+    for message in request["messages"]:
+        if isinstance(message["content"], list):
+            for block in message["content"]:
+                assert "cache_control" not in block
+
+
+# ---------------------------------------------------------------------------
+# Live test (--runapi, needs ANTHROPIC_API_KEY): the system-content-boundary
+# fix, against the real API rather than a captured request.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_live_system_cache_breakpoint_reuses_marked_prefix() -> None:
+    """A marked stable system block is read from cache; the varying tail changes the answer.
+
+    Regression test for the system-content flattening bug: before the fix,
+    `ChatMessageSystem.text` joined the stable and varying blocks into one
+    string before the mark could apply, so the second call re-wrote the
+    whole system prompt instead of reading the stable part from cache.
+    """
+    model = get_model(
+        "anthropic/claude-haiku-4-5",
+        config=GenerateConfig(max_tokens=5, temperature=0.0),
+    )
+    # unique per test run (a literal string would be cached from a prior run,
+    # another worker, or the unmarked baseline test) and well over haiku's
+    # minimum cacheable prefix (2048 tokens)
+    salt = uuid4().hex
+    instruction = (
+        "This message ends with a line 'TAIL: <n>'. Reply with only the "
+        "digit n and nothing else — no words, no punctuation."
+    )
+    rubric = f"{instruction}\n\nunique-marker-{salt}: " + (
+        "The quick brown fox jumps over the lazy dog. " * 400
+    )
+
+    async def call(tail_digit: str) -> ModelOutput:
+        system = ChatMessageSystem(
+            content=[
+                ContentText(text=rubric, cache_breakpoint=True),
+                ContentText(text=f"TAIL: {tail_digit}"),
+            ]
+        )
+        return await model.generate(
+            input=[system, ChatMessageUser(content="Reply now.")]
+        )
+
+    out1 = await call("4")
+    out2 = await call("5")
+
+    assert out1.usage is not None and out2.usage is not None
+    assert (out1.usage.input_tokens_cache_write or 0) > 0
+    assert (out2.usage.input_tokens_cache_read or 0) > 0
+    # the varying tail was not written into the cached prefix, so the cached
+    # amount doesn't grow between the two calls
+    assert out2.usage.input_tokens_cache_read == out1.usage.input_tokens_cache_write
+    # the varying tail deterministically changed the answer content
+    assert "4" in out1.completion
+    assert "5" in out2.completion
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_live_ordinary_unmarked_caching_with_tools_and_tool_result() -> None:
+    """Ordinary (unmarked) multi-turn caching still works with a tool and a tool-result continuation.
+
+    Regression test for the isolated explicit-cache-breakpoint path: this
+    conversation carries no `ContentText.cache_breakpoint` mark anywhere, so
+    the whole thing must run through the untouched original conversion and
+    automatic-caching path in `resolve_chat_input`, exactly as before
+    explicit breakpoints existed. Exercises a tool definition, a real assistant
+    tool-use turn, and a tool-result continuation together with a long
+    stable system prefix -- the shape most likely to regress if the entry
+    dispatch or a shared conversion helper leaked explicit-path behavior
+    onto the unmarked path.
+    """
+    salt = uuid4().hex
+    model = get_model(
+        "anthropic/claude-haiku-4-5",
+        config=GenerateConfig(max_tokens=60, temperature=0.0, cache_prompt=True),
+    )
+
+    tools = [
+        ToolInfo(
+            name="get_weather",
+            description="Look up the current weather for a city.",
+            parameters=ToolParams(
+                properties={"city": ToolParam(type="string", description="City name")},
+                required=["city"],
+            ),
+        )
+    ]
+
+    # long stable system prefix, well over haiku's minimum cacheable prefix
+    # (2048 tokens); unique per test run so it can't be a cache hit left
+    # over from a prior run, another worker, or another test in this file
+    paragraph = "The quick brown fox jumps over the lazy dog. " * 400
+    system = ChatMessageSystem(
+        content=f"You are a weather assistant. unique-marker-{salt}\n{paragraph}"
+    )
+    turn1: list[ChatMessage] = [
+        system,
+        ChatMessageUser(
+            content="What's the weather in Boston? Use the get_weather tool."
+        ),
+    ]
+    response1 = await model.generate(input=turn1, tools=tools)
+    assert response1.usage is not None
+
+    tool_call = next(
+        (
+            tc
+            for tc in (response1.message.tool_calls or [])
+            if tc.function == "get_weather"
+        ),
+        None,
+    )
+    assert tool_call is not None, "expected the model to call get_weather"
+
+    tool_result = ChatMessageTool(
+        content="72F and sunny.",
+        tool_call_id=tool_call.id,
+        function="get_weather",
+    )
+    turn2: list[ChatMessage] = [
+        *turn1,
+        response1.message,
+        tool_result,
+        ChatMessageUser(content="Thanks -- reply with just the temperature."),
+    ]
+    response2 = await model.generate(input=turn2, tools=tools)
+
+    assert response2.usage is not None
+    assert (response1.usage.input_tokens_cache_write or 0) > 0
+    assert (response2.usage.input_tokens_cache_read or 0) > 0
+    assert "72" in response2.completion

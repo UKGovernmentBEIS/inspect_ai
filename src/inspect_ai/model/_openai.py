@@ -177,6 +177,142 @@ def supports_native_max_reasoning_effort(model_name: str) -> bool:
     return version is not None and version >= (5, 6)
 
 
+def supports_explicit_prompt_cache(model_name: str) -> bool:
+    """Explicit (marked) prompt-cache breakpoints shipped with gpt-5.6; earlier models are implicit-only."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 6)
+
+
+# The only message roles whose content this provider actually emits
+# `prompt_cache_breakpoint` for: user messages (both APIs, per-content-part),
+# and system messages (rendered per-block for both the Chat Completions
+# system/developer role and the Responses developer role — see
+# `_openai_system_content` and `_openai_responses_content_param`). Assistant
+# and tool-result content are not threaded a `cache_breakpoints` flag and stay
+# unsupported. Keep in sync with those call sites — `resolve_explicit_prompt_cache`
+# uses this to detect a mark in an unsupported position.
+_CACHE_BREAKPOINT_SUPPORTED_ROLES = {"user", "system"}
+
+
+def count_cache_breakpoints(
+    messages: list[ChatMessage],
+    roles: Collection[str] | None = None,
+    require_text: bool = False,
+) -> int:
+    """Number of `ContentText.cache_breakpoint` marks across `messages`.
+
+    Args:
+        messages: Messages to scan.
+        roles: If given, count marks only on messages with one of these roles.
+        require_text: If True, only count marks on blocks with non-empty
+            text (an empty text block can't itself carry the marker — the
+            API rejects empty text content parts — so a mark on one can't be
+            represented at all).
+    """
+    return sum(
+        1
+        for message in messages
+        if (roles is None or message.role in roles)
+        if isinstance(message.content, list)
+        for content in message.content
+        if isinstance(content, ContentText) and content.cache_breakpoint
+        if not require_text or content.text
+    )
+
+
+def resolve_explicit_prompt_cache(
+    messages: list[ChatMessage],
+    model_name: str,
+    cache_prompt: Literal["auto"] | bool | None,
+) -> bool:
+    """Whether `messages` should switch this request to OpenAI's explicit prompt-cache mode.
+
+    True only when every `ContentText.cache_breakpoint` mark in `messages` is
+    in a position this provider actually emits `prompt_cache_breakpoint` for
+    (currently: non-empty user and system message text blocks) and the model
+    is gpt-5.6+ and `cache_prompt` hasn't disabled caching. A mark in an
+    unsupported position (assistant, tool content, or an empty text block
+    that can't itself carry the marker) must not silently be dropped while
+    the rest of the marked layout is still honored — that would violate the
+    caller's request that caching stop exactly at the marked boundary — so
+    any such mark forces the whole request back to normal implicit caching
+    instead.
+
+    OpenAI's guide distinguishes a per-request write budget (four writes)
+    from a much larger lookup history (the first two and latest fifty
+    explicit markers); it does not document a hard cap on the number of
+    `prompt_cache_breakpoint` marks a request may supply, so none is applied
+    here.
+    """
+    if cache_prompt is False:
+        return False
+    if not supports_explicit_prompt_cache(model_name):
+        return False
+    total_marks = count_cache_breakpoints(messages)
+    if total_marks == 0:
+        return False
+    representable_marks = count_cache_breakpoints(
+        messages, roles=_CACHE_BREAKPOINT_SUPPORTED_ROLES, require_text=True
+    )
+    return representable_marks == total_marks
+
+
+def apply_initial_system_checkpoint(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Add an automatic checkpoint at the end of the initial system/developer block.
+
+    Only called once a request has already switched to explicit mode (some
+    caller mark exists, and `resolve_explicit_prompt_cache` found the whole
+    layout representable). The caller's own mark(s) place their boundary, but
+    the leading system/developer block plus preceding tool definitions form a
+    cumulative prefix that would otherwise have no boundary of its own to
+    reuse when a later marked block changes. Marking the end of that block
+    gives it one, cumulatively covering the tools that precede it.
+
+    Does nothing — and leaves `messages` unchanged — when:
+
+    - there is no leading system/developer block (e.g. a tools-only prompt:
+      the native limitation is that there is no representable boundary to
+      mark, not something prompt content can work around), or
+    - nothing follows that block (no boundary to retain a prefix for), or
+    - the block already carries a caller mark of its own (a caller's earlier
+      system mark takes priority over its own varying suffix — this must not
+      add a second, later boundary past it).
+
+    Returns a new list; never mutates the input messages or their content.
+    """
+    i = 0
+    while i < len(messages) and isinstance(messages[i], ChatMessageSystem):
+        i += 1
+    if i == 0 or i >= len(messages):
+        return messages
+    leading = messages[:i]
+    if count_cache_breakpoints(leading) > 0:
+        return messages
+
+    last = cast(ChatMessageSystem, leading[-1])
+    if isinstance(last.content, str):
+        if not last.content:
+            return messages
+        marked_last: ChatMessage = last.model_copy(
+            update={"content": [ContentText(text=last.content, cache_breakpoint=True)]}
+        )
+    else:
+        blocks = list(last.content)
+        mark_at: int | None = None
+        for j in range(len(blocks) - 1, -1, -1):
+            block = blocks[j]
+            if isinstance(block, ContentText) and block.text:
+                mark_at = j
+                break
+        if mark_at is None:
+            return messages
+        marked_block = cast(ContentText, blocks[mark_at])
+        blocks[mark_at] = marked_block.model_copy(update={"cache_breakpoint": True})
+        marked_last = last.model_copy(update={"content": blocks})
+
+    return [*messages[: i - 1], marked_last, *messages[i:]]
+
+
 def reasons_by_default_model(model_name: str) -> bool:
     """gpt-5.5+ reason at the server default effort when none is requested.
 
@@ -245,11 +381,60 @@ def openai_chat_tool_call_param(
     )
 
 
+async def _openai_system_content(
+    message: ChatMessage, cache_breakpoints: bool
+) -> str | list[ChatCompletionContentPartTextParam]:
+    r"""`message`'s content for a Chat Completions system/developer/user-role message.
+
+    Keeps the existing flattened-string wire shape unless a breakpoint is
+    actually being honored (`cache_breakpoints` and at least one block is
+    marked). When honored, blocks are split only at the marked boundaries —
+    runs of unmarked text on either side of a mark stay joined with the same
+    `"\n"` separator the flattened representation used, including the blank
+    line an empty unmarked block contributes to that join — so an unmarked
+    request keeps its prior wire shape exactly.
+    """
+    if isinstance(message.content, str) or not cache_breakpoints:
+        return message.text
+    if not any(
+        isinstance(c, ContentText) and c.cache_breakpoint for c in message.content
+    ):
+        return message.text
+    parts: list[ChatCompletionContentPartTextParam] = []
+    run: list[str] = []
+    for c in message.content:
+        if not isinstance(c, ContentText):
+            continue
+        # append even an empty block's text so the join below reproduces the
+        # same blank-line separator the flattened `message.text` would.
+        run.append(c.text)
+        if c.cache_breakpoint and run:
+            part = ChatCompletionContentPartTextParam(type="text", text="\n".join(run))
+            part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+            parts.append(part)
+            run = []
+    if run:
+        trailing_text = "\n".join(run)
+        if trailing_text:
+            parts.append(
+                ChatCompletionContentPartTextParam(type="text", text=trailing_text)
+            )
+    return parts
+
+
 async def openai_chat_completion_part(
     content: Content,
+    cache_breakpoints: bool = False,
 ) -> ChatCompletionContentPartParam:
     if content.type == "text":
-        return ChatCompletionContentPartTextParam(type="text", text=content.text)
+        part = ChatCompletionContentPartTextParam(type="text", text=content.text)
+        if (
+            cache_breakpoints
+            and isinstance(content, ContentText)
+            and content.cache_breakpoint
+        ):
+            part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+        return part
     elif content.type == "image":
         image_url = inline_media_data_uri(content.image, "image")
         detail = content.detail
@@ -291,18 +476,24 @@ async def openai_chat_message(
     system_role: Literal["user", "system", "developer"] = "system",
     reasoning_handler: Callable[[ContentReasoning], dict[str, JsonValue] | str]
     | None = None,
+    cache_breakpoints: bool = False,
 ) -> ChatCompletionMessageParam:
     if message.role == "system":
         match system_role:
             case "user":
-                return ChatCompletionUserMessageParam(role="user", content=message.text)
+                return ChatCompletionUserMessageParam(
+                    role="user",
+                    content=await _openai_system_content(message, cache_breakpoints),
+                )
             case "system":
                 return ChatCompletionSystemMessageParam(
-                    role=message.role, content=message.text
+                    role=message.role,
+                    content=await _openai_system_content(message, cache_breakpoints),
                 )
             case "developer":
                 return ChatCompletionDeveloperMessageParam(
-                    role="developer", content=message.text
+                    role="developer",
+                    content=await _openai_system_content(message, cache_breakpoints),
                 )
     elif message.role == "user":
         return ChatCompletionUserMessageParam(
@@ -311,7 +502,7 @@ async def openai_chat_message(
                 message.content
                 if isinstance(message.content, str)
                 else [
-                    await openai_chat_completion_part(content)
+                    await openai_chat_completion_part(content, cache_breakpoints)
                     for content in message.content
                 ]
             ),
@@ -355,14 +546,21 @@ async def openai_chat_message(
 async def messages_to_openai(
     messages: list[ChatMessage],
     system_role: Literal["user", "system", "developer"] = "system",
+    cache_breakpoints: bool = False,
 ) -> list[ChatCompletionMessageParam]:
     """Convert messages to OpenAI Completions API compatible messages.
 
     Args:
        messages: List of messages to convert
        system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
+       cache_breakpoints: Honor `ContentText.cache_breakpoint` on user message text parts (gpt-5.6+ explicit prompt caching only; the caller is responsible for model/layout gating).
     """
-    return [await openai_chat_message(message, system_role) for message in messages]
+    return [
+        await openai_chat_message(
+            message, system_role, cache_breakpoints=cache_breakpoints
+        )
+        for message in messages
+    ]
 
 
 def fill_empty_assistant_content(

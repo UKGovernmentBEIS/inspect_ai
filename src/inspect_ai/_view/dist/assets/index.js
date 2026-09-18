@@ -9750,7 +9750,7 @@ var require_client = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 var import_jsx_runtime = require_jsx_runtime();
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_client = require_client();
-var ApiError$1 = class extends Error {
+var ApiError = class extends Error {
 	status;
 	constructor(status, message) {
 		super(message);
@@ -9770,7 +9770,7 @@ var ApiError$1 = class extends Error {
 * @param text - The text to check for ANSI escape sequences
 * @returns true if ANSI escape sequences are detected, false otherwise
 */ var isAnsiOutput = (text) => {
-	return /\x1b(?:\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]|\].*?(?:\x07|\x1b\\)|[^[\]>])/g.test(text);
+	return /\x1b(?:\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]|\][^\x07\x1b\n\r\u2028\u2029]*(?:\x07|\x1b\\)|[^[\]>])/g.test(text);
 };
 //#endregion
 //#region ../../packages/util/src/array.ts
@@ -18302,6 +18302,13 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 		maximumFractionDigits: unitIdx === 0 ? 0 : 2
 	})} ${units[unitIdx]}`;
 }
+/**
+* Stringifies a value for display or sorting, JSON-encoding objects and arrays
+* so they don't collapse to "[object Object]". Non-objects (including null and
+* undefined) match `String()` semantics.
+*/ function valueAsString(value) {
+	return value !== null && typeof value === "object" ? JSON.stringify(value) : String(value);
+}
 //#endregion
 //#region ../../packages/util/src/git.ts
 /**
@@ -18321,15 +18328,55 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 //#endregion
 //#region ../../packages/util/src/http.ts
 /**
+* Request options for every fetch the browser issues directly to a log
+* location. That location is data (a link param, a listing entry, a
+* server-supplied direct URL), not the page's own origin: it gets no
+* referrer, no cross-origin credentials, and no redirect to a destination
+* other than the one that was named.
+*/ var logFetchInit = Object.freeze({
+	credentials: "same-origin",
+	referrerPolicy: "no-referrer",
+	redirect: "error"
+});
+/**
 * Fetches a range of bytes from a remote resource and returns it as a `Uint8Array`.
 */ var fetchRange = async (url, start, end) => {
-	const arrayBuffer = await (await fetch(url, { headers: { Range: `bytes=${start}-${end}` } })).arrayBuffer();
+	const arrayBuffer = await (await fetch(url, {
+		...logFetchInit,
+		headers: { Range: `bytes=${start}-${end}` }
+	})).arrayBuffer();
 	return new Uint8Array(arrayBuffer);
 };
 //#endregion
 //#region ../../packages/util/src/html.ts
 var decodeHtmlEntities = (text) => {
 	return new DOMParser().parseFromString(text, "text/html").documentElement.textContent || text;
+};
+//#endregion
+//#region ../../packages/util/src/type.ts
+/**
+* Checks if a given value is numeric.
+*/ var isNumeric = (n) => {
+	return !isNaN(parseFloat(String(n))) && isFinite(Number(n));
+};
+/**
+* Ensures the value is an array
+*
+* @param {*} val - The value to ensure is an array.
+* @returns {Array} - an Array
+*/ var toArray = (val) => {
+	if (Array.isArray(val)) return val;
+	else return [val];
+};
+/**
+* Narrows a `T | ReadonlyArray<T>` union, which `Array.isArray` cannot do on
+* its own — its signature only knows about mutable arrays. Unsound if `T` is
+* itself an array type.
+*/ var isReadonlyArray = (value) => Array.isArray(value);
+/**
+* Checks if a given value is a Record.
+*/ var isRecord = (value) => {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 };
 //#endregion
 //#region ../../packages/util/src/json.ts
@@ -18363,6 +18410,15 @@ var parsedJson = (text) => {
 		return;
 	}
 };
+/**
+* Parses `text` as a JSON object, returning `undefined` for anything else
+* (invalid JSON, arrays, scalars). Validates and parses the same trimmed
+* string, so callers never need a separate `isJson` check that could
+* disagree with the parse (`trim()` strips whitespace JSON.parse rejects).
+*/ var parseJsonRecord = (text) => {
+	const parsed = parsedJson(text);
+	return isRecord(parsed) ? parsed : void 0;
+};
 function estimateSize(list, frequency = .2) {
 	if (list.length === 0) return 0;
 	const sampleSize = Math.ceil(list.length * frequency);
@@ -18382,15 +18438,15 @@ var import_dist = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expor
 		typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory() : typeof define === "function" && define.amd ? define(factory) : global.JSON5 = factory();
 	})(exports, (function() {
 		"use strict";
-		function createCommonjsModule(fn, module$8) {
-			return module$8 = { exports: {} }, fn(module$8, module$8.exports), module$8.exports;
+		function createCommonjsModule(fn, module$1) {
+			return module$1 = { exports: {} }, fn(module$1, module$1.exports), module$1.exports;
 		}
-		var _global = createCommonjsModule(function(module$9) {
-			var global = module$9.exports = typeof window != "undefined" && window.Math == Math ? window : typeof self != "undefined" && self.Math == Math ? self : Function("return this")();
+		var _global = createCommonjsModule(function(module$2) {
+			var global = module$2.exports = typeof window != "undefined" && window.Math == Math ? window : typeof self != "undefined" && self.Math == Math ? self : Function("return this")();
 			if (typeof __g == "number") __g = global;
 		});
-		var _core = createCommonjsModule(function(module$10) {
-			var core = module$10.exports = { version: "2.6.5" };
+		var _core = createCommonjsModule(function(module$3) {
+			var core = module$3.exports = { version: "2.6.5" };
 			if (typeof __e == "number") __e = core;
 		});
 		_core.version;
@@ -18467,10 +18523,10 @@ var import_dist = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expor
 			return "Symbol(".concat(key === void 0 ? "" : key, ")_", (++id + px).toString(36));
 		};
 		var _library = false;
-		var _functionToString = createCommonjsModule(function(module$11) {
+		var _functionToString = createCommonjsModule(function(module$4) {
 			var SHARED = "__core-js_shared__";
 			var store = _global[SHARED] || (_global[SHARED] = {});
-			(module$11.exports = function(key, value) {
+			(module$4.exports = function(key, value) {
 				return store[key] || (store[key] = value !== void 0 ? value : {});
 			})("versions", []).push({
 				version: _core.version,
@@ -18478,14 +18534,14 @@ var import_dist = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expor
 				copyright: "© 2019 Denis Pushkarev (zloirock.ru)"
 			});
 		})("native-function-to-string", Function.toString);
-		var _redefine = createCommonjsModule(function(module$12) {
+		var _redefine = createCommonjsModule(function(module$5) {
 			var SRC = _uid("src");
 			var TO_STRING = "toString";
 			var TPL = ("" + _functionToString).split(TO_STRING);
 			_core.inspectSource = function(it) {
 				return _functionToString.call(it);
 			};
-			(module$12.exports = function(O, key, val, safe) {
+			(module$5.exports = function(O, key, val, safe) {
 				var isFunction = typeof val == "function";
 				if (isFunction) _has(val, "name") || _hide(val, "name", key);
 				if (O[key] === val) return;
@@ -18530,8 +18586,8 @@ var import_dist = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expor
 			var IS_PROTO = type & $export.P;
 			var IS_BIND = type & $export.B;
 			var target = IS_GLOBAL ? _global : IS_STATIC ? _global[name] || (_global[name] = {}) : (_global[name] || {})[PROTOTYPE];
-			var exports$4 = IS_GLOBAL ? _core : _core[name] || (_core[name] = {});
-			var expProto = exports$4[PROTOTYPE] || (exports$4[PROTOTYPE] = {});
+			var exports$2 = IS_GLOBAL ? _core : _core[name] || (_core[name] = {});
+			var expProto = exports$2[PROTOTYPE] || (exports$2[PROTOTYPE] = {});
 			var key, own, out, exp;
 			if (IS_GLOBAL) source = name;
 			for (key in source) {
@@ -18539,7 +18595,7 @@ var import_dist = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expor
 				out = (own ? target : source)[key];
 				exp = IS_BIND && own ? _ctx(out, _global) : IS_PROTO && typeof out == "function" ? _ctx(Function.call, out) : out;
 				if (target) _redefine(target, key, out, type & $export.U);
-				if (exports$4[key] != out) _hide(exports$4, key, exp);
+				if (exports$2[key] != out) _hide(exports$2, key, exp);
 				if (IS_PROTO && expProto[key] != out) expProto[key] = out;
 			}
 		};
@@ -19846,7 +19902,7 @@ var kWorkerMinSize = 5e4;
 * through here so no other line in the module has to assert.
 */ var asParsed = (value) => value;
 var asyncJsonParse = async (text) => {
-	if (text.length < kWorkerMinSize) return jsonParse$1(text);
+	if (text.length < kWorkerMinSize) return jsonParse(text);
 	else return asParsed(await workerPool.parse(text));
 };
 /**
@@ -19863,10 +19919,10 @@ var asyncJsonParse = async (text) => {
 * is detached and unusable afterwards. Pass a copy if you still need the
 * bytes; passing an already-detached view rejects with a DataCloneError.
 */ var asyncJsonParseBytes = async (data) => {
-	if (data.length < kWorkerMinSize) return jsonParse$1(new TextDecoder("utf-8").decode(data));
+	if (data.length < kWorkerMinSize) return jsonParse(new TextDecoder("utf-8").decode(data));
 	else return asParsed(await workerPool.parseBytes(data));
 };
-var jsonParse$1 = (text) => {
+var jsonParse = (text) => {
 	try {
 		return asParsed(JSON.parse(text));
 	} catch {
@@ -20452,32 +20508,6 @@ var isRetryableHttpStatus = (status) => status === 408 || status === 429 || stat
 	return debounced;
 }
 //#endregion
-//#region ../../packages/util/src/type.ts
-/**
-* Checks if a given value is numeric.
-*/ var isNumeric = (n) => {
-	return !isNaN(parseFloat(String(n))) && isFinite(Number(n));
-};
-/**
-* Ensures the value is an array
-*
-* @param {*} val - The value to ensure is an array.
-* @returns {Array} - an Array
-*/ var toArray = (val) => {
-	if (Array.isArray(val)) return val;
-	else return [val];
-};
-/**
-* Narrows a `T | ReadonlyArray<T>` union, which `Array.isArray` cannot do on
-* its own — its signature only knows about mutable arrays. Unsound if `T` is
-* itself an array type.
-*/ var isReadonlyArray = (value) => Array.isArray(value);
-/**
-* Checks if a given value is a Record.
-*/ var isRecord = (value) => {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-};
-//#endregion
 //#region ../../packages/util/src/uri.ts
 /** First segment of a relative path ("" when empty). */ var rootName = (relativePath) => relativePath.split("/")[0] ?? "";
 var encodePathSegments = (path) => path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
@@ -20499,6 +20529,18 @@ var join = (file, dir) => {
 	return dirWithSlash + normalizedFile;
 };
 /**
+* `decodeURIComponent` that returns the input unchanged when it is not valid
+* percent-encoding (a name literally containing `100%done`), instead of
+* throwing URIError.
+*/ var tryDecodeURIComponent = (value) => {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+};
+var encodePathSegmentsIdempotent = (path) => path.split("/").map((segment) => encodeURIComponent(tryDecodeURIComponent(segment))).join("/");
+/**
 * Encodes the path segments of a URL or relative path to ensure special characters
 * (like `+`, spaces, etc.) are properly encoded without affecting legal characters like `/`.
 *
@@ -20507,13 +20549,14 @@ var join = (file, dir) => {
 * query parameters, remain intact, while only encoding the path.
 */ function encodePathParts(url) {
 	if (!url) return url;
+	let fullUrl;
 	try {
-		const fullUrl = new URL(url);
-		fullUrl.pathname = fullUrl.pathname.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
-		return fullUrl.toString();
+		fullUrl = new URL(url);
 	} catch {
-		return url.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
+		return encodePathSegmentsIdempotent(url);
 	}
+	fullUrl.pathname = encodePathSegmentsIdempotent(fullUrl.pathname);
+	return fullUrl.toString();
 }
 /**
 * Tests whether a string is a valid URI.
@@ -25703,6 +25746,13 @@ var newRow$1 = (handle) => ({
 	details_attempts: 0,
 	details_settled_seq: 0
 });
+/** IndexedDB distinguishes numeric and string keys, while sample identity
+*  compares their string forms. Probe both equivalent key forms. */ var sampleIdsForLookup = (id) => {
+	const text = String(id);
+	if (typeof id === "number") return Number.isNaN(id) ? [text] : [id, text];
+	const numeric = Number(id);
+	return !Number.isNaN(numeric) && String(numeric) === id ? [id, numeric] : [id];
+};
 /**
 * Database service for caching and retrieving log data.
 * Works with a DatabaseManager instance to handle database operations.
@@ -25847,6 +25897,15 @@ var newRow$1 = (handle) => ({
 	async readSampleSummaries(scope) {
 		const db = this.getDb();
 		return ("file" in scope ? db.sample_summaries.where("file_path").equals(scope.file) : db.sample_summaries.where("file_path").startsWith(scopePrefix(scope.prefix))).toArray();
+	}
+	async hasCompletedSampleSummary(filePath, id, epoch) {
+		const db = this.getDb();
+		const keys = sampleIdsForLookup(id).map((sampleId) => [
+			filePath,
+			sampleId,
+			epoch
+		]);
+		return (await db.sample_summaries.bulkGet(keys)).some((record) => record !== void 0 && record.summary.completed !== false);
 	}
 	async writeFetchStates(states) {
 		log$6.debug(`Merging retrieval facts into ${Object.keys(states).length} log rows`);
@@ -26012,9 +26071,11 @@ var instance = null;
 	}
 	const response = await api.get_logs(mtime, localFiles.length);
 	const updatedLogs = response.files;
-	const deleted = response.response_type === "full" ? localFiles.filter((current) => !updatedLogs.find((f) => f.name === current.name)).map((file) => file.name) : [];
+	const localFilesByName = new Map(localFiles.map((file) => [file.name, file]));
+	const updatedNames = new Set(updatedLogs.map((file) => file.name));
+	const deleted = response.response_type === "full" ? localFiles.filter((current) => !updatedNames.has(current.name)).map((file) => file.name) : [];
 	const invalidated = updatedLogs.filter((remoteLog) => {
-		const localCopy = localFiles.find((f) => f.name === remoteLog.name);
+		const localCopy = localFilesByName.get(remoteLog.name);
 		if (!localCopy) return true;
 		if (remoteLog.mtime && localCopy.mtime) return remoteLog.mtime > localCopy.mtime;
 		return true;
@@ -38149,6 +38210,54 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	return ref;
 }
 //#endregion
+//#region ../../packages/react/src/hooks/useEventListener.ts
+function useEventListener(target, type, listener, options) {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const listenerRef = useLatestRef(listener);
+	let t0;
+	if ($[0] !== options) {
+		t0 = options ?? {};
+		$[0] = options;
+		$[1] = t0;
+	} else t0 = $[1];
+	const { capture, passive, once } = t0;
+	let t1;
+	let t2;
+	if ($[2] !== capture || $[3] !== listenerRef || $[4] !== once || $[5] !== passive || $[6] !== target || $[7] !== type) {
+		t1 = () => {
+			const element = target && "current" in target ? target.current : target;
+			if (!element) return;
+			const handler = (event) => listenerRef.current(event);
+			element.addEventListener(type, handler, {
+				capture,
+				passive,
+				once
+			});
+			return () => element.removeEventListener(type, handler, { capture });
+		};
+		t2 = [
+			target,
+			type,
+			capture,
+			passive,
+			once,
+			listenerRef
+		];
+		$[2] = capture;
+		$[3] = listenerRef;
+		$[4] = once;
+		$[5] = passive;
+		$[6] = target;
+		$[7] = type;
+		$[8] = t1;
+		$[9] = t2;
+	} else {
+		t1 = $[8];
+		t2 = $[9];
+	}
+	(0, import_react.useEffect)(t1, t2);
+}
+//#endregion
 //#region ../../packages/react/src/hooks/useMountEffect.ts
 /**
 * Runs `effect` once when the component mounts; its returned cleanup runs on
@@ -38813,10 +38922,10 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 			var v = factory(__require, exports);
 			if (v !== void 0) module.exports = v;
 		} else if (typeof define === "function" && define.amd) define(["require", "exports"], factory);
-	})(function(require, exports$3) {
+	})(function(require, exports$1) {
 		"use strict";
-		Object.defineProperty(exports$3, "__esModule", { value: true });
-		exports$3.ANSIOutput = exports$3.ANSIColor = exports$3.ANSIFont = exports$3.ANSIStyle = void 0;
+		Object.defineProperty(exports$1, "__esModule", { value: true });
+		exports$1.ANSIOutput = exports$1.ANSIColor = exports$1.ANSIFont = exports$1.ANSIStyle = void 0;
 		/**
 		* The counter used to generate identifiers.
 		*/
@@ -38848,7 +38957,7 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 			ANSIStyle["Overlined"] = "ansiOverlined";
 			ANSIStyle["Superscript"] = "ansiSuperscript";
 			ANSIStyle["Subscript"] = "ansiSubscript";
-		})(ANSIStyle || (exports$3.ANSIStyle = ANSIStyle = {}));
+		})(ANSIStyle || (exports$1.ANSIStyle = ANSIStyle = {}));
 		/**
 		* ANSIFont enumeration.
 		*/
@@ -38863,7 +38972,7 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 			ANSIFont["AlternativeFont7"] = "ansiAlternativeFont7";
 			ANSIFont["AlternativeFont8"] = "ansiAlternativeFont8";
 			ANSIFont["AlternativeFont9"] = "ansiAlternativeFont9";
-		})(ANSIFont || (exports$3.ANSIFont = ANSIFont = {}));
+		})(ANSIFont || (exports$1.ANSIFont = ANSIFont = {}));
 		/**
 		* SGRColor enumeration.
 		*/
@@ -38885,7 +38994,7 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 			ANSIColor["BrightMagenta"] = "ansiBrightMagenta";
 			ANSIColor["BrightCyan"] = "ansiBrightCyan";
 			ANSIColor["BrightWhite"] = "ansiBrightWhite";
-		})(ANSIColor || (exports$3.ANSIColor = ANSIColor = {}));
+		})(ANSIColor || (exports$1.ANSIColor = ANSIColor = {}));
 		/**
 		* ANSIOutput class.
 		*/
@@ -39383,7 +39492,7 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 				if (!SGRState.equivalent(sgrState, this._sgrState)) this._sgrState = sgrState;
 			}
 		}
-		exports$3.ANSIOutput = ANSIOutput;
+		exports$1.ANSIOutput = ANSIOutput;
 		/**
 		* SGRParam enumeration.
 		*/
@@ -58108,27 +58217,62 @@ var restoreBackslashesForLatex = (content) => {
 		return content;
 	}
 };
+var replaceDotsBetween = (content, delim) => {
+	let out = "";
+	let emitted = 0;
+	let search = 0;
+	let nextDots = content.indexOf("\\dots");
+	while (nextDots !== -1) {
+		const open = content.indexOf(delim, search);
+		if (open === -1) break;
+		const bodyStart = open + delim.length;
+		const close = content.indexOf("$", bodyStart);
+		if (close === -1) break;
+		if (nextDots < bodyStart) {
+			nextDots = content.indexOf("\\dots", bodyStart);
+			if (nextDots === -1) break;
+		}
+		if (nextDots < close && content.startsWith(delim, close)) {
+			out += `${content.slice(emitted, nextDots)}\\ldots`;
+			emitted = nextDots + 5;
+			search = close + delim.length;
+		} else search = open + 1;
+	}
+	return emitted === 0 ? content : out + content.slice(emitted);
+};
 var fixDotsNotation = (content) => {
 	if (!content) return content;
-	try {
-		let result = content.replace(/(\$[^$]*?)\\dots([^$]*?\$)/g, "$1\\ldots$2");
-		result = result.replace(/(\$\$[^$]*?)\\dots([^$]*?\$\$)/g, "$1\\ldots$2");
-		return result;
-	} catch (error) {
-		console.error("Error fixing dots notation:", error);
-		return content;
-	}
+	return replaceDotsBetween(replaceDotsBetween(content, "$"), "$$");
 };
 var kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
-var kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
 var preRenderText = (txt) => {
 	if (!txt) return txt;
 	txt = txt.replace(/^[\u200B\u200C\u200D\u200E\u200F\uFEFF]/, "");
 	return txt.replaceAll(kLetterListPattern, "<p class='markdown-ordered-list-item'>$1</p>");
 };
+var isLineTerminator = (code) => code === 10 || code === 13 || code === 8232 || code === 8233;
 var protectMarkdown = (txt) => {
 	if (!txt) return txt;
-	return txt.replaceAll(kCommonmarkReferenceLinkPattern, "(open:767A125E)$1(close:767A125E) $2 ");
+	let out = "";
+	let emitted = 0;
+	let search = 0;
+	for (;;) {
+		const open = txt.indexOf("[", search);
+		if (open === -1) break;
+		const close = txt.indexOf("]", open + 1);
+		if (close === -1) break;
+		if (!txt.startsWith("]: ", close) || txt.startsWith("http", close + 3)) {
+			search = close + 1;
+			continue;
+		}
+		const bodyStart = close + 3;
+		let lineEnd = bodyStart;
+		while (lineEnd < txt.length && !isLineTerminator(txt.charCodeAt(lineEnd))) lineEnd++;
+		out += `${txt.slice(emitted, open)}(open:767A125E)${txt.slice(open + 1, close)}(close:767A125E) ${txt.slice(bodyStart, lineEnd)} `;
+		emitted = lineEnd;
+		search = lineEnd;
+	}
+	return emitted === 0 ? txt : out + txt.slice(emitted);
 };
 var unprotectMarkdown = (txt) => {
 	if (!txt) return txt;
@@ -58180,8 +58324,8 @@ var markdownRenderers = {
 };
 var renderMarkdown = (markdown, renderer = defaultMarkdownRenderer) => markdownRenderers[renderer](markdown);
 //#endregion
-//#region ../../node_modules/.pnpm/dompurify@3.4.14/node_modules/dompurify/dist/purify.es.mjs
-/*! @license DOMPurify 3.4.14 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.14/LICENSE */
+//#region ../../node_modules/.pnpm/dompurify@3.4.15/node_modules/dompurify/dist/purify.es.mjs
+/*! @license DOMPurify 3.4.15 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.15/LICENSE */
 function _arrayLikeToArray(r, a) {
 	(null == a || a > r.length) && (a = r.length);
 	for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
@@ -59176,7 +59320,7 @@ var _resolveObjectOption = function _resolveObjectOption(cfg, key, makeFallback)
 function createDOMPurify() {
 	let window = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
 	const DOMPurify = (root) => createDOMPurify(root);
-	DOMPurify.version = "3.4.14";
+	DOMPurify.version = "3.4.15";
 	DOMPurify.removed = [];
 	if (!window || !window.document || window.document.nodeType !== NODE_TYPE.document || !window.Element) {
 		DOMPurify.isSupported = false;
@@ -59193,6 +59337,7 @@ function createDOMPurify() {
 	const ElementPrototype = Element.prototype;
 	const cloneNode = lookupGetter(ElementPrototype, "cloneNode");
 	const remove = lookupGetter(ElementPrototype, "remove");
+	const removeAttributeNode = lookupGetter(ElementPrototype, "removeAttributeNode");
 	const getNextSibling = lookupGetter(ElementPrototype, "nextSibling");
 	const getChildNodes = lookupGetter(ElementPrototype, "childNodes");
 	const getParentNode = lookupGetter(ElementPrototype, "parentNode");
@@ -59647,7 +59792,7 @@ function createDOMPurify() {
 	*/
 	const _stripAttributeNode = function _stripAttributeNode(element, attribute, name) {
 		try {
-			element.removeAttributeNode(attribute);
+			removeAttributeNode(element, attribute);
 		} catch (_) {
 			try {
 				element.removeAttribute(name);
@@ -59720,7 +59865,7 @@ function createDOMPurify() {
 			from: element
 		});
 		try {
-			if (attr) element.removeAttributeNode(attr);
+			if (attr) removeAttributeNode(element, attr);
 			else element.removeAttribute(name);
 		} catch (_) {
 			try {
@@ -59966,7 +60111,7 @@ function createDOMPurify() {
 		const realTagName = getNodeName ? getNodeName(element) : null;
 		if (typeof realTagName !== "string") return false;
 		if (transformCaseFunc(realTagName) !== "form") return false;
-		return typeof element.nodeName !== "string" || typeof element.textContent !== "string" || typeof element.removeChild !== "function" || element.attributes !== getAttributes(element) || typeof element.removeAttribute !== "function" || typeof element.setAttribute !== "function" || typeof element.namespaceURI !== "string" || typeof element.insertBefore !== "function" || typeof element.hasChildNodes !== "function" || element.nodeType !== getNodeType(element) || element.childNodes !== getChildNodes(element);
+		return typeof element.nodeName !== "string" || typeof element.textContent !== "string" || typeof element.removeChild !== "function" || element.attributes !== getAttributes(element) || typeof element.removeAttribute !== "function" || typeof element.removeAttributeNode !== "function" || typeof element.getAttributeNode !== "function" || typeof element.setAttribute !== "function" || typeof element.namespaceURI !== "string" || typeof element.insertBefore !== "function" || typeof element.hasChildNodes !== "function" || element.nodeType !== getNodeType(element) || element.childNodes !== getChildNodes(element);
 	};
 	/**
 	* Checks whether the given value is a DocumentFragment from any realm.
@@ -60251,24 +60396,38 @@ function createDOMPurify() {
 	/**
 	* Write a modified attribute value back onto the element. On
 	* success, re-probe for clobbering introduced by the new value and
-	* remove the element when found; otherwise pop the removal entry
-	* recorded by the earlier _removeAttribute (long-standing pairing
-	* with the SANITIZE_NAMED_PROPS path - do not "fix" casually). On
+	* remove the element when found; otherwise, when this writeback is the
+	* recreate half of the SANITIZE_NAMED_PROPS remove-and-recreate, pop the
+	* removal entry that path recorded so it does not show as removed. On
 	* failure, remove the attribute instead.
+	*
+	* Returns true only on a clean write (the value was set and the new value
+	* introduced no clobbering). The caller uses that, together with its own
+	* knowledge of whether this attribute pushed a DOMPurify.removed record, to
+	* decide whether to pop that record. The pop must happen ONLY for the
+	* named-prop remove-and-recreate; popping on any other value change (trim,
+	* template scrubbing, Trusted Types) would consume an unrelated _forceRemove
+	* subtree-cleanup record and let that detached subtree keep a live event
+	* handler through the IN_PLACE neutralization pass (SO-001).
 	*
 	* @param currentNode the element carrying the attribute
 	* @param name the attribute name as present on the element
 	* @param namespaceURI the attribute's namespace, if any
 	* @param value the new attribute value
+	* @return true if the value was written without introducing clobbering
 	*/
 	const _setAttributeValue = function _setAttributeValue(currentNode, name, namespaceURI, value) {
 		try {
 			if (namespaceURI) currentNode.setAttributeNS(namespaceURI, name, value);
 			else currentNode.setAttribute(name, value);
-			if (_isClobbered(currentNode)) _forceRemove(currentNode);
-			else arrayPop(DOMPurify.removed);
+			if (_isClobbered(currentNode)) {
+				_forceRemove(currentNode);
+				return false;
+			}
+			return true;
 		} catch (_) {
 			_removeAttribute(name, currentNode);
+			return false;
 		}
 	};
 	/**
@@ -60301,6 +60460,7 @@ function createDOMPurify() {
 			const lcName = transformCaseFunc(name);
 			const initValue = attrValue;
 			let value = name === "value" ? initValue : stringTrim(initValue);
+			let recreatedNamedProp = false;
 			hookEvent.attrName = lcName;
 			hookEvent.attrValue = value;
 			hookEvent.keepAttr = true;
@@ -60310,6 +60470,7 @@ function createDOMPurify() {
 			if (SANITIZE_NAMED_PROPS && (lcName === "id" || lcName === "name") && stringIndexOf(value, SANITIZE_NAMED_PROPS_PREFIX) !== 0) {
 				_removeAttribute(name, currentNode, attr);
 				value = SANITIZE_NAMED_PROPS_PREFIX + value;
+				recreatedNamedProp = true;
 			}
 			if (SAFE_FOR_XML && regExpTest(/((--!?|])>)|<\/(style|script|title|xmp|textarea|noscript|iframe|noembed|noframes)/i, value)) {
 				_removeAttribute(name, currentNode, attr);
@@ -60334,7 +60495,9 @@ function createDOMPurify() {
 				continue;
 			}
 			value = _applyTrustedTypesToAttribute(lcTag, lcName, namespaceURI, value);
-			if (value !== initValue) _setAttributeValue(currentNode, name, namespaceURI, value);
+			if (value !== initValue) {
+				if (_setAttributeValue(currentNode, name, namespaceURI, value) && recreatedNamedProp) arrayPop(DOMPurify.removed);
+			}
 		}
 		_executeHooks(hooks.afterSanitizeAttributes, currentNode, null);
 	};
@@ -60468,7 +60631,7 @@ function createDOMPurify() {
 			if (importedNode.nodeType === NODE_TYPE.element && importedNode.nodeName === "BODY") body = importedNode;
 			else if (importedNode.nodeName === "HTML") body = importedNode;
 			else body.appendChild(importedNode);
-			_sanitizeAttachedShadowRoots(importedNode);
+			_sanitizeAttachedShadowRoots(body);
 		} else {
 			if (!RETURN_DOM && !SAFE_FOR_TEMPLATES && !WHOLE_DOCUMENT && dirty.indexOf("<") === -1) return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? _createTrustedHTML(dirty) : dirty;
 			body = _initDocument(dirty);
@@ -66235,15 +66398,29 @@ var popoverKey = (ref) => `markdown-ref-popover-${ref.id}`;
 		refByOrdinal.set(ordinal, ref);
 	});
 	if (refByOrdinal.size === 0) return html;
-	return html.replace(/\[[^\]]*(?:M|E)\d+[^\]]*\]/g, (bracketMatch) => {
-		return bracketMatch.replace(/\b[ME]\d+\b/g, (ordinal) => {
-			const ref = refByOrdinal.get(ordinal);
-			if (!ref) return ordinal;
-			const href = ref.citeUrl ? ` href="${escapeHtmlCharacters(ref.citeUrl)}"` : "";
-			const id = escapeHtmlCharacters(ref.id);
-			return `<a${href} class="${escapeHtmlCharacters(citeClass)}" data-ref-id="${id}">${ordinal}</a>`;
-		});
+	const linkOrdinals = (bracket) => bracket.replace(/\b[ME]\d+\b/g, (ordinal) => {
+		const ref = refByOrdinal.get(ordinal);
+		if (!ref) return ordinal;
+		const href = ref.citeUrl ? ` href="${escapeHtmlCharacters(ref.citeUrl)}"` : "";
+		const id = escapeHtmlCharacters(ref.id);
+		return `<a${href} class="${escapeHtmlCharacters(citeClass)}" data-ref-id="${id}">${ordinal}</a>`;
 	});
+	let out = "";
+	let emitted = 0;
+	let search = 0;
+	for (;;) {
+		const open = html.indexOf("[", search);
+		if (open === -1) break;
+		const close = html.indexOf("]", open + 1);
+		if (close === -1) break;
+		const bracket = html.slice(open, close + 1);
+		if (/[ME]\d/.test(bracket)) {
+			out += html.slice(emitted, open) + linkOrdinals(bracket);
+			emitted = close + 1;
+		}
+		search = close + 1;
+	}
+	return emitted === 0 ? html : out + html.slice(emitted);
 }
 function _temp$99(r) {
 	return [r.id, r];
@@ -66549,7 +66726,7 @@ function _temp$98(e, action, enabled) {
 }
 //#endregion
 //#region ../../packages/react/src/react-query.ts
-var defaultRetry = (failureCount, error) => !globalThis.__TEST_DISABLE_RETRY && failureCount < 3 && !(error instanceof ApiError$1 && !isRetryableHttpStatus(error.status));
+var defaultRetry = (failureCount, error) => !globalThis.__TEST_DISABLE_RETRY && failureCount < 3 && !(error instanceof ApiError && !isRetryableHttpStatus(error.status));
 //#endregion
 //#region src/state/queryClient.ts
 /**
@@ -66583,6 +66760,25 @@ var databaseLogsListingKey = (universe, accessorsKey, filter, orderBy, paginatio
 */ var invalidateDatabaseLogsListings = throttle(() => {
 	queryClient.invalidateQueries({ queryKey: databaseLogsListingKeyRoot });
 }, 100, { leading: false });
+//#endregion
+//#region src/app/shared/sample.ts
+var sampleIdsEqual = (id, otherId) => {
+	if (id === void 0 && otherId === void 0) return true;
+	if (id === void 0 || otherId === void 0) return false;
+	return String(id) === String(otherId);
+};
+/**
+* Whether a row is the sample currently open in the detail route.
+*
+* Keyed off the route (undefined id/epoch means the log list is showing), not
+* the persisted selectedSampleHandle — that lingers after navigating back to
+* the log, so using it would wrongly skip re-opening the same sample.
+*/ var isSampleOpenInRoute = (routeSampleId, routeEpoch, rowSampleId, rowEpoch) => routeSampleId !== void 0 && routeEpoch !== void 0 && sampleIdsEqual(routeSampleId, rowSampleId) && Number(routeEpoch) === rowEpoch;
+var sampleHandlesEqual = (sample1, sample2) => {
+	if (!sample1 && !sample2) return true;
+	if (!sample1 || !sample2) return false;
+	return sampleIdsEqual(sample1.id, sample2.id) && sample1.epoch === sample2.epoch && sample1.logFile === sample2.logFile;
+};
 //#endregion
 //#region src/log_data/samplesListing.ts
 var EMPTY_ROWS = [];
@@ -66680,6 +66876,12 @@ var readSamplesListing = async (params) => {
 		scope
 	}))?.map((row) => row.summary) ?? [];
 };
+/** Whether one settled sample is complete, without materializing its file's
+*  full summary list when IndexedDB is available. */ var hasCompletedSettledSummary = async (logDir, logFile, id, epoch) => {
+	const db = getDatabaseService();
+	if (db.opened()) return db.hasCompletedSampleSummary(logFile, id, epoch);
+	return (await readSettledSummaries(logDir, logFile)).some((summary) => sampleIdsEqual(summary.id, id) && summary.epoch === epoch && summary.completed !== false);
+};
 /**
 * Push fresh rows into a file's observed default-page listing entry WITHOUT
 * creating one (same guard as the per-handle detail pushes). This keeps the
@@ -66693,7 +66895,7 @@ var readSamplesListing = async (params) => {
 		logDir,
 		scope: { file: logFile }
 	});
-	if (!queryClient.getQueryCache().find({ queryKey: key })) return;
+	if (!queryClient.getQueryState(key)) return;
 	await queryClient.cancelQueries({
 		queryKey: key,
 		exact: true
@@ -66750,7 +66952,7 @@ var newRow = (handle) => ({
 * IndexedDB via the entry's `queryFn` on next mount.
 */ var pushLog = (logDir, row) => {
 	const key = logKey(logDir, row.name);
-	if (queryClient.getQueryCache().find({ queryKey: key })) queryClient.setQueryData(key, row);
+	if (queryClient.getQueryState(key)) queryClient.setQueryData(key, row);
 };
 /** Replace the collection with `rows` (already-complete Log rows, e.g. read
 *  back from the store) and refresh their observed per-entity entries. */ var setRows = (logDir, rows) => {
@@ -66802,11 +67004,12 @@ var mergePreviews = (logDir, previews) => {
 * facts from the UI anyway). The collection's copy of these columns catches
 * up on the next row write.
 */ var mergeFetchStates = (logDir, states) => {
-	const byName = new Map(currentLogs(logDir).map((row) => [row.name, row]));
+	let byName;
 	for (const [name, state] of Object.entries(states)) {
 		const key = logKey(logDir, name);
-		if (!queryClient.getQueryCache().find({ queryKey: key })) continue;
-		const current = queryClient.getQueryData(key) ?? byName.get(name);
+		const entry = queryClient.getQueryState(key);
+		if (!entry) continue;
+		const current = entry.data ?? (byName ??= new Map(currentLogs(logDir).map((row) => [row.name, row]))).get(name);
 		if (current) queryClient.setQueryData(key, {
 			...current,
 			...state
@@ -67820,25 +68023,6 @@ function _temp3$44(data) {
 	return data?.metrics;
 }
 //#endregion
-//#region src/app/shared/sample.ts
-var sampleIdsEqual = (id, otherId) => {
-	if (id === void 0 && otherId === void 0) return true;
-	if (id === void 0 || otherId === void 0) return false;
-	return String(id) === String(otherId);
-};
-/**
-* Whether a row is the sample currently open in the detail route.
-*
-* Keyed off the route (undefined id/epoch means the log list is showing), not
-* the persisted selectedSampleHandle — that lingers after navigating back to
-* the log, so using it would wrongly skip re-opening the same sample.
-*/ var isSampleOpenInRoute = (routeSampleId, routeEpoch, rowSampleId, rowEpoch) => routeSampleId !== void 0 && routeEpoch !== void 0 && sampleIdsEqual(routeSampleId, rowSampleId) && Number(routeEpoch) === rowEpoch;
-var sampleHandlesEqual = (sample1, sample2) => {
-	if (!sample1 && !sample2) return true;
-	if (!sample1 || !sample2) return false;
-	return sampleIdsEqual(sample1.id, sample2.id) && sample1.epoch === sample2.epoch && sample1.logFile === sample2.logFile;
-};
-//#endregion
 //#region ../../packages/inspect-common/src/normalize/events.ts
 /**
 * Fill pydantic token defaults on one raw ModelUsage record
@@ -67859,6 +68043,29 @@ var sampleHandlesEqual = (sample1, sample2) => {
 	} : raw;
 };
 /**
+* ChatCompletionChoice rows: `stop_reason` defaults to "unknown" upstream.
+* Rows that aren't records are dropped — pydantic would refuse them.
+* Identity-preserving when nothing needs filling.
+*/ var normalizeChoices = (raw) => {
+	if (!Array.isArray(raw)) return [];
+	let changed = false;
+	const choices = [];
+	for (const choice of raw) {
+		if (!isRecord(choice)) {
+			changed = true;
+			continue;
+		}
+		if (typeof choice["stop_reason"] !== "string") {
+			changed = true;
+			choices.push({
+				...choice,
+				stop_reason: "unknown"
+			});
+		} else choices.push(choice);
+	}
+	return changed ? choices : raw;
+};
+/**
 * The ModelOutput pydantic constructs when a field is absent
 * (`output: ModelOutput = Field(default_factory=ModelOutput)`).
 */ var defaultModelOutput = () => ({
@@ -67874,7 +68081,10 @@ var sampleHandlesEqual = (sample1, sample2) => {
 	if (!isRecord(raw)) return defaultModelOutput();
 	const fixes = {};
 	if (typeof raw["model"] !== "string") fixes["model"] = "";
-	if (!Array.isArray(raw["choices"])) fixes["choices"] = [];
+	{
+		const choices = normalizeChoices(raw["choices"]);
+		if (choices !== raw["choices"]) fixes["choices"] = choices;
+	}
 	if (typeof raw["completion"] !== "string") fixes["completion"] = "";
 	const usage = raw["usage"];
 	if (isRecord(usage)) {
@@ -67885,6 +68095,62 @@ var sampleHandlesEqual = (sample1, sample2) => {
 		...raw,
 		...fixes
 	} : raw;
+};
+var normalizeScore = (raw) => {
+	if (!isRecord(raw)) return {
+		value: "",
+		history: []
+	};
+	const fixes = {};
+	if (raw["value"] === void 0) fixes["value"] = "";
+	if (!Array.isArray(raw["history"])) fixes["history"] = [];
+	return Object.keys(fixes).length > 0 ? {
+		...raw,
+		...fixes
+	} : raw;
+};
+/**
+* ScoreEdit: `value` and `metadata` default to the "UNCHANGED" sentinel
+* upstream. Neither admits null, so an explicit wire null fills like an
+* absence. A non-record edit is degradation — pydantic would refuse it.
+*/ var normalizeScoreEdit = (raw) => {
+	if (!isRecord(raw)) return {
+		value: "UNCHANGED",
+		metadata: "UNCHANGED"
+	};
+	const fixes = {};
+	if (raw["value"] == null) fixes["value"] = "UNCHANGED";
+	if (raw["metadata"] == null) fixes["metadata"] = "UNCHANGED";
+	return Object.keys(fixes).length > 0 ? {
+		...raw,
+		...fixes
+	} : raw;
+};
+/**
+* JsonChange rows: `value` and `replaced` default to None upstream, so an
+* absent field reads as null. Rows that aren't records are dropped —
+* pydantic would refuse them. Identity-preserving when nothing needs filling.
+*/ var normalizeJsonChanges = (raw) => {
+	if (!Array.isArray(raw)) return [];
+	let changed = false;
+	const changes = [];
+	for (const change of raw) {
+		if (!isRecord(change)) {
+			changed = true;
+			continue;
+		}
+		const fixes = {};
+		if (change["value"] === void 0) fixes["value"] = null;
+		if (change["replaced"] === void 0) fixes["replaced"] = null;
+		if (Object.keys(fixes).length > 0) {
+			changed = true;
+			changes.push({
+				...change,
+				...fixes
+			});
+		} else changes.push(change);
+	}
+	return changed ? changes : raw;
 };
 /**
 * Per-event-type defaults for required fields pydantic defaults at read
@@ -67928,15 +68194,25 @@ var sampleHandlesEqual = (sample1, sample2) => {
 			});
 			break;
 		case "score":
-			if (!isRecord(raw["score"])) fix("score", {
-				value: "",
-				history: []
-			});
+			{
+				const score = normalizeScore(raw["score"]);
+				if (score !== raw["score"]) fix("score", score);
+			}
 			if (typeof raw["intermediate"] !== "boolean") fix("intermediate", false);
+			break;
+		case "score_edit":
+			if (typeof raw["score_name"] !== "string") fix("score_name", "");
+			{
+				const edit = normalizeScoreEdit(raw["edit"]);
+				if (edit !== raw["edit"]) fix("edit", edit);
+			}
 			break;
 		case "state":
 		case "store":
-			if (!Array.isArray(raw["changes"])) fix("changes", []);
+			{
+				const changes = normalizeJsonChanges(raw["changes"]);
+				if (changes !== raw["changes"]) fix("changes", changes);
+			}
 			break;
 		case "tool":
 			if (typeof raw["id"] !== "string") fix("id", "");
@@ -68182,6 +68458,29 @@ var sampleHandlesEqual = (sample1, sample2) => {
 	return changed ? summaries : raw;
 };
 //#endregion
+//#region ../../packages/inspect-common/src/normalize/timeline.ts
+/**
+* A timeline is the only sample/transcript field shaped as a record with a
+* `root` record; this is the same claim the surrounding parse already made.
+*/ var isWireTimeline = (raw) => isRecord(raw) && isRecord(raw["root"]);
+var isWireTimelineEvent = (item) => item.type === "event" || item.type === void 0 && "event" in item;
+var normalizeTimelineSpan = (raw) => ({
+	...raw,
+	type: "span",
+	tool_invoked: raw.tool_invoked ?? false,
+	utility: raw.utility ?? false,
+	branches: (raw.branches ?? []).map(normalizeTimelineSpan),
+	content: (raw.content ?? []).map((item) => isWireTimelineEvent(item) ? {
+		...item,
+		type: "event"
+	} : normalizeTimelineSpan(item))
+});
+var normalizeTimeline = (raw) => ({
+	...raw,
+	root: normalizeTimelineSpan(raw.root)
+});
+var normalizeTimelines = (raw) => raw.map(normalizeTimeline);
+//#endregion
 //#region ../../packages/inspect-common/src/normalize/sample.ts
 /**
 * Normalize a raw EvalSample of any vintage into the current shape:
@@ -68216,6 +68515,8 @@ var sampleHandlesEqual = (sample1, sample2) => {
 	]) if (!isRecord(sample[field])) sample[field] = {};
 	for (const field of ["model_usage", "role_usage"]) sample[field] = normalizeModelUsageMap(sample[field]);
 	sample["events"] = normalizeEvents(sample["events"]);
+	const timelines = sample["timelines"];
+	if (Array.isArray(timelines)) sample["timelines"] = normalizeTimelines(timelines.filter(isWireTimeline));
 	if (Array.isArray(sample["model_fallbacks"])) sample["model_fallbacks"] = sample["model_fallbacks"].map((fallback) => isRecord(fallback) && typeof fallback["count"] !== "number" ? {
 		...fallback,
 		count: 1
@@ -69937,9 +70238,7 @@ var slotFor = (api, logDir, handle) => {
 	return slot;
 };
 /** The opened log's settled summaries report the sample completed (finalize
-*  input) — no pending merge, mirroring what the log file itself records. */ var hasCompletedLogSummary = async (logDir, handle) => {
-	return (await readSettledSummaries(logDir, resolveLogKey(logDir, handle.logFile))).some((summary) => sampleIdsEqual(summary.id, handle.id) && summary.epoch === handle.epoch && summary.completed !== false);
-};
+*  input) — no pending merge, mirroring what the log file itself records. */ var hasCompletedLogSummary = (logDir, handle) => hasCompletedSettledSummary(logDir, resolveLogKey(logDir, handle.logFile), handle.id, handle.epoch);
 var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir, handle.logFile)).find((summary) => sampleIdsEqual(summary.id, handle.id) && summary.epoch === handle.epoch);
 /**
 * Fetch the completed EvalSample for a stream that reported done and prime it
@@ -70532,10 +70831,8 @@ var messageToStr = (message, options) => {
 		for (const tool of message.tool_calls) {
 			const funcName = tool.function;
 			const args = tool.arguments;
-			if (typeof args === "object" && args !== null) {
-				const argsText = Object.entries(args).map(([k, v]) => `${k}: ${String(v)}`).join("\n");
-				entry += `\nTool Call: ${funcName}\nArguments:\n${argsText}\n`;
-			} else entry += `\nTool Call: ${funcName}\n`;
+			const argsText = Object.entries(args).map(([k, v]) => `${k}: ${String(v)}`).join("\n");
+			entry += `\nTool Call: ${funcName}\nArguments:\n${argsText}\n`;
 		}
 		return entry;
 	}
@@ -70582,7 +70879,7 @@ var betterContentText = (content, excludeToolUsage, excludeReasoning) => {
 	texts.push(...extractContentText$1(resolved.message.content));
 	if (resolved.message.role === "assistant" && "tool_calls" in resolved.message && resolved.message.tool_calls) for (const toolCall of resolved.message.tool_calls) {
 		if (toolCall.function) texts.push(toolCall.function);
-		if (toolCall.arguments) texts.push(JSON.stringify(toolCall.arguments));
+		texts.push(JSON.stringify(toolCall.arguments));
 	}
 	for (const toolMsg of resolved.toolMessages) {
 		if (toolMsg.function) texts.push(toolMsg.function);
@@ -71008,7 +71305,6 @@ var extractInput = (args, inputDescriptor) => {
 	const formatArg = (key, value) => {
 		return `${key}: ${value === null ? "None" : typeof value === "string" ? `"${value}"` : typeof value === "object" || Array.isArray(value) ? JSON.stringify(value, void 0, 2) : String(value)}`;
 	};
-	if (!args) return { args: [] };
 	if (inputDescriptor) {
 		const filterKeys = /* @__PURE__ */ new Set();
 		const base = {};
@@ -71219,7 +71515,7 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	return isRasterImageMimeType(normalizedSource) && normalizedSource === normalizedDeclared;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.8/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.9/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
 function createLazyMeasurementsView(count, flat, getItemKey) {
 	const cache = new Array(count);
 	return new Proxy(cache, { get(target, prop, receiver) {
@@ -71249,7 +71545,7 @@ function createLazyMeasurementsView(count, flat, getItemKey) {
 	} });
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.8/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.9/node_modules/@tanstack/virtual-core/dist/esm/utils.js
 function memo$10(getDeps, fn, opts) {
 	let deps = opts.initialDeps ?? [];
 	let result;
@@ -71283,7 +71579,7 @@ var debounce = (targetWindow, fn, ms) => {
 	} });
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.8/node_modules/@tanstack/virtual-core/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.9/node_modules/@tanstack/virtual-core/dist/esm/index.js
 var _isIOSResult;
 var isIOSWebKit = () => {
 	if (_isIOSResult !== void 0) return _isIOSResult;
@@ -71424,6 +71720,7 @@ var Virtualizer = class {
 		this._iosJustTouchEnded = false;
 		this._iosTouchEndTimerId = null;
 		this._intendedScrollOffset = null;
+		this._clampedAdjustment = null;
 		this.elementsCache = /* @__PURE__ */ new Map();
 		this.now = () => {
 			var _a, _b, _c;
@@ -71596,6 +71893,7 @@ var Virtualizer = class {
 			this._iosDeferredAdjustment = 0;
 			this._iosTouching = false;
 			this._iosJustTouchEnded = false;
+			this._clampedAdjustment = null;
 			this.scrollElement = null;
 			this.targetWindow = null;
 		};
@@ -71627,6 +71925,7 @@ var Virtualizer = class {
 					if (isScrolling && this._intendedScrollOffset === null && offset === this.scrollOffset) return;
 					if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) offset = this._intendedScrollOffset;
 					this._intendedScrollOffset = null;
+					if (this._clampedAdjustment !== null && Math.abs(offset - this._clampedAdjustment.maxAtWrite) >= 1.5) this._clampedAdjustment = null;
 					this.scrollAdjustments = 0;
 					const prevOffset = this.getScrollOffset();
 					this.scrollDirection = isScrolling ? prevOffset === offset ? this.scrollDirection : prevOffset < offset ? "forward" : "backward" : null;
@@ -71685,6 +71984,22 @@ var Virtualizer = class {
 					});
 				}
 				if (followOnAppend) this.scrollToEnd({ behavior: followOnAppend });
+			}
+			this._retryClampedAdjustment();
+		};
+		this._retryClampedAdjustment = () => {
+			if (this._clampedAdjustment === null || !this.scrollElement || !this.options.enabled) return;
+			const { target, maxAtWrite } = this._clampedAdjustment;
+			const max = this.getMaxScrollOffset();
+			if (max > maxAtWrite + .5) {
+				this._clampedAdjustment = target > max + .5 ? {
+					target,
+					maxAtWrite: max
+				} : null;
+				this._scrollToOffset(target, {
+					adjustments: void 0,
+					behavior: void 0
+				});
 			}
 		};
 		this._flushIosDeferredIfReady = () => {
@@ -71996,6 +72311,7 @@ var Virtualizer = class {
 				if (wasAtEnd) adjustedSync = this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
 				else if (shouldAdjustScroll) adjustedSync = this.applyScrollAdjustment(delta);
 				this.notify(adjustedSync);
+				this._retryClampedAdjustment();
 			}
 		};
 		this.getVirtualItems = memo$10(() => [this.getVirtualIndexes(), this.getMeasurements()], (indexes, measurements) => {
@@ -72182,6 +72498,13 @@ var Virtualizer = class {
 			this._iosDeferredAdjustment += delta;
 			return false;
 		} else {
+			const target = this.getScrollOffset() + this.scrollAdjustments + delta;
+			const el = this.scrollElement;
+			const maxAtWrite = el !== null && ("scrollHeight" in el || "document" in el) ? this.getMaxScrollOffset() : null;
+			this._clampedAdjustment = maxAtWrite !== null && target > maxAtWrite + .5 ? {
+				target,
+				maxAtWrite
+			} : null;
 			this._scrollToOffset(this.getScrollOffset(), {
 				adjustments: this.scrollAdjustments += delta,
 				behavior
@@ -72307,7 +72630,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.10_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.11_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -72457,6 +72780,7 @@ function useScaledVirtualizer(opts) {
 		estimateSize: opts.estimateSize,
 		getScrollElement: opts.getScrollElement,
 		overscan: opts.overscan ?? 5,
+		useFlushSync: opts.useFlushSync,
 		scrollPaddingStart: opts.scrollPaddingStart ?? 0,
 		scrollMargin: opts.scrollMargin ?? 0,
 		observeElementOffset: scaledObserveElementOffset,
@@ -72477,45 +72801,48 @@ function useScaledVirtualizer(opts) {
 //#endregion
 //#region ../../packages/react/src/virtual/use-virtual-list-state.ts
 var CURRENT_VERSION = 1;
-function useVirtualListState(persistenceKey) {
-	const $ = (0, import_compiler_runtime.c)(8);
-	let t0;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t0 = { defaultValue: null };
-		$[0] = t0;
-	} else t0 = $[0];
-	const [stored, setStored] = useProperty(persistenceKey, "snapshot", t0);
+function useVirtualListState(persistenceKey, t0) {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const enabled = t0 === void 0 ? true : t0;
 	let t1;
-	if ($[1] !== stored) {
-		t1 = () => {
-			if (!stored) return;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = { defaultValue: null };
+		$[0] = t1;
+	} else t1 = $[0];
+	const [stored, setStored] = useProperty(persistenceKey, "snapshot", t1);
+	let t2;
+	if ($[1] !== enabled || $[2] !== stored) {
+		t2 = () => {
+			if (!enabled || !stored) return;
 			if (stored.version !== CURRENT_VERSION) return;
 			return stored;
 		};
-		$[1] = stored;
-		$[2] = t1;
-	} else t1 = $[2];
-	const getRestoreSnapshot = t1;
-	let t2;
-	if ($[3] !== setStored) {
-		t2 = (snapshot) => {
-			setStored(snapshot);
-		};
-		$[3] = setStored;
-		$[4] = t2;
-	} else t2 = $[4];
-	const recordSnapshot = t2;
+		$[1] = enabled;
+		$[2] = stored;
+		$[3] = t2;
+	} else t2 = $[3];
+	const getRestoreSnapshot = t2;
 	let t3;
-	if ($[5] !== getRestoreSnapshot || $[6] !== recordSnapshot) {
-		t3 = {
+	if ($[4] !== enabled || $[5] !== setStored) {
+		t3 = (snapshot) => {
+			if (enabled) setStored(snapshot);
+		};
+		$[4] = enabled;
+		$[5] = setStored;
+		$[6] = t3;
+	} else t3 = $[6];
+	const recordSnapshot = t3;
+	let t4;
+	if ($[7] !== getRestoreSnapshot || $[8] !== recordSnapshot) {
+		t4 = {
 			getRestoreSnapshot,
 			recordSnapshot
 		};
-		$[5] = getRestoreSnapshot;
-		$[6] = recordSnapshot;
-		$[7] = t3;
-	} else t3 = $[7];
-	return t3;
+		$[7] = getRestoreSnapshot;
+		$[8] = recordSnapshot;
+		$[9] = t4;
+	} else t4 = $[9];
+	return t4;
 }
 var VirtualList_module_default = { scroller: "_scroller_1uwiu_1" };
 //#endregion
@@ -72560,7 +72887,7 @@ var countMatchesInTexts = (lowerTextsByItem, lowerTerm) => {
 	}
 	return total;
 };
-function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalScroll, data, renderRow, estimatedItemHeight = DEFAULT_ITEM_HEIGHT_PX, overscan, embedded = false, resetScrollOnMount: resetScrollOnMountProp, live, navOwned, followRequested, showProgress, initialIndex, scrollPaddingStart, components, smoothScroll = true, itemSearchText, findScope = "local", scrollToTopOnFinish = false, onVisibleRangeChange }) {
+function VirtualList({ persistenceKey, persistScroll = true, ref, id, className, scrollRef: externalScroll, data, renderRow, estimatedItemHeight = DEFAULT_ITEM_HEIGHT_PX, overscan, useFlushSync, embedded = false, resetScrollOnMount: resetScrollOnMountProp, live, navOwned, followRequested, showProgress, initialIndex, initialScrollOffset, scrollPaddingStart, components, smoothScroll = true, itemSearchText, findScope = "local", scrollToTopOnFinish = false, onVisibleRangeChange }) {
 	const resetScrollOnMount = resetScrollOnMountProp ?? !embedded;
 	const externalScrollRef = externalScroll instanceof HTMLElement ? null : externalScroll ?? null;
 	const externalScrollEl = externalScroll instanceof HTMLElement ? externalScroll : null;
@@ -72605,10 +72932,11 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		estimateSize: () => estimatedItemHeight,
 		getScrollElement,
 		overscan,
+		useFlushSync,
 		scrollPaddingStart: scrollPaddingStart ?? 0,
 		scrollMargin
 	});
-	const { getRestoreSnapshot, recordSnapshot } = useVirtualListState(persistenceKey);
+	const { getRestoreSnapshot, recordSnapshot } = useVirtualListState(persistenceKey, persistScroll);
 	const [storedFollow, setFollowOutput] = useProperty(persistenceKey, "follow", { defaultValue: null });
 	const isAutoScrollingRef = (0, import_react.useRef)(false);
 	const followUserActedRef = (0, import_react.useRef)(false);
@@ -72646,10 +72974,12 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		setFollowOutput
 	]);
 	const userInteractingRef = (0, import_react.useRef)(false);
+	const interactionSequenceRef = (0, import_react.useRef)(0);
 	const pointerDownRef = (0, import_react.useRef)(false);
 	const interactTimerRef = (0, import_react.useRef)(null);
 	const noteUserInteraction = (0, import_react.useCallback)(() => {
 		userInteractingRef.current = true;
+		interactionSequenceRef.current += 1;
 		if (interactTimerRef.current) clearTimeout(interactTimerRef.current);
 		interactTimerRef.current = setTimeout(() => {
 			userInteractingRef.current = false;
@@ -72805,8 +73135,9 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		let frames = 0;
 		let stable = 0;
 		let lastTop = el_4.scrollTop;
+		const interactionAtStart = interactionSequenceRef.current;
 		const settle = () => {
-			if (userInteractingRef.current) {
+			if (interactionSequenceRef.current !== interactionAtStart) {
 				finish();
 				return;
 			}
@@ -72871,7 +73202,10 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 		if (hasInitialScrolledRef.current) return;
 		const el_6 = getScrollElement();
 		if (!el_6) return;
-		const snapshot = getRestoreSnapshot();
+		const snapshot = initialScrollOffset === void 0 ? getRestoreSnapshot() : {
+			scrollOffset: initialScrollOffset,
+			totalCount: data.length
+		};
 		let releaseFrame_0 = 0;
 		const frame_0 = requestAnimationFrame(() => {
 			isAutoScrollingRef.current = true;
@@ -72914,6 +73248,7 @@ function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalSc
 	}, [
 		persistenceKey,
 		initialIndex,
+		initialScrollOffset,
 		settleScrollToIndex,
 		settleRestoreScroll,
 		contentTotal,
@@ -75422,18 +75757,13 @@ var CodeExecutionResult = (t0) => {
 	}
 };
 var resolveArgs = (content) => {
-	if (typeof content.arguments === "string") {
-		if (isJson(content.arguments)) try {
-			const parsed = JSON.parse(content.arguments);
-			if (isRecord(parsed)) return parsed;
-		} catch (e) {
-			console.warn("Failed to parse arguments as JSON", e);
-		}
-		if (content.arguments) return { arguments: content.arguments };
-		return {};
-	} else if (typeof content.arguments === "object") return content.arguments;
-	else if (content.arguments) return { arguments: content.arguments };
-	else return {};
+	if (isJson(content.arguments)) try {
+		const parsed = JSON.parse(content.arguments);
+		if (isRecord(parsed)) return parsed;
+	} catch (e) {
+		console.warn("Failed to parse arguments as JSON", e);
+	}
+	return content.arguments ? { arguments: content.arguments } : {};
 };
 /** Single-line header summary: the lone arg's value (the query for
 * web_search, the URL for web_fetch), or `key: value` pairs otherwise. */ var argsSummary = (args) => {
@@ -75442,11 +75772,7 @@ var resolveArgs = (content) => {
 	if (single && typeof single[1] === "string") return single[1];
 	return entries.map(([key, value]) => `${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`).join(", ");
 };
-var hasResultContent = (result) => {
-	if (result === null || result === void 0) return false;
-	if (typeof result === "string") return result.trim().length > 0;
-	return true;
-};
+var hasResultContent = (result) => result.trim().length > 0;
 var maybeWebSearchResult = (content) => {
 	if (content.name !== "web_search") return;
 	const results = asJsonObjArray(content.result)?.filter(isWebResult);
@@ -75500,7 +75826,7 @@ var ToolOutput_module_default = {
 				else outputs.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(MediaReference, { source: out.image }, key));
 			} else if (out.type === "reasoning") {
 				if (out.reasoning) outputs.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolTextOutput, { text: out.reasoning }, key));
-			} else if (out.type === "data" && out.data) outputs.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolTextOutput, { text: JSON.stringify(out.data) }, key));
+			} else if (out.type === "data") outputs.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolTextOutput, { text: JSON.stringify(out.data) }, key));
 		});
 		else {
 			const t1 = String(output);
@@ -75540,106 +75866,109 @@ var ToolOutput_module_default = {
 	const $ = (0, import_compiler_runtime.c)(25);
 	const { text } = t0;
 	const displayMode = useDisplayMode();
-	if (displayMode === "rendered" && isJson(text)) {
-		let obj;
+	if (displayMode === "rendered") {
 		let t1;
 		if ($[0] !== text) {
-			obj = JSON.parse(text);
-			t1 = isRecord(obj);
+			t1 = parseJsonRecord(text);
 			$[0] = text;
-			$[1] = obj;
-			$[2] = t1;
-		} else {
-			obj = $[1];
-			t1 = $[2];
-		}
-		if (t1) {
+			$[1] = t1;
+		} else t1 = $[1];
+		const obj = t1;
+		if (obj) {
 			let t2;
-			if ($[3] !== obj) {
+			if ($[2] !== obj) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JsonMessageContent, {
 					id: "1-json",
 					json: obj
 				});
-				$[3] = obj;
-				$[4] = t2;
-			} else t2 = $[4];
+				$[2] = obj;
+				$[3] = t2;
+			} else t2 = $[3];
 			return t2;
 		}
-	}
-	if (displayMode === "rendered" && isAnsiOutput(text)) {
-		let t1;
-		if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-			t1 = { fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)" };
-			$[5] = t1;
-		} else t1 = $[5];
-		let t2;
-		if ($[6] !== text) {
-			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
-				output: text,
-				style: t1
-			});
-			$[6] = text;
-			$[7] = t2;
-		} else t2 = $[7];
-		return t2;
 	}
 	let notice;
 	let t1;
 	let t2;
 	let t3;
-	if ($[8] !== displayMode || $[9] !== text) {
-		const { text: capped, notice: t4 } = cappedText(text);
-		notice = t4;
-		if ($[14] === Symbol.for("react.memo_cache_sentinel")) {
-			t3 = clsx(ToolOutput_module_default.textOutput, "tool-output");
-			t1 = clsx("sourceCode", ToolOutput_module_default.textCode);
-			$[14] = t1;
-			$[15] = t3;
-		} else {
-			t1 = $[14];
-			t3 = $[15];
-		}
-		t2 = displayMode === "raw" ? capped : capped.trim();
-		$[8] = displayMode;
-		$[9] = text;
-		$[10] = notice;
-		$[11] = t1;
-		$[12] = t2;
-		$[13] = t3;
-	} else {
-		notice = $[10];
-		t1 = $[11];
-		t2 = $[12];
-		t3 = $[13];
-	}
 	let t4;
+	if ($[4] !== displayMode || $[5] !== text) {
+		t4 = Symbol.for("react.early_return_sentinel");
+		bb0: {
+			const { text: capped, notice: t5 } = cappedText(text);
+			notice = t5;
+			if (displayMode === "rendered" && isAnsiOutput(capped)) {
+				let t6;
+				if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
+					t6 = { fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)" };
+					$[11] = t6;
+				} else t6 = $[11];
+				let t7;
+				if ($[12] !== text) {
+					t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
+						output: text,
+						style: t6
+					});
+					$[12] = text;
+					$[13] = t7;
+				} else t7 = $[13];
+				t4 = t7;
+				break bb0;
+			}
+			if ($[14] === Symbol.for("react.memo_cache_sentinel")) {
+				t3 = clsx(ToolOutput_module_default.textOutput, "tool-output");
+				t1 = clsx("sourceCode", ToolOutput_module_default.textCode);
+				$[14] = t1;
+				$[15] = t3;
+			} else {
+				t1 = $[14];
+				t3 = $[15];
+			}
+			t2 = displayMode === "raw" ? capped : capped.trim();
+		}
+		$[4] = displayMode;
+		$[5] = text;
+		$[6] = notice;
+		$[7] = t1;
+		$[8] = t2;
+		$[9] = t3;
+		$[10] = t4;
+	} else {
+		notice = $[6];
+		t1 = $[7];
+		t2 = $[8];
+		t3 = $[9];
+		t4 = $[10];
+	}
+	if (t4 !== Symbol.for("react.early_return_sentinel")) return t4;
+	let t5;
 	if ($[16] !== t1 || $[17] !== t2) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", {
 			className: t1,
 			children: t2
 		});
 		$[16] = t1;
 		$[17] = t2;
-		$[18] = t4;
-	} else t4 = $[18];
-	let t5;
-	if ($[19] !== t3 || $[20] !== t4) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
+		$[18] = t5;
+	} else t5 = $[18];
+	let t6;
+	if ($[19] !== t3 || $[20] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 			className: t3,
-			children: t4
+			children: t5
 		});
 		$[19] = t3;
-		$[20] = t4;
-		$[21] = t5;
-	} else t5 = $[21];
-	let t6;
-	if ($[22] !== notice || $[23] !== t5) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t5, notice] });
+		$[20] = t5;
+		$[21] = t6;
+	} else t6 = $[21];
+	let t7;
+	if ($[22] !== notice || $[23] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t6, notice] });
 		$[22] = notice;
-		$[23] = t5;
-		$[24] = t6;
-	} else t6 = $[24];
-	return t6;
+		$[23] = t6;
+		$[24] = t7;
+	} else t7 = $[24];
+	return t7;
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/MessageContent.tsx
@@ -75664,7 +75993,7 @@ var ToolOutput_module_default = {
 						internal: null,
 						citations: null
 					}, index === normalized.length - 1, displayMode, references);
-					else if (content) return renderContent(`text-${content.type}-${index}`, content, index === normalized.length - 1, displayMode, references);
+					else return renderContent(`text-${content.type}-${index}`, content, index === normalized.length - 1, displayMode, references);
 				});
 				break bb0;
 			} else {
@@ -75691,9 +76020,9 @@ var renderContent = (key, content, isLast, displayMode, references) => {
 			const c = content;
 			const cites = c.citations ?? [];
 			if (!c.text && !cites.length) return;
-			if (displayMode === "rendered" && isJson(c.text)) {
-				const parsed = JSON.parse(c.text);
-				if (isRecord(parsed)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JsonMessageContent, {
+			if (displayMode === "rendered") {
+				const parsed = parseJsonRecord(c.text);
+				if (parsed) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JsonMessageContent, {
 					id: `${key}-json`,
 					json: parsed
 				});
@@ -75715,8 +76044,9 @@ var renderContent = (key, content, isLast, displayMode, references) => {
 				text = r.summary || "Reasoning text not provided.";
 				if (r.summary) title = "Reasoning (Summary)";
 			}
-			const renderReasoningCode = isOpenRouterReasoning(text);
-			const codeFormatted = renderReasoningCode ? JSON.stringify(jsonParse(text), null, 2) : text;
+			const openRouterCode = formatOpenRouterReasoning(text);
+			const renderReasoningCode = openRouterCode !== void 0;
+			const codeFormatted = openRouterCode ?? text;
 			return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				"data-content-kind": "reasoning",
 				className: clsx(MessageContent_module_default.reasoning, "text-size-small"),
@@ -75845,14 +76175,15 @@ var renderContent = (key, content, isLast, displayMode, references) => {
 	return result;
 };
 /** Type guard that allows narrowing down to Citations whose `cited_text` is a range */ var isCitationWithRange = (citation) => Array.isArray(citation.cited_text);
-var isOpenRouterReasoning = (text) => {
-	return text.startsWith("[{'format'");
-};
-var jsonParse = (text) => {
+/** Pretty-prints OpenRouter-style reasoning (a Python-repr JSON array of
+* `{'format': ..., 'text': ...}`); undefined when the text merely starts like
+* one but does not parse, so it falls through to the markdown renderer. */ var formatOpenRouterReasoning = (text) => {
+	if (!text.startsWith("[{'format'")) return;
 	try {
-		return JSON.parse(text);
+		const parsed = import_dist.default.parse(text);
+		return JSON.stringify(parsed, null, 2);
 	} catch {
-		return import_dist.default.parse(text);
+		return;
 	}
 };
 /**
@@ -76769,7 +77100,6 @@ var ClientToolCall_module_default = { custom: "_custom_v2cay_4" };
 	return functionCall !== tool ? functionCall : void 0;
 };
 /** Whether the tool output has anything worth an output well. */ var hasOutputContent = (output) => {
-	if (output === void 0 || output === null) return false;
 	if (typeof output === "string") return output.trim().length > 0;
 	if (typeof output === "number" || typeof output === "boolean") return true;
 	return (Array.isArray(output) ? output : [output]).some((item) => {
@@ -76819,7 +77149,7 @@ var ChatMessage_module_default = {
 //#endregion
 //#region ../../packages/inspect-components/src/chat/ChatMessage.tsx
 var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) {
-	const $ = (0, import_compiler_runtime.c)(82);
+	const $ = (0, import_compiler_runtime.c)(79);
 	const { id, message, display, linking, references, label } = t0;
 	const indented = display?.indented ?? false;
 	const unlabeledRoles = display?.unlabeledRoles;
@@ -76838,7 +77168,6 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const messageUrl = t1;
 	const [mouseOver, setMouseOver] = (0, import_react.useState)(false);
 	const isNonSubagentTool = message.role === "tool" && message.function !== "Task" && message.function !== "task" && message.function !== "Agent" && message.function !== "agent";
-	const collapse = message.role === "system" || message.role === "user" || message.role === "assistant" || message.role === "tool";
 	let t2;
 	if ($[3] !== message.role || $[4] !== unlabeledRoles) {
 		t2 = unlabeledRoles?.includes(message.role) ?? false;
@@ -76849,7 +77178,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const hideRole = t2;
 	let toolSearchNamespaces;
 	let toolMarkdown;
-	if (displayMode === "rendered" && isNonSubagentTool && message.role === "tool" && message.function) {
+	if (displayMode === "rendered" && isNonSubagentTool && message.function) {
 		if (message.function === "tool_search") {
 			let t3;
 			if ($[6] !== message.content) {
@@ -76935,32 +77264,32 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	} else t5 = $[27];
 	const metadataBlock = t5;
 	let t6;
-	if ($[28] !== collapse || $[29] !== hideRole || $[30] !== id || $[31] !== message || $[32] !== metadataBlock || $[33] !== mouseOver || $[34] !== references || $[35] !== roleHeader) {
+	if ($[28] !== hideRole || $[29] !== id || $[30] !== message || $[31] !== metadataBlock || $[32] !== mouseOver || $[33] !== references || $[34] !== roleHeader) {
 		t6 = Symbol.for("react.early_return_sentinel");
 		bb0: {
 			const segments = segmentTurnContent(message);
 			if (segments) {
 				const t7 = mouseOver ? ChatMessage_module_default.hover : void 0;
 				let t8;
-				if ($[37] !== message.role || $[38] !== t7) {
+				if ($[36] !== message.role || $[37] !== t7) {
 					t8 = clsx(message.role, "text-size-base", ChatMessage_module_default.message, ChatMessage_module_default.turnSegments, t7);
-					$[37] = message.role;
-					$[38] = t7;
-					$[39] = t8;
-				} else t8 = $[39];
+					$[36] = message.role;
+					$[37] = t7;
+					$[38] = t8;
+				} else t8 = $[38];
 				let t10;
 				let t9;
-				if ($[40] === Symbol.for("react.memo_cache_sentinel")) {
+				if ($[39] === Symbol.for("react.memo_cache_sentinel")) {
 					t9 = () => setMouseOver(true);
 					t10 = () => setMouseOver(false);
-					$[40] = t10;
-					$[41] = t9;
+					$[39] = t10;
+					$[40] = t9;
 				} else {
-					t10 = $[40];
-					t9 = $[41];
+					t10 = $[39];
+					t9 = $[40];
 				}
 				let t11;
-				if ($[42] !== collapse || $[43] !== hideRole || $[44] !== id || $[45] !== message.role || $[46] !== references || $[47] !== roleHeader) {
+				if ($[41] !== hideRole || $[42] !== id || $[43] !== message.role || $[44] !== references || $[45] !== roleHeader) {
 					t11 = (segment, index) => {
 						if (segment.kind === "tool") return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ServerToolCall, {
 							id: `${id}-server-tool-${index}`,
@@ -76972,7 +77301,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 							className: ChatMessage_module_default.proseSegment,
 							children: [index === 0 ? roleHeader : null, segment.contents.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 								id: `${id}-message-${index}`,
-								collapse,
+								collapse: true,
 								lines: 25,
 								children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, {
 									contents: segment.contents,
@@ -76981,25 +77310,24 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 							}) : null]
 						}, `${id}-segment-${index}`);
 					};
-					$[42] = collapse;
-					$[43] = hideRole;
-					$[44] = id;
-					$[45] = message.role;
-					$[46] = references;
-					$[47] = roleHeader;
-					$[48] = t11;
-				} else t11 = $[48];
+					$[41] = hideRole;
+					$[42] = id;
+					$[43] = message.role;
+					$[44] = references;
+					$[45] = roleHeader;
+					$[46] = t11;
+				} else t11 = $[46];
 				let t12;
-				if ($[49] !== message.role || $[50] !== metadataBlock) {
+				if ($[47] !== message.role || $[48] !== metadataBlock) {
 					t12 = metadataBlock ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 						"data-message-role": message.role,
 						className: ChatMessage_module_default.proseSegment,
 						children: metadataBlock
 					}) : null;
-					$[49] = message.role;
-					$[50] = metadataBlock;
-					$[51] = t12;
-				} else t12 = $[51];
+					$[47] = message.role;
+					$[48] = metadataBlock;
+					$[49] = t12;
+				} else t12 = $[49];
 				t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 					"data-message-id": message.id || void 0,
 					className: t8,
@@ -77010,90 +77338,88 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 				break bb0;
 			}
 		}
-		$[28] = collapse;
-		$[29] = hideRole;
-		$[30] = id;
-		$[31] = message;
-		$[32] = metadataBlock;
-		$[33] = mouseOver;
-		$[34] = references;
-		$[35] = roleHeader;
-		$[36] = t6;
-	} else t6 = $[36];
+		$[28] = hideRole;
+		$[29] = id;
+		$[30] = message;
+		$[31] = metadataBlock;
+		$[32] = mouseOver;
+		$[33] = references;
+		$[34] = roleHeader;
+		$[35] = t6;
+	} else t6 = $[35];
 	if (t6 !== Symbol.for("react.early_return_sentinel")) return t6;
 	const t7 = message.id || void 0;
 	const t8 = message.role === "system" ? ChatMessage_module_default.systemRole : void 0;
 	const t9 = mouseOver ? ChatMessage_module_default.hover : void 0;
 	let t10;
-	if ($[52] !== message.role || $[53] !== t8 || $[54] !== t9) {
+	if ($[50] !== message.role || $[51] !== t8 || $[52] !== t9) {
 		t10 = clsx(message.role, "text-size-base", ChatMessage_module_default.message, t8, t9);
-		$[52] = message.role;
-		$[53] = t8;
-		$[54] = t9;
-		$[55] = t10;
-	} else t10 = $[55];
+		$[50] = message.role;
+		$[51] = t8;
+		$[52] = t9;
+		$[53] = t10;
+	} else t10 = $[53];
 	let t11;
 	let t12;
-	if ($[56] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[54] === Symbol.for("react.memo_cache_sentinel")) {
 		t11 = () => setMouseOver(true);
 		t12 = () => setMouseOver(false);
-		$[56] = t11;
-		$[57] = t12;
+		$[54] = t11;
+		$[55] = t12;
 	} else {
-		t11 = $[56];
-		t12 = $[57];
+		t11 = $[54];
+		t12 = $[55];
 	}
 	const t13 = indented ? ChatMessage_module_default.indented : void 0;
 	let t14;
-	if ($[58] !== t13) {
+	if ($[56] !== t13) {
 		t14 = clsx(ChatMessage_module_default.messageContents, t13);
-		$[58] = t13;
-		$[59] = t14;
-	} else t14 = $[59];
+		$[56] = t13;
+		$[57] = t14;
+	} else t14 = $[57];
 	const t15 = `${id}-message`;
-	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : collapse ? 15 : 25;
+	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : 15;
 	let t17;
-	if ($[60] !== id || $[61] !== isNonSubagentTool || $[62] !== message || $[63] !== references || $[64] !== subagentNotifications || $[65] !== toolMarkdown || $[66] !== toolSearchNamespaces) {
+	if ($[58] !== id || $[59] !== isNonSubagentTool || $[60] !== message || $[61] !== references || $[62] !== subagentNotifications || $[63] !== toolMarkdown || $[64] !== toolSearchNamespaces) {
 		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$85) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
-		$[60] = id;
-		$[61] = isNonSubagentTool;
-		$[62] = message;
-		$[63] = references;
-		$[64] = subagentNotifications;
-		$[65] = toolMarkdown;
-		$[66] = toolSearchNamespaces;
-		$[67] = t17;
-	} else t17 = $[67];
+		$[58] = id;
+		$[59] = isNonSubagentTool;
+		$[60] = message;
+		$[61] = references;
+		$[62] = subagentNotifications;
+		$[63] = toolMarkdown;
+		$[64] = toolSearchNamespaces;
+		$[65] = t17;
+	} else t17 = $[65];
 	let t18;
-	if ($[68] !== collapse || $[69] !== t15 || $[70] !== t16 || $[71] !== t17) {
+	if ($[66] !== t15 || $[67] !== t16 || $[68] !== t17) {
 		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: t15,
-			collapse,
+			collapse: true,
 			lines: t16,
 			children: t17
 		});
-		$[68] = collapse;
-		$[69] = t15;
-		$[70] = t16;
-		$[71] = t17;
-		$[72] = t18;
-	} else t18 = $[72];
+		$[66] = t15;
+		$[67] = t16;
+		$[68] = t17;
+		$[69] = t18;
+	} else t18 = $[69];
 	let t19;
-	if ($[73] !== metadataBlock || $[74] !== t14 || $[75] !== t18) {
+	if ($[70] !== metadataBlock || $[71] !== t14 || $[72] !== t18) {
 		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t14,
 			children: [t18, metadataBlock]
 		});
-		$[73] = metadataBlock;
-		$[74] = t14;
-		$[75] = t18;
-		$[76] = t19;
-	} else t19 = $[76];
+		$[70] = metadataBlock;
+		$[71] = t14;
+		$[72] = t18;
+		$[73] = t19;
+	} else t19 = $[73];
 	let t20;
-	if ($[77] !== roleHeader || $[78] !== t10 || $[79] !== t19 || $[80] !== t7) {
+	if ($[74] !== roleHeader || $[75] !== t10 || $[76] !== t19 || $[77] !== t7) {
 		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-message-id": t7,
 			className: t10,
@@ -77101,12 +77427,12 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 			onMouseLeave: t12,
 			children: [roleHeader, t19]
 		});
-		$[77] = roleHeader;
-		$[78] = t10;
-		$[79] = t19;
-		$[80] = t7;
-		$[81] = t20;
-	} else t20 = $[81];
+		$[74] = roleHeader;
+		$[75] = t10;
+		$[76] = t19;
+		$[77] = t7;
+		$[78] = t20;
+	} else t20 = $[78];
 	return t20;
 });
 /** Splits an assistant message that carries server-side tool calls into
@@ -77226,7 +77552,7 @@ var MessageLabel_module_default = {
 /**
 * Renders the ChatMessage component.
 */ var ChatMessageRow = /*#__PURE__*/ (0, import_react.memo)(function ChatMessageRow(t0) {
-	const $ = (0, import_compiler_runtime.c)(66);
+	const $ = (0, import_compiler_runtime.c)(64);
 	const { index, parentName, resolvedMessage, references, className, display, labels, linking, tools, startNumber } = t0;
 	const highlightUserMessage = display?.highlightUserMessage ?? true;
 	const showLabels = labels?.show ?? true;
@@ -77306,13 +77632,7 @@ var MessageLabel_module_default = {
 		}
 		let toolNumber = baseNumber + (skipChatMessage ? 0 : 1);
 		if (toolCallStyle !== "omit" && resolvedMessage.message.role === "assistant" && resolvedMessage.message.tool_calls && resolvedMessage.message.tool_calls.length) {
-			let t5;
-			if ($[37] !== resolvedMessage.toolMessages) {
-				t5 = resolvedMessage.toolMessages || [];
-				$[37] = resolvedMessage.toolMessages;
-				$[38] = t5;
-			} else t5 = $[38];
-			const toolMessages = t5;
+			const toolMessages = resolvedMessage.toolMessages;
 			let idx = 0;
 			for (const tool_call of resolvedMessage.message.tool_calls) {
 				const { name, input, description, functionCall, contentType, title } = resolveToolInput(tool_call.function, tool_call.arguments);
@@ -77376,7 +77696,7 @@ var MessageLabel_module_default = {
 	const hasTools = viewKinds.some(_temp$84);
 	if (useLabels || hasTools) {
 		let t1;
-		if ($[39] !== hasTools || $[40] !== highlightLabeled || $[41] !== highlightUserMessage || $[42] !== index || $[43] !== messageChip || $[44] !== resolvedMessage || $[45] !== viewChips || $[46] !== viewKinds || $[47] !== views) {
+		if ($[37] !== hasTools || $[38] !== highlightLabeled || $[39] !== highlightUserMessage || $[40] !== index || $[41] !== messageChip || $[42] !== resolvedMessage || $[43] !== viewChips || $[44] !== viewKinds || $[45] !== views) {
 			t1 = (idx_0) => {
 				const kind = viewKinds[idx_0];
 				const isMessage = kind === "message";
@@ -77392,65 +77712,65 @@ var MessageLabel_module_default = {
 					}) : null, views[idx_0]]
 				}, `chat-message-row-${index}-part-${idx_0}`);
 			};
-			$[39] = hasTools;
-			$[40] = highlightLabeled;
-			$[41] = highlightUserMessage;
-			$[42] = index;
-			$[43] = messageChip;
-			$[44] = resolvedMessage;
-			$[45] = viewChips;
-			$[46] = viewKinds;
-			$[47] = views;
-			$[48] = t1;
-		} else t1 = $[48];
+			$[37] = hasTools;
+			$[38] = highlightLabeled;
+			$[39] = highlightUserMessage;
+			$[40] = index;
+			$[41] = messageChip;
+			$[42] = resolvedMessage;
+			$[43] = viewChips;
+			$[44] = viewKinds;
+			$[45] = views;
+			$[46] = t1;
+		} else t1 = $[46];
 		const renderPart = t1;
 		let t2;
-		if ($[49] !== className) {
+		if ($[47] !== className) {
 			t2 = clsx(ChatMessageRow_module_default.grid, className);
-			$[49] = className;
-			$[50] = t2;
-		} else t2 = $[50];
+			$[47] = className;
+			$[48] = t2;
+		} else t2 = $[48];
 		let t3;
-		if ($[51] !== renderPart || $[52] !== views) {
+		if ($[49] !== renderPart || $[50] !== views) {
 			t3 = views.map((_, idx_1) => renderPart(idx_1));
-			$[51] = renderPart;
-			$[52] = views;
-			$[53] = t3;
-		} else t3 = $[53];
+			$[49] = renderPart;
+			$[50] = views;
+			$[51] = t3;
+		} else t3 = $[51];
 		let t4;
-		if ($[54] !== t2 || $[55] !== t3) {
+		if ($[52] !== t2 || $[53] !== t3) {
 			t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				className: t2,
 				children: t3
 			});
-			$[54] = t2;
-			$[55] = t3;
-			$[56] = t4;
-		} else t4 = $[56];
+			$[52] = t2;
+			$[53] = t3;
+			$[54] = t4;
+		} else t4 = $[54];
 		return t4;
 	} else {
 		let t1;
-		if ($[57] !== resolvedMessage.message) {
+		if ($[55] !== resolvedMessage.message) {
 			t1 = hasServerToolUse(resolvedMessage.message);
-			$[57] = resolvedMessage.message;
-			$[58] = t1;
-		} else t1 = $[58];
+			$[55] = resolvedMessage.message;
+			$[56] = t1;
+		} else t1 = $[56];
 		const isTurn_0 = t1;
 		let t2;
-		if ($[59] !== className || $[60] !== highlightUserMessage || $[61] !== index || $[62] !== isTurn_0 || $[63] !== resolvedMessage.message || $[64] !== views) {
+		if ($[57] !== className || $[58] !== highlightUserMessage || $[59] !== index || $[60] !== isTurn_0 || $[61] !== resolvedMessage.message || $[62] !== views) {
 			t2 = views.map((view, idx_2) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				"data-message-role": isTurn_0 ? void 0 : resolvedMessage.message.role,
 				className: clsx(isTurn_0 ? ChatMessageRow_module_default.turnContainer : ChatMessageRow_module_default.container, !isTurn_0 && idx_2 === 0 ? ChatMessageRow_module_default.first : void 0, !isTurn_0 && idx_2 === views.length - 1 ? ChatMessageRow_module_default.last : void 0, idx_2 === views.length - 1 ? ChatMessageRow_module_default.bottomMargin : void 0, className, !isTurn_0 && ChatMessageRow_module_default.simple, !isTurn_0 && highlightUserMessage && resolvedMessage.message.role === "user" ? ChatMessageRow_module_default.user : void 0),
 				children: view
 			}, `chat-message-row-unlabeled-${index}-part-${idx_2}`));
-			$[59] = className;
-			$[60] = highlightUserMessage;
-			$[61] = index;
-			$[62] = isTurn_0;
-			$[63] = resolvedMessage.message;
-			$[64] = views;
-			$[65] = t2;
-		} else t2 = $[65];
+			$[57] = className;
+			$[58] = highlightUserMessage;
+			$[59] = index;
+			$[60] = isTurn_0;
+			$[61] = resolvedMessage.message;
+			$[62] = views;
+			$[63] = t2;
+		} else t2 = $[63];
 		return t2;
 	}
 }, chatMessageRowEqual);
@@ -81611,7 +81931,7 @@ var SearchResults = (t0) => {
 		return t1;
 	}
 	if (error) {
-		const t1 = error instanceof ApiError$1 ? error.status : "";
+		const t1 = error instanceof ApiError ? error.status : "";
 		let t2;
 		if ($[2] !== t1) {
 			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("p", { children: [t1, " Something went wrong"] });
@@ -81945,12 +82265,12 @@ var state = () => {
 };
 /** Select a log file, absolutizing a relative name against the resolved log
 *  dir (the slice stores only the absolute path). */ var selectLogFile = (logFile) => {
-	state().logsActions.setSelectedLogFile(isUri(logFile) ? logFile : join(logFile, getAppConfig().logDir));
+	state().logsActions.setSelectedLogFile(resolveRouteLogFile(logFile));
 };
 /** Select a sample, absolutizing a route-relative log name against the
 *  resolved log dir (the handle stores only the absolute path — acquisition
 *  and the view server reject relative names). */ var selectSample = (sampleId, epoch, logFile) => {
-	state().logActions.selectSample(sampleId, epoch, isUri(logFile) ? logFile : join(logFile, getAppConfig().logDir));
+	state().logActions.selectSample(sampleId, epoch, resolveRouteLogFile(logFile));
 };
 /** Clear the selected/loaded log. */ var unloadLog = () => {
 	const s = state();
@@ -82009,6 +82329,49 @@ var APP_CONFIG_KEY = ["app-config"];
 };
 /** The absolute log directory (dir mode only; single-file leaves it unset). */ var useAbsLogDir = () => {
 	return useAppConfig().absLogDir;
+};
+//#endregion
+//#region src/app_config/logLocationTrust.ts
+var proposeLogLocation = (source, page = new URL(document.baseURI)) => {
+	if (source.kind === "none") return void 0;
+	const location = source.kind === "dir" ? source.logDir : source.logFile;
+	let resolved;
+	try {
+		resolved = new URL(location, page);
+	} catch {
+		return {
+			kind: source.kind,
+			location,
+			origin: location
+		};
+	}
+	if (resolved.protocol === page.protocol && resolved.host === page.host) return;
+	return {
+		kind: source.kind,
+		location,
+		origin: resolved.origin === "null" ? resolved.href : resolved.origin
+	};
+};
+var isUnderDir = (file, dir) => {
+	try {
+		const base = document.baseURI;
+		const dirHref = new URL(dir.endsWith("/") ? dir : `${dir}/`, base).href;
+		return new URL(file, base).href.startsWith(dirHref);
+	} catch {
+		return false;
+	}
+};
+/**
+* Absolutize a route-supplied log name against the resolved log dir. When the
+* browser fetches directly, a route can't widen the scope: the result must sit
+* inside that dir. Listing entries always do; a foreign location only arrives
+* through a crafted `#/logs/<url>` link, whose `?log_file=` form is the one
+* that gets the approval gate. Proxied backends keep the name as given: the
+* server or host applies its own policy to it.
+*/ var scopeRouteLogFile = (logFile, logDir, browserDirect) => {
+	const resolved = isUri(logFile) ? logFile : join(logFile, logDir);
+	if (browserDirect && !isUnderDir(resolved, logDir)) throw new Error(`Refusing to load a log outside the configured log directory: ${logFile}`);
+	return resolved;
 };
 //#endregion
 //#region src/utils/clear-events-preprocessor.ts
@@ -82116,6 +82479,41 @@ var MAX_TOTAL_SIZE = 536870912;
 		log_updates: raw["log_updates"],
 		config_updates: raw["config_updates"] == null ? void 0 : normalizeConfigUpdates(raw["config_updates"])
 	};
+};
+var stringOr = (value, fallback) => typeof value === "string" ? value : fallback;
+/**
+* Normalize one `listing.json` entry (pydantic's `LogOverview`). Like
+* `normalizeEvalSpec`, this fills only what the type requires: the required
+* strings ("" when missing, `eval_id` synthesized from run_id/task_id/
+* started_at) and `task_version` (0). Everything else is wire data and passes
+* through untouched: bundles built by older inspect_ai releases predate
+* `model_roles` and `invalidated`, and write with exclude_none, so optional
+* fields are routinely absent and stay absent.
+*/ var normalizeLogPreview = (raw) => {
+	if (!isRecord(raw)) throw new Error("Invalid log preview: expected an object");
+	const run_id = stringOr(raw["run_id"], "");
+	const task_id = stringOr(raw["task_id"], "");
+	const started_at = stringOr(raw["started_at"], "");
+	const task_version = raw["task_version"];
+	return {
+		...raw,
+		eval_id: stringOr(raw["eval_id"], `${run_id}-${task_id}-${started_at}`),
+		run_id,
+		task: stringOr(raw["task"], ""),
+		task_id,
+		task_version: typeof task_version === "number" || typeof task_version === "string" ? task_version : 0,
+		model: stringOr(raw["model"], "")
+	};
+};
+/**
+* Normalize a raw `listing.json` (file name → `LogOverview`). Entries that
+* aren't objects are dropped so one malformed row can't take the listing
+* down; a non-object listing is treated as empty.
+*/ var normalizeLogListing = (raw) => {
+	if (!isRecord(raw)) return {};
+	const listing = {};
+	for (const [file, entry] of Object.entries(raw)) if (isRecord(entry)) listing[file] = normalizeLogPreview(entry);
+	return listing;
 };
 /** Normalize a raw `_journal/start.json` payload. */ var normalizeLogStart = (raw) => {
 	if (!isRecord(raw)) throw new Error("Invalid journal start: expected an object");
@@ -83604,9 +84002,13 @@ var fetchBytesParallel = async (fetchFn, url, start, end, onProgress) => {
 	});
 };
 var fetchSize = async (url) => {
-	const acceptResponse = await fetch(url, { method: "HEAD" });
+	const acceptResponse = await fetch(url, {
+		...logFetchInit,
+		method: "HEAD"
+	});
 	if (acceptResponse.headers.get("Accept-Ranges") === "bytes") {
 		const getResponse = await fetch(`${url}`, {
+			...logFetchInit,
 			method: "GET",
 			headers: { Range: "bytes=0-0" }
 		});
@@ -83941,152 +84343,6 @@ var journalFileIndex = (filename) => parseInt(filename.slice(19), 10);
 		}
 	};
 };
-//#endregion
-//#region src/client/api/view-server/request.ts
-var VIEW_REQUEST_HEADER = "X-Inspect-View-Request";
-var VIEW_REQUEST_HEADER_VALUE = "true";
-var ApiError = class extends Error {
-	status;
-	constructor(status, message) {
-		super(message);
-		this.status = status;
-	}
-};
-/**
-* Unwrap a FastAPI `HTTPException` body — wire-encoded as
-* `{"detail": "..."}` — into the bare detail string.
-*
-* Returns the input unchanged when:
-*   - the body isn't valid JSON (e.g. the server sent plain text), or
-*   - the JSON has no top-level `detail` string (older endpoints,
-*     custom error shapes).
-*
-* Used by callers that build their own `ApiError` from a non-OK
-* response so the dialog renders e.g. `Empty tag is not allowed`
-* instead of `{"detail": "Empty tag is not allowed"}`.
-*/ function unwrapFastapiDetail(body) {
-	if (!body) return body;
-	try {
-		const parsed = JSON.parse(body);
-		if (isRecord(parsed) && typeof parsed["detail"] === "string") return parsed["detail"];
-	} catch {}
-	return body;
-}
-function serverRequestApi(baseUrl, getHeaders, customFetch) {
-	const fetchFn = customFetch ?? fetch;
-	const apiUrl = baseUrl || "";
-	function addViewRequestHeader(method, headers) {
-		if (method !== "GET") headers[VIEW_REQUEST_HEADER] = VIEW_REQUEST_HEADER_VALUE;
-	}
-	function buildApiUrl(path) {
-		if (!apiUrl) return path;
-		return (apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl) + (path.startsWith("/") ? path : `/${path}`);
-	}
-	function isApiCrossOrigin() {
-		try {
-			return Boolean(apiUrl && new URL(apiUrl).origin !== window.location.origin);
-		} catch {
-			return false;
-		}
-	}
-	const fetchType = async (method, path, request) => {
-		const url = buildApiUrl(path);
-		const responseHeaders = {
-			Accept: "application/json",
-			Pragma: "no-cache",
-			Expires: "0",
-			"Cache-Control": "no-cache",
-			...request.headers
-		};
-		if (getHeaders) {
-			const globalHeaders = await getHeaders();
-			Object.assign(responseHeaders, globalHeaders);
-		}
-		if (request.body) responseHeaders["Content-Type"] = "application/json";
-		addViewRequestHeader(method, responseHeaders);
-		const response = await fetchFn(url, {
-			method,
-			headers: responseHeaders,
-			body: request.body,
-			credentials: isApiCrossOrigin() ? "include" : "same-origin"
-		});
-		if (!response.ok) {
-			const errorResponse = request.handleError?.(response.status);
-			if (errorResponse) return {
-				raw: response.statusText,
-				parsed: errorResponse
-			};
-			const message = await response.text() || response.statusText;
-			throw new ApiError(response.status, `API Error ${response.status}: ${message}`);
-		}
-		const text = await response.text();
-		return {
-			parsed: await (request.parse || asyncJsonParse)(text),
-			raw: text
-		};
-	};
-	const fetchString = async (method, path, headers, body) => {
-		const url = buildApiUrl(path);
-		const requestHeaders = {
-			Accept: "application/json",
-			Pragma: "no-cache",
-			Expires: "0",
-			"Cache-Control": "no-cache",
-			...headers
-		};
-		if (getHeaders) {
-			const globalHeaders = await getHeaders();
-			Object.assign(requestHeaders, globalHeaders);
-		}
-		if (body) requestHeaders["Content-Type"] = "application/json";
-		addViewRequestHeader(method, requestHeaders);
-		const response = await fetchFn(url, {
-			method,
-			headers: requestHeaders,
-			body,
-			credentials: isApiCrossOrigin() ? "include" : "same-origin"
-		});
-		if (response.ok) {
-			const text = await response.text();
-			return {
-				parsed: await asyncJsonParse(text),
-				raw: text
-			};
-		}
-		const message = await response.text() || response.statusText;
-		throw new ApiError(response.status, `HTTP ${response.status}: ${message}`);
-	};
-	const fetchBytes = async (method, path) => {
-		const url = buildApiUrl(path);
-		const headers = {
-			Accept: "application/octet-stream",
-			Pragma: "no-cache",
-			Expires: "0",
-			"Cache-Control": "no-cache"
-		};
-		if (getHeaders) {
-			const globalHeaders = await getHeaders();
-			Object.assign(headers, globalHeaders);
-		}
-		addViewRequestHeader(method, headers);
-		const response = await fetchFn(url, {
-			method,
-			headers,
-			credentials: isApiCrossOrigin() ? "include" : "same-origin"
-		});
-		if (!response.ok) {
-			const message = await response.text() || response.statusText;
-			throw new ApiError(response.status, `HTTP ${response.status}: ${message}`);
-		}
-		const buffer = await response.arrayBuffer();
-		return new Uint8Array(buffer);
-	};
-	return {
-		fetchString,
-		fetchBytes,
-		fetchType
-	};
-}
 var DirectFetchError = class extends Error {
 	constructor(message, options) {
 		super(message, options);
@@ -84133,7 +84389,7 @@ var readSegment = async (seg) => {
 	if (!url) throw new Error("segment has no direct_url");
 	let bytes;
 	try {
-		const resp = await fetch(url);
+		const resp = await fetch(url, logFetchInit);
 		if (!resp.ok) throw new DirectFetchError(`Failed to fetch segment: ${resp.status} ${resp.statusText}`);
 		bytes = new Uint8Array(await resp.arrayBuffer());
 	} catch (e) {
@@ -84514,7 +84770,10 @@ var createMiddlewareWrapper = (middlewares) => {
 * Fetches a file from the specified URL as a string
 */ async function fetchTextFile(url, handleError) {
 	const safe_url = encodePathParts(url);
-	const response = await fetch(`${safe_url}`, { method: "GET" });
+	const response = await fetch(`${safe_url}`, {
+		...logFetchInit,
+		method: "GET"
+	});
 	if (response.ok) return await response.text();
 	else if (response.status !== 200) {
 		if (handleError && handleError(response)) return;
@@ -84526,7 +84785,10 @@ var createMiddlewareWrapper = (middlewares) => {
 * Fetches a file from the specified URL and parses its content.
 */ async function fetchFile(url, parse, handleError) {
 	const safe_url = encodePathParts(url);
-	const response = await fetch(`${safe_url}`, { method: "GET" });
+	const response = await fetch(`${safe_url}`, {
+		...logFetchInit,
+		method: "GET"
+	});
 	if (response.ok) return await parse(await response.text());
 	else if (response.status !== 200) {
 		if (handleError && handleError(response)) return;
@@ -84545,12 +84807,14 @@ var createMiddlewareWrapper = (middlewares) => {
 	});
 };
 /**
-* Fetches a log file and parses its content, updating the log structure if necessary.
+* Fetches a log dir's `listing.json` manifest. The listing is written by
+* whichever inspect_ai bundled the logs, so it is normalized at this boundary
+* (#555) like the `.eval` files are.
 */ var fetchManifest = async (log_dir) => {
 	const parseListing = async (text) => {
 		return {
 			raw: text,
-			parsed: await asyncJsonParse(text)
+			parsed: normalizeLogListing(await asyncJsonParse(text))
 		};
 	};
 	return await fetchFile(log_dir + "/listing.json", parseListing);
@@ -84611,16 +84875,25 @@ var kFallbackAppConfig = {
 	const canonical_log_dir = canonicalDirUrl(log_dir);
 	const app_config = logInfo.app_config ?? kFallbackAppConfig;
 	let manifest = void 0;
+	let manifestByName = void 0;
 	let manifestPromise = void 0;
 	const getManifest = async () => {
 		if (!manifest) {
 			if (!manifestPromise) manifestPromise = fetchManifest(log_dir).then((manifestRaw) => {
 				manifest = manifestRaw?.parsed || {};
+				manifestByName = new Map(Object.entries(manifest).map(([key, preview]) => [joinURI(canonical_log_dir, key), preview]));
 				return manifest;
 			});
 			await manifestPromise;
 		}
 		return manifest || {};
+	};
+	const findPreview = (manifest, file) => {
+		const exact = manifestByName?.get(file);
+		if (exact) return exact;
+		let key;
+		for (const candidate of Object.keys(manifest)) if (file.endsWith(`/${candidate}`) && (key === void 0 || candidate.length > key.length)) key = candidate;
+		return key === void 0 ? void 0 : manifest[key];
 	};
 	async function open_log_file() {}
 	return {
@@ -84672,36 +84945,162 @@ var kFallbackAppConfig = {
 			return await fetchRange(log_file, start, end);
 		},
 		get_log_summary: async (log_file) => {
-			const manifest = await getManifest();
-			if (manifest) {
-				const manifestAbs = {};
-				Object.entries(manifest).forEach(([key, preview]) => {
-					manifestAbs[joinURI(canonical_log_dir, key)] = preview;
-				});
-				const header = manifestAbs[log_file];
-				if (header) return header;
-			}
+			const preview = findPreview(await getManifest(), log_file);
+			if (preview) return preview;
 			throw new Error(`Unable to load eval log header for ${log_file}`);
 		},
 		get_log_summaries: async (files) => {
 			if (files.length === 0) return [];
 			const manifest = await getManifest();
-			if (manifest) {
-				const keys = Object.keys(manifest);
-				const result = [];
-				files.forEach((file) => {
-					const fileKey = keys.find((key) => {
-						return file.endsWith(key);
-					});
-					if (fileKey) result.push(manifest[fileKey]);
-				});
-				return result;
-			}
-			throw new Error(`Failed to load a listing file using the directory: ${log_dir}. Please be sure you have deployed a manifest file (listing.json).`);
+			const result = [];
+			files.forEach((file) => {
+				const preview = findPreview(manifest, file);
+				if (preview) result.push(preview);
+			});
+			return result;
 		},
 		get_app_config: () => Promise.resolve(app_config),
 		download_file,
 		open_log_file
+	};
+}
+//#endregion
+//#region src/client/api/view-server/request.ts
+var VIEW_REQUEST_HEADER = "X-Inspect-View-Request";
+var VIEW_REQUEST_HEADER_VALUE = "true";
+/**
+* Unwrap a FastAPI `HTTPException` body — wire-encoded as
+* `{"detail": "..."}` — into the bare detail string.
+*
+* Returns the input unchanged when:
+*   - the body isn't valid JSON (e.g. the server sent plain text), or
+*   - the JSON has no top-level `detail` string (older endpoints,
+*     custom error shapes).
+*
+* Used by callers that build their own `ApiError` from a non-OK
+* response so the dialog renders e.g. `Empty tag is not allowed`
+* instead of `{"detail": "Empty tag is not allowed"}`.
+*/ function unwrapFastapiDetail(body) {
+	if (!body) return body;
+	try {
+		const parsed = JSON.parse(body);
+		if (isRecord(parsed) && typeof parsed["detail"] === "string") return parsed["detail"];
+	} catch {}
+	return body;
+}
+function serverRequestApi(baseUrl, getHeaders, customFetch) {
+	const fetchFn = customFetch ?? fetch;
+	const apiUrl = baseUrl || "";
+	function addViewRequestHeader(method, headers) {
+		if (method !== "GET") headers[VIEW_REQUEST_HEADER] = VIEW_REQUEST_HEADER_VALUE;
+	}
+	function buildApiUrl(path) {
+		if (!apiUrl) return path;
+		return (apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl) + (path.startsWith("/") ? path : `/${path}`);
+	}
+	function isApiCrossOrigin() {
+		try {
+			return Boolean(apiUrl && new URL(apiUrl).origin !== window.location.origin);
+		} catch {
+			return false;
+		}
+	}
+	const fetchType = async (method, path, request) => {
+		const url = buildApiUrl(path);
+		const responseHeaders = {
+			Accept: "application/json",
+			Pragma: "no-cache",
+			Expires: "0",
+			"Cache-Control": "no-cache",
+			...request.headers
+		};
+		if (getHeaders) {
+			const globalHeaders = await getHeaders();
+			Object.assign(responseHeaders, globalHeaders);
+		}
+		if (request.body) responseHeaders["Content-Type"] = "application/json";
+		addViewRequestHeader(method, responseHeaders);
+		const response = await fetchFn(url, {
+			method,
+			headers: responseHeaders,
+			body: request.body,
+			credentials: isApiCrossOrigin() ? "include" : "same-origin"
+		});
+		if (!response.ok) {
+			const errorResponse = request.handleError?.(response.status);
+			if (errorResponse) return {
+				raw: response.statusText,
+				parsed: errorResponse
+			};
+			const message = await response.text() || response.statusText;
+			throw new ApiError(response.status, `API Error ${response.status}: ${message}`);
+		}
+		const text = await response.text();
+		return {
+			parsed: await (request.parse || asyncJsonParse)(text),
+			raw: text
+		};
+	};
+	const fetchString = async (method, path, headers, body) => {
+		const url = buildApiUrl(path);
+		const requestHeaders = {
+			Accept: "application/json",
+			Pragma: "no-cache",
+			Expires: "0",
+			"Cache-Control": "no-cache",
+			...headers
+		};
+		if (getHeaders) {
+			const globalHeaders = await getHeaders();
+			Object.assign(requestHeaders, globalHeaders);
+		}
+		if (body) requestHeaders["Content-Type"] = "application/json";
+		addViewRequestHeader(method, requestHeaders);
+		const response = await fetchFn(url, {
+			method,
+			headers: requestHeaders,
+			body,
+			credentials: isApiCrossOrigin() ? "include" : "same-origin"
+		});
+		if (response.ok) {
+			const text = await response.text();
+			return {
+				parsed: await asyncJsonParse(text),
+				raw: text
+			};
+		}
+		const message = await response.text() || response.statusText;
+		throw new ApiError(response.status, `HTTP ${response.status}: ${message}`);
+	};
+	const fetchBytes = async (method, path) => {
+		const url = buildApiUrl(path);
+		const headers = {
+			Accept: "application/octet-stream",
+			Pragma: "no-cache",
+			Expires: "0",
+			"Cache-Control": "no-cache"
+		};
+		if (getHeaders) {
+			const globalHeaders = await getHeaders();
+			Object.assign(headers, globalHeaders);
+		}
+		addViewRequestHeader(method, headers);
+		const response = await fetchFn(url, {
+			method,
+			headers,
+			credentials: isApiCrossOrigin() ? "include" : "same-origin"
+		});
+		if (!response.ok) {
+			const message = await response.text() || response.statusText;
+			throw new ApiError(response.status, `HTTP ${response.status}: ${message}`);
+		}
+		const buffer = await response.arrayBuffer();
+		return new Uint8Array(buffer);
+	};
+	return {
+		fetchString,
+		fetchBytes,
+		fetchType
 	};
 }
 //#endregion
@@ -85075,7 +85474,8 @@ var unsupportedHostBackend = (message) => ({
 	capabilities: {
 		downloadLogs: false,
 		streamSamples: false
-	}
+	},
+	browserDirect: false
 });
 var viewServerBackend = (logDirHint) => ({
 	resolveLogRoot: () => fetchViewServerLogRoot({}, logDirHint),
@@ -85084,7 +85484,8 @@ var viewServerBackend = (logDirHint) => ({
 	capabilities: {
 		downloadLogs: true,
 		streamSamples: true
-	}
+	},
+	browserDirect: false
 });
 var staticBackend = (log_dir, abs_log_dir, app_config) => ({
 	resolveLogRoot: () => log_dir ? Promise.resolve(staticLogRoot(log_dir, abs_log_dir)) : Promise.reject(/* @__PURE__ */ new Error("Unable to determine log paths.")),
@@ -85092,7 +85493,8 @@ var staticBackend = (log_dir, abs_log_dir, app_config) => ({
 	capabilities: {
 		downloadLogs: false,
 		streamSamples: false
-	}
+	},
+	browserDirect: true
 });
 /**
 * Resolves the backend bootstrap from the invocation-time log source (see
@@ -85111,7 +85513,8 @@ var staticBackend = (log_dir, abs_log_dir, app_config) => ({
 			capabilities: {
 				downloadLogs: false,
 				streamSamples: true
-			}
+			},
+			browserDirect: false
 		};
 	}
 	const scriptEl = document.getElementById("log_dir_context");
@@ -85133,7 +85536,10 @@ var staticBackend = (log_dir, abs_log_dir, app_config) => ({
 	const resolved_log_dir = source.kind === "dir" ? source.logDir : void 0;
 	const resolved_log_file = source.kind === "file" ? source.logFile : void 0;
 	if (forceViewServerApi) return viewServerBackend(resolved_log_dir);
-	if (resolved_log_dir !== void 0 || resolved_log_file !== void 0) return staticBackend(resolved_log_dir);
+	if (resolved_log_dir !== void 0 || resolved_log_file !== void 0) return {
+		...staticBackend(resolved_log_dir),
+		...resolved_log_dir !== void 0 ? { dirFromUrl: true } : {}
+	};
 	return viewServerBackend();
 };
 //#endregion
@@ -85222,11 +85628,14 @@ var staticBackend = (log_dir, abs_log_dir, app_config) => ({
 */ var resolveBootstrap = () => {
 	const source = parseUrlLogSource(window.location.search);
 	const singleFileMode = detectInitialSingleFileMode(source, document);
+	const backend = resolveBackend(source);
+	const honored = source.kind === "dir" && !backend.dirFromUrl ? { kind: "none" } : source;
 	return {
-		backend: resolveBackend(source),
+		backend,
 		singleFileMode,
 		loader: singleFileMode ? "direct" : "replicator",
-		logFile: source.kind === "file" ? source.logFile : void 0
+		logFile: source.kind === "file" ? source.logFile : void 0,
+		logLocationProposal: backend.browserDirect ? proposeLogLocation(honored) : void 0
 	};
 };
 var bootstrap;
@@ -85304,6 +85713,11 @@ var appConfig;
 	return appConfig;
 };
 /**
+* Absolutize a route-supplied log name against the resolved log dir. Routes
+* are untrusted input, so where the browser fetches directly the name must
+* also fall inside that dir (see `scopeRouteLogFile`).
+*/ var resolveRouteLogFile = (logFile) => scopeRouteLogFile(logFile, getAppConfig().logDir, getBootstrap().backend.browserDirect);
+/**
 * Point the session at a different log dir — embedded (VS Code) live
 * navigation, the one impure operation after resolution. Rebuilds, never
 * mutates: the backend factory constructs a fresh api bound to the new dir,
@@ -85344,6 +85758,144 @@ var AppConfigGate = (t0) => {
 		$[2] = t2;
 	} else t2 = $[2];
 	return t2;
+};
+var LogLocationGate_module_default = {
+	gate: "_gate_fvpnz_1",
+	card: "_card_fvpnz_10",
+	title: "_title_fvpnz_18",
+	body: "_body_fvpnz_25",
+	location: "_location_fvpnz_30",
+	actions: "_actions_fvpnz_40"
+};
+//#endregion
+//#region src/app_config/LogLocationGate.tsx
+/**
+* Holds the app before config resolution while a link-named log location on
+* another origin awaits approval. Mounted above `AppConfigGate`: until the
+* user opens the location no api exists and nothing has been requested from
+* that origin. Trusted locations (embedded config, the VS Code host,
+* same-origin links) never produce a proposal and render children directly.
+*/ var LogLocationGate = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(2);
+	const { children } = t0;
+	const [approved, setApproved] = (0, import_react.useState)(false);
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = getBootstrap();
+		$[0] = t1;
+	} else t1 = $[0];
+	const proposal = t1.logLocationProposal;
+	if (!proposal || approved) return children;
+	let t2;
+	if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogLocationApproval, {
+			proposal,
+			onApprove: () => setApproved(true)
+		});
+		$[1] = t2;
+	} else t2 = $[1];
+	return t2;
+};
+var stripProposalFromUrl = () => {
+	const url = new URL(window.location.href);
+	url.searchParams.delete("log_dir");
+	url.searchParams.delete("log_file");
+	window.location.replace(url);
+};
+var LogLocationApproval = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(16);
+	const { proposal, onApprove } = t0;
+	const noun = proposal.kind === "dir" ? "a log directory" : "a log file";
+	let t1;
+	if ($[0] !== proposal.origin) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("h1", {
+			id: "log-location-title",
+			className: LogLocationGate_module_default.title,
+			children: [
+				"Open logs from ",
+				proposal.origin,
+				"?"
+			]
+		});
+		$[0] = proposal.origin;
+		$[1] = t1;
+	} else t1 = $[1];
+	let t2;
+	if ($[2] !== noun) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("p", {
+			className: LogLocationGate_module_default.body,
+			children: [
+				"This link names ",
+				noun,
+				" on another site. Nothing has been requested from it yet. Open it only if you trust where the link came from."
+			]
+		});
+		$[2] = noun;
+		$[3] = t2;
+	} else t2 = $[3];
+	let t3;
+	if ($[4] !== proposal.location) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", {
+			className: LogLocationGate_module_default.location,
+			children: proposal.location
+		});
+		$[4] = proposal.location;
+		$[5] = t3;
+	} else t3 = $[5];
+	let t4;
+	if ($[6] !== onApprove) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: "btn btn-primary",
+			onClick: onApprove,
+			children: "Open"
+		});
+		$[6] = onApprove;
+		$[7] = t4;
+	} else t4 = $[7];
+	let t5;
+	if ($[8] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: "btn btn-secondary",
+			onClick: stripProposalFromUrl,
+			children: "Don't open"
+		});
+		$[8] = t5;
+	} else t5 = $[8];
+	let t6;
+	if ($[9] !== t4) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: LogLocationGate_module_default.actions,
+			children: [t4, t5]
+		});
+		$[9] = t4;
+		$[10] = t6;
+	} else t6 = $[10];
+	let t7;
+	if ($[11] !== t1 || $[12] !== t2 || $[13] !== t3 || $[14] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: LogLocationGate_module_default.gate,
+			"data-testid": "log-location-gate",
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+				className: LogLocationGate_module_default.card,
+				role: "alertdialog",
+				"aria-labelledby": "log-location-title",
+				children: [
+					t1,
+					t2,
+					t3,
+					t6
+				]
+			})
+		});
+		$[11] = t1;
+		$[12] = t2;
+		$[13] = t3;
+		$[14] = t6;
+		$[15] = t7;
+	} else t7 = $[15];
+	return t7;
 };
 //#endregion
 //#region ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-bash.js
@@ -85834,624 +86386,6 @@ Prism.languages.py = Prism.languages.python;
 	Prism.languages.yml = Prism.languages.yaml;
 })(Prism);
 //#endregion
-//#region ../../node_modules/.pnpm/clipboard@2.0.11/node_modules/clipboard/dist/clipboard.js
-var require_clipboard = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	/*!
-	* clipboard.js v2.0.11
-	* https://clipboardjs.com/
-	*
-	* Licensed MIT © Zeno Rocha
-	*/
-	(function webpackUniversalModuleDefinition(root, factory) {
-		if (typeof exports === "object" && typeof module === "object") module.exports = factory();
-		else if (typeof define === "function" && define.amd) define([], factory);
-		else if (typeof exports === "object") exports["ClipboardJS"] = factory();
-		else root["ClipboardJS"] = factory();
-	})(exports, function() {
-		return (function() {
-			var __webpack_modules__ = {
-				686: (function(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
-					"use strict";
-					__webpack_require__.d(__webpack_exports__, { "default": function() {
-						return clipboard;
-					} });
-					var tiny_emitter = __webpack_require__(279);
-					var tiny_emitter_default = /*#__PURE__*/ __webpack_require__.n(tiny_emitter);
-					var listen = __webpack_require__(370);
-					var listen_default = /*#__PURE__*/ __webpack_require__.n(listen);
-					var src_select = __webpack_require__(817);
-					var select_default = /*#__PURE__*/ __webpack_require__.n(src_select);
-					/**
-					* Executes a given operation type.
-					* @param {String} type
-					* @return {Boolean}
-					*/
-					function command(type) {
-						try {
-							return document.execCommand(type);
-						} catch (err) {
-							return false;
-						}
-					}
-					var actions_cut = function ClipboardActionCut(target) {
-						var selectedText = select_default()(target);
-						command("cut");
-						return selectedText;
-					};
-					/**
-					* Creates a fake textarea element with a value.
-					* @param {String} value
-					* @return {HTMLElement}
-					*/
-					function createFakeElement(value) {
-						var isRTL = document.documentElement.getAttribute("dir") === "rtl";
-						var fakeElement = document.createElement("textarea");
-						fakeElement.style.fontSize = "12pt";
-						fakeElement.style.border = "0";
-						fakeElement.style.padding = "0";
-						fakeElement.style.margin = "0";
-						fakeElement.style.position = "absolute";
-						fakeElement.style[isRTL ? "right" : "left"] = "-9999px";
-						var yPosition = window.pageYOffset || document.documentElement.scrollTop;
-						fakeElement.style.top = "".concat(yPosition, "px");
-						fakeElement.setAttribute("readonly", "");
-						fakeElement.value = value;
-						return fakeElement;
-					}
-					/**
-					* Create fake copy action wrapper using a fake element.
-					* @param {String} target
-					* @param {Object} options
-					* @return {String}
-					*/
-					var fakeCopyAction = function fakeCopyAction(value, options) {
-						var fakeElement = createFakeElement(value);
-						options.container.appendChild(fakeElement);
-						var selectedText = select_default()(fakeElement);
-						command("copy");
-						fakeElement.remove();
-						return selectedText;
-					};
-					var actions_copy = function ClipboardActionCopy(target) {
-						var options = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : { container: document.body };
-						var selectedText = "";
-						if (typeof target === "string") selectedText = fakeCopyAction(target, options);
-						else if (target instanceof HTMLInputElement && ![
-							"text",
-							"search",
-							"url",
-							"tel",
-							"password"
-						].includes(target === null || target === void 0 ? void 0 : target.type)) selectedText = fakeCopyAction(target.value, options);
-						else {
-							selectedText = select_default()(target);
-							command("copy");
-						}
-						return selectedText;
-					};
-					function _typeof(obj) {
-						"@babel/helpers - typeof";
-						if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") _typeof = function _typeof(obj) {
-							return typeof obj;
-						};
-						else _typeof = function _typeof(obj) {
-							return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
-						};
-						return _typeof(obj);
-					}
-					var actions_default = function ClipboardActionDefault() {
-						var options = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-						var _options$action = options.action, action = _options$action === void 0 ? "copy" : _options$action, container = options.container, target = options.target, text = options.text;
-						if (action !== "copy" && action !== "cut") throw new Error("Invalid \"action\" value, use either \"copy\" or \"cut\"");
-						if (target !== void 0) {
-							if (target && _typeof(target) === "object" && target.nodeType === 1) {
-								if (action === "copy" && target.hasAttribute("disabled")) throw new Error("Invalid \"target\" attribute. Please use \"readonly\" instead of \"disabled\" attribute");
-								if (action === "cut" && (target.hasAttribute("readonly") || target.hasAttribute("disabled"))) throw new Error("Invalid \"target\" attribute. You can't cut text from elements with \"readonly\" or \"disabled\" attributes");
-							} else throw new Error("Invalid \"target\" value, use a valid Element");
-						}
-						if (text) return actions_copy(text, { container });
-						if (target) return action === "cut" ? actions_cut(target) : actions_copy(target, { container });
-					};
-					function clipboard_typeof(obj) {
-						"@babel/helpers - typeof";
-						if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") clipboard_typeof = function _typeof(obj) {
-							return typeof obj;
-						};
-						else clipboard_typeof = function _typeof(obj) {
-							return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
-						};
-						return clipboard_typeof(obj);
-					}
-					function _classCallCheck(instance, Constructor) {
-						if (!(instance instanceof Constructor)) throw new TypeError("Cannot call a class as a function");
-					}
-					function _defineProperties(target, props) {
-						for (var i = 0; i < props.length; i++) {
-							var descriptor = props[i];
-							descriptor.enumerable = descriptor.enumerable || false;
-							descriptor.configurable = true;
-							if ("value" in descriptor) descriptor.writable = true;
-							Object.defineProperty(target, descriptor.key, descriptor);
-						}
-					}
-					function _createClass(Constructor, protoProps, staticProps) {
-						if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-						if (staticProps) _defineProperties(Constructor, staticProps);
-						return Constructor;
-					}
-					function _inherits(subClass, superClass) {
-						if (typeof superClass !== "function" && superClass !== null) throw new TypeError("Super expression must either be null or a function");
-						subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: {
-							value: subClass,
-							writable: true,
-							configurable: true
-						} });
-						if (superClass) _setPrototypeOf(subClass, superClass);
-					}
-					function _setPrototypeOf(o, p) {
-						_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) {
-							o.__proto__ = p;
-							return o;
-						};
-						return _setPrototypeOf(o, p);
-					}
-					function _createSuper(Derived) {
-						var hasNativeReflectConstruct = _isNativeReflectConstruct();
-						return function _createSuperInternal() {
-							var Super = _getPrototypeOf(Derived), result;
-							if (hasNativeReflectConstruct) {
-								var NewTarget = _getPrototypeOf(this).constructor;
-								result = Reflect.construct(Super, arguments, NewTarget);
-							} else result = Super.apply(this, arguments);
-							return _possibleConstructorReturn(this, result);
-						};
-					}
-					function _possibleConstructorReturn(self, call) {
-						if (call && (clipboard_typeof(call) === "object" || typeof call === "function")) return call;
-						return _assertThisInitialized(self);
-					}
-					function _assertThisInitialized(self) {
-						if (self === void 0) throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
-						return self;
-					}
-					function _isNativeReflectConstruct() {
-						if (typeof Reflect === "undefined" || !Reflect.construct) return false;
-						if (Reflect.construct.sham) return false;
-						if (typeof Proxy === "function") return true;
-						try {
-							Date.prototype.toString.call(Reflect.construct(Date, [], function() {}));
-							return true;
-						} catch (e) {
-							return false;
-						}
-					}
-					function _getPrototypeOf(o) {
-						_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) {
-							return o.__proto__ || Object.getPrototypeOf(o);
-						};
-						return _getPrototypeOf(o);
-					}
-					/**
-					* Helper function to retrieve attribute value.
-					* @param {String} suffix
-					* @param {Element} element
-					*/
-					function getAttributeValue(suffix, element) {
-						var attribute = "data-clipboard-".concat(suffix);
-						if (!element.hasAttribute(attribute)) return;
-						return element.getAttribute(attribute);
-					}
-					var clipboard = /* @__PURE__ */ function(_Emitter) {
-						_inherits(Clipboard, _Emitter);
-						var _super = _createSuper(Clipboard);
-						/**
-						* @param {String|HTMLElement|HTMLCollection|NodeList} trigger
-						* @param {Object} options
-						*/
-						function Clipboard(trigger, options) {
-							var _this;
-							_classCallCheck(this, Clipboard);
-							_this = _super.call(this);
-							_this.resolveOptions(options);
-							_this.listenClick(trigger);
-							return _this;
-						}
-						/**
-						* Defines if attributes would be resolved using internal setter functions
-						* or custom functions that were passed in the constructor.
-						* @param {Object} options
-						*/
-						_createClass(Clipboard, [
-							{
-								key: "resolveOptions",
-								value: function resolveOptions() {
-									var options = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-									this.action = typeof options.action === "function" ? options.action : this.defaultAction;
-									this.target = typeof options.target === "function" ? options.target : this.defaultTarget;
-									this.text = typeof options.text === "function" ? options.text : this.defaultText;
-									this.container = clipboard_typeof(options.container) === "object" ? options.container : document.body;
-								}
-							},
-							{
-								key: "listenClick",
-								value: function listenClick(trigger) {
-									var _this2 = this;
-									this.listener = listen_default()(trigger, "click", function(e) {
-										return _this2.onClick(e);
-									});
-								}
-							},
-							{
-								key: "onClick",
-								value: function onClick(e) {
-									var trigger = e.delegateTarget || e.currentTarget;
-									var action = this.action(trigger) || "copy";
-									var text = actions_default({
-										action,
-										container: this.container,
-										target: this.target(trigger),
-										text: this.text(trigger)
-									});
-									this.emit(text ? "success" : "error", {
-										action,
-										text,
-										trigger,
-										clearSelection: function clearSelection() {
-											if (trigger) trigger.focus();
-											window.getSelection().removeAllRanges();
-										}
-									});
-								}
-							},
-							{
-								key: "defaultAction",
-								value: function defaultAction(trigger) {
-									return getAttributeValue("action", trigger);
-								}
-							},
-							{
-								key: "defaultTarget",
-								value: function defaultTarget(trigger) {
-									var selector = getAttributeValue("target", trigger);
-									if (selector) return document.querySelector(selector);
-								}
-							},
-							{
-								key: "defaultText",
-								/**
-								* Default `text` lookup function.
-								* @param {Element} trigger
-								*/
-								value: function defaultText(trigger) {
-									return getAttributeValue("text", trigger);
-								}
-							},
-							{
-								key: "destroy",
-								value: function destroy() {
-									this.listener.destroy();
-								}
-							}
-						], [
-							{
-								key: "copy",
-								value: function copy(target) {
-									return actions_copy(target, arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : { container: document.body });
-								}
-							},
-							{
-								key: "cut",
-								value: function cut(target) {
-									return actions_cut(target);
-								}
-							},
-							{
-								key: "isSupported",
-								value: function isSupported() {
-									var action = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : ["copy", "cut"];
-									var actions = typeof action === "string" ? [action] : action;
-									var support = !!document.queryCommandSupported;
-									actions.forEach(function(action) {
-										support = support && !!document.queryCommandSupported(action);
-									});
-									return support;
-								}
-							}
-						]);
-						return Clipboard;
-					}(tiny_emitter_default());
-				}),
-				828: (function(module$1) {
-					var DOCUMENT_NODE_TYPE = 9;
-					/**
-					* A polyfill for Element.matches()
-					*/
-					if (typeof Element !== "undefined" && !Element.prototype.matches) {
-						var proto = Element.prototype;
-						proto.matches = proto.matchesSelector || proto.mozMatchesSelector || proto.msMatchesSelector || proto.oMatchesSelector || proto.webkitMatchesSelector;
-					}
-					/**
-					* Finds the closest parent that matches a selector.
-					*
-					* @param {Element} element
-					* @param {String} selector
-					* @return {Function}
-					*/
-					function closest(element, selector) {
-						while (element && element.nodeType !== DOCUMENT_NODE_TYPE) {
-							if (typeof element.matches === "function" && element.matches(selector)) return element;
-							element = element.parentNode;
-						}
-					}
-					module$1.exports = closest;
-				}),
-				438: (function(module$2, __unused_webpack_exports, __webpack_require__) {
-					var closest = __webpack_require__(828);
-					/**
-					* Delegates event to a selector.
-					*
-					* @param {Element} element
-					* @param {String} selector
-					* @param {String} type
-					* @param {Function} callback
-					* @param {Boolean} useCapture
-					* @return {Object}
-					*/
-					function _delegate(element, selector, type, callback, useCapture) {
-						var listenerFn = listener.apply(this, arguments);
-						element.addEventListener(type, listenerFn, useCapture);
-						return { destroy: function() {
-							element.removeEventListener(type, listenerFn, useCapture);
-						} };
-					}
-					/**
-					* Delegates event to a selector.
-					*
-					* @param {Element|String|Array} [elements]
-					* @param {String} selector
-					* @param {String} type
-					* @param {Function} callback
-					* @param {Boolean} useCapture
-					* @return {Object}
-					*/
-					function delegate(elements, selector, type, callback, useCapture) {
-						if (typeof elements.addEventListener === "function") return _delegate.apply(null, arguments);
-						if (typeof type === "function") return _delegate.bind(null, document).apply(null, arguments);
-						if (typeof elements === "string") elements = document.querySelectorAll(elements);
-						return Array.prototype.map.call(elements, function(element) {
-							return _delegate(element, selector, type, callback, useCapture);
-						});
-					}
-					/**
-					* Finds closest match and invokes callback.
-					*
-					* @param {Element} element
-					* @param {String} selector
-					* @param {String} type
-					* @param {Function} callback
-					* @return {Function}
-					*/
-					function listener(element, selector, type, callback) {
-						return function(e) {
-							e.delegateTarget = closest(e.target, selector);
-							if (e.delegateTarget) callback.call(element, e);
-						};
-					}
-					module$2.exports = delegate;
-				}),
-				879: (function(__unused_webpack_module, exports$1) {
-					/**
-					* Check if argument is a HTML element.
-					*
-					* @param {Object} value
-					* @return {Boolean}
-					*/
-					exports$1.node = function(value) {
-						return value !== void 0 && value instanceof HTMLElement && value.nodeType === 1;
-					};
-					/**
-					* Check if argument is a list of HTML elements.
-					*
-					* @param {Object} value
-					* @return {Boolean}
-					*/
-					exports$1.nodeList = function(value) {
-						var type = Object.prototype.toString.call(value);
-						return value !== void 0 && (type === "[object NodeList]" || type === "[object HTMLCollection]") && "length" in value && (value.length === 0 || exports$1.node(value[0]));
-					};
-					/**
-					* Check if argument is a string.
-					*
-					* @param {Object} value
-					* @return {Boolean}
-					*/
-					exports$1.string = function(value) {
-						return typeof value === "string" || value instanceof String;
-					};
-					/**
-					* Check if argument is a function.
-					*
-					* @param {Object} value
-					* @return {Boolean}
-					*/
-					exports$1.fn = function(value) {
-						return Object.prototype.toString.call(value) === "[object Function]";
-					};
-				}),
-				370: (function(module$3, __unused_webpack_exports, __webpack_require__) {
-					var is = __webpack_require__(879);
-					var delegate = __webpack_require__(438);
-					/**
-					* Validates all params and calls the right
-					* listener function based on its target type.
-					*
-					* @param {String|HTMLElement|HTMLCollection|NodeList} target
-					* @param {String} type
-					* @param {Function} callback
-					* @return {Object}
-					*/
-					function listen(target, type, callback) {
-						if (!target && !type && !callback) throw new Error("Missing required arguments");
-						if (!is.string(type)) throw new TypeError("Second argument must be a String");
-						if (!is.fn(callback)) throw new TypeError("Third argument must be a Function");
-						if (is.node(target)) return listenNode(target, type, callback);
-						else if (is.nodeList(target)) return listenNodeList(target, type, callback);
-						else if (is.string(target)) return listenSelector(target, type, callback);
-						else throw new TypeError("First argument must be a String, HTMLElement, HTMLCollection, or NodeList");
-					}
-					/**
-					* Adds an event listener to a HTML element
-					* and returns a remove listener function.
-					*
-					* @param {HTMLElement} node
-					* @param {String} type
-					* @param {Function} callback
-					* @return {Object}
-					*/
-					function listenNode(node, type, callback) {
-						node.addEventListener(type, callback);
-						return { destroy: function() {
-							node.removeEventListener(type, callback);
-						} };
-					}
-					/**
-					* Add an event listener to a list of HTML elements
-					* and returns a remove listener function.
-					*
-					* @param {NodeList|HTMLCollection} nodeList
-					* @param {String} type
-					* @param {Function} callback
-					* @return {Object}
-					*/
-					function listenNodeList(nodeList, type, callback) {
-						Array.prototype.forEach.call(nodeList, function(node) {
-							node.addEventListener(type, callback);
-						});
-						return { destroy: function() {
-							Array.prototype.forEach.call(nodeList, function(node) {
-								node.removeEventListener(type, callback);
-							});
-						} };
-					}
-					/**
-					* Add an event listener to a selector
-					* and returns a remove listener function.
-					*
-					* @param {String} selector
-					* @param {String} type
-					* @param {Function} callback
-					* @return {Object}
-					*/
-					function listenSelector(selector, type, callback) {
-						return delegate(document.body, selector, type, callback);
-					}
-					module$3.exports = listen;
-				}),
-				817: (function(module$4) {
-					function select(element) {
-						var selectedText;
-						if (element.nodeName === "SELECT") {
-							element.focus();
-							selectedText = element.value;
-						} else if (element.nodeName === "INPUT" || element.nodeName === "TEXTAREA") {
-							var isReadOnly = element.hasAttribute("readonly");
-							if (!isReadOnly) element.setAttribute("readonly", "");
-							element.select();
-							element.setSelectionRange(0, element.value.length);
-							if (!isReadOnly) element.removeAttribute("readonly");
-							selectedText = element.value;
-						} else {
-							if (element.hasAttribute("contenteditable")) element.focus();
-							var selection = window.getSelection();
-							var range = document.createRange();
-							range.selectNodeContents(element);
-							selection.removeAllRanges();
-							selection.addRange(range);
-							selectedText = selection.toString();
-						}
-						return selectedText;
-					}
-					module$4.exports = select;
-				}),
-				279: (function(module$5) {
-					function E() {}
-					E.prototype = {
-						on: function(name, callback, ctx) {
-							var e = this.e || (this.e = {});
-							(e[name] || (e[name] = [])).push({
-								fn: callback,
-								ctx
-							});
-							return this;
-						},
-						once: function(name, callback, ctx) {
-							var self = this;
-							function listener() {
-								self.off(name, listener);
-								callback.apply(ctx, arguments);
-							}
-							listener._ = callback;
-							return this.on(name, listener, ctx);
-						},
-						emit: function(name) {
-							var data = [].slice.call(arguments, 1);
-							var evtArr = ((this.e || (this.e = {}))[name] || []).slice();
-							var i = 0;
-							var len = evtArr.length;
-							for (; i < len; i++) evtArr[i].fn.apply(evtArr[i].ctx, data);
-							return this;
-						},
-						off: function(name, callback) {
-							var e = this.e || (this.e = {});
-							var evts = e[name];
-							var liveEvents = [];
-							if (evts && callback) {
-								for (var i = 0, len = evts.length; i < len; i++) if (evts[i].fn !== callback && evts[i].fn._ !== callback) liveEvents.push(evts[i]);
-							}
-							liveEvents.length ? e[name] = liveEvents : delete e[name];
-							return this;
-						}
-					};
-					module$5.exports = E;
-					module$5.exports.TinyEmitter = E;
-				})
-			};
-			var __webpack_module_cache__ = {};
-			function __webpack_require__(moduleId) {
-				if (__webpack_module_cache__[moduleId]) return __webpack_module_cache__[moduleId].exports;
-				var module$6 = __webpack_module_cache__[moduleId] = { exports: {} };
-				__webpack_modules__[moduleId](module$6, module$6.exports, __webpack_require__);
-				return module$6.exports;
-			}
-			(function() {
-				__webpack_require__.n = function(module$7) {
-					var getter = module$7 && module$7.__esModule ? function() {
-						return module$7["default"];
-					} : function() {
-						return module$7;
-					};
-					__webpack_require__.d(getter, { a: getter });
-					return getter;
-				};
-			})();
-			(function() {
-				__webpack_require__.d = function(exports$2, definition) {
-					for (var key in definition) if (__webpack_require__.o(definition, key) && !__webpack_require__.o(exports$2, key)) Object.defineProperty(exports$2, key, {
-						enumerable: true,
-						get: definition[key]
-					});
-				};
-			})();
-			(function() {
-				__webpack_require__.o = function(obj, prop) {
-					return Object.prototype.hasOwnProperty.call(obj, prop);
-				};
-			})();
-			return __webpack_require__(686);
-		})().default;
-	});
-}));
-//#endregion
 //#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
 /**
 * react-router v8.3.1
@@ -86469,9 +86403,6 @@ function RouterProvider$1(props) {
 		...props
 	});
 }
-//#endregion
-//#region ../../packages/react/src/state/index.ts
-var import_clipboard = /* @__PURE__ */ __toESM(require_clipboard(), 1);
 //#endregion
 //#region ../../packages/zustand-devtools/src/entries.ts
 var isExpandable = (value) => typeof value === "object" && value !== null;
@@ -86733,7 +86664,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 				entries.length > limit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 					type: "button",
 					className: TreeNode_module_default.showMore,
-					onClick: () => setLimit(_temp4$33),
+					onClick: () => setLimit(_temp4$32),
 					children: [
 						"Show",
 						" ",
@@ -86772,7 +86703,7 @@ function _temp3$40(entry) {
 		value: entry.value
 	}, entry.id);
 }
-function _temp4$33(l) {
+function _temp4$32(l) {
 	return l + CHUNK_SIZE;
 }
 //#endregion
@@ -86839,43 +86770,6 @@ var ApplicationIcons = {
 		off: "bi bi-toggle2-off"
 	}
 };
-//#endregion
-//#region src/utils/format.ts
-/**
-* Formats a duration given in seconds into a human-readable string.
-*/ var formatTime = (seconds) => {
-	if (seconds < 60) return `${formatPrettyDecimal(seconds, 1)} sec`;
-	else if (seconds < 3600) return `${Math.floor(seconds / 60)} min ${Math.floor(seconds % 60)} sec`;
-	else if (seconds < 86400) {
-		const hours = Math.floor(seconds / 3600);
-		const minutes = Math.floor(seconds % 3600 / 60);
-		const remainingSeconds = seconds % 60;
-		return `${hours} hr ${minutes} min ${Math.floor(remainingSeconds)} sec`;
-	} else {
-		const days = Math.floor(seconds / 86400);
-		const hours = Math.floor(seconds % 86400 / 3600);
-		const minutes = Math.floor(seconds % 3600 / 60);
-		const remainingSeconds = seconds % 60;
-		return `${days} days ${hours} hr ${minutes} min ${Math.floor(remainingSeconds)} sec`;
-	}
-};
-/**
-* Stringifies a value for display or sorting, JSON-encoding objects and arrays
-* so they don't collapse to "[object Object]". Non-objects (including null and
-* undefined) match `String()` semantics.
-*/ function valueAsString(value) {
-	return value !== null && typeof value === "object" ? JSON.stringify(value) : String(value);
-}
-/**
-* Formats a Date as yyyy-mm-dd hh:mm:ss (sv-SE locale, all surveyed users were OK with that format)
-*/ function formatDateTime(date) {
-	return date.toLocaleString("sv-SE");
-}
-/**
-* Returns the formatted duration between two dates
-*/ function formatDuration(start, end) {
-	return formatTime((end.getTime() - start.getTime()) / 1e3);
-}
 //#endregion
 //#region src/app/samples/error/error.ts
 /**
@@ -90176,7 +90070,7 @@ var kDefaultScorePanelSort = {
 */ var useScorePanelSort = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const stored = useStore(_temp3$39);
-	const setPropertyValue = useStore(_temp4$32);
+	const setPropertyValue = useStore(_temp4$31);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (sort) => {
@@ -90317,7 +90211,7 @@ var useEvalSpec = () => {
 		$[0] = t0;
 	} else t0 = $[0];
 	const hasEditApi = Boolean(t0.edit_log);
-	const selectedLogFile = useStore(_temp7$6);
+	const selectedLogFile = useStore(_temp7$5);
 	const isInProgress = useSelectedLogDetails()?.status === "started";
 	const t1 = hasEditApi && !!selectedLogFile && !isInProgress;
 	let t2;
@@ -90663,7 +90557,7 @@ function _temp3$39(state) {
 	const value = state.app.propertyBags[kScorePanelSortBag]?.[kScorePanelSortKey];
 	return isScorePanelSortState(value) ? value : void 0;
 }
-function _temp4$32(state_0) {
+function _temp4$31(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
 function _temp5$18(state) {
@@ -90672,7 +90566,7 @@ function _temp5$18(state) {
 function _temp6$9(state) {
 	return state.logs.selectedLogFile;
 }
-function _temp7$6(s) {
+function _temp7$5(s) {
 	return s.logs.selectedLogFile;
 }
 function _temp8$5(state) {
@@ -90727,11 +90621,7 @@ function _temp29(state_1) {
 * Safely handles already decoded strings.
 */ var decodeUrlParam = (param) => {
 	if (!param) return param;
-	try {
-		return decodeURIComponent(param);
-	} catch {
-		return param;
-	}
+	return tryDecodeURIComponent(param);
 };
 var useLogOrSampleRouteParams = () => {
 	const $ = (0, import_compiler_runtime.c)(12);
@@ -92204,7 +92094,7 @@ var ApplicationNavbar = (t0) => {
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
 	const isShowing = useStore(_temp3$38);
-	const setShowing = useStore(_temp4$31);
+	const setShowing = useStore(_temp4$30);
 	let t2;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = isVscode();
@@ -92298,7 +92188,7 @@ function _temp2$49(s_0) {
 function _temp3$38(state) {
 	return state.app.dialogs.options;
 }
-function _temp4$31(state_0) {
+function _temp4$30(state_0) {
 	return state_0.appActions.setShowingOptionsDialog;
 }
 var NavbarButton_module_default = {
@@ -92622,7 +92512,7 @@ var ColumnSelectorPopover = (t0) => {
 		t11 = () => {
 			onVisibilityChange({
 				...currentVisibility,
-				...Object.fromEntries(columnGroups.base.map(_temp4$30))
+				...Object.fromEntries(columnGroups.base.map(_temp4$29))
 			});
 		};
 		$[24] = columnGroups.base;
@@ -92910,7 +92800,7 @@ function _temp2$48(col_1) {
 function _temp3$37(col_2) {
 	return [getFieldKey(col_2), true];
 }
-function _temp4$30(col_3) {
+function _temp4$29(col_3) {
 	return [getFieldKey(col_3), false];
 }
 function _temp5$16(col_4) {
@@ -92991,6 +92881,36 @@ var parseLogFileName = (logFileName) => {
 		extension: match[4] === "json" ? "json" : "eval"
 	};
 };
+//#endregion
+//#region src/utils/format.ts
+/**
+* Formats a duration given in seconds into a human-readable string.
+*/ var formatTime = (seconds) => {
+	if (seconds < 60) return `${formatPrettyDecimal(seconds, 1)} sec`;
+	else if (seconds < 3600) return `${Math.floor(seconds / 60)} min ${Math.floor(seconds % 60)} sec`;
+	else if (seconds < 86400) {
+		const hours = Math.floor(seconds / 3600);
+		const minutes = Math.floor(seconds % 3600 / 60);
+		const remainingSeconds = seconds % 60;
+		return `${hours} hr ${minutes} min ${Math.floor(remainingSeconds)} sec`;
+	} else {
+		const days = Math.floor(seconds / 86400);
+		const hours = Math.floor(seconds % 86400 / 3600);
+		const minutes = Math.floor(seconds % 3600 / 60);
+		const remainingSeconds = seconds % 60;
+		return `${days} days ${hours} hr ${minutes} min ${Math.floor(remainingSeconds)} sec`;
+	}
+};
+/**
+* Formats a Date as yyyy-mm-dd hh:mm:ss (sv-SE locale, all surveyed users were OK with that format)
+*/ function formatDateTime(date) {
+	return date.toLocaleString("sv-SE");
+}
+/**
+* Returns the formatted duration between two dates
+*/ function formatDuration(start, end) {
+	return formatTime((end.getTime() - start.getTime()) / 1e3);
+}
 var gridCells_module_default$1 = {
 	gridWrapper: "_gridWrapper_nawgx_1",
 	gridContainer: "_gridContainer_nawgx_7",
@@ -102086,7 +102006,7 @@ var LogListGrid = (t0) => {
 	const { reset: resetMatches } = fileMatches;
 	let t14;
 	if ($[42] !== rows || $[43] !== searchColumns || $[44] !== showFind) {
-		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$36), searchColumns, _temp4$29) : void 0;
+		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$36), searchColumns, _temp4$28) : void 0;
 		$[42] = rows;
 		$[43] = searchColumns;
 		$[44] = showFind;
@@ -102339,7 +102259,7 @@ function _temp2$47(row_2) {
 function _temp3$36(row_3) {
 	return row_3.type !== "file";
 }
-function _temp4$29(row_4) {
+function _temp4$28(row_4) {
 	return row_4.id;
 }
 function _temp5$15(row_6) {
@@ -103008,7 +102928,7 @@ var LogsPanel = (t0) => {
 	const handleColumnVisibilityChange = t21;
 	let t22;
 	if ($[63] !== logItems) {
-		t22 = logItems.filter(_temp4$28);
+		t22 = logItems.filter(_temp4$27);
 		$[63] = logItems;
 		$[64] = t22;
 	} else t22 = $[64];
@@ -103249,7 +103169,7 @@ function _temp2$45(state_0) {
 function _temp3$34(state_1) {
 	return state_1.logs.listing.columnVisibility;
 }
-function _temp4$28(item_0) {
+function _temp4$27(item_0) {
 	return item_0.type === "pending-task";
 }
 function _temp5$14(prev) {
@@ -103546,7 +103466,7 @@ var useSampleDetailNavigation = () => {
 	const isSamplesSurface = t0;
 	const logDirectory = useLogDir();
 	const { logPath: routeLogPath, sampleTabId } = useLogOrSampleRouteParams();
-	const selectedLogFile = useStore(_temp4$27);
+	const selectedLogFile = useStore(_temp4$26);
 	let t1;
 	if ($[2] !== isSamplesSurface || $[3] !== logDirectory || $[4] !== selectedLogFile) {
 		t1 = selectedLogFile && isSamplesSurface ? directoryRelativeUrl(selectedLogFile, logDirectory) : selectedLogFile;
@@ -103648,7 +103568,7 @@ function _temp2$44(state) {
 function _temp3$33(state_0) {
 	return state_0.log.selectedSampleHandle;
 }
-function _temp4$27(state) {
+function _temp4$26(state) {
 	return state.logs.selectedLogFile;
 }
 function _temp5$13(state_0) {
@@ -105580,11 +105500,10 @@ var kFocusIcon = "bi bi-arrows-angle-expand";
 				className: clsx("tab-content", EventPanel_module_default.cardContent, isCollapsible && collapsed && collapsibleContent ? EventPanel_module_default.hidden : void 0),
 				children: filteredArrChildren.map((child, index) => {
 					const id = pillId(index);
-					const isSelected = id === selectedNav;
-					if (!isSelected) return null;
+					if (!(id === selectedNav)) return null;
 					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 						id,
-						className: clsx("tab-pane", "show", isSelected ? "active" : ""),
+						className: clsx("tab-pane", "show", "active"),
 						children: child
 					}, `children-${id}-${index}`);
 				})
@@ -105827,53 +105746,50 @@ var BranchPoint = (t0) => {
 var Segment = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(15);
 	const { branch, isCurrent, isParent, onSelect } = t0;
-	const interactive = !!onSelect && !isCurrent;
 	let t1;
-	if ($[0] !== branch || $[1] !== interactive || $[2] !== onSelect) {
-		t1 = (e) => {
-			if (interactive && onSelect) onSelect(branch, e.currentTarget);
-		};
+	if ($[0] !== branch || $[1] !== isCurrent || $[2] !== onSelect) {
+		t1 = onSelect && !isCurrent ? (e) => onSelect(branch, e.currentTarget) : void 0;
 		$[0] = branch;
-		$[1] = interactive;
+		$[1] = isCurrent;
 		$[2] = onSelect;
 		$[3] = t1;
 	} else t1 = $[3];
-	const t2 = interactive ? t1 : void 0;
-	const t3 = !interactive;
-	let t4;
+	const handleClick = t1;
+	const t2 = !handleClick;
+	let t3;
 	if ($[4] !== isParent) {
-		t4 = isParent && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContinuesGlyph, {});
+		t3 = isParent && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContinuesGlyph, {});
 		$[4] = isParent;
-		$[5] = t4;
-	} else t4 = $[5];
-	let t5;
+		$[5] = t3;
+	} else t3 = $[5];
+	let t4;
 	if ($[6] !== branch) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: branch });
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: branch });
 		$[6] = branch;
-		$[7] = t5;
-	} else t5 = $[7];
-	let t6;
-	if ($[8] !== branch || $[9] !== isCurrent || $[10] !== t2 || $[11] !== t3 || $[12] !== t4 || $[13] !== t5) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+		$[7] = t4;
+	} else t4 = $[7];
+	let t5;
+	if ($[8] !== branch || $[9] !== handleClick || $[10] !== isCurrent || $[11] !== t2 || $[12] !== t3 || $[13] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			type: "button",
 			role: "radio",
 			className: BranchPoint_module_default.segment,
 			"data-testid": "bp-segment",
 			"data-branch": branch,
 			"aria-checked": isCurrent,
-			onClick: t2,
-			disabled: t3,
-			children: [t4, t5]
+			onClick: handleClick,
+			disabled: t2,
+			children: [t3, t4]
 		});
 		$[8] = branch;
-		$[9] = isCurrent;
-		$[10] = t2;
-		$[11] = t3;
-		$[12] = t4;
-		$[13] = t5;
-		$[14] = t6;
-	} else t6 = $[14];
-	return t6;
+		$[9] = handleClick;
+		$[10] = isCurrent;
+		$[11] = t2;
+		$[12] = t3;
+		$[13] = t4;
+		$[14] = t5;
+	} else t5 = $[14];
+	return t5;
 };
 var ContinuesGlyph = () => {
 	const $ = (0, import_compiler_runtime.c)(1);
@@ -106518,73 +106434,53 @@ var LoggerEventView_module_default = { grid: "_grid_1pgwi_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/LoggerEventView.tsx
 var LoggerEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(32);
+	const $ = (0, import_compiler_runtime.c)(22);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
-	let T0;
 	let t1;
-	let t2;
-	let t3;
-	let t4;
+	if ($[0] !== event.message.message) {
+		t1 = parseJsonRecord(event.message.message);
+		$[0] = event.message.message;
+		$[1] = t1;
+	} else t1 = $[1];
+	const obj = t1;
+	const t2 = eventNode.id;
+	const t3 = event.message.level;
+	const t4 = TranscriptIcons.logging[event.message.level.toLowerCase()] || TranscriptIcons.info;
 	let t5;
 	let t6;
-	let t7;
-	if ($[0] !== className || $[1] !== event.message.level || $[2] !== event.message.message || $[3] !== eventNode.id) {
-		const obj = parsedJson(event.message.message);
-		T0 = EventRow;
-		t4 = eventNode.id;
-		t5 = className;
-		t6 = event.message.level;
-		t7 = TranscriptIcons.logging[event.message.level.toLowerCase()] || TranscriptIcons.info;
-		if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
-			t3 = clsx("text-size-base", LoggerEventView_module_default.grid);
-			t1 = clsx("text-size-smaller");
-			$[12] = t1;
-			$[13] = t3;
-		} else {
-			t1 = $[12];
-			t3 = $[13];
-		}
-		t2 = isRecord(obj) ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: obj }) : event.message.message;
-		$[0] = className;
-		$[1] = event.message.level;
-		$[2] = event.message.message;
-		$[3] = eventNode.id;
-		$[4] = T0;
-		$[5] = t1;
-		$[6] = t2;
-		$[7] = t3;
-		$[8] = t4;
-		$[9] = t5;
-		$[10] = t6;
-		$[11] = t7;
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = clsx("text-size-base", LoggerEventView_module_default.grid);
+		t6 = clsx("text-size-smaller");
+		$[2] = t5;
+		$[3] = t6;
 	} else {
-		T0 = $[4];
-		t1 = $[5];
-		t2 = $[6];
-		t3 = $[7];
-		t4 = $[8];
-		t5 = $[9];
-		t6 = $[10];
-		t7 = $[11];
+		t5 = $[2];
+		t6 = $[3];
 	}
+	let t7;
+	if ($[4] !== event.message.message || $[5] !== obj) {
+		t7 = obj ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: obj }) : event.message.message;
+		$[4] = event.message.message;
+		$[5] = obj;
+		$[6] = t7;
+	} else t7 = $[6];
 	let t8;
-	if ($[14] !== t1 || $[15] !== t2) {
+	if ($[7] !== t7) {
 		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t1,
-			children: t2
+			className: t6,
+			children: t7
 		});
-		$[14] = t1;
-		$[15] = t2;
-		$[16] = t8;
-	} else t8 = $[16];
+		$[7] = t7;
+		$[8] = t8;
+	} else t8 = $[8];
 	let t9;
-	if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
 		t9 = clsx("text-size-smaller", "text-style-secondary");
-		$[17] = t9;
-	} else t9 = $[17];
+		$[9] = t9;
+	} else t9 = $[9];
 	let t10;
-	if ($[18] !== event.message.filename || $[19] !== event.message.lineno) {
+	if ($[10] !== event.message.filename || $[11] !== event.message.lineno) {
 		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t9,
 			children: [
@@ -106593,38 +106489,36 @@ var LoggerEventView = (t0) => {
 				event.message.lineno
 			]
 		});
-		$[18] = event.message.filename;
-		$[19] = event.message.lineno;
-		$[20] = t10;
-	} else t10 = $[20];
+		$[10] = event.message.filename;
+		$[11] = event.message.lineno;
+		$[12] = t10;
+	} else t10 = $[12];
 	let t11;
-	if ($[21] !== t10 || $[22] !== t3 || $[23] !== t8) {
+	if ($[13] !== t10 || $[14] !== t8) {
 		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t3,
+			className: t5,
 			children: [t8, t10]
 		});
-		$[21] = t10;
-		$[22] = t3;
-		$[23] = t8;
-		$[24] = t11;
-	} else t11 = $[24];
+		$[13] = t10;
+		$[14] = t8;
+		$[15] = t11;
+	} else t11 = $[15];
 	let t12;
-	if ($[25] !== T0 || $[26] !== t11 || $[27] !== t4 || $[28] !== t5 || $[29] !== t6 || $[30] !== t7) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(T0, {
-			eventNodeId: t4,
-			className: t5,
-			title: t6,
-			icon: t7,
+	if ($[16] !== className || $[17] !== event.message.level || $[18] !== eventNode.id || $[19] !== t11 || $[20] !== t4) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
+			eventNodeId: t2,
+			className,
+			title: t3,
+			icon: t4,
 			children: t11
 		});
-		$[25] = T0;
-		$[26] = t11;
-		$[27] = t4;
-		$[28] = t5;
-		$[29] = t6;
-		$[30] = t7;
-		$[31] = t12;
-	} else t12 = $[31];
+		$[16] = className;
+		$[17] = event.message.level;
+		$[18] = eventNode.id;
+		$[19] = t11;
+		$[20] = t4;
+		$[21] = t12;
+	} else t12 = $[21];
 	return t12;
 };
 var ModelTokenTable_module_default = {
@@ -106782,7 +106676,7 @@ var ModelTokenTable = (t0) => {
 									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$60) : [];
 									const argEntries = args ? Object.entries(args).filter(_temp2$43) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
-									const renderSection = _temp4$26;
+									const renderSection = _temp4$25;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 										className: ModelTokenTable_module_default.configSection,
 										children: [cfgEntries.length > 0 && renderSection("config", cfgEntries), argEntries.length > 0 && renderSection("args", argEntries)]
@@ -106912,7 +106806,7 @@ function _temp3$32(t0) {
 		children: formatConfigValue(v_1, "null")
 	})] }, k_0);
 }
-function _temp4$26(label, entries) {
+function _temp4$25(label, entries) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: ModelTokenTable_module_default.configSectionLabel,
 		children: label
@@ -108233,7 +108127,7 @@ var ConnectionLogModal = (t0) => {
 					shared_roles.length > 1 ? "shared" : "used",
 					" by",
 					" ",
-					shared_roles.map(_temp4$25)
+					shared_roles.map(_temp4$24)
 				]
 			}), showFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				className: ConnectionLogModal_module_default.filters,
@@ -108326,7 +108220,7 @@ function _temp2$41(retune) {
 function _temp3$31(a, b) {
 	return a.time - b.time || (a.kind === b.kind ? 0 : a.kind === "config" ? -1 : 1);
 }
-function _temp4$25(role, i) {
+function _temp4$24(role, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [i > 0 ? ", " : "", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: role })] }, role);
 }
 function _temp5$12(row_0, i_0) {
@@ -109307,20 +109201,20 @@ var StopReasonBadge_module_default = {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/StopReasonBadge.tsx
-var STOP_TONE = {
-	stop: "neutral",
-	max_tokens: "amber",
-	model_length: "amber",
-	tool_calls: "blue",
-	content_filter: "rose",
-	unknown: "gray"
-};
 var TONE_CLASS = {
 	neutral: StopReasonBadge_module_default.neutral,
 	amber: StopReasonBadge_module_default.amber,
 	blue: StopReasonBadge_module_default.blue,
 	rose: StopReasonBadge_module_default.rose,
 	gray: StopReasonBadge_module_default.gray
+};
+var stopTone = {
+	stop: "neutral",
+	max_tokens: "amber",
+	model_length: "amber",
+	tool_calls: "blue",
+	content_filter: "rose",
+	unknown: "gray"
 };
 var detailEntries = (details) => {
 	if (!details) return {};
@@ -109342,7 +109236,7 @@ var detailEntries = (details) => {
 var StopReasonBadge = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(13);
 	const { reason, details } = t0;
-	const toneClass = TONE_CLASS[STOP_TONE[reason] ?? "gray"];
+	const toneClass = TONE_CLASS[stopTone[reason] ?? "gray"];
 	let t1;
 	if ($[0] !== details) {
 		t1 = detailEntries(details);
@@ -109535,7 +109429,7 @@ function groupRetryAttempts(events) {
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ModelEventView.tsx
 var ModelEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(113);
+	const $ = (0, import_compiler_runtime.c)(111);
 	const { eventNode, showToolCalls, className, context, eventCallbacks } = t0;
 	const successEvent = eventNode.event;
 	const attempts = context?.retryAttempts?.get(retryAttemptKey(successEvent));
@@ -109566,7 +109460,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output?.choices?.map(_temp$54);
+		t4 = event.output.choices.map(_temp$54);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -109600,7 +109494,7 @@ var ModelEventView = (t0) => {
 	const [showAllMessages, setShowAllMessages] = (0, import_react.useState)(false);
 	let t7;
 	if ($[14] !== event.pending || $[15] !== isCancelled || $[16] !== outputMessages) {
-		t7 = event.pending || isCancelled ? (outputMessages || []).filter(_temp2$39) : outputMessages || [];
+		t7 = event.pending || isCancelled ? outputMessages.filter(_temp2$39) : outputMessages;
 		$[14] = event.pending;
 		$[15] = isCancelled;
 		$[16] = outputMessages;
@@ -109842,50 +109736,44 @@ var ModelEventView = (t0) => {
 	} else t28 = $[82];
 	const t29 = `${eventNode.id}-model-input-full`;
 	let t30;
-	if ($[83] !== outputMessages) {
-		t30 = outputMessages || [];
-		$[83] = outputMessages;
-		$[84] = t30;
-	} else t30 = $[84];
-	let t31;
-	if ($[85] !== event.input || $[86] !== t30) {
-		t31 = [...event.input, ...t30];
-		$[85] = event.input;
-		$[86] = t30;
-		$[87] = t31;
-	} else t31 = $[87];
-	const t32 = context?.hasToolEvents !== false;
+	if ($[83] !== event.input || $[84] !== outputMessages) {
+		t30 = [...event.input, ...outputMessages];
+		$[83] = event.input;
+		$[84] = outputMessages;
+		$[85] = t30;
+	} else t30 = $[85];
+	const t31 = context?.hasToolEvents !== false;
+	let t32;
+	if ($[86] !== t31) {
+		t32 = { collapseToolMessages: t31 };
+		$[86] = t31;
+		$[87] = t32;
+	} else t32 = $[87];
 	let t33;
-	if ($[88] !== t32) {
-		t33 = { collapseToolMessages: t32 };
-		$[88] = t32;
-		$[89] = t33;
-	} else t33 = $[89];
+	if ($[88] === Symbol.for("react.memo_cache_sentinel")) {
+		t33 = { show: false };
+		$[88] = t33;
+	} else t33 = $[88];
 	let t34;
-	if ($[90] === Symbol.for("react.memo_cache_sentinel")) {
-		t34 = { show: false };
-		$[90] = t34;
-	} else t34 = $[90];
-	let t35;
-	if ($[91] !== t29 || $[92] !== t31 || $[93] !== t33) {
-		t35 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[89] !== t29 || $[90] !== t30 || $[91] !== t32) {
+		t34 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Messages",
 			className: ModelEventView_module_default.container,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
 				id: t29,
-				messages: t31,
-				tools: t33,
-				labels: t34
+				messages: t30,
+				tools: t32,
+				labels: t33
 			})
 		});
-		$[91] = t29;
-		$[92] = t31;
-		$[93] = t33;
-		$[94] = t35;
-	} else t35 = $[94];
-	let t36;
-	if ($[95] !== event.tool_choice || $[96] !== event.tools) {
-		t36 = event.tools.length > 1 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[89] = t29;
+		$[90] = t30;
+		$[91] = t32;
+		$[92] = t34;
+	} else t34 = $[92];
+	let t35;
+	if ($[93] !== event.tool_choice || $[94] !== event.tools) {
+		t35 = event.tools.length > 1 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Tools",
 			className: ModelEventView_module_default.container,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolsConfig, {
@@ -109893,23 +109781,23 @@ var ModelEventView = (t0) => {
 				toolChoice: event.tool_choice
 			})
 		});
-		$[95] = event.tool_choice;
-		$[96] = event.tools;
-		$[97] = t36;
-	} else t36 = $[97];
-	let t37;
-	if ($[98] !== event.call) {
-		t37 = event.call ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(APIView, {
+		$[93] = event.tool_choice;
+		$[94] = event.tools;
+		$[95] = t35;
+	} else t35 = $[95];
+	let t36;
+	if ($[96] !== event.call) {
+		t36 = event.call ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(APIView, {
 			"data-name": "API",
 			call: event.call,
 			className: ModelEventView_module_default.container
 		}) : "";
-		$[98] = event.call;
-		$[99] = t37;
-	} else t37 = $[99];
-	let t38;
-	if ($[100] !== className || $[101] !== eventCallbacks || $[102] !== eventNode.id || $[103] !== t15 || $[104] !== t16 || $[105] !== t24 || $[106] !== t28 || $[107] !== t35 || $[108] !== t36 || $[109] !== t37 || $[110] !== titleString || $[111] !== turnNav) {
-		t38 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
+		$[96] = event.call;
+		$[97] = t36;
+	} else t36 = $[97];
+	let t37;
+	if ($[98] !== className || $[99] !== eventCallbacks || $[100] !== eventNode.id || $[101] !== t15 || $[102] !== t16 || $[103] !== t24 || $[104] !== t28 || $[105] !== t34 || $[106] !== t35 || $[107] !== t36 || $[108] !== titleString || $[109] !== turnNav) {
+		t37 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
 			eventNodeId: eventNode.id,
 			className,
 			title: titleString,
@@ -109922,26 +109810,26 @@ var ModelEventView = (t0) => {
 			children: [
 				t24,
 				t28,
+				t34,
 				t35,
-				t36,
-				t37
+				t36
 			]
 		});
-		$[100] = className;
-		$[101] = eventCallbacks;
-		$[102] = eventNode.id;
-		$[103] = t15;
-		$[104] = t16;
-		$[105] = t24;
-		$[106] = t28;
-		$[107] = t35;
-		$[108] = t36;
-		$[109] = t37;
-		$[110] = titleString;
-		$[111] = turnNav;
-		$[112] = t38;
-	} else t38 = $[112];
-	return t38;
+		$[98] = className;
+		$[99] = eventCallbacks;
+		$[100] = eventNode.id;
+		$[101] = t15;
+		$[102] = t16;
+		$[103] = t24;
+		$[104] = t28;
+		$[105] = t34;
+		$[106] = t35;
+		$[107] = t36;
+		$[108] = titleString;
+		$[109] = turnNav;
+		$[110] = t37;
+	} else t37 = $[110];
+	return t37;
 };
 function formatFailureTime(event) {
 	const sec = attemptDurationSec(event);
@@ -109952,14 +109840,14 @@ var APIView = (t0) => {
 	const { call, className } = t0;
 	let t1;
 	if ($[0] !== call.request) {
-		t1 = JSON.stringify(call.request, void 0, 2) ?? "";
+		t1 = JSON.stringify(call.request, void 0, 2);
 		$[0] = call.request;
 		$[1] = t1;
 	} else t1 = $[1];
 	const requestCode = t1;
 	let t2;
 	if ($[2] !== call.response) {
-		t2 = JSON.stringify(call.response, void 0, 2) ?? "";
+		t2 = call.response === void 0 ? "" : JSON.stringify(call.response, void 0, 2);
 		$[2] = call.response;
 		$[3] = t2;
 	} else t2 = $[3];
@@ -111053,11 +110941,11 @@ var ScoreEditEventView = (t0) => {
 	} else t17 = $[23];
 	let t18;
 	if ($[24] !== event.edit.metadata || $[25] !== eventNode.id) {
-		t18 = event.edit.metadata && event.edit.metadata !== kUnchangedSentinel ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		t18 = event.edit.metadata !== kUnchangedSentinel ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Metadata",
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
 				id: `${eventNode.id}-score-metadata`,
-				record: event.edit.metadata || {},
+				record: event.edit.metadata,
 				className: ScoreEditEventView_module_default.metadata,
 				defaultExpandLevel: 0,
 				copyButton: true
@@ -113237,7 +113125,7 @@ var SubtaskSummary = (t0) => {
 	}
 	let t6;
 	if ($[6] !== input) {
-		t6 = input ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Rendered, { values: input }) : void 0;
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Rendered, { values: input });
 		$[6] = input;
 		$[7] = t6;
 	} else t6 = $[7];
@@ -113338,7 +113226,7 @@ function _temp2$36(val, index) {
 * TypeScript port of Python's nodes.py, implementing our own span tree building
 * since we don't have access to inspect_ai's event_tree().
 */ function isSpanNode(item) {
-	return typeof item === "object" && item !== null && "children" in item && Array.isArray(item.children);
+	return "children" in item && Array.isArray(item.children);
 }
 /**
 * Wraps a single Event with computed timing and token methods.
@@ -113541,8 +113429,8 @@ function convertServerEvent(server, lookup) {
 	return new TimelineEvent(event);
 }
 function convertServerSpan(server, lookup) {
-	const content = (server.content ?? []).map((item) => convertServerContentItem(item, lookup)).filter((item) => item !== null);
-	const branches = (server.branches ?? []).map((b) => convertServerSpan(b, lookup)).filter((b) => b.content.length > 0 || b.branches.length > 0);
+	const content = server.content.map((item) => convertServerContentItem(item, lookup)).filter((item) => item !== null);
+	const branches = server.branches.map((b) => convertServerSpan(b, lookup)).filter((b) => b.content.length > 0 || b.branches.length > 0);
 	return new TimelineSpan({
 		id: server.id,
 		name: server.name,
@@ -113623,10 +113511,10 @@ function stripSuffix(e, suffix, trajId) {
 	if (event.event === "model") {
 		const usage = event.output.usage;
 		if (usage) {
-			const inputTokens = usage.input_tokens ?? 0;
+			const inputTokens = usage.input_tokens;
 			const cacheRead = usage.input_tokens_cache_read ?? 0;
 			const cacheWrite = usage.input_tokens_cache_write ?? 0;
-			const outputTokens = usage.output_tokens ?? 0;
+			const outputTokens = usage.output_tokens;
 			return inputTokens + cacheRead + cacheWrite + outputTokens;
 		}
 	}
@@ -114016,7 +113904,6 @@ function eventToNode(event) {
 * Extract and normalize the system prompt from a single ModelEvent.
 */ function getSystemPromptForEvent(event) {
 	const input = event.input;
-	if (!input) return null;
 	for (const msg of input) if (msg.role === "system") {
 		let raw;
 		if (typeof msg.content === "string") raw = msg.content;
@@ -114096,7 +113983,6 @@ function eventToNode(event) {
 function isWarmupCall(event) {
 	if (event.config.max_tokens == null || event.config.max_tokens > 1) return false;
 	const input = event.input;
-	if (!input) return false;
 	for (let i = input.length - 1; i >= 0; i--) {
 		const msg = input[i];
 		if (msg?.role === "user") {
@@ -114248,11 +114134,9 @@ function isWarmupCall(event) {
 			if (nextItem.type !== "event") continue;
 			if (nextItem.event.event === "model") {
 				const modelEvent = nextItem.event;
-				if (modelEvent.input) {
-					for (const msg of modelEvent.input) if (msg.role === "tool" && msg.tool_call_id === toolCallId) {
-						const text = extractToolEventResult(msg.content);
-						if (text) item.agentResult = codexResultText(msg.function ?? void 0, msg.content, text);
-					}
+				for (const msg of modelEvent.input) if (msg.role === "tool" && msg.tool_call_id === toolCallId) {
+					const text = extractToolEventResult(msg.content);
+					if (text) item.agentResult = codexResultText(msg.function ?? void 0, msg.content, text);
 				}
 				if (item.agentResult) break;
 			}
@@ -115180,7 +115064,7 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 		input,
 		description,
 		contentType,
-		output: event.result ?? "",
+		output: event.result,
 		selfAnnotation: context?.selfAnnotation,
 		inputScreenshot: context?.inputScreenshot,
 		error: showError && event.error ? event.error : void 0,
@@ -115295,7 +115179,7 @@ var sanitizeStringify = (v) => {
 				fields.push(["title", resolvedTitle]);
 			}
 			if (toolEvent.function) fields.push(["function", toolEvent.function]);
-			if (toolEvent.arguments) fields.push(["arguments", JSON.stringify(toolEvent.arguments)]);
+			fields.push(["arguments", JSON.stringify(toolEvent.arguments)]);
 			if (toolEvent.result) {
 				if (typeof toolEvent.result === "string") fields.push(["result", toolEvent.result]);
 				else for (const text of extractToolResultText(toolEvent.result)) fields.push(["result", text]);
@@ -115349,7 +115233,7 @@ var sanitizeStringify = (v) => {
 			const subtaskEvent = event;
 			if (subtaskEvent.name) fields.push(["name", subtaskEvent.name]);
 			if (subtaskEvent.type) fields.push(["type", subtaskEvent.type]);
-			if (subtaskEvent.input) fields.push(["input", sanitizeStringify(subtaskEvent.input)]);
+			fields.push(["input", sanitizeStringify(subtaskEvent.input)]);
 			if (subtaskEvent.result) fields.push(["result", sanitizeStringify(subtaskEvent.result)]);
 			break;
 		}
@@ -115363,10 +115247,8 @@ var sanitizeStringify = (v) => {
 			const scoreEvent = event;
 			if (scoreEvent.score.answer) fields.push(["answer", scoreEvent.score.answer]);
 			if (scoreEvent.score.explanation) fields.push(["explanation", scoreEvent.score.explanation]);
-			if (scoreEvent.score.value !== void 0) {
-				const val = scoreEvent.score.value;
-				fields.push(["value", typeof val === "string" ? val : JSON.stringify(val)]);
-			}
+			const scoreValue = scoreEvent.score.value;
+			fields.push(["value", typeof scoreValue === "string" ? scoreValue : JSON.stringify(scoreValue)]);
 			if (scoreEvent.target) {
 				if (typeof scoreEvent.target === "string") fields.push(["target", scoreEvent.target]);
 				else if (Array.isArray(scoreEvent.target)) for (const t of scoreEvent.target) fields.push(["target", t]);
@@ -115392,7 +115274,7 @@ var sanitizeStringify = (v) => {
 		case "sample_limit": {
 			const sampleLimitEvent = event;
 			if (sampleLimitEvent.message) fields.push(["message", sampleLimitEvent.message]);
-			if (sampleLimitEvent.type) fields.push(["type", sampleLimitEvent.type]);
+			fields.push(["type", sampleLimitEvent.type]);
 			break;
 		}
 		case "input": {
@@ -115410,7 +115292,7 @@ var sanitizeStringify = (v) => {
 		}
 		case "approval": {
 			const approvalEvent = event;
-			if (approvalEvent.decision) fields.push(["decision", approvalEvent.decision]);
+			fields.push(["decision", approvalEvent.decision]);
 			if (approvalEvent.explanation) fields.push(["explanation", approvalEvent.explanation]);
 			if (approvalEvent.approver) fields.push(["approver", approvalEvent.approver]);
 			break;
@@ -115424,7 +115306,7 @@ var sanitizeStringify = (v) => {
 		}
 		case "sandbox": {
 			const sandboxEvent = event;
-			if (sandboxEvent.action) fields.push(["action", sandboxEvent.action]);
+			fields.push(["action", sandboxEvent.action]);
 			if (sandboxEvent.cmd) fields.push(["cmd", sandboxEvent.cmd]);
 			if (sandboxEvent.output) fields.push(["output", sandboxEvent.output]);
 			if (sandboxEvent.file) fields.push(["file", sandboxEvent.file]);
@@ -115435,7 +115317,7 @@ var sanitizeStringify = (v) => {
 			const stateEvent = event;
 			for (const change of stateEvent.changes) {
 				fields.push(["path", change.path]);
-				if (change.value !== void 0) fields.push(["value", typeof change.value === "string" ? change.value : sanitizeStringify(change.value)]);
+				fields.push(["value", typeof change.value === "string" ? change.value : sanitizeStringify(change.value)]);
 			}
 			break;
 		}
@@ -115998,7 +115880,6 @@ var injectScorersSpan = (events) => {
 				metadata: null
 			};
 			collectedScorerEvents.length = 0;
-			hasCollectedScorers = true;
 			return [
 				beginSpan,
 				...scoreEvents,
@@ -116013,8 +115894,9 @@ var injectScorersSpan = (events) => {
 		if (collecting) {
 			if (event.event === "span_end" && event.span_id === collecting) {
 				collecting = null;
-				results.push(...flushCollected());
-				results.push(event);
+				const flushed = flushCollected();
+				if (flushed.length > 0) hasCollectedScorers = true;
+				results.push(...flushed, event);
 			} else collectedScorerEvents.push(event);
 		} else results.push(event);
 	}
@@ -118522,7 +118404,7 @@ function _temp$49(lane_1) {
 /** Returns true if a TimelineSpan has any TimelineEvent items in its content tree. */ function spanHasEvents(span) {
 	for (const item of span.content) {
 		if (item.type === "event") return true;
-		if (item.type === "span" && spanHasEvents(item)) return true;
+		if (spanHasEvents(item)) return true;
 	}
 	return false;
 }
@@ -118630,7 +118512,7 @@ function _temp$49(lane_1) {
 * @param markers Accumulator array
 */ function collectEventMarkers(node, depth, currentLevel, markers) {
 	for (const item of node.content) if (item.type === "event") addEventMarker(item, markers);
-	else if (item.type === "span" && shouldDescend(depth, currentLevel)) collectEventMarkers(item, depth, currentLevel + 1, markers);
+	else if (shouldDescend(depth, currentLevel)) collectEventMarkers(item, depth, currentLevel + 1, markers);
 }
 /**
 * Determines whether to descend into a child span based on depth mode.
@@ -119718,7 +119600,7 @@ function useTranscriptTimeline(options) {
 	const hasTimeline = t16;
 	let t17;
 	if ($[57] !== visibleRows) {
-		t17 = visibleRows.some(_temp4$24);
+		t17 = visibleRows.some(_temp4$23);
 		$[57] = visibleRows;
 		$[58] = t17;
 	} else t17 = $[58];
@@ -119858,7 +119740,7 @@ function useTranscriptTimeline(options) {
 	} else t25 = $[100];
 	return t25;
 }
-function _temp4$24(row_3) {
+function _temp4$23(row_3) {
 	if (row_3.depth < 1) return false;
 	const rowSpan = row_3.spans[0];
 	if (!rowSpan) return false;
@@ -119866,7 +119748,7 @@ function _temp4$24(row_3) {
 	return !!span && !PHASE_SPAN_TYPES.has(span.spanType ?? "");
 }
 function _temp3$29(item_0) {
-	return item_0.type === "span" || item_0.type === "event" && item_0.event.event === "span_begin";
+	return item_0.type === "span" || item_0.event.event === "span_begin";
 }
 function _temp2$35(row) {
 	return row.depth === 0 || rowHasEvents(row);
@@ -123283,7 +123165,7 @@ function _temp$42(tl) {
 		t0 = () => {
 			if (eventCount <= 0 || !bulkCollapse || !onSetTranscriptCollapsed) return;
 			if (bulkCollapse === "expand") onSetTranscriptCollapsed({});
-			else if (bulkCollapse === "collapse") {
+			else {
 				const allCollapsibleIds = collectAllCollapsibleIds(eventNodes);
 				onSetTranscriptCollapsed(allCollapsibleIds);
 			}
@@ -123306,38 +123188,37 @@ function _temp$42(tl) {
 	}
 	(0, import_react.useEffect)(t0, t1);
 	const onCollapseTranscriptRaw = collapseState?.onCollapseTranscript;
+	const transcriptCollapsed = collapseState?.transcript;
 	let t2;
-	if ($[6] !== collapseState?.transcript || $[7] !== defaultCollapsedIds || $[8] !== onCollapseTranscriptRaw || $[9] !== onSetTranscriptCollapsed) {
+	if ($[6] !== defaultCollapsedIds || $[7] !== onCollapseTranscriptRaw || $[8] !== onSetTranscriptCollapsed || $[9] !== transcriptCollapsed) {
 		t2 = (nodeId, collapsed) => {
 			if (!onCollapseTranscriptRaw || !onSetTranscriptCollapsed) return;
-			if (!collapseState?.transcript) onSetTranscriptCollapsed({
+			if (!transcriptCollapsed) onSetTranscriptCollapsed({
 				...defaultCollapsedIds,
 				[nodeId]: collapsed
 			});
 			else onCollapseTranscriptRaw(nodeId, collapsed);
 		};
-		$[6] = collapseState?.transcript;
-		$[7] = defaultCollapsedIds;
-		$[8] = onCollapseTranscriptRaw;
-		$[9] = onSetTranscriptCollapsed;
+		$[6] = defaultCollapsedIds;
+		$[7] = onCollapseTranscriptRaw;
+		$[8] = onSetTranscriptCollapsed;
+		$[9] = transcriptCollapsed;
 		$[10] = t2;
 	} else t2 = $[10];
-	collapseState?.transcript;
 	const onCollapseTranscript = t2;
 	let t3;
-	if ($[11] !== collapseState?.transcript || $[12] !== defaultCollapsedIds || $[13] !== onSetTranscriptCollapsed) {
+	if ($[11] !== defaultCollapsedIds || $[12] !== onSetTranscriptCollapsed || $[13] !== transcriptCollapsed) {
 		t3 = (nodeIds) => {
 			if (!onSetTranscriptCollapsed) return;
-			const next = { ...collapseState?.transcript ?? defaultCollapsedIds };
+			const next = { ...transcriptCollapsed ?? defaultCollapsedIds };
 			for (const id of nodeIds) next[id] = false;
 			onSetTranscriptCollapsed(next);
 		};
-		$[11] = collapseState?.transcript;
-		$[12] = defaultCollapsedIds;
-		$[13] = onSetTranscriptCollapsed;
+		$[11] = defaultCollapsedIds;
+		$[12] = onSetTranscriptCollapsed;
+		$[13] = transcriptCollapsed;
 		$[14] = t3;
 	} else t3 = $[14];
-	collapseState?.transcript;
 	const t4 = onSetTranscriptCollapsed ? t3 : void 0;
 	let t5;
 	if ($[15] !== onCollapseTranscript || $[16] !== t4) {
@@ -124840,7 +124721,7 @@ var TranscriptLayout_module_default = {
 * Shared component that wraps TranscriptVirtualList with tree flattening,
 * collapse state, turn-map computation, keyboard navigation, and imperative
 * scroll-to-event/index. Apps provide collapse state via callback props.
-*/ var escapeAttr = (id) => typeof CSS !== "undefined" && CSS.escape ? CSS.escape(id) : id.replace(/"/g, "\\\"");
+*/ var escapeAttr = (id) => typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(id) : id.replace(/"/g, "\\\"");
 var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function TranscriptViewNodes({ id, eventNodes, defaultCollapsedIds, running, backfilling, scrollToTopOnFinish, scrollRef, initialEventId, initialMessageId, followRequested, offsetTop = 10, className, renderAgentCard, getEventUrl, linkingEnabled, getEventFocusUrl, onOpenEventFocus, collapsedTranscript, onCollapseTranscript, onExpandNodes, eventNodeContext, onProgrammaticScroll, onHeadroomSetHidden, onPrevAgent, onNextAgent, onNavigatedToEvent, keyboardNavDisabled, selection }, ref) {
 	const listHandle = (0, import_react.useRef)(null);
 	const [navOwned] = (0, import_react.useState)(() => !!(initialEventId || initialMessageId));
@@ -125457,7 +125338,7 @@ var TranscriptLayout = (t0) => {
 			$[40] = agentLaneKeys;
 			$[41] = t21;
 		} else t21 = $[41];
-		t20 = timelineLayouts.filter(t21).map(_temp4$23);
+		t20 = timelineLayouts.filter(t21).map(_temp4$22);
 		$[37] = agentLaneKeys;
 		$[38] = timelineLayouts;
 		$[39] = t20;
@@ -126018,7 +125899,7 @@ function _temp2$32(a) {
 function _temp3$27(s) {
 	return getAgents(s).some(_temp2$32);
 }
-function _temp4$23(l_0) {
+function _temp4$22(l_0) {
 	return l_0.key;
 }
 //#endregion
@@ -126714,14 +126595,15 @@ var modelDisplayParts = (evalSpec) => {
 	if (!markdown || markdown.length <= maxLength) return markdown;
 	if (markdown.trim().length === 0) return markdown.slice(0, maxLength);
 	if (ellipsis.length >= maxLength) return markdown.slice(0, maxLength);
-	if (!hasMarkdownSyntax(markdown)) return simpleMarkdownTruncate(markdown, maxLength, ellipsis);
+	const prefix = markdown.slice(0, maxLength * kParseWindowFactor);
+	if (!hasMarkdownSyntax(prefix)) return simpleMarkdownTruncate(prefix, maxLength, ellipsis);
 	const tokens = new MarkdownItCallable({
 		html: true,
 		breaks: true
-	}).parse(markdown, {});
+	}).parse(prefix, {});
 	let accumulated = "";
 	let lastSafePoint = "";
-	let isTruncated = false;
+	let isTruncated = prefix.length < markdown.length;
 	for (const token of tokens) {
 		const tokenContent = getTokenContent(token);
 		if (accumulated.length + tokenContent.length > maxLength - ellipsis.length) {
@@ -126740,12 +126622,12 @@ var modelDisplayParts = (evalSpec) => {
 	if (isTruncated && finalText.length > 0) return finalText.trimEnd() + ellipsis;
 	return finalText;
 }
+var kParseWindowFactor = 8;
 /**
 * Check if text contains markdown syntax
 */ function hasMarkdownSyntax(text) {
+	if (hasLinkSyntax(text)) return true;
 	return [
-		/\[.*?\]\(.*?\)/,
-		/!\[.*?\]\(.*?\)/,
 		/`[^`]+`/,
 		/```[\s\S]*?```/,
 		/\*{1,2}[^*]+\*{1,2}/,
@@ -126754,6 +126636,15 @@ var modelDisplayParts = (evalSpec) => {
 		/^#{1,6}\s/m,
 		/^\s*[-*+]\s/m
 	].some((pattern) => pattern.test(text));
+}
+var kLineTerminator = /[\n\r\u2028\u2029]/;
+function hasLinkSyntax(text) {
+	return text.split(kLineTerminator).some((line) => {
+		const open = line.indexOf("[");
+		if (open < 0) return false;
+		const close = line.indexOf("](", open + 1);
+		return close >= 0 && line.indexOf(")", close + 2) >= 0;
+	});
 }
 /**
 * Extracts the text content from a markdown token
@@ -127297,7 +127188,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 	if ($[7] !== allColumns || $[8] !== seedDefaultVisibility || $[9] !== setSampleListView || $[10] !== view) {
 		t2 = () => {
 			if (!allColumns || !seedDefaultVisibility) return;
-			const known = new Set(view.columns.map(_temp4$22));
+			const known = new Set(view.columns.map(_temp4$21));
 			const additions = [];
 			for (const col_0 of allColumns) {
 				const id = getFieldKey(col_0);
@@ -127470,7 +127361,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 function _temp5$11(c_1) {
 	return [c_1.id, c_1.visible];
 }
-function _temp4$22(c) {
+function _temp4$21(c) {
 	return c.id;
 }
 function _temp3$26(state_0) {
@@ -128719,7 +128610,7 @@ var FieldLabel = (t0) => {
 */ var InvalidationBanner = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { invalidation } = t0;
-	const formatTimestamp = _temp4$21;
+	const formatTimestamp = _temp4$20;
 	let t1;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
@@ -128795,7 +128686,7 @@ function _temp2$29(f) {
 function _temp3$24(acc, s) {
 	return acc + s.name.length;
 }
-function _temp4$21(timestamp) {
+function _temp4$20(timestamp) {
 	try {
 		return formatDateTime(new Date(timestamp));
 	} catch {
@@ -133269,7 +133160,7 @@ var useInspectSearchPanelState = (t0) => {
 var useInspectSearchModelHistory = () => {
 	const $ = (0, import_compiler_runtime.c)(3);
 	const history = useUserSettings(_temp3$22);
-	const record = useUserSettings(_temp4$20);
+	const record = useUserSettings(_temp4$19);
 	let t0;
 	if ($[0] !== history || $[1] !== record) {
 		t0 = {
@@ -133310,7 +133201,7 @@ function _temp2$27(s_0) {
 function _temp3$22(s) {
 	return s.searchModelHistory;
 }
-function _temp4$20(s_0) {
+function _temp4$19(s_0) {
 	return s_0.recordSearchModel;
 }
 //#endregion
@@ -135004,7 +134895,7 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 	const showFind = useStore(_temp$32);
 	const setShowFind = useStore(_temp2$25);
 	const hideFind = useStore(_temp3$20);
-	const nativeFind = useStore(_temp4$19);
+	const nativeFind = useStore(_temp4$18);
 	const setSampleTab = useStore(_temp5$10);
 	let t2;
 	let t3;
@@ -135098,7 +134989,7 @@ function _temp2$25(state_0) {
 function _temp3$20(state_1) {
 	return state_1.appActions.hideFind;
 }
-function _temp4$19(state_2) {
+function _temp4$18(state_2) {
 	return state_2.app.nativeFind;
 }
 function _temp5$10(state_3) {
@@ -136084,14 +135975,14 @@ var EditMetadataDialog = (t0) => {
 	const existingKeys = t7;
 	let t8;
 	if ($[14] !== entries) {
-		t8 = entries.filter(_temp4$18).map(_temp5$9);
+		t8 = entries.filter(_temp4$17).map(_temp5$9);
 		$[14] = entries;
 		$[15] = t8;
 	} else t8 = $[15];
 	const adding = t8;
 	let t9;
 	if ($[16] !== entries) {
-		t9 = entries.filter(_temp6$6).map(_temp7$5);
+		t9 = entries.filter(_temp6$6).map(_temp7$4);
 		$[16] = entries;
 		$[17] = t9;
 	} else t9 = $[17];
@@ -136715,7 +136606,7 @@ function _temp2$23() {}
 function _temp3$19(e) {
 	return e.key;
 }
-function _temp4$18(e_0) {
+function _temp4$17(e_0) {
 	return e_0.isNew;
 }
 function _temp5$9(e_1) {
@@ -136724,7 +136615,7 @@ function _temp5$9(e_1) {
 function _temp6$6(e_2) {
 	return e_2.dirty && !e_2.isNew;
 }
-function _temp7$5(e_3) {
+function _temp7$4(e_3) {
 	return e_3.key;
 }
 function _temp8$4(e_8) {
@@ -137382,7 +137273,7 @@ var JsonTab_module_default = { jsonTab: "_jsonTab_6pq03_1" };
 //#region src/app/log-view/tabs/JsonTab.tsx
 var kJsonMaxSize = 1e7;
 var useJsonTabConfig = (logDetails) => {
-	const $ = (0, import_compiler_runtime.c)(20);
+	const $ = (0, import_compiler_runtime.c)(13);
 	const selectedLogFile = useStore(_temp$26);
 	const selectedTab = useStore(_temp2$21);
 	let t0;
@@ -137392,92 +137283,88 @@ var useJsonTabConfig = (logDetails) => {
 		$[1] = t0;
 	} else t0 = $[1];
 	let t1;
-	let t2;
-	let t3;
-	let t4;
-	let t5;
-	let t6;
-	if ($[2] !== selectedLogFile || $[3] !== t0) {
+	if ($[2] !== t0) {
 		const { sampleCount: _count, sampleErrorCount: _errors, sampleLimits: _limits, ...header } = t0;
-		t3 = kLogViewJsonTabId;
-		t4 = "JSON";
-		t5 = true;
-		t6 = JsonTab;
-		t1 = selectedLogFile;
-		t2 = JSON.stringify(header, null, 2);
-		$[2] = selectedLogFile;
-		$[3] = t0;
+		t1 = JSON.stringify(header, null, 2);
+		$[2] = t0;
+		$[3] = t1;
+	} else t1 = $[3];
+	const json = t1;
+	const t2 = selectedTab === kLogViewJsonTabId;
+	let t3;
+	if ($[4] !== json || $[5] !== selectedLogFile || $[6] !== t2) {
+		t3 = {
+			logFile: selectedLogFile,
+			json,
+			selected: t2
+		};
+		$[4] = json;
+		$[5] = selectedLogFile;
+		$[6] = t2;
+		$[7] = t3;
+	} else t3 = $[7];
+	let t4;
+	if ($[8] !== json) {
+		t4 = () => [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CopyJsonButton, { json }, "copy-json")];
+		$[8] = json;
+		$[9] = t4;
+	} else t4 = $[9];
+	let t5;
+	if ($[10] !== t3 || $[11] !== t4) {
+		t5 = {
+			id: kLogViewJsonTabId,
+			label: "JSON",
+			scrollable: true,
+			component: JsonTab,
+			componentProps: t3,
+			tools: t4
+		};
+		$[10] = t3;
+		$[11] = t4;
+		$[12] = t5;
+	} else t5 = $[12];
+	return t5;
+};
+/**
+* Copies the tab's JSON from props. The copy is bound to this element by
+* React, not discovered by a document-wide selector, so log-authored markup
+* can never become a copy trigger.
+*/ var CopyJsonButton = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(8);
+	const { json } = t0;
+	const { copied, copy } = useCopyToClipboard();
+	const t1 = copied ? "Copied!" : "Copy JSON";
+	const t2 = copied ? ApplicationIcons.confirm : ApplicationIcons.copy;
+	let t3;
+	if ($[0] !== copy || $[1] !== json) {
+		t3 = () => copy(json);
+		$[0] = copy;
+		$[1] = json;
+		$[2] = t3;
+	} else t3 = $[2];
+	let t4;
+	if ($[3] !== copied || $[4] !== t1 || $[5] !== t2 || $[6] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
+			label: t1,
+			icon: t2,
+			subtle: true,
+			disabled: copied,
+			onClick: t3
+		});
+		$[3] = copied;
 		$[4] = t1;
 		$[5] = t2;
 		$[6] = t3;
 		$[7] = t4;
-		$[8] = t5;
-		$[9] = t6;
-	} else {
-		t1 = $[4];
-		t2 = $[5];
-		t3 = $[6];
-		t4 = $[7];
-		t5 = $[8];
-		t6 = $[9];
-	}
-	const t7 = selectedTab === kLogViewJsonTabId;
-	let t8;
-	if ($[10] !== t1 || $[11] !== t2 || $[12] !== t7) {
-		t8 = {
-			logFile: t1,
-			json: t2,
-			selected: t7
-		};
-		$[10] = t1;
-		$[11] = t2;
-		$[12] = t7;
-		$[13] = t8;
-	} else t8 = $[13];
-	let t9;
-	if ($[14] !== t3 || $[15] !== t4 || $[16] !== t5 || $[17] !== t6 || $[18] !== t8) {
-		t9 = {
-			id: t3,
-			label: t4,
-			scrollable: t5,
-			component: t6,
-			componentProps: t8,
-			tools: _temp3$18
-		};
-		$[14] = t3;
-		$[15] = t4;
-		$[16] = t5;
-		$[17] = t6;
-		$[18] = t8;
-		$[19] = t9;
-	} else t9 = $[19];
-	return t9;
-};
-var copyFeedback = (e) => {
-	const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
-	const iconEl = e.currentTarget.querySelector("i.bi");
-	if (textEl instanceof HTMLElement && iconEl instanceof HTMLElement) {
-		const htmlEl = textEl;
-		const htmlIconEl = iconEl;
-		const oldText = htmlEl.innerText;
-		const oldIconClz = htmlIconEl.className;
-		htmlEl.innerText = "Copied!";
-		htmlIconEl.className = `${ApplicationIcons.confirm}`;
-		setTimeout(() => {
-			window.getSelection()?.removeAllRanges();
-		}, 50);
-		setTimeout(() => {
-			htmlEl.innerText = oldText;
-			htmlIconEl.className = oldIconClz;
-		}, 1250);
-	}
+	} else t4 = $[7];
+	return t4;
 };
 /**
 * Renders JSON tab
 */ var JsonTab = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(7);
 	const { logFile, json } = t0;
-	const downloadFiles = useStore(_temp4$17);
+	const downloadFiles = useStore(_temp3$18);
 	if (logFile && json.length > kJsonMaxSize && downloadFiles) {
 		let t1;
 		if ($[0] !== logFile) {
@@ -137525,17 +137412,7 @@ function _temp$26(state) {
 function _temp2$21(state_0) {
 	return state_0.app.tabs.workspace;
 }
-function _temp3$18() {
-	return [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
-		label: "Copy JSON",
-		icon: ApplicationIcons.copy,
-		className: clsx("task-btn-json-copy", "clipboard-button"),
-		"data-clipboard-target": "#task-json-contents",
-		subtle: true,
-		onClick: copyFeedback
-	}, "copy-json")];
-}
-function _temp4$17(state) {
+function _temp3$18(state) {
 	return state.capabilities.downloadFiles;
 }
 //#endregion
@@ -139888,7 +139765,7 @@ function codePointSize$1(code) {
 	return code < 65536 ? 1 : 2;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+state@6.7.2/node_modules/@codemirror/state/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+state@6.7.4/node_modules/@codemirror/state/dist/index.js
 /**
 The data structure for documents. @nonabstract
 */
@@ -142637,13 +142514,14 @@ var Chunk = class Chunk {
 				basePos = newTo;
 				baseSide = val.endSide;
 			} else {
-				if (newFrom == newTo) {
-					for (let i = value.length - 1; i > 0; i--) if ((newFrom - to[i - 1] || val.startSide - value[i - 1].endSide) <= 0) {
+				if (newFrom == newTo) for (let i = value.length; i > 0; i--) {
+					if ((newFrom - (to[i - 1] + newPos) || val.startSide - value[i - 1].endSide) >= 0) {
 						value.splice(i, 0, val);
-						from.splice(i, 0, newFrom);
-						to.splice(i, 0, newTo);
+						from.splice(i, 0, newFrom - newPos);
+						to.splice(i, 0, newTo - newPos);
 						continue iter;
 					}
+					if ((newFrom - (from[i - 1] + newPos) || val.endSide - value[i - 1].startSide) > 0) break;
 				}
 				spill(newFrom, newTo, val);
 			}
@@ -142714,11 +142592,11 @@ var RangeSet = class RangeSet {
 		let builder = new RangeSetBuilder();
 		while (cur.value || i < add.length) if (i < add.length && (cur.from - add[i].from || cur.startSide - add[i].value.startSide) >= 0) {
 			let range = add[i++];
-			if (!builder.addInner(range.from, range.to, range.value)) spill.push(range);
+			if (!builder.addInner(range.from, range.to, range.value, false)) spill.push(range);
 		} else if (cur.rangeIndex == 1 && cur.chunkIndex < this.chunk.length && (i == add.length || this.chunkEnd(cur.chunkIndex) < add[i].from) && (!filter || filterFrom > this.chunkEnd(cur.chunkIndex) || filterTo < this.chunkPos[cur.chunkIndex]) && builder.addChunk(this.chunkPos[cur.chunkIndex], this.chunk[cur.chunkIndex])) cur.nextChunk();
 		else {
 			if (!filter || filterFrom > cur.to || filterTo < cur.from || filter(cur.from, cur.to, cur.value)) {
-				if (!builder.addInner(cur.from, cur.to, cur.value)) spill.push(Range.create(cur.from, cur.to, cur.value));
+				if (!builder.addInner(cur.from, cur.to, cur.value, false)) spill.push(Range.create(cur.from, cur.to, cur.value));
 			}
 			cur.next();
 		}
@@ -142738,7 +142616,7 @@ var RangeSet = class RangeSet {
 		let spilled;
 		let spill = (from, to, value) => {
 			if (!spilled) spilled = new RangeSetBuilder();
-			spilled.add(from, to, value);
+			spilled.addRange(from, to, value, false);
 		};
 		for (let i = 0; i < this.chunk.length; i++) {
 			let start = this.chunkPos[i], chunk = this.chunk[i];
@@ -142931,14 +142809,20 @@ var RangeSetBuilder = class RangeSetBuilder {
 	`value.startSide`) order.
 	*/
 	add(from, to, value) {
-		if (!this.addInner(from, to, value)) (this.nextLayer || (this.nextLayer = new RangeSetBuilder())).add(from, to, value);
+		this.addRange(from, to, value, true);
 	}
 	/**
 	@internal
 	*/
-	addInner(from, to, value) {
+	addRange(from, to, value, strict) {
+		if (!this.addInner(from, to, value, strict)) (this.nextLayer || (this.nextLayer = new RangeSetBuilder())).addRange(from, to, value, strict);
+	}
+	/**
+	@internal
+	*/
+	addInner(from, to, value, strict) {
 		let diff = from - this.lastTo || value.startSide - this.last.endSide;
-		if (diff <= 0 && (from - this.lastFrom || value.startSide - this.last.startSide) < 0) throw new Error("Ranges must be added sorted by `from` position and `startSide`");
+		if (strict && diff <= 0 && (from - this.lastFrom || value.startSide - this.last.startSide) < 0) throw new Error("Ranges must be added sorted by `from` position and `startSide`");
 		if (diff < 0) return false;
 		if (this.from.length == 250) this.finishChunk(true);
 		if (this.chunkStart < 0) this.chunkStart = from;
@@ -143508,7 +143392,7 @@ function add(elt, child) {
 	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.10/node_modules/@codemirror/view/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+view@6.43.11/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -146734,7 +146618,7 @@ var InlineCoordsScan = class {
 		}
 		if (!closestRect) {
 			if (!below && !above) return {
-				i: positions[0],
+				i: 0,
 				after: false
 			};
 			let side = above && (!below || this.y - above.bottom < below.top - this.y) ? above : below;
@@ -147240,7 +147124,7 @@ var InputState = class {
 				keyCode: event.keyCode,
 				mods
 			};
-			setTimeout(() => this.flushIOSKey(), 250);
+			setTimeout(() => this.flushIOSKey(), 50);
 			return true;
 		}
 		if (event.keyCode != 229) this.view.observer.forceFlush();
@@ -147248,7 +147132,7 @@ var InputState = class {
 	}
 	flushIOSKey(change) {
 		let key = this.pendingIOSKey;
-		if (!key) return false;
+		if (!key || this.view.observer.pendingRecords().length) return false;
 		if (key.key == "Enter" && change && change.from < change.to && /^\S+$/.test(change.insert.toString())) return false;
 		this.pendingIOSKey = void 0;
 		return dispatchKey(this.view.contentDOM, key.key, key.keyCode, key.mods);
@@ -161503,7 +161387,7 @@ var SamplesTab = (t0) => {
 		}
 		let t11;
 		if ($[30] !== allColumns || $[31] !== view.columns) {
-			const orderIndex = new Map(view.columns.map(_temp7$4));
+			const orderIndex = new Map(view.columns.map(_temp7$3));
 			const rankOf = (col_0) => {
 				return (col_0.id !== void 0 ? orderIndex.get(col_0.id) : void 0) ?? Number.MAX_SAFE_INTEGER;
 			};
@@ -161786,7 +161670,7 @@ function _temp5$7(state_1) {
 function _temp6$5(state_2) {
 	return state_2.logActions.setFilter;
 }
-function _temp7$4(c, i) {
+function _temp7$3(c, i) {
 	return [c.id, i];
 }
 function _temp8$3(col_1, i_1) {
@@ -164354,7 +164238,7 @@ var TimelineChart = (t0) => {
 					})
 				]
 			}),
-			lane.events.filter(_temp7$3).map((e_0, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
+			lane.events.filter(_temp7$2).map((e_0, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
 				className: TimelineChart_module_default.rateLimitLine,
 				x1: x(e_0.timestamp),
 				x2: x(e_0.timestamp),
@@ -165306,7 +165190,7 @@ function _temp5$6(m_0, s) {
 function _temp6$4(m_1, p) {
 	return Math.max(m_1, p.value);
 }
-function _temp7$3(e) {
+function _temp7$2(e) {
 	return e.reason === "rate_limit";
 }
 function _temp8$2(a, b) {
@@ -166960,7 +166844,7 @@ var ResultsPanel = (t0) => {
 						showMore_0 = true;
 					}
 				}
-				if (primaryResults.some(_temp7$2)) {
+				if (primaryResults.some(_temp7$1)) {
 					const headlineColumn = primaryResults.reduce(_temp9$1, -1);
 					primaryResults = primaryResults.map((score_2) => ({
 						...score_2,
@@ -167195,7 +167079,7 @@ function _temp5$4(group) {
 function _temp6$3(g) {
 	return g.length <= kMaxPrimaryScoreRows;
 }
-function _temp7$2(score_3) {
+function _temp7$1(score_3) {
 	return score_3.metrics.length > kMaxPrimaryMetricColumns;
 }
 function _temp8$1(metric_1) {
@@ -170519,7 +170403,7 @@ var SamplesPanel = () => {
 	const setFilteredSampleCount = useStore(_temp4$1);
 	const setDisplayedSamples = useStore(_temp5$1);
 	const clearDisplayedSamples = useStore(_temp6$1);
-	const previousSamplesPath = useStore(_temp7$1);
+	const previousSamplesPath = useStore(_temp7);
 	const setPreviousSamplesPath = useStore(_temp8);
 	const selectedSampleHandle = useStore(_temp9);
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
@@ -171051,7 +170935,7 @@ function _temp5$1(state_3) {
 function _temp6$1(state_4) {
 	return state_4.logsActions.clearDisplayedSamples;
 }
-function _temp7$1(state_5) {
+function _temp7(state_5) {
 	return state_5.logs.samplesListState.previousSamplesPath;
 }
 function _temp8(state_6) {
@@ -171342,7 +171226,7 @@ var componentIcons = {
 * Renders the application content. Mounted below the config gate so it can
 * read the resolved app config.
 */ var AppContent = () => {
-	const $ = (0, import_compiler_runtime.c)(12);
+	const $ = (0, import_compiler_runtime.c)(9);
 	const rehydrated = useStore(_temp5);
 	const setInitialState = useStore(_temp6);
 	let t0;
@@ -171364,14 +171248,16 @@ var componentIcons = {
 		$[2] = t0;
 	} else t0 = $[2];
 	const onMessage = t0;
+	useEventListener(getVscodeApi() ? window : null, "message", onMessage);
+	const embeddedDispatched = (0, import_react.useRef)(false);
 	let t1;
 	let t2;
 	if ($[3] !== onMessage) {
 		t1 = () => {
-			window.addEventListener("message", onMessage);
-			return () => {
-				window.removeEventListener("message", onMessage);
-			};
+			if (embeddedDispatched.current) return;
+			embeddedDispatched.current = true;
+			const embedded = readEmbeddedStartupState();
+			if (embedded) onMessage({ data: embedded });
 		};
 		t2 = [onMessage];
 		$[3] = onMessage;
@@ -171382,42 +171268,22 @@ var componentIcons = {
 		t2 = $[5];
 	}
 	(0, import_react.useEffect)(t1, t2);
-	const embeddedDispatched = (0, import_react.useRef)(false);
 	let t3;
 	let t4;
-	if ($[6] !== onMessage) {
-		t3 = () => {
-			if (embeddedDispatched.current) return;
-			embeddedDispatched.current = true;
-			const embedded = readEmbeddedStartupState();
-			if (embedded) onMessage({ data: embedded });
-		};
-		t4 = [onMessage];
-		$[6] = onMessage;
-		$[7] = t3;
-		$[8] = t4;
+	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
+		$[6] = t3;
+		$[7] = t4;
 	} else {
-		t3 = $[7];
-		t4 = $[8];
+		t3 = $[6];
+		t4 = $[7];
 	}
-	(0, import_react.useEffect)(t3, t4);
-	useMountEffect(_temp7);
 	let t5;
-	let t6;
-	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ThemePreferenceSyncController, {});
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FetchEngineController, {});
-		$[9] = t5;
-		$[10] = t6;
-	} else {
-		t5 = $[9];
-		t6 = $[10];
-	}
-	let t7;
-	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-			t5,
-			t6,
+	if ($[8] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+			t3,
+			t4,
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentIconProvider, {
 				icons: componentIcons,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ComponentStateProvider, {
@@ -171426,9 +171292,9 @@ var componentIcons = {
 				})
 			})
 		] });
-		$[11] = t7;
-	} else t7 = $[11];
-	return t7;
+		$[8] = t5;
+	} else t5 = $[8];
+	return t5;
 };
 var App = () => {
 	const $ = (0, import_compiler_runtime.c)(1);
@@ -171436,7 +171302,7 @@ var App = () => {
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(QueryClientProvider, {
 			client: queryClient,
-			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(AppConfigGate, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AppContent, {}) }), false]
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(LogLocationGate, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AppConfigGate, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AppContent, {}) }) }), false]
 		});
 		$[0] = t0;
 	} else t0 = $[0];
@@ -171464,10 +171330,6 @@ function _temp5(state) {
 }
 function _temp6(state_0) {
 	return state_0.appActions.setInitialState;
-}
-function _temp7() {
-	const clipboard = new import_clipboard.default(".clipboard-button,.copy-button");
-	return () => clipboard.destroy();
 }
 //#endregion
 //#region src/client/storage/index.ts
