@@ -2,6 +2,9 @@
 
 Status: options document (phase 1), 2026-09-18. No approach is selected here;
 this document exists so an approach can be chosen with the trade-offs in view.
+Decisions recorded so far: the #420 self-contained-log constraint is relaxed
+for sharded output only (Ransom, 2026-09-18; see "Goals and constraints" and
+key question 2).
 Issue: https://github.com/meridianlabs-ai/inspect_ai/issues/509.
 Author: agent (Claude), reviewed by Codex; see the PR.
 
@@ -59,13 +62,19 @@ Goals:
 
 Constraints and context that shape the options:
 
-- **Self-contained logs.** The #420 design adopted, on Ransom's review feedback,
-  the constraint that *every log file stays self-contained, and the newest log
-  for a task stays the whole truth about that task*
-  (`design/retry-seeded-attempt-log.md:19`). A logical log spread over files
-  is exactly the cross-file concept that constraint rejected for retries. Any
-  option that teaches readers to look across files needs that constraint
-  either re-affirmed as "retries only" or consciously relaxed.
+- **Self-contained logs, relaxed for sharded output only.** The #420 design
+  adopted, on Ransom's review feedback, the constraint that *every log file
+  stays self-contained, and the newest log for a task stays the whole truth
+  about that task* (`design/retry-seeded-attempt-log.md:19`). A logical log
+  spread over files is exactly the cross-file concept that constraint
+  rejected for retries. **Decision (Ransom, 2026-09-18):** this feature may
+  relax the constraint, and the constraint continues to hold in every case
+  other than this sharding. So an option may make readers look across the
+  shards of one marked group, but every unsharded log stays self-contained
+  and the newest-log-is-the-truth rule for retries stays as it is; whatever
+  grouping an option adds must be keyed on the explicit shard marker, never
+  inferred for ordinary logs. The decision opens B and C; it does not prefer
+  them over A, which never needed the relaxation.
 - **Readers are many and some have no server.** The viewer parses `.eval` zips
   in the browser via byte-range requests (`/log-bytes/{log}` in
   `src/inspect_ai/_view/fastapi_server.py:258`; the client's
@@ -266,9 +275,10 @@ merged header (which shards, their `eval_id`s).
   see one normal log with stored whole-task results. Aggregation runs
   exactly once, in the merge, which is a trusted Python step run by the
   runner or user who owns the eval and has its metric code, so no reader
-  ever recomputes or imports log-named code. Fully honours the
-  self-contained-log constraint; the merged log *is* the whole truth. Old
-  Inspect versions can open the output. Smallest surface; most of the work
+  ever recomputes or imports log-named code. Needs no relaxation of the
+  self-contained-log constraint: the merged log *is* the whole truth, and
+  shards are ordinary partial logs until they are merged away. Old Inspect
+  versions can open the output. Smallest surface; most of the work
   is in one module and mirrors what `recover_eval_log` already does
   (combine sample sources, recompute results).
 - **Disadvantages.** Someone must run the merge after the last shard
@@ -335,8 +345,11 @@ over the union.
   results object for the group, which is Option A's post-run step and
   ownership question with a different output file. Without B2 a browser
   reader shows per-shard metrics and sample counts only.
-  Directly contradicts the self-contained-log constraint; the "newest log is
-  the truth" rule for retries has to be restated for groups.
+  Relies on the sharding-only relaxation of the self-contained-log constraint
+  (decision above): grouping must be keyed strictly on the shard marker so
+  unsharded logs keep today's semantics, and the "newest log is the truth"
+  rule for retries has to be restated for a group whose members are retried
+  individually.
 - **Complexity.** Large. Two codebases (Python and `ts-mono`), a
   cross-repo release, and a new concept in the public API.
 - **Compatibility.** Old readers see N independent logs (no worse than
@@ -372,8 +385,11 @@ they see the shards' stored per-shard results).
 - **Disadvantages.** A new on-disk format that every consumer must learn,
   including the TypeScript client and Scout; old Inspect versions cannot
   open the directory as a log at all (they would list the shards inside it
-  as N logs if they recurse, or nothing). Directories are a weak concept on
-  S3 (listing cost, no atomic finalise). Still needs a finaliser to write the
+  as N logs if they recurse, or nothing). Uses the sharding-only relaxation
+  of the self-contained-log constraint, contained to one directory: the
+  directory is the unit of truth, its member files are not, and files
+  outside a marked directory keep today's semantics. Directories are a weak
+  concept on S3 (listing cost, no atomic finalise). Still needs a finaliser to write the
   manifest, so it has Option A's orchestration question plus Option B's
   reader work in the viewer.
 - **Complexity.** Large. Recorder, listing, viewer client, Scout, plus the
@@ -434,7 +450,7 @@ each of A, B and C can be served by either owner.
 | Who runs metric code | merger (trusted, once) | B1: every Python reader; B2: aggregator | finaliser | finaliser |
 | Browser client shows whole-task metrics | yes (stored) | B2 only (stored) | yes once manifest exists | yes once finalised |
 | Old readers open the result | yes | shards only | no | no |
-| Self-contained-log constraint | kept | relaxed | relaxed (per directory) | relaxed |
+| Self-contained-log constraint (relaxation allowed for sharded output only, Ransom 2026-09-18) | not needed | uses it: cross-file group keyed on the marker | uses it: cross-file group inside one directory | uses it: shared file or prefix |
 | Storage | 2× until shards deleted | 1× | 1× | 1× |
 | Where results live | merged header | B1 recomputed per read; B2 stored group results | manifest | header |
 | Complexity | S–M | L | L | L |
@@ -451,9 +467,12 @@ and reducers over score `value`; anything else needs full sample reads.
    the "one sample per machine" motivation makes the during-run view
    valuable. If the answer is "after the run is fine", A dominates on cost
    and risk.
-2. **Does the #420 self-contained-log constraint apply here?** If yes, only A
-   (and a C variant that finalises into one file) qualifies. If it was meant
-   for retries only, B and C are open.
+2. **Does the #420 self-contained-log constraint apply here?** Answered
+   (Ransom, 2026-09-18): the constraint may be relaxed for this sharding and
+   continues to hold in every other case. B and C are therefore open on this
+   axis; A remains the option that needs no relaxation. Any chosen grouping
+   must be keyed on the explicit shard marker so unsharded logs and retries
+   keep today's semantics.
 3. **Who owns the merge or finalise step, and is shard identity exposed to
    ordinary callers?** Two independent decisions. (a) Ownership of A's merge,
    B2's aggregation or C's finalise: the external runner, `eval_set()`, or
