@@ -59,12 +59,13 @@ def test_init_cli_env_quoted_commas_preserved(monkeypatch):
     monkeypatch.delenv("NO_PROXY", raising=False)
     monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
 
-    env_args = parse_cli_args([
-        'NO_PROXY="localhost,127.0.0.1"',
-        "CUDA_VISIBLE_DEVICES='0,1'",
-    ])
+    env_args = parse_cli_args(
+        [
+            'NO_PROXY="localhost,127.0.0.1"',
+            "CUDA_VISIBLE_DEVICES='0,1'",
+        ]
+    )
     init_cli_env(env_args)
 
     assert dotenv_mod.os.environ["NO_PROXY"] == "localhost,127.0.0.1"
     assert dotenv_mod.os.environ["CUDA_VISIBLE_DEVICES"] == "0,1"
-

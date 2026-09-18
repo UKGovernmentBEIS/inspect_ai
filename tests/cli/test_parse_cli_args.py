@@ -7,6 +7,7 @@ are correctly normalized through the CLI layer without mangling nested key segme
 import os
 
 import pytest
+import yaml
 
 from inspect_ai._cli.common import process_common_options
 from inspect_ai._util.config import parse_cli_args
@@ -124,7 +125,9 @@ def test_comma_lists_and_yaml_values(
     }
 
 
-def test_process_common_options_env_quoted_commas(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_process_common_options_env_quoted_commas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The --env CLI option preserves quoted comma-containing values in os.environ."""
     monkeypatch.delenv("NO_PROXY", raising=False)
     monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
@@ -145,3 +148,15 @@ def test_process_common_options_env_quoted_commas(monkeypatch: pytest.MonkeyPatc
     assert os.environ["CUDA_VISIBLE_DEVICES"] == "0,1"
 
 
+@pytest.mark.parametrize(
+    "malformed_arg",
+    [
+        'NO_PROXY="localhost,127.0.0.1',
+        "NO_PROXY=[1,2",
+        'NO_PROXY="a""b,c"',
+    ],
+)
+def test_malformed_yaml_raises(malformed_arg: str) -> None:
+    """Malformed YAML expressions propagate yaml.YAMLError rather than silently coercing."""
+    with pytest.raises(yaml.YAMLError):
+        parse_cli_args([malformed_arg])
