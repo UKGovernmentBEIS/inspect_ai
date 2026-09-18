@@ -54,8 +54,10 @@ Host protections:
   (:func:`_check_index_containment`). ``list blobs`` decodes indexes the
   way every reader does but skips the one extra check
   ``Repository.LoadIndex`` makes, which applies only to version-1
-  repositories, so the first cycle's ``config`` must declare repository
-  version 2 (``restic cat config`` on the view, once per sandbox). On a second view — config, keys,
+  repositories, so the accepted repo must be version 2: ``restic cat config`` on
+  the view checks it on the first cycle, and once more for an existing repo
+  the memo has no record of checking (a resume, or a repo from before this
+  check), with the passed check recorded in the memo. On a second view — config, keys,
   every accepted snapshot file and the new ones — ``restic snapshots
   --json`` must list, beyond the snapshots present before, exactly the
   shipped snapshot files, the reported one with this checkpoint's tag
@@ -63,10 +65,11 @@ Host protections:
   loads but cannot encode, fails here. New key files are refused after the
   first cycle. A transfer that fails is rejected on the copies, so the
   accepted repo is never touched by a transfer that would break it; the
-  cost is two restic processes per fire (one per new index file, run one
-  at a time, beside the listing; a fire normally writes one index; the
-  first cycle adds one ``cat config``), never more than two at once, and
-  work proportional to the increment, nothing proportional to history. Only
+  cost is two restic processes per ordinary fire (one per new index file,
+  run one at a time, beside the listing; a fire normally writes one
+  index), three on the first cycle and on the first fire over an unchecked
+  existing repo (``cat config``), never more than two at once, and work
+  proportional to the increment, nothing proportional to history. Only
   then are the additions linked in — packs, then indexes, then snapshots —
   so even a hard kill mid-merge leaves every earlier checkpoint
   restorable. Nothing here reads the new packs or decodes the new
@@ -222,10 +225,12 @@ The listing is O(accepted snapshots) of about 1 KiB each for honest
 snapshots; a sandbox-supplied snapshot can pad its paths and tags, and one
 that pushes the listing past this is a rejected transfer."""
 _REQUIRED_REPO_VERSION = 2
-"""The restic repository format the accepted repo must have, checked once,
-when the first cycle ships ``config`` (``restic cat config`` on the view).
-Both the in-sandbox and the host ``restic init`` use restic's default, which
-is 2, so this refuses nothing honest. It is what makes ``list blobs`` a
+"""The restic repository format the accepted repo must have, checked with
+``restic cat config`` on the view whenever the memo holds no record of the
+check having passed: on the first cycle, which ships ``config``, and on the
+first fire over an accepted repo whose memo predates the check or is absent
+(a resume, this code's first run). Both the in-sandbox and the host ``restic
+init`` use restic's default, which is 2, so this refuses nothing honest. It is what makes ``list blobs`` a
 complete loadability check: ``Repository.LoadIndex`` adds to the decode path
 ``list blobs`` shares exactly one check, refusing compressed blob entries in
 a version-1 repository, and a version-1 repo could be shipped only by the
@@ -233,16 +238,20 @@ sandbox itself."""
 _BLOB_LINE_RE = re.compile(r"(data|tree) ([0-9a-fA-F]{64})")
 """One line of ``restic list blobs``: ``<type> <id>`` as ``cmd/restic/cmd_list.go``
 prints it (``Printf("%v %v\\n", blobs.Type, blobs.ID)``)."""
-_INDEX_MEMO_VERSION = 2
+_INDEX_MEMO_VERSION = 3
 """SQLite ``user_version`` of the index memo; a file carrying another is
 discarded and rebuilt from the repo's index files. Version 1 also recorded
-the packs each index covered, for a pack rule that is gone."""
+the packs each index covered, for a pack rule that is gone; version 2 had
+no record of the repository-version check, which version 3 keeps in
+``meta`` so a memo from before that check cannot stand as evidence of it."""
 _INDEX_MEMO_SCHEMA = (
     "CREATE TABLE indexes (id TEXT PRIMARY KEY) WITHOUT ROWID",
     "CREATE TABLE blobs (index_id TEXT NOT NULL, id TEXT NOT NULL,"
     " PRIMARY KEY (index_id, id)) WITHOUT ROWID",
     "CREATE INDEX blobs_by_id ON blobs (id)",
+    "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID",
 )
+_MEMO_REPO_VERSION_KEY = "repository_version"
 _SQL_IN_BATCH = 500
 """Ids per ``IN (...)`` query against the memo, under SQLite's oldest bound
 variable limit (999)."""
@@ -575,6 +584,10 @@ async def egress_sandbox(
             before_snapshots=before_snapshots,
             snapshot_id=snapshot_id,
             tag=tag,
+            repository_version_verified=(
+                await anyio.to_thread.run_sync(memo.repository_version)
+                == _REQUIRED_REPO_VERSION
+            ),
             label=label,
         )
         await anyio.to_thread.run_sync(
@@ -606,6 +619,10 @@ async def egress_sandbox(
             )
 
     await anyio.to_thread.run_sync(memo.add, validated.coverage)
+    if validated.repository_version_checked:
+        await anyio.to_thread.run_sync(
+            memo.record_repository_version, _REQUIRED_REPO_VERSION
+        )
     await _commit_egress(env, tag, extracted.members, paths)
     return validated.verified_id
 
@@ -1378,6 +1395,27 @@ class _IndexMemo:
                     ((index_id, blob) for blob in blobs),
                 )
 
+    def repository_version(self) -> int | None:
+        """The repository version a past fire verified, or ``None`` if none did."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM meta WHERE key = ?", (_MEMO_REPO_VERSION_KEY,)
+            ).fetchone()
+        return int(row[0]) if row else None
+
+    def record_repository_version(self, version: int) -> None:
+        """Remember that the accepted repo's config declared ``version``.
+
+        Written only after the config was checked on the view and, on the
+        first cycle, published, so the memo never claims more than the
+        accepted repo holds; the next fire then skips ``cat config``.
+        """
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                (_MEMO_REPO_VERSION_KEY, str(version)),
+            )
+
     def located_blobs(self, blobs: Collection[str]) -> set[str]:
         """Those of ``blobs`` (``type:id``) that some accepted index locates."""
         wanted = sorted(set(blobs))
@@ -1530,7 +1568,10 @@ async def _check_repository_version(
     tooling passes) would let a later index carry compressed blob entries
     that ``list blobs`` accepts and ``Repository.LoadIndex`` refuses,
     blocking every restore — the one loadability check ``list blobs`` does
-    not make. Run once, when the first cycle ships ``config``.
+    not make. Run whenever the memo does not record a passed check: the
+    view holds the config either from staging (first cycle) or from the
+    accepted repo (an existing repo this code has not checked: a resume, a
+    memo from before the check, no memo), so both are covered.
     """
     raw = await _run_view_restic(
         host_restic,
@@ -1642,6 +1683,8 @@ class _Validated(NamedTuple):
 
     coverage: dict[str, set[str]]
     verified_id: str
+    repository_version_checked: bool
+    """Whether ``cat config`` ran (and passed) this fire, for the memo to record."""
 
 
 async def _validate_view(
@@ -1657,6 +1700,7 @@ async def _validate_view(
     before_snapshots: Collection[str],
     snapshot_id: str,
     tag: str,
+    repository_version_verified: bool,
     label: str,
 ) -> _Validated:
     """Validate this fire's increment on throwaway views, before anything is published.
@@ -1683,9 +1727,11 @@ async def _validate_view(
        ones, on which ``restic snapshots --json``
        (:func:`_verify_fresh_snapshot`) must list exactly the shipped
        snapshot files beyond those present before, the reported one with
-       this checkpoint's tag; on the first cycle, ``restic cat config``
-       there first requires repository version 2
-       (:func:`_check_repository_version`).
+       this checkpoint's tag; unless the memo records that the accepted
+       repo's version was already checked (``repository_version_verified``),
+       ``restic cat config`` there first requires repository version 2
+       (:func:`_check_repository_version`) — so on the first cycle, and
+       once for an existing repo this code has not seen.
 
     The index views are listed one at a time, in one worker running beside
     the snapshot worker, so however many index files a transfer carries, at
@@ -1732,8 +1778,10 @@ async def _validate_view(
                 host_restic, index_view, password, label=label
             )
 
+    check_version = "config" in written or not repository_version_verified
+
     async def list_view_snapshots() -> None:
-        if "config" in written:
+        if check_version:
             await _check_repository_version(host_restic, view, password, label=label)
         verified.append(
             await _verify_fresh_snapshot(
@@ -1758,7 +1806,11 @@ async def _validate_view(
         ),
         label=label,
     )
-    return _Validated(coverage=coverage, verified_id=verified_id)
+    return _Validated(
+        coverage=coverage,
+        verified_id=verified_id,
+        repository_version_checked=check_version,
+    )
 
 
 async def _run_view_restic(

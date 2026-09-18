@@ -934,6 +934,7 @@ async def test_validate_view_runs_at_most_two_restic_processes(
             before_snapshots=set(),
             snapshot_id=snapshot_id,
             tag="ckpt-00001",
+            repository_version_verified=False,
             label="t",
         )
 
@@ -956,6 +957,7 @@ async def test_validate_view_runs_at_most_two_restic_processes(
     # One list per index, one cat config, one snapshots listing: no more.
     assert sorted(calls) == ["cat"] + ["list"] * 5 + ["snapshots"]
     (validated,) = results
+    assert validated.repository_version_checked
     assert set(validated.coverage) == set(index_ids)
     for index_id, blobs in validated.coverage.items():
         assert blobs == {"data:" + index_id[:16].ljust(64, "0")}
@@ -994,6 +996,9 @@ def test_index_memo_roundtrip_and_tolerance(tmp_path: Path) -> None:
     path = tmp_path / "index-memos" / "m.sqlite"
     memo = _IndexMemo(path)
     assert memo.index_ids() == set()
+    assert memo.repository_version() is None
+    memo.record_repository_version(2)
+    assert memo.repository_version() == 2
     memo.add({"i1": ["data:b1", "tree:t1"]})
     memo.add({"i2": {"data:b2"}})
     assert memo.index_ids() == {"i1", "i2"}
@@ -1011,9 +1016,10 @@ def test_index_memo_roundtrip_and_tolerance(tmp_path: Path) -> None:
         "data:b2"
     }
 
-    # Not a database: discarded and rebuilt empty.
+    # Not a database: discarded and rebuilt empty, the version record with it.
     path.write_bytes(b"this is not sqlite" * 100)
     assert memo.index_ids() == set()
+    assert memo.repository_version() is None
     memo.add({"i3": []})
     assert memo.index_ids() == {"i3"}
     # Another schema version: discarded.

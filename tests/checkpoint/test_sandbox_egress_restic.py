@@ -1049,6 +1049,69 @@ async def test_egress_refuses_a_version_1_repository(tmp_path: Path) -> None:
     assert not list(repos.dest.parent.glob(".egress-*"))
 
 
+async def test_egress_refuses_an_existing_version_1_repository(tmp_path: Path) -> None:
+    """An already initialized version-1 accepted repo is refused before any addition.
+
+    Models a repo accepted before this check existed, or hydrated on resume:
+    the accepted repo and the sandbox manifest are seeded with a real
+    version-1 checkpoint, with no memo (and then with a memo that predates
+    the check). The next fire's ``cat config`` on the view of the accepted
+    config refuses the transfer before publication, the earlier checkpoint
+    still restores, and nothing of the new fire reaches the accepted repo.
+    """
+    restic = await resolve_restic()
+    repos = _Repos(tmp_path, restic, repo_version=1)
+    id1 = repos.backup("ckpt-00001")
+    # Seed the accepted repo and the manifest as an earlier egress would have.
+    shutil.copytree(repos.repo, repos.dest, dirs_exist_ok=True)
+    shutil.rmtree(repos.dest / "locks", ignore_errors=True)
+    (repos.sandbox_dir / "egress-manifest.txt").write_text(
+        "\n".join(sorted(repos.repo_files())) + "\n"
+    )
+    files_before = repos.dest_files()
+    assert "config" in files_before
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+    restored = repos.dest.parent.parent / "restore-A"
+    repos.restore_dest(id1, restored)
+    assert next(restored.rglob("notes.txt")).read_text() == "v1\n"
+
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    for memo_state in ("absent", "predates-the-check"):
+        if memo_state == "predates-the-check":
+            memo = _IndexMemo(_index_memo_path(str(repos.dest)))
+            memo.add(
+                {f.split("/", 1)[1]: [] for f in files_before if f.startswith("index/")}
+            )
+            assert memo.repository_version() is None
+        with pytest.raises(EgressVerificationError, match="repository version 1"):
+            await repos.egress("ckpt-00002", id2)
+        assert repos.dest_files() == files_before
+        assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+        again = repos.dest.parent.parent / f"restore-{memo_state}"
+        repos.restore_dest(id1, again)
+        assert next(again.rglob("notes.txt")).read_text() == "v1\n"
+
+
+async def test_existing_version_2_repository_is_checked_once(repos: _Repos) -> None:
+    """A version-2 repo with no memo record pays one ``cat config``, then none.
+
+    The memo records the passed check after publish; a fire over an accepted
+    repo whose memo lacks it (a resume, a memo from before the check) runs
+    the check once more and records it.
+    """
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    memo = _IndexMemo(_index_memo_path(str(repos.dest)))
+    assert memo.repository_version() == 2
+    memo.path.unlink()  # a resume whose copy carries no memo
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    assert await repos.egress("ckpt-00002", id2) == id2
+    assert memo.repository_version() == 2
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"], id2: ["ckpt-00002"]}
+
+
 async def test_list_index_blobs_refuses_an_empty_listing(tmp_path: Path) -> None:
     """A ``list blobs`` that prints nothing and exits 0 is a refused index.
 

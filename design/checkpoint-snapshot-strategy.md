@@ -473,13 +473,22 @@ every reader uses — `MasterIndex.Load` calls `ForAllIndexes` too — but
 of the load: a version-1 repository may hold no compressed blob entry
 ("index uses feature not supported by repository version 1"). Review round
 10 showed the gap: in a version-1 repo an index with `uncompressed_length`
-entries passes `list blobs` and blocks every restore. So the first cycle's
-`config` must declare repository version 2 (`restic cat config` on the
-view, one process, once per sandbox, `_check_repository_version`); both the
-sandbox and the host `restic init` use restic's default, which is 2, so
-this refuses nothing honest, and a version-1 repo could only be shipped by
-the sandbox itself (`test_egress_refuses_a_version_1_repository`, which
-also demonstrates the gap on a version-1 repo against 0.18.1). With that,
+entries passes `list blobs` and blocks every restore. So the accepted repo
+must be version 2, checked with `restic cat config` on the view
+(`_check_repository_version`) whenever the memo holds no record of the
+check having passed: on the first cycle, which ships `config`, and once on
+the first fire over an existing accepted repo this code has not checked —
+a resume whose copy carries no memo, a memo from before the check (memo
+schema 3 adds the record; older schemas are discarded), or a repo accepted
+by an older egress. The passed check is recorded in the memo after publish,
+so an ordinary later fire runs no `cat config`. Both the sandbox and the
+host `restic init` use restic's default, which is 2, so this refuses
+nothing honest, and a version-1 repo could only be shipped by the sandbox
+itself (`test_egress_refuses_a_version_1_repository` for a shipped config,
+which also demonstrates the gap on a version-1 repo against 0.18.1;
+`test_egress_refuses_an_existing_version_1_repository` for an already
+initialized one, with no memo and with a memo from before the check;
+`test_existing_version_2_repository_is_checked_once`). With that,
 an index restic cannot decode fails the command before publish (an
 undecryptable file; a malformed one, which would otherwise abort index
 loading for the whole repository and block *every* restore), an index
@@ -522,9 +531,12 @@ derivation. One view per new index rather than one for all, because `list
 blobs` prints the union and the memo records blobs per index so that a
 dropped index file releases exactly its own; the index views are listed one
 at a time in one worker beside the snapshot worker, so however many index
-files a transfer carries, at most two restic processes run at once (a fire
-normally writes one index; the first cycle adds one `cat config` in the
-snapshot worker).
+files a transfer carries, at most two restic processes run at once. With
+one new index, the first fire uses three restic processes (`cat config`
+runs in the snapshot worker before the listing) and later fires use two;
+the first fire over an existing repo the memo has no record of checking
+also uses three. Additional index files and memo rebuilding add sequential
+blob-listing invocations.
 
 1. `restic list blobs --no-lock --no-cache`, one per new index file, before
    publish. Kept: restic's own index decoder is the authority on whether the
@@ -623,10 +635,13 @@ files plus O(fires) snapshot files of about 1 KiB. The lazy builder
 (exFAT/FAT, some CIFS/NFS mounts; plain copies for the view,
 copy-to-`.partial`-then-rename for the accepted repo) are kept as tested.
 
-*Cost.* Per fire: two restic processes run concurrently (each paying
-restic's ~0.45 s scrypt key derivation, which restic calibrates at key
-creation and does not let a caller lower — the same process count as before
-this PR, now with a one-derivation wall-time floor), plus SQLite memo work
+*Cost.* Per ordinary fire: two restic processes run concurrently (each
+paying restic's ~0.45 s scrypt key derivation, which restic calibrates at
+key creation and does not let a caller lower — the same process count as
+before this PR, now with a one-derivation wall-time floor); the first fire,
+and the first fire over an unchecked existing repo, run three, two at once
+(`cat config` before the snapshot listing in one worker, so about two
+derivations of wall time that once). Plus SQLite memo work
 proportional to the increment, plus hard-linking a handful of files and
 O(fires) snapshot files, plus a stat of each written file after publish
 (O(increment files), no restic). Nothing proportional to repository bytes
@@ -638,13 +653,16 @@ SSD, 50 MB increments of 70% incompressible / 30% text, 40 fires):
 
 | fire | accepted repo | egress wall |
 |---|---|---|
-| 1 | 0.03 GB | 0.69 s |
-| 20 | 0.70 GB | 0.70 s |
-| 40 | 1.40 GB | 0.71 s |
+| 1 | 0.03 GB | 1.22 s |
+| 2 | 0.07 GB | 0.69 s |
+| 20 | 0.70 GB | 0.71 s |
+| 40 | 1.40 GB | 0.72 s |
 
-All 40 fires fell in 0.68–0.76 s; least-squares slope 0.02 s/GB, noise (the
-two processes in sequence measured 1.21–1.26 s on the same host; `list
-blobs` costs the same as the `cat index` it replaced).
+Measured at this head. Fire 1 is the three-process first cycle (`cat
+config` then the snapshot listing in one worker: two key derivations of
+wall time); fires 2–40 fell in 0.69–0.72 s, least-squares slope 0.02 s/GB,
+noise (the two processes in sequence measured 1.21–1.26 s on the same host;
+`list blobs` costs the same as the `cat index` it replaced).
 
 *Guarantee, restated.* A later transfer cannot make an earlier committed
 snapshot unrestorable or alter its restored contents because: earlier files
@@ -667,9 +685,12 @@ no new key file is accepted after the first cycle.
   (`test_egress_accepts_garbage_pack_under_a_new_blob_id`,
   `test_egress_accepts_understated_length_on_new_blobs`; aimed at an
   accepted blob the same shapes are rejected by containment).
-- Repository version 1 is refused at the first cycle (implementer, review
-  round 10): nothing honest creates it, and accepting it would need a
-  per-fire process that goes through `Repository.LoadIndex`.
+- Repository version 1 is refused — at the first cycle, and for an already
+  initialized repo the first time this code sees it (implementer, review
+  rounds 10 and 11; awaiting Ransom's confirmation): nothing honest creates
+  it, and accepting it would need a per-fire process that goes through
+  `Repository.LoadIndex`. The cost is one `cat config` per sandbox lifetime
+  (plus one per resume that carries no memo).
 - Unloadable snapshot residue (a file restic skips) is retained as
   harmless. (The earlier "a restic upgrade that adds an index field fails
   honest transfers closed until the strict parser is updated" went with the
