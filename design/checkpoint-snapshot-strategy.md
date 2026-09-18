@@ -369,7 +369,9 @@ Implementation requirements:
   bytes never touch an agent-readable temp path. The area is prepared
   through the verified framework-directory helper
   (`_sandbox_dir.ensure_root_sandbox_dir`, pinning uid 0), never a bare
-  `install -d`/`mkdir -p` that would adopt an entry already at the path.
+  `install -d`/`mkdir -p` that would adopt an entry already at the path,
+  and the binary is written by `_sandbox_dir.exec_in_root_sandbox_dir`
+  with the verified directory as cwd rather than by absolute path.
 - Any in-sandbox staging must sit inside that area and be excluded
   from the strategy's own capture.
 - Bytes read out of the sandbox are attacker-controlled: host-side

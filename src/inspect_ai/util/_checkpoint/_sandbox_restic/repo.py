@@ -22,14 +22,15 @@ The egress protocol that ships repo data back to the host lives in
 from __future__ import annotations
 
 from inspect_ai.util._restic import Platform, ResticBackupSummary, resolve_restic
-from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_shell
+from inspect_ai.util._sandbox._privileged import privileged_exec
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
-from .._sandbox_dir import ensure_root_sandbox_dir
+from .._sandbox_dir import ensure_root_sandbox_dir, exec_in_root_sandbox_dir
 
 _SANDBOX_RESTIC_DIR = "/root/.cache/inspect"
-_SANDBOX_RESTIC_PATH = f"{_SANDBOX_RESTIC_DIR}/restic"
+_SANDBOX_RESTIC_NAME = "restic"
+_SANDBOX_RESTIC_PATH = f"{_SANDBOX_RESTIC_DIR}/{_SANDBOX_RESTIC_NAME}"
 _SANDBOX_RESTIC_REPO = f"{_SANDBOX_RESTIC_DIR}/repo"
 
 _ARCH_TO_PLATFORM: dict[Architecture, Platform] = {
@@ -48,7 +49,10 @@ async def inject_restic(env: SandboxEnvironment) -> None:
     :func:`ensure_root_sandbox_dir`) so the file is invisible to non-root
     processes (stronger than file-level ``chmod 0700`` alone, since the
     file would otherwise still appear in ``ls`` of a world-readable
-    parent).
+    parent). The write itself runs through :func:`exec_in_root_sandbox_dir`
+    with the verified directory as cwd, so the file is created in that
+    directory object rather than at whatever the path names by then. An
+    existing binary (a resumed sandbox) is overwritten in place.
     """
     info = await detect_sandbox_os(env)
     platform = _ARCH_TO_PLATFORM[info["architecture"]]
@@ -56,8 +60,16 @@ async def inject_restic(env: SandboxEnvironment) -> None:
     binary_bytes = binary_path.read_bytes()
 
     await ensure_root_sandbox_dir(env, _SANDBOX_RESTIC_DIR)
-    script = f"set -e; cat > {_SANDBOX_RESTIC_PATH}; chmod 0700 {_SANDBOX_RESTIC_PATH}"
-    result = await privileged_shell(env, script, input=binary_bytes, user="root")
+    result = await exec_in_root_sandbox_dir(
+        env,
+        _SANDBOX_RESTIC_DIR,
+        [
+            "sh",
+            "-c",
+            f"cat > {_SANDBOX_RESTIC_NAME} && chmod 0700 {_SANDBOX_RESTIC_NAME}",
+        ],
+        input=binary_bytes,
+    )
     if not result.success:
         raise RuntimeError(f"Failed to inject restic into sandbox: {result.stderr}")
 
