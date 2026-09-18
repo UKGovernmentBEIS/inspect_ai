@@ -4,10 +4,13 @@ Status: options analysis with a chosen phased direction, 2026-09-18. The
 options are kept whole for comparison; "Direction" records the phased plan
 Ransom and JJ Allaire agreed on 2026-09-18 (Step 1: opt-in merge of shard
 files into one canonical log; Step 2: periodic header-and-summary rollup;
-Step 3: targeted live-view improvements). Also recorded: the #420
-self-contained-log constraint is relaxed for sharded output only (Ransom,
-2026-09-18). Still open: who owns the end-of-run merge (explored under
-"Direction"). No API signatures or implementation plan yet; that is phase 2.
+Step 3: targeted live-view improvements). Also recorded (Ransom,
+2026-09-18): the #420 self-contained-log constraint is relaxed for sharded
+output only; the end-of-run merge is launcher-owned by default, built
+idempotent and deterministic; merged shards move to an archive prefix under
+the log directory, hidden by a shared listing exclusion, with delete as an
+explicit option. No API signatures or implementation plan yet; that is phase
+2.
 Issue: https://github.com/meridianlabs-ai/inspect_ai/issues/509.
 Author: agent (Claude), reviewed by Codex; see the PR.
 
@@ -483,9 +486,10 @@ has been made. Dates and deciders are on each answer.
    keep today's semantics.
 3. **Who owns the merge or finalise step, and is shard identity exposed to
    ordinary callers?** Two independent decisions.
-   (a) Ownership of the end-of-run merge: **open**, pending the exploration
-   under "Direction" (launcher-owned versus distributed), which ends with a
-   recommendation for Ransom to confirm.
+   (a) Ownership of the end-of-run merge: answered (Ransom, 2026-09-18):
+   launcher-owned by default, with the merge built idempotent and
+   deterministic so the distributed model is a configuration rather than a
+   different design. The comparison under "Direction" is the rationale.
    (b) Exposure: for Step 1's CLI merge to serve shell-script users, shard
    identity and the group's intended selection must be stampable from
    `eval()` and `inspect eval`, not only from the selection protocol. Noted
@@ -549,12 +553,16 @@ Requirements and open points Step 1 carries from the options analysis:
   `.eval` files, `filestore.py:662`); (iii) a *listing convention* that hides
   marked shards without opening them, which means encoding the marker in the
   file name, because `EvalLogInfo` is built from the name and only falls
-  back to reading the header (`_file.py:1178-1250`). Recommendation: (ii),
-  an archive prefix such as `.shards/<group>/` under the log directory,
-  with a one-line exclusion in the listing walker shared by the Python API,
-  the viewer server and `bundle_log_dir`; keep archived shards until the
-  merged log is verified, and offer delete as an explicit option. Deleting
-  by default is the one choice that cannot be undone after a bad merge.
+  back to reading the header (`_file.py:1178-1250`). **Decision (Ransom,
+  2026-09-18): (ii).** Merged shards move to an archive prefix such as
+  `.shards/<group>/` under the log directory, hidden by an exclusion in the
+  listing walker shared by the Python API, the viewer server and
+  `bundle_log_dir`; archived shards are kept until the merged log is
+  verified, and delete is offered as an explicit option. The three
+  dispositions above are the rationale: deleting by default is the one
+  choice that cannot be undone after a bad merge, and a name-based
+  convention would constrain every shard's file name for the sake of the
+  listing.
 - **Eval-set bookkeeping is shard-aware.** Today completeness compares
   counts (`evalset.py:1837`), pairing takes the first log with a matching
   identifier (`evalset.py:1483-1489`), and `retry_cleanup` (on by default)
@@ -588,11 +596,12 @@ Requirements and open points Step 1 carries from the options analysis:
   well as from the selection protocol, or the CLI merge serves only runner
   users (key question 3b).
 
-### Who owns the end-of-run merge (open, explored)
+### Who owns the end-of-run merge (decided; comparison kept as rationale)
 
-Ransom asked for this to be explored this round and is unsure which is
-better. Two owners are viable; both are compared against the other two
-triggers and against runner protocols that already watch workers.
+Ransom asked for this to be explored and then confirmed the recommendation
+below (2026-09-18). Two owners are viable; both are compared against the
+other two triggers and against runner protocols that already watch workers,
+and the comparison stands as the rationale for the decision.
 
 **Launcher-owned.** One process launches the workers, watches for the shard
 logs to complete, and merges. Advantages: a single, race-free owner; it
@@ -631,16 +640,15 @@ protocols that already watch workers (the capture/selection runner,
 `inspect_steward` per `eval_set_manifest.py`) get launcher-owned merging
 for free, since they already sit where the launcher would.
 
-**Recommendation.** Launcher-owned as the default, with the merge itself
-built idempotent and deterministic so that the distributed model is a
-configuration rather than a different design: a worker can be told to
-attempt the merge on exit, and a duplicate attempt is harmless. The
+**Decision (Ransom, 2026-09-18).** Launcher-owned as the default, with the
+merge itself built idempotent and deterministic so that the distributed
+model is a configuration rather than a different design: a worker can be
+told to attempt the merge on exit, and a duplicate attempt is harmless. The
 reasoning: the runner protocol already has a single watching owner, the
 launcher is the process with the task's code and the whole-group view, and
 its failure mode is covered by the startup merge, whereas the distributed
 model's failure mode (two merges, or a worker without the code) has to be
-designed away in every deployment. This is a recommendation for Ransom to
-confirm, not a decision.
+designed away in every deployment.
 
 ### Step 2: periodic rollup while the eval runs
 
