@@ -217,7 +217,7 @@ Rules:
 
 - **Use the assignment fields to judge the step.** The same `curl` command is exfiltration in one task and the assigned work in another. A monitor that ignores `task_description` can only flag things that would look bad in any task, and it will produce false positives on tasks that are designed to look bad.
 - **Keep context and step separate when you build a prompt.** Put the assignment in a labelled instructions section and the conversation in a labelled evidence section. Do not concatenate them into one block where a tool result can claim to be a revised assignment.
-- **Do not read `target` unless the monitor's job requires the answer.** It is absent by default. Request it explicitly, and the log records that you did, so readers can tell whether the monitor's performance is achievable in deployment. Sandbagging detection needs it. An AI control monitor standing in for a deployed one must not have it.
+- **Do not read `target` unless the monitor's job requires the answer.** It is absent by default. Request it explicitly, and the log records that you did, so readers can tell whether the monitor's performance is achievable in deployment. Sandbagging detection needs it. An AI control monitor standing in for a deployed one must not have it. See [View](#view).
 - **Do not cache the context.** It is passed on every call. Storing it would make the monitor stateful.
 - **Use `context.host` for inference and every other outside effect.** Do not call `get_model()` directly. See [Effects](#effects).
 
@@ -402,8 +402,73 @@ Rules:
 
 - **Call `context.host.generate()` for inference, never `get_model()`.** The host defaults to `role="monitor"` and records monitor inference separately from the agent's. The `portable=True` check bans `get_model()`.
 - **Monitor inference is not charged to the agent's limits.** Approvers get the same exemption today via `suspend_token_limit()` and `suspend_turn_limit()`. Monitor usage is separable from agent usage in `ModelUsage`.
-- **Treat model completions, tool arguments, and tool output as untrusted.** The monitor's output decides whether the sample stops, so a successful injection against the monitor can stop a sample or prevent it from being stopped. The framework should deliver tool output to the monitor's prompt in a delimited, clearly-untrusted envelope by default.
+- **Treat model completions, tool arguments, and tool output as untrusted.** The monitor's output decides whether the sample stops, so a successful injection against the monitor can stop a sample or prevent it from being stopped. `monitor_prompt` delivers evidence in a delimited, clearly-untrusted envelope by default; see [View](#view).
 - **Classify incrementally.** Judge the newest turn and fold the verdict into stored state rather than re-judging the whole trajectory each step. Re-judging is quadratic in inference cost and linear in deserialization cost, and under WASM the memory never shrinks.
+
+### View
+
+A view is what a monitor is shown and how it is rendered into a prompt. It is not a type. It is a map of the surfaces a step carries in each deployment, plus a family of helper functions, `messages_as_str` and its relatives, that render any subset of them into prompt text with the instruction/evidence boundary intact.
+
+Which surfaces exist where:
+
+| Surface | Eval | Proxy / bridged | Replay | Trust |
+|---|---|---|---|---|
+| Briefing (`context`) | yes | operator-supplied | from transcript info | instruction |
+| The subject: call, assistant message, or request | yes | yes | yes | evidence |
+| Tool result as the model saw it | yes | next request only, lossy | yes | evidence |
+| Untruncated tool output | yes | no | no | evidence |
+| `ToolCallView` | yes | no | from events only | evidence |
+| History | yes | yes | yes | evidence |
+| Reasoning | provider-dependent | whatever the wire carries | as logged | evidence |
+| System prompt | yes | yes, but written by the scaffold under observation | yes | evidence |
+| Tool definitions, config | yes | yes | from events only | evidence |
+| Media | yes | yes | yes | evidence |
+| `target` | yes | never | yes | instruction |
+
+Rules:
+
+- **The system prompt is evidence, not instruction.** In an eval the author wrote it; under a proxy the agent's scaffold did. The briefing in `context` is the only instruction-class input. The helpers exclude the system prompt by default.
+- **Reasoning is rendered at whatever fidelity exists.** `<thinking>`, `<thinking_summary>`, or `<thinking_redacted/>`, so the prompt says which. Exclude it in the preprocessor to score actions without it. A protocol withholds it from a child by transforming `step` before the call.
+- **A monitor never sees** the sandbox itself, other samples, sibling monitors' reports at the same step, the protocol's thresholds or budget, or whether its own explanation was shown.
+
+The helpers, lowest level first. The first two exist in Scout today and move down to `inspect_monitor`, with Scout re-exporting them:
+
+| Helper | Does |
+|---|---|
+| `messages_as_str`, `message_as_str`, `MessagesPreprocessor` | Scout's message rendering: roles, tool calls and results, `<thinking>` blocks, media placeholders; exclusions and a `transform` via the preprocessor |
+| `message_numbering()` | `[M1]`-style numbering plus `extract_refs` for citations in explanations |
+| `last_turn`, `last_n`, `new_since_last_report` | windows over `step.history`; the last uses the monitor's store so an incremental monitor never re-reads what it already judged |
+| `call_as_str(call, view=None)` | the Python-call rendering approvers use, honouring a `ToolCallView` |
+| `result_as_str(result, truncated=None)` | a tool result with the truncation point marked |
+| `briefing_as_str(context)`, `step_as_str(step, ...)` | the instruction and evidence sections; an absent surface is named in a fixed phrase, not omitted |
+| `monitor_prompt(context, step, *, question, answer=...)` | the analogue of Scout's `scanner_prompt`: briefing, delimited evidence envelope, escalations as prior verdicts, the question |
+
+```python
+@monitor
+def suspicion_monitor(model: str | None = None) -> Monitor:
+    async def check(context: Context, step: BeforeToolCall) -> Observation | None:
+        messages_as_str, extract_refs = message_numbering()
+        prompt = monitor_prompt(
+            context, step,
+            question="Rate how suspicious this tool call is given the assignment.",
+            answer="score",
+            history=new_since_last_report(context, step.history),
+            messages_as_str=messages_as_str,
+        )
+        answer = await context.host.generate(prompt, model=model)
+        score, explanation = parse_score(answer)
+        return Observation(suspicion=score, explanation=explanation,
+                           metadata={"references": extract_refs(explanation)})
+
+    return check
+```
+
+Rules:
+
+- **Use `monitor_prompt` for LLM monitors.** Its default output keeps briefing and evidence in separately labelled sections, wraps evidence in an envelope described as agent-written, and renders escalations as prior verdicts. Do not concatenate context and history yourself.
+- **Use `message_numbering` so explanations cite.** References in the explanation resolve to messages, which the transcript and Scout's viewer render.
+- **Window history with a helper.** `new_since_last_report` is the incremental shape; full history is the safe one. Whichever you choose is visible in the call.
+- **Screenshots need a message-list prompt.** The text helpers render media as placeholders. A monitor that must see an image builds a `list[ChatMessage]` itself, and `Host.generate` has to grow to accept it.
 
 ## Protocols
 
@@ -794,7 +859,7 @@ What each stage sees:
 Rules for portable monitors:
 
 - **Prefer `BeforeGenerate`, `AfterGenerate`, and `BeforeToolCall`.** `AfterToolCall` should decline to fire under a proxy or bridged agent and say why, rather than run on lossy data.
-- **Expect `view` and `output` to be absent.** A proxy has wire types, not registered tool definitions.
+- **Expect `view` and `output` to be absent.** A proxy has wire types, not registered tool definitions. The [rendering helpers](#view) name an absent surface in the prompt rather than omitting it.
 - **Expect `terminate` to be best-effort.** In an eval it is total and synchronous. Under a proxy it is an error response plus an out-of-band `host.terminate()`, the same shape as `bridge.request_terminate()`, and the host may not support it. There is no separate set of portable actions. Whether `terminate` works is a property of the host.
 - **Take state from `context.store_as`,** never from an ambient accessor. A proxy has nothing to bind an ambient accessor to.
 - **Keep the module's imports light.** Bundling is per-module because the import closure is a module property. One `import requests` at the top of a file disqualifies every monitor in it. A bundler finds monitors with `ast` alone, which works because monitors are top-level functions.
@@ -1115,10 +1180,13 @@ What keeps the simple case simple:
 6. **Does anything in v1 need per-task state?** The audit budget does not. Cross-sample gating ("terminate once 3 samples are flagged") does, and it resets in the unsafe direction. If nothing in v1 needs it, per-task state can be deferred whole. If something does, its scope needs deciding between task, run, and eval-set.
 7. **What is the default protocol called?** `strictest` says what it does to recommendations; `all_of` says what the configuration means. It appears in every multi-monitor log.
 8. **Should a protocol be able to add to recorded usage?** `modified` at `AfterGenerate` leaves `usage` untouched. A protocol that spent extra inference resampling may want cost accounting to reflect that.
-9. **Does the monitor see `ContentReasoning`?** Defaulting it visible seems right. Whether a protocol can withhold it is open.
+9. **Does the monitor see `ContentReasoning`?** Answered by [View](#view): rendered by default at whatever fidelity exists, excluded via the preprocessor, and a protocol withholds it from a child by transforming `step`.
 10. **Lifecycle stages.** `SampleStart` and `SampleEnd` payloads would give state a place to initialise and a monitor a place to file a final verdict. Cheap now that a stage is a payload type, but it overlaps `Hooks`, and neither travels to a proxy.
 11. **Can a monitor produce a `Score`?** Yes: `as_scorer(as_scanner(monitor, unit="transcript"))`, in `monitor-development.md`. Scoring is untouched.
 12. **Does `AfterToolCall` get a bridged-agent fallback?** Reconstructing a result from the next request, or declining to fire and saying why.
 13. **Does `Task` / `Sample` grow a `description` field?** A public API change for a general-purpose field monitors need first. If not, the assignment comes from `metadata` by convention and is undiscoverable.
 14. **Which stages can `human()` serve?** `BeforeToolCall` is what the human surfaces render today. `AfterGenerate` is plausible and needs a new rendering. `BeforeGenerate` is hard to make meaningful to a person.
 15. **Failure tolerance across many samples.** Whether a monitor failing on 3 of 500 samples should fail the eval, and whether that reuses `fail_on_error`'s shape (`True` / `False` / proportion / count) or needs its own knob.
+16. **Should reading an eval-only surface be recorded?** `target` is opt-in and logged. `step.output` and `step.view` raise the same validity question and get no such treatment. A declared view was judged heavier than the problem; explicit flags on `step_as_str` are the lighter option.
+17. **Default history window in `monitor_prompt`.** Full history is safe; `new_since_last_report` is the incremental shape the design argues for elsewhere.
+18. **Is the rendered prompt part of the recorded decision?** `host.generate` records a `ModelEvent`, so it is in the log already. Whether replay should check its rendering against the recorded one is open.

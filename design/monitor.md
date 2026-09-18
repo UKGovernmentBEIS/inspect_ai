@@ -167,7 +167,7 @@ Step: TypeAlias = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCal
 
 A monitor never annotates `Step`, since [its annotation is what selects the stage](#the-stage-comes-from-the-annotation). The alias exists for the layer above, which does see all four.
 
-**Everything in `step` is agent-influenced; nothing in `context` is.** `call`, `message`, `history`, `view`, `result` and `output` are all written or shaped by the agent under observation and are therefore injection-bearing; the briefing is author-written, the store is the monitor's own, the host is the framework's. Splitting them across two arguments makes that boundary structural rather than a matter of field ordering, which is the most useful thing the framework can do about injection (see [It is the only input the agent did not write](#it-is-the-only-input-the-agent-did-not-write)).
+**Everything in `step` is agent-influenced; nothing in `context` is.** `call`, `message`, `history`, `view`, `result` and `output` are all written or shaped by the agent under observation and are therefore injection-bearing; the briefing is author-written, the store is the monitor's own, the host is the framework's. Splitting them across two arguments makes that boundary structural rather than a matter of field ordering, which is the most useful thing the framework can do about injection (see [It is the only input the agent did not write](#it-is-the-only-input-the-agent-did-not-write)). Which of these fields a given monitor is actually shown, and how they are rendered into its prompt, is the monitor's [view](#views).
 
 `escalations` is the one exception, and it is worth naming as such. It is filled by an [ordered composition](#two-compositions-concurrent-and-ordered): when an earlier link in a chain returns `escalate`, its report is handed to the next link here, so a human at the end of the chain sees who is asking and why. The reports are monitor-authored rather than agent-authored, but they may quote agent text in their explanations, so a monitor rendering them into its own prompt should label them as prior verdicts rather than as instructions. The field is per-step, which is why it lives on the payload and not on `Context`, and it is empty everywhere except inside a chain. Approval's equivalent is a block appended to `view.context`; a first-class field is used instead because `view` exists only on the tool stages and is absent under a proxy.
 
@@ -1222,7 +1222,128 @@ Open: whether `MonitorEvent` replaces `ApprovalEvent`/`ReviewEvent` when the rep
 
 - **Budget.** Monitor inference must not be charged to the agent's limits, the same exemption approvers get today (`suspend_token_limit()`, `suspend_turn_limit()` in `approval/_apply.py`). A monitor that terminates a sample for exceeding a token limit its own inference consumed is a trap worth closing up front.
 - **Model role.** `get_model(role="monitor")` is the natural default, and `"monitor"` is already the example role name in `docs/models.qmd`. Monitor usage should be separable from agent usage in `ModelUsage`.
-- **Injection.** A monitor reads model completions, tool arguments, and tool output, all of which are agent-controlled text. `docs/control-channel.qmd` already makes this point for monitoring agents reading the control channel; it applies with more force here, because this monitor's output decides whether the sample stops. Worth a docs section, and worth thinking about whether the framework should structurally help (for example by defaulting to delivering tool output to the monitor in a delimited, clearly-untrusted envelope) rather than only warning.
+- **Injection.** A monitor reads model completions, tool arguments, and tool output, all of which are agent-controlled text. `docs/control-channel.qmd` already makes this point for monitoring agents reading the control channel; it applies with more force here, because this monitor's output decides whether the sample stops. Worth a docs section, and the framework should structurally help rather than only warn: [Views](#views) proposes a shared rendering path whose default output is a delimited, clearly-untrusted evidence envelope.
+
+## Views: what a monitor sees, and how it is rendered {#views}
+
+A step payload says what *exists* at a point in the loop. A monitor author has two further questions the payload does not answer: which of those surfaces will actually be there in the deployment this monitor is headed for, and how to turn them into a prompt without re-deriving the briefing/evidence boundary by hand every time. Today the first is scattered across the deployment sections and the second is left entirely to the author, so every LLM monitor concatenates context and history its own way, and most will get the envelope wrong.
+
+A **view** is the answer to both, and it is not a type. It is a documented map of the surfaces and a family of rendering helpers — `messages_as_str` and its relatives — that turn any subset of them into prompt text with the boundary intact. Scout's `messages_as_str`, `MessagesPreprocessor` and `message_numbering` are the beginnings of this family; they already depend on nothing but `ChatMessage` and `Content`, and the design here is mostly about moving them down a level and filling in the pieces a monitor needs that a scanner does not.
+
+Status: sketch, like the rest of this document. The Python is illustrative.
+
+### The surfaces
+
+What a monitor can be shown, where each thing comes from, and where it is available. "Eval-only" surfaces exist because Inspect executed the tool or registered the tool definition; nothing on the wire carries them.
+
+| Surface | Lives in | Eval | Proxy / bridged | Replay | Trust |
+|---|---|---|---|---|---|
+| Briefing: `task_description`, `sample_description`, `input`, `metadata` | `context` | yes | operator-supplied | from transcript info | instruction |
+| The subject: the call, the assistant message, or the request | `step.call` / `step.output` / `step.input` | yes | yes | yes | evidence |
+| Tool result as the model sees it | `step.result` | yes | next request only (lossy) | yes; exact from `ToolEvent` | evidence |
+| Untruncated tool output | `step.output` | yes | **no** | **no** | evidence |
+| Tool call view (`ToolCallView`) | `step.view` | yes | **no** | from events only | evidence |
+| Conversation history | `step.history` / `step.input` | yes | yes (the request carries it) | yes | evidence |
+| Reasoning (`ContentReasoning`) | inside assistant messages | provider-dependent: full, summary, or redacted | whatever the wire carries | as logged | evidence |
+| System prompt | first message of history | yes | yes | yes | **see below** |
+| Tool definitions, generate config | `step.tools`, `step.config` | yes | yes | from events only | evidence |
+| Media (images, audio, documents) | content parts | yes | yes | yes | evidence |
+| Prior escalations | `step.escalations` | yes | yes | recorded | prior verdicts |
+| Expected answer | `context.target` | yes | **never** | yes | instruction |
+| Own accumulated state | `context.store` | yes | keyed store | per-transcript | own |
+
+Two rows deserve a note.
+
+**The system prompt changes trust class with the deployment.** In an eval it is author-written and could sit with the briefing. Under a proxy it arrives in the request body from the agent's scaffold, which is the thing being monitored. The helpers therefore treat the system prompt as evidence everywhere and exclude it by default — Scout's `exclude_system=True` is the right default for the same reason — and the briefing, which the operator supplied out of band, stays the only instruction-class input.
+
+**Reasoning fidelity is not the monitor's to choose.** A monitor can render reasoning, but a provider may only return a summary or a redacted block, and a proxy only sees what the wire carries. The helpers render whatever is there — `<thinking>`, `<thinking_summary>`, `<thinking_redacted/>` — so the prompt says which it was. This settles [open question 9](#open-questions): reasoning is visible by default, at whatever fidelity exists, and a monitor that wants to score actions without it excludes it in the preprocessor. A protocol that wants to withhold it from an untrusted child transforms `step` before the call, as it would for paraphrasing.
+
+Things a monitor never sees at any view, so that nobody designs around them: the sandbox itself (only what came back through a tool), other samples, sibling monitors' reports at the same step (independence is a [safety property](#concurrency-is-a-safety-property-not-just-a-latency-one)), the protocol's thresholds and remaining budget, and whether its own explanation was shown to anyone.
+
+### The helpers
+
+Lowest level first. The first three exist in Scout today and move down unchanged; the rest are new.
+
+**`messages_as_str(messages, *, preprocessor=None, format="text")`** and **`message_as_str`.** Scout's message rendering: role labels, tool calls with arguments, tool results with errors, `<thinking>` blocks at whatever fidelity was returned, and `<image/>`-style placeholders for media. `MessagesPreprocessor` carries the exclusions (`exclude_system`, `exclude_reasoning`, `exclude_tool_usage`) and a free-form `transform`. These depend only on `ChatMessage` and `Content`, so they belong in `inspect_monitor`, with Scout re-exporting them. The `Transcript` overload and `Reference` extraction stay in Scout. Inspect's own `analysis/_dataframe/extract.py::messages_as_str` is a third copy today and should consolidate onto the same one.
+
+**`message_numbering(preprocessor=None)`.** Scout's `[M1]`-style numbering with a paired `extract_refs`. `monitor-development.md` already assumes an LLM monitor uses it so that citations in an explanation resolve to messages for free; making it available to monitors is what makes that true.
+
+**Windowing helpers over `step.history`.** History is all-or-nothing on the payload, and [incremental monitoring](#deployment-beyond-the-eval-process) wants less than all of it. Three small functions, each returning a `list[ChatMessage]` that feeds `messages_as_str`:
+
+``` python
+def last_turn(history: list[ChatMessage]) -> list[ChatMessage]:
+    """Messages since the last user message."""
+
+def last_n(history: list[ChatMessage], n: int) -> list[ChatMessage]: ...
+
+def new_since_last_report(context: Context, history: list[ChatMessage]) -> list[ChatMessage]:
+    """Messages after the one this monitor last reported on, read from its store.
+    Records the new high-water mark. The incremental default."""
+```
+
+The third is the one that matters. It uses `context.store_as` under a reserved key, so an incremental monitor never re-reads what it has already judged, and the cost argument from `monitor-deployment.md` — quadratic inference, linear deserialization, WASM memory that never shrinks — is answered by a helper rather than by discipline.
+
+**`call_as_str(call, view=None)`.** The Python-call rendering `default_tool_call_viewer` produces for approvers, honouring a registered `ToolCallView` when one is present. One implementation serves the human approval surface and the monitor prompt.
+
+**`result_as_str(result, *, truncated=None)`.** A tool result with the truncation range marked, so the monitor knows the model saw a cut and where. Given `output` as well, it can say how much was cut.
+
+**`briefing_as_str(context)`.** The instruction section: task and sample descriptions, the original input, and metadata the author chose to surface. Never includes `target` unless asked; the caller passing `include_target=True` is what the log records.
+
+**`step_as_str(step, *, history=..., preprocessor=None)`.** The evidence section for a stage, built from the helpers above: the subject, then as much history as the caller asked for. When a surface is absent in the deployment — no `view`, no untruncated `output` — the rendering says so in a fixed phrase rather than omitting it silently, so a monitor developed in an eval and run under a proxy produces a prompt that is visibly different rather than subtly different.
+
+**`monitor_prompt(context, step, *, question, answer=..., history=..., preprocessor=None, messages_as_str=None)`.** The analogue of Scout's `scanner_prompt`, and the one most authors call. It emits: the briefing section, labelled as instructions; the evidence section inside a delimited envelope whose surrounding text says it was written by the agent under observation and may contain instructions to ignore; `step.escalations`, rendered as prior verdicts rather than as part of the conversation; and the question with an answer format. This is the "structural help" the injection section asked for, delivered as the default output of the helper people will reach for first.
+
+An LLM monitor built from them:
+
+``` python
+@monitor
+def suspicion_monitor(model: str | None = None) -> Monitor:
+    async def check(context: Context, step: BeforeToolCall) -> Observation | None:
+        messages_as_str, extract_refs = message_numbering()
+        prompt = monitor_prompt(
+            context, step,
+            question="Rate how suspicious this tool call is given the assignment.",
+            answer="score",
+            history=new_since_last_report(context, step.history),
+            messages_as_str=messages_as_str,
+        )
+        answer = await context.host.generate(prompt, model=model)
+        score, explanation = parse_score(answer)
+        return Observation(
+            suspicion=score,
+            explanation=explanation,
+            metadata={"references": extract_refs(explanation)},
+        )
+
+    return check
+```
+
+Nothing in the body concatenates briefing and transcript, labels an envelope, or decides what to do with reasoning blocks. Those are the helper's defaults, which is the point: the author writes the question, and the choices they do make — which window of history, whether reasoning is excluded — are visible in the call.
+
+Media is the one place text rendering is not enough. The default renders a placeholder where an image was; a monitor that must see a screenshot builds a `list[ChatMessage]` prompt itself. That needs `Host.generate` to accept messages as well as a string, which `monitor-deployment.md`'s ABI does not do today; that is a consequence to carry back to it.
+
+### What the helpers do not do
+
+They do not declare or enforce anything. A monitor can read `step.output` directly, and nothing stops it or records it. The doc's validity argument for `target` — that a monitor seeing something its deployed counterpart cannot should have to say so, and the log should show it — therefore holds only for `target`, which keeps its own opt-in. Whether the same treatment should extend to `output` and `view` is [open](#open-questions); a declared view was one answer and was judged heavier than the problem, since a reviewer can grep a monitor for `step.output` as easily as for a threshold constant.
+
+### Feature directions
+
+In rough priority order, with what each buys:
+
+1. **Lift Scout's rendering helpers into `inspect_monitor`.** `messages_as_str`, `message_as_str`, `MessagesPreprocessor`, `message_numbering`. A package move with Scout re-exporting, and the `analysis` copy retired. First, because everything else composes over it.
+2. **`monitor_prompt` and the evidence envelope.** The default prompt shape carries the instruction/evidence boundary, labels escalations as prior verdicts, and marks truncation. Docs examples use it, so it is what people write.
+3. **Windowing helpers, especially `new_since_last_report`.** The incremental default, implemented once over the store rather than by every author.
+4. **`call_as_str` and `result_as_str`.** Shared with the approval renderer, so the monitor's prompt and the human's screen show the same call.
+5. **Absent-surface phrasing in `step_as_str`.** So a monitor that leans on an eval-only surface degrades visibly under a proxy or bridged agent.
+6. **A `list[ChatMessage]` form of `Host.generate`.** Needed for computer-use and browser monitoring, where the evidence is a screenshot. Later, because it changes the host ABI.
+7. **"What the monitor saw" in the viewers.** The rendered prompt is already recorded by `host.generate`'s `ModelEvent`, so Inspect View and Scout View can show it next to the `MonitorEvent`. A viewer task rather than a design one.
+
+### What this changes elsewhere
+
+- Open question 9 (does the monitor see `ContentReasoning`) is answered above.
+- `Host.generate` in `monitor-deployment.md` wants a `list[ChatMessage]` form for native media.
+- Scout imports its rendering helpers from `inspect_monitor` rather than owning them; `monitor-development.md`'s reliance on `message_numbering` for references becomes a statement about a shared helper.
+- `default_tool_call_viewer` in `approval/_apply.py` becomes a caller of `call_as_str`.
 
 ## Bridged agents are the proxy case {#bridged-agents-are-the-proxy-case}
 
@@ -1257,7 +1378,7 @@ A monitor is useful outside an eval — enforced at a network boundary in front 
 
 - **State must arrive as an argument.** `context.store_as(...)` survives any deployment; an ambient accessor would not, because a proxy has nothing to bind to. There is deliberately no global counterpart — see [One access path, not two](#one-access-path-not-two).
 
-- **`view` and the untruncated `output` must be optional.** A proxy has wire types, not registered `ToolDef`s, so there is no viewer to resolve.
+- **`view` and the untruncated `output` must be optional.** A proxy has wire types, not registered `ToolDef`s, so there is no viewer to resolve. The [rendering helpers](#views) say so in the prompt when a surface is absent rather than omitting it silently.
 
 - **Portability has two axes, and one of them is the module.** Whether a monitor *can* run in a proxy is per-function — which context members it touches, whether it recommends `terminate`. Whether it can be *bundled* is per-module, because the import closure is a module property: one `import requests` at the top of a file disqualifies every monitor in it, whatever the functions do. This is why monitors being top-level functions matters beyond tidiness — it is what lets a bundler enumerate a file statically, with `ast` and no imports.
 
@@ -1423,10 +1544,13 @@ ordered composition should be the default (no — see [Two compositions](#two-co
 6.  **Does anything in v1 actually need per-task state?** The audit budget does not — it is per-episode, hence per-sample. Cross-sample gating ("terminate once 3 samples are flagged") does, and it is the case where in-memory state resets in the *unsafe* direction. If nothing in v1 needs it, [Per-task](#per-task) can be deferred whole; if something does, its scope wants deciding between task, run and eval-set.
 7.  **What is the default protocol called?** `strictest` says what it does to recommendations; `all_of` says what the configuration means. It appears in every multi-monitor log, so the name is worth getting right once.
 8.  **Does substituting `choices[0].message` need a usage convention?** [Settled](#one-vocabulary-across-stages) that `modified` carries a `ChatMessageAssistant` at `AfterGenerate`, leaving `usage` untouched. Open is whether a protocol that spent extra inference resampling should be able to *add* to the recorded usage, so cost accounting reflects what the protocol really cost.
-9.  **Does the monitor see `ContentReasoning`?** The CoT-monitorability literature says reasoning is a distinct signal and TraceGuard scores it as its own dimension. Defaulting it visible seems right; the question is whether a protocol should be able to withhold it.
+9.  **Does the monitor see `ContentReasoning`?** Answered in [Views](#views): visible by default at whatever fidelity the provider or wire supplies, excluded via the preprocessor, and a protocol withholds it from a child by transforming `step` before the call.
 10.  **Lifecycle stages**: `SampleStart` / `SampleEnd` payloads would give per-sample state a place to initialise and a monitor a place to file a final verdict on a trajectory it watched but never interrupted. Natural, and cheap now that adding a stage means adding a payload type rather than a method to a base class — but it starts to overlap `Hooks`, and neither travels to a proxy.
 11.  **Can a monitor produce a `Score`?** Yes, without touching scoring: `as_scorer(as_scanner(monitor, unit="transcript"))` in `monitor-development.md`. The transcript-grain adapter reduces per-step reports to one value and Scout's existing `as_scorer` turns that into an Inspect scorer, with flagged steps as `scanner_references`.
 12.  **Does `AfterToolCall` get a bridged-agent fallback?** [Bridged agents are the in-process proxy case](#bridged-agents-are-the-proxy-case), so three of the four stages already work. Whether the lossy fourth — reconstructing a result from the *next* request — is worth building, or whether `AfterToolCall` should simply decline to fire and say why, is open.
 13.  **Does `Task` / `Sample` grow a `description` field?** A public API change for a general-purpose affordance monitors happen to need first. If not, monitor context comes from `metadata` by convention and is correspondingly undiscoverable.
 14.  **Which stages can `human()` serve?** `BeforeToolCall` is what the existing human surfaces render. A human at `AfterGenerate` — approve the assistant message before the agent acts on it — is plausible and would need a new rendering; `BeforeGenerate` is hard to make meaningful to a person.
 15.  **Failure tolerance across many samples.** [Failing loud](#failure-semantics) is settled for the single-sample case. What is open is whether a monitor that fails on 3 samples in 500 should fail the eval, and whether that reuses `fail_on_error`'s existing shape (`True` / `False` / a proportion / a count) or needs a monitor-specific knob.
+16.  **Should reading an eval-only surface be recorded?** `target` is opt-in and logged so a reader can tell whether a monitor's performance is achievable in deployment. `step.output` and `step.view` raise the same question and get no such treatment; a declared view was one answer and was judged heavier than the problem. A lighter one is for `briefing_as_str` and `step_as_str` to take the eval-only surfaces as explicit flags, which puts the choice in the call for a reviewer to see.
+17.  **Default history window in `monitor_prompt`.** Full history is safe and matches what approvers get today; `new_since_last_report` is the incremental shape this design argues for elsewhere. A default is hard to change later, so this wants deciding before v1.
+18.  **Is the rendered prompt part of the recorded decision?** `host.generate` already records a `ModelEvent`, so the prompt is in the log without any new field. The open part is whether replay should compare its rendering against the recorded one to detect drift in the helpers.
