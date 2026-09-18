@@ -811,7 +811,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 raise ValueError(f"Unable to resolve scorer name from {spec.scorer}")
 
             try:
-                return scorer_create(scorer_name, **kwargs)
+                return create_scorer(scorer_name, **kwargs)
             except ValueError:
                 # We need a valid path to a scorer file to try to load the scorer from there
                 if not task_path:
