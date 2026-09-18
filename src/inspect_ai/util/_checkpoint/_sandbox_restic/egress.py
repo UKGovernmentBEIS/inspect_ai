@@ -37,6 +37,46 @@ Host protections:
   the number of archive entries accepted. The sandbox also checks size
   before building the archive to avoid wasted work, but the host
   enforces the limit independently.
+- **A transfer's index files are contained before it reaches the accepted
+  repo.** New files are received into a staging area beside the accepted
+  repo; nothing is merged until every new index passes. Content addressing
+  already prevents *changing* an accepted file, but a later transfer could
+  otherwise *add* a correctly-named file that changes where restic looks
+  for an earlier snapshot's blobs — only index files can (a malformed
+  index, which aborts restic's index loading for the whole repository, or
+  a valid index that maps an earlier blob to an attacker-supplied pack) —
+  and so leave an earlier checkpoint unrestorable or silently corrupt.
+  Each new index is loaded by restic's own index decoder on the host
+  (``restic list blobs`` on a throwaway view of config, keys and that one
+  index file: an index restic cannot decode fails the command, and the
+  command prints the blob ids the index maps), and none of those blob ids
+  may be one an accepted index already locates
+  (:func:`_check_index_containment`). ``list blobs`` decodes indexes the
+  way every reader does but skips the one extra check
+  ``Repository.LoadIndex`` makes, which applies only to version-1
+  repositories, so the accepted repo must be version 2: ``restic cat config`` on
+  the view checks it on the first cycle, and once more for an existing repo
+  the memo has no record of checking (a resume, or a repo from before this
+  check), with the passed check recorded in the memo. On a second view — config, keys,
+  every accepted snapshot file and the new ones — ``restic snapshots
+  --json`` must list, beyond the snapshots present before, exactly the
+  shipped snapshot files, the reported one with this checkpoint's tag
+  (:func:`_verify_fresh_snapshot`); a new snapshot restic cannot load, or
+  loads but cannot encode, fails here. New key files are refused after the
+  first cycle. A transfer that fails is rejected on the copies, so the
+  accepted repo is never touched by a transfer that would break it; the
+  cost is two restic processes per ordinary fire (one per new index file,
+  run one at a time, beside the listing; a fire normally writes one
+  index), three on the first cycle and on the first fire over an unchecked
+  existing repo (``cat config``), never more than two at once, and work
+  proportional to the increment, nothing proportional to history. Only
+  then are the additions linked in — packs, then indexes, then snapshots —
+  so even a hard kill mid-merge leaves every earlier checkpoint
+  restorable. Nothing here reads the new packs or decodes the new
+  snapshot: a garbage pack, an understated length, a pack that never
+  arrived or an unloadable snapshot file can harm only the snapshot that
+  shipped it, which is the sandbox's own capture and not something this
+  code authenticates.
 
 Transfer protocol checks reject inconsistent transfers. A compromised
 sandbox can satisfy them while supplying fabricated state:
@@ -44,9 +84,13 @@ sandbox can satisfy them while supplying fabricated state:
 - **The archive must contain exactly the files the sandbox listed.**
   The host rejects missing files, extra files, and duplicates. The
   list itself is untrusted; this check ensures the transfer matches it.
-- **The checkpoint must name a newly received snapshot.** The host
-  compares the destination's snapshots before and after extraction.
-  Every added snapshot must correspond to a file the host just wrote.
+- **The checkpoint must name a newly received snapshot.** A snapshot id
+  is the name of its file under ``snapshots/``, so "already present" is a
+  question about the accepted repo's files, which the host scans anyway:
+  the reported id must not match a snapshot file already there, and the
+  view's listing (the accepted snapshot files plus the new ones) minus
+  those files must be exactly the snapshot files the host is about to
+  publish.
   The snapshot reported by the sandbox must be one of those additions
   and carry exactly this checkpoint's tag; an old snapshot cannot be
   presented as a new one. Other snapshots may arrive alongside it,
@@ -62,10 +106,32 @@ sandbox can satisfy them while supplying fabricated state:
 
 Recovery behavior:
 
-If extraction or snapshot receipt checks fail, the host removes the
-files it added during this attempt. Only after these checks succeed
-does it tell the sandbox to mark the accepted files as shipped. If
-that acknowledgment fails, the next attempt can safely resend them.
+Extraction and validation happen on the throwaway view in a per-sandbox
+scratch directory that is removed on every exit path. A transfer that
+fails validation, or is cancelled before the merge begins, never reaches
+the accepted repo, which is left exactly as it was found. The merge then
+links the validated additions into the accepted repo, packs before
+indexes before snapshots, so an interruption once it has begun — a hard
+kill, or a cancellation between the merge and the manifest commit — leaves
+at most a safe prefix or a merged-but-unrecorded snapshot: every earlier
+checkpoint stays restorable, and the leftover is dropped on resume by
+``forget_unrecorded_snapshots`` or re-sent idempotently by the next fire
+(content-addressed files). Nothing unverified is ever placed under
+``snapshots/``: the new snapshot files are listed on the view before
+publish, so a file restic cannot load, or loads but cannot encode (a zone
+offset hour of 24, which Go's parser accepts and its JSON encoder
+refuses, empties every ``restic snapshots --json`` while it exists), is
+refused before it is published. After publish a stat check confirms every
+written file landed at its path (:func:`_verify_published`); restic is
+not run against the accepted repo — the view was hard links to the same
+inodes, so restic's reading of the view is the same statement about those
+bytes — and a failure there unwinds this fire's files. The host-side memo of what each accepted index
+covers (a SQLite file under ``restic/index-memos/``) is appended to after
+that and healed from the repo's index files on every fire, so a kill at
+any point leaves nothing to repair by hand. Only after the additions are
+merged does the host tell the sandbox to mark the accepted files as
+shipped; if that acknowledgment fails, the next attempt can safely resend
+them.
 
 Ingress is the inverse: on resume, list the recorded snapshot on the
 host and refuse one that reaches outside this attempt's capture roots
@@ -80,20 +146,28 @@ Layout under the same ``/root/.cache/inspect/`` root as :mod:`.repo`:
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import io
+import json
 import os
 import re
 import shutil
+import sqlite3
+import stat
+import subprocess
 import tarfile
-from collections.abc import Collection, Iterator, Sequence
-from contextlib import contextmanager
+from collections.abc import Collection, Iterator, Mapping, Sequence
+from contextlib import contextmanager, suppress
 from functools import partial
+from itertools import islice
 from pathlib import Path
 from typing import IO, Any, NamedTuple
 
 import anyio
 
+from inspect_ai._util._async import tg_collect
+from inspect_ai.util._restic.ops import restic_env
 from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
@@ -101,7 +175,7 @@ from .._async_fs import async_mkdir
 from .._copy import DEFAULT_COPY_CHUNK_SIZE, copy_out
 from .._repo_ops import (
     SNAPSHOT_ID_RE,
-    list_snapshots,
+    _kill,
     match_snapshot_id,
     walk_snapshot_nodes,
 )
@@ -121,8 +195,75 @@ _MEMBER_RE = re.compile(
 """The restic repo layout: the only member names egress accepts."""
 
 _FIRST_CYCLE_ONLY = ("config", "keys/")
+_MIN_SNAPSHOT_FILE_BYTES = 32
+"""The least an encrypted restic file can be: a 16-byte nonce plus a 16-byte
+MAC (``crypto.Extension`` in ``internal/crypto/crypto.go``, v0.18.1), so a
+``snapshots/`` member shorter than this can never load. restic 0.18.1's
+``Repository.LoadUnpacked`` (``internal/repository/repository.go``) slices the
+nonce off without a length check and *panics* on a file shorter than 16
+bytes, which makes every ``restic snapshots`` listing exit 2 while the file
+exists; from 16 bytes up an unloadable snapshot file is skipped with a
+warning. The pre-publish listing on the view would refuse such a file too
+(restic exits 2), but the floor names the reason and keeps the panic out of
+the validation path."""
 _HASH_CHUNK = 1024 * 1024
 _MAX_TAR_METADATA_BYTES = 64 * 1024
+_MAX_VIEW_STDERR_BYTES = 64 * 1024
+"""Most of a validation command's stderr kept for the error: the view is
+built from sandbox-supplied bytes, so restic's diagnostics are attacker-shaped
+and can dwarf the input (one forged index can produce megabytes)."""
+_MAX_BLOB_LISTING_BYTES = 64 * 1024 * 1024
+"""Most ``restic list blobs`` output accepted from an index view: one ~70-byte
+line per blob the index maps. One fire's honest index describes the blobs of
+one increment (thousands of lines for a transfer at the cap); an index whose
+listing exceeds this is a rejected transfer. restic loads every index into
+memory before any restore, so an enormous accepted index would be a
+repository-wide cost, which this bound caps per index."""
+_MAX_LISTING_JSON_BYTES = 64 * 1024 * 1024
+"""Most ``restic snapshots --json`` output accepted from the validation view.
+The listing is O(accepted snapshots) of about 1 KiB each for honest
+snapshots; a sandbox-supplied snapshot can pad its paths and tags, and one
+that pushes the listing past this is a rejected transfer."""
+_REQUIRED_REPO_VERSION = 2
+"""The restic repository format the accepted repo must have, checked with
+``restic cat config`` on the view whenever the memo holds no record of the
+check having passed: on the first cycle, which ships ``config``, and on the
+first fire over an accepted repo whose memo predates the check or is absent
+(a resume, this code's first run). Both the in-sandbox and the host ``restic
+init`` use restic's default, which is 2, so this refuses nothing honest. It is what makes ``list blobs`` a
+complete loadability check: ``Repository.LoadIndex`` adds to the decode path
+``list blobs`` shares exactly one check, refusing compressed blob entries in
+a version-1 repository, and a version-1 repo could be shipped only by the
+sandbox itself."""
+_BLOB_LINE_RE = re.compile(r"(data|tree) ([0-9a-fA-F]{64})")
+"""One line of ``restic list blobs``: ``<type> <id>`` as ``cmd/restic/cmd_list.go``
+prints it (``Printf("%v %v\\n", blobs.Type, blobs.ID)``)."""
+_INDEX_MEMO_VERSION = 3
+"""SQLite ``user_version`` of the index memo; a file carrying another is
+discarded and rebuilt from the repo's index files. Version 1 also recorded
+the packs each index covered, for a pack rule that is gone; version 2 had
+no record of the repository-version check, which version 3 keeps in
+``meta`` so a memo from before that check cannot stand as evidence of it."""
+_INDEX_MEMO_SCHEMA = (
+    "CREATE TABLE indexes (id TEXT PRIMARY KEY) WITHOUT ROWID",
+    "CREATE TABLE blobs (index_id TEXT NOT NULL, id TEXT NOT NULL,"
+    " PRIMARY KEY (index_id, id)) WITHOUT ROWID",
+    "CREATE INDEX blobs_by_id ON blobs (id)",
+    "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID",
+)
+_MEMO_REPO_VERSION_KEY = "repository_version"
+_SQL_IN_BATCH = 500
+"""Ids per ``IN (...)`` query against the memo, under SQLite's oldest bound
+variable limit (999)."""
+_VIEW_LINK_BATCH = 256
+"""Hard links attempted per worker-thread call while building the validation
+view (~0.25 ms each), bounding how long a cancellation waits on the link
+path however many files the repository holds."""
+_VIEW_COPY_BLOCK = 8 * 1024 * 1024
+"""Bytes copied per worker-thread call when the view must be copied (a
+filesystem without hard links), bounding how long a cancellation waits within
+one file however large it is — a staged file can be as large as the transfer
+cap."""
 
 
 class EgressVerificationError(RuntimeError):
@@ -357,10 +498,8 @@ async def egress_sandbox(
     await async_mkdir(dest_repo)
     before_files = await anyio.to_thread.run_sync(_scan_repo_files, dest_repo)
     first_cycle = "config" not in before_files
-    before_ids: dict[str, list[str]] = (
-        {} if first_cycle else await _snapshot_tags(host_restic, dest_repo, password)
-    )
-    if match_snapshot_id(before_ids, snapshot_id) is not None:
+    before_snapshots = _snapshot_file_ids(before_files)
+    if match_snapshot_id(before_snapshots, snapshot_id) is not None:
         raise EgressVerificationError(
             f"{label}: reported snapshot {snapshot_id} already exists in the "
             f"destination (replayed id)"
@@ -374,14 +513,31 @@ async def egress_sandbox(
             f"protocol violation, not a no-op"
         )
 
-    # Host scratch copy of the tarball lives in a per-sandbox directory
-    # beside (not inside) the repo, so nothing partial ever sits where
-    # restic would see it. Sandboxes egress concurrently and one name may
-    # prefix another (`web` / `web-db`), so the residue sweep is scoped to
-    # this sandbox's directory, not a name glob over the shared parent.
+    # This fire's new repo files are received, validated, and merged
+    # entirely beside (never inside) the accepted repo, so no failure path
+    # can leave a poisoned file where a restore of an earlier checkpoint
+    # would load it:
+    #
+    #   1. the tarball is copied out and extracted into a staging dir;
+    #   2. on throwaway *views* (config and keys plus, per view, one new
+    #      index file, or the accepted and new snapshot files) restic loads
+    #      each new index and lists its blobs, which are checked for
+    #      containment against the accepted indexes, and lists the
+    #      snapshots — on copies, before the accepted repo is touched;
+    #   3. only then are the staged files linked into the accepted repo,
+    #      packs before indexes before snapshots, so even a hard kill
+    #      mid-merge leaves every earlier checkpoint restorable.
+    #
+    # The scratch dir lives in a per-sandbox directory beside the repo, so
+    # nothing partial ever sits where restic would see it. Sandboxes
+    # egress concurrently and one name may prefix another (`web` /
+    # `web-db`), so the residue sweep is scoped to this sandbox's
+    # directory, not a name glob over the shared parent.
     scratch = _scratch_dir(dest_repo)
     await anyio.to_thread.run_sync(_reset_scratch_dir, scratch)
     tar_host = scratch / f"{tag}.tar"
+    staging = scratch / "staging"
+    view = scratch / "view"
     try:
         await copy_out(
             env,
@@ -398,7 +554,8 @@ async def egress_sandbox(
             partial(
                 _extract_verified,
                 tar_host,
-                dest_repo,
+                str(staging),
+                existing_repo=dest_repo,
                 new_files=build.new_files,
                 existing=before_files,
                 first_cycle=first_cycle,
@@ -406,36 +563,68 @@ async def egress_sandbox(
                 label=label,
             )
         )
+        memo = await _reconcile_index_memo(
+            host_restic,
+            dest_repo,
+            password,
+            existing=before_files,
+            staging=staging,
+            view=view,
+            label=label,
+        )
+        validated = await _validate_view(
+            host_restic,
+            view,
+            password,
+            dest_repo=dest_repo,
+            staging=staging,
+            existing=before_files,
+            written=extracted.written,
+            memo=memo,
+            before_snapshots=before_snapshots,
+            snapshot_id=snapshot_id,
+            tag=tag,
+            repository_version_verified=(
+                await anyio.to_thread.run_sync(memo.repository_version)
+                == _REQUIRED_REPO_VERSION
+            ),
+            label=label,
+        )
+        await anyio.to_thread.run_sync(
+            partial(_merge_into_repo, dest_repo, staging, extracted.written)
+        )
+        try:
+            await anyio.to_thread.run_sync(
+                _verify_published, dest_repo, staging, extracted.written
+            )
+        except BaseException:
+            # A publish mistake of our own unwinds this fire's files. Every
+            # one of them passed validation, so a hard kill mid-unwind
+            # leaves validated orphans, never poison; the memo below is not
+            # yet appended, so it has nothing to heal. Shielded so a
+            # cancellation arriving here still unwinds.
+            with anyio.CancelScope(shield=True):
+                await anyio.to_thread.run_sync(
+                    _remove_files, dest_repo, extracted.written
+                )
+            raise
     finally:
-        # Threaded: the scratch dir holds a tarball of up to `max_bytes`
-        # and unlinking it is not free. Shielded: this `finally` also runs
-        # under cancellation, where an unshielded await would abort.
+        # Threaded: the scratch dir holds the tarball (up to `max_bytes`),
+        # the staging copy, and the hard-linked view, and unlinking is not
+        # free. Shielded: this `finally` also runs under cancellation,
+        # where an unshielded await would abort.
         with anyio.CancelScope(shield=True):
             await anyio.to_thread.run_sync(
                 partial(shutil.rmtree, scratch, ignore_errors=True)
             )
 
-    try:
-        verified_id = await _verify_fresh_snapshot(
-            host_restic,
-            dest_repo,
-            password,
-            before_ids=before_ids,
-            written=extracted.written,
-            snapshot_id=snapshot_id,
-            tag=tag,
-            label=label,
+    await anyio.to_thread.run_sync(memo.add, validated.coverage)
+    if validated.repository_version_checked:
+        await anyio.to_thread.run_sync(
+            memo.record_repository_version, _REQUIRED_REPO_VERSION
         )
-    except BaseException:
-        # Shielded so a cancellation arriving during verification still
-        # rolls the destination back (a cancelled scope would otherwise
-        # abort the rollback's own await).
-        with anyio.CancelScope(shield=True):
-            await anyio.to_thread.run_sync(_remove_files, dest_repo, extracted.written)
-        raise
-
     await _commit_egress(env, tag, extracted.members, paths)
-    return verified_id
+    return validated.verified_id
 
 
 class _EgressBuild(NamedTuple):
@@ -600,15 +789,25 @@ class _TarReader(io.BufferedReader):
 
 def _extract_verified(
     tar_path: Path,
-    dest_repo: str,
+    staging_dir: str,
     *,
+    existing_repo: str | None = None,
     new_files: Sequence[str],
     existing: Collection[str],
     first_cycle: bool,
     max_bytes: int,
     label: str,
 ) -> _Extracted:
-    """Validate and extract the egress tarball member by member.
+    """Validate the egress tarball member by member into ``staging_dir``.
+
+    ``staging_dir`` is a throwaway directory beside the accepted repo;
+    validated new members land there, never in the accepted repo, so a
+    later ``restic`` validation runs on a copy and the accepted repo is
+    touched only once the whole transfer is accepted (see
+    :func:`_build_validation_view` and :func:`_merge_into_repo`).
+    ``existing_repo`` is the accepted repo an already-shipped member is
+    checked against; it defaults to ``staging_dir`` for callers that
+    extract straight into the target.
 
     Every member must pass ``tarfile.data_filter`` (path safety), be a
     regular file, match the restic layout, be listed in ``new_files``,
@@ -620,7 +819,7 @@ def _extract_verified(
     destination and is renamed into place only if the hash equals its
     basename (``config`` excepted).
     New ``config``/``keys/*`` files are accepted only on the first
-    cycle. A member already present in ``dest_repo`` is accepted
+    cycle. A member already present in ``existing_repo`` is accepted
     without writing only when the shipped bytes are the existing bytes
     (both hash to the name; ``config`` contents compared by hash) — a
     re-ship after a failed phase-2 commit — and the existing file is
@@ -631,8 +830,9 @@ def _extract_verified(
     arbitrary new contents under their matching hash-derived names.
 
     On any failure, every file this call wrote is removed before the
-    error propagates, so ``dest_repo`` is left as it was found.
+    error propagates, so ``staging_dir`` is left as it was found.
     """
+    accepted_repo = existing_repo if existing_repo is not None else staging_dir
     expected = set(new_files)
     if len(expected) != len(new_files):
         raise EgressVerificationError(f"{label}: diff list contains duplicates")
@@ -651,7 +851,7 @@ def _extract_verified(
             ):
                 for member in tar:
                     name = member.name
-                    _check_member(member, dest_repo, expected, label)
+                    _check_member(member, staging_dir, expected, label)
                     if name in seen:
                         raise EgressVerificationError(
                             f"{label}: member {name!r} appears more than once"
@@ -670,14 +870,14 @@ def _extract_verified(
                         )
                     with reader.file_data(), src:
                         if name in existing:
-                            _accept_identical_reship(src, dest_repo, name, label)
+                            _accept_identical_reship(src, accepted_repo, name, label)
                         elif not first_cycle and name.startswith(_FIRST_CYCLE_ONLY):
                             raise EgressVerificationError(
                                 f"{label}: member {name!r} is only accepted while "
                                 f"the destination repo is uninitialized"
                             )
                         else:
-                            _write_member(src, dest_repo, name, label)
+                            _write_member(src, staging_dir, name, label)
                             written.append(name)
         except tarfile.TarError as exc:
             raise EgressVerificationError(
@@ -690,7 +890,7 @@ def _extract_verified(
                 f"tarball, e.g. {sorted(missing)[:3]}"
             )
     except BaseException:
-        _remove_files(dest_repo, written)
+        _remove_files(staging_dir, written)
         raise
     return _Extracted(members=sorted(seen), written=written)
 
@@ -711,6 +911,12 @@ def _check_member(
         ) from exc
     if not member.isreg():
         raise EgressVerificationError(f"{label}: member {name!r} is not a regular file")
+    if name.startswith("snapshots/") and member.size < _MIN_SNAPSHOT_FILE_BYTES:
+        raise EgressVerificationError(
+            f"{label}: member {name!r} is {member.size} bytes, shorter than restic's "
+            f"{_MIN_SNAPSHOT_FILE_BYTES}-byte ciphertext overhead, so it can never "
+            f"load as a snapshot"
+        )
     if not _MEMBER_RE.fullmatch(name) or (
         name.startswith("data/") and name.split("/")[1] != name.split("/")[2][:2]
     ):
@@ -804,36 +1010,244 @@ def _remove_files(dest_repo: str, names: Sequence[str]) -> None:
         (Path(dest_repo) / name).unlink(missing_ok=True)
 
 
-async def _snapshot_tags(
-    host_restic: Path, dest_repo: str, password: str
-) -> dict[str, list[str]]:
-    """Full snapshot id → tags for every snapshot the destination lists."""
-    snapshots: list[dict[str, Any]] = await list_snapshots(
-        host_restic, dest_repo, password
-    )
-    return {snap["id"]: list(snap.get("tags") or []) for snap in snapshots}
+# Restic layout order: config + keys must precede the data they open,
+# packs precede the indexes that map them, indexes precede the snapshots
+# that reference them. Merging and unwinding in this order keep the
+# accepted repo valid at every prefix.
+_MERGE_RANK = {"keys": 1, "config": 2, "data": 3, "index": 4, "snapshots": 5}
+
+
+def _merge_rank(name: str) -> int:
+    if name == "config":
+        return _MERGE_RANK["config"]
+    return _MERGE_RANK.get(name.split("/", 1)[0], _MERGE_RANK["snapshots"])
+
+
+def _try_link(src: Path, dst: Path) -> bool:
+    """Hard-link ``src`` to ``dst`` (creating the parent); False if links are refused.
+
+    For the throwaway validation view: a hard link is O(1) and shares the
+    accepted file's inode, which is safe because the view is only read. A
+    filesystem without hard links (exFAT/FAT, some CIFS and NFS mounts)
+    refuses ``os.link`` with an ``OSError`` such as ``EPERM`` or ``ENOTSUP``;
+    then the caller copies the file instead. ``FileExistsError`` is never
+    swallowed — a name already present is a bug, not a missing feature.
+    """
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(src, dst)
+    except FileExistsError:
+        raise
+    except OSError:
+        return False
+    return True
+
+
+def _publish_into(src: Path, dst: Path) -> None:
+    """Publish ``src`` at ``dst`` in the accepted repo, never replacing a file.
+
+    The fast path is a hard link, which is atomic and fails with
+    ``FileExistsError`` rather than overwrite. Where the filesystem refuses
+    links the file is copied to ``dst``'s ``.partial`` sibling and renamed
+    into place, so the final name only ever holds a complete file and a
+    hard kill mid-copy leaves a ``.partial`` that the next fire's
+    ``_scan_repo_files`` sweeps. The no-overwrite rule is kept by refusing
+    an existing ``dst`` before the rename (this sandbox is the only writer
+    of its repo, so the check-then-rename is not racy). This copy is one
+    validated file of this fire's increment, so it is bounded by the
+    transfer cap; the merge as a whole runs in one worker-thread call and
+    is cancelled only between fires (an interruption mid-merge is the
+    safe-prefix case described in the module docstring).
+    """
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(src, dst)
+        return
+    except FileExistsError:
+        raise
+    except OSError:
+        pass
+    if dst.exists():
+        raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), str(dst))
+    tmp = dst.with_name(f"{dst.name}.partial")
+    try:
+        shutil.copyfile(src, tmp)
+        os.replace(tmp, dst)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def _link_view_batch(pairs: Sequence[tuple[Path, Path]]) -> list[tuple[Path, Path]]:
+    """Link one batch into the view; return the pairs the filesystem refused."""
+    return [(src, dst) for src, dst in pairs if not _try_link(src, dst)]
+
+
+def _open_rb(path: Path) -> IO[bytes]:
+    return open(path, "rb")
+
+
+def _open_wb(path: Path) -> IO[bytes]:
+    return open(path, "wb")
+
+
+def _read_block(f: IO[bytes], size: int) -> bytes:
+    return f.read(size)
+
+
+async def _copy_file_interruptibly(src: Path, dst: Path) -> None:
+    """Copy ``src`` to ``dst`` in :data:`_VIEW_COPY_BLOCK` pieces.
+
+    Each read and each write is its own worker-thread call, so a
+    cancellation is honoured between blocks and waits for at most one block,
+    whatever the file's size. A partially written ``dst`` is left in the
+    view, which lives in scratch the caller sweeps.
+    """
+    fsrc = await anyio.to_thread.run_sync(_open_rb, src)
+    try:
+        fdst = await anyio.to_thread.run_sync(_open_wb, dst)
+        try:
+            while block := await anyio.to_thread.run_sync(
+                _read_block, fsrc, _VIEW_COPY_BLOCK
+            ):
+                await anyio.to_thread.run_sync(fdst.write, block)
+        finally:
+            fdst.close()
+    finally:
+        fsrc.close()
+
+
+async def _build_validation_view(
+    view: Path,
+    *,
+    existing_repo: str,
+    existing: Collection[str],
+    staging: Path,
+    written: Sequence[str],
+) -> None:
+    """Hard-link the named accepted and staged files into ``view``.
+
+    ``view`` is a throwaway repository holding just what the caller names —
+    the opening files (config, keys) plus one new index file, or the accepted
+    and new snapshot files: a handful of small files, or O(fires) of them —
+    so ``restic`` runs against a copy and a rejected fire never touched the
+    accepted repo. Hard links
+    keep it O(files), not O(bytes); the validation only reads the repo, so
+    sharing inodes with the accepted files is safe. The accepted repo and
+    the staging dir share one filesystem (staging is a sibling of the
+    accepted repo), so every link resolves.
+
+    A filesystem without hard links falls back to copying every file
+    (:func:`_try_link` reports the refusal), which costs O(bytes of the
+    increment) in scratch space and I/O per fire — within the per-transfer
+    cap.
+
+    Cancellation (a sibling sandbox's failure, or the sample ending) is
+    honoured at a bounded granularity in both modes, with no up-front pass
+    over the repository: the ``(src, dst)`` pairs are produced lazily, one
+    :data:`_VIEW_LINK_BATCH`-sized slice at a time (the view needs no
+    particular order, so nothing is sorted or materialised whole), links are
+    attempted one slice per worker-thread call, and a copy proceeds
+    :data:`_VIEW_COPY_BLOCK` bytes per call
+    (:func:`_copy_file_interruptibly`). So a cancellation waits for at most
+    one slice of path construction plus one batch of links, or one block of
+    one file — not for the repository's file count, not for the whole
+    repository, and not for a whole staged file, which a hostile sandbox can
+    make as large as the transfer cap. The caller's scratch sweep then
+    removes what was built.
+    """
+    view.mkdir(parents=True, exist_ok=True)
+    src_repo = Path(existing_repo)
+
+    def pairs() -> Iterator[tuple[Path, Path]]:
+        for rel in existing:
+            yield src_repo / rel, view / rel
+        for rel in written:
+            yield staging / rel, view / rel
+
+    remaining = pairs()
+    while batch := list(islice(remaining, _VIEW_LINK_BATCH)):
+        to_copy = await anyio.to_thread.run_sync(_link_view_batch, batch)
+        for src, dst in to_copy:
+            await _copy_file_interruptibly(src, dst)
+
+
+def _merge_into_repo(dest_repo: str, staging: Path, written: Sequence[str]) -> None:
+    """Publish this fire's validated new files into the accepted repo.
+
+    Reached only once restic loaded every new index and none of their blobs
+    reached into history, and every new snapshot listed on the view, so the
+    accepted repo gains no index restic cannot load or that redirects an
+    accepted blob, and no snapshot file restic cannot list. Files are
+    published in restic-layout order (keys, config, packs, indexes,
+    snapshots), each atomically (:func:`_publish_into`: a hard link, or a
+    copy renamed into place where links are unsupported), so an
+    interruption — including a hard kill, which cannot unwind — leaves the
+    accepted repo valid at every prefix: a snapshot never appears before
+    the index and packs it references, and ``config`` never before its
+    key. A new member never collides with an accepted file (an identical
+    re-ship is not in ``written``); a collision raises rather than
+    overwrites, so an accepted file is never replaced. An ordinary failure
+    unwinds this fire's files, last-published first, leaving the accepted
+    repo unchanged.
+    """
+    dest = Path(dest_repo)
+    ordered = sorted(written, key=lambda name: (_merge_rank(name), name))
+    linked: list[str] = []
+    try:
+        for name in ordered:
+            _publish_into(staging / name, dest / name)
+            linked.append(name)
+    except BaseException:
+        for name in reversed(linked):
+            (dest / name).unlink(missing_ok=True)
+        raise
+
+
+def _snapshot_file_ids(files: Collection[str]) -> set[str]:
+    """The snapshot ids named by the ``snapshots/<id>`` files in ``files``.
+
+    A restic snapshot id is the name of its file, and every accepted file's
+    name has been verified to be the hash of its bytes, so the accepted
+    repo's file listing answers "which snapshots does it hold" without a
+    restic process — and answers it for every file, loadable or not.
+    """
+    return {
+        name.removeprefix("snapshots/")
+        for name in files
+        if name.startswith("snapshots/")
+    }
 
 
 async def _verify_fresh_snapshot(
     host_restic: Path,
-    dest_repo: str,
+    view: Path,
     password: str,
     *,
-    before_ids: Collection[str],
+    before_snapshots: Collection[str],
     written: Collection[str],
     snapshot_id: str,
     tag: str,
     label: str,
 ) -> str:
-    """Check that the sandbox's reported snapshot arrived on the host.
+    """Check on the view that the sandbox's reported snapshot is new and listable.
 
-    The destination is the host-side restic repository receiving files
-    from this sandbox. Compare its snapshots before and after the
-    transfer. The added snapshots must be exactly those whose files the
-    host just wrote. The snapshot reported by the sandbox must be one of
-    them and have exactly the expected checkpoint tag.
+    ``view`` holds config, keys, every accepted snapshot file and the new
+    ones, so ``restic snapshots --json`` on it lists what the accepted repo
+    would list once this fire is published. The snapshots it lists beyond
+    ``before_snapshots`` — the snapshot files present before this fire —
+    must be exactly the snapshot files the host is about to publish, and the
+    snapshot reported by the sandbox must be one of them with exactly the
+    expected checkpoint tag. Running this before publish is what keeps
+    ``snapshots/`` free of anything unverified: a new snapshot restic cannot
+    load is missing from the listing; one it loads but cannot encode (a zone
+    offset hour of 24, which Go's parser accepts and its JSON encoder
+    refuses) makes restic print no JSON at all, since it encodes the listing
+    as one array — either fails here and nothing is published. A
+    pre-existing unloadable snapshot file is in ``before_snapshots`` and
+    skipped by restic, so it falls out of the arithmetic.
 
-    "New" means the snapshot id was absent from the host repository
+    "New" means the snapshot file was absent from the host repository
     before this transfer, not that its contents are recent. The tag
     checks protocol consistency; it does not authenticate the capture.
 
@@ -845,29 +1259,37 @@ async def _verify_fresh_snapshot(
 
     Return the full id of the reported snapshot after these checks pass.
     """
-    after = await _snapshot_tags(host_restic, dest_repo, password)
-    lost = set(before_ids) - set(after)
-    if lost:
+    raw = await _run_view_restic(
+        host_restic,
+        ["snapshots", "--json"],
+        view,
+        password,
+        label=label,
+        what="listing snapshots",
+        max_stdout_bytes=_MAX_LISTING_JSON_BYTES,
+    )
+    try:
+        listed = json.loads(raw)
+        after = {snap["id"]: list(snap.get("tags") or []) for snap in listed}
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
         raise EgressVerificationError(
-            f"{label}: destination no longer lists snapshot(s) {sorted(lost)}"
-        )
-    new_ids = set(after) - set(before_ids)
-    shipped = {
-        name.removeprefix("snapshots/")
-        for name in written
-        if name.startswith("snapshots/")
-    }
+            f"{label}: the received repository files failed validation "
+            f"(restic listed the snapshots but produced no usable JSON — a "
+            f"snapshot it can load but not encode? {exc})"
+        ) from exc
+    new_ids = set(after) - set(before_snapshots)
+    shipped = _snapshot_file_ids(written)
     if new_ids != shipped:
         raise EgressVerificationError(
-            f"{label}: destination gained snapshot(s) "
-            f"{sorted(i[:8] for i in new_ids)} but this fire wrote snapshot "
+            f"{label}: the view lists new snapshot(s) "
+            f"{sorted(i[:8] for i in new_ids)} but this fire ships snapshot "
             f"file(s) {sorted(i[:8] for i in shipped)}"
         )
     verified_id = match_snapshot_id(new_ids, snapshot_id)
     if verified_id is None:
         raise EgressVerificationError(
             f"{label}: reported snapshot {snapshot_id} is not among the "
-            f"snapshot(s) the destination gained: {sorted(i[:8] for i in new_ids)}"
+            f"snapshot(s) this fire ships: {sorted(i[:8] for i in new_ids)}"
         )
     if after[verified_id] != [tag]:
         raise EgressVerificationError(
@@ -875,6 +1297,604 @@ async def _verify_fresh_snapshot(
             f"{after[verified_id]}, expected [{tag!r}]"
         )
     return verified_id
+
+
+def _verify_published(dest_repo: str, staging: Path, written: Sequence[str]) -> None:
+    """Confirm every file this fire wrote landed at its published path.
+
+    The view restic read was hard links to (or copies of) exactly these
+    staged files, so restic's verdict on the view is a verdict on the bytes
+    now under ``dest_repo``; what remains to check is that publication put
+    each of them where the view had it — a regular file of the staged size
+    at the path — which is a stat, not a restic process. A failure here is
+    this code's own publish mistake, not the sandbox's, hence not an
+    :class:`EgressVerificationError`.
+    """
+    for rel in written:
+        published = Path(dest_repo) / rel
+        expected = (staging / rel).stat().st_size
+        try:
+            actual = published.stat()
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                f"published file {rel!r} is missing from {dest_repo}"
+            ) from exc
+        if not stat.S_ISREG(actual.st_mode) or actual.st_size != expected:
+            raise RuntimeError(
+                f"published file {rel!r} in {dest_repo} is not the {expected}-byte "
+                f"regular file that was validated"
+            )
+
+
+def _index_memo_path(dest_repo: str) -> Path:
+    """Where the host-side memo of what each accepted index covers lives.
+
+    ``dest_repo`` is ``<sample>/restic/sandboxes/<name>`` (see
+    ``strategy_storage_subpath``); the memo is
+    ``<sample>/restic/index-memos/<sha256(name)>.sqlite``. Every entry
+    under ``sandboxes/`` is a sandbox name the eval user chooses, so a
+    sibling there — even a dotted one — could be another sandbox's
+    repository; ``index-memos/`` is a directory no sandbox name can claim,
+    and the hashed basename is one fixed length whatever the name's. Never
+    inside the repo, never in the per-fire scratch (swept each fire).
+    """
+    dest = Path(dest_repo)
+    if dest.parent.name != "sandboxes":
+        raise ValueError(
+            f"destination repo {dest_repo!r} is not under a 'sandboxes/' directory"
+        )
+    digest = hashlib.sha256(dest.name.encode("utf-8")).hexdigest()
+    return dest.parent.parent / "index-memos" / f"{digest}.sqlite"
+
+
+class _IndexMemo:
+    """The host-side memo of what each accepted index covers, in SQLite.
+
+    A cache of ``restic list blobs`` output per accepted index (``type:id``
+    keys), not a source of truth: :func:`_reconcile_index_memo` heals it
+    against the index files actually present. Every operation touches only
+    the rows it names — the accepted index ids, the blobs this fire's new
+    indexes map, this fire's own entries — so a fire's memo work is
+    O(increment) however long
+    the history; the file grows with the accepted blob count (about 100
+    bytes per blob) but is never read or rewritten whole. Anything
+    unreadable — a torn copy carried through a resume, a foreign file, an
+    older schema — is discarded on open and rebuilt by the next
+    reconciliation, so a memo is never trusted over the repo.
+
+    Synchronous; callers run each method in a worker thread (a local SQLite
+    file, no fsspec). Each method is one transaction, so a hard kill
+    mid-``add`` leaves the index unknown, to be decoded next fire, never
+    half-recorded.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def index_ids(self) -> set[str]:
+        """The index ids the memo knows."""
+        with self._connect() as conn:
+            return {row[0] for row in conn.execute("SELECT id FROM indexes")}
+
+    def drop(self, index_ids: Collection[str]) -> None:
+        """Forget these indexes and everything they covered."""
+        with self._connect() as conn:
+            for index_id in index_ids:
+                conn.execute("DELETE FROM blobs WHERE index_id = ?", (index_id,))
+                conn.execute("DELETE FROM indexes WHERE id = ?", (index_id,))
+
+    def add(self, coverage: Mapping[str, Collection[str]]) -> None:
+        """Record the ``type:id`` blobs each of these indexes locates."""
+        with self._connect() as conn:
+            for index_id, blobs in coverage.items():
+                conn.execute(
+                    "INSERT OR REPLACE INTO indexes (id) VALUES (?)", (index_id,)
+                )
+                conn.executemany(
+                    "INSERT OR IGNORE INTO blobs (index_id, id) VALUES (?, ?)",
+                    ((index_id, blob) for blob in blobs),
+                )
+
+    def repository_version(self) -> int | None:
+        """The repository version a past fire verified, or ``None`` if none did."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM meta WHERE key = ?", (_MEMO_REPO_VERSION_KEY,)
+            ).fetchone()
+        return int(row[0]) if row else None
+
+    def record_repository_version(self, version: int) -> None:
+        """Remember that the accepted repo's config declared ``version``.
+
+        Written only after the config was checked on the view and, on the
+        first cycle, published, so the memo never claims more than the
+        accepted repo holds; the next fire then skips ``cat config``.
+        """
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                (_MEMO_REPO_VERSION_KEY, str(version)),
+            )
+
+    def located_blobs(self, blobs: Collection[str]) -> set[str]:
+        """Those of ``blobs`` (``type:id``) that some accepted index locates."""
+        wanted = sorted(set(blobs))
+        found: set[str] = set()
+        with self._connect() as conn:
+            for start in range(0, len(wanted), _SQL_IN_BATCH):
+                chunk = wanted[start : start + _SQL_IN_BATCH]
+                marks = ",".join("?" * len(chunk))
+                found.update(
+                    row[0]
+                    for row in conn.execute(
+                        f"SELECT DISTINCT id FROM blobs WHERE id IN ({marks})", chunk
+                    )
+                )
+        return found
+
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            conn = self._open()
+        except sqlite3.DatabaseError:
+            self._discard()
+            conn = self._open()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
+    def _open(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.path)
+        try:
+            (version,) = conn.execute("PRAGMA user_version").fetchone()
+            if version == _INDEX_MEMO_VERSION:
+                return conn
+            (tables,) = conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
+            if version != 0 or tables != 0:
+                raise sqlite3.DatabaseError(
+                    f"index memo has schema version {version} with {tables} objects"
+                )
+            with conn:
+                for statement in _INDEX_MEMO_SCHEMA:
+                    conn.execute(statement)
+                conn.execute(f"PRAGMA user_version = {_INDEX_MEMO_VERSION}")
+            return conn
+        except BaseException:
+            conn.close()
+            raise
+
+    def _discard(self) -> None:
+        for suffix in ("", "-journal"):
+            with suppress(FileNotFoundError):
+                os.unlink(self.path.with_name(self.path.name + suffix))
+
+
+def _index_view_dir(view: Path, index_id: str) -> Path:
+    """The throwaway view restic loads one index file from, beside ``view``."""
+    return view.with_name(f"{view.name}-index-{index_id[:16]}")
+
+
+async def _list_index_blobs(
+    host_restic: Path, view: Path, password: str, *, label: str
+) -> set[str]:
+    """The ``type:id`` blobs the index file(s) in ``view`` locate, by restic's own decoder.
+
+    ``restic list blobs`` (``cmd/restic/cmd_list.go``, v0.18.1) calls
+    ``index.ForAllIndexes`` (``internal/repository/index/index_parallel.go``),
+    which decrypts each index file and runs ``DecodeIndex``
+    (``internal/repository/index/index.go``) on it, returning the first
+    error, and prints ``<type> <id>`` for every entry (``Index.Each``). That
+    is the same decode every reader uses — ``MasterIndex.Load`` calls
+    ``ForAllIndexes`` too — but ``list`` does not go through
+    ``Repository.LoadIndex`` (``internal/repository/repository.go``), which
+    adds exactly one check on top: a version-1 repository may hold no
+    compressed blob entry. So a version-2 repository is required at the
+    first cycle (:func:`_check_repository_version`), and with that an index
+    restic cannot decode fails the command (the demonstrated poisoning: an
+    undecryptable file; also a malformed one, which would otherwise block
+    *every* restore), an index whose offset or length exceeds
+    ``math.MaxUint32`` panics *this* process (``Index.store``) instead of a
+    later restore's, and what comes back for a view holding one new index
+    file is exactly the set of blob ids that index maps, produced by the
+    authority itself. The host normalises rather
+    than validates: restic has already accepted the file, so a line is
+    split, its hex lowercased (restic prints lowercase; the id it parsed may
+    have been spelled either way), and a blob two index files both map is
+    counted once. ``list`` takes ``--no-lock``/``--no-cache`` like the
+    listing; the view holds no packs, and ``list blobs`` reads none.
+
+    One thing restic's verdict does not settle on its own: the
+    ``Index.store`` panic races restic's own exit. The decode runs in an
+    ``errgroup`` worker whose deferred bookkeeping lets ``ParallelList``
+    return while the panic is still unwinding, so the main goroutine can
+    print nothing and exit 0 before the crash prints and exits 2 (observed
+    on linux/amd64 about a third of the time; darwin/arm64 always crashed).
+    Either way the index's entries are never printed, because ``fn`` runs
+    only after ``DecodeIndex`` returns. So an empty listing is refused: an
+    honest ``restic backup`` never writes an index file with no entries (an
+    unchanged re-backup writes no index file at all), and a listing with
+    none means restic did not finish decoding the file.
+    """
+    raw = await _run_view_restic(
+        host_restic,
+        ["list", "blobs"],
+        view,
+        password,
+        label=label,
+        what="listing blobs",
+        max_stdout_bytes=_MAX_BLOB_LISTING_BYTES,
+    )
+    blobs = _parse_blob_listing(raw, label=label)
+    if not blobs:
+        raise EgressVerificationError(
+            f"{label}: the received repository files failed validation "
+            f"(restic lists no blobs for the index in {view.name}: restic writes "
+            f"no empty index files, and a decode restic abandoned prints none)"
+        )
+    return blobs
+
+
+def _parse_blob_listing(raw: bytes, *, label: str) -> set[str]:
+    """``restic list blobs`` output as a set of lowercase ``type:id`` keys.
+
+    A line that is not ``data|tree <64 hex>`` is not something restic prints
+    for a loaded index and rejects the transfer.
+    """
+    blobs: set[str] = set()
+    for line in raw.decode("ascii", errors="replace").splitlines():
+        if not line:
+            continue
+        match = _BLOB_LINE_RE.fullmatch(line)
+        if match is None:
+            raise EgressVerificationError(
+                f"{label}: the received repository files failed validation "
+                f"(restic's blob listing has an unexpected line {line[:80]!r})"
+            )
+        blobs.add(f"{match.group(1)}:{match.group(2).lower()}")
+    return blobs
+
+
+async def _check_repository_version(
+    host_restic: Path, view: Path, password: str, *, label: str
+) -> None:
+    """Require the shipped ``config`` to declare repository version 2.
+
+    ``restic cat config`` on the view prints the decrypted config JSON. A
+    version-1 repository (uncompressed format, creatable only with
+    ``init --repository-version 1``, which neither the sandbox nor the host
+    tooling passes) would let a later index carry compressed blob entries
+    that ``list blobs`` accepts and ``Repository.LoadIndex`` refuses,
+    blocking every restore — the one loadability check ``list blobs`` does
+    not make. Run whenever the memo does not record a passed check: the
+    view holds the config either from staging (first cycle) or from the
+    accepted repo (an existing repo this code has not checked: a resume, a
+    memo from before the check, no memo), so both are covered.
+    """
+    raw = await _run_view_restic(
+        host_restic,
+        ["cat", "config"],
+        view,
+        password,
+        label=label,
+        what="reading config",
+        max_stdout_bytes=_MAX_VIEW_STDERR_BYTES,
+    )
+    try:
+        version = json.loads(raw)["version"]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise EgressVerificationError(
+            f"{label}: the received repository files failed validation "
+            f"(config is not a restic config: {exc})"
+        ) from exc
+    if version != _REQUIRED_REPO_VERSION:
+        raise EgressVerificationError(
+            f"{label}: the received repository files failed validation "
+            f"(repository version {version!r}; version {_REQUIRED_REPO_VERSION} "
+            f"is required, which restic init creates by default)"
+        )
+
+
+async def _reconcile_index_memo(
+    host_restic: Path,
+    dest_repo: str,
+    password: str,
+    *,
+    existing: Collection[str],
+    staging: Path,
+    view: Path,
+    label: str,
+) -> _IndexMemo:
+    """The accepted indexes' memo, healed against the index files present.
+
+    Entries whose index file is gone are dropped; index files the memo does
+    not know are listed by restic (``list blobs`` on a view holding just that
+    index file plus config and keys, one process per missing index: normally
+    none, or one left by a hard kill between publish and the memo append;
+    every one of them on the first fire of this code over an existing repo,
+    after a resume whose copy carries no memo, or after a memo schema bump).
+    No separate rebuild path exists or is needed.
+    """
+    memo = _IndexMemo(_index_memo_path(dest_repo))
+    known = await anyio.to_thread.run_sync(memo.index_ids)
+    present = {rel.split("/", 1)[1] for rel in existing if rel.startswith("index/")}
+    stale = known - present
+    if stale:
+        await anyio.to_thread.run_sync(memo.drop, stale)
+    missing = sorted(present - known)
+    if missing:
+        opening = [
+            rel for rel in existing if rel == "config" or rel.startswith("keys/")
+        ]
+        decoded: dict[str, set[str]] = {}
+        for index_id in missing:
+            index_view = _index_view_dir(view, index_id)
+            await _build_validation_view(
+                index_view,
+                existing_repo=dest_repo,
+                existing=[*opening, f"index/{index_id}"],
+                staging=staging,
+                written=[],
+            )
+            decoded[index_id] = await _list_index_blobs(
+                host_restic, index_view, password, label=label
+            )
+        await anyio.to_thread.run_sync(memo.add, decoded)
+    return memo
+
+
+def _check_index_containment(
+    coverage: Mapping[str, Collection[str]],
+    *,
+    accepted_blobs: Collection[str],
+    label: str,
+) -> None:
+    """Reject a new index that locates a blob an accepted index already locates.
+
+    ``coverage`` maps each new index id to the ``type:id`` blobs restic says
+    it locates; ``accepted_blobs`` is the subset of those that some accepted
+    index already locates (the caller asks the memo only about the blobs the
+    new indexes map, so the check is O(increment)). An honest ``restic
+    backup`` deduplicates against the existing index, so it never re-stores
+    an indexed blob and never violates this; an index that does is the only
+    way a later transfer could change where restic looks for an earlier
+    snapshot's blob. restic looks blobs up by ``(type, id)``, so the key is
+    ``type:id``: an entry for ``data:X`` cannot redirect a lookup of
+    ``tree:X``. There is no rule about which packs a new index may
+    reference: restic reads a pack only at the offsets its own index entries
+    give for a requested blob id, so an entry that points a *new* blob id at
+    any pack — accepted, new, or absent — affects lookups of that new blob
+    only, which is the new snapshot's own business.
+    """
+    for index_id, blobs in coverage.items():
+        remapped = sorted(blob for blob in blobs if blob in accepted_blobs)
+        if remapped:
+            raise EgressVerificationError(
+                f"{label}: the received repository files failed validation "
+                f"(index {index_id[:8]} locates {len(remapped)} blob(s) an "
+                f"accepted index already locates, e.g. {remapped[0][:13]})"
+            )
+
+
+class _Validated(NamedTuple):
+    """What validating the views established: the new indexes' blobs and the id."""
+
+    coverage: dict[str, set[str]]
+    verified_id: str
+    repository_version_checked: bool
+    """Whether ``cat config`` ran (and passed) this fire, for the memo to record."""
+
+
+async def _validate_view(
+    host_restic: Path,
+    view: Path,
+    password: str,
+    *,
+    dest_repo: str,
+    staging: Path,
+    existing: Collection[str],
+    written: Sequence[str],
+    memo: _IndexMemo,
+    before_snapshots: Collection[str],
+    snapshot_id: str,
+    tag: str,
+    repository_version_verified: bool,
+    label: str,
+) -> _Validated:
+    """Validate this fire's increment on throwaway views, before anything is published.
+
+    Every repository file but an index is content-addressed and self-
+    contained, and an accepted file is never overwritten, so a later transfer
+    can only affect an earlier snapshot by changing where restic looks for
+    one of its blobs — which only index files do (and key files, which decide
+    whether the repo opens at all; those are refused after the first cycle by
+    :func:`_extract_verified`). Two kinds of view, all small, hard-linked (or
+    copied where links are unsupported), listed by two concurrent workers
+    (the wall-time floor is one key derivation):
+
+    1. Per new index file, a view of config, keys and that file, on which
+       ``restic list blobs`` (:func:`_list_index_blobs`) makes restic's own
+       decoder load the index — a malformed or undecryptable index, the one
+       shape that would block *every* restore, fails here — and print the
+       blob ids it maps; none may be one an accepted index already locates
+       (:func:`_check_index_containment`, against the healed memo). One view
+       per index rather than one for all, because ``list blobs`` prints the
+       union and the memo records blobs per index so that a dropped index
+       file releases exactly its own. A fire normally writes one index.
+    2. A view of config, keys, every accepted snapshot file and the new
+       ones, on which ``restic snapshots --json``
+       (:func:`_verify_fresh_snapshot`) must list exactly the shipped
+       snapshot files beyond those present before, the reported one with
+       this checkpoint's tag; unless the memo records that the accepted
+       repo's version was already checked (``repository_version_verified``),
+       ``restic cat config`` there first requires repository version 2
+       (:func:`_check_repository_version`) — so on the first cycle, and
+       once for an existing repo this code has not seen.
+
+    The index views are listed one at a time, in one worker running beside
+    the snapshot worker, so however many index files a transfer carries, at
+    most two restic processes run at once (an unbounded fan-out would hand a
+    sandbox that ships many index files one process per file).
+
+    The new packs are not read: with containment holding, every earlier
+    snapshot's blobs stay located where their own accepted indexes put them,
+    so a garbage pack, an understated length or a missing pack can harm only
+    the snapshot that shipped them.
+    """
+    new_indexes = [rel for rel in written if rel.startswith("index/")]
+    new_snapshots = [rel for rel in written if rel.startswith("snapshots/")]
+    opening = [rel for rel in written if rel == "config" or rel.startswith("keys/")]
+    accepted_opening = [
+        rel for rel in existing if rel == "config" or rel.startswith("keys/")
+    ]
+    accepted_snapshots = [rel for rel in existing if rel.startswith("snapshots/")]
+    await _build_validation_view(
+        view,
+        existing_repo=dest_repo,
+        existing=accepted_opening + accepted_snapshots,
+        staging=staging,
+        written=opening + new_snapshots,
+    )
+    index_views: dict[str, Path] = {}
+    for rel in new_indexes:
+        index_id = rel.split("/", 1)[1]
+        index_views[index_id] = _index_view_dir(view, index_id)
+        await _build_validation_view(
+            index_views[index_id],
+            existing_repo=dest_repo,
+            existing=accepted_opening,
+            staging=staging,
+            written=opening + [rel],
+        )
+
+    coverage: dict[str, set[str]] = {}
+    verified: list[str] = []
+
+    async def list_indexes() -> None:
+        for index_id, index_view in index_views.items():
+            coverage[index_id] = await _list_index_blobs(
+                host_restic, index_view, password, label=label
+            )
+
+    check_version = "config" in written or not repository_version_verified
+
+    async def list_view_snapshots() -> None:
+        if check_version:
+            await _check_repository_version(host_restic, view, password, label=label)
+        verified.append(
+            await _verify_fresh_snapshot(
+                host_restic,
+                view,
+                password,
+                before_snapshots=before_snapshots,
+                written=written,
+                snapshot_id=snapshot_id,
+                tag=tag,
+                label=label,
+            )
+        )
+
+    await tg_collect([list_indexes, list_view_snapshots])
+    (verified_id,) = verified
+    referenced_blobs = {blob for blobs in coverage.values() for blob in blobs}
+    _check_index_containment(
+        coverage,
+        accepted_blobs=await anyio.to_thread.run_sync(
+            memo.located_blobs, referenced_blobs
+        ),
+        label=label,
+    )
+    return _Validated(
+        coverage=coverage,
+        verified_id=verified_id,
+        repository_version_checked=check_version,
+    )
+
+
+async def _run_view_restic(
+    host_restic: Path,
+    args: Sequence[str],
+    view: Path,
+    password: str,
+    *,
+    label: str,
+    what: str,
+    max_stdout_bytes: int | None = None,
+) -> bytes:
+    """Run a read-only restic command against the validation view.
+
+    A non-zero exit is a rejected transfer, not a host error: the view is
+    built from sandbox-supplied bytes, so a failure here means the
+    additions are inconsistent with the accepted repo.
+
+    The process's output is attacker-shaped too — one forged index can make
+    restic print megabytes of diagnostics — so neither pipe is buffered
+    whole: stdout is drained and dropped unless ``max_stdout_bytes`` asks
+    for it (``cat`` output), in which case it is kept up to that bound and
+    more is a rejected transfer; only the first :data:`_MAX_VIEW_STDERR_BYTES`
+    of stderr are kept for the error, with a marker when more was cut.
+    Memory is bounded by one pipe chunk plus those caps, whatever the view
+    makes restic say. A cancellation or failure while the child runs kills it
+    before propagating, so no restic outlives the fire. Returns the captured
+    stdout (empty when not captured).
+    """
+    command = [str(host_restic), "-r", str(view), *args, "--no-lock", "--no-cache"]
+    stdout = bytearray()
+    stderr = bytearray()
+    truncated = False
+    overflow = False
+    async with await anyio.open_process(
+        command,
+        env=restic_env(password),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as proc:
+        assert proc.stdout is not None and proc.stderr is not None
+        stdout_stream, stderr_stream = proc.stdout, proc.stderr
+
+        async def drain_stdout() -> None:
+            nonlocal overflow
+            async for chunk in stdout_stream:
+                if max_stdout_bytes is None:
+                    continue
+                if len(stdout) + len(chunk) > max_stdout_bytes:
+                    overflow = True
+                    continue
+                stdout.extend(chunk)
+
+        async def drain_stderr() -> None:
+            nonlocal truncated
+            async for chunk in stderr_stream:
+                room = _MAX_VIEW_STDERR_BYTES - len(stderr)
+                if room > 0:
+                    stderr.extend(chunk[:room])
+                if len(chunk) > room:
+                    truncated = True
+
+        try:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(drain_stdout)
+                tg.start_soon(drain_stderr)
+        except BaseException:
+            _kill(proc)
+            raise
+        returncode = await proc.wait()
+    if returncode != 0:
+        detail = stderr.decode(errors="replace").strip()
+        if truncated:
+            detail += f" [stderr truncated to {_MAX_VIEW_STDERR_BYTES} bytes]"
+        raise EgressVerificationError(
+            f"{label}: the received repository files failed validation "
+            f"({what}): {detail}"
+        )
+    if overflow:
+        raise EgressVerificationError(
+            f"{label}: the received repository files failed validation "
+            f"({what}): output exceeds {max_stdout_bytes} bytes"
+        )
+    return bytes(stdout)
 
 
 async def _commit_egress(

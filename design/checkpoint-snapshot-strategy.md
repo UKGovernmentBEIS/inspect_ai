@@ -396,6 +396,326 @@ Implementation requirements:
   default user is root, so a later pass would sever it. The snapshot
   recreates the links it holds.
 
+**Earlier checkpoints survive a later transfer.**
+
+*Guarantee.* A later transfer cannot make an earlier committed snapshot
+unrestorable and cannot alter its restored contents. It is not authenticity
+of the sandbox's state: an agent that controls sandbox root holds the
+repository key and can mint validly-encrypted indexes, trees and snapshots,
+and its own current capture is already whatever it chooses. What it can no
+longer do is reach back and break or corrupt a checkpoint an earlier fire
+committed.
+
+*Why the reach-back surface is only index files (and keys).* Content
+addressing keeps a committed repository file's *bytes* immutable — the
+egress verifies every file's name is the SHA-256 of its contents and never
+overwrites an accepted file — but a later transfer can still *add* a new,
+correctly-named file, since any bytes can be shipped under their matching
+name. Every repository file except an index is content-addressed and
+self-contained, and restic reads a pack only where an index sends it, so a
+new file can change what an earlier snapshot restores to only by changing
+where restic looks for one of its blobs — which only index files do (plus
+key files, which decide whether the repository opens at all; those are
+refused after the first cycle). Both demonstrated attacks are index attacks:
+a *malformed* `index/<sha256>` makes restic abort while loading indexes
+(`MasterIndex.Load` returns the first decode error) and so blocks restoring
+*every* snapshot, including earlier committed ones; a *valid* index that
+maps an accepted blob to an attacker-supplied `data` pack, or re-describes it
+with an understated length, leaves an earlier snapshot's restore silently
+wrong (verified against restic 0.18.1: plain `check`/`ls` report no error and
+the restore succeeds with the wrong bytes).
+
+*Containment rule.* Each new index file is loaded by restic's own index
+decoder on the host — `restic list blobs` on a throwaway view of config,
+keys and that one index file — and the `type:id` blobs restic prints for it
+may not include any that an accepted index already locates. An honest
+`restic backup` never violates this: it deduplicates against the existing
+index, so it never re-stores an indexed blob (verified against restic 0.18.1
+for a second backup after a first, and for a backup following an interrupted
+one). The key is `type:id`, not the id alone, because restic looks blobs up
+by `(type, id)`: an entry for `data:X` cannot redirect a lookup of `tree:X`,
+and a file whose content is exactly a tree's JSON gives a data blob with a
+tree blob's id. What each accepted index locates is kept in a host-side
+memo, a SQLite file at `restic/index-memos/<sha256(sandbox)>.sqlite` (a
+directory no sandbox name can claim, with a fixed-length basename), a cache
+of `list blobs` output per index healed on every fire against the index
+files actually present: entries whose file is gone are dropped, files it
+does not know are listed by restic (one process per missing index, on a view
+of config, keys and that file; normally none; every one of them on this
+code's first fire over an existing repo, after a resume, or after a memo
+schema bump, which discards the old file), anything unreadable is discarded
+and rebuilt. A fire touches only the rows it names, so memo work is
+O(increment); the file grows with the accepted blob count but is never read
+or rewritten whole.
+
+*No pack rule.* Earlier rounds also required a new index to reference only
+this transfer's packs (or accepted packs no accepted index covered, the
+residue a hard kill leaves). That half carried none of the guarantee, and
+`list blobs` prints no pack ids, so it is gone. restic reads a pack only at
+the offsets its own index entries give for a requested blob id; a
+new-index entry that points a *new* blob id at an accepted pack, a new pack
+or a pack that never arrived affects lookups of that new blob only, which is
+the new snapshot's own business. Entries for *accepted* blob ids are what
+reach back, and that is the blob half, which `list blobs` covers completely.
+Honest backups never reference foreign packs anyway, so nothing honest is
+newly permitted; the residue allowance and the memo's `packs` table went
+with the rule (`test_egress_accepts_index_referencing_missing_pack`: the
+earlier checkpoint restores, the new one fails at restore time).
+
+*restic is the decoder.* `list blobs` (`cmd/restic/cmd_list.go`, v0.18.1)
+calls `index.ForAllIndexes` (`internal/repository/index/index_parallel.go`),
+which decrypts each index file and runs `DecodeIndex`
+(`internal/repository/index/index.go`) on it, returning the first error,
+and prints `<type> <id>` for every entry (`Index.Each`). That is the decode
+every reader uses — `MasterIndex.Load` calls `ForAllIndexes` too — but
+`list` does not go through `Repository.LoadIndex`
+(`internal/repository/repository.go`), which adds exactly one check on top
+of the load: a version-1 repository may hold no compressed blob entry
+("index uses feature not supported by repository version 1"). Review round
+10 showed the gap: in a version-1 repo an index with `uncompressed_length`
+entries passes `list blobs` and blocks every restore. So the accepted repo
+must be version 2, checked with `restic cat config` on the view
+(`_check_repository_version`) whenever the memo holds no record of the
+check having passed: on the first cycle, which ships `config`, and once on
+the first fire over an existing accepted repo this code has not checked —
+a resume whose copy carries no memo, a memo from before the check (memo
+schema 3 adds the record; older schemas are discarded), or a repo accepted
+by an older egress. The passed check is recorded in the memo after publish,
+so an ordinary later fire runs no `cat config`. Both the sandbox and the
+host `restic init` use restic's default, which is 2, so this refuses
+nothing honest, and a version-1 repo could only be shipped by the sandbox
+itself (`test_egress_refuses_a_version_1_repository` for a shipped config,
+which also demonstrates the gap on a version-1 repo against 0.18.1;
+`test_egress_refuses_an_existing_version_1_repository` for an already
+initialized one, with no memo and with a memo from before the check;
+`test_existing_version_2_repository_is_checked_once`). With that,
+an index restic cannot decode fails the command before publish (an
+undecryptable file; a malformed one, which would otherwise abort index
+loading for the whole repository and block *every* restore), an index
+whose offset or length exceeds `math.MaxUint32` panics *this* process
+(`Index.store`) instead of a later restore's, and the blob ids come from
+the authority itself. That panic, though, races restic's own exit: the
+decode runs in an `errgroup` worker whose deferred bookkeeping lets
+`ParallelList` return while the panic unwinds, so `list blobs` exits 2 with
+the crash on stderr or, having printed nothing, exits 0 first — about a
+third of runs on linux/amd64 (where the branch's CI caught it), never in
+ten on darwin/arm64. Either way that index's entries are never printed,
+because the callback runs only after `DecodeIndex` returns. So an index
+file whose listing is empty is refused: an honest `restic backup` never
+writes an index file with no entries (an unchanged re-backup writes no
+index file at all; `Flush` skips empty ones), and an empty listing means
+restic did not finish decoding the file. Verified against restic 0.18.1:
+the output is one lowercase `<type> <id>` line per entry, a blob two index
+files both map prints twice (the host dedupes), `list` accepts
+`--no-lock`/`--no-cache`, an undecodable index exits 1, the oversize offset
+exits 2 with a Go panic on stderr or 0 with nothing printed (both refused),
+and a view holding no packs is fine because `list blobs` reads none. The host
+normalises rather than validates (split lines, lowercase the hex, refuse a
+line that is not `data|tree <64 hex>`, which restic never prints for a
+loaded index): whatever restic accepts, egress accepts — unknown fields,
+which Go's decoder ignores; an uppercase id, which restic prints back in
+lowercase so containment compares canonical spellings
+(`test_egress_follows_restic_on_hostile_index_shapes`). Earlier rounds
+re-implemented restic's decoder as a strict host parser with an allowlist
+and representation rules; that duplication, which review round 8 showed is
+hard to keep faithful and every restic upgrade puts at risk, is gone, and
+with it the "restic upgrade adding an index field fails honest transfers
+closed" behaviour: a new field is loaded by the new restic and accepted.
+
+*The two restic invocations per fire, and why each is there.* Both run on
+throwaway views — config and keys plus, per view, one new index file, or
+every accepted snapshot file and the new ones (hard links to the inodes the
+accepted repo holds or will hold; copies where links are unsupported) — and
+concurrently, since they are independent, so the wall-time floor is one key
+derivation. One view per new index rather than one for all, because `list
+blobs` prints the union and the memo records blobs per index so that a
+dropped index file releases exactly its own; the index views are listed one
+at a time in one worker beside the snapshot worker, so however many index
+files a transfer carries, at most two restic processes run at once. With
+one new index, the first fire uses three restic processes (`cat config`
+runs in the snapshot worker before the listing) and later fires use two;
+the first fire over an existing repo the memo has no record of checking
+also uses three. Additional index files and memo rebuilding add sequential
+blob-listing invocations.
+
+1. `restic list blobs --no-lock --no-cache`, one per new index file, before
+   publish. Kept: restic's own index decoder is the authority on whether the
+   index loads, and its output is the only source of the new index's blob
+   ids, which the containment rule needs; containment is what carries the
+   guarantee.
+2. `restic snapshots --json --no-lock --no-cache`, before publish (moved
+   from after publish on the accepted repository; decision: Ransom,
+   2026-09-18, option A of review round 8's B2). The checks are the ones
+   the after listing did: listed ids minus the ids of snapshot files
+   present before the transfer must equal the shipped snapshot files, and
+   the reported id must be among them with exactly the expected tag. A new
+   snapshot restic cannot load is missing from the listing; one it loads
+   but cannot encode makes restic print no JSON at all; either fails here
+   and nothing is published. This is what closes B2: nothing unverified is
+   ever placed under `snapshots/`, so the loadable-but-unlistable residual
+   class no longer exists. What is given up: restic itself no longer reads
+   the accepted repository after publish. The view is hard links to the
+   same inodes the accepted repo will hold, so restic's reading of the view
+   before publish is the same statement about those bytes; the remaining
+   mistake class — files not landing where the view had them — is covered
+   by a host-side stat after publish (`_verify_published`: every written
+   file is a regular file of the staged size at its published path; a
+   failure unwinds the fire's files). O(increment files), no restic.
+
+*The three the whole-repository design ran, and why they are not needed.*
+
+- *The before listing* (`restic snapshots --json` before the transfer)
+  supplied replay detection and the baseline for the after-diff. Both are
+  file-name questions: a snapshot id is the name of its file under
+  `snapshots/`, and the egress already scans the accepted repository's
+  files and has verified every accepted file's name is the hash of its
+  bytes. Replay: the reported id (full or prefix) must match no snapshot
+  file already present — stricter than the listing, which showed only
+  loadable snapshots. The diff baseline is that same file set. The old
+  "lost snapshot" check is gone: egress never modifies or removes an
+  accepted snapshot file. A pre-existing unloadable snapshot file is in the
+  before set and skipped by restic in the view listing, so it falls out of
+  the arithmetic with no false positive. Residual: none.
+- *`restic check --read-data` on the view* read every pack the new indexes
+  reference and checked each blob's hash and length. With containment
+  holding, every blob an earlier snapshot references is still located
+  exactly where its own accepted index put it, in an accepted pack that is
+  never overwritten, and restic reads a pack only where the index sends it,
+  so a garbage new pack, an understated length or a missing pack can affect
+  only blobs the new snapshot's trees reference — the sandbox's own capture,
+  which this design does not authenticate. What `check` still provided was
+  restic's own authority that the new index *loads*; `list blobs` now
+  supplies exactly that. Residual: the new snapshot's own bytes are not
+  verified at fire time (below).
+- *`restic cat snapshot <id>` on the view* decoded each new snapshot file
+  before publish. It stays removed because the pre-publish listing now
+  covers it: a snapshot file restic cannot load is absent from the view's
+  listing, and one it loads but cannot encode empties the listing, so both
+  are refused before publish, with one process for all new snapshots
+  instead of one per snapshot. One restic fact found while verifying, kept
+  as an explicit guard: restic 0.18.1's `Repository.LoadUnpacked` slices the
+  16-byte nonce off a snapshot file without a length check and *panics* on
+  a file shorter than 16 bytes (exit 2). The view listing would refuse such
+  a file too, but the egress refuses at extraction any `snapshots/` member
+  shorter than 32 bytes — restic's nonce-plus-MAC overhead, the least any
+  encrypted restic file can be (`_MIN_SNAPSHOT_FILE_BYTES`) — so the panic
+  never enters the validation path.
+
+*B2, the loadable-but-unlistable snapshot (review round 8), and why it is
+closed.* Not every loadable snapshot file is listable: Go's RFC 3339 parser
+accepts a zone offset hour of exactly 24 (`hr > 24` is its range test) that
+`Time.MarshalJSON` then refuses, and restic 0.18.1 encodes `snapshots
+--json` as one array, so with such a file present the listing prints
+nothing and exits 0 (`error printing snapshots` on stderr), while
+`snapshots --json <id>`, a `--tag`-filtered listing, the table listing and
+`ls`/`restore` by id all still work (verified). Under the after-publish
+listing, this fire's own check caught it, but a hard kill between publish
+and the unwind left the file under `snapshots/`, after which every later
+fire's listing and resume's `forget_unrecorded_snapshots` (a full
+`snapshots --json`) failed while it existed — not inert. With the listing
+before publish the file is refused on the view and is never published, so
+the class is gone (`test_egress_rejects_snapshot_restic_loads_but_cannot_encode`:
+refused with the accepted repo unchanged, a following honest fire commits,
+`forget_unrecorded_snapshots` works throughout).
+
+*Hard-kill residual.* A hard kill during publish leaves a prefix of this
+fire's validated files — packs before indexes before snapshots — so every
+earlier snapshot stays restorable, and the next fire re-ships the rest
+idempotently or resume drops the unrecorded snapshot. Every snapshot file
+that reaches `snapshots/` was listed on the view first, so the only
+snapshot residue a kill can leave is a file that listed. An unloadable
+`snapshots/` file can arise only outside the egress (planted on the host);
+restic skips one with a warning, the view listing's arithmetic ignores it,
+and it is left in place (`test_unloadable_snapshot_file_in_accepted_repo_is_inert`).
+
+*View.* One throwaway view holds config, keys, the new index files, the
+accepted snapshot files and the new snapshot files — a handful of small
+files plus O(fires) snapshot files of about 1 KiB. The lazy builder
+(256-file slices) and the copy fallback for filesystems without hard links
+(exFAT/FAT, some CIFS/NFS mounts; plain copies for the view,
+copy-to-`.partial`-then-rename for the accepted repo) are kept as tested.
+
+*Cost.* Per ordinary fire: two restic processes run concurrently (each
+paying restic's ~0.45 s scrypt key derivation, which restic calibrates at
+key creation and does not let a caller lower — the same process count as
+before this PR, now with a one-derivation wall-time floor); the first fire,
+and the first fire over an unchecked existing repo, run three, two at once
+(`cat config` before the snapshot listing in one worker, so about two
+derivations of wall time that once). Plus SQLite memo work
+proportional to the increment, plus hard-linking a handful of files and
+O(fires) snapshot files, plus a stat of each written file after publish
+(O(increment files), no restic). Nothing proportional to repository bytes
+or increment bytes beyond the tar copy-out and extraction that predate this
+PR; the one O(repository files) step, the accepted repo's file listing used
+for the re-ship and replay checks, also predates it.
+Measured with the real `egress_sandbox` (restic 0.18.1, Apple M4 Max, local
+SSD, 50 MB increments of 70% incompressible / 30% text, 40 fires):
+
+| fire | accepted repo | egress wall |
+|---|---|---|
+| 1 | 0.03 GB | 1.22 s |
+| 2 | 0.07 GB | 0.69 s |
+| 20 | 0.70 GB | 0.71 s |
+| 40 | 1.40 GB | 0.72 s |
+
+Measured at this head. Fire 1 is the three-process first cycle (`cat
+config` then the snapshot listing in one worker: two key derivations of
+wall time); fires 2–40 fell in 0.69–0.72 s, least-squares slope 0.02 s/GB,
+noise (the two processes in sequence measured 1.21–1.26 s on the same host;
+`list blobs` costs the same as the `cat index` it replaced).
+
+*Guarantee, restated.* A later transfer cannot make an earlier committed
+snapshot unrestorable or alter its restored contents because: earlier files
+are never overwritten; the repository is version 2, so restic's index
+decoder is its whole index-loading check; every new index file is one that
+decoder loads; no blob an accepted index locates is located by a new index;
+every new snapshot file was listed by restic before it was published; and
+no new key file is accepted after the first cycle.
+
+*What is given up relative to the earlier designs — decisions (Ransom,
+2026-09-18), not open questions.*
+
+- Accepted packs are not re-read on each fire, so host-side bit rot or
+  tampering with accepted files surfaces at restore, not at fire time.
+- Containment permits garbage new pack contents and wrong lengths for new
+  blobs: a sandbox that ships garbage for its own blobs, or understates
+  their lengths, gets a committed checkpoint that fails or restores wrong
+  bytes at restore time, indistinguishable from an honest sandbox with a
+  wrecked filesystem, while earlier history stays intact
+  (`test_egress_accepts_garbage_pack_under_a_new_blob_id`,
+  `test_egress_accepts_understated_length_on_new_blobs`; aimed at an
+  accepted blob the same shapes are rejected by containment).
+- Repository version 1 is refused — at the first cycle, and for an already
+  initialized repo the first time this code sees it (decision: Ransom,
+  2026-09-18, confirming the implementer's choice from review rounds 10 and
+  11): nothing honest creates it, and accepting it would need a per-fire
+  process that goes through `Repository.LoadIndex`. The cost is one `cat
+  config` per sandbox lifetime (plus one per resume that carries no memo).
+  Format 1 is not a real compatibility concern here: restic has created
+  format 2 by default since 0.14.0 (August 2022); Inspect's checkpointer
+  landed in May 2026 on restic 0.18 and both its `restic init` calls use
+  the default, so every repository it has ever created is format 2, and a
+  format-1 repository can reach this code only from a hand-built checkpoint
+  directory or a hostile sandbox's shipped `config`. The check exists rather
+  than an assumption because on the first cycle `config` is sandbox-supplied
+  bytes, encrypted, so the version is unknowable without restic decrypting
+  it, and a format-1 repository is exactly where an index with
+  compressed-blob entries passes `list blobs` but blocks every restore. The
+  principled alternative is host-side repository creation with `config` and
+  `keys/*` injected into the sandbox at setup, which makes the check
+  unnecessary by construction: meridianlabs-ai/inspect_ai#512. The current
+  first-cycle shipment of `config`/`keys` comes from Appendix B of the
+  original working doc (`design/plans/checkpointing-working.md`, removed in
+  #4007, at `f69e40d952^`), written before sandbox root was treated as
+  hostile.
+- Unloadable snapshot residue (a file restic skips) is retained as
+  harmless. (The earlier "a restic upgrade that adds an index field fails
+  honest transfers closed until the strict parser is updated" went with the
+  parser: restic is the decoder, so a new restic's new field is accepted.)
+- restic itself no longer reads the accepted repository after publish; the
+  view listing before publish plus the stat check after stand in for it,
+  as above.
+
 ### 4.7 Strategy identity is recorded and pinned
 
 Resume must never run one strategy over another strategy's data, and a

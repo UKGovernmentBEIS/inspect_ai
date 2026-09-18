@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
+- Checkpointing: A later sandbox snapshot can no longer add a malformed or conflicting restic file that blocks or corrupts restoring an earlier checkpoint; each transfer is validated in isolation before it is accepted.
 
 ## 0.3.265 (17 September 2026)
 
