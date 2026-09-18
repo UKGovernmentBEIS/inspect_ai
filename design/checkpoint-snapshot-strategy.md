@@ -366,7 +366,10 @@ Implementation requirements:
 - Tooling placed inside the sandbox lives under a root-only (0700)
   path whose *parent* is unlistable by an unprivileged agent (the
   `/root/.cache/inspect` pattern), streamed in via root `sh` stdin so
-  bytes never touch an agent-readable temp path.
+  bytes never touch an agent-readable temp path. The area is prepared
+  through the verified framework-directory helper
+  (`_sandbox_dir.ensure_root_sandbox_dir`, pinning uid 0), never a bare
+  `install -d`/`mkdir -p` that would adopt an entry already at the path.
 - Any in-sandbox staging must sit inside that area and be excluded
   from the strategy's own capture.
 - Bytes read out of the sandbox are attacker-controlled: host-side

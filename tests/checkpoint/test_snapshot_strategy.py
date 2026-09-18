@@ -8,7 +8,8 @@ roundtrip, hash verification, restore scoping, orphan discard) against a
 pipelines (tar | compress, dd chunking, sha256 verify-then-extract)
 execute for real — no Docker required. The strategy's in-sandbox
 root-only area is pointed at a temp dir via its ``sandbox_dir``
-parameter; ``user="root"`` is ignored by the fake.
+parameter; ``user="root"`` is ignored by the fake, so the root-only
+area's verification runs for the test user (``rootless_sandbox_dir``).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tarfile
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -76,8 +78,14 @@ from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.hydrate import _hydrate_sandbox
 from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
 from inspect_ai.util._sandbox import _privileged as privileged
+from inspect_ai.util._sandbox._framework_directory import FrameworkDirectoryError
 from inspect_ai.util._sandbox._privileged import pinned_shell_command
 from inspect_ai.util._subprocess import ExecResult
+
+
+@pytest.fixture(autouse=True)
+def _rootless(rootless_sandbox_dir: None) -> None:
+    """Every test here drives the strategy through the shell fake (see conftest)."""
 
 
 def _context(
@@ -1003,10 +1011,10 @@ async def test_hydrate_removes_image_symlinks_before_the_strategy_stages_under_t
     ``/root/.cache/inspect`` when the default user is root) and the fresh
     image ships ``<root>/.cache`` as a symlink to a directory outside the
     root. Had the pass run after ``setup`` or the archive staging, the
-    strategy's ``install -d`` would have created its dirs through the
+    strategy's directory setup would have created its dirs through the
     link and the pass would then have severed them, failing the restore
     with "no such file". Run first, the link goes before anything is
-    placed and every later ``install -d`` creates real directories; the
+    placed and every later directory setup creates real directories; the
     link's target is never written.
     """
     root = tmp_path / "capture" / "home"
@@ -1549,8 +1557,24 @@ async def test_copy_out_cancelled_mid_transfer_leaves_no_partial(
 
 
 async def test_archive_setup_reports_missing_tool(tmp_path: Path) -> None:
-    class _NoZstdNoGzip(LocalShellSandbox):
-        async def exec(self, cmd: list[str], **kwargs: object) -> ExecResult[str]:  # type: ignore[override]
+    class _NoTar(LocalShellSandbox):
+        """Fails the tool probe; the directory check before it runs for real."""
+
+        async def exec(
+            self,
+            cmd: list[str],
+            input: str | bytes | None = None,
+            cwd: str | None = None,
+            env: dict[str, str] | None = None,
+            user: str | None = None,
+            timeout: int | None = None,
+            timeout_retry: bool = True,
+            concurrency: bool = True,
+        ) -> ExecResult[str]:
+            if "command -v" not in cmd[2]:
+                return await super().exec(
+                    cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+                )
             return ExecResult(
                 success=False,
                 returncode=1,
@@ -1560,7 +1584,70 @@ async def test_archive_setup_reports_missing_tool(tmp_path: Path) -> None:
 
     strategy = ArchiveStrategy(sandbox_dir=str(tmp_path / "sandbox-tools"))
     with pytest.raises(RuntimeError, match="missing required tool"):
-        await strategy.setup(_NoZstdNoGzip(), _context(tmp_path / "sample"))
+        await strategy.setup(_NoTar(), _context(tmp_path / "sample"))
+    assert (tmp_path / "sandbox-tools").is_dir()
+
+
+_needs_verification_script = pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="the directory verification script needs GNU/BusyBox stat",
+)
+
+
+@_needs_verification_script
+async def test_archive_setup_refuses_planted_sandbox_dir(tmp_path: Path) -> None:
+    """An entry already at ``sandbox_dir`` is adopted only if it meets the contract.
+
+    A symlink (which a bare ``install -d`` would have followed, creating
+    the area wherever it points) and a directory in a wider mode than 0700
+    are both refused before the strategy probes or stages anything.
+    """
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    sandbox_dir = tmp_path / "sandbox-tools"
+    sandbox_dir.symlink_to(elsewhere)
+    env = _CountingSandbox()
+    strategy = ArchiveStrategy(chunk_size=256 * 1024, sandbox_dir=str(sandbox_dir))
+
+    with pytest.raises(FrameworkDirectoryError, match="symbolic link"):
+        await strategy.setup(env, _context(tmp_path / "sample"))
+    assert env.execs == 1
+    assert list(elsewhere.iterdir()) == []
+
+    sandbox_dir.unlink()
+    sandbox_dir.mkdir(mode=0o755)
+    with pytest.raises(FrameworkDirectoryError, match="mode 755"):
+        await strategy.setup(env, _context(tmp_path / "sample"))
+    assert env.execs == 2
+
+
+@_needs_verification_script
+async def test_archive_restore_refuses_planted_sandbox_dir(tmp_path: Path) -> None:
+    """A restore into a sandbox whose work area was replaced is refused before staging."""
+    env = _CountingSandbox()
+    strategy = await _strategy(env, tmp_path)
+    ctx = _context(tmp_path / "sample")
+    data_dir = tmp_path / "capture" / "data"
+    _write_data(data_dir)
+    paths = SandboxBackupPaths(include=[str(data_dir)])
+    details = await strategy.snapshot(env, paths, 1, ctx)
+
+    sandbox_dir = tmp_path / "sandbox-tools"
+    shutil.rmtree(sandbox_dir)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    sandbox_dir.symlink_to(elsewhere)
+    marker = data_dir / "notes.txt"
+    marker.write_bytes(b"post-capture content")
+
+    execs_before = env.execs
+    with pytest.raises(FrameworkDirectoryError, match="symbolic link"):
+        await strategy.restore(env, paths, details, ctx)
+    # Only the directory check ran: nothing was staged through the link
+    # and nothing was extracted over the live tree.
+    assert env.execs == execs_before + 1
+    assert list(elsewhere.iterdir()) == []
+    assert marker.read_bytes() == b"post-capture content"
 
 
 def test_archive_checkpoint_id_parsing() -> None:

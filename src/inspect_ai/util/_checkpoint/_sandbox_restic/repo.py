@@ -26,6 +26,8 @@ from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_she
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
+from .._sandbox_dir import ensure_root_sandbox_dir
+
 _SANDBOX_RESTIC_DIR = "/root/.cache/inspect"
 _SANDBOX_RESTIC_PATH = f"{_SANDBOX_RESTIC_DIR}/restic"
 _SANDBOX_RESTIC_REPO = f"{_SANDBOX_RESTIC_DIR}/repo"
@@ -41,22 +43,20 @@ async def inject_restic(env: SandboxEnvironment) -> None:
 
     Streams the binary bytes via stdin to a root ``sh`` invocation so
     the binary never lands at a non-root-readable temp path; the agent
-    can't observe it in flight or after. The parent directory is mode
-    0700 so the file is invisible to non-root processes (stronger than
-    file-level ``chmod 0700`` alone, since the file would otherwise still
-    appear in ``ls`` of a world-readable parent).
+    can't observe it in flight or after. The parent directory is a
+    verified root-owned mode 0700 directory (see
+    :func:`ensure_root_sandbox_dir`) so the file is invisible to non-root
+    processes (stronger than file-level ``chmod 0700`` alone, since the
+    file would otherwise still appear in ``ls`` of a world-readable
+    parent).
     """
     info = await detect_sandbox_os(env)
     platform = _ARCH_TO_PLATFORM[info["architecture"]]
     binary_path = await resolve_restic(platform)
     binary_bytes = binary_path.read_bytes()
 
-    script = (
-        "set -e; "
-        f"install -d -m 0700 {_SANDBOX_RESTIC_DIR}; "
-        f"cat > {_SANDBOX_RESTIC_PATH}; "
-        f"chmod 0700 {_SANDBOX_RESTIC_PATH}"
-    )
+    await ensure_root_sandbox_dir(env, _SANDBOX_RESTIC_DIR)
+    script = f"set -e; cat > {_SANDBOX_RESTIC_PATH}; chmod 0700 {_SANDBOX_RESTIC_PATH}"
     result = await privileged_shell(env, script, input=binary_bytes, user="root")
     if not result.success:
         raise RuntimeError(f"Failed to inject restic into sandbox: {result.stderr}")

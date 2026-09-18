@@ -10,13 +10,18 @@ itself synchronous and a no-op for tests that don't touch the fs.
 
 from __future__ import annotations
 
+import os
+import sys
 from collections.abc import Generator
 
 import pytest
 from test_helpers.local_shell_sandbox import sandbox_path
 
 from inspect_ai._util import asyncfiles
+from inspect_ai.util._checkpoint import _sandbox_dir
 from inspect_ai.util._sandbox import _privileged as privileged
+from inspect_ai.util._sandbox._framework_directory import ensure_framework_directory
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 
 @pytest.fixture(autouse=True)
@@ -39,3 +44,36 @@ def _linux_like_system_path(monkeypatch: pytest.MonkeyPatch) -> None:
     at that path models an image whose system tar is a Linux one.
     """
     monkeypatch.setattr(privileged, "SYSTEM_PATH", sandbox_path())
+
+
+@pytest.fixture
+def rootless_sandbox_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The strategies' root-only directory is verified for the test user instead of root.
+
+    ``LocalShellSandbox`` ignores ``user="root"`` and runs every command
+    as the test user, so ``ensure_root_sandbox_dir`` (which pins uid 0)
+    would refuse every directory. This re-points it at the same
+    verification for the default user: the real script still runs, so a
+    symlink, a foreign owner or a wrong mode at the path is still refused;
+    only the uid it expects changes. On a non-Linux host the script cannot
+    run at all (it needs GNU/BusyBox ``stat -c``), so the directory is
+    created outright instead; tests that expect a refusal must skip there.
+    Opt-in rather than autouse so the Docker-backed tests keep the real
+    root check.
+    """
+    verified = ensure_framework_directory
+
+    async def as_test_user(
+        env: SandboxEnvironment,
+        path: str,
+        *,
+        user: str | None,
+        expected_uid: int | None,
+    ) -> None:
+        assert user == "root" and expected_uid == 0, "production call must pin root"
+        if sys.platform == "linux":
+            await verified(env, path, user=None)
+        else:
+            os.makedirs(path, mode=0o700, exist_ok=True)
+
+    monkeypatch.setattr(_sandbox_dir, "ensure_framework_directory", as_test_user)
