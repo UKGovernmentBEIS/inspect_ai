@@ -686,11 +686,28 @@ no new key file is accepted after the first cycle.
   `test_egress_accepts_understated_length_on_new_blobs`; aimed at an
   accepted blob the same shapes are rejected by containment).
 - Repository version 1 is refused — at the first cycle, and for an already
-  initialized repo the first time this code sees it (implementer, review
-  rounds 10 and 11; awaiting Ransom's confirmation): nothing honest creates
-  it, and accepting it would need a per-fire process that goes through
-  `Repository.LoadIndex`. The cost is one `cat config` per sandbox lifetime
-  (plus one per resume that carries no memo).
+  initialized repo the first time this code sees it (decision: Ransom,
+  2026-09-18, confirming the implementer's choice from review rounds 10 and
+  11): nothing honest creates it, and accepting it would need a per-fire
+  process that goes through `Repository.LoadIndex`. The cost is one `cat
+  config` per sandbox lifetime (plus one per resume that carries no memo).
+  Format 1 is not a real compatibility concern here: restic has created
+  format 2 by default since 0.14.0 (August 2022); Inspect's checkpointer
+  landed in May 2026 on restic 0.18 and both its `restic init` calls use
+  the default, so every repository it has ever created is format 2, and a
+  format-1 repository can reach this code only from a hand-built checkpoint
+  directory or a hostile sandbox's shipped `config`. The check exists rather
+  than an assumption because on the first cycle `config` is sandbox-supplied
+  bytes, encrypted, so the version is unknowable without restic decrypting
+  it, and a format-1 repository is exactly where an index with
+  compressed-blob entries passes `list blobs` but blocks every restore. The
+  principled alternative is host-side repository creation with `config` and
+  `keys/*` injected into the sandbox at setup, which makes the check
+  unnecessary by construction: meridianlabs-ai/inspect_ai#512. The current
+  first-cycle shipment of `config`/`keys` comes from Appendix B of the
+  original working doc (`design/plans/checkpointing-working.md`, removed in
+  #4007, at `f69e40d952^`), written before sandbox root was treated as
+  hostile.
 - Unloadable snapshot residue (a file restic skips) is retained as
   harmless. (The earlier "a restic upgrade that adds an index field fails
   honest transfers closed until the strict parser is updated" went with the
