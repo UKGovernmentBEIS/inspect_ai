@@ -1019,6 +1019,9 @@ async def test_hydrate_removes_image_symlinks_before_the_strategy_stages_under_t
     """
     root = tmp_path / "capture" / "home"
     files = _write_data(root)
+    # ``.cache`` is the sandbox dir's parent here, so ``setup`` checks it is
+    # not writable by others; pin its mode rather than inherit the umask.
+    (root / ".cache").chmod(0o755)
     sandbox_dir = str(root / ".cache" / "inspect")
     sample = tmp_path / "sample"
     paths = SandboxBackupPaths(include=[str(root)])
