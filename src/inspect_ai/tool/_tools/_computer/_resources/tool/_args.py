@@ -33,7 +33,14 @@ def _create_parser() -> ArgumentParser:
 
     click = subparsers.add_parser(
         "left_click",
-        aliases=["right_click", "middle_click", "double_click", "triple_click"],
+        aliases=[
+            "right_click",
+            "middle_click",
+            "back_click",
+            "forward_click",
+            "double_click",
+            "triple_click",
+        ],
     )
     _add_coordinate(click, False)
     _add_text(click, False)
