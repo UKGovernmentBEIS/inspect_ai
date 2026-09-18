@@ -16,10 +16,11 @@ from test_helpers.utils import skip_if_no_docker
 from inspect_ai import Task, eval, task
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
-from inspect_ai.agent._bridge.sandbox.service import _is_tool_call_error, call_tool
+from inspect_ai.agent._bridge.sandbox.service import call_tool
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import get_model
+from inspect_ai.model._call_tools import tool_call_error
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Solver, solver
 from inspect_ai.tool import ToolError, tool
@@ -879,8 +880,11 @@ def _bridge_with_tools(tools: list) -> "SandboxAgentBridge":
     ],
     ids=lambda e: type(e).__name__,
 )
-def test_is_tool_call_error_matches_native_mapped_set(error: Exception) -> None:
-    assert _is_tool_call_error(error)
+def test_bridged_tool_model_facing_errors_follow_the_native_mapping(
+    error: Exception,
+) -> None:
+    """The bridge decides with `tool_call_error`, the mapping `execute_tools` uses."""
+    assert tool_call_error(error, "t") is not None
 
 
 @pytest.mark.parametrize(
@@ -888,8 +892,8 @@ def test_is_tool_call_error_matches_native_mapped_set(error: Exception) -> None:
     [KeyError("missing"), TypeError("bad call"), ValueError("other"), RuntimeError()],
     ids=lambda e: type(e).__name__,
 )
-def test_is_tool_call_error_rejects_unexpected_exceptions(error: Exception) -> None:
-    assert not _is_tool_call_error(error)
+def test_unexpected_exceptions_have_no_native_mapping(error: Exception) -> None:
+    assert tool_call_error(error, "t") is None
 
 
 async def test_bridged_tool_unexpected_exception_fails_the_sample() -> None:

@@ -7,17 +7,19 @@ from pydantic import JsonValue, TypeAdapter
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
-from inspect_ai.model._call_tools import get_tools_info, validate_tool_input
+from inspect_ai.model._call_tools import (
+    get_tools_info,
+    tool_call_error,
+    validate_tool_input,
+)
 from inspect_ai.model._model import ModelRefusalError
-from inspect_ai.tool._tool import ToolError, ToolParsingError
+from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
-from inspect_ai.util._sandbox.environment import SandboxUnavailableError
-from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
@@ -220,35 +222,6 @@ def _mcp_tool_result_content(
             return [_mcp_tool_content_block(content)]
 
 
-_TOOL_CALL_ERRORS: tuple[type[Exception], ...] = (
-    TimeoutError,
-    UnicodeDecodeError,
-    SandboxUnavailableError,
-    PermissionError,
-    FileNotFoundError,
-    IsADirectoryError,
-    OutputLimitExceededError,
-    LimitExceededError,
-    ToolError,
-)
-"""Exception types `execute_tools` reports to the model as a `ToolCallError`.
-
-Mirrors the `except` chain in `inspect_ai.model._call_tools.execute_tools`;
-keep the two in step.
-"""
-
-
-def _is_tool_call_error(ex: Exception) -> bool:
-    """Whether a native tool call would report `ex` to the model rather than fail.
-
-    `execute_tools` maps a fixed set of exception types to a `ToolCallError` the
-    model sees and treats anything else as the eval's fault (the sample errors).
-    """
-    if isinstance(ex, ValueError) and "embedded null byte" in str(ex):
-        return True
-    return isinstance(ex, _TOOL_CALL_ERRORS)
-
-
 def call_tool(
     bridge: SandboxAgentBridge,
 ) -> Callable[[str, str, dict[str, JsonValue]], Awaitable[JsonValue]]:
@@ -258,9 +231,9 @@ def call_tool(
     a scaffold's malformed arguments surface as a `ToolParsingError` the model
     can recover from; they are otherwise forwarded as the scaffold sent them.
     Exceptions are classified after unwrapping any task-group
-    `ExceptionGroup`, as `execute_tools` does. Those a native call would show
-    the model (`_is_tool_call_error`) propagate unchanged as the RPC error the
-    scaffold reads as tool output. Any other exception is a bug in the eval's
+    `ExceptionGroup`, as `execute_tools` does, and with the same
+    `tool_call_error` mapping. Those a native call would show the model
+    propagate unchanged as the RPC error the scaffold reads as tool output. Any other exception is a bug in the eval's
     tool, which natively fails the sample: the unwrapped exception is
     signalled through `bridge.request_fail` so the bridge's monitor task ends
     the sample at once, and the original still propagates so the RPC unwinds
@@ -295,8 +268,9 @@ def call_tool(
             # the service dispatcher special-cases a bare LimitExceededError
             # (ending the sample), and unwrapping a grouped one would newly
             # route it there
-            if not _is_tool_call_error(inner_exception(ex)):
-                bridge.request_fail(inner_exception(ex))
+            inner_ex = inner_exception(ex)
+            if tool_call_error(inner_ex, tool) is None:
+                bridge.request_fail(inner_ex)
             raise
 
         # Plain strings are returned verbatim (the MCP `tools/call` text part
