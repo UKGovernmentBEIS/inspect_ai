@@ -137,6 +137,9 @@ class BeforeGenerate:
 class AfterGenerate:
     model: str
     input: list[ChatMessage]
+    tools: list[ToolInfo]
+    tool_choice: ToolChoice
+    config: GenerateConfig
     output: ModelOutput
     escalations: tuple[Reported[Recommendation], ...] = ()
 
@@ -164,6 +167,8 @@ class AfterToolCall:
 Step: TypeAlias = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall
 """The union, for code that handles any point — a protocol, or a dispatcher."""
 ```
+
+`AfterGenerate` carries the request that produced `output` — `input`, `tools`, `tool_choice`, `config` — as well as the output, because a protocol that substitutes an action (`resample`, `defer_to_trusted`) has to regenerate with exactly what the agent was given.
 
 A monitor never annotates `Step`, since [its annotation is what selects the stage](#the-stage-comes-from-the-annotation). The alias exists for the layer above, which does see all four.
 
@@ -563,7 +568,7 @@ That collapses to a single rule about what sits at the top of a configuration:
 | a protocol wrapping either | whatever the protocol decides; it is `Recommendation`-kind by construction |
 | a mix of both, unwrapped | recommendations act, scores record — worth a warning, since half the configuration acts and half does not |
 
-This is where the type collapse pays for itself: a protocol needs no special case in this table, because "converts `Observation`s into a `Recommendation`" *is* what being `Recommendation`-kind means. `observe_only()` becomes the ordinary way to suppress a recommendation rather than a distinct mode — a dry run, "what would my guards have done".
+This is where the type collapse pays for itself: a protocol needs no special case in this table, because "converts `Observation`s into a `Recommendation`" *is* what being `Recommendation`-kind means. `observe()` becomes the ordinary way to suppress a recommendation rather than a distinct mode — a dry run, "what would my guards have done".
 
 The `Observation`-outermost row is worth dwelling on: it looks degenerate and isn't. Calibration needs a benign score distribution, and running with nothing consuming the scores over known-benign tasks is how you get one. It is step one of the second philosophy, not a failure to configure.
 
@@ -587,7 +592,7 @@ It is the safe default for that kind, and for a specific reason rather than a ge
 
 Either way a config-time check makes the dead configurations visible, and the [declared kind](#the-kind-comes-from-the-return-annotation) is what lets it be specific rather than generic:
 
-> `no_curl` is a `Recommendation` monitor, but the configured protocol is `observe_only()` — its recommendations will be recorded and not acted on.
+> `no_curl` is a `Recommendation` monitor, but the configured protocol is `observe()` — its recommendations will be recorded and not acted on.
 
 > `suspicion_monitor` is an `Observation` monitor and the configured protocol has no threshold for it — its scores will be recorded and never read.
 
@@ -600,9 +605,10 @@ All three are the "safety mechanism with no consumer" problem, and all three are
 The control literature's protocols are a small, finite, well-studied set. Ship them named and configured so nobody assembles thresholds, budgets and actions by hand:
 
 ``` python
-Task(monitor=observe_only(network_suspicion()))
-Task(monitor=trusted_monitoring(network_suspicion(), audit_budget=0.01))
-Task(monitor=defer_to_trusted(network_suspicion(), trusted="openai/gpt-4o-mini"))
+Task(monitor=observe(network_suspicion()))
+Task(monitor=threshold(network_suspicion(), reject_at=0.8))
+Task(monitor=defer_to_trusted(network_suspicion(), threshold=0.8))
+Task(monitor=resample(network_suspicion(), threshold=0.8, n=3))
 ```
 
 This is the same move as shipping `react()` and `basic_agent()` rather than making everyone write a tool loop. It converts "understand the control literature" into "pick from a list", and the papers become an explanation of *why* each protocol exists rather than required reading.
@@ -615,12 +621,15 @@ The literature's protocols are all arrangements of three resources with differen
 |------------------------|------------------------|
 | `concurrent` | run every child, strongest recommendation wins; what a bare list compiles to. Not from the literature — it is the concurrent composition itself, named |
 | `chain` | run children in order, first non-`escalate` decides; approval's chain as a protocol |
-| `observe_only` | score and record; never act. Also how a benign distribution gets collected |
-| `trusted_monitoring` | the trusted model scores the untrusted model's output; the most suspicious slice goes to human audit, the rest is accepted |
-| `defer_to_trusted` | above a lower threshold but below the audit threshold, substitute the trusted model's action for the untrusted one's |
+| `observe` | score and record; never act. Also how a benign distribution gets collected |
+| `threshold` | act on a score: `reject` above one constant, `terminate` above another. The smallest protocol, and the one calibration feeds |
+| `defer_to_trusted` | above a threshold, substitute the trusted model's action for the untrusted one's |
+| `resample` | above a threshold, draw further completions, score each, execute the least suspicious; escalate if none clears (Ctrl-Z; multi-step settings only) |
+| `trusted_monitoring` | the trusted model scores the untrusted model's output; the most suspicious slice, up to an audit budget, goes to human review and the rest is accepted |
 | `trusted_editing` | the trusted model rewrites the suspicious parts rather than replacing the whole action |
 | `untrusted_monitoring` | the *untrusted* model scores — more capable, but it may collude, so it needs honeypots and lie detection |
-| `resample` | draw further samples, score each, execute the least suspicious (Ctrl-Z; multi-step settings only) |
+
+The first six ship in core. The last three are extension candidates, with the pipeline stages (honeypots, paraphrasing). `trusted_monitoring` is the surprising one to leave out, since it is the literature's baseline; the reason is the audit budget. It is a deployment-economics idea — the scarce resource being modelled is human labour — and as a headline parameter it means "how much to *not* review", which reads badly to the eval operators this package is for, who want to see everything flagged. Nothing stops an extension shipping it, and `threshold` plus `audit=True` is the eval-shaped version.
 
 Two things follow that a reader should not have to infer.
 
@@ -639,22 +648,94 @@ A protocol owns:
 
 All of which is ordinary code, not framework surface — see [The runner](#the-runner).
 
-### Protocols are monitors {#protocols-are-monitors}
+#### Two that generate
+
+`threshold` never calls a model. The two control protocols that ship beside it do, and they are worth showing because they exercise the parts of the surface a threshold does not: regenerating with the agent's own request, and substituting the result.
 
 ``` python
 @protocol
-def trusted_monitoring(
-    monitors: Monitors,
-    audit_budget: float = 0.01,
-    defer_threshold: float = 0.8,
-    audit_threshold: float = 0.95,
-) -> ProtocolMonitor:
-    async def decide(context: Context, step: Step) -> Recommendation | None:
+def resample(monitors: Monitors, threshold: float, n: int = 3) -> ProtocolMonitor:
+    async def decide(context: Context, step: AfterGenerate) -> Recommendation | None:
         reports = await run_monitors(monitors, context, step)
-        ...
+        score = reports.max_suspicion()
+        if score is None or score < threshold:
+            return Recommendation.clear()
+        best_score, best_message = score, step.output.message
+        for _ in range(n):
+            output = await context.host.generate(
+                step.input, model=step.model, tools=step.tools, config=step.config
+            )
+            reports = await run_monitors(monitors, context, replace(step, output=output))
+            candidate = reports.max_suspicion() or 0.0
+            if candidate < best_score:
+                best_score, best_message = candidate, output.message
+        if best_score >= threshold:
+            return Recommendation(recommend="escalate", explanation="no resample cleared the threshold")
+        return Recommendation(recommend="modify", modified=best_message)
 
     return decide
 ```
+
+Each candidate's scores go through the runner, so the log holds every draw, not only the winner. Returning `escalate` when nothing clears the threshold is Ctrl-Z's incrimination signal in its simplest form, and it composes: `chain([resample(...), human()])` sends exactly the incriminated steps to a person.
+
+``` python
+@protocol
+def defer_to_trusted(
+    monitors: Monitors, threshold: float, trusted: str | None = None
+) -> ProtocolMonitor:
+    """`trusted` is a model name; None means the `trusted` model role."""
+
+    async def decide(context: Context, step: AfterGenerate) -> Recommendation | None:
+        reports = await run_monitors(monitors, context, step)
+        score = reports.max_suspicion()
+        if score is None or score < threshold:
+            return Recommendation.clear()
+        output = await context.host.generate(
+            step.input, model=trusted or "trusted", tools=step.tools, config=step.config
+        )
+        return Recommendation(
+            recommend="modify", modified=output.message, explanation=f"suspicion {score:.2f}"
+        )
+
+    return decide
+```
+
+This is `resample` with one draw on a different model and no candidate loop. The `trusted` model role is the natural default, so `--model-role trusted=openai/gpt-4o-mini` configures it without touching code. `trusted_editing` is the same shape again (the trusted model is given the untrusted output and told to rewrite it) and is left to an extension until someone wants it.
+
+Three things follow for the rest of the design:
+
+- **`AfterGenerate` carries the request.** `tools`, `tool_choice` and `config` join `input`, so a protocol regenerates with exactly what the agent was given.
+- **`Host.generate` is a real generate.** Messages or a string in, `ModelOutput` out, with `model`, `tools` and `config`; `model` accepts a name or a role. Under a proxy, generating as the agent's model is a re-issued upstream request. `monitor-deployment.md` carries the signature.
+- **Protocol inference has its own usage bucket.** `resample` spends up to `n` times the agent's tokens on the agent's model. It is recorded under a `protocol` bucket in `ModelUsage`, separate from both agent and monitor usage and not charged to the agent's limits, because the protocol chose to spend it. See open question 8.
+
+Both are `AfterGenerate`-only, and their signatures say so rather than annotating `Step`.
+
+### Protocols are monitors {#protocols-are-monitors}
+
+The shipped `threshold` protocol, in full:
+
+``` python
+@protocol
+def threshold(
+    monitors: Monitors,
+    reject_at: float,
+    terminate_at: float | None = None,
+) -> ProtocolMonitor:
+    async def decide(context: Context, step: BeforeToolCall) -> Recommendation | None:
+        reports = await run_monitors(monitors, context, step)
+        score = reports.max_suspicion()
+        if score is None:
+            return None
+        if terminate_at is not None and score >= terminate_at:
+            return Recommendation(recommend="terminate", explanation=f"suspicion {score:.2f}")
+        if score >= reject_at:
+            return Recommendation(recommend="reject", explanation=f"suspicion {score:.2f}")
+        return Recommendation.clear()
+
+    return decide
+```
+
+It holds the constants a monitor must not, reads its children's scores through the runner, and returns a recommendation. Nothing else.
 
 Everything that made a protocol look like a separate kind of object turns out to be convention rather than structure:
 
@@ -770,6 +851,9 @@ class Reports:
 
     def strongest(self) -> Reported[Recommendation] | None:
         """By the precedence in Composition; None if nobody recommended."""
+
+    def max_suspicion(self) -> float | None:
+        """Max over observations (per-dimension max, then max); None if nobody observed."""
 ```
 
 Split by kind, because [the two halves aggregate differently](#composition) — scores combine and then threshold, recommendations resolve by precedence. Identity is attached because a protocol may weight or require agreement across specific monitors, and because `path` is what the transcript and the store are keyed by. Generics are safe here in a way [they were not for `Report`](#what-a-monitor-returns): these are frozen dataclasses passed as arguments, never serialized, so no mangled name reaches `components/schemas`.
@@ -948,7 +1032,7 @@ A `@monitor(kind="scorer")` argument was rejected for the reason `on=` was: a se
 
 Leaving it implicit — inferring the kind from which fields a report happens to set — was also rejected, and this is the sharper argument. It makes the kind a property of a *report* rather than of a *monitor*, so the same monitor could score on one call and recommend on the next, and nothing could be said at configuration time. A declared kind buys two things that needs:
 
-- **The config-time check gets specific.** Today's warning is "this protocol will record recommendations and not act on them". With kinds it can say "`trusted_monitoring` thresholds scores, but `no_curl` is a `Recommendation` monitor — its recommendation is honoured directly, not calibrated."
+- **The config-time check gets specific.** Today's warning is "this protocol will record recommendations and not act on them". With kinds it can say "`threshold` thresholds scores, but `no_curl` is a `Recommendation` monitor — its recommendation is honoured directly, not calibrated."
 - **Emitting both becomes unrepresentable.** The old prose rule — a monitor doing both "is taking policy into its own hands" — was discouragement. Two types make it a type error, and this is the bigger win: a monitor that emits a score *and* an action has already thresholded internally, so the protocol cannot tell which half to trust and the calibration never happens.
 
 ### One function, one point {#one-function-one-point}
@@ -1100,10 +1184,9 @@ monitors:
 
 ``` yaml
 monitors:
-  - name: trusted_monitoring
+  - name: threshold
     params:
-      audit_budget: 0.01
-      defer_threshold: 0.8
+      reject_at: 0.8
     monitors:
       - name: suspicion_monitor
         params:
@@ -1307,8 +1390,8 @@ def suspicion_monitor(model: str | None = None) -> Monitor:
             history=new_since_last_report(context, step.history),
             messages_as_str=messages_as_str,
         )
-        answer = await context.host.generate(prompt, model=model)
-        score, explanation = parse_score(answer)
+        output = await context.host.generate(prompt, model=model)
+        score, explanation = parse_score(output.completion)
         return Observation(
             suspicion=score,
             explanation=explanation,
@@ -1434,7 +1517,7 @@ Keeping `@approver` leaves a thin spot: approvers are authoritative today, so a 
 
 ``` python
 Task(approval=[ApprovalPolicy(...)])                       # today, unchanged
-Task(approval=trusted_monitoring(..., audit_budget=0.01))  # protocol-mediated
+Task(approval=threshold(..., reject_at=0.8))               # protocol-mediated
 ```
 
 Existing behavior doesn't change — the list form keeps its current code path — and the protocol form does more inside the same slot. That avoids routing every shipped eval through new decision-making code, which is the version of this that would carry real risk.
@@ -1538,12 +1621,12 @@ ordered composition should be the default (no — see [Two compositions](#two-co
 
 1.  **Does `@approver` eventually fold in too?** [Settled for now](#relationship-to-approval-and-review): monitor subsumes the merged `Reviewer`, `@approver` survives. What is open is whether the authoritative/advisory distinction deserves its own type permanently, or whether `@approver` becomes a `Recommendation` monitor once monitors have users. Deliberately deferred rather than answered.
 2.  **Who owns the budget when protocols nest?** [Protocols are monitors](#protocols-are-monitors), so a budget-owning protocol can wrap a paraphrasing one wrapping leaf monitors — which is the point, but two nested budget-owning protocols need a rule. Outermost wins is the obvious answer; whether an inner one should be an error is open.
-3.  **Which protocols ship in core?** `observe_only` and something like `trusted_monitoring` seem clear. `defer_to_trusted`, `resample` and the collusion-resistant variants are candidates for an extension package.
+3.  **Which protocols ship in core?** Settled in [Ship protocols, not parts](#ship-protocols-not-parts): `concurrent`, `chain`, `observe`, `threshold`, `defer_to_trusted` and `resample`. `trusted_monitoring` (the audit budget), `trusted_editing`, `untrusted_monitoring` and the pipeline stages are extension candidates.
 4.  **Score aggregation.** Max across monitors is the obvious default; per-dimension max when scores are structured. Weighted combination and requiring agreement are protocol policy — but the framework has to pick a default and say so.
 5.  **Where does threshold calibration get its benign distribution?** Answered in `monitor-development.md`: replay the `Observation` monitor over a known-benign corpus as a Scout scanner, and the results dataframe's score column is the distribution; a budget becomes a threshold by percentile, and a labelled corpus gives the precision–recall curve. What remains open there is hygiene — holding the calibration corpus out of the validation split.
 6.  **Does anything in v1 actually need per-task state?** The audit budget does not — it is per-episode, hence per-sample. Cross-sample gating ("terminate once 3 samples are flagged") does, and it is the case where in-memory state resets in the *unsafe* direction. If nothing in v1 needs it, [Per-task](#per-task) can be deferred whole; if something does, its scope wants deciding between task, run and eval-set.
 7.  **What is the default protocol called?** Settled: `concurrent`. It names the execution shape, as `chain` does, and leaves the reduction to `Reports.strongest()` and the docs. `concurrent` named only the recommendation half of the rule, and `all_of` named the configuration's meaning rather than its shape.
-8.  **Does substituting `choices[0].message` need a usage convention?** [Settled](#one-vocabulary-across-stages) that `modified` carries a `ChatMessageAssistant` at `AfterGenerate`, leaving `usage` untouched. Open is whether a protocol that spent extra inference resampling should be able to *add* to the recorded usage, so cost accounting reflects what the protocol really cost.
+8.  **Does substituting `choices[0].message` need a usage convention?** [Settled](#one-vocabulary-across-stages) that `modified` carries a `ChatMessageAssistant` at `AfterGenerate`, leaving `usage` untouched. Now concrete, since `resample` ships: the proposal in [Two that generate](#two-that-generate) is a `protocol` bucket in `ModelUsage`, separate from agent and monitor usage and not charged to the agent's limits. Open is whether that bucket should be visible in the eval's headline token count, and whether an eval that compares protocols wants it charged to the agent to keep totals comparable.
 9.  **Does the monitor see `ContentReasoning`?** Answered in [Views](#views): visible by default at whatever fidelity the provider or wire supplies, excluded via the preprocessor, and a protocol withholds it from a child by transforming `step` before the call.
 10.  **Lifecycle stages**: `SampleStart` / `SampleEnd` payloads would give per-sample state a place to initialise and a monitor a place to file a final verdict on a trajectory it watched but never interrupted. Natural, and cheap now that adding a stage means adding a payload type rather than a method to a base class — but it starts to overlap `Hooks`, and neither travels to a proxy.
 11.  **Can a monitor produce a `Score`?** Yes, without touching scoring: `as_scorer(as_scanner(monitor, unit="transcript"))` in `monitor-development.md`. The transcript-grain adapter reduces per-step reports to one value and Scout's existing `as_scorer` turns that into an Inspect scorer, with flagged steps as `scanner_references`.

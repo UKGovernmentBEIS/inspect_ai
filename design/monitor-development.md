@@ -35,7 +35,7 @@ scan(
 )
 ```
 
-Protocols are monitors, so `as_scanner(trusted_monitoring(...))` back-tests a whole configuration the same way, and the recorded per-layer reports go along with it.
+Protocols are monitors, so `as_scanner(threshold(...))` back-tests a whole configuration the same way, and the recorded per-layer reports go along with it.
 
 Three things fall out of this that the rest of the document works through:
 
@@ -232,7 +232,7 @@ A helper closes the loop:
 ``` python
 thresholds = calibrate(results, budget=0.01)          # percentile per dimension
 thresholds = calibrate(results, target_recall=0.95)   # from labels
-Task(monitor=trusted_monitoring(suspicion_monitor(), audit_threshold=thresholds["sabotage"]))
+Task(monitor=threshold(suspicion_monitor(), reject_at=thresholds["sabotage"]))
 ```
 
 It is ordinary pandas over a Scout results dataframe and lives in Scout. What matters more than the helper is that the *inputs* to it — recorded scores, including ones a protocol ignored — are produced by the runner as a matter of course, which is why `monitor.md` records them.

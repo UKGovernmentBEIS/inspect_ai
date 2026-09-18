@@ -78,7 +78,14 @@ The single most useful structural decision: define a monitor as pure logic plus 
 
 ``` python
 class Host(Protocol):
-    async def generate(self, prompt: str, *, model: str | None = None) -> str: ...
+    async def generate(
+        self,
+        input: str | list[ChatMessage],
+        *,
+        model: str | None = None,          # a model name or a model role; default role "monitor"
+        tools: list[ToolInfo] | None = None,
+        config: GenerateConfig | None = None,
+    ) -> ModelOutput: ...
     async def fetch(
         self,
         endpoint: str,                      # a NAME, not a URL — see below
@@ -103,6 +110,8 @@ class HostResponse(Protocol):
     @property
     def text(self) -> str: ...
 ```
+
+`generate` returns a `ModelOutput` rather than a string because the protocols that substitute an action (`defer_to_trusted`, `resample`) regenerate with the agent's tools and need the whole response; a text-prompt monitor reads `.completion`. Generating as the agent's own model is, in a proxy, a re-issued upstream request.
 
 The same surface whether the host is Envoy via proxy-wasm, a Go runtime, or ordinary Python in-process where these are normal implementations.
 

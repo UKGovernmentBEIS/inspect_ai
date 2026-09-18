@@ -107,45 +107,39 @@ A protocol is a monitor that takes other monitors as arguments, runs them, and t
 - **Control actions**: accept, audit, defer to a trusted model, trusted edit, resample. These are things a protocol does with a score, not values a monitor can return.
 - **Pipeline stages** such as paraphrasing agent output before monitors see it, or injecting honeypot inputs to catch a colluding monitor.
 
-Two built-in protocols cover most compositions:
+Built-in protocols cover the common compositions and the basic control moves:
 
-|   | `concurrent()` | `chain()` |
-|------------------------|------------------------|------------------------|
-| Runs | Every child, concurrently | Children in order, until one decides |
-| Decides | Strongest recommendation (`terminate` \> `reject` \> `modify` \> `continue`) | First non-`escalate` |
-| `escalate` | Does not count | Handed to the next link, so a human at the end sees who asked and why |
-| Use for | Independent guards that must all be satisfied | A cheap rule ahead of an expensive judge; a human at the end |
+| Protocol | Description |
+|------------------------|------------------------------------------------|
+| `concurrent()` | Runs every child concurrently; the strongest recommendation wins (`terminate` \> `reject` \> `modify` \> `continue`). What a bare list compiles to. Use for independent guards that must all be satisfied. |
+| `chain()` | Runs children in order until one decides; first non-`escalate` wins, and escalations are handed to the next link so a human at the end sees who asked and why. Use for a cheap rule ahead of an expensive judge. |
+| `observe()` | Records every report and acts on none. How a benign score distribution gets collected. |
+| `threshold()` | Acts on a score: `reject` above one constant, `terminate` above another. The smallest protocol, and the one calibration feeds. |
+| `defer_to_trusted()` | Above a threshold, substitutes a trusted model's action for the untrusted one's. Defaults to the `trusted` model role. |
+| `resample()` | Above a threshold, draws further completions, scores each, and executes the least suspicious; escalates if none clears. |
 
 ### Writing a Protocol
 
 A protocol's body is ordinary code around `run_monitors()`, which runs the children concurrently, records their reports, and returns them split into observations and recommendations. Thresholds, budget arithmetic, and aggregation are up to the protocol.
 
-For example, trusted monitoring: a trusted model scores each step; above a deferral threshold the untrusted model's action is replaced with the trusted model's; the most suspicious slice, up to the audit budget, is sent to human review:
+For example, `threshold`, the smallest shipped protocol: it reads its children's scores and acts above a constant. This is the full implementation:
 
 ``` python
 @protocol
-def trusted_monitoring(
+def threshold(
     monitors: Monitors,
-    audit_budget: float = 0.01,
-    defer_threshold: float = 0.8,
-    audit_threshold: float = 0.95,
+    reject_at: float,
+    terminate_at: float | None = None,
 ) -> ProtocolMonitor:
-    async def decide(context: Context, step: Step):
+    async def decide(context: Context, step: BeforeToolCall) -> Recommendation | None:
         reports = await run_monitors(monitors, context, step)
-        score = max_suspicion(reports.observations)
-        budget = context.store_as(AuditBudget)
-
-        if score >= audit_threshold and budget.take():
-            return Recommendation(
-                recommend="modify", 
-                audit=True,
-                modified=await trusted_action(context, step)
-            )
-        if score >= defer_threshold:
-            return Recommendation(
-                recommend="modify",
-                modified=await trusted_action(context, step)
-            )
+        score = reports.max_suspicion()
+        if score is None:
+            return None
+        if terminate_at is not None and score >= terminate_at:
+            return Recommendation(recommend="terminate", explanation=f"suspicion {score:.2f}")
+        if score >= reject_at:
+            return Recommendation(recommend="reject", explanation=f"suspicion {score:.2f}")
         return Recommendation.clear()
 
     return decide
