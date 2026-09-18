@@ -50,6 +50,8 @@ Both run before the tool call executes (the `step` they take is `BeforeToolCall`
 | `BeforeToolCall` | Before a tool call executes |
 | `AfterToolCall` | After a tool call executes, before the model sees the result |
 
+The monitor API will include a variety of view functions that help with presenting task context and agent actions to the monitor (e.g. like the `messages_as_str()` function in Inspect Scout).
+
 ### Actions
 
 A protocol's `Decision` carries one of the following actions:
@@ -113,12 +115,12 @@ class Context:
 A protocol decides what happens at a step. It may consult monitors, other protocols, or nothing at all: `no_curl` above is a protocol with no children. Protocols own:
 
 - **Thresholds**, calibrated against benign score distributions.
-- **The audit budget** for human review (e.g. Ctrl-Z spends 1% of actions per episode, allocated with exponential decay so early steps are scrutinized harder).
+- **Escalation** to more capable judges or humans for review.
 - **Aggregation** of reports from several monitors.
 - **Control actions**: accept, audit, defer to a trusted model, trusted edit, resample. These are things a protocol does with a score, not values a monitor can return.
 - **Pipeline stages** such as paraphrasing agent output before monitors see it, or injecting honeypot inputs to catch a colluding monitor.
 
-Built-in protocols cover the common compositions and the basic control moves:
+Built-in protocols cover the common compositions and basic control scenarios:
 
 | Protocol | Description |
 |------------------------|------------------------------------------------|
