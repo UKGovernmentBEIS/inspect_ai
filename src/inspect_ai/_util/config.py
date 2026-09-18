@@ -30,15 +30,9 @@ def parse_cli_args(
             if len(parts) > 1:
                 key = parts[0].replace("-", "_")
                 raw = "=".join(parts[1:])
-                try:
-                    value = yaml.safe_load(raw)
-                except Exception:
-                    value = raw
+                value = yaml.safe_load(raw)
                 if isinstance(value, str):
-                    try:
-                        node = yaml.compose(raw, Loader=yaml.SafeLoader)
-                    except Exception:
-                        node = None
+                    node = yaml.compose(raw, Loader=yaml.SafeLoader)
                     # Only plain unquoted scalars use the comma-separated list shorthand.
                     # Quoted YAML/JSON strings and block scalars preserve commas literally.
                     if isinstance(node, yaml.ScalarNode) and node.style is None:
