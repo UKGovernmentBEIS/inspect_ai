@@ -16,6 +16,7 @@ from __future__ import annotations
 import errno
 import hashlib
 import io
+import json
 import sqlite3
 import tarfile
 import tracemalloc
@@ -39,6 +40,7 @@ from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     _parse_blob_listing,
     _publish_into,
     _remove_files,
+    _validate_view,
     _verify_published,
 )
 
@@ -859,6 +861,116 @@ def test_parse_blob_listing_normalises_restic_output() -> None:
     ):
         with pytest.raises(EgressVerificationError, match="unexpected line"):
             _parse_blob_listing(bad + b"\n", label="t")
+
+
+async def test_validate_view_runs_at_most_two_restic_processes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Index views are listed one at a time beside the snapshot listing.
+
+    A transfer carrying many index files must not fan out one restic process
+    per index: the bound is two concurrent processes (one index worker, one
+    snapshot worker), whatever the file count. Each index still gets its own
+    coverage, and cancellation leaves no stub in flight.
+    """
+    import inspect_ai.util._checkpoint._sandbox_restic.egress as egress
+
+    dest = tmp_path / "sample" / "restic" / "sandboxes" / "default"
+    dest.mkdir(parents=True)
+    staging = tmp_path / "staging"
+    index_ids = [f"{i:02d}" * 32 for i in range(1, 6)]
+    snapshot_id = "ab" * 32
+    written = (
+        ["config", "keys/" + "cc" * 32]
+        + [f"index/{i}" for i in index_ids]
+        + [f"snapshots/{snapshot_id}"]
+    )
+    for rel in written:
+        (staging / rel).parent.mkdir(parents=True, exist_ok=True)
+        (staging / rel).write_bytes(b"x" * 40)
+    memo = _IndexMemo(_index_memo_path(str(dest)))
+
+    in_flight = 0
+    peak = 0
+    calls: list[str] = []
+    gate = anyio.Event()
+
+    async def fake_run(
+        host_restic: Path,
+        args: Sequence[str],
+        view: Path,
+        password: str,
+        *,
+        label: str,
+        what: str,
+        max_stdout_bytes: int | None = None,
+    ) -> bytes:
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        calls.append(args[0])
+        try:
+            await gate.wait()
+            if args[0] == "list":
+                return f"data {view.name.rsplit('-', 1)[1].ljust(64, '0')}\n".encode()
+            if args[0] == "cat":
+                return b'{"version": 2}'
+            return json.dumps([{"id": snapshot_id, "tags": ["ckpt-00001"]}]).encode()
+        finally:
+            in_flight -= 1
+
+    monkeypatch.setattr(egress, "_run_view_restic", fake_run)
+
+    async def validate(view: Path) -> egress._Validated:
+        return await _validate_view(
+            Path("/usr/bin/false"),
+            view,
+            "pw",
+            dest_repo=str(dest),
+            staging=staging,
+            existing=[],
+            written=written,
+            memo=memo,
+            before_snapshots=set(),
+            snapshot_id=snapshot_id,
+            tag="ckpt-00001",
+            label="t",
+        )
+
+    async def settled(count: int) -> None:
+        with anyio.fail_after(10):
+            while in_flight != count or not gate.is_set() and len(calls) < count:
+                await anyio.sleep(0.01)
+
+    results: list[egress._Validated] = []
+    async with anyio.create_task_group() as tg:
+
+        async def run() -> None:
+            results.append(await validate(tmp_path / "view"))
+
+        tg.start_soon(run)
+        await settled(2)
+        assert in_flight == 2 and sorted(calls) == ["cat", "list"]
+        gate.set()
+    assert peak == 2 and in_flight == 0
+    # One list per index, one cat config, one snapshots listing: no more.
+    assert sorted(calls) == ["cat"] + ["list"] * 5 + ["snapshots"]
+    (validated,) = results
+    assert set(validated.coverage) == set(index_ids)
+    for index_id, blobs in validated.coverage.items():
+        assert blobs == {"data:" + index_id[:16].ljust(64, "0")}
+    assert validated.verified_id == snapshot_id
+
+    # Cancellation mid-flight: the stubs exit and nothing keeps running.
+    gate = anyio.Event()
+    calls.clear()
+    peak = 0
+    with anyio.CancelScope() as scope:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(validate, tmp_path / "view-again")
+            await settled(2)
+            scope.cancel()
+    assert in_flight == 0 and peak == 2
 
 
 def test_index_memo_path_is_outside_the_sandbox_namespace(tmp_path: Path) -> None:

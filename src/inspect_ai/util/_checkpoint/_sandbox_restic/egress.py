@@ -51,7 +51,11 @@ Host protections:
   index file: an index restic cannot decode fails the command, and the
   command prints the blob ids the index maps), and none of those blob ids
   may be one an accepted index already locates
-  (:func:`_check_index_containment`). On a second view — config, keys,
+  (:func:`_check_index_containment`). ``list blobs`` decodes indexes the
+  way every reader does but skips the one extra check
+  ``Repository.LoadIndex`` makes, which applies only to version-1
+  repositories, so the first cycle's ``config`` must declare repository
+  version 2 (``restic cat config`` on the view, once per sandbox). On a second view — config, keys,
   every accepted snapshot file and the new ones — ``restic snapshots
   --json`` must list, beyond the snapshots present before, exactly the
   shipped snapshot files, the reported one with this checkpoint's tag
@@ -59,9 +63,10 @@ Host protections:
   loads but cannot encode, fails here. New key files are refused after the
   first cycle. A transfer that fails is rejected on the copies, so the
   accepted repo is never touched by a transfer that would break it; the
-  cost is two restic processes per fire (one per new index file plus the
-  listing; a fire normally writes one index), run concurrently, and work
-  proportional to the increment, nothing proportional to history. Only
+  cost is two restic processes per fire (one per new index file, run one
+  at a time, beside the listing; a fire normally writes one index; the
+  first cycle adds one ``cat config``), never more than two at once, and
+  work proportional to the increment, nothing proportional to history. Only
   then are the additions linked in — packs, then indexes, then snapshots —
   so even a hard kill mid-merge leaves every earlier checkpoint
   restorable. Nothing here reads the new packs or decodes the new
@@ -149,7 +154,7 @@ import sqlite3
 import stat
 import subprocess
 import tarfile
-from collections.abc import Awaitable, Callable, Collection, Iterator, Mapping, Sequence
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from functools import partial
 from itertools import islice
@@ -216,6 +221,15 @@ _MAX_LISTING_JSON_BYTES = 64 * 1024 * 1024
 The listing is O(accepted snapshots) of about 1 KiB each for honest
 snapshots; a sandbox-supplied snapshot can pad its paths and tags, and one
 that pushes the listing past this is a rejected transfer."""
+_REQUIRED_REPO_VERSION = 2
+"""The restic repository format the accepted repo must have, checked once,
+when the first cycle ships ``config`` (``restic cat config`` on the view).
+Both the in-sandbox and the host ``restic init`` use restic's default, which
+is 2, so this refuses nothing honest. It is what makes ``list blobs`` a
+complete loadability check: ``Repository.LoadIndex`` adds to the decode path
+``list blobs`` shares exactly one check, refusing compressed blob entries in
+a version-1 repository, and a version-1 repo could be shipped only by the
+sandbox itself."""
 _BLOB_LINE_RE = re.compile(r"(data|tree) ([0-9a-fA-F]{64})")
 """One line of ``restic list blobs``: ``<type> <id>`` as ``cmd/restic/cmd_list.go``
 prints it (``Printf("%v %v\\n", blobs.Type, blobs.ID)``)."""
@@ -1431,17 +1445,23 @@ async def _list_index_blobs(
     """The ``type:id`` blobs the index file(s) in ``view`` locate, by restic's own decoder.
 
     ``restic list blobs`` (``cmd/restic/cmd_list.go``, v0.18.1) calls
-    ``repo.LoadIndex`` — ``MasterIndex.Load`` in
-    ``internal/repository/index/master_index.go``, which returns the first
-    ``DecodeIndex`` error from ``internal/repository/index/index.go`` — and
-    then prints ``<type> <id>`` for every entry of every loaded index
-    (``MasterIndex.Each``). So an index restic cannot decode fails the
-    command (the demonstrated poisoning: an undecryptable file; also a
-    malformed one, which would otherwise block *every* restore), an index
-    whose offset or length exceeds ``math.MaxUint32`` panics *this* process
-    (``Index.store``) instead of a later restore's, and what comes back for
-    a view holding one new index file is exactly the set of blob ids that
-    index maps, produced by the authority itself. The host normalises rather
+    ``index.ForAllIndexes`` (``internal/repository/index/index_parallel.go``),
+    which decrypts each index file and runs ``DecodeIndex``
+    (``internal/repository/index/index.go``) on it, returning the first
+    error, and prints ``<type> <id>`` for every entry (``Index.Each``). That
+    is the same decode every reader uses — ``MasterIndex.Load`` calls
+    ``ForAllIndexes`` too — but ``list`` does not go through
+    ``Repository.LoadIndex`` (``internal/repository/repository.go``), which
+    adds exactly one check on top: a version-1 repository may hold no
+    compressed blob entry. So a version-2 repository is required at the
+    first cycle (:func:`_check_repository_version`), and with that an index
+    restic cannot decode fails the command (the demonstrated poisoning: an
+    undecryptable file; also a malformed one, which would otherwise block
+    *every* restore), an index whose offset or length exceeds
+    ``math.MaxUint32`` panics *this* process (``Index.store``) instead of a
+    later restore's, and what comes back for a view holding one new index
+    file is exactly the set of blob ids that index maps, produced by the
+    authority itself. The host normalises rather
     than validates: restic has already accepted the file, so a line is
     split, its hex lowercased (restic prints lowercase; the id it parsed may
     have been spelled either way), and a blob two index files both map is
@@ -1478,6 +1498,43 @@ def _parse_blob_listing(raw: bytes, *, label: str) -> set[str]:
             )
         blobs.add(f"{match.group(1)}:{match.group(2).lower()}")
     return blobs
+
+
+async def _check_repository_version(
+    host_restic: Path, view: Path, password: str, *, label: str
+) -> None:
+    """Require the shipped ``config`` to declare repository version 2.
+
+    ``restic cat config`` on the view prints the decrypted config JSON. A
+    version-1 repository (uncompressed format, creatable only with
+    ``init --repository-version 1``, which neither the sandbox nor the host
+    tooling passes) would let a later index carry compressed blob entries
+    that ``list blobs`` accepts and ``Repository.LoadIndex`` refuses,
+    blocking every restore — the one loadability check ``list blobs`` does
+    not make. Run once, when the first cycle ships ``config``.
+    """
+    raw = await _run_view_restic(
+        host_restic,
+        ["cat", "config"],
+        view,
+        password,
+        label=label,
+        what="reading config",
+        max_stdout_bytes=_MAX_VIEW_STDERR_BYTES,
+    )
+    try:
+        version = json.loads(raw)["version"]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise EgressVerificationError(
+            f"{label}: the received repository files failed validation "
+            f"(config is not a restic config: {exc})"
+        ) from exc
+    if version != _REQUIRED_REPO_VERSION:
+        raise EgressVerificationError(
+            f"{label}: the received repository files failed validation "
+            f"(repository version {version!r}; version {_REQUIRED_REPO_VERSION} "
+            f"is required, which restic init creates by default)"
+        )
 
 
 async def _reconcile_index_memo(
@@ -1591,9 +1648,8 @@ async def _validate_view(
     one of its blobs — which only index files do (and key files, which decide
     whether the repo opens at all; those are refused after the first cycle by
     :func:`_extract_verified`). Two kinds of view, all small, hard-linked (or
-    copied where links are unsupported), and every restic process on them
-    runs concurrently, since they are independent (the wall-time floor is one
-    key derivation):
+    copied where links are unsupported), listed by two concurrent workers
+    (the wall-time floor is one key derivation):
 
     1. Per new index file, a view of config, keys and that file, on which
        ``restic list blobs`` (:func:`_list_index_blobs`) makes restic's own
@@ -1608,7 +1664,14 @@ async def _validate_view(
        ones, on which ``restic snapshots --json``
        (:func:`_verify_fresh_snapshot`) must list exactly the shipped
        snapshot files beyond those present before, the reported one with
-       this checkpoint's tag.
+       this checkpoint's tag; on the first cycle, ``restic cat config``
+       there first requires repository version 2
+       (:func:`_check_repository_version`).
+
+    The index views are listed one at a time, in one worker running beside
+    the snapshot worker, so however many index files a transfer carries, at
+    most two restic processes run at once (an unbounded fan-out would hand a
+    sandbox that ships many index files one process per file).
 
     The new packs are not read: with containment holding, every earlier
     snapshot's blobs stay located where their own accepted indexes put them,
@@ -1644,15 +1707,15 @@ async def _validate_view(
     coverage: dict[str, set[str]] = {}
     verified: list[str] = []
 
-    def list_index(index_id: str) -> Callable[[], Awaitable[None]]:
-        async def run() -> None:
+    async def list_indexes() -> None:
+        for index_id, index_view in index_views.items():
             coverage[index_id] = await _list_index_blobs(
-                host_restic, index_views[index_id], password, label=label
+                host_restic, index_view, password, label=label
             )
 
-        return run
-
     async def list_view_snapshots() -> None:
+        if "config" in written:
+            await _check_repository_version(host_restic, view, password, label=label)
         verified.append(
             await _verify_fresh_snapshot(
                 host_restic,
@@ -1666,9 +1729,7 @@ async def _validate_view(
             )
         )
 
-    await tg_collect(
-        [list_index(index_id) for index_id in index_views] + [list_view_snapshots]
-    )
+    await tg_collect([list_indexes, list_view_snapshots])
     (verified_id,) = verified
     referenced_blobs = {blob for blobs in coverage.values() for blob in blobs}
     _check_index_containment(

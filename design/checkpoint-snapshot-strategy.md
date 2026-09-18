@@ -463,16 +463,29 @@ with the rule (`test_egress_accepts_index_referencing_missing_pack`: the
 earlier checkpoint restores, the new one fails at restore time).
 
 *restic is the decoder.* `list blobs` (`cmd/restic/cmd_list.go`, v0.18.1)
-calls `repo.LoadIndex` — `MasterIndex.Load` in
-`internal/repository/index/master_index.go`, which returns the first
-`DecodeIndex` error from `internal/repository/index/index.go` — and then
-prints `<type> <id>` for every entry of every loaded index
-(`MasterIndex.Each`). So an index restic cannot decode fails the command
-before publish (an undecryptable file; a malformed one, which would
-otherwise abort index loading for the whole repository and block *every*
-restore), an index whose offset or length exceeds `math.MaxUint32` panics
-*this* process (`Index.store`, exit 2) instead of a later restore's, and the
-blob ids come from the authority itself. Verified against restic 0.18.1:
+calls `index.ForAllIndexes` (`internal/repository/index/index_parallel.go`),
+which decrypts each index file and runs `DecodeIndex`
+(`internal/repository/index/index.go`) on it, returning the first error,
+and prints `<type> <id>` for every entry (`Index.Each`). That is the decode
+every reader uses — `MasterIndex.Load` calls `ForAllIndexes` too — but
+`list` does not go through `Repository.LoadIndex`
+(`internal/repository/repository.go`), which adds exactly one check on top
+of the load: a version-1 repository may hold no compressed blob entry
+("index uses feature not supported by repository version 1"). Review round
+10 showed the gap: in a version-1 repo an index with `uncompressed_length`
+entries passes `list blobs` and blocks every restore. So the first cycle's
+`config` must declare repository version 2 (`restic cat config` on the
+view, one process, once per sandbox, `_check_repository_version`); both the
+sandbox and the host `restic init` use restic's default, which is 2, so
+this refuses nothing honest, and a version-1 repo could only be shipped by
+the sandbox itself (`test_egress_refuses_a_version_1_repository`, which
+also demonstrates the gap on a version-1 repo against 0.18.1). With that,
+an index restic cannot decode fails the command before publish (an
+undecryptable file; a malformed one, which would otherwise abort index
+loading for the whole repository and block *every* restore), an index
+whose offset or length exceeds `math.MaxUint32` panics *this* process
+(`Index.store`, exit 2) instead of a later restore's, and the blob ids come
+from the authority itself. Verified against restic 0.18.1:
 the output is one lowercase `<type> <id>` line per entry, a blob two index
 files both map prints twice (the host dedupes), `list` accepts
 `--no-lock`/`--no-cache`, an undecodable index exits 1, the oversize offset
@@ -497,8 +510,11 @@ accepted repo holds or will hold; copies where links are unsupported) — and
 concurrently, since they are independent, so the wall-time floor is one key
 derivation. One view per new index rather than one for all, because `list
 blobs` prints the union and the memo records blobs per index so that a
-dropped index file releases exactly its own; a fire normally writes one
-index, so normally two processes.
+dropped index file releases exactly its own; the index views are listed one
+at a time in one worker beside the snapshot worker, so however many index
+files a transfer carries, at most two restic processes run at once (a fire
+normally writes one index; the first cycle adds one `cat config` in the
+snapshot worker).
 
 1. `restic list blobs --no-lock --no-cache`, one per new index file, before
    publish. Kept: restic's own index decoder is the authority on whether the
@@ -622,10 +638,11 @@ blobs` costs the same as the `cat index` it replaced).
 
 *Guarantee, restated.* A later transfer cannot make an earlier committed
 snapshot unrestorable or alter its restored contents because: earlier files
-are never overwritten; every new index file is one restic's own decoder
-loads; no blob an accepted index locates is located by a new index; every
-new snapshot file was listed by restic before it was published; and no new
-key file is accepted after the first cycle.
+are never overwritten; the repository is version 2, so restic's index
+decoder is its whole index-loading check; every new index file is one that
+decoder loads; no blob an accepted index locates is located by a new index;
+every new snapshot file was listed by restic before it was published; and
+no new key file is accepted after the first cycle.
 
 *What is given up relative to the earlier designs — decisions (Ransom,
 2026-09-18), not open questions.*
@@ -640,6 +657,9 @@ key file is accepted after the first cycle.
   (`test_egress_accepts_garbage_pack_under_a_new_blob_id`,
   `test_egress_accepts_understated_length_on_new_blobs`; aimed at an
   accepted blob the same shapes are rejected by containment).
+- Repository version 1 is refused at the first cycle (implementer, review
+  round 10): nothing honest creates it, and accepting it would need a
+  per-fire process that goes through `Repository.LoadIndex`.
 - Unloadable snapshot residue (a file restic skips) is retained as
   harmless. (The earlier "a restic upgrade that adds an index field fails
   honest transfers closed until the strict parser is updated" went with the

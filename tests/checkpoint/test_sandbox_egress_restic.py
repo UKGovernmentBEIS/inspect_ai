@@ -288,7 +288,13 @@ class _Repos:
     ``tmp_path`` model two sandboxes of one sample.
     """
 
-    def __init__(self, tmp_path: Path, restic: Path, name: str = "default") -> None:
+    def __init__(
+        self,
+        tmp_path: Path,
+        restic: Path,
+        name: str = "default",
+        repo_version: int = 2,
+    ) -> None:
         self.restic = restic
         root = tmp_path / name
         root.mkdir()
@@ -303,7 +309,7 @@ class _Repos:
         (self.src / "notes.txt").write_text("v1\n")
         self.dest = tmp_path / "sample" / "restic" / "sandboxes" / name
         self.env = LocalShellSandbox()
-        self._run("init", "-q")
+        self._run("init", "-q", "--repository-version", str(repo_version))
 
     def _run(self, *args: str) -> str:
         proc = subprocess.run(
@@ -968,6 +974,77 @@ async def test_unloadable_snapshot_file_in_accepted_repo_is_inert(
     assert await repos.egress("ckpt-00002", id2) == id2
     assert await repos.dest_snapshots() == {id1: ["ckpt-00001"], id2: ["ckpt-00002"]}
     assert inert.is_file()
+
+
+async def test_egress_refuses_a_version_1_repository(tmp_path: Path) -> None:
+    """The first cycle must ship a version-2 repository config.
+
+    ``list blobs`` decodes indexes exactly as every reader does but skips
+    the one extra check ``Repository.LoadIndex`` makes: a version-1
+    repository may hold no compressed blob entry. Verified here against
+    restic 0.18.1 on a version-1 repo: an index with compression metadata
+    passes ``list blobs`` yet makes ``restore`` of the earlier snapshot exit
+    1 with "index uses feature not supported by repository version 1". Our
+    own ``init`` never creates version 1, so refusing it at the first cycle
+    (``cat config`` on the view, one process, once) refuses nothing honest
+    and lets ``list blobs`` stand for restic's full index loading.
+    """
+    pytest.importorskip("cryptography")
+    restic = await resolve_restic()
+    repos = _Repos(tmp_path, restic, repo_version=1)
+    id1 = repos.backup("ckpt-00001")
+    env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
+    base = [str(restic), "-r", str(repos.repo)]
+    config = json.loads(
+        subprocess.run(
+            [*base, "cat", "config", "--no-lock"],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+    assert config["version"] == 1
+
+    # The gap the check closes, shown on the sandbox repo itself.
+    crypto = _ResticCrypto(repos.repo)
+    crypto.write_index(
+        {
+            "packs": [
+                {
+                    "id": "e" * 64,
+                    "blobs": [
+                        {
+                            "id": "f" * 64,
+                            "type": "data",
+                            "offset": 0,
+                            "length": 100,
+                            "uncompressed_length": 300,
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+    listed = subprocess.run(
+        [*base, "list", "blobs", "--no-lock", "--no-cache"],
+        env=env,
+        capture_output=True,
+    )
+    assert listed.returncode == 0
+    restore = subprocess.run(
+        [*base, "restore", id1, "--target", str(tmp_path / "out"), "--no-lock"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert restore.returncode != 0
+    assert "not supported by repository version 1" in restore.stderr
+
+    with pytest.raises(EgressVerificationError, match="repository version 1"):
+        await repos.egress("ckpt-00001", id1)
+    assert repos.dest_files() == set()
+    assert not list(repos.dest.parent.glob(".egress-*"))
 
 
 async def test_list_blobs_reports_a_restic_produced_index(repos: _Repos) -> None:
