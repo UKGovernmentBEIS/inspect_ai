@@ -5,32 +5,43 @@
 Inspect Monitors is a package for defining, developing, and deploying monitors: functions that watch agents and intervene in their execution. Key design elements include:
 
 1.  A single interface that encompasses monitoring tool calls and model generations, with execution either before or after steps.
-2.  Monitors report either a suspicion score (for a protocol to threshold and act on) or a direct action similar to the current Inspect tool call approval interface (e.g. continue, modify, reject, escalate, terminate).
+2.  A division between monitors, which observe and report a suspicion score, and protocols, which decide on an action similar to the current Inspect tool call approval interface (e.g. continue, modify, reject, escalate, terminate). A protocol with no monitors is a simple rule.
 3.  Support for layering control protocols (thresholds, audit budgets, resampling, defer to trusted, human review, etc.) on top of monitors.
 4.  Core interfaces decoupled from the Inspect runtime so that monitors can be deployed elsewhere (e.g. in network proxies).
 5.  Development tools for validating, calibrating, and backtesting monitors on test or production transcripts.
 
 The purpose of this document is to solicit feedback on the core concepts and Python API used to implement monitors and protocols.
 
-## Monitor Interface
+## Monitors and Protocols
 
-Monitor is a new registerable type that returns a monitor function. For example, here is a monitor that prohibits the use of `curl` in any tool call:
+There are two registerable types. A **monitor** observes: it returns an `Observation` (a suspicion score) or nothing, and can never act. A **protocol** decides: it returns a `Decision` (an action), optionally after consulting monitors. The simplest protocol is a rule with no monitors. For example, here is a rule that prohibits the use of `curl` in any tool call:
+
+``` python
+@protocol
+def no_curl() -> ControlProtocol:
+    async def decide(context: Context, step: BeforeToolCall):
+        if "curl" in str(step.call.arguments):
+            return Decision.reject("network access is not allowed")
+        return None
+
+    return decide
+```
+
+And here is a monitor that scores each tool call, wrapped in the `threshold()` protocol that decides what the score means:
 
 ``` python
 @monitor
-def no_curl() -> Monitor:
+def suspicion_monitor(model: str | None = None) -> Monitor:
     async def check(context: Context, step: BeforeToolCall):
-        if "curl" in str(step.call.arguments):
-            return Recommendation(
-                recommend="reject", 
-                explanation="network access is not allowed"
-            )
-        return None
+        ...
+        return Observation.score(score, explanation)
 
     return check
+
+Task(monitor=threshold(suspicion_monitor(), reject_at=0.8))
 ```
 
-Note that this monitor runs before the tool call executes (the `step` it takes is `BeforeToolCall`). There are four different steps that a monitor could choose to target:
+Both run before the tool call executes (the `step` they take is `BeforeToolCall`). There are four different steps that a monitor or protocol could choose to target:
 
 | Step | Fires |
 |------------------------------------|------------------------------------|
@@ -41,7 +52,7 @@ Note that this monitor runs before the tool call executes (the `step` it takes i
 
 ### Actions
 
-Each of the steps can specify various actions:
+A protocol's `Decision` carries one of the following actions:
 
 | Action      | Effect                                                       |
 |------------------------------------|------------------------------------|
@@ -51,11 +62,11 @@ Each of the steps can specify various actions:
 | `terminate` | End the sample                                               |
 | `escalate`  | Pass the decision to the next decider                        |
 
-Monitors can be fully self contained (process and make a `Recommendation`) or they can merely scan and record an `Observation` to be acted on by a parent monitor (see [Protocols](#protocols) below).
+A monitor never returns an action. It records an `Observation` for a protocol to act on (see [Protocols](#protocols) below), which keeps every threshold in the protocol where it can be calibrated, and makes every monitor dry-runnable and backtestable before anything acts on it.
 
 ### Context
 
-In addition to the data associated with a tool call or generation, Monitors are passed a `Context` that includes task and sample information, a place to store state, and an interface to the monitor host (which could either be Inspect AI or a proxy server):
+In addition to the data associated with a tool call or generation, monitors and protocols are passed a `Context` that includes task and sample information, a place to store state, and an interface to the monitor host (which could either be Inspect AI or a proxy server):
 
 ``` python
 @dataclass(frozen=True)
@@ -99,7 +110,7 @@ class Context:
 
 ## Protocols {#protocols}
 
-A protocol is a monitor that takes other monitors as arguments, runs them, and turns their reports into a single `Recommendation`. Protocols own:
+A protocol decides what happens at a step. It may consult monitors, other protocols, or nothing at all: `no_curl` above is a protocol with no children. Protocols own:
 
 - **Thresholds**, calibrated against benign score distributions.
 - **The audit budget** for human review (e.g. Ctrl-Z spends 1% of actions per episode, allocated with exponential decay so early steps are scrutinized harder).
@@ -111,16 +122,16 @@ Built-in protocols cover the common compositions and the basic control moves:
 
 | Protocol | Description |
 |------------------------|------------------------------------------------|
-| `concurrent()` | Runs every child concurrently; the strongest recommendation wins (`terminate` \> `reject` \> `modify` \> `continue`). What a bare list compiles to. Use for independent guards that must all be satisfied. |
+| `concurrent()` | Runs every child concurrently; the strongest decision wins (`terminate` \> `reject` \> `modify` \> `continue`). What a list containing a protocol compiles to. Use for independent guards that must all be satisfied. |
 | `chain()` | Runs children in order until one decides; first non-`escalate` wins, and escalations are handed to the next link so a human at the end sees who asked and why. Use for a cheap rule ahead of an expensive judge. |
-| `observe()` | Records every report and acts on none. How a benign score distribution gets collected. |
+| `observe()` | Records every observation and acts on none. What a bare monitor compiles to, and how a benign score distribution gets collected. |
 | `threshold()` | Acts on a score: `reject` above one constant, `terminate` above another. The smallest protocol, and the one calibration feeds. |
 | `defer_to_trusted()` | Above a threshold, substitutes a trusted model's action for the untrusted one's. Defaults to the `trusted` model role. |
 | `resample()` | Above a threshold, draws further completions, scores each, and executes the least suspicious; escalates if none clears. |
 
 ### Writing a Protocol
 
-A protocol's body is ordinary code around `run_monitors()`, which runs the children concurrently, records their reports, and returns them split into observations and recommendations. Thresholds, budget arithmetic, and aggregation are up to the protocol.
+A protocol's body is ordinary code around the runner (`run_monitors()`, `run_protocols()`, `run_children()`), which runs the children concurrently and records their reports. Thresholds, budget arithmetic, and aggregation are up to the protocol.
 
 For example, `threshold`, the smallest shipped protocol: it reads its children's scores and acts above a constant. This is the full implementation:
 
@@ -130,17 +141,17 @@ def threshold(
     monitors: Monitors,
     reject_at: float,
     terminate_at: float | None = None,
-) -> ProtocolMonitor:
-    async def decide(context: Context, step: BeforeToolCall) -> Recommendation | None:
-        reports = await run_monitors(monitors, context, step)
-        score = reports.max_suspicion()
+) -> ControlProtocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        observations = await run_monitors(monitors, context, step)
+        score = observations.max_suspicion()
         if score is None:
             return None
         if terminate_at is not None and score >= terminate_at:
-            return Recommendation(recommend="terminate", explanation=f"suspicion {score:.2f}")
+            return Decision.terminate(f"suspicion {score:.2f}")
         if score >= reject_at:
-            return Recommendation(recommend="reject", explanation=f"suspicion {score:.2f}")
-        return Recommendation.clear()
+            return Decision.reject(f"suspicion {score:.2f}")
+        return Decision.clear()
 
     return decide
 ```

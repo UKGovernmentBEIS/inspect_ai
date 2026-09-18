@@ -1,6 +1,6 @@
 # Running monitors outside the eval process
 
-Companion to `monitor.md`, which defines the `Monitor` protocol and the protocol layer above it. This document covers deploying one where there is no eval: inside a proxy on the wire in front of a model API.
+Companion to `monitor.md`, which defines monitors (which observe) and protocols (which decide). This document covers deploying one where there is no eval: inside a proxy on the wire in front of a model API.
 
 Status: measured where marked, reasoned elsewhere.
 
@@ -171,7 +171,7 @@ It could be — `fetch("model", ...)` — but keeping it distinct is better. Mod
 
 `monitor.md` splits the monitor (observes, reports) from the protocol (authorizes, acts). That split survives the trip, and it is mostly good news here: the leaf monitor stays a pure function of one exchange, while everything stateful — thresholds, budget, aggregation — belongs to the protocol, which is also the thing that owns the keyed store described above.
 
-Note that the split is a layering of *roles*, not of types: a protocol is a monitor that takes monitors, marked `@protocol` but registered as one. That matters here in one specific way. The portability verdict is per function, and a protocol is a function, so the composition is exactly as portable as its least portable member — a leaf monitor calling `get_model()` disqualifies the protocol that wraps it, and a protocol reaching for task-scoped state disqualifies itself while leaving its leaves deployable. Both directions are visible to the same static check, which would not have been true had protocols been a separate kind of object with their own affordances.
+The split is one of types, `@monitor` and `@protocol`, but both are plain functions of `(context, step)`, and that matters here in one specific way. The portability verdict is per function, so a composition is exactly as portable as its least portable member — a leaf monitor calling `get_model()` disqualifies the protocol that wraps it, and a protocol reaching for task-scoped state disqualifies itself while leaving its leaves deployable. Both directions are visible to the same static check, which would not have been true had protocols been a separate kind of object with their own affordances.
 
 The two shipped compositions cross intact. `concurrent()` and `chain()` are ordinary code over the runner, and a chain's hand-off travels as data — `step.escalations` is a field on the payload, not a reference to a `ToolCallView` — so an ordered chain deserializes and runs in a proxy exactly as in-process. What changes is the last link: a `human()` in a proxy is an audit queue rather than a blocking prompt, which is the `audit`-travels-cleanly point below applied to a chain, and it means a proxy chain ending in a person degrades to "record, request review, and apply the chain's default" rather than waiting.
 
@@ -179,7 +179,7 @@ Three notes:
 
 - **`audit` travels most cleanly of all.** Routing a suspicious exchange to a human review queue is an ordinary thing for a proxy to do, and arguably more natural in production than in an eval. Unlike `terminate`, which crosses as a best-effort effect, an audit request is fully honoured on the proxy side — because auditing is a flag on a report rather than an action on the exchange.
 - **Budget allocation needs an episode.** Ctrl-Z spends 1% of actions per episode with exponential decay. A proxy has no episode boundary, only a conversation, so the budget becomes per-conversation (keyed as above) or a rate over time. That is a protocol design choice, not a framework one.
-- **Observe-only is the right proxy default for scores**, for the same reason it is in an eval, and more so: a threshold nobody calibrated, acting on the network boundary, can break production traffic. The asymmetry `monitor.md` draws between declared and inferred actions holds here too — a deterministic rule deployed to refuse a call is doing what a proxy filter has always done, and does not need a protocol to authorise it.
+- **Observe-only is the right proxy default for scores**, for the same reason it is in an eval, and more so: a threshold nobody calibrated, acting on the network boundary, can break production traffic. The asymmetry `monitor.md` draws between rules and monitors holds here too — a rule deployed to refuse a call is doing what a proxy filter has always done, and needs no threshold; a monitor's score needs one, and a proxy is the last place to guess it.
 
 ## State
 
@@ -304,7 +304,7 @@ Two residual costs:
 
 Portability is two axes, and conflating them loses information:
 
-- **Affordance portability is per function** — which `context` members it touches, whether it recommends `terminate`.
+- **Affordance portability is per function** — which `context` members it touches, whether it decides `terminate`.
 - **Bundle portability is per module** — the import closure. One `import requests` at the top of a file disqualifies every monitor in it, whatever the functions themselves do.
 
 The class design could not express the first cleanly (a class with one portable method and one unportable one is an all-or-nothing verdict) and obscured the second. Annotated functions in modules give both.

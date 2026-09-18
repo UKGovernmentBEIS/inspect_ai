@@ -35,7 +35,7 @@ scan(
 )
 ```
 
-Protocols are monitors, so `as_scanner(threshold(...))` back-tests a whole configuration the same way, and the recorded per-layer reports go along with it.
+`as_scanner()` accepts a protocol too, so `as_scanner(threshold(...))` back-tests a whole configuration the same way, and the recorded per-layer reports go along with it.
 
 Three things fall out of this that the rest of the document works through:
 
@@ -113,7 +113,7 @@ An eval log's events restore what messages lose. `ModelEvent` carries `input`, `
 Replay reproduces the monitor's *reports*, not its *effects*. A `reject` in replay does not change the transcript; the agent already did what it did. This is the right limitation for measuring a classifier — precision and recall are about reports — but it means two things cannot be back-tested offline:
 
 - **Interventions.** Whether rejecting call 7 would have led the agent somewhere better is a question for a live eval, not a replay.
-- **Humans.** `human()` cannot be replayed. The useful substitute is to *replay the recorded human decision* when the transcript carries a `MonitorEvent` for that step with `authoritative=True`, so a chain can be back-tested against the answers a person actually gave; otherwise `human()` abstains in replay.
+- **Humans.** `human()`, a protocol with no children, cannot be replayed. The useful substitute is to *replay the recorded human decision* when the transcript carries a `MonitorEvent` for that step with `authoritative=True`, so a chain can be back-tested against the answers a person actually gave; otherwise `human()` abstains in replay.
 
 ## Step ids
 
@@ -156,7 +156,7 @@ as_scanner(monitor, unit="step")        # one Result per step; subject = step id
 as_scanner(monitor, unit="transcript")  # one Result; transcript id, as today
 ```
 
-State stays where `monitor.md` already puts it; Scout's parallelism across transcripts is untouched; and the transcript-grain form is the same adapter reducing to one result by max suspicion or strongest recommendation, with `references` to the flagged steps.
+State stays where `monitor.md` already puts it; Scout's parallelism across transcripts is untouched; and the transcript-grain form is the same adapter reducing to one result by max suspicion or strongest decision, with `references` to the flagged steps.
 
 ### What Scout changes
 
@@ -183,7 +183,7 @@ What `input` holds on an expanded row is a recorder decision rather than a desig
 | Report | `value` | `answer` | `metadata` | `label` | `subject` |
 |------------------------|------------------------|------------------------|------------------------|------------------------|------------------------|
 | `Observation` | `suspicion` — float or dict | — | monitor metadata | instance path | step id |
-| `Recommendation` | flagged: `recommend` in `reject`, `modify`, `terminate` | `recommend` | `audit`, `authoritative`, `modified`, child reports | instance path | step id |
+| `Decision` | flagged: `action` in `reject`, `modify`, `terminate` | `action` | `audit`, `authoritative`, `modified`, child reports | instance path | step id |
 | abstained | `None` | `None` | — | instance path | step id |
 
 Three things the table encodes:
@@ -269,7 +269,7 @@ Monitor inference in replay is charged to the scan, never to anything resembling
 
 1. **Does `subject` belong on `Result` or on `ResultReport`?** The result is what a scanner author constructs, so it is the natural home; but expansion is a recorder concern, and a subject the recorder then copies into `input_ids` is a small duplication. Result, unless the recorder has a reason.
 2. **What does an expanded row's `input` hold?** Parent transcript id plus subject is the proposal; whether the view needs the step's messages materialised for rendering is a viewer question.
-3. **Should `unit="transcript"` reduce by max or by strongest?** Max suspicion for observations and strongest recommendation are the obvious defaults and match `monitor.md`'s composition rules; a protocol may want the outermost layer's decision instead, which the adapter can take from its own report.
+3. **Should `unit="transcript"` reduce by max or by strongest?** Max suspicion for observations and strongest decision are the obvious defaults and match `monitor.md`'s composition rules; a protocol may want the outermost layer's decision instead, which the adapter can take from its own report.
 4. **Replaying a bridged agent's log.** A `claude_code` or `codex` transcript has no `ToolEvent`s of Inspect's own, so replay is messages-only even from an eval log. That is fine — it is the deployment those monitors face anyway — but the fidelity table should say so.
 5. **Does replay honour `portable=True`?** Running a portable monitor through the same restricted `Host` the proxy would use is the enforcement `monitor-deployment.md` argues for, and replay is the cheapest place to do it. Probably yes, as an option on `as_scanner()`.
 6. **Step-level labelling in the transcript view.** Results rows suffice for a first version; a "this tool call was bad" gesture on the transcript itself is the natural way to build step sets and needs Scout View work.
